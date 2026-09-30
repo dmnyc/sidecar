@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidecar New Themes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Bangers&family=Archivo:wdth,wght@62..125,500..900&family=Press+Start+2P&family=Barlow+Condensed:wght@600;700&family=Crimson+Pro:ital,wght@0,500;0,600;1,500&family=Pathway+Gothic+One&family=Michroma&family=Saira+Semi+Condensed:wght@600&family=Federo&family=Fascinate&display=swap">
+<style>
+/* Layout: a gallery of 300px sidebar mockups, each paired with its notes. The page chrome stays neutral so the mockups carry all the color. */
+:root {
+  --page: #EEEDEA; --ink: #1B1B1D; --muted: #5E5D63; --line: #D6D4CF; --card: #FAF9F7; --good: #1E7A4E;
+  --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --page: #141416; --ink: #ECEBE8; --muted: #9A99A0; --line: #2C2C31; --card: #1C1C20; --good: #5FCB91; color-scheme: dark; } }
+:root[data-theme="dark"] { --page: #141416; --ink: #ECEBE8; --muted: #9A99A0; --line: #2C2C31; --card: #1C1C20; --good: #5FCB91; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--ink); font-family: var(--font-ui); margin: 0; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 40px 16px 64px; }
+header.page { max-width: 68ch; margin-bottom: 12px; }
+header.page h1 { font-size: 28px; margin: 0 0 10px; letter-spacing: -0.01em; text-wrap: balance; }
+header.page p { color: var(--muted); line-height: 1.55; margin: 0 0 8px; }
+.group-label { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 32px 28px; }
+.cand { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.notes { flex: 1 1 200px; min-width: 0; }
+.notes h2 { margin: 0 0 2px; font-size: 20px; }
+.notes .meta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.notes p { font-size: 13.5px; line-height: 1.5; margin: 0 0 10px; }
+.notes ul { font-size: 13.5px; line-height: 1.5; margin: 0 0 10px; padding-left: 18px; }
+.notes li { margin-bottom: 4px; }
+.notes b { font-weight: 700; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 10px 0 12px; }
+.sw { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sw i { width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(128,128,128,.35); display: inline-block; }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--card); border: 1px solid var(--line); color: var(--muted); margin-left: 6px; vertical-align: 2px; }
+.tag.keep { color: var(--good); border-color: currentColor; }
+.names { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 12px; }
+.names td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.names td:first-child { font-weight: 700; white-space: nowrap; }
+.names td:last-child { color: var(--muted); }
+.names code { font-size: 12px; }
+
+/* ---------- shared mockup skeleton (mirrors the sidebar's anatomy) ---------- */
+.panel { width: 300px; max-width: 100%; flex: 0 0 auto; border-radius: 14px; overflow: hidden; position: relative;
+  box-shadow: 0 12px 30px rgba(0,0,0,.18); font-family: var(--font-ui); font-size: 13px; isolation: isolate; }
+.panel .bgfx { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.panel .inner { position: relative; padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.topbar { display: flex; align-items: center; gap: 8px; }
+.av { width: 26px; height: 26px; border-radius: 50%; flex: 0 0 auto; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
+.topbar .who { font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ico { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 7px; }
+.ico svg { width: 16px; height: 16px; }
+.view-title { font-size: 26px; line-height: 1.05; margin: 0; }
+.bal { display: flex; flex-direction: column; gap: 2px; }
+.bal .num { font-size: 40px; line-height: 1; font-variant-numeric: lining-nums tabular-nums; }
+.bal .fiat { font-size: 12px; }
+.row { display: flex; gap: 8px; }
+.btn { flex: 1; border: 0; padding: 9px 10px; border-radius: 9px; font: 700 13px var(--font-ui); cursor: pointer; }
+.note { display: flex; gap: 10px; padding: 10px; border-radius: 10px; }
+.note .body { flex: 1; min-width: 0; }
+.note .name { font-weight: 700; font-size: 12.5px; }
+.note .when { font-weight: 400; }
+.note .text { margin-top: 2px; line-height: 1.4; }
+.ask { padding: 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 8px; }
+.ask .what { font-size: 12.5px; }
+.ask .what b { font-weight: 700; }
+
+/* ================= BEN DAY ================= */
+/* The legibility rule, which is also how comics are lettered: the dots are the gutter,
+   never the ground under words. Every line of text and every icon sits on a solid panel,
+   white or yellow, with a keyline round it. */
+.benday { background: #FDFBF4; color: #111; border: 3px solid #111; border-radius: 4px; }
+.benday .bgfx { background: radial-gradient(#E3262B 36%, transparent 39%) 0 0/9px 9px; opacity: .55; }
+.benday .bd-head { background: #fff; border-bottom: 3px solid #111; padding: 8px 10px; }
+.benday .av { background: radial-gradient(#E3262B 38%, #F9D4BF 41%) 0 0/5px 5px; border: 2px solid #111; }
+.benday .ico { background: #fff; border: 2.5px solid #111; border-radius: 0; color: #111; }
+.benday .ico svg { stroke-width: 2.4; }
+.benday .who { font-weight: 800; }
+.benday .bd-title { align-self: flex-start; background: #fff; border: 3px solid #111; padding: 4px 10px 1px; }
+.benday .view-title { font-family: 'Bangers', Impact, sans-serif; font-weight: 400; font-size: 30px; letter-spacing: .04em; }
+.benday .bd-balrow { display: flex; align-items: center; gap: 4px; }
+.benday .caption-box { background: #FFD400; border: 3px solid #111; padding: 7px 10px 5px; }
+.benday .bal .num { font-family: 'Bangers', Impact, sans-serif; font-size: 42px; letter-spacing: .02em; }
+.benday .fiat { font-weight: 800; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+.benday .btn { border: 3px solid #111; border-radius: 0; font-family: 'Bangers', Impact, sans-serif; font-weight: 400; font-size: 18px; letter-spacing: .05em; padding: 6px 10px 4px; }
+.benday .btn.pri { background: #E3262B; color: #fff; }
+.benday .btn.sec { background: #fff; color: #111; }
+.benday .btn.allow { background: #111; color: #fff; }
+.benday .note { background: #fff; border: 3px solid #111; border-radius: 22px; position: relative; margin-bottom: 8px; }
+.benday .note::after { content: ""; position: absolute; left: 30px; bottom: -14px; width: 18px; height: 16px; background: #fff;
+  border-right: 3px solid #111; border-bottom: 3px solid #111; transform: skewX(30deg) rotate(8deg); border-bottom-right-radius: 4px; }
+.benday .note .av { background: #1A5FB4; color: #fff; }
+.benday .when { color: #444; }
+.benday .ask { background: #fff; border: 3px solid #111; border-radius: 0; }
+.benday .pow { flex: 0 0 auto; width: 92px; height: 80px; display: grid; place-items: center; transform: rotate(-10deg); position: relative; }
+.benday .pow svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.benday .pow span { position: relative; font-family: 'Bangers', Impact, sans-serif; font-size: 26px; color: #E3262B; -webkit-text-stroke: 1.3px #111; letter-spacing: .03em; }
+
+/* ================= ARCADE ================= */
+.arcade { background: #07060D; color: #EDEBFF; }
+.arcade .bgfx { opacity: .6; }
+.arcade .scan { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px); }
+.arcade .av { border-radius: 0; background: none; image-rendering: pixelated; }
+.arcade .ico { color: #3DE0FF; border-radius: 0; box-shadow: inset 0 0 0 2px #2A2350; }
+.arcade .who { font-family: 'Press Start 2P', monospace; font-size: 10px; }
+.arcade .view-title { font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 18px; color: #FFE14D; text-shadow: 3px 3px 0 #FF3E9A; margin-top: 4px; }
+.arcade .bal .num { font-family: 'Press Start 2P', monospace; font-size: 26px; color: #3DE0FF; text-shadow: 0 0 12px rgba(61,224,255,.45); margin-top: 6px; }
+.arcade .fiat { font-family: 'Press Start 2P', monospace; font-size: 8px; color: #9E98C9; letter-spacing: .04em; line-height: 1.8; }
+.arcade .btn { font-family: 'Press Start 2P', monospace; font-weight: 400; font-size: 10px; border-radius: 0; padding: 11px 8px;
+  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)); }
+.arcade .btn.pri { background: #FF3E9A; color: #07060D; }
+.arcade .btn.sec { background: #3DE0FF; color: #07060D; }
+.arcade .note, .arcade .ask { background: #120F1F; border-radius: 0; box-shadow: inset 0 0 0 2px #2A2350; }
+.arcade .note .av { background: none; }
+.arcade .name { color: #52F27A; }
+.arcade .when { color: #9E98C9; }
+.arcade .coin { position: absolute; right: 16px; top: 108px; font-family: 'Press Start 2P', monospace; font-size: 10px; color: #FFE14D; }
+
+/* ================= SPLIT-FLAP ================= */
+.flap { background: #1A1A19; color: #F2F1EA; border-radius: 6px; }
+.flap .bgfx { background:
+    linear-gradient(0deg, transparent 49%, rgba(0,0,0,.55) 49% 51%, transparent 51%) 0 0/20px 26px,
+    linear-gradient(90deg, #1A1A19 0 2px, transparent 2px) 0 0/20px 26px,
+    linear-gradient(0deg, #1A1A19 0 2px, #222220 2px) 0 0/20px 26px; opacity: .9; }
+.flap .fade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(26,26,25,.55), rgba(26,26,25,.85)); }
+.flap .av { background: #F5C400; color: #111; border-radius: 3px; }
+.flap .ico { color: #F2F1EA; background: #0E0E0D; border-radius: 3px; }
+.flap .topbar { background: #0E0E0D; margin: -14px -14px 0; padding: 10px 14px; border-bottom: 2px solid #000; }
+.flap .who { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+.flap .tiles { display: flex; gap: 2px; }
+.flap .tile { position: relative; background: #0E0E0D; color: #F2F1EA; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 700;
+  display: grid; place-items: center; border-radius: 2px; overflow: hidden; }
+.flap .tile::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1.5px; background: #1A1A19; }
+.flap .t-title .tile { width: 26px; height: 34px; font-size: 26px; }
+.flap .t-bal .tile { width: 34px; height: 50px; font-size: 42px; }
+.flap .t-bal .tile.sep { width: 12px; background: transparent; }
+.flap .t-bal .tile.sep::after { display: none; }
+.flap .fiat { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #F5C400; margin-top: 4px; }
+.flap .btn { border-radius: 3px; font-family: 'Barlow Condensed', sans-serif; font-size: 16px; text-transform: uppercase; letter-spacing: .08em; padding: 7px 10px; }
+.flap .btn.pri { background: #F5C400; color: #111; }
+.flap .btn.sec { background: #0E0E0D; color: #F2F1EA; box-shadow: inset 0 0 0 1px #3A3A37; }
+.flap .note, .flap .ask { background: #0E0E0D; border-radius: 4px; }
+.flap .note .av { background: #F2F1EA; }
+.flap .when { color: #A5A399; }
+@media (prefers-reduced-motion: no-preference) {
+  .flap .t-bal .tile span { display: inline-block; animation: flip 4s steps(1) infinite; animation-delay: calc(var(--i) * 90ms); }
+  @keyframes flip { 0%,70% { transform: none; } 72% { transform: scaleY(.1) translateY(-40%); } 74% { transform: scaleY(.1) translateY(40%); } 76%,100% { transform: none; } }
+}
+
+/* ================= UNDERGROUND ================= */
+/* 1904 IRT station walls: white glazed tile in running bond, mosaic name tablets in
+   borders of glazed tile, a tesserae frieze along the top, and porcelain-enamel signs
+   for everything you press. Words and icons only ever sit on a solid tablet or an
+   enamel plate, never on the tile grid. */
+.under { background: #F3F0E7; color: #151A1E; border-radius: 6px; }
+.under .bgfx { opacity: 1; }
+.under canvas.frieze { display: block; width: 100%; height: 22px; }
+.under .tablet { position: relative; }
+.under .tablet canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.under .tablet .over { position: relative; }
+.under .head { height: 112px; }
+.under .head .over { padding: 13px 14px 0; }
+.under .av { background: #6FA59A; color: #0F181E; font-family: 'Pathway Gothic One', sans-serif; font-size: 15px; }
+.under .ico { color: #F1EBDA; background: rgba(0,0,0,.35); border-radius: 4px; }
+.under .who { color: #F1EBDA; font-family: 'Pathway Gothic One', 'Arial Narrow', sans-serif; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; font-weight: 400; }
+.under .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.under .baltab { height: 80px; }
+.under .fiat { font-family: 'Pathway Gothic One', sans-serif; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #3A3F42; background: #F8F6EF; align-self: flex-start; padding: 1px 6px; box-shadow: 0 0 0 1px #D2CBBB; }
+.under .enamel { border-radius: 5px; font-family: 'Pathway Gothic One', 'Arial Narrow', sans-serif; font-weight: 400; font-size: 19px; letter-spacing: .07em; text-transform: uppercase; padding: 7px 10px 6px; }
+.under .enamel.green { --e: #1F4A3B; --i: #EFE8D2; }
+.under .enamel.cobalt { --e: #1E2E78; --i: #F2F0E6; }
+.under .enamel.white { --e: #F6F3EA; --i: #151A1E; }
+.under .enamel { color: var(--i); box-shadow: inset 0 0 0 3px var(--e), inset 0 0 0 4.5px var(--i), 0 1px 0 rgba(0,0,0,.25);
+  background: radial-gradient(circle at 3% 18%, #2B2621 0 1.6px, transparent 2.2px), radial-gradient(circle at 96% 82%, #2B2621 0 2.2px, transparent 2.8px),
+    radial-gradient(circle at 60% 4%, #2B2621 0 1.2px, transparent 1.8px), var(--e); }
+.under .plate { background: #FAF8F2; border-radius: 5px; box-shadow: inset 0 0 0 3px #FAF8F2, inset 0 0 0 4px #151A1E, 0 1px 0 rgba(0,0,0,.18); padding: 12px; }
+.under .note .av { background: #7E2A22; color: #F1EBDA; }
+.under .note .name { font-family: 'Pathway Gothic One', sans-serif; font-weight: 400; font-size: 15px; letter-spacing: .07em; text-transform: uppercase; }
+.under .when { color: #5B5F62; }
+/* ================= HI-FI ================= */
+/* A 1970s silver-face deck: brushed aluminum, a walnut cabinet edge, an amber-lit VU
+   meter, and a roller-drum tape counter for the balance. Labels are engraved dark on
+   light metal, so nothing reads through a pattern: the brushing is kept faint. */
+.hifi { background: #CFCFCA; color: #1E1F1F; border-radius: 6px; }
+.hifi canvas.bgfx { width: 100%; height: 100%; }
+.hifi canvas.walnut { display: block; width: 100%; height: 16px; }
+.hifi .eng { font-family: 'Michroma', 'Eurostile', sans-serif; text-transform: uppercase; color: #232424; text-shadow: 0 1px 0 rgba(255,255,255,.65); }
+.hifi .av { background: radial-gradient(circle at 35% 30%, #7C7C78, #2A2A29); color: #EEE; font-family: 'Michroma', sans-serif; font-size: 10px; }
+.hifi .who { font-family: 'Michroma', sans-serif; font-size: 11px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; color: #232424; text-shadow: 0 1px 0 rgba(255,255,255,.65); flex: 0 1 auto; }
+.hifi .led { width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #C9FFD4, #2FD35A 45%, #0E7A2C); box-shadow: 0 0 8px rgba(47,211,90,.8); flex: 0 0 auto; margin-right: auto; }
+.hifi .ico { border-radius: 50%; color: #232424; background: conic-gradient(from 20deg, #F3F3F0, #B9B9B4, #EDEDEA, #A9A9A4, #F3F3F0, #BEBEB9, #F3F3F0); box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.18); }
+.hifi .bracket { display: flex; align-items: center; gap: 10px; font-size: 15px; letter-spacing: .22em; }
+.hifi .bracket::before, .hifi .bracket::after { content: ""; flex: 1; height: 8px; border-top: 1.5px solid #3A3B3B; transform: translateY(4px); box-shadow: 0 1px 0 rgba(255,255,255,.5); }
+.hifi .bracket::before { border-left: 1.5px solid #3A3B3B; }
+.hifi .bracket::after { border-right: 1.5px solid #3A3B3B; }
+.hifi .bezel { padding: 5px; border-radius: 3px; background: linear-gradient(150deg, #F7F7F4, #A5A5A0 60%, #8C8C87); box-shadow: 0 1px 0 rgba(255,255,255,.7), 0 2px 4px rgba(0,0,0,.3); }
+.hifi .vu { display: block; width: 100%; height: 112px; border-radius: 1px; box-shadow: inset 0 2px 6px rgba(0,0,0,.5); }
+.hifi .deck { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 2px; }
+.hifi .units { flex-direction: row !important; align-items: baseline; gap: 10px !important; }
+.hifi .counter { position: relative; flex: 0 0 auto; }
+.hifi .drums { display: flex; gap: 1px; background: #000; padding: 2px; border-radius: 2px; position: relative; }
+.hifi .drum { width: 30px; height: 46px; overflow: hidden; position: relative; background: #151515; }
+.hifi .drum.gap { width: 9px; background: #151515; }
+.hifi .strip { display: flex; flex-direction: column; transform: translateY(0); }
+.hifi .strip span { height: 46px; line-height: 46px; text-align: center; color: #F2F0E8; font: 600 34px 'Saira Semi Condensed', 'Arial Narrow', sans-serif; }
+.hifi .drum::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.9), rgba(0,0,0,0) 32%, rgba(255,255,255,.07) 50%, rgba(0,0,0,0) 68%, rgba(0,0,0,.9)); }
+.hifi .counter::after { content: ""; position: absolute; inset: 5px; pointer-events: none; background: linear-gradient(115deg, rgba(255,255,255,.28) 0 18%, transparent 30% 70%, rgba(255,255,255,.12) 82%); }
+.hifi .units { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.hifi .units .u1 { font-size: 13px; letter-spacing: .16em; }
+.hifi .units .u2 { font-size: 9px; letter-spacing: .08em; color: #3C3D3D; }
+.hifi .btn { border-radius: 3px; font-family: 'Michroma', sans-serif; font-weight: 400; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; padding: 10px 8px; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.hifi .btn.alu { background: linear-gradient(180deg, #F6F6F3, #C7C7C2); color: #1E1F1F; box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px #8E8E89, 0 2px 3px rgba(0,0,0,.25); }
+.hifi .btn.black { background: linear-gradient(180deg, #3C3C3B, #151515); color: #F2F1EC; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 3px rgba(0,0,0,.35); }
+.hifi .btn .led { margin: 0; width: 7px; height: 7px; }
+.hifi .plate { background: #ECEBE6; border-radius: 3px; box-shadow: inset 0 1px 2px rgba(0,0,0,.28), 0 1px 0 rgba(255,255,255,.7); }
+.hifi .note .name { font-family: 'Michroma', sans-serif; font-weight: 400; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.hifi .note .av { background: radial-gradient(circle at 35% 30%, #C08A5A, #6B3F22); }
+.hifi .when { color: #56585A; }
+/* ================= JAZZ AGE ================= */
+/* A 1920s club: a keyboard along the top,  a
+   stave carrying the balance, and stage lighting in warm white, red and amber.
+   Crimson and ivory carry the interface, which keeps it
+   off Speakeasy's gold and purple. */
+.jazz { background: #0C0908; color: #F3E7CF; }
+.jazz canvas.bgfx { width: 100%; height: 100%; }
+.jazz .keys { height: 30px; background-repeat: repeat-x; background-size: auto 30px; box-shadow: 0 2px 0 #3a1d12, 0 4px 10px rgba(0,0,0,.6); position: relative; }
+.jazz .keys::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: linear-gradient(#2a0f0a, #6b2416); }
+.jazz .av { background: #B3122E; color: #F3E7CF; }
+.jazz .ico { color: #F3E7CF; background: #0C0908; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(243,231,207,.22); }
+.jazz .view-title { font-family: 'Fascinate', 'Broadway', 'Limelight', serif; font-weight: 400; font-size: 34px; line-height: 1; letter-spacing: .02em; }
+.jazz .fiat, .jazz .when { color: #BBA78C; }
+/* The balance written on the stave: five lines 11px apart,
+   the figures standing across the lines like notes. A halo in the ground color knocks
+   the lines out round each figure, so they never cut through a digit. */
+.jazz .score { display: flex; flex-direction: column; gap: 4px; }
+.jazz .stave { position: relative; height: 64px; display: flex; align-items: center; gap: 8px;
+  background: repeating-linear-gradient(180deg, rgba(243,231,207,.38) 0 1px, transparent 1px 11px) 0 10px/100% 45px no-repeat; }
+.jazz .stave .digits { display: flex; align-items: center; }
+.jazz .stave .digits span { display: inline-block; font-family: 'Federo', 'Josefin Sans', sans-serif; font-size: 50px; line-height: 1; color: #F3E7CF; padding: 0 1px;
+  text-shadow: 3px 0 #0C0908, -3px 0 #0C0908, 0 3px #0C0908, 0 -3px #0C0908, 2px 2px #0C0908, -2px -2px #0C0908, 2px -2px #0C0908, -2px 2px #0C0908, 0 0 18px rgba(255,120,70,.35); }
+.jazz .stave .digits span.c { padding: 0; margin-right: 2px; }
+.jazz .stave .bar.open { margin: 10px 4px 9px 0; box-shadow: none; }
+.jazz .stave .bar { width: 1.5px; align-self: stretch; margin: 10px 0 9px auto; background: rgba(243,231,207,.55); box-shadow: 4px 0 0 rgba(243,231,207,.55); margin-right: 4px; }
+.jazz .btn { border-radius: 4px; }
+.jazz .btn { position: relative; }
+/* Lit like a club sign: a hot core, a halo that spills onto the black, and a soft
+   reflection underneath, as if the button were a lamp on a lacquered table. */
+.jazz .btn.pri { background: linear-gradient(180deg, #E0324B, #B3122E 55%, #8E0B22); color: #FFF4E2;
+  text-shadow: 0 0 8px rgba(255,190,170,.7);
+  box-shadow: inset 0 1px 0 rgba(255,200,190,.45), 0 0 0 1px rgba(255,90,100,.5), 0 0 12px rgba(230,40,60,.75), 0 0 30px rgba(230,40,60,.45), 0 10px 26px rgba(200,20,40,.35); }
+.jazz .btn.sec { background: rgba(243,231,207,.04); color: #FFF4E2; text-shadow: 0 0 8px rgba(255,214,160,.6);
+  box-shadow: inset 0 0 0 1.5px rgba(255,226,180,.85), inset 0 0 12px rgba(255,200,140,.18), 0 0 12px rgba(255,190,120,.35), 0 0 26px rgba(255,170,90,.18); }
+.jazz .note, .jazz .ask { background: rgba(21,15,14,.92); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(184,134,75,.28); }
+.jazz .note .av { background: #B8864B; color: #0C0908; }
+@media (prefers-reduced-motion: no-preference) {
+  .jazz .btn.pri { animation: neon 6s ease-in-out infinite; }
+  @keyframes neon { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.08); } 52% { filter: brightness(.94); } 54% { filter: brightness(1.08); } }
+  .jazz .stave .digits span { animation: play 5s ease-in-out infinite; animation-delay: calc(var(--k) * 110ms); }
+  @keyframes play { 0%, 70% { transform: none; opacity: 1; } 74% { transform: translateY(-7px); opacity: 1; } 80%, 100% { transform: none; } }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>Sidecar's four new themes</h1>
+    <p>The four new themes, each at least 75 years in the past: Ben Day and Underground for light, Departure and Jazz Age for dark. That takes the set from sixteen to twenty, ten of each. Arcade and Hi-Fi are parked at the bottom for later.</p>
+    <p>Every mockup shows the same sidebar content: the account bar with two icons, the view title, the balance, a note and a signing request. Manrope is the body face throughout, as in the extension. These are sketches; the colors have not been through <code>theme-contrast.test.js</code>.</p>
+  </header>
+
+  <div class="group-label">Light · decided</div>
+  <div class="grid">
+    <section class="cand">
+      <div class="panel benday" id="m-benday"></div>
+      <div class="notes">
+        <h2>Ben Day <span class="tag keep">keeping</span></h2>
+        <div class="meta">Light · Bangers display · slug <code>ben-day</code></div>
+        <div class="swatches">
+          <span class="sw"><i style="background:#FDFBF4"></i>#FDFBF4</span>
+          <span class="sw"><i style="background:#E3262B"></i>#E3262B</span>
+          <span class="sw"><i style="background:#FFD400"></i>#FFD400</span>
+          <span class="sw"><i style="background:#1A5FB4"></i>#1A5FB4</span>
+          <span class="sw"><i style="background:#111111"></i>#111111</span>
+        </div>
+        <p><b>Legibility fix:</b> the dots are now the gutter between panels, never the ground under words. This is how comics are lettered anyway.</p>
+        <ul>
+          <li>The header is a white panel with a 3px keyline under it. The name and icons never touch a dot.</li>
+          <li>Icon buttons are white squares with black outlines and a heavier 2.4 stroke.</li>
+          <li>The view title sits in its own white box. The balance stays in the yellow caption box.</li>
+          <li>The dots are lighter (55% opacity) because they no longer have to compete with type.</li>
+          <li>The POW! burst moved beside the balance, so it never covers a figure.</li>
+        </ul>
+        <p><b>Names</b></p>
+        <table class="names">
+          <tr><td>Ben Day</td><td>The dot process itself. Two words, like Film Noir and Par Avion. My pick.</td></tr>
+          <tr><td>Pop Art</td><td>The movement. Matches Bauhaus and Ukiyo-e, but it is broader than dots and outlines.</td></tr>
+          <tr><td>Four-Color</td><td>The comic-book printing process. Accurate, but reads as a spec.</td></tr>
+          <tr><td>Kapow</td><td>Fun, and it names the payment moment. No other theme is named for a sound.</td></tr>
+          <tr><td>Sunday Funnies</td><td>Warm, but two long words on a gallery card.</td></tr>
+          <tr><td>Whaam!</td><td>A specific Lichtenstein painting. Avoid, like the artist's own name: no other theme is named for a person or a single work.</td></tr>
+        </table>
+      </div>
+    </section>
+    <section class="cand">
+      <div class="panel under" id="m-under"></div>
+      <div class="notes">
+        <h2>Underground <span class="tag keep">keeping</span></h2>
+        <div class="meta">Light · mosaic lettering for titles and the balance, Pathway Gothic for enamel signs</div>
+        <div class="swatches">
+          <span class="sw"><i style="background:#F3F0E7"></i>tile #F3F0E7</span>
+          <span class="sw"><i style="background:#141E26"></i>tablet #141E26</span>
+          <span class="sw"><i style="background:#6FA59A"></i>border #6FA59A</span>
+          <span class="sw"><i style="background:#7E2A22"></i>faience #7E2A22</span>
+          <span class="sw"><i style="background:#D8C690"></i>frieze #D8C690</span>
+          <span class="sw"><i style="background:#1F4A3B"></i>IND green #1F4A3B</span>
+          <span class="sw"><i style="background:#1E2E78"></i>cobalt #1E2E78</span>
+        </div>
+        <p><b>Idea:</b> the 1904 IRT stations and the enamel signs that followed. The field is white subway tile. The header is a mosaic name tablet in a border of glazed tile, like 34th Street. The balance is a red tablet with a gold fillet, like 23rd Street. A tesserae frieze runs along the top. Everything you press is a porcelain-enamel sign: IND green, cobalt, or white with the inset line and chipped edges.</p>
+        <p><b>Legibility:</b> the header is the most legible in the set. It's a solid dark tablet with cream lettering, and the tile grid never sits behind words or icons. Notes and requests are white enamel plates.</p>
+        <p><b>Signature moment:</b> when a payment lands, the balance's tesserae are set again one by one into the new figure. The mockup replays it every few seconds.</p>
+        <p><b>How the mosaic works:</b> the title and figures are drawn at runtime from the real string, so translated titles and any balance render correctly. The real text stays in the DOM for screen readers and copying. Long German titles get smaller tesserae instead of being cut off.</p>
+        <p><b>Watch for:</b> Brownstone is also New York. That's fine: Brownstone is the street at night, Underground is the station below it. The other risk is Ben Day: both are light themes with chunky lettering, but tile and enamel have nothing in common with dots and outlines.</p>
+        <p><b>Names:</b> Underground reads well, but to many people it means the London Tube. Alternatives are <b>Subway</b>, the plain New York word; <b>IRT</b>, the 1904 line these stations belong to; and <b>Tesserae</b>, which names the tilework rather than the railway.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="group-label">Dark · decided</div>
+  <div class="grid">
+    <section class="cand">
+      <div class="panel flap" id="m-flap"></div>
+      <div class="notes">
+        <h2>Departure <span class="tag keep">keeping</span></h2>
+        <div class="meta">Dark · Barlow Condensed display</div>
+        <div class="swatches">
+          <span class="sw"><i style="background:#1A1A19"></i>#1A1A19</span>
+          <span class="sw"><i style="background:#0E0E0D"></i>#0E0E0D</span>
+          <span class="sw"><i style="background:#F2F1EA"></i>#F2F1EA</span>
+          <span class="sw"><i style="background:#F5C400"></i>#F5C400</span>
+        </div>
+        <p><b>Idea:</b> a station departures board. Every character of the title and balance sits on its own flap tile, and the yellow is the platform number.</p>
+        <p><b>Sets it apart:</b> the balance becomes a machine you can hear. The flip plays on every balance change.</p>
+        <p><b>Signature moment:</b> digits clatter through to the new value, one tile after another.</p>
+        <p><b>Legibility:</b> the account bar now sits on a solid board strip, so the name and icons never cross the empty flap grid. Title and balance characters each have their own solid tile.</p>
+        <p><b>Name:</b> Departure, singular, reads as a theme name rather than a sign. The board itself would still say "Departures" if it ever appears as a label.</p>
+        <p><b>Era:</b> Solari's split-flap board dates from 1956, just inside the 75-year line. The theme can lean on the older station indicator boards it replaced, which puts it squarely in the period.</p>
+        <p><b>Watch for:</b> Nixie already makes the balance a display device. This one is mechanical where Nixie is electrical, and it is the closest overlap any of the four new themes has.</p>
+      </div>
+    </section>
+    <section class="cand">
+      <div class="panel jazz" id="m-jazz"></div>
+      <div class="notes">
+        <h2>Jazz Age <span class="tag keep">keeping</span></h2>
+        <div class="meta">Dark · Fascinate title, Federo figures · 1920s</div>
+        <div class="swatches">
+          <span class="sw"><i style="background:#0C0908"></i>stage #0C0908</span>
+          <span class="sw"><i style="background:#B3122E"></i>shade #B3122E</span>
+          <span class="sw"><i style="background:#F3E7CF"></i>ivory #F3E7CF</span>
+          <span class="sw"><i style="background:#B8864B"></i>bronze #B8864B</span>
+          <span class="sw"><i style="background:#FF563C"></i>glow #FF563C</span>
+        </div>
+        <p><b>Idea:</b> the instruments and the stage, as in your references. The title is set in Fascinate, a free face drawn after Broadway (1928), the lettering of Jazz Age posters and programs.</p>
+        <ul>
+          <li><b>Keyboard:</b> a run of piano keys along the top edge, where Underground has its frieze.</li>
+          <li><b>Stage lighting:</b> spotlight beams from lamps above the frame, one warm white, one red gel, one amber, landing in a soft pool on the stage floor at the bottom.</li>
+          <li><b>The balance is written on the stave:</b> the figures stand across the five lines like notes, between an opening bar line and a closing double bar. A dark halo cuts the lines away round each figure, so they never run through a digit.</li>
+        </ul>
+        <p><b>Signature moment:</b> when a payment lands, the figures on the stave bounce one after another, as if the new balance was just played.</p>
+        <p><b>Speakeasy:</b> this sits closest to it, since both are 1920s nights out. Speakeasy is the hidden bar, in purple velvet and gold. This is the bandstand: black, crimson and ivory, with no gold anywhere.</p>
+        <p><b>Buttons:</b> lit like a club sign, with a hot core, a halo that spills onto the black and a soft reflection underneath. The primary button breathes slowly and flickers once, and stays still with reduced motion.</p>
+        <p><b>Deferred:</b> a continuous-line drawing of instruments for the background. The instrument shapes worked; the line joining them did not. Parked until the idea is clearer.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="group-label">Parked for later · outside the period</div>
+  <div class="grid">
+    <section class="cand">
+      <div class="panel arcade" id="m-arcade"></div>
+      <div class="notes">
+        <h2>Arcade <span class="tag">parked</span></h2>
+        <div class="meta">Dark · Press Start 2P display</div>
+        <div class="swatches">
+          <span class="sw"><i style="background:#07060D"></i>#07060D</span>
+          <span class="sw"><i style="background:#FF3E9A"></i>#FF3E9A</span>
+          <span class="sw"><i style="background:#3DE0FF"></i>#3DE0FF</span>
+          <span class="sw"><i style="background:#FFE14D"></i>#FFE14D</span>
+          <span class="sw"><i style="background:#52F27A"></i>#52F27A</span>
+        </div>
+        <p><b>Idea:</b> a 1981 cabinet. Pixel starfield, faint scanlines, sprite avatars and a high-score balance. It's the dark counterpart to Ben Day's pop culture.</p>
+        <p><b>Sets it apart:</b> the only bitmap type in the set, and the only theme that's playful after dark.</p>
+        <p><b>Signature moment:</b> an incoming zap pops a "+500" coin over the balance.</p>
+        <p><b>Legibility:</b> the same rule as Ben Day. The scanlines now sit behind the content, not over the type, and the stars are dimmer and kept out of the header, so the account name and icons have plain black behind them.</p>
+        <p><b>Watch for:</b> Press Start 2P is wide and heavy. It works for titles, figures and the account name, but never for body text or long labels, and German strings will run out of room fast.</p>
+      </div>
+    </section>
+    <section class="cand">
+      <div class="panel hifi" id="m-hifi"></div>
+      <div class="notes">
+        <h2>Hi-Fi <span class="tag">parked</span></h2>
+        <div class="meta">Light · Michroma labels, Saira Semi Condensed counter figures</div>
+        <div class="swatches">
+          <span class="sw"><i style="background:#CFCFCA"></i>aluminum #CFCFCA</span>
+          <span class="sw"><i style="background:#4A2C1A"></i>walnut #4A2C1A</span>
+          <span class="sw"><i style="background:#2FD35A"></i>LED #2FD35A</span>
+          <span class="sw"><i style="background:#151515"></i>drum #151515</span>
+        </div>
+        <p><b>Idea:</b> a 1970s silver-face deck. The panel is brushed aluminum with a walnut cabinet edge, and every label is engraved in a wide face, including the bracketed view title. The balance is the roller-drum tape counter, with its units engraved under it.</p>
+        <p><b>No VU meter on the wallet.</b> A meter needs something to measure, and a balance is a number, not a level. The counter already says the balance exactly, so the meter is gone.</p>
+        <p><b>Signature moment:</b> when a payment arrives, the counter's drums roll up to the new figure. The mockup plays this every five seconds.</p>
+        <p><b>Legibility:</b> dark engraving on light metal is high-contrast by nature, and the brushing is kept faint. The counter is white on black.</p>
+        <p><b>Name:</b> with the design built around the equipment, <b>Solid State</b> now fits too; it was the badge on decks from exactly this era. <b>Hi-Fi</b> is shorter and friendlier on a gallery card.</p>
+        <p><b>Watch for:</b></p>
+        <ul>
+          <li><b>Departure:</b> it also changes digits mechanically. Departure's flaps clatter over one character at a time; this counter rolls smoothly. Shipping both means keeping that difference sharp.</li>
+          <li><b>Nixie:</b> it's also a control panel. Nixie is cold dark steel with one hot red readout; this is warm, light, silver and walnut.</li>
+          <li><b>Mode:</b> a silver-face deck makes this a light theme. Added outright, it's the 21st theme and the 11th light one.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ICON = {
+    bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+  };
+  const svgUrl = (s) => `url('data:image/svg+xml,${encodeURIComponent(s).replace(/'/g, '%27')}')`;
+  const topbar = (avInner = '') => `<div class="topbar"><span class="av">${avInner}</span><span class="who">dmnyc</span><span class="ico">${ICON.bell}</span><span class="ico">${ICON.gear}</span></div>`;
+  const note = (name, text, avInner = '') => `<div class="note"><span class="av">${avInner}</span><div class="body"><div class="name">${name} <span class="when">· 4m</span></div><div class="text">${text}</div></div></div>`;
+  const ask = (allowCls = 'pri') => `<div class="ask"><div class="what">primal.net wants to <b>sign a note</b> (kind 1)</div><div class="row"><button class="btn ${allowCls}">Allow</button><button class="btn sec">Trust</button></div></div>`;
+  const buttons = '<div class="row"><button class="btn pri">Send</button><button class="btn sec">Receive</button></div>';
+  const bal = (num = '21,000', fiat = 'sats · about $14.20') => `<div class="bal"><span class="num">${num}</span><span class="fiat">${fiat}</span></div>`;
+  const set = (id, html) => { document.getElementById(id).innerHTML = html; };
+
+  // Ben Day
+  set('m-benday', `<div class="bgfx"></div>
+    <div class="bd-head">${topbar()}</div>
+    <div class="inner">
+      <div class="bd-title"><h3 class="view-title">Wallet</h3></div>
+      <div class="bd-balrow">
+        <div class="caption-box bal"><span class="fiat">Meanwhile, in the wallet…</span><span class="num">21,000 sats</span></div>
+        <div class="pow" aria-hidden="true"><svg viewBox="0 0 104 90"><polygon points="52,2 60,24 82,8 74,32 102,30 80,46 100,64 72,60 76,86 56,68 42,88 38,64 10,76 24,52 2,40 28,34 16,10 42,24" fill="#FFD400" stroke="#111" stroke-width="3" stroke-linejoin="round"/></svg><span>POW!</span></div>
+      </div>
+      ${buttons}
+      ${note('Brad', 'I know how you must feel, but the relay list finally synced!', 'B')}
+      ${ask('allow')}
+    </div>`);
+
+  // Arcade: pixel starfield and sprite avatars
+  let stars = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="600" shape-rendering="crispEdges">';
+  const pal = ['#EDEBFF', '#3DE0FF', '#FF3E9A', '#FFE14D'];
+  for (let i = 0; i < 90; i++) {
+    const x = (i * 97) % 300, y = 64 + (i * 211 + (i % 7) * 31) % 536, s = i % 9 === 0 ? 3 : 2;
+    stars += `<rect x="${x}" y="${y}" width="${s}" height="${s}" fill="${pal[i % 4]}" opacity="${i % 3 ? .35 : .7}"/>`;
+  }
+  stars += '</svg>';
+  const sprite = (color, rows) => {
+    let s = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 8" width="26" height="26" shape-rendering="crispEdges">';
+    rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === '#') s += `<rect x="${x}" y="${y}" width="1" height="1" fill="${color}"/>`; }));
+    return s + '</svg>';
+  };
+  const invader = ['..#.....#..', '...#...#...', '..#######..', '.##.###.##.', '###########', '#.#######.#', '#.#.....#.#', '...##.##...'];
+  set('m-arcade', `<div class="bgfx" style="background-image:${svgUrl(stars)}"></div><div class="scan"></div>
+    <div class="coin">+500</div>
+    <div class="inner">${topbar(sprite('#52F27A', invader))}
+      <h3 class="view-title">WALLET</h3>
+      ${bal('21000', 'HI-SCORE · SATS<br>ABOUT $14.20')}
+      ${buttons}
+      ${note('PLAYER 2', 'New high score on the relay list. Insert coin to continue.', sprite('#FF3E9A', invader))}
+      ${ask()}
+    </div>`);
+
+  // Split-flap
+  const tiles = (str, cls) => `<div class="tiles ${cls}">${[...str].map((c, i) => c === ',' ? '<span class="tile sep">,</span>' : `<span class="tile" style="--i:${i}"><span>${c}</span></span>`).join('')}</div>`;
+  set('m-flap', `<div class="bgfx"></div><div class="fade"></div>
+    <div class="inner">${topbar('D')}
+      ${tiles('WALLET', 't-title')}
+      <div class="bal">${tiles('21,000', 't-bal')}<span class="fiat">Sats · about $14.20 · Plat 4</span></div>
+      ${buttons}
+      ${note('Track 4', 'The 9:14 to Poughkeepsie is on time. Relay list synced on track 4.', '')}
+      ${ask()}
+    </div>`);
+
+  // Underground: running-bond tile field, a tesserae frieze, mosaic tablets
+  const tileSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#ECE8DD"/></linearGradient></defs><rect width="36" height="36" fill="#C9C1AF"/><rect x="0.8" y="0.8" width="34.4" height="16.4" rx="1.5" fill="url(#g)"/><rect x="-17.2" y="18.8" width="34.4" height="16.4" rx="1.5" fill="url(#g)"/><rect x="18.8" y="18.8" width="34.4" height="16.4" rx="1.5" fill="url(#g)"/></svg>';
+  set('m-under', `<div class="bgfx" style="background:${svgUrl(tileSvg)} 0 0/36px 36px"></div>
+    <canvas class="frieze"></canvas>
+    <div class="tablet head"><canvas></canvas><div class="over">${topbar('D')}<h3 class="sr">Wallet</h3></div></div>
+    <div class="inner">
+      <div class="bal"><div class="tablet baltab"><canvas></canvas><span class="sr">21,000</span></div><span class="fiat">Sats · about $14.20</span></div>
+      <div class="row"><button class="btn enamel green">Send</button><button class="btn enamel white">Receive</button></div>
+      <div class="note plate"><span class="av">E</span><div class="body"><div class="name">Heins &amp; LaFarge <span class="when">· 4m</span></div><div class="text">Tablets for 23rd Street are set. The frieze goes up after the grout cures.</div></div></div>
+      <div class="ask plate"><div class="what">primal.net wants to <b>sign a note</b> (kind 1)</div><div class="row"><button class="btn enamel green">Allow</button><button class="btn enamel cobalt">Trust</button></div></div>
+    </div>`);
+
+  // A seeded random, so the tesserae sit in the same place on every render.
+  const rng = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+
+  function setup(cv) {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = w * 2; cv.height = h * 2;
+    const c = cv.getContext('2d'); c.setTransform(2, 0, 0, 2, 0, 0);
+    return { c, w, h };
+  }
+
+  // Lay tesserae over a field, cream wherever the text covers the cell.
+  function tablet(cv, o, progress = 1) {
+    const { c, w, h } = setup(cv);
+    const r = rng(o.seed);
+    c.fillStyle = o.grout; c.fillRect(0, 0, w, h);
+    // border of glazed rectangular tiles
+    const b = o.border;
+    for (let x = 0; x < w; x += b * 2.2) {
+      [[x, 0], [x, h - b]].forEach(([tx, ty]) => { c.fillStyle = pick(r, o.borderCols); c.fillRect(tx + .6, ty + .6, b * 2.2 - 1.2, b - 1.2); });
+    }
+    for (let y = b; y < h - b; y += b * 2.2) {
+      [[0, y], [w - b, y]].forEach(([tx, ty]) => { c.fillStyle = pick(r, o.borderCols); c.fillRect(tx + .6, ty + .6, b - 1.2, Math.min(b * 2.2, h - b - y) - 1.2); });
+    }
+    // glaze highlight on the border tiles
+    c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(0, 0, w, 2); c.fillRect(0, 0, 2, h);
+    const ix = b + (o.fillet ? 3 : 0), iy = ix, iw = w - ix * 2, ih = h - iy * 2;
+    if (o.fillet) { c.fillStyle = o.fillet; for (let x = b; x < w - b; x += 3) { c.fillRect(x + .4, b + .4, 2.4, 2.4); c.fillRect(x + .4, h - b - 2.8, 2.4, 2.4); } for (let y = b; y < h - b; y += 3) { c.fillRect(b + .4, y + .4, 2.4, 2.4); c.fillRect(w - b - 2.8, y + .4, 2.4, 2.4); } }
+    // coverage mask from the real string
+    const m = document.createElement('canvas'); m.width = iw; m.height = ih;
+    const mc = m.getContext('2d');
+    let size = o.size;
+    if (o.stretch) mc.fontStretch = o.stretch;
+    mc.font = `${o.weight} ${size}px ${o.font}`;
+    const room = iw - 16;
+    const tw = mc.measureText(o.text).width;
+    if (tw > room) { size *= room / tw; }
+    mc.font = `${o.weight} ${size}px ${o.font}`;
+    if (o.stretch) mc.fontStretch = o.stretch;
+    mc.fillStyle = '#fff'; mc.textAlign = 'center'; mc.textBaseline = 'middle';
+    mc.fillText(o.text, iw / 2, ih * o.baseline);
+    const px = mc.getImageData(0, 0, iw, ih).data;
+    const cov = (x, y) => { x = Math.max(0, Math.min(iw - 1, x | 0)); y = Math.max(0, Math.min(ih - 1, y | 0)); return px[(y * iw + x) * 4] / 255; };
+    const s = o.cell;
+    const order = rng(o.seed + 7);
+    for (let y = 0; y < ih; y += s) for (let x = 0; x < iw; x += s) {
+      const k = (cov(x + s * .5, y + s * .5) * 2 + cov(x + s * .25, y + s * .25) + cov(x + s * .75, y + s * .75)) / 4;
+      const ink = k > 0.45;
+      const shown = ink ? order() < progress : true;
+      const jx = (r() - .5) * .6, jy = (r() - .5) * .6, sz = s - .8 - r() * .5;
+      c.fillStyle = ink && shown ? pick(r, o.inkCols) : pick(r, o.fieldCols);
+      c.fillRect(ix + x + jx + .4, iy + y + jy + .4, sz, sz);
+      if (r() < .05) { c.fillStyle = 'rgba(255,255,255,.18)'; c.fillRect(ix + x + .6, iy + y + .6, sz * .5, sz * .4); }
+    }
+  }
+
+  function frieze(cv) {
+    const { c, w, h } = setup(cv);
+    const r = rng(11), s = 3;
+    c.fillStyle = '#6E5A3E'; c.fillRect(0, 0, w, h);
+    const band = h - 7;
+    for (let y = 0; y < band; y += s) for (let x = 0; x < w; x += s) {
+      const cx = ((x + 30) % 60) - 30, cy = y - band / 2;
+      const d = Math.abs(cx) / 16 + Math.abs(cy) / (band / 2);
+      let col = pick(r, ['#D8C690', '#CDBA80', '#E2D3A0', '#C4AE72']);
+      if (d < 1) col = d < .45 ? pick(r, ['#3E6F55', '#2F5C45']) : pick(r, ['#9C8A94', '#8C7984', '#A8959F']);
+      c.fillStyle = col; c.fillRect(x + .35, y + .35, s - .7, s - .7);
+    }
+    for (let x = 0; x < w; x += 12) { c.fillStyle = pick(r, ['#7A1F33', '#6C1A2D', '#86263B']); c.fillRect(x + .5, band + .5, 11, 6); }
+  }
+
+  const headOpts = { seed: 3, grout: '#0A1015', border: 8, borderCols: ['#6FA59A', '#7FB3A7', '#5E9589', '#689E92'],
+    fieldCols: ['#141E26', '#17232C', '#0E161D', '#1B2A33', '#101A21', '#1E2F38'], inkCols: ['#F1EBDA', '#E9E1CC', '#F6F1E4', '#E4DAC2'],
+    text: 'WALLET', font: "'Archivo', sans-serif", weight: 800, stretch: 'expanded', size: 40, baseline: 0.72, cell: 3.2 };
+  const balOpts = { seed: 5, grout: '#2A1714', border: 7, borderCols: ['#6E7563', '#7C8270', '#5F6656', '#747A66'], fillet: '#D9C98E',
+    fieldCols: ['#7E2A22', '#8E3526', '#6A2019', '#9A4030', '#5A1E22', '#732A2A', '#3A1A22'], inkCols: ['#F4EFE2', '#EAE3D0', '#F8F4EA'],
+    text: '21,000', font: "'Crimson Pro', Georgia, serif", weight: 600, size: 52, baseline: 0.56, cell: 3 };
+
+  const ugRoot = document.getElementById('m-under');
+  const headCv = ugRoot.querySelector('.head canvas'), balCv = ugRoot.querySelector('.baltab canvas');
+  const drawAll = () => { frieze(ugRoot.querySelector('canvas.frieze')); tablet(headCv, headOpts); tablet(balCv, balOpts); };
+  Promise.all([document.fonts.load("800 40px 'Archivo'"), document.fonts.load("600 52px 'Crimson Pro'"), document.fonts.load("17px 'Pathway Gothic One'")])
+    .catch(() => {}).then(() => {
+      drawAll();
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        // the signature moment: the new figure's tesserae are set one by one
+        setInterval(() => {
+          const t0 = performance.now();
+          const step = (t) => { const p = Math.min(1, (t - t0) / 1400); tablet(balCv, balOpts, p); if (p < 1) requestAnimationFrame(step); };
+          requestAnimationFrame(step);
+        }, 5000);
+      }
+    });
+  // Hi-Fi: brushed aluminum, walnut edge, an amber VU meter and a roller-drum counter
+  const drumsHtml = (v) => [...v].map((ch) => ch === ',' ? '<span class="drum gap"></span>'
+    : `<span class="drum"><span class="strip">${[0,1,2,3,4,5,6,7,8,9,0].map((d) => `<span>${d}</span>`).join('')}</span></span>`).join('');
+  set('m-hifi', `<canvas class="bgfx"></canvas><canvas class="walnut"></canvas>
+    <div class="inner">
+      <div class="topbar"><span class="av">D</span><span class="who">dmnyc</span><span class="led"></span><span class="ico">${ICON.bell}</span><span class="ico">${ICON.gear}</span></div>
+      <h3 class="view-title eng bracket">Wallet</h3>
+      <div class="deck">
+        <div class="counter bezel"><div class="drums">${drumsHtml('21,000')}</div></div>
+        <div class="units"><span class="eng u1">Sats</span><span class="eng u2">About $14.20</span></div>
+      </div>
+      <div class="row"><button class="btn black">Send</button><button class="btn alu">Receive</button></div>
+      <div class="note plate"><span class="av"></span><div class="body"><div class="name">Side B <span class="when">· 4m</span></div><div class="text">Recorded the whole set to chrome tape. Levels peaked once, right at the solo.</div></div></div>
+      <div class="ask plate"><div class="what">primal.net wants to <b>sign a note</b> (kind 1)</div><div class="row"><button class="btn black"><span class="led"></span>Allow</button><button class="btn alu">Trust</button></div></div>
+    </div>`);
+  (function () {
+    const root = document.getElementById('m-hifi');
+    const fit = (cv) => { const w = cv.clientWidth, h = cv.clientHeight; cv.width = w * 2; cv.height = h * 2; const c = cv.getContext('2d'); c.setTransform(2, 0, 0, 2, 0, 0); return { c, w, h }; };
+    const r = rng(21);
+    // brushed aluminum: a soft sheen plus faint horizontal streaks, drawn once the fonts have set the panel's height
+    const brush = () => { const { c, w, h } = fit(root.querySelector('canvas.bgfx'));
+      const g = c.createLinearGradient(0, 0, w, h * .35);
+      g.addColorStop(0, '#C4C4BF'); g.addColorStop(.35, '#DCDCD7'); g.addColorStop(.6, '#C9C9C4'); g.addColorStop(.85, '#DFDFDA'); g.addColorStop(1, '#C6C6C1');
+      c.fillStyle = g; c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 1600; i++) { const y = r() * h, x = r() * w - 40, l = 30 + r() * 220; c.fillStyle = r() < .5 ? `rgba(255,255,255,${.08 + r() * .12})` : `rgba(0,0,0,${.03 + r() * .05})`; c.fillRect(x, y, l, .5); } };
+    // walnut cabinet edge
+    { const { c, w, h } = fit(root.querySelector('canvas.walnut'));
+      c.fillStyle = '#4A2C1A'; c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 26; i++) { c.strokeStyle = r() < .5 ? `rgba(20,10,4,${.3 + r() * .4})` : `rgba(140,90,55,${.2 + r() * .3})`; c.lineWidth = .4 + r() * .9; c.beginPath(); const y0 = r() * h, a = 1 + r() * 2.5, f = 40 + r() * 80, ph = r() * 6; for (let x = 0; x <= w; x += 4) { const y = y0 + Math.sin(x / f + ph) * a; x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); }
+      c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, h - 1.5, w, 1.5); }
+    // VU meter
+    const vuCv = root.querySelector('canvas.vu'), vu = vuCv && fit(vuCv);
+    const marks = [-20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3];
+    const pos = (db) => (Math.pow(10, db / 20) - .1) / (Math.pow(10, 3 / 20) - .1);
+    const A = 50 * Math.PI / 180;
+    function drawVu(p) {
+      if (!vu) return;
+      const { c, w, h } = vu;
+      const px = w / 2, py = h * 1.18, R = h * 1.0;
+      const face = c.createRadialGradient(px, h * .95, 10, px, h * .7, w * .75);
+      face.addColorStop(0, '#FFF1CF'); face.addColorStop(.45, '#F8D596'); face.addColorStop(1, '#D99A4E');
+      c.fillStyle = face; c.fillRect(0, 0, w, h);
+      const ang = (q) => -A + q * 2 * A;
+      const at = (q, rad) => [px + Math.sin(ang(q)) * rad, py - Math.cos(ang(q)) * rad];
+      // scale arc: black to 0 dB, red after
+      const arc = (q0, q1, col, lw) => { c.strokeStyle = col; c.lineWidth = lw; c.beginPath(); c.arc(px, py, R, -Math.PI / 2 + ang(q0), -Math.PI / 2 + ang(q1)); c.stroke(); };
+      arc(0, pos(0), '#2A2522', 1.6); arc(pos(0), 1, '#C8262C', 5);
+      c.font = "600 10px 'Saira Semi Condensed', sans-serif"; c.textAlign = 'center'; c.textBaseline = 'middle';
+      marks.forEach((db) => {
+        const q = pos(db), [x0, y0] = at(q, R), [x1, y1] = at(q, R + 7);
+        c.strokeStyle = db > 0 ? '#C8262C' : '#2A2522'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+        const [tx, ty] = at(q, R + 15); c.fillStyle = db > 0 ? '#C8262C' : '#2A2522'; c.fillText(String(Math.abs(db)), tx, ty);
+      });
+      c.font = "11px 'Michroma', sans-serif"; c.fillStyle = '#2A2522'; c.fillText('SATS', px, h * .64);
+      c.font = "7px 'Michroma', sans-serif"; c.fillStyle = '#C8262C'; c.fillText('+', w - 18, 12); c.fillStyle = '#2A2522'; c.fillText('−', 16, 12);
+      // needle
+      const [nx, ny] = at(p, R + 10);
+      c.strokeStyle = '#1B1715'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(px, py); c.lineTo(nx, ny); c.stroke();
+      // pivot dome and glass
+      const d = c.createRadialGradient(px - 6, h + 2, 2, px, h + 8, 26); d.addColorStop(0, '#8A6A45'); d.addColorStop(1, '#2C1E12');
+      c.fillStyle = d; c.beginPath(); c.ellipse(px, h + 6, 26, 16, 0, Math.PI, 0); c.fill();
+      const gl = c.createLinearGradient(0, 0, w, h); gl.addColorStop(0, 'rgba(255,255,255,.28)'); gl.addColorStop(.3, 'rgba(255,255,255,0)'); gl.addColorStop(.8, 'rgba(255,255,255,0)'); gl.addColorStop(1, 'rgba(255,255,255,.12)');
+      c.fillStyle = gl; c.fillRect(0, 0, w, h);
+      c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(0, 0, w, 3);
+    }
+    // counter drums
+    const strips = [...root.querySelectorAll('.drum:not(.gap) .strip')];
+    const cur = strips.map(() => 0);
+    const H = 46;
+    function setDigits(str, animate) {
+      const ds = str.replace(/,/g, '').split('').map(Number);
+      ds.forEach((d, i) => {
+        const el = strips[i], old = cur[i];
+        if (!animate) { el.style.transition = 'none'; el.style.transform = `translateY(${-d * H}px)`; cur[i] = d; return; }
+        if (d === old) return;
+        el.style.transition = 'transform 1.1s cubic-bezier(.3,.1,.2,1)';
+        if (d < old) { // roll forward through 9 to 0
+          el.style.transform = `translateY(${-10 * H}px)`;
+          setTimeout(() => { el.style.transition = 'none'; el.style.transform = 'translateY(0)'; if (d > 0) { void el.offsetHeight; el.style.transition = 'transform .6s ease-out'; el.style.transform = `translateY(${-d * H}px)`; } }, 1150);
+        } else el.style.transform = `translateY(${-d * H}px)`;
+        cur[i] = d;
+      });
+    }
+    let bal = 21000;
+    const fmt = (n) => n.toLocaleString('en-US');
+    Promise.all([document.fonts.load("11px 'Michroma'"), document.fonts.load("600 25px 'Saira Semi Condensed'")]).catch(() => {}).then(() => {
+      brush(); setDigits(fmt(bal), false);
+      let needle = .32, vel = 0, target = .32;
+      drawVu(needle);
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      let t0 = performance.now();
+      const loop = (t) => {
+        const idle = .30 + Math.sin(t / 700) * .03 + Math.sin(t / 230) * .015;
+        target = t < t0 ? .97 : idle;
+        vel += (target - needle) * .08; vel *= .82; needle = Math.max(0, Math.min(1.04, needle + vel));
+        drawVu(needle); requestAnimationFrame(loop);
+      };
+      if (vu) requestAnimationFrame(loop);
+      setInterval(() => {
+        bal = bal >= 99500 ? 21000 : bal + 500;
+        setDigits(fmt(bal), true);
+        t0 = performance.now() + 450; // needle holds in the red briefly, then settles
+      }, 5000);
+    });
+  })();
+  // Jazz Age: keyboard, stage lighting, and the balance on a stave
+  const octave = (() => {
+    let o = '<svg xmlns="http://www.w3.org/2000/svg" width="98" height="30" viewBox="0 0 98 30"><defs><linearGradient id="iv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBF4E4"/><stop offset="1" stop-color="#D9CDB4"/></linearGradient><linearGradient id="eb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A2422"/><stop offset="1" stop-color="#080606"/></linearGradient></defs><rect width="98" height="30" fill="#1a1411"/>';
+    for (let i = 0; i < 7; i++) o += `<rect x="${i * 14 + .5}" y="0" width="13" height="29" rx="1.2" fill="url(#iv)"/>`;
+    [9.5, 23.5, 51.5, 65.5, 79.5].forEach((x) => { o += `<rect x="${x}" y="0" width="8" height="18" rx="1" fill="url(#eb)"/><rect x="${x + 1.2}" y="0" width="1.4" height="16" fill="rgba(255,255,255,.18)"/>`; });
+    return o + '</svg>';
+  })();
+  set('m-jazz', `<canvas class="bgfx"></canvas><div class="keys" style="background-image:${svgUrl(octave)}"></div>
+    <div class="inner">${topbar()}
+      <h3 class="view-title">Wallet</h3>
+      <div class="score bal">
+        <div class="stave"><span class="bar open"></span><span class="digits" aria-label="21,000">${[...'21,000'].map((d, k) => `<span class="${d === ',' ? 'c' : ''}" style="--k:${k}">${d}</span>`).join('')}</span><span class="bar"></span></div>
+        <span class="fiat">sats · about $14.20</span>
+      </div>
+      ${buttons}
+      ${note('Kid Ory', 'New tailgate part for the trombone. We run it at the Sunset Café Thursday.', 'K')}
+      ${ask()}
+    </div>`);
+  (function () {
+    const cv = document.querySelector('#m-jazz canvas.bgfx');
+    const draw = () => {
+      const w = cv.clientWidth, h = cv.clientHeight; cv.width = w * 2; cv.height = h * 2;
+      const c = cv.getContext('2d'); c.setTransform(2, 0, 0, 2, 0, 0);
+      c.fillStyle = '#0C0908'; c.fillRect(0, 0, w, h);
+      // stage lighting: cones from lamps above the frame, soft-edged, added light on light.
+      // Kept low so ivory type stays well clear of its ground where beams cross it.
+      c.save(); c.globalCompositeOperation = 'lighter'; c.filter = 'blur(10px)';
+      const beam = (x0, x1, spread, len, rgb, a) => {
+        const g = c.createLinearGradient(x0, -20, x1, len); g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(.55, `rgba(${rgb},${a * .45})`); g.addColorStop(1, `rgba(${rgb},0)`);
+        c.fillStyle = g; c.beginPath(); c.moveTo(x0 - 5, -20); c.lineTo(x0 + 5, -20); c.lineTo(x1 + spread, len); c.lineTo(x1 - spread, len); c.closePath(); c.fill();
+      };
+      beam(w * .12, w * .62, 70, h * .95, '255,214,160', .24);
+      beam(w * .95, w * .30, 60, h * .85, '255,70,70', .22);
+      beam(w * .55, w * .85, 50, h * .75, '255,190,120', .12);
+      c.filter = 'blur(18px)';
+      // where the beams land: a pool on the stage floor
+      const pool = c.createRadialGradient(w * .5, h * .98, 5, w * .5, h * .98, w * .7); pool.addColorStop(0, 'rgba(255,200,140,.16)'); pool.addColorStop(1, 'rgba(255,200,140,0)');
+      c.fillStyle = pool; c.fillRect(0, h * .6, w, h * .4);
+      c.restore();
+    };
+    Promise.all([document.fonts.load("34px 'Fascinate'"), document.fonts.load("44px 'Federo'"), Promise.resolve()]).catch(() => {}).then(() => requestAnimationFrame(draw));
+  })();
+})();
+</script>
+
+</body>
+</html>
