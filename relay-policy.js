@@ -70,7 +70,14 @@
     return Object.keys(map).filter((u) => map[u].write);
   }
 
-  const api = { listFromTags, relayMap, writeRelays };
+  // The read half, in order: where to look for what others send this account, its
+  // inbox. Notifications read here, so a reply delivered to a declared read relay (which
+  // is where a NIP-65 client sends it) is seen even when no bootstrap relay carries it.
+  function readRelays(map) {
+    return Object.keys(map).filter((u) => map[u].read);
+  }
+
+  const api = { listFromTags, relayMap, writeRelays, readRelays };
   if (typeof self !== 'undefined') self.SidecarRelayPolicy = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarRelayPolicy = api;
 })();

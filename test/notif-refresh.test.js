@@ -69,7 +69,8 @@ test('the refresh re-reads the relay list', () => {
   // or removed while the panel stayed open was invisible to every later refresh.
   const fn = stripComments(lift('async function initNotifSubs('));
   const refetch = refetchBlock(fn);
-  assert.match(refetch, /await relayUrls\(false\)/, 'the refresh reuses a stale relay list');
+  // The inbox (inboxRelays), which is the relay list the subscription reads.
+  assert.match(refetch, /await inboxRelays\(a\.pubkey\)/, 'the refresh reuses a stale relay list');
 });
 
 test('A RELAY THAT NEVER SENDS EOSE CANNOT HANG THE BUTTON', () => {

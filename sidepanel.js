@@ -4026,6 +4026,31 @@
     }
   }
 
+  // WHERE THIS ACCOUNT'S NOTIFICATIONS ARE READ: its inbox. The same relayMap rule as
+  // postRelays below and getRelays() in the background, taking the read half: the
+  // declared read relays plus the bootstrap set, declared alone with "Use bootstrap
+  // relays" off, and the bootstrap set for an account with no list.
+  //
+  // Notifications used to read the bootstrap set alone. A client that follows NIP-65
+  // delivers a reply to the recipient's declared read relays, so a reply that landed only
+  // on a declared relay no bootstrap relay mirrored never reached the bell, while every
+  // inbox-reading client showed it. No relay is
+  // added here that the account or Settings did not already name.
+  //
+  // NIP-65-only with no list ever seen reads nothing, as postRelays refuses to post: the
+  // bootstrap relays are the ones the account asked to stop using.
+  async function inboxRelays(pubkey) {
+    const info = await getNip65Info(pubkey);
+    const nip65Only = await nip65OnlyFor(pubkey);
+    if (nip65Only && !info.resolved && !info.stale) return [];
+    const configured = await call({ type: 'SIDECAR_GET_RELAYS' });
+    const P = self.SidecarRelayPolicy;
+    const urls = P.readRelays(P.relayMap({ list: info.list, configured, bootstrap: !nip65Only }));
+    // One socket per relay: a declared URL with a trailing slash and a configured one
+    // without it are the same relay.
+    return [...new Set(urls.map(normalizeRelay))];
+  }
+
   // Where this account's posts go. The rule itself is relay-policy.js's relayMap, the same one the background answers a
   // client's getRelays() with (#274): declared plus bootstrap, declared alone with
   // "Use bootstrap relays" off, and the bootstrap set for an account with no list.
@@ -6361,7 +6386,7 @@
       // Re-reads the relay list instead of closing over the one above, since relays can
       // be added or removed while the panel stays open.
       cache.refetch = async () => {
-        const urls = await relayUrls(false);
+        const urls = await inboxRelays(a.pubkey);
         if (!urls.length) return;
         cache.replaceLive(urls);
         const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
@@ -6394,15 +6419,20 @@
         }
       };
 
+      // The subscriptions read the account's inbox; the loaders above read the relays
+      // they always have (these are the account's own lists and notes, not deliveries).
+      const inbox = await inboxRelays(a.pubkey);
+      if (!inbox.length) continue;
+      if (state?.activePubkey !== a.pubkey || cache.liveSub) continue;
       const liveSince = Math.floor(Date.now() / 1000);
       // nostr-tools ≥2.20 subscriptions take a single filter object, not an array —
       // open one subscription per filter (the pool shares the relay sockets).
       try {
         for (const f of buildFilters(since, 50)) {
-          poolSubscribeManyEose(relays, f, { onevent: addEvent });
+          poolSubscribeManyEose(inbox, f, { onevent: addEvent });
         }
       } catch (_) {}
-      let liveRelays = relays;
+      let liveRelays = inbox;
       cache.replaceLive = (urls = liveRelays) => {
         if (state?.activePubkey !== a.pubkey) return;
         liveRelays = urls;
