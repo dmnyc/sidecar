@@ -1,0 +1,441 @@
+/* ============================================================
+   Sidecar — Departures Theme
+   A station departures board: a black board, every figure on
+   its own split flap, destinations on wide flaps, and yellow
+   for the platform numbers. Dark mode.
+   ============================================================ */
+
+/* Measured before written down, like every theme here — test/theme-contrast.test.js
+   resolves these var() chains and checks the ratios.
+
+   THE SOURCE is the split-flap departures board, the Solari design of 1956 that hung
+   in stations and airports for the next half century: a black board, white characters on
+   black flaps that clatter over one at a time, a thin gap across the middle of every
+   flap, and yellow for the platform numbers and the times.
+
+       BOARD    #141413 the board, #0E0E0D the cards and strips on it
+       FLAP     #1D1D1C top half, #181817 bottom half, a black split between them
+       INK      #F2F1EA the white characters
+       YELLOW   #F5C400 the platform number, the one thing to press
+
+   THE NEAREST NEIGHBOR IS NIXIE, the other theme that makes the balance a display device.
+   Nixie is electrical: glowing tubes. This is mechanical: printed flaps that fall, and
+   nothing on the board glows. It is also the only theme whose motion is a flip.
+
+   A NORMAL THEME: the gallery's Dark and Light tabs and the lock screen's line under the
+   logo keep the shared style, as every theme's do but Ben Day's. */
+
+[data-theme="departures"] {
+  color-scheme: dark;
+
+  /* Barlow Condensed, a condensed grotesque like the lettering printed on a board's
+     flaps: the balance, the destination flaps, the buttons and the small labels. */
+  --font-display: 'Barlow Condensed', 'Arial Narrow', var(--font-ui);
+  --display-ink-nudge: 0.02em;
+
+  /* surfaces — the board and the strips on it */
+  --bg: #141413;
+  --bg-2: #10100F;
+  --velvet-1: #0E0E0D;
+  --velvet-2: #0A0A09;
+  --velvet-1-rgb: 14, 14, 13;
+  --av-from: #2A2A28;
+  --av-to: #161615;
+  --banner-accent: #1D1D1C;
+  --border: rgba(242, 241, 234, 0.16);
+  --border-strong: rgba(242, 241, 234, 0.38);
+  --border-rgb: 242, 241, 234;
+  --well-rgb: 6, 6, 5;
+  /* Salmon, not the yellow: the yellow is the button you press, so a warning or a
+     destructive action takes a color it cannot be mistaken for. */
+  --warn: #FF8A70;
+  --warn-rgb: 255, 138, 112;
+  --success: #8FDBA4;
+  --success-rgb: 143, 219, 164;
+  --select-caret: var(--select-caret-on-dark);
+
+  /* The yellow is the accent, as ink and as fill. */
+  --orange: #F5C400;
+  --amber: #F5C400;
+  --gold: #F5C400;
+  /* The shared sheet edges cards, the Overview and the wallet card in this; on a board
+     every strip has the same hairline edge, and the yellow is kept for one edge of the
+     row that is selected. */
+  --gold-soft: rgba(242, 241, 234, 0.22);
+  --accent-rgb: 245, 196, 0;
+  --purple: #DCDBD3;
+  --lav: #F2F1EA;
+  --balance-ink: #F2F1EA;
+  --fiat-sym-opacity: 1;
+  --news: #F5C400;
+  --news-ink: #F5C400;
+  --add-badge-ink: #0E0E0D;
+  --badge-bg: #F5C400;
+  --badge-ink: #0E0E0D;
+  --relax-dot-ok: #8FDBA4;
+  --relax-dot-low: #FF9F43; /* orange, not the yellow: green to orange has to warn */
+
+  --hover-soft: rgba(242, 241, 234, 0.05);
+  --hover-medium: rgba(242, 241, 234, 0.09);
+  --hover-faint: rgba(242, 241, 234, 0.035);
+  --mention-bg: rgba(245, 196, 0, 0.18);
+  --scroll-thumb: #3A3A38;
+  --scroll-thumb-hover: #4A4A47;
+
+  /* primary — the yellow, black lettering */
+  --btn-primary-top: #F5C400;
+  --btn-primary-mid: #F5C400;
+  --btn-primary-bot: #F5C400;
+  --btn-primary-text: #0E0E0D;
+  --btn-shadow: rgba(0, 0, 0, 0.6);
+
+  /* "Trust this site" — a black flap with a hairline edge */
+  --btn-lav-top: #1D1D1C;
+  --btn-lav-mid: #1B1B1A;
+  --btn-lav-bot: #181817;
+  --btn-lav-text: #F2F1EA;
+  --btn-lav-ring: rgba(242, 241, 234, 0.38);
+  --btn-lav-shadow: rgba(0, 0, 0, 0.6);
+
+  --btn-secondary-top: #1D1D1C;
+  --btn-secondary-bot: #181817;
+
+  --pending-text: #F5C400;
+
+  --btn-accent-top: #F5C400;
+  --btn-accent-mid: #F5C400;
+  --btn-accent-bot: #F5C400;
+  --btn-accent-text: #0E0E0D;
+
+  /* ink — the white characters, and two grays */
+  --text: #F2F1EA;
+  --text-2: #DCDBD3;
+  --muted: #A9A79D;
+  --faint: #A09E94;
+  --red: #FF8A70;
+
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --sheen: none;
+
+  --pattern-opacity: 1;
+
+  --input-bg: #0A0A09;
+  --focus-ring: rgba(245, 196, 0, 0.30);
+  --card-wash: transparent;
+  --accent-fill: #F5C400;
+  --chip-ink: #0E0E0D;
+  --glow: #F5C400;
+  --balloon-bg: #F5C400;
+  --balloon-bg-hover: #FFD21F;
+  --balloon-text: #0E0E0D;
+  /* The compose button is a yellow flap with a black quill. */
+  --fab-bg: #F5C400;
+  --fab-icon: #0E0E0D;
+  --float-shadow: rgba(0, 0, 0, 0.55);
+  --float-shadow-strong: rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="departures"] .sk {
+  background-image: linear-gradient(100deg, var(--velvet-1) 30%, var(--hover-medium) 50%, var(--velvet-1) 70%);
+}
+[data-theme="departures"] ::selection {
+  background: var(--mention-bg);
+  color: var(--text);
+}
+[data-theme="departures"] .relax-status-x {
+  background: var(--warn);
+  color: #0E0E0D;
+}
+
+/* ---- THE STRIPS ON THE BOARD -----------------------------------------------------------
+   The board behind everything is a grid of empty flaps (patterns.css). Everything with
+   words on it is a solid strip over that grid: the account bar, the cards, the sheets. */
+[data-theme="departures"] .topbar,
+[data-theme="departures"] .compose-topbar {
+  background: #0E0E0D;
+  border-bottom: 1px solid rgba(242, 241, 234, 0.16);
+  box-shadow: 0 2px 0 #000;
+}
+[data-theme="departures"] .item,
+[data-theme="departures"] .card,
+[data-theme="departures"] .list.flat:not(.empty):not(:has(.list-state)) {
+  background: #0E0E0D;
+  border-color: rgba(242, 241, 234, 0.14);
+}
+/* RECTANGULAR, as a board's strips are: the shared sheet rounds every surface 12px; here
+   they take a 2px corner, and the controls on them 3px. Avatars and round marks keep
+   their own shapes, since only these surfaces are named. */
+[data-theme="departures"] .item,
+[data-theme="departures"] .card,
+[data-theme="departures"] .modal,
+[data-theme="departures"] .list.flat,
+[data-theme="departures"] .approval-card,
+[data-theme="departures"] .acct-menu,
+[data-theme="departures"] .account-stats,
+[data-theme="departures"] .active-account,
+[data-theme="departures"] .acct-capsule,
+[data-theme="departures"] .link-card,
+[data-theme="departures"] .compose-sheet,
+[data-theme="departures"] .wallet-card,
+[data-theme="departures"] .welcome-tip,
+[data-theme="departures"] .switch-tip,
+[data-theme="departures"] .post-banner,
+[data-theme="departures"] .host-perm-banner,
+[data-theme="departures"] .interrupted-banner,
+[data-theme="departures"] .otd,
+[data-theme="departures"] .toast,
+[data-theme="departures"] #view-settings .settings-section,
+[data-theme="departures"] #view-settings .setting.danger-zone,
+[data-theme="departures"] .profile-body,
+[data-theme="departures"] .screen .stack,
+[data-theme="departures"] .account-stat-grid,
+[data-theme="departures"] .account-stats-link,
+[data-theme="departures"] .acct-row { border-radius: 2px; }
+[data-theme="departures"] .primary,
+[data-theme="departures"] .secondary,
+[data-theme="departures"] .lav-btn,
+[data-theme="departures"] .danger,
+[data-theme="departures"] .relax-chip,
+[data-theme="departures"] .mini,
+[data-theme="departures"] input,
+[data-theme="departures"] select,
+[data-theme="departures"] textarea { border-radius: 3px; }
+/* THE SELECTED ROW has one yellow edge, its left, like the strip a board lights beside
+   the train that is boarding; its other edges stay the board's hairline. */
+[data-theme="departures"] .item.item-active,
+[data-theme="departures"] .item.item-pending,
+[data-theme="departures"] .recovery-row.rec {
+  border-color: rgba(242, 241, 234, 0.22);
+  box-shadow: inset 3px 0 0 #F5C400;
+}
+/* The same in the account menu: the active and pending rows keep their faint tint and
+   take the yellow edge instead of a rounded pill. */
+[data-theme="departures"] .acct-row.active,
+[data-theme="departures"] .acct-row.acct-row-pending { box-shadow: inset 3px 0 0 #F5C400; }
+[data-theme="departures"] .toast-progress { background: #1D1D1C; color: #F2F1EA; border-color: rgba(242, 241, 234, 0.2); }
+
+/* ---- DESTINATIONS: THE VIEW TITLE ON ONE WIDE FLAP ---------------------------------------
+   A board prints a destination's whole name on a single flap, so the title is one flap
+   the width of its word, split across the middle, in any language and at any length. */
+[data-theme="departures"] .tabview h2,
+[data-theme="departures"] #view-settings > .content > h2,
+[data-theme="departures"] #view-profile-edit > .content > h2 {
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  padding: 3px 12px 2px;
+  color: #F2F1EA;
+  border-radius: 3px;
+  background:
+    linear-gradient(#050505, #050505) center / 100% 1px no-repeat,
+    linear-gradient(180deg, #1D1D1C 50%, #181817 50%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 0 #000;
+}
+/* Section headings and setting names: the board's small capitals. */
+[data-theme="departures"] .tabview h3,
+[data-theme="departures"] #view-settings .settings-section-toggle,
+[data-theme="departures"] .account-stats-toggle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---- BUTTONS -----------------------------------------------------------------------------
+   Send and Allow are the yellow; the quieter buttons are black flaps with a hairline edge.
+   Lettered like the board, uppercase. */
+[data-theme="departures"] .primary,
+[data-theme="departures"] .secondary,
+[data-theme="departures"] .lav-btn,
+[data-theme="departures"] .danger,
+[data-theme="departures"] .relax-chip {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-theme="departures"] .primary { box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+[data-theme="departures"] .secondary,
+[data-theme="departures"] .lav-btn,
+[data-theme="departures"] .relax-chip {
+  border: 1px solid rgba(242, 241, 234, 0.3);
+  color: #F2F1EA;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+[data-theme="departures"] .danger { background: #FF8A70; color: #0E0E0D; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+/* Data is not lettering: an address on a button stays in the UI face and its own case. */
+[data-theme="departures"] .recv-addr,
+[data-theme="departures"] .recv-out > .secondary:not(.recv-copy),
+[data-theme="departures"] .peek-zap-addr {
+  font-family: var(--font-ui);
+  text-transform: none;
+  letter-spacing: 0;
+}
+[data-theme="departures"] .switch input:checked ~ .switch-track { background: #F5C400; }
+[data-theme="departures"] .switch input:checked ~ .switch-track::after { background: #0E0E0D; }
+[data-theme="departures"] input[type=checkbox] { accent-color: #F5C400; }
+
+/* ---- THE BALANCE: A ROW OF FLAPS -------------------------------------------------------
+   Every character is its own flap: a lighter top half, a darker bottom one, and the black
+   split between them running through the figure, drawn over the character the way the gap
+   between two flaps cuts through a printed digit. The separators are narrower flaps (a
+   board's punctuation flaps are), and the currency symbol has a flap like any digit.
+   Sized in em, so the compact card and the pinned bar draw the same board. */
+[data-theme="departures"] .wallet-card {
+  background: #0E0E0D;
+  border-color: rgba(242, 241, 234, 0.16);
+}
+[data-theme="departures"] .wallet-bal-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+[data-theme="departures"] .wallet-balance,
+[data-theme="departures"] .pinned-balance-amt {
+  font-weight: 600;
+  perspective: 400px;
+}
+[data-theme="departures"] .wallet-balance .bal-glyph,
+[data-theme="departures"] .wallet-balance .wallet-fiat-sym,
+[data-theme="departures"] .pinned-balance-amt .bal-glyph,
+[data-theme="departures"] .pinned-balance-amt .pinned-fiat-sym,
+[data-theme="departures"] .countdown-num .bal-glyph {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  padding: 0.04em 0.08em 0.02em;
+  margin: 0 0.035em;
+  border-radius: 0.07em;
+  background: linear-gradient(180deg, #232322 50%, #1B1B1A 50%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+[data-theme="departures"] .wallet-balance .bal-glyph::after,
+[data-theme="departures"] .wallet-balance .wallet-fiat-sym::after,
+[data-theme="departures"] .pinned-balance-amt .bal-glyph::after,
+[data-theme="departures"] .pinned-balance-amt .pinned-fiat-sym::after,
+[data-theme="departures"] .countdown-num .bal-glyph::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 0.5px);
+  height: 1px;
+  background: rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+[data-theme="departures"] .wallet-balance .bal-glyph.bal-sep,
+[data-theme="departures"] .pinned-balance-amt .bal-glyph.bal-sep { padding-left: 0.02em; padding-right: 0.02em; }
+/* The symbol is set smaller than the figure, on a flap as tall as a digit's: its line
+   height is the digit flap's height expressed in its own 0.7em. */
+[data-theme="departures"] .wallet-balance .wallet-fiat-sym,
+[data-theme="departures"] .pinned-balance-amt .pinned-fiat-sym {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.7em;
+  line-height: 1.543;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 1;
+  color: #F2F1EA;
+  transform: none;
+}
+/* The fiat line under the balance is the yellow of the times on a board. */
+[data-theme="departures"] .wallet-card .wallet-unit {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: #F5C400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+[data-theme="departures"] .pinned-balance { background: #0E0E0D; border-bottom: 1px solid rgba(242, 241, 234, 0.16); }
+
+/* THE COUNTDOWN is a clock on the board: the yellow running round a dark ring, its digits
+   on flaps, so a tick that changes a digit flips it (the countdown strikes only the digits
+   that changed; see paintCountdownNum). */
+[data-theme="departures"] .countdown-ring .ring-track { stroke: #232322; }
+[data-theme="departures"] .countdown-ring .ring-fill { stroke: #F5C400; }
+[data-theme="departures"] .countdown-num { font-family: var(--font-display); font-weight: 600; color: #F2F1EA; gap: 0.04em; perspective: 300px; }
+
+/* The hidden-balance discs: round, in the UI face, rather than the flap face's bullet. */
+[data-theme="departures"] .balances-hidden .wallet-balance::after,
+[data-theme="departures"] .balances-hidden .pinned-balance-amt::after {
+  content: '●●●●';
+  font-family: var(--font-ui);
+  font-size: 0.55em;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em;
+}
+
+/* THE NEW FIGURE CLATTERS OVER: each changed flap falls three times in quick succession
+   before it settles, one flap after another, the way a board runs through the characters
+   between the old one and the new. Only on an arrival (.bal-in, the strike contract in
+   splitGlyphs). Mechanical, never a glow. */
+@keyframes departures-flap {
+  0% { transform: rotateX(80deg); filter: brightness(0.55); }
+  100% { transform: none; filter: none; }
+}
+[data-theme="departures"] .bal-glyph { display: inline-block; }
+[data-theme="departures"] .bal-glyph.bal-in {
+  transform-origin: 50% 50%;
+  animation: departures-flap 110ms linear 3 both;
+  animation-delay: calc(var(--i) * min(90ms, 270ms / max(var(--n) - 1, 1)));
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="departures"] .bal-glyph.bal-in { animation: none; }
+}
+
+/* ---- THE LOCK SCREEN ------------------------------------------------------------------
+   The board's grid of empty flaps runs behind it, as it does behind the panel. The logo,
+   the line under it and the PIN form keep the shared layout and style; the form is a strip
+   of its own, so its label is not lettered on the grid. */
+/* THE STATION CLOCK hangs above the logo (drawn and run by startLockClock in sidepanel.js):
+   a black dial in a dark rim, white bars for the hours and ticks for the minutes, white
+   hands, and a thin yellow second hand with a counterweight. Placed in the space above the
+   centered content so the logo and the PIN box stay where every theme puts them, sized
+   down with the panel's height, and left out on a panel too short for it. */
+[data-theme="departures"] #view-lock { position: relative; }
+[data-theme="departures"] #view-lock .lock-clock {
+  --clock: min(132px, calc(50vh - 220px));
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: calc(50vh - 200px - var(--clock));
+  width: var(--clock);
+  height: var(--clock);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+@media (max-height: 600px) {
+  [data-theme="departures"] #view-lock .lock-clock { display: none; }
+}
+[data-theme="departures"] .lock-clock-face { display: block; width: 100%; height: 100%; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.7)); }
+[data-theme="departures"] .lock-clock .lc-rim { fill: #2A2A28; stroke: #0A0A09; stroke-width: 1; }
+[data-theme="departures"] .lock-clock .lc-dial { fill: #0E0E0D; }
+[data-theme="departures"] .lock-clock .lc-bar { fill: #F2F1EA; }
+[data-theme="departures"] .lock-clock .lc-tick { fill: #A9A79D; }
+[data-theme="departures"] .lock-clock .lc-hour path,
+[data-theme="departures"] .lock-clock .lc-min path { fill: #F2F1EA; }
+[data-theme="departures"] .lock-clock .lc-sec rect,
+[data-theme="departures"] .lock-clock .lc-sec circle,
+[data-theme="departures"] .lock-clock .lc-cap { fill: #F5C400; }
+[data-theme="departures"] #view-lock .stack {
+  padding: 4px 14px 14px;
+  background: #0E0E0D;
+  border: 1px solid rgba(242, 241, 234, 0.14);
+  border-radius: 6px;
+}
+
+/* "Don't allow" on the destructive-event card (both approval UIs) is lettered white in
+   the shared sheet, which is unreadable on the warning salmon. Dark lettering instead. */
+[data-theme="departures"] .destructive-warn-reject { color: #0E0E0D; }
+
+/* ---- ITS CARD IN THE PICKER ----------------------------------------------------------
+   Named in the flap face. Scoped to the card, never prefixed with the active theme. */
+.theme-card[data-theme="departures"] .theme-name { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }

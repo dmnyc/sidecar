@@ -428,7 +428,7 @@
   const THEME_LABELS = [
     ['speakeasy', 'Speakeasy'], ['metropolis', 'Metropolis'], ['film-noir', 'Film Noir'],
     ['brownstone', 'Brownstone'], ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'],
-    ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'], ['jazz-age', 'Jazz Age'],
+    ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'], ['jazz-age', 'Jazz Age'], ['departures', 'Departures'],
     ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
     ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
     ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'], ['ben-day', 'Ben Day'],
@@ -438,7 +438,7 @@
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
+    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
@@ -1069,6 +1069,61 @@
   // load counts as an arrival and gets its own leg.
   let wasLocked = true;
 
+  // ---- the Departures lock screen's station clock ----
+  // A working clock above the logo, the one a departures board hangs beside. Built and
+  // run only while the lock screen shows under Departures (every other theme hides the
+  // slot), and stopped on the same line that hides every view, so no timer outlives it.
+  // It moves like a station's slave clock: the second hand steps each second, the minute
+  // hand jumps once a minute, and the hour hand follows the minutes. Nothing in it is
+  // text, so there is nothing to translate; the lock screen's own time is the system's.
+  let lockClockTimer = null;
+  function buildLockClock(slot) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const el = (tag, attrs) => {
+      const n = document.createElementNS(NS, tag);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      return n;
+    };
+    const svg = el('svg', { viewBox: '0 0 100 100', class: 'lock-clock-face' });
+    svg.append(el('circle', { cx: 50, cy: 50, r: 48, class: 'lc-rim' }));
+    svg.append(el('circle', { cx: 50, cy: 50, r: 45, class: 'lc-dial' }));
+    for (let i = 0; i < 60; i++) {
+      const hour = i % 5 === 0;
+      svg.append(el('rect', {
+        x: hour ? 48.6 : 49.45, y: hour ? 7.5 : 7.5, width: hour ? 2.8 : 1.1, height: hour ? 10 : 3.6,
+        class: hour ? 'lc-bar' : 'lc-tick', transform: `rotate(${i * 6} 50 50)`,
+      }));
+    }
+    const hand = (cls, d) => { const g = el('g', { class: cls }); g.append(el('path', { d })); svg.append(g); return g; };
+    const h = hand('lc-hour', 'M48 58 L48.6 24 L51.4 24 L52 58 Z');
+    const m = hand('lc-min', 'M48.6 60 L49.2 13 L50.8 13 L51.4 60 Z');
+    const sec = el('g', { class: 'lc-sec' });
+    sec.append(el('rect', { x: 49.55, y: 12, width: 0.9, height: 52 }), el('circle', { cx: 50, cy: 62, r: 2.4 }));
+    svg.append(sec, el('circle', { cx: 50, cy: 50, r: 1.6, class: 'lc-cap' }));
+    slot.replaceChildren(svg);
+    return { h, m, sec };
+  }
+  function startLockClock() {
+    stopLockClock();
+    const slot = $('lock-clock');
+    if (!slot || document.documentElement.getAttribute('data-theme') !== 'departures') return;
+    const hands = buildLockClock(slot);
+    const turn = (g, deg) => g.setAttribute('transform', `rotate(${deg} 50 50)`);
+    const tick = () => {
+      const now = new Date();
+      const min = now.getMinutes(), sec = now.getSeconds();
+      turn(hands.h, (now.getHours() % 12) * 30 + min * 0.5);
+      turn(hands.m, min * 6);
+      turn(hands.sec, sec * 6);
+      // To the top of the next second, so the hand steps when the second does.
+      lockClockTimer = setTimeout(tick, 1000 - now.getMilliseconds());
+    };
+    tick();
+  }
+  function stopLockClock() {
+    if (lockClockTimer) { clearTimeout(lockClockTimer); lockClockTimer = null; }
+  }
+
   // ---- top-level routing ----
   // opts.keepWallet: the caller knows nothing wallet-related happened, so a wallet view
   // that is still valid should be updated in place instead of torn down. See the note at
@@ -1126,6 +1181,7 @@
     applyHideBalances();
     closeAcctMenu();
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
+    stopLockClock();
     if (!state.initialized) {
       // Clear any stale PIN left in the inputs (e.g. after a reset) — the panel is
       // an SPA, so values would otherwise persist across the view switch. Setting
@@ -1159,6 +1215,7 @@
       balanceCache = { pubkey: null, sats: null };
       wasLocked = true; // the next unlock is a new leg — see advanceMapLeg
       show($('view-lock'));
+      startLockClock();
       // On Never, the only thing that can have locked this is the browser closing —
       // the derived key lives in chrome.storage.session, which is memory-only and
       // cleared on browser close. Without saying so, "Never" reads as broken.

@@ -525,6 +525,18 @@ body {
   background-attachment: fixed, fixed;
 }
 
+/* Departures — the board: a grid of empty flaps, each split across the middle
+   (themes/departures-flaps.svg), repeated at its own size and fixed to the viewport so
+   the grid stays put as a view scrolls. Barely lighter than the board, so it reads as the
+   board's texture; everything with words on it is a solid strip over it. */
+[data-theme="departures"] body {
+  background-color: var(--bg);
+  background-image: url(departures-flaps.svg);
+  background-size: 20px 28px;
+  background-repeat: repeat;
+  background-attachment: fixed;
+}
+
 /* Jazz Age — the curtain: the lock screen's velvet (themes/jazz-age-curtain.svg,
    repeated across the width so its folds keep their size) with the same three beams'
    light multiplied onto it (themes/jazz-age-stage.svg), faded far back so the folds read

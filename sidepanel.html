@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="themes/ukiyo-e.css" />
   <link rel="stylesheet" href="themes/constellation.css" />
   <link rel="stylesheet" href="themes/jazz-age.css" />
+  <link rel="stylesheet" href="themes/departures.css" />
   <link rel="stylesheet" href="themes/mycelium.css" />
   <link rel="stylesheet" href="themes/ben-day.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
@@ -53,6 +54,8 @@
 
   <!-- ===== Lock screen (initialized, locked) ===== -->
   <section id="view-lock" class="screen hidden">
+    <!-- The Departures station clock, drawn and run by startLockClock; hidden in every other theme. -->
+    <div id="lock-clock" class="lock-clock" aria-hidden="true"></div>
     <div class="brand-lg">
       <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
     </div>
@@ -405,6 +408,9 @@
               </button>
               <button type="button" class="theme-card" data-theme="jazz-age" data-mode="dark">
                   <span class="theme-preview"></span><span class="theme-name">Jazz Age</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="departures" data-mode="dark">
+                  <span class="theme-preview"></span><span class="theme-name">Departures</span>
               </button>
               <button type="button" class="theme-card" data-theme="industria" data-mode="light">
                   <span class="theme-preview"></span><span class="theme-name">Industria</span>
