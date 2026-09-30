@@ -179,3 +179,39 @@ test('the module is loaded by the Chrome worker, the Firefox background and the 
   assert.ok(html.indexOf('src="relay-policy.js"') !== -1 && html.indexOf('src="relay-policy.js"') < html.indexOf('src="sidepanel.js"'),
     'the panel loads it before sidepanel.js');
 });
+
+// ---- the read half: where notifications are read -----------------------------------------
+
+test('readRelays is the inbox: declared read relays plus the bootstrap set, and nothing new', () => {
+  const on = P.readRelays(P.relayMap({ list: LIST, configured: CONFIGURED, bootstrap: true }));
+  assert.deepEqual(plain(on), ['wss://mine-read', 'wss://mine-both', 'wss://boot', 'wss://boot-readonly'],
+    'declared read relays first, then the bootstrap relays that read');
+  assert.ok(!on.includes('wss://mine-write'), 'a write-only declared relay is not an inbox');
+  // Off: declared read relays alone. No list: the bootstrap set, or nothing when off.
+  assert.deepEqual(plain(P.readRelays(P.relayMap({ list: LIST, configured: CONFIGURED, bootstrap: false }))),
+    ['wss://mine-read', 'wss://mine-both']);
+  assert.deepEqual(plain(P.readRelays(P.relayMap({ list: null, configured: CONFIGURED, bootstrap: true }))),
+    ['wss://boot', 'wss://boot-readonly']);
+  assert.deepEqual(plain(P.readRelays(P.relayMap({ list: null, configured: CONFIGURED, bootstrap: false }))), []);
+  // Every relay it names came from the account's list or from Settings.
+  const named = new Set([...LIST.read, ...LIST.write, ...Object.keys(CONFIGURED)]);
+  for (const u of on) assert.ok(named.has(u), u + ' was not named by the account or Settings');
+});
+
+test('the bell subscribes on the inbox, not on the bootstrap set alone', () => {
+  // A NIP-65 client delivers a reply to the recipient's declared read relays. Reading only
+  // the bootstrap set missed every reply that landed on a declared relay no bootstrap
+  // relay mirrored (reported 2026-09-30).
+  const sp = read('sidepanel.js').replace(/^\s*\/\/.*$/gm, '');
+  const fn = sp.slice(sp.indexOf('async function inboxRelays('));
+  const body = fn.slice(0, fn.indexOf('\n  }\n'));
+  assert.match(body, /P\.readRelays\(P\.relayMap\(\{ list: info\.list, configured, bootstrap: !nip65Only \}\)\)/,
+    'the inbox is the shared rule, not a second copy of it');
+  assert.doesNotMatch(body, /wss:\/\//, 'the inbox names no relay of its own');
+  const init = sp.slice(sp.indexOf('async function initNotifSubs('));
+  const initBody = init.slice(0, init.indexOf('\n  async function ') > 0 ? init.indexOf('\n  async function ') : 20000);
+  assert.match(initBody, /const inbox = await inboxRelays\(a\.pubkey\);/);
+  assert.match(initBody, /poolSubscribeManyEose\(inbox, f,/);
+  assert.match(initBody, /let liveRelays = inbox;/);
+  assert.match(initBody, /const urls = await inboxRelays\(a\.pubkey\);/, 'the refresh button reads the inbox too');
+});

@@ -39,6 +39,9 @@ function harness() {
       history.push({ urls, filter, params }); params.onclose?.(); return { close() {} };
     },
   };
+  // The bell reads the account's inbox (inboxRelays, relay-policy.js's read half). Here it
+  // is whatever relayUrls returns, so a test that swaps the relay list swaps the inbox.
+  ctx.inboxRelays = async () => ctx.relayUrls(false);
   vm.createContext(ctx);
   for (const name of ['function rememberOwnNote(', 'function forgetOwnNoteQuery(', 'function loadOwnNoteIds(',
     'function isOwnNoteReply(', 'function closeNotifSubsExcept(', 'async function initNotifSubs(']) {
