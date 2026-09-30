@@ -4919,7 +4919,10 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   width: 100%;
   /* 250 is the height of .preview-stage in theme-tile.html; the two must agree or the
      card no longer sits centred in the band this crops to. */
-  aspect-ratio: 360 / 250;
+  /* 175 rather than the 250 it was: five rows of shorter cards take about the height four
+     rows of the taller ones did, which is what fits ten themes a side. The wallet card in
+     the band is about 115 tall, so it still sits whole with room around it. */
+  aspect-ratio: 360 / 175;
   overflow: hidden;
   border-radius: 5px;
   background: var(--velvet-2);

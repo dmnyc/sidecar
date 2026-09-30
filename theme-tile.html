@@ -53,11 +53,12 @@
     }
     /* THE VISIBLE BAND, and the card is centred in THIS rather than in the document. The
        document is 700px because the field needs to be; the card only ever appears in the
-       top 250 of it, so centring against the body would push the card out of frame
-       entirely. Height is tied to the .theme-preview aspect-ratio in styles.css — 360/250
-       — and the two have to agree or the card drifts off centre. */
+       top 175 of it, so centring against the body would push the card out of frame
+       entirely. Height is tied to the .theme-preview aspect-ratio in styles.css — 360/175
+       — and the two have to agree or the card drifts off centre (a test holds them). It was
+       250 until the gallery grew past eight themes a side. */
     .preview-stage {
-      height: 250px;
+      height: 175px;
       display: flex;
       align-items: center;
       justify-content: center;
