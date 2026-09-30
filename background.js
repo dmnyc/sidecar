@@ -2639,12 +2639,16 @@ function flashPaidByHost(host) {
   notifyTabsPaidByHost(host).catch(() => {});
 }
 
-function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap) {
+// `opts.bind === false` pays without pairing the site to the account afterwards. The pay
+// card on a site that was never signed into Sidecar (a BTCPay checkout) passes it: binding
+// it there would make that site "connected", so it would list under Connected sites and
+// its next invoice would get the full-screen card by itself.
+function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap, opts) {
   return withPayInFlight(() =>
-    withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap))
+    withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap, opts))
   );
 }
-async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap) {
+async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap, opts) {
   const invoice = String(invoiceRaw || '').replace(/^lightning:/i, '').trim();
   if (!invoice) throw new Error('No invoice provided');
   if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
@@ -2782,7 +2786,7 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     // can say "Zap to alice" instead of "Sent". Bookkeeping, so it sits here with the
     // rest of it — after the money moved and off the caller's path.
     if (zapRecipient) await savePayMetaEntry(invoice, { zapPubkey: zapRecipient });
-    await setSiteAccount(host, pubkey);
+    if (!(opts && opts.bind === false)) await setSiteAccount(host, pubkey);
   });
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
   // Tell an open side panel to refresh its balance/history.
@@ -3066,11 +3070,13 @@ function notifyTabPayFailed(tabId, invoice, error) {
 async function payFromPage(invoiceRaw, host, originWindowId, offerAutoZap) {
   await KS.ensureLoaded();
   if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
+  // Read before resolving: whether the site was bound decides whether paying binds it.
+  const wasBound = !!(await getSiteAccount(host));
   const pubkey = await resolveSiteAccount(host);
   if (!pubkey) throw new Error('No active Sidecar account');
   if ((await PERMS.getLevel(pubkey, host)) === 'blocked') throw new Error('This site is blocked in Sidecar');
   if (!(await KS.hasNwc(pubkey))) throw new Error('No wallet connected in Sidecar');
-  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId, offerAutoZap);
+  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId, offerAutoZap, { bind: wasBound });
 }
 
 // First BOLT11 invoice inside a blob of text (selection, link, decoded QR).
@@ -3717,6 +3723,7 @@ async function handleControl(message, sender, sendResponse) {
                     type: 'SIDECAR_EVENT',
                     event: 'settings',
                     showPayButton: merged.showPayButton,
+                    payPillAnywhere: merged.payPillAnywhere === true,
                     // Keep the card's auto-zap offer in step: turning the setting on
                     // in Settings should retire the offer without a page reload.
                     autoZapOffer: merged.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
@@ -4060,9 +4067,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (!fromExtPage && message.type === 'SIDECAR_SET_SETTINGS') {
     // Clamp a web-origin settings write to the pay-card toggle only — never
-    // autozap, budgets, autolock, or any other setting.
+    // autozap, budgets, autolock, or any other setting. Plus "Show on unconnected
+    // sites", and only ever to OFF: a card's "Don't show this prompt again" on such a
+    // site switches it off, and no page may switch Sidecar on for the rest of the web.
     const s = message.settings || {};
-    message = { type: 'SIDECAR_SET_SETTINGS', settings: 'showPayButton' in s ? { showPayButton: !!s.showPayButton } : {} };
+    const clamped = {};
+    if ('showPayButton' in s) clamped.showPayButton = !!s.showPayButton;
+    if (s.payPillAnywhere === false) clamped.payPillAnywhere = false;
+    message = { type: 'SIDECAR_SET_SETTINGS', settings: clamped };
   }
   if (!fromExtPage && message.type === 'SIDECAR_GET_SETTINGS') {
     // Clamp the read side the same way: a visited page gets the pay-card toggle
@@ -4101,13 +4113,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // invoice on screen learns whether you have a wallet), which is worth less than
       // offering people a payment they cannot make.
       let hasWallet = false;
-      try { hasWallet = await KS.hasNwc(await resolveSiteAccount(cardHost)); } catch (_) {}
+      let payer = null;
+      try { payer = await resolveSiteAccount(cardHost); hasWallet = await KS.hasNwc(payer); } catch (_) {}
+      // A SITE WITH NO BOUND ACCOUNT wears the theme of the account that would pay from
+      // it, which is the active one (resolveSiteAccount). It had fallen back to the
+      // onboarding default, so on a BTCPay checkout the card came up in a theme none of
+      // the accounts wore. What the page could learn from that (which of your themes is
+      // active, and when it changes) is kept from it by the card's closed shadow root
+      // (content.js): the colors are drawn where the page's scripts cannot read them.
+      const cardAccount = bound || payer;
       sendResponse({
         ok: true,
         result: {
           showPayButton: st.showPayButton,
+          // Whether a site not signed in with Sidecar may show the corner pill. The
+          // content script's own business; the page never sees it.
+          payPillAnywhere: st.payPillAnywhere === true,
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
-          cardTheme: (bound && by[bound]) || st.theme || '',
+          cardTheme: (cardAccount && by[cardAccount]) || st.theme || '',
           hasWallet,
         },
       });

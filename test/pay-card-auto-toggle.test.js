@@ -93,7 +93,8 @@ test('showPayButton still gates only the manual path', () => {
   // The asymmetry that made the bug possible. If the auto path ever starts honouring
   // showCard, the reasoning above changes and this test should be revisited rather than
   // deleted.
-  assert.match(content, /if \(!showCard \|\| !connectedToSite\) return removeCard\(\);/);
+  // Nostr sites answer to showCard; unconnected sites to their own switch, checked first.
+  assert.match(content, /return renderPill\(inv\);\s*\}\s*if \(!showCard\) return removeCard\(\);/);
   const at = content.indexOf("msg.event === 'autopaying'");
   const autoPath = content.slice(at, content.indexOf('} else if', at));
   assert.ok(

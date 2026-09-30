@@ -11,8 +11,10 @@ Update that section alongside this file as part of every release.
 
 ### Added
 - **Bitcoin only.** A switch under Local currency, in Settings and on the wallet screen, takes local currency out of Sidecar: tapping your balance cycles sats and BTC, the currency picker is hidden, and no exchange rate is fetched. The currency you had chosen is kept, so turning the switch off brings it back.
+- **Pay a Lightning link on sites not signed in with Sidecar.** The pay button's switches, under Settings → Apps & browsing, are now **Show on Nostr sites** (on, as before) and **Show on unconnected sites** (off by default). With the second on, clicking a `lightning:` payment link on any site, such as the Pay in wallet button on a BTCPay checkout, opens Sidecar's pay card instead of launching another wallet app, and payment pages there get the small corner button, never the full-screen card. The card's **Open in another wallet** hands the invoice to that app when you would rather use it, and every payment still waits for your approval.
 
 ### Fixed
+- **A payment you just made shows up in Recent transactions.** The history was checked the moment a payment returned, and some wallets report a payment settled a few seconds before they list it, so it did not appear until the wallet was reopened. Sidecar now looks again a few seconds later.
 - **Film Noir's balance reads as one piece of lettering.** Each digit cast its own title-card extrusion, and each one fell across the face of the digit to its left, so the figure looked like overlapping letters. The extrusion now falls behind the neighboring digit, and behind the currency symbol too.
 
 ## [1.15.2] — 2026-09-29

@@ -85,14 +85,124 @@ test('the pill opens the card, and dismissing it is remembered', () => {
 test('a TAPPED lightning: link opens the card', () => {
   const at = content.indexOf('document.addEventListener(\'click\'');
   assert.ok(at !== -1, 'nothing listens for a tapped lightning: link');
-  const handler = stripComments(content.slice(at, at + 900));
+  const handler = stripComments(content.slice(at, at + 1100));
   assert.match(handler, /lightning:/i, 'the listener does not look for a lightning link');
   assert.match(handler, /renderCard\(inv\)/, 'a tapped link does not open the card');
   assert.match(handler, /composedPath/, 'a link inside a shadow root is missed');
   assert.match(handler, /invoiceExpired\(inv\)/, 'an expired invoice still opens a card');
-  // Deliberately NOT preventing the default: whoever registered an OS handler for
-  // lightning: keeps it, and Sidecar is an addition rather than a hijack.
-  assert.doesNotMatch(handler, /preventDefault/, 'the click is being swallowed from the page');
+  // THE TAP IS SIDECAR'S when it opens the card. Left alone, an app registered for
+  // lightning: took it too: on a BTCPay checkout the tap opened BlueWallet in a new tab
+  // instead of the card. Prevented only on the path that opens the card, so a tap Sidecar
+  // declines (no wallet, expired, dismissed) still reaches that app.
+  const opens = handler.slice(handler.indexOf('inv === dismissedInvoice) return;'));
+  assert.match(opens, /e\.preventDefault\(\);[\s\S]*?renderCard\(inv\)/, 'the tap also launches the other wallet');
+  assert.doesNotMatch(handler.slice(0, handler.indexOf('inv === dismissedInvoice) return;')), /preventDefault/,
+    'a tap Sidecar does not handle is swallowed anyway');
+});
+
+test('A TAPPED LINK ANSWERS TO THE SWITCH FOR ITS KIND OF SITE', () => {
+  // A BTCPay checkout's "Pay in wallet" is a lightning: link on a site with no Nostr in
+  // it. "Show on unconnected sites" (off by default) is what lets Sidecar take that tap;
+  // "Show on Nostr sites" covers a signed-in site's. Neither reaches the other's.
+  const at = content.indexOf('document.addEventListener(\'click\'');
+  const handler = stripComments(content.slice(at, at + 1100));
+  assert.match(handler, /if \(!hasWallet \|\| !\(connectedToSite \? showCard : pillAnywhere\)\) return;/,
+    'a tap is taken without a wallet, or under the other kind of site\'s switch');
+  assert.match(handler, /tappedInvoice = inv;\s*tappedHref = href;\s*renderCard\(inv\);/, 'the tapped card is not marked as tapped');
+});
+
+test('the scan still offers nothing unasked on an unconnected site, and leaves a tapped card up', () => {
+  const fn = stripComments(lift(content, 'function scanForInvoice('));
+  const gate = fn.slice(fn.indexOf('if (!connectedToSite)'), fn.indexOf('const found = findPageInvoice()'));
+  assert.ok(gate.length > 0, 'the connected-site gate moved');
+  // A checkout with a countdown re-scans every second: without this the card the person
+  // opened would be gone before they could press Pay.
+  assert.match(gate, /if \(cardHost && shownInvoice === tappedInvoice\) return;/, 'the scan takes a tapped card down');
+  assert.match(gate, /return removeCard\(\);/, 'an unconnected site gets an unasked card or pill');
+  assert.ok(fn.indexOf('if (!connectedToSite)') < fn.indexOf('findPageInvoice()'),
+    'the page is searched for invoices before the site is known to be connected');
+});
+
+test('an unconnected site still pays only through Sidecar\'s approval', () => {
+  // No binding, so the active account's wallet; no budget, so the approval prompt.
+  const pay = lift(background, 'async function payFromPage(');
+  assert.match(pay, /const pubkey = await resolveSiteAccount\(host\);/);
+  assert.match(pay, /'blocked'\) throw new Error/, 'a blocked site can be paid from its own page');
+  const core = lift(background, 'async function payInvoiceLocked(');
+  assert.match(core, /BUDGETS\.covers\(pubkey, host, sats\)/, 'a site pays without a budget check');
+});
+
+test('THE CARD HANDS THE INVOICE TO ANOTHER WALLET, THE LINK AS THE PAGE WROTE IT', () => {
+  const card = lift(content, 'function renderCard(');
+  assert.match(card, /<button class="other" type="button">' \+ escapeHtml\(msg\('cardOtherWallet', 'Open in another wallet'\)\)/);
+  const at = card.indexOf(".querySelector('.other').addEventListener");
+  assert.ok(at !== -1, 'the handoff button does nothing');
+  const fn = card.slice(at, at + 500);
+  assert.match(fn, /invoice === tappedInvoice && tappedHref \? tappedHref : 'lightning:' \+ invoice/);
+  assert.match(fn, /dismissedInvoice = invoice;\s*removeCard\(\);/, 'the card stays up over the other wallet');
+  // An anchor clicked from here would come straight back to the listener that took the tap.
+  assert.match(fn, /location\.href = href/);
+  assert.doesNotMatch(fn, /\.click\(\)/, 'the handoff goes through an anchor and loops back to Sidecar');
+  assert.match(content, /'\.card\.busy \.other\{display:none;\}'/, 'the handoff is offered while Sidecar is asking');
+  const en = JSON.parse(fs.readFileSync(path.join(ROOT, '_locales', 'en', 'messages.json'), 'utf8'));
+  assert.equal(en.cardOtherWallet.message, 'Open in another wallet');
+});
+
+test('OPTED IN, AN UNCONNECTED SITE GETS THE CORNER PILL AND NEVER THE CARD', () => {
+  const fn = stripComments(lift(content, 'function scanForInvoice('));
+  const branch = fn.slice(fn.indexOf('if (!connectedToSite)'), fn.indexOf('const found = findPageInvoice()'));
+  assert.match(branch, /if \(!pillAnywhere\) return removeCard\(\);/, 'the pill shows on other sites without the setting');
+  // Only an invoice in a payment panel, never one merely sitting on the page.
+  assert.match(branch, /const inv = offered && offered\.asked \? offered\.invoice : '';/);
+  assert.match(branch, /inv === dismissedInvoice \|\| !hasWallet\) return removeCard\(\);/);
+  assert.match(branch, /return renderPill\(inv\);/);
+  assert.doesNotMatch(branch, /renderCard\(/, 'an unconnected site opens the full-screen card by itself');
+  assert.doesNotMatch(branch, /SIDECAR_TRY_ZAP_AUTOPAY/, 'an unconnected site is asked about auto-zaps');
+});
+
+const panel0 = () => fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+
+test('the switch is off by default, carried to the page script, and nothing wider', () => {
+  const bg = stripComments(background);
+  assert.match(bg, /payPillAnywhere: st\.payPillAnywhere === true,/, 'the page-facing read does not carry it');
+  assert.match(bg, /payPillAnywhere: merged\.payPillAnywhere === true,/, 'turning it on needs a page reload');
+  // A page can write the Nostr-sites switch, and the unconnected-sites one only to OFF.
+  assert.match(bg, /if \('showPayButton' in s\) clamped\.showPayButton = !!s\.showPayButton;/);
+  assert.match(bg, /if \(s\.payPillAnywhere === false\) clamped\.payPillAnywhere = false;/);
+  assert.doesNotMatch(bg, /clamped\.payPillAnywhere = (true|!!)/, 'a page can switch Sidecar on for the whole web');
+  const card = lift(content, 'function renderCard(');
+  assert.match(card, /connectedToSite \? \{ showPayButton: false \} : \{ payPillAnywhere: false \}/,
+    '"Don\'t show this prompt again" switches off the wrong kind of site');
+  const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  assert.match(html, /id="paybutton-toggle" \/> <span data-i18n="Show on Nostr sites">/);
+  assert.match(html, /id="paypill-anywhere-toggle" \/> <span data-i18n="Show on unconnected sites">/);
+  assert.doesNotMatch(panel0(), /paypill-anywhere-toggle'\)\.disabled/, 'the two switches are tied together again');
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  assert.match(panel, /\$\('paypill-anywhere-toggle'\)\.checked = settings\.payPillAnywhere === true;/);
+  assert.match(panel, /settings: \{ payPillAnywhere: e\.target\.checked \}/);
+});
+
+test('PAYING FROM AN UNBOUND SITE DOES NOT BIND IT, OR IT WOULD STOP BEING UNCONNECTED', () => {
+  // A bound site counts as connected: it lists under Connected sites, answers to "Show on
+  // Nostr sites", and its next invoice gets the full-screen card by itself. A BTCPay
+  // checkout paid once must stay a site that gets none of that.
+  const pay = lift(background, 'async function payFromPage(');
+  assert.match(pay, /const wasBound = !!\(await getSiteAccount\(host\)\);/);
+  assert.ok(pay.indexOf('wasBound') < pay.indexOf('resolveSiteAccount'), 'the binding is read after it could have changed');
+  assert.match(pay, /payInvoiceCore\([^)]*\{ bind: wasBound \}\)/, 'the card path binds whatever it pays');
+  const core = lift(background, 'async function payInvoiceLocked(');
+  assert.match(core, /if \(!\(opts && opts\.bind === false\)\) await setSiteAccount\(host, pubkey\);/);
+  // Every other caller keeps binding: WebLN from a client is how a site gets paired.
+  assert.doesNotMatch(background.replace(/async function payFromPage\([\s\S]*?\n\}/, ''), /bind: false|bind: wasBound/,
+    'another payment path stopped pairing its site');
+});
+
+test('the wallet list looks again a few seconds after a payment lands', () => {
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  const at = panel.indexOf("msg.event === 'walletChanged'");
+  const h = panel.slice(at, at + 1800);
+  assert.match(h, /setTimeout\(\(\) => \{[\s\S]*?refreshTransactionList\(\);[\s\S]*?\}, 4000\)/,
+    'a payment the wallet lists a moment late never shows in Recent transactions');
 });
 
 // ---- no wallet, no offer ------------------------------------------------------------------
@@ -110,8 +220,8 @@ test('NOTHING IS OFFERED WITHOUT A WALLET TO PAY WITH', () => {
 test('the worker reports whether a wallet exists, and still clamps everything else', () => {
   const at = background.indexOf("fromExtPage && message.type === 'SIDECAR_GET_SETTINGS'");
   assert.ok(at !== -1, 'the clamped settings path moved');
-  const handler = stripComments(background.slice(at, at + 3000));
-  assert.match(handler, /hasWallet = await KS\.hasNwc\(/, 'the wallet check is gone or unclamped');
+  const handler = stripComments(background.slice(at, at + 4600));
+  assert.match(handler, /hasWallet = await KS\.hasNwc\(payer\)/, 'the wallet check is gone or unclamped');
   assert.match(handler, /hasWallet,/, 'the reply does not carry it');
   // The reason this is safe to answer at all: hasNwc only reports that an entry exists,
   // so it works locked and never touches the connection string.
@@ -154,7 +264,7 @@ test('the wallet gate asks about the account that would actually pay', () => {
   // payment that cannot happen or hide one that can.
   const at = background.indexOf("fromExtPage && message.type === 'SIDECAR_GET_SETTINGS'");
   const handler = stripComments(background.slice(at, at + 3000));
-  assert.match(handler, /KS\.hasNwc\(await resolveSiteAccount\(cardHost\)\)/, 'the gate resolves a different account than the payer');
+  assert.match(handler, /payer = await resolveSiteAccount\(cardHost\); hasWallet = await KS\.hasNwc\(payer\);/, 'the gate resolves a different account than the payer');
   const payer = stripComments(lift(background, 'async function payFromPage('));
   assert.match(payer, /resolveSiteAccount\(host\)/, 'payFromPage changed how it picks an account');
   assert.match(payer, /KS\.hasNwc\(pubkey\)/, 'payFromPage no longer requires a wallet');

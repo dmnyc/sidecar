@@ -24,6 +24,20 @@
   pressed (sending, landed) cannot be reached with an invoice that no wallet will accept.
   Default is 1 sat to your own address, which is the cheapest honest test there is.
 
+  Case 9 is a BTCPay checkout, and the one case that wants a site NOT connected to
+  Sidecar, which is what a real BTCPay server is. Serve the lab a second time on a port
+  that has never connected, and do not press Connect there:
+
+      python3 -m http.server 8022
+      open http://localhost:8022/test/manual/invoice-lab.html
+
+  It answers to Settings → Apps & browsing → "Show on unconnected sites": off, Sidecar
+  leaves the page alone and a tap on Pay in wallet goes to whatever app handles
+  lightning: (BlueWallet); on, the corner pill appears and the tap opens the card. Case 0's
+  "Show as a BTCPay checkout" puts its real invoice in the same shape, to test a payment
+  from an unconnected site end to end: that it lands in Recent transactions, and that the
+  port does NOT turn up under Activity → Connected sites afterwards.
+
   To ask the detector directly why a given element did or did not count, lift QR_SEL,
   PAGE_LEVEL, isPanelSized, isOverlay and hasPayIntent out of content.js into a probe.js
   beside this file and call hasPayIntent on the element. Not committed, because a copy of
@@ -91,6 +105,7 @@
       <div><label for="addr">Lightning address</label><input id="addr" class="addr" placeholder="you@example.com"></div>
       <div><label for="amt">Sats</label><input id="amt" class="amt" type="number" value="1" min="1" max="1000"></div>
       <button id="fetch">Fetch invoice</button>
+      <button id="btcpay-real">Show as a BTCPay checkout</button>
       <button id="clear-real">Clear</button>
     </div>
     <input id="inv" class="inv" placeholder="…or paste a BOLT11 invoice, if the address domain blocks CORS">
@@ -165,6 +180,19 @@
     <button data-show="h">Open the panel</button> <button data-hide="h">Close</button>
     <div class="slot" id="slot-h"></div>
   </div>
+
+  <div class="case">
+    <h2>9. A BTCPay checkout, on a site not connected to Sidecar</h2>
+    <p>BTCPay's own markup (LightningLikeMethodCheckout.cshtml): a QR container, the invoice
+    shortened in the middle, and <code>#PayInWallet</code>, a <code>lightning:</code> link with
+    <code>target="_blank"</code>, under a countdown that changes the page every second. Run it on a
+    port that has never connected (see the header). With <b>Show on unconnected sites</b> off:
+    <span class="none">nothing from Sidecar, and Pay in wallet goes to your Lightning app.</span>
+    On: <span class="expect">the corner pill, never the card by itself; Pay in wallet opens the card
+    and stays up through the countdown; Open in another wallet hands it to your app.</span></p>
+    <button data-show="i">Show it</button> <button data-hide="i">Remove</button>
+    <div class="slot" id="slot-i"></div>
+  </div>
 </div>
 
 <script>
@@ -230,14 +258,46 @@
              '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" ' +
              'alt="scan me" style="width:132px;height:132px;background:#fff;border-radius:8px;display:block;margin:0 auto 14px">' +
              '<a class="ln" href="lightning:' + INV + '">Open in wallet</a></div></div>',
+    i: () => btcpay(INV),
   };
+
+  // BTCPay's checkout, from its template: the QR container, the address shortened in the
+  // middle (vc:truncate-center), the Pay in wallet link, and the expiry countdown above.
+  function btcpay(inv) {
+    const sats = satsOf(inv);
+    const short = inv.slice(0, 20) + '\u2026' + inv.slice(-15);
+    return '<div class="modal" style="max-width:340px;text-align:center">' +
+      '<p style="margin:0 0 4px;color:#9a93b0">Invoice #2923</p>' +
+      '<p style="margin:0 0 10px;font-size:24px"><b>' + (sats == null ? '' : sats.toLocaleString('en-US')) + ' sats</b></p>' +
+      '<p class="btcpay-timer" style="margin:0 0 12px;color:#9a93b0">This invoice will expire in 15:00</p>' +
+      '<div class="payment-box">' +
+        '<div class="qr-container clipboard-button" data-clipboard="lightning:' + inv + '"><div>' +
+          '<canvas class="btcpay-qr" width="160" height="160" style="background:#fff;border-radius:8px"></canvas>' +
+        '</div></div>' +
+        '<div class="input-group mt-3"><div class="form-floating">' +
+          '<span class="form-control-plaintext"><code>' + short + '</code></span><label>Lightning</label></div></div>' +
+        '<a class="btn btn-primary rounded-pill w-100 mt-4 ln" id="PayInWallet" target="_blank" ' +
+          'href="lightning:' + inv + '" style="display:block;margin-top:14px">Pay in wallet</a>' +
+      '</div></div>';
+  }
+  // The countdown, which is what re-scans the page every second on a real checkout.
+  let left = 900;
+  setInterval(() => {
+    left = left > 0 ? left - 1 : 900;
+    document.querySelectorAll('.btcpay-timer').forEach((el) => {
+      el.textContent = 'This invoice will expire in ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+    });
+  }, 1000);
+  function paintQr(c) {
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    x.fillStyle = '#000'; for (let i = 0; i < 90; i++) x.fillRect((i * 13) % (c.width - 12) + 6, ((i * 29) % (c.height - 12)) + 6, 8, 8);
+  }
   document.querySelectorAll('[data-show]').forEach((b) =>
     b.addEventListener('click', () => {
       const k = b.dataset.show;
       document.getElementById('slot-' + k).innerHTML = build[k]();
       const c = document.querySelector('#slot-' + k + ' canvas');
-      if (c) { const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 108, 108);
-               x.fillStyle = '#000'; for (let i = 0; i < 64; i++) x.fillRect((i * 13) % 96 + 6, ((i * 29) % 96) + 6, 8, 8); }
+      if (c) paintQr(c);
     }));
   document.querySelectorAll('[data-hide]').forEach((b) =>
     b.addEventListener('click', () => { document.getElementById('slot-' + b.dataset.hide).innerHTML = ''; }));
@@ -299,6 +359,7 @@
   // if you click the link. That is on purpose. It means the real invoice cannot reach the
   // Pay button without a second, deliberate click.
   function place(inv) {
+    realInv = inv;
     const sats = satsOf(inv);
     out.innerHTML = 'Real invoice for <b>' + (sats == null ? 'an unspecified amount' : sats.toLocaleString('en-US') + ' sats') +
       '</b>. Expect the corner pill. Click the link to open the card, and Pay to spend it.' +
@@ -325,9 +386,20 @@
     place(v);
   });
 
+  // The real invoice in case 9's BTCPay shape: a payment from an unconnected site, end to end.
+  let realInv = '';
+  document.getElementById('btcpay-real').addEventListener('click', () => {
+    if (!realInv) return (out.innerHTML = '<span class="err">Fetch or paste a real invoice first.</span>');
+    out.innerHTML = 'Real invoice, as a BTCPay checkout. On an unconnected port: the pill (with Show on ' +
+      'unconnected sites on), and Pay in wallet opens the card. <b>Paying spends it.</b>';
+    slotReal.innerHTML = btcpay(realInv);
+    paintQr(slotReal.querySelector('canvas'));
+  });
+
   document.getElementById('clear-real').addEventListener('click', () => {
     slotReal.innerHTML = '';
     out.textContent = '';
     invBox.value = '';
+    realInv = '';
   });
 </script>
