@@ -12773,6 +12773,7 @@
         // The shimmer is the panel's idiom for a value waiting in place where a spinner
         // does not fit beside it, which is exactly a 15px icon and one word.
         setWaiting(lbl, prev, true);
+        addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
         try {
           const url = await uploadMedia(file, pubkey);
           // Into the media slot only. The URL is appended to the content at publish
@@ -12790,6 +12791,7 @@
         }
         addBtn.disabled = false;
         setWaiting(lbl, prev, false);
+        addBtn.classList.remove('is-uploading');
         fileInput.value = '';
       });
 
@@ -12819,6 +12821,7 @@
         // The shimmer is the panel's idiom for a value waiting in place where a spinner
         // does not fit beside it, which is exactly a 15px icon and one word.
         setWaiting(lbl, prev, true);
+        addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
         try {
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey);
@@ -12834,6 +12837,7 @@
         }
         addBtn.disabled = false;
         setWaiting(lbl, prev, false);
+        addBtn.classList.remove('is-uploading');
       });
 
       // ---- poll editor ----
