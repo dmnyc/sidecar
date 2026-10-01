@@ -126,14 +126,19 @@ test('a lettered card reaches the page only while it is up, and never as a fetch
   assert.ok(!manifest.web_accessible_resources, 'a web-accessible resource can be probed for by any site');
   const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
   assert.match(bg, /'SIDECAR_CARD_FONT',\n\s*\]\);/, 'content scripts can no longer ask for the card font');
-  assert.match(bg, /case 'SIDECAR_CARD_FONT': \{[\s\S]*?fetch\(chrome\.runtime\.getURL\('fonts\/bangers\.ttf'\)\)/);
+  // The face comes from a fixed list keyed by theme, never a path the page could name.
+  const font = bg.slice(bg.indexOf("case 'SIDECAR_CARD_FONT': {"));
+  assert.match(font.slice(0, 1800), /'ben-day': \{ lettering: 'fonts\/bangers\.ttf' \}/);
+  assert.match(font.slice(0, 1800), /turnstile: \{ lettering: 'fonts\/pathway-gothic-one\.ttf', figures: 'fonts\/archivo-expanded-800\.woff2' \}/);
+  assert.match(font.slice(0, 1800), /if \(!own\(CARD_FONTS, theme\) \|\| !own\(CARD_FONTS\[theme\], face\)\) throw/);
+  assert.match(font.slice(0, 1800), /fetch\(chrome\.runtime\.getURL\(CARD_FONTS\[theme\]\[face\]\)\)/);
   // 2. It is registered when a card opens, not at load.
   assert.match(src, /appendChild\(cardHost\);\n\s*mountCardFont\(\);/);
   // 3. It is removed when the card goes, whatever took it down.
   const rm = src.slice(src.indexOf('function removeCard()'));
   assert.match(rm.slice(0, rm.indexOf('\n  }\n')), /unmountCardFont\(\);/);
   // And a late answer does not register it behind a card that already closed.
-  assert.match(src, /if \(cardHost && shownMode === 'card'\) add\(\);/);
+  assert.match(src, /if \(cardHost && shownMode === 'card' && cardTheme === theme\) add\(\);/);
 });
 
 test('the page-side strike carries the same ZAP! the panel draws, as a data URI', () => {
@@ -146,3 +151,4 @@ test('the page-side strike carries the same ZAP! the panel draws, as a data URI'
   assert.match(strike.slice(0, strike.indexOf('\n  function ')), /cardTheme === 'ben-day'[\s\S]*?BEN_DAY_ZAP/,
     'the page strike no longer draws the burst for Ben Day');
 });
+

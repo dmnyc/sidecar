@@ -23,7 +23,7 @@
   // Which cut of the logo and the avatar garnish a theme wants. There too because the
   // comment beside LIGHT_THEMES already counts the places a new theme must be
   // registered, and the expanded composer page would have been one more.
-  const { LIGHT_THEMES, logoSrcFor, avatarPhSrc } = window.SidecarCore;
+  const { LIGHT_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc } = window.SidecarCore;
   const { POW_LEVELS, POW_DEFAULT_BITS, powLevelFor } = window.SidecarCore;
   // Settings draws the picker from these, so the list the user chooses from and the
   // list a stored value is validated against are the same list.
@@ -400,9 +400,11 @@
   // Swap every full-logo <img> in the panel to the variant for the active theme.
   function swapLogos(themeName) {
     const src = logoSrcFor(themeName);
+    // A theme that draws its top bar dark gives the logo on that bar the light wordmark.
+    const barSrc = PANEL_DARK_BAR_THEMES.has(themeName) ? 'icons/sidecar-logo.svg' : src;
     document.querySelectorAll('.brand-logo, .brand-logo-sm, .brand-foot img, .about-logo')
       .forEach(img => {
-        img.src = src;
+        img.src = img.closest('.topbar') ? barSrc : src;
         // A logo is decoration, and a browser will happily let you peel one off the page
         // and drag a translucent ghost of it around. This already walks every logo in the
         // panel, so it is the one place that cannot miss one — including any added later.
@@ -431,14 +433,14 @@
     ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'], ['jazz-age', 'Jazz Age'], ['departures', 'Departures'],
     ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
     ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
-    ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'], ['ben-day', 'Ben Day'],
+    ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'], ['ben-day', 'Ben Day'], ['turnstile', 'Turnstile'],
   ];
 
   function applyTheme(themeName) {
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
+    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

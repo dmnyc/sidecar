@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="themes/constellation.css" />
   <link rel="stylesheet" href="themes/jazz-age.css" />
   <link rel="stylesheet" href="themes/departures.css" />
+  <link rel="stylesheet" href="themes/turnstile.css" />
   <link rel="stylesheet" href="themes/mycelium.css" />
   <link rel="stylesheet" href="themes/ben-day.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
@@ -56,6 +57,10 @@
   <section id="view-lock" class="screen hidden">
     <!-- The Departures station clock and board, drawn and run by startLockClock; hidden in every other theme. -->
     <div class="lock-station" aria-hidden="true"><div id="lock-clock" class="lock-clock"></div><div id="lock-board" class="lock-board"></div></div>
+    <!-- Turnstile's station signs, one above the logo and one below the form; hidden in
+         every other theme. Tilework, so never translated, like the composer's sign. -->
+    <div class="lock-sign lock-sign-up" aria-hidden="true" translate="no"><span>Uptown</span></div>
+    <div class="lock-sign lock-sign-down" aria-hidden="true" translate="no"><span>Downtown</span></div>
     <div class="brand-lg">
       <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
     </div>
@@ -447,6 +452,9 @@
               </button>
               <button type="button" class="theme-card" data-theme="ben-day" data-mode="light">
                   <span class="theme-preview"></span><span class="theme-name">Ben Day</span>
+              </button>
+              <button type="button" class="theme-card" data-theme="turnstile" data-mode="light">
+                  <span class="theme-preview"></span><span class="theme-name">Turnstile</span>
               </button>
             </div>
           </div>

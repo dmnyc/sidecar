@@ -452,3 +452,42 @@ test('every line over the Jazz Age lock screen pool sits on a surface of its own
   assert.match(rule, /background: #[0-9A-Fa-f]{6};/, 'the lock screen text surfaces are not opaque');
   assert.match(css, /#view-lock \.stack \{[^}]*background: rgba\(22, 16, 14, 0\.9\d\)/, 'the PIN form lost its card');
 });
+
+// Turnstile's wall shows behind hints, and its mosaic is the fill of real lettering on two
+// dark tablets. Every ink has to clear AA on every color the wall is drawn in, the grout
+// included, and every tessera on both tablets.
+test('Turnstile keeps its inks above AA on the tile and its mosaic on the tablets', () => {
+  const css = fs.readFileSync(path.join(THEMES, 'turnstile.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from turnstile.css');
+    return m[1];
+  };
+  const fills = (file) => [...new Set([...fs.readFileSync(path.join(THEMES, file), 'utf8')
+    .matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1].toUpperCase()))];
+  const wall = fills('turnstile-wall.svg');
+  assert.ok(wall.length >= 3, 'could not read the wall tile');
+  for (const name of ['text', 'text-2', 'muted', 'faint', 'gold']) {
+    for (const f of wall) {
+      const r = ratio(token(name), f);
+      assert.ok(r >= 4.5, `--${name} measures ${r.toFixed(2)}:1 on the wall's ${f}, under AA`);
+    }
+  }
+  // Each tablet is a field of tesserae with lettering in cream tesserae clipped to it. The
+  // first fill in each tile is its joint, drawn under the pieces; every piece of the field
+  // against every piece of the lettering has to clear AA.
+  const pieces = (file) => fills(file).slice(1);
+  for (const way of ['slate', 'rust', 'cobalt', 'green', 'brown']) {
+    assert.ok(css.includes('turnstile-' + way + '-ink.svg'), way + ' is no longer a colorway in turnstile.css');
+    const field = pieces('turnstile-' + way + '-field.svg');
+    const ink = pieces('turnstile-' + way + '-ink.svg');
+    assert.ok(field.length >= 4 && ink.length >= 3, 'could not read the ' + way + ' tiles');
+    for (const f of field) {
+      for (const i of ink) {
+        const r = ratio(i, f);
+        assert.ok(r >= 4.5, `${way}: the lettering's ${i} measures ${r.toFixed(2)}:1 on the field's ${f}, under AA`);
+      }
+    }
+  }
+});
+

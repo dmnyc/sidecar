@@ -278,7 +278,7 @@
   border-bottom: 3px solid #111111;
 }
 /* The expanded composer's bar is the black plate, like the dark bar on the help pages,
-   with the light wordmark (compose.js picks it; see DARK_BAR_THEMES there). */
+   with the light wordmark (compose.js picks it; see COMPOSE_DARK_BAR_THEMES in composer-core.js). */
 [data-theme="ben-day"] .compose-topbar {
   background: #111111;
   border-bottom: 3px solid #111111;

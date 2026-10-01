@@ -402,6 +402,9 @@ const FLOORS = {
   // Departures: the board's white and two grays on a black board. Every ink's worst
   // surface is the board itself; the yellow is the accent ink.
   departures: { '--muted': 7.63, '--faint': 6.85, '--gold': 11.21 },
+  // Turnstile: the enamel's near-black and two grays on white tile. The worst surface for
+  // all three is the shaded tile; the green enamel is the accent ink.
+  turnstile: { '--muted': 7.47, '--faint': 6.58, '--gold': 7.94 },
 };
 
 for (const theme of THEMES) {

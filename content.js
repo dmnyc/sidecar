@@ -721,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -781,37 +781,54 @@
   // the page can see it then, when the card already shows Sidecar is here, and not
   // otherwise. The bytes come from the background (SIDECAR_CARD_FONT) the first time
   // such a card opens, never from a web-accessible file a site could probe for.
-  const CARD_FONT_THEMES = new Set(['ben-day']);
-  let cardFontBytes = null;
-  let cardFontFace = null;
-  let cardFontAsked = false;
+  // Each lettered theme has its own faces (Ben Day's Bangers; Turnstile's enamel-sign
+  // gothic for the lettering and a heavy grotesque for the figures), each fetched once and
+  // kept by theme and role, since a page can show cards for two accounts in different
+  // themes. Only the open card's faces are ever registered.
+  const CARD_FONT_FACES = {
+    'ben-day': { lettering: 'Sidecar Card Lettering' },
+    turnstile: { lettering: 'Sidecar Card Lettering', figures: 'Sidecar Card Figures' },
+  };
+  const cardFontBytes = {};
+  const cardFontFaces = {};
+  const cardFontAsked = {};
+  let cardFontMounted = [];
   function mountCardFont() {
-    if (!CARD_FONT_THEMES.has(cardTheme)) return;
-    const add = () => {
+    const theme = cardTheme;
+    if (!Object.prototype.hasOwnProperty.call(CARD_FONT_FACES, theme)) return;
+    unmountCardFont();
+    for (const [face, family] of Object.entries(CARD_FONT_FACES[theme])) {
+      const key = theme + ':' + face;
+      const add = () => {
+        try {
+          const f = cardFontFaces[key] || (cardFontFaces[key] = new FontFace(family, cardFontBytes[key], { display: 'swap' }));
+          if (!document.fonts.has(f)) document.fonts.add(f);
+          if (!cardFontMounted.includes(f)) cardFontMounted.push(f);
+          f.load().catch(() => {});
+        } catch (_) { /* decoration: the card falls back to the system face */ }
+      };
+      if (cardFontBytes[key]) { add(); continue; }
+      if (cardFontAsked[key]) continue;
+      cardFontAsked[key] = true;
       try {
-        if (!cardFontFace) cardFontFace = new FontFace('Sidecar Card Lettering', cardFontBytes, { display: 'swap' });
-        if (!document.fonts.has(cardFontFace)) document.fonts.add(cardFontFace);
-        cardFontFace.load().catch(() => {});
-      } catch (_) { /* decoration: the card falls back to the system face */ }
-    };
-    if (cardFontBytes) { add(); return; }
-    if (cardFontAsked) return;
-    cardFontAsked = true;
-    try {
-      chrome.runtime.sendMessage({ type: 'SIDECAR_CARD_FONT' }, (r) => {
-        if (chrome.runtime.lastError || !r || !r.ok || typeof r.result !== 'string') { cardFontAsked = false; return; }
-        const bin = atob(r.result);
-        const u8 = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-        cardFontBytes = u8.buffer;
-        // Only if a card is still up: one closed while the bytes were in flight must not
-        // leave the face registered behind it.
-        if (cardHost && shownMode === 'card') add();
-      });
-    } catch (_) { cardFontAsked = false; }
+        chrome.runtime.sendMessage({ type: 'SIDECAR_CARD_FONT', theme, face }, (r) => {
+          if (chrome.runtime.lastError || !r || !r.ok || typeof r.result !== 'string') { cardFontAsked[key] = false; return; }
+          const bin = atob(r.result);
+          const u8 = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+          cardFontBytes[key] = u8.buffer;
+          // Only if a card in that theme is still up: one closed while the bytes were in
+          // flight must not leave the face registered behind it.
+          if (cardHost && shownMode === 'card' && cardTheme === theme) add();
+        });
+      } catch (_) { cardFontAsked[key] = false; }
+    }
   }
   function unmountCardFont() {
-    try { if (cardFontFace && document.fonts.has(cardFontFace)) document.fonts.delete(cardFontFace); } catch (_) {}
+    for (const f of cardFontMounted) {
+      try { if (document.fonts.has(f)) document.fonts.delete(f); } catch (_) {}
+    }
+    cardFontMounted = [];
   }
 
   function getThemeColors() {
@@ -1254,6 +1271,47 @@
           'box-shadow:inset 0 1px 0 rgba(255,200,190,0.45),0 0 0 1px rgba(255,90,100,0.5),0 0 12px rgba(230,40,60,0.75),0 0 30px rgba(230,40,60,0.45);}' +
           '.tg-input:checked~.tg-track .tg-thumb{background:#FFF4E2;}'
       },
+      /* Turnstile — the station. Mirrors themes/turnstile.css: a white enamel plate with
+         its inset line, square-cornered, with a course of square gold tile and the maroon
+         course along its head;
+         the amount in the enamel's near-black, Pay the green enamel sign with cream
+         lettering and its inset line, the quieter actions white enamel, and the toggles
+         in the green. The amount, the eyebrow and Pay are lettered in the enamel signs'
+         gothic, which reaches the page only while a card is up (see mountCardFont). */
+      turnstile: {
+        CARD_COLOR: 'color:#151A1E',
+        CARD_BORDER: '#151A1E',
+        CARD_BACKGROUND: '#FAF8F2',
+        CARD_MUTED: 'color:#42474B',
+        CARD_GOLD: 'color:#151A1E',
+        CARD_TEXT_2: 'color:#2A2F33',
+        CARD_LAV: '#1F4A3B',
+        CARD_PAY_TEXT: 'color:#EFE8D2',
+        CARD_PAY_BG: '#1F4A3B',
+        CARD_CANCEL_BG: 'rgba(21,26,30,0.07)',
+        CARD_TEXT: '#151A1E',
+        CARD_BORDER_FAINT: 'rgba(21,26,30,0.18)',
+        CARD_TOGGLE_OFF: 'rgba(21,26,30,0.18)',
+        CARD_TRACK: '#1F4A3B',
+        CARD_THUMB_OFF: '#FFFFFF',
+        CARD_WARN: 'color:#9C2A1C',
+        CARD_SUCCESS: 'color:#1F5A38',
+        CARD_PAY_SHADOW: 'rgba(21,26,30,0.25)',
+        CARD_EXTRA:
+          '.card{border-radius:0;border:none;padding-top:26px;' +
+          'background:repeating-linear-gradient(90deg,#D8C690 0 6px,#2A2621 6px 7px) 0 0/100% 7px no-repeat,' +
+          'linear-gradient(#7A1F33,#7A1F33) 0 7px/100% 5px no-repeat,#FAF8F2;' +
+          'box-shadow:inset 0 0 0 3px #FAF8F2,inset 0 0 0 4px #151A1E,0 20px 60px rgba(21,26,30,0.3);}' +
+          '.eyebrow{font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:17px;letter-spacing:.12em;color:#151A1E;}' +
+          '.amt .num{font-family:"Sidecar Card Figures",ui-sans-serif,system-ui,sans-serif;font-weight:800;font-size:46px;letter-spacing:0;}' +
+          '.amt .unit{font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.08em;}' +
+          '.pay{border-radius:0;box-shadow:inset 0 0 0 3px #1F4A3B,inset 0 0 0 4.5px #EFE8D2,0 1px 0 rgba(21,26,30,0.25);' +
+          'font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:21px;letter-spacing:.08em;text-transform:uppercase;}' +
+          '.cancel,.other{border-radius:0;background:#F6F3EA;box-shadow:inset 0 0 0 3px #F6F3EA,inset 0 0 0 4px #151A1E;color:#151A1E;}' +
+          '.tg-input:checked~.tg-track .tg-thumb{background:#EFE8D2;}' +
+          '.pill{border-radius:0;box-shadow:inset 0 0 0 1.5px #151A1E;}' +
+          '.x{border-radius:0;}'
+      },
       /* Departures — the board. Mirrors themes/departures.css: a black strip with a hairline
          edge, the amount in the board's white, Pay the yellow with black lettering, and the
          toggles in the yellow with a black knob. */
@@ -1652,7 +1710,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
