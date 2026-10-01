@@ -428,7 +428,7 @@
   const THEME_LABELS = [
     ['speakeasy', 'Speakeasy'], ['metropolis', 'Metropolis'], ['film-noir', 'Film Noir'],
     ['brownstone', 'Brownstone'], ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'],
-    ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'],
+    ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'], ['jazz-age', 'Jazz Age'],
     ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
     ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
     ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'], ['ben-day', 'Ben Day'],
@@ -438,7 +438,7 @@
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
+    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

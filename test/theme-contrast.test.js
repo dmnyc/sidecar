@@ -396,6 +396,9 @@ const FLOORS = {
   // are measured on --bg-2, the darker paper, and the dots are held separately in
   // test/theme-svg-assets.test.js.
   'ben-day': { '--muted': 8.94, '--faint': 6.95, '--gold': 16.28 },
+  // Jazz Age: ivory on the black stage. --gold is the rose accent ink (the crimson is a
+  // fill only, 4.47 on the stage); the worst surface for all three is the lighter card.
+  'jazz-age': { '--muted': 8.04, '--faint': 7.47, '--gold': 7.98 },
 };
 
 for (const theme of THEMES) {

@@ -402,3 +402,53 @@ test('the Ben Day dots leave its body inks above AA', () => {
     }
   }
 });
+
+// Jazz Age's panel is a velvet curtain with its lights multiplied onto it, and prose sits
+// on it. Measured at the worst point there could be: the brightest fold of the curtain
+// under the room's light and every beam at full strength, added together at one spot.
+test('the Jazz Age curtain leaves its body inks above AA', () => {
+  const light = fs.readFileSync(path.join(THEMES, 'jazz-age-stage.svg'), 'utf8');
+  const curtain = fs.readFileSync(path.join(THEMES, 'jazz-age-curtain.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(THEMES, 'jazz-age.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from jazz-age.css');
+    return m[1];
+  };
+  const hex = (h) => [0, 2, 4].map((i) => parseInt(h.replace('#', '').substr(i, 2), 16));
+  const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const folds = [...curtain.matchAll(/stop-color="(#[0-9A-Fa-f]{6})"/g)].map((m) => hex(m[1]));
+  assert.ok(folds.length >= 6, 'could not read the curtain folds');
+  const sheen = folds.reduce((a, b) => (lum(b) > lum(a) ? b : a));
+  const ambient = light.match(/<rect width="\d+" height="\d+" fill="rgb\((\d+),(\d+),(\d+)\)"\/>/);
+  assert.ok(ambient, 'the light map lost its room light');
+  const peaks = [...light.matchAll(/<linearGradient id="[^"]+"[^>]*><stop offset="0" stop-color="rgb\((\d+),(\d+),(\d+)\)" stop-opacity="([\d.]+)"/g)]
+    .map((m) => ({ rgb: [+m[1], +m[2], +m[3]], a: +m[4] }));
+  assert.ok(peaks.length >= 3, 'expected three beams, found ' + peaks.length);
+  let lit = [+ambient[1], +ambient[2], +ambient[3]];
+  for (const { rgb, a } of peaks) lit = lit.map((v, i) => Math.min(255, v + rgb[i] * a));
+  const shown = sheen.map((v, i) => Math.round((v * lit[i]) / 255));
+  const shownHex = '#' + shown.map((v) => v.toString(16).padStart(2, '0')).join('');
+  assert.match(fs.readFileSync(path.join(THEMES, 'patterns.css'), 'utf8'),
+    /\[data-theme="jazz-age"\] body \{[^}]*url\(jazz-age-stage\.svg\), url\(jazz-age-curtain\.svg\)[^}]*background-blend-mode: multiply, normal;/,
+    'the panel curtain is no longer lit by multiplying its light map');
+  for (const name of ['text', 'text-2', 'muted', 'faint', 'gold']) {
+    const r = ratio(token(name), shownHex);
+    assert.ok(r >= 4.5, `--${name} measures ${r.toFixed(2)}:1 on the brightest lit fold (${shownHex}), under AA`);
+  }
+});
+
+// The Jazz Age lock screen's lights are far brighter than the panel's, which is only
+// sound because nothing low on that screen is lettered on the open floor: each line over
+// the pool has a surface of its own. If one of these loses its background, the lights take its contrast.
+test('every line over the Jazz Age lock screen pool sits on a surface of its own', () => {
+  const css = fs.readFileSync(path.join(THEMES, 'jazz-age.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /#view-lock \{\s*background:\s*url\(jazz-age-lamps\.svg\)[^;]*url\(jazz-age-lock\.svg\)[^;]*url\(jazz-age-curtain\.svg\)[^;]*;\s*background-blend-mode: normal, multiply, normal;/, 'the lock stage moved');
+  const surfaced = css.slice(css.indexOf('[data-theme="jazz-age"] #view-lock .unlock-forgot,'));
+  const rule = surfaced.slice(0, surfaced.indexOf('}'));
+  for (const sel of ['#view-lock .unlock-forgot', '.pre-version-row .version-chip']) {
+    assert.ok(rule.includes(sel), sel + ' has no surface under the lock screen lights');
+  }
+  assert.match(rule, /background: #[0-9A-Fa-f]{6};/, 'the lock screen text surfaces are not opaque');
+  assert.match(css, /#view-lock \.stack \{[^}]*background: rgba\(22, 16, 14, 0\.9\d\)/, 'the PIN form lost its card');
+});
