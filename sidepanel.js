@@ -7903,6 +7903,11 @@
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       const acc = document.querySelector('.tab[data-tab="accounts"]');
       if (acc) acc.classList.add('active');
+      // The underline follows a tap, and this is not one. Without this it stayed under
+      // the tab you were on, Wallet after a reset, while Accounts was the one showing.
+      // Not animated: you did not choose to go anywhere.
+      const bar = document.querySelector('.tabs');
+      if (acc && bar && bar.moveSlider) bar.moveSlider(acc, false);
       document.querySelectorAll('.tabview').forEach((v) => hide(v));
       show($('tab-accounts'));
       // The only view change that does not go through the tab handler, so it needs
