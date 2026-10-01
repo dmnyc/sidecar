@@ -17625,6 +17625,24 @@
   // fallen behind the four failures it was meant to cover.
   const isBalanceErrorUnit = (el) => !!el && el.dataset.balanceError === '1';
 
+  // A balance just loaded, so the failure the card was reporting is over. The flag above
+  // stops a REPAINT from covering a failure with a unit, which is right; but nothing took
+  // it down again, so a wallet that failed on first load and answered on the next
+  // refresh showed its balance above "balance unavailable" until the tab was rebuilt.
+  // Called on every successful read, including one whose figure did not change. Takes the
+  // "Reset connections" button that came with the failure away too.
+  //
+  // While the Bitcoin-only card is up the unit line reads "∞/21M"; only the flag goes,
+  // and the joke's own end repaints the real unit.
+  function clearBalanceError(sats) {
+    const unit = document.querySelector('.wallet-unit');
+    if (isBalanceErrorUnit(unit)) {
+      delete unit.dataset.balanceError;
+      if (!btcJokeShowing(document.querySelector('.wallet-balance'))) unit.textContent = denomParts(sats).unit;
+    }
+    document.querySelectorAll('.wallet-reset').forEach((b) => b.remove());
+  }
+
   // BITCOIN, PRICED IN BITCOIN. With local currency off there is no chart to draw, so
   // the chart button answers in the card itself for a few seconds: "Bitcoin only" where
   // "Balance" was, "1 BTC = 1 BTC" for the figure, and "∞/21M" for the unit. Then the
@@ -17728,6 +17746,7 @@
           const b = await client.getBalance();
           balanceCache = { pubkey: state.activePubkey, sats: msatToSat(b && b.balance), ts: Date.now() };
           paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
+          clearBalanceError(balanceCache.sats);
         }
       } catch (_) {}
     }
@@ -18020,6 +18039,7 @@
       const newSats = msatToSat(b && b.balance);
       const changed = !balanceCache || balanceCache.sats !== newSats;
       balanceCache = { pubkey: state.activePubkey, sats: newSats, ts: Date.now() };
+      clearBalanceError(newSats);
       if (changed || force) {
         // Paint in the active denomination, so a live update doesn't silently snap
         // the display back to sats while the user is reading BTC or fiat.
