@@ -9,6 +9,9 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+### Changed
+- **The switch under "Use bootstrap relays" is now "Use for notifications only",** which says what it leaves on when bootstrap relays are off: those relays are read for notifications and nothing else.
+
 ## [1.15.5] — 2026-10-02
 
 ### Added

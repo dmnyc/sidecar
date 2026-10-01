@@ -73,7 +73,7 @@ test('the old control is gone, so nothing can still write it the old way round',
   assert.match(html, /Use bootstrap relays/);
 });
 
-test('with bootstrap relays off, "Use them for notifications" appears, and on is the default', async () => {
+test('with bootstrap relays off, "Use for notifications only" appears, and on is the default', async () => {
   const off = await run(false);
   assert.equal(off.notifRowHidden, false, 'shown while bootstrap relays are off');
   assert.equal(off.notifToggle.checked, true);
@@ -82,7 +82,7 @@ test('with bootstrap relays off, "Use them for notifications" appears, and on is
   assert.equal(on.notifRowHidden, true, 'hidden while they are on: it decides nothing then');
   assert.match(html, /<label class="switch-label switch-nested hidden" id="notif-bootstrap-row">/);
   assert.match(html, /<input type="checkbox" id="notif-bootstrap-toggle" checked \/>/);
-  assert.match(html, /data-i18n="Use them for notifications">Use them for notifications</);
+  assert.match(html, /data-i18n="Use for notifications only">Use for notifications only</);
 });
 
 test('the notification switch is stored per account as the accounts that said no', () => {

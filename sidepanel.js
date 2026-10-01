@@ -21108,7 +21108,7 @@
     _notifCache.get(state.activePubkey)?.refetch?.();
   });
 
-  // Use them for notifications: shown under Use bootstrap relays while it is off.
+  // Use for notifications only: shown under Use bootstrap relays while it is off.
   $('notif-bootstrap-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_NOTIF_BOOTSTRAP', pubkey: state.activePubkey, on: e.target.checked });
     _notifCache.get(state.activePubkey)?.refetch?.();
