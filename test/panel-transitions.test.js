@@ -124,6 +124,19 @@ test('THE TRAVELING UNDERLINE IS ONE MECHANISM, ON EVERY BAR THAT HAS ONE', () =
     'a bar is missing its positioning context');
 });
 
+test('the snap back to Accounts takes the underline with it', () => {
+  // With no account, the panel puts itself back on Accounts without a tap, the one tab
+  // change that skips the click handler the underline listens to. It left the mark under
+  // Wallet on the first-run screen while Accounts was the tab showing.
+  const src = stripComments(panel);
+  const at = src.indexOf("const acc = document.querySelector('.tab[data-tab=\"accounts\"]');");
+  assert.ok(at > 0, 'the snap back to Accounts moved');
+  const block = src.slice(at, src.indexOf("show($('tab-accounts'));", at));
+  const active = block.indexOf("acc.classList.add('active')");
+  const moved = block.indexOf('bar.moveSlider(acc, false)');
+  assert.ok(active >= 0 && moved > active, 'the underline must move to Accounts after it becomes active');
+});
+
 test('every surface that now moves can be told not to', () => {
   // The panel already held this line before any of this landed: eleven reduced-motion
   // blocks across the stylesheet. Four more surfaces move now, and each one needs its own.
