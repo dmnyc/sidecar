@@ -112,3 +112,52 @@ html:not([data-theme]) .compose-topbar {
   background: rgba(10, 1, 24, 0.88);
   backdrop-filter: blur(10px);
 }
+
+/* ---- THE WALLET: A FRAMED PLAQUE UNDER THE LAMP ----------------------------------------
+   The one place the room's gold is spent. The wall is lavender thread on velvet
+   (patterns.css), so the card is what catches the light: a warm pool from a lamp above,
+   falling to darker velvet at its foot, inside the card's single gold border. The pool is
+   the lamp's own size, the one it throws on the card at rest: opening the chart makes the
+   card taller, not the lamp bigger, so a pool sized to the card spread until it was the
+   ground under the balance. The compact strip is shorter than the pool, so it keeps a
+   pool sized to itself, below. */
+[data-theme="speakeasy"] .wallet-card {
+  background:
+    radial-gradient(230px 82px at 50% -8px, rgba(244, 166, 75, 0.30), rgba(203, 161, 78, 0.10) 48%, transparent 74%),
+    linear-gradient(180deg, transparent 45%, rgba(5, 0, 14, 0.5)),
+    linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: var(--sheen), 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+[data-theme="speakeasy"] .wallet-card.compact {
+  background:
+    radial-gradient(70% 62% at 50% -6%, rgba(244, 166, 75, 0.30), rgba(203, 161, 78, 0.10) 48%, transparent 74%),
+    linear-gradient(180deg, transparent 45%, rgba(5, 0, 14, 0.5)),
+    linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
+}
+/* Gilt figures: pale gold where the lamp catches their tops, old brass at their feet. On
+   the digits and the currency symbol, which are their own spans, so the hidden-balance
+   discs drawn by the figure's ::after keep their plain gold. The post countdown and the
+   lock screen's cooldown ring count in the same lettering, as every theme dresses its
+   countdown like its balance; they sit on a sheet, so they take no lamp. */
+[data-theme="speakeasy"] .wallet-balance .bal-glyph,
+[data-theme="speakeasy"] .wallet-balance .wallet-fiat-sym,
+[data-theme="speakeasy"] .countdown-num .bal-glyph {
+  color: transparent;
+  background: linear-gradient(180deg, #f8e6b0 0%, #dcb766 50%, #c09244 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* The gilt is painted only inside each glyph's box, which line-height 1 holds at 1em,
+     and Playfair's oldstyle figures hang below it (the 3, 4, 5, 7 and 9 tails, the comma):
+     past the box they were transparent, so the figure looked cropped. Padding carries the
+     paint past the ink, the slot animation's -0.3em, and the margin gives the room back
+     so the figure does not move. */
+  padding: 0.1em 0 0.3em;
+  margin: -0.1em 0 -0.3em;
+}
+/* Raised lettering: a thin shadow straight down and a soft warm glow. On the figure as a
+   whole: a text-shadow on gradient-clipped text paints over the gilt, and one drawn per
+   digit would fall across its neighbor. */
+[data-theme="speakeasy"] .wallet-balance,
+[data-theme="speakeasy"] .countdown-num {
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55)) drop-shadow(0 0 10px rgba(244, 166, 75, 0.28));
+}

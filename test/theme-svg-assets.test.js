@@ -491,3 +491,63 @@ test('Turnstile keeps its inks above AA on the tile and its mosaic on the tablet
   }
 });
 
+
+// Speakeasy's quilting runs under every hint in Settings, the Mycelium case again on the
+// default theme. The stitches are one lavender under ONE group opacity, so two rows can
+// never stack into a brighter one; that opacity is the ceiling where a hint crosses a
+// stitch. The padding's lit middle is measured under the top glow, the brightest place on
+// the wall, where --muted already has the least room.
+test('the Speakeasy quilting leaves its body inks above AA', () => {
+  const svg = fs.readFileSync(path.join(THEMES, 'speakeasy-quilt.svg'), 'utf8');
+  const css = fs.readFileSync(path.join(THEMES, 'speakeasy.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from speakeasy.css');
+    return m[1];
+  };
+  const bg = token('bg');
+  const group = svg.match(/<g opacity="([\d.]+)">([\s\S]*?)<\/g>/);
+  assert.ok(group, 'the stitches lost their group opacity');
+  assert.ok(!/opacity/.test(group[2]), 'a stitch row with its own opacity can stack into a brighter one');
+  const threads = [...new Set([...group[2].matchAll(/stroke="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]))];
+  assert.equal(threads.length, 1, 'the stitches should be one thread');
+  const stitch = over(threads[0], bg, parseFloat(group[1]));
+  for (const [name, floor] of [['muted', 4.5], ['faint', 3]]) {
+    const r = ratio(token(name), stitch);
+    assert.ok(r >= floor, `--${name} is ${r.toFixed(2)} where a hint crosses a stitch (${stitch}), under ${floor}`);
+  }
+  const pad = svg.match(/<stop offset="0" stop-color="(#[0-9A-Fa-f]{6})" stop-opacity="([\d.]+)"/);
+  assert.ok(pad, 'could not read the padding\'s lit middle');
+  // The top glow from patterns.css, over the top of the base gradient.
+  const glow = over('#a78bfa', '#170630', 0.14);
+  const lit = over(pad[1], glow, parseFloat(pad[2]));
+  const r = ratio(token('muted'), lit);
+  assert.ok(r >= 4.5, `--muted is ${r.toFixed(2)} on a padded middle under the top glow (${lit}), under AA`);
+  assert.match(fs.readFileSync(path.join(THEMES, 'patterns.css'), 'utf8'),
+    /radial-gradient\(1100px 480px at 50% -12%, rgba\(167, 139, 250, 0\.14\), transparent 60%\),\s*radial-gradient\(820px[^;]*linear-gradient\(165deg, #170630 0%/,
+    'the glow this measures against has changed; measure the padding against the new one');
+});
+
+// The Speakeasy wallet card is lit by a lamp, and its gilt figures fade to old brass at
+// their feet. The figure is large text, so 3:1 is the bar, measured against the brightest
+// point of the card: the lamp's warm wash over --velvet-1 at its strongest.
+test('the Speakeasy gilt figures stay readable under the lamp on the wallet card', () => {
+  const css = fs.readFileSync(path.join(THEMES, 'speakeasy.css'), 'utf8');
+  const v1 = css.match(/--velvet-1:\s*(#[0-9A-Fa-f]{6})/);
+  const card = css.match(/\[data-theme="speakeasy"\] \.wallet-card \{[\s\S]*?radial-gradient\([^;]*? at [^,]+,\s*rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+  const gilt = css.match(/\.wallet-balance \.bal-glyph,[\s\S]*?linear-gradient\(180deg,([^)]*)\)/);
+  assert.ok(v1 && card && gilt, 'could not read the velvet, the lamp or the gilt from speakeasy.css');
+  const lampHex = '#' + [card[1], card[2], card[3]].map((n) => (+n).toString(16).padStart(2, '0')).join('');
+  const lit = over(lampHex, v1[1], parseFloat(card[4]));
+  const stops = [...gilt[1].matchAll(/#[0-9A-Fa-f]{6}/g)].map((m) => m[0]);
+  assert.ok(stops.length >= 2, 'the gilt should be a gradient');
+  for (const stop of stops) {
+    const r = ratio(stop, lit);
+    assert.ok(r >= 3, `gilt ${stop} is ${r.toFixed(2)}:1 under the lamp (${lit}), under 3:1 for large text`);
+  }
+  // Gilt is painted only inside each glyph's box, and Playfair's oldstyle figures hang
+  // below it: without padding past the ink, the tails of 3, 4, 5, 7 and 9 were cropped.
+  const rule = css.match(/\.wallet-balance \.bal-glyph,[\s\S]*?\{([^}]*)\}/)[1];
+  assert.match(rule, /padding: 0\.1em 0 0\.3em;/, 'the gilt must be painted past the descenders');
+  assert.match(rule, /margin: -0\.1em 0 -0\.3em;/, 'and give the room back, or the figure moves');
+});
