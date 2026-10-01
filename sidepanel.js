@@ -651,12 +651,26 @@
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('class', 'lightning-bolt');
       path.setAttribute('d', d);
-      // Gold rather than the reference's white/yellow — it's the panel's accent, and
-      // it reads as a Lightning payment rather than a weather effect.
-      path.setAttribute('stroke', Math.random() > 0.5 ? 'var(--gold)' : 'var(--amber)');
-      path.setAttribute('stroke-width', (1.6 + Math.random() * 2).toFixed(1));
+      // One bolt in every theme: lemon yellow, the color of lightning, so a zap looks like the
+      // same event whichever theme is on and matches the strike on a web page. Each theme's
+      // own --gold used to color it, which on the light themes is a dark accent ink and drew
+      // the bolt brown, blue, green or black. Film Noir, which has no color in it at all,
+      // strikes in white. A thin white core runs down the middle of the yellow, the
+      // white-hot center a bolt has, so it reads as light on a pale page and a dark one.
+      const mono = document.documentElement.getAttribute('data-theme') === 'film-noir';
+      if (mono) svg.classList.add('mono');
+      // Never thinner than 2.6px: round the white core, a thinner yellow washed out.
+      const width = 2.6 + Math.random() * 1.2;
+      path.setAttribute('stroke', mono ? '#FFFFFF' : (Math.random() > 0.5 ? '#FFD600' : '#FFE234'));
+      path.setAttribute('stroke-width', width.toFixed(1));
       path.setAttribute('fill', 'none');
       svg.appendChild(path);
+      if (!mono) {
+        const core = path.cloneNode();
+        core.setAttribute('stroke', '#FFFFFF');
+        core.setAttribute('stroke-width', Math.max(0.8, width * 0.35).toFixed(1));
+        svg.appendChild(core);
+      }
       host.appendChild(svg);
       document.body.appendChild(host);
       requestAnimationFrame(() => host.classList.add('flash'));
