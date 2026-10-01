@@ -1226,10 +1226,10 @@
       host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;border:0;background:transparent;';
       // Closed, like the card and the pill: the page must not be able to read the theme.
       const root = host.attachShadow({ mode: 'closed' });
-      // Bright gold or amber, or in Film Noir, whose card is black and white, the white
-      // of the flash itself.
+      // Lemon yellow, the same bolt the panel strikes in every theme, or in Film Noir, whose
+      // card is black and white, the white of the flash itself.
       const monoBolt = cardTheme === 'film-noir';
-      const stroke = monoBolt ? '#ffffff' : Math.random() > 0.5 ? '#ffd479' : '#ffb457';
+      const stroke = monoBolt ? '#ffffff' : Math.random() > 0.5 ? '#FFD600' : '#FFE234';
       const style = document.createElement('style');
       style.textContent =
         ':host{position:fixed;inset:0;pointer-events:none}' +
@@ -1249,27 +1249,27 @@
       svg.setAttribute('preserveAspectRatio', 'none');
       svg.setAttribute('width', '100%');
       svg.setAttribute('height', '100%');
-      // Two stacked glows — a tight white-hot core and a wide amber bloom — so the
+      // Two stacked glows — a tight white-hot core and a wide yellow bloom — so the
       // bolt reads as luminous on a light page too, where a single thin gold stroke
       // was getting lost.
       svg.setAttribute('style', 'position:absolute;inset:0;overflow:visible;' +
         'filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 10px ' +
-        (monoBolt ? 'rgba(255,255,255,.7)' : 'rgba(255,180,87,.85)') + ')');
+        (monoBolt ? 'rgba(255,255,255,.7)' : 'rgba(255,214,0,.85)') + ')');
       const width = (2.4 + Math.random() * 2.4).toFixed(1);
-      // An under-stroke in near-white, slightly wider, gives the bolt a hot center
-      // instead of a flat line — the thing that made it look dim before.
-      const glow = document.createElementNS(NS, 'path');
-      glow.setAttribute('class', 'b');
-      glow.setAttribute('d', d);
-      glow.setAttribute('stroke', '#fff8e7');
-      glow.setAttribute('stroke-width', (Number(width) + 2.2).toFixed(1));
-      glow.setAttribute('stroke-opacity', '0.55');
       const p = document.createElementNS(NS, 'path');
       p.setAttribute('class', 'b');
       p.setAttribute('d', d);
       p.setAttribute('stroke', stroke);
       p.setAttribute('stroke-width', width);
-      svg.append(glow, p);
+      svg.append(p);
+      // A thin white core down the middle of the yellow, the white-hot center a bolt has,
+      // as the panel draws it. Film Noir's bolt is white already.
+      if (!monoBolt) {
+        const core = p.cloneNode();
+        core.setAttribute('stroke', '#ffffff');
+        core.setAttribute('stroke-width', Math.max(0.8, Number(width) * 0.35).toFixed(1));
+        svg.append(core);
+      }
       layer.appendChild(svg);
       root.append(style, layer);
       (document.body || document.documentElement).appendChild(host);
