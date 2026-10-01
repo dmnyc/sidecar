@@ -34,7 +34,29 @@ test('it steps on the second, and the timer is cleared when it stops', () => {
 });
 
 test('the slot is hidden in every theme but Departures, and hidden from screen readers', () => {
-  assert.match(html, /<div id="lock-clock" class="lock-clock" aria-hidden="true"><\/div>/);
-  assert.match(css, /\.lock-clock \{ display: none; \}/);
-  assert.match(theme, /\[data-theme="departures"\] #view-lock \.lock-clock \{[^}]*display: block;/);
+  assert.match(html, /<div class="lock-station" aria-hidden="true"><div id="lock-clock" class="lock-clock"><\/div><div id="lock-board" class="lock-board"><\/div><\/div>/);
+  assert.match(css, /\.lock-station \{ display: none; \}/);
+  assert.match(theme, /\[data-theme="departures"\] #view-lock \.lock-station \{[^}]*display: block;/);
+});
+
+test('the board turns between two pages of the next eight departures', () => {
+  assert.match(js, /const BOARD_PAGE_MS = 20000;/);
+  const start = js.slice(js.indexOf('function startLockClock('), js.indexOf('function stopLockClock('));
+  assert.match(start, /Math\.floor\(now\.getTime\(\) \/ BOARD_PAGE_MS\) % 2/);
+  assert.match(start, /boardRows\(now, 8\)/);
+  assert.match(start, /rows\.slice\(page \* 4, page \* 4 \+ 4\), rows\[0\]/);
+});
+
+test('the next train takes the yellow edge in its last five minutes', () => {
+  const paint = js.slice(js.indexOf('function paintBoard('), js.indexOf('function startLockClock('));
+  assert.match(paint, /next\.at - now <= 5 \* 6e4/);
+  assert.match(paint, /line\.classList\.toggle\('lb-boarding', !!boarding && d === next\)/);
+  assert.doesNotMatch(paint, /lb-status/);
+});
+
+test('with motion reduced the second hand is left out and nothing flips', () => {
+  assert.match(theme, /@media \(prefers-reduced-motion: reduce\) \{[^@]*\.lock-clock \.lc-sec \{ display: none; \}/);
+  assert.match(theme, /html\.reduce-balance-motion\[data-theme="departures"\] \.lock-clock \.lc-sec \{ display: none; \}/);
+  const paint = js.slice(js.indexOf('function paintBoard('), js.indexOf('function startLockClock('));
+  assert.match(paint, /if \(reduceBalanceMotion\) return;/);
 });

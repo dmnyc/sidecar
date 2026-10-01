@@ -198,9 +198,9 @@ button, input, select, textarea { font-family: inherit; }
   padding: 30px 24px;
 }
 .brand-lg { display: flex; align-items: center; margin-bottom: 18px; }
-/* The lock screen's clock slot belongs to Departures (themes/departures.css); every
-   other theme keeps it out of the layout. */
-.lock-clock { display: none; }
+/* The lock screen's clock and board belong to Departures (themes/departures.css); every
+   other theme keeps them out of the layout. */
+.lock-station { display: none; }
 /* A logo is decoration. Without this a browser lets you grab one and drag a translucent
    ghost of it around the panel, which looks broken and does nothing. Scoped to logos on
    purpose: account rows use real HTML5 drag to reorder, and a blanket img rule would

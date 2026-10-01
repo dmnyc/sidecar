@@ -1069,7 +1069,7 @@
   // load counts as an arrival and gets its own leg.
   let wasLocked = true;
 
-  // ---- the Departures lock screen's station clock ----
+  // ---- the Departures lock screen's station clock and board ----
   // A working clock above the logo, the one a departures board hangs beside. Built and
   // run only while the lock screen shows under Departures (every other theme hides the
   // slot), and stopped on the same line that hides every view, so no timer outlives it.
@@ -1103,11 +1103,114 @@
     slot.replaceChildren(svg);
     return { h, m, sec };
   }
+  // THE BOARD BESIDE IT: the next few departures, as a station prints them. Not a real
+  // timetable, and it needs no location: the destinations are cities of the region the
+  // browser's own time zone names (read locally, never sent anywhere), the times run on
+  // from the clock beside them, and a seed from the date keeps the day's board the same
+  // each time the panel locks. As a departure's minute passes, the rows move up and a new
+  // one flips in at the foot. City names are data, as a board prints them, never t().
+  const BOARD_CITIES = {
+    northeast: ['Boston', 'Philadelphia', 'Washington', 'Baltimore', 'Albany', 'Montréal', 'Pittsburgh', 'Providence', 'New Haven', 'Toronto', 'New York', 'Buffalo'],
+    midwest: ['Chicago', 'Milwaukee', 'St. Louis', 'Detroit', 'Kansas City', 'Minneapolis', 'Indianapolis', 'Cincinnati', 'New Orleans', 'Memphis', 'Omaha', 'Cleveland'],
+    mountain: ['Denver', 'Salt Lake City', 'Albuquerque', 'Cheyenne', 'Omaha', 'Flagstaff', 'Santa Fe', 'Reno', 'Boise', 'El Paso'],
+    pacific: ['Seattle', 'Portland', 'San Francisco', 'Sacramento', 'Los Angeles', 'San Diego', 'Santa Barbara', 'Reno', 'Vancouver', 'Oakland'],
+    britain: ['London', 'Edinburgh', 'Manchester', 'Bristol', 'York', 'Glasgow', 'Cardiff', 'Liverpool', 'Birmingham', 'Newcastle', 'Dublin', 'Brighton'],
+    europe: ['Paris', 'Milano', 'Wien', 'München', 'Zürich', 'Amsterdam', 'Bruxelles', 'Venezia', 'Praha', 'Berlin', 'Roma', 'Barcelona', 'Budapest', 'Genève'],
+    japan: ['Tōkyō', 'Kyōto', 'Ōsaka', 'Nagoya', 'Sendai', 'Hiroshima', 'Kanazawa', 'Niigata', 'Fukuoka', 'Nagano'],
+    australia: ['Sydney', 'Melbourne', 'Brisbane', 'Canberra', 'Adelaide', 'Newcastle', 'Wollongong', 'Albury', 'Geelong', 'Ballarat'],
+    world: ['Paris', 'Milano', 'Wien', 'Venezia', 'Istanbul', 'Berlin', 'Zürich', 'Amsterdam', 'Praha', 'Madrid', 'Lisboa', 'Budapest'],
+  };
+  const BOARD_PAGE_MS = 20000;
+  function boardRegion(zone) {
+    const z = String(zone || '');
+    if (/^America\/(New_York|Toronto|Montreal|Detroit|Indiana\/|Kentucky\/)/.test(z)) return 'northeast';
+    if (/^America\/(Chicago|Winnipeg|Menominee|North_Dakota\/)/.test(z)) return 'midwest';
+    if (/^America\/(Denver|Phoenix|Boise|Edmonton)/.test(z)) return 'mountain';
+    if (/^America\/(Los_Angeles|Vancouver)/.test(z)) return 'pacific';
+    if (/^Europe\/(London|Dublin)/.test(z)) return 'britain';
+    if (/^Europe\//.test(z)) return 'europe';
+    if (z === 'Asia/Tokyo') return 'japan';
+    if (/^Australia\//.test(z)) return 'australia';
+    return 'world';
+  }
+  // A small seeded generator (mulberry32), so a date always deals the same board.
+  function boardRandom(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // One day's departures, in minutes from its midnight: a train every 12 to 40 minutes,
+  // never to the city the last three went to, and never to the one the zone is named for.
+  function boardDay(day, cities) {
+    const rnd = boardRandom(day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate());
+    const out = [];
+    let minute = Math.floor(rnd() * 30);
+    while (minute < 24 * 60) {
+      let city;
+      do { city = cities[Math.floor(rnd() * cities.length)]; } while (out.slice(-3).some((d) => d.city === city));
+      out.push({ minute, city, track: 1 + Math.floor(rnd() * 12) });
+      minute += 12 + Math.floor(rnd() * 29);
+    }
+    return out;
+  }
+  function boardRows(now, count) {
+    const zone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (_) { return ''; } })();
+    const home = zone.split('/').pop().replace(/_/g, ' ');
+    const cities = BOARD_CITIES[boardRegion(zone)].filter((c) => c !== home);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today.getTime() + 864e5);
+    const all = boardDay(today, cities).map((d) => ({ ...d, at: new Date(today.getTime() + d.minute * 6e4) }))
+      .concat(boardDay(tomorrow, cities).map((d) => ({ ...d, at: new Date(tomorrow.getTime() + d.minute * 6e4) })));
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
+    return all.filter((d) => d.at >= from).slice(0, count);
+  }
+  // Draws the rows, flipping every cell whose text changed since the last draw. `next` is
+  // the first departure overall: in its last five minutes it is boarding, and its row takes
+  // the yellow edge whenever its page is showing.
+  function paintBoard(board, rows, next, now) {
+    const time = (d) => I18N.fmtDate(d, { hour: 'numeric', minute: '2-digit' });
+    const boarding = next && next.at - now <= 5 * 6e4;
+    if (!board.querySelector('.lb-head')) {
+      board.append(h('div', { className: 'lb-head' }, [
+        h('span', { textContent: t('Time') }), h('span', { textContent: t('Destination') }), h('span', { textContent: t('Track') }),
+      ]));
+    }
+    const flip = (cell, text, row) => {
+      if (cell.textContent === text) return;
+      cell.textContent = text;
+      if (reduceBalanceMotion) return;
+      cell.classList.remove('lb-in');
+      void cell.offsetWidth;
+      cell.style.setProperty('--row', row);
+      cell.classList.add('lb-in');
+    };
+    const lines = [...board.querySelectorAll('.lb-row')];
+    rows.forEach((d, i) => {
+      let line = lines[i];
+      if (!line) {
+        line = h('div', { className: 'lb-row' }, [h('span', { className: 'lb-flap lb-time' }), h('span', { className: 'lb-flap lb-dest' }), h('span', { className: 'lb-flap lb-track' })]);
+        board.append(line);
+      }
+      line.classList.toggle('lb-boarding', !!boarding && d === next);
+      [time(d.at), d.city, String(d.track)].forEach((text, k) => flip(line.children[k], text, i));
+    });
+  }
+
   function startLockClock() {
     stopLockClock();
     const slot = $('lock-clock');
     if (!slot || document.documentElement.getAttribute('data-theme') !== 'departures') return;
     const hands = buildLockClock(slot);
+    const board = $('lock-board');
+    board.replaceChildren();
+    // Eight departures in two pages of four, turning every BOARD_PAGE_MS, the way a
+    // station board with more trains than rows flips between them. Every time it shows
+    // is still one of the next eight departures on the day's board.
+    let shown = '';
     const turn = (g, deg) => g.setAttribute('transform', `rotate(${deg} 50 50)`);
     const tick = () => {
       const now = new Date();
@@ -1115,6 +1218,12 @@
       turn(hands.h, (now.getHours() % 12) * 30 + min * 0.5);
       turn(hands.m, min * 6);
       turn(hands.sec, sec * 6);
+      const page = Math.floor(now.getTime() / BOARD_PAGE_MS) % 2;
+      if (shown !== min + ':' + page) {
+        shown = min + ':' + page;
+        const rows = boardRows(now, 8);
+        paintBoard(board, rows.slice(page * 4, page * 4 + 4), rows[0], now);
+      }
       // To the top of the next second, so the hand steps when the second does.
       lockClockTimer = setTimeout(tick, 1000 - now.getMilliseconds());
     };

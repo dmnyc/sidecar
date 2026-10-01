@@ -228,8 +228,10 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  line-height: 1.2;
-  padding: 3px 12px 2px;
+  /* The shared title's own line box, with no padding above or below: the flap has to be
+     exactly as tall as every theme's title, or choosing Departures in the gallery moves
+     the page under your finger. */
+  padding: 0 12px;
   color: #F2F1EA;
   border-radius: 3px;
   background:
@@ -300,7 +302,6 @@
 [data-theme="departures"] .wallet-balance,
 [data-theme="departures"] .pinned-balance-amt {
   font-weight: 600;
-  perspective: 400px;
 }
 [data-theme="departures"] .wallet-balance .bal-glyph,
 [data-theme="departures"] .wallet-balance .wallet-fiat-sym,
@@ -361,7 +362,7 @@
    that changed; see paintCountdownNum). */
 [data-theme="departures"] .countdown-ring .ring-track { stroke: #232322; }
 [data-theme="departures"] .countdown-ring .ring-fill { stroke: #F5C400; }
-[data-theme="departures"] .countdown-num { font-family: var(--font-display); font-weight: 600; color: #F2F1EA; gap: 0.04em; perspective: 300px; }
+[data-theme="departures"] .countdown-num { font-family: var(--font-display); font-weight: 600; color: #F2F1EA; gap: 0.04em; }
 
 /* The hidden-balance discs: round, in the UI face, rather than the flap face's bullet. */
 [data-theme="departures"] .balances-hidden .wallet-balance::after,
@@ -376,10 +377,17 @@
 /* THE NEW FIGURE CLATTERS OVER: each changed flap falls three times in quick succession
    before it settles, one flap after another, the way a board runs through the characters
    between the old one and the new. Only on an arrival (.bal-in, the strike contract in
-   splitGlyphs). Mechanical, never a glow. */
+   splitGlyphs). Mechanical, never a glow.
+
+   EDGE-ON TO START, and each flap seen from straight in front of it. A flap waiting its
+   turn holds the first frame through its delay, so it starts at 90 degrees, where it has
+   no height at all; at 80 the waiting digits on the right showed a sliver before they
+   flipped. The perspective is in each flap's own transform rather than on the figure, so
+   a digit at the edge turns about its own middle instead of being seen slantwise from the
+   figure's center. */
 @keyframes departures-flap {
-  0% { transform: rotateX(80deg); filter: brightness(0.55); }
-  100% { transform: none; filter: none; }
+  0% { transform: perspective(300px) rotateX(90deg); filter: brightness(0.55); }
+  100% { transform: perspective(300px) rotateX(0deg); filter: none; }
 }
 [data-theme="departures"] .bal-glyph { display: inline-block; }
 [data-theme="departures"] .bal-glyph.bal-in {
@@ -395,15 +403,18 @@
    The board's grid of empty flaps runs behind it, as it does behind the panel. The logo,
    the line under it and the PIN form keep the shared layout and style; the form is a strip
    of its own, so its label is not lettered on the grid. */
-/* THE STATION CLOCK hangs above the logo (drawn and run by startLockClock in sidepanel.js):
-   a black dial in a dark rim, white bars for the hours and ticks for the minutes, white
-   hands, and a thin yellow second hand with a counterweight. Placed in the space above the
-   centered content so the logo and the PIN box stay where every theme puts them, sized
-   down with the panel's height, and left out on a panel too short for it. */
+/* THE STATION CLOCK AND ITS BOARD (drawn and run by startLockClock in sidepanel.js). The
+   clock hangs above the logo: a black dial in a dark rim, white bars for the hours and
+   ticks for the minutes, white hands and a thin yellow second hand with a counterweight.
+   The board of the next four departures runs along the foot of the screen, above the
+   version chip, each cell a flap. Both sit in the space around the centered content, so
+   the logo and the PIN box stay where every theme puts them. The clock sizes down with
+   the panel's height and is left out on a panel too short for it; the board needs the
+   room below the form and is left out sooner. */
 [data-theme="departures"] #view-lock { position: relative; }
+[data-theme="departures"] #view-lock .lock-station { display: block; }
 [data-theme="departures"] #view-lock .lock-clock {
-  --clock: min(132px, calc(50vh - 220px));
-  display: block;
+  --clock: min(140px, calc(50vh - 220px));
   position: absolute;
   left: 50%;
   top: calc(50vh - 200px - var(--clock));
@@ -412,9 +423,89 @@
   transform: translateX(-50%);
   pointer-events: none;
 }
-@media (max-height: 600px) {
-  [data-theme="departures"] #view-lock .lock-clock { display: none; }
+[data-theme="departures"] #view-lock .lock-board {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  /* Centered in the room between the Forgot link and the version chip rather than
+     resting on the chip: that room is half the screen less the content below the middle
+     (153px), the chip (31px) and the board (146px), and the board sits mid-way in it. */
+  bottom: calc(25vh - 134px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: #0E0E0D;
+  border: 1px solid rgba(242, 241, 234, 0.14);
+  border-radius: 2px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-display);
+  font-weight: 600;
+  pointer-events: none;
 }
+@media (max-height: 720px) {
+  [data-theme="departures"] #view-lock .lock-board { display: none; }
+}
+@media (max-height: 600px) {
+  [data-theme="departures"] #view-lock .lock-station { display: none; }
+}
+[data-theme="departures"] .lb-head,
+[data-theme="departures"] .lb-row {
+  display: grid;
+  /* Wide enough for a 12-hour time with its AM or PM. */
+  grid-template-columns: 5.2em 1fr 2.4em;
+  gap: 4px;
+}
+[data-theme="departures"] .lb-head span {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #A9A79D;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-theme="departures"] .lb-flap {
+  position: relative;
+  font-size: 16px;
+  line-height: 24px;
+  padding: 0 6px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #232322 50%, #1B1B1A 50%);
+  color: #F2F1EA;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-theme="departures"] .lb-flap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 11.5px;
+  height: 1px;
+  /* Lighter than the balance's split: through a line of names a full-strength line reads
+     as a strike through them. */
+  background: rgba(0, 0, 0, 0.5);
+}
+[data-theme="departures"] .lb-time,
+[data-theme="departures"] .lb-track { color: #F5C400; text-align: center; font-variant-numeric: tabular-nums; }
+/* The boarding train's row takes the one yellow edge, on its time. */
+[data-theme="departures"] .lb-row.lb-boarding .lb-time { box-shadow: inset 3px 0 0 #F5C400; }
+/* A changed cell clatters over, row after row, the way the balance does. */
+[data-theme="departures"] .lb-flap.lb-in {
+  animation: departures-flap 110ms linear 3 both;
+  animation-delay: calc(var(--row) * 120ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="departures"] .lb-flap.lb-in { animation: none; }
+  [data-theme="departures"] .lock-clock .lc-sec { display: none; }
+}
+/* With motion reduced, the clock keeps its hour and minute hands, which move once a
+   minute, and leaves out the second hand, which never stops. */
+html.reduce-balance-motion[data-theme="departures"] .lock-clock .lc-sec { display: none; }
 [data-theme="departures"] .lock-clock-face { display: block; width: 100%; height: 100%; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.7)); }
 [data-theme="departures"] .lock-clock .lc-rim { fill: #2A2A28; stroke: #0A0A09; stroke-width: 1; }
 [data-theme="departures"] .lock-clock .lc-dial { fill: #0E0E0D; }
@@ -430,6 +521,40 @@
   background: #0E0E0D;
   border: 1px solid rgba(242, 241, 234, 0.14);
   border-radius: 6px;
+}
+
+/* ---- THE COMPOSER TAB: THE SIGN ON THE WALL ------------------------------------------
+   Above the note, on a wide enough tab, the board's name in cast gray letters standing a
+   little off the wall. It is the theme's name, which the gallery never translates either,
+   so it is drawn rather than written, and hidden from screen readers. It hangs off the
+   card rather than taking a place beside it in the layout, so the card stays centered
+   exactly where it is in every theme; on a tab too narrow or too short for room above
+   the card, the sign is left out. */
+[data-theme="departures"] body.compose-page .compose-sheet::before {
+  content: 'DEPARTURES' / '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 28px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding-left: 0.5em; /* the tracking after the last letter, given back before the first */
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 46px;
+  line-height: 1;
+  letter-spacing: 0.5em;
+  color: #9A988F;
+  text-shadow:
+    0 -1px 0 #C9C7BE,
+    0 1px 0 #6E6C66,
+    0 2px 0 #5E5C57,
+    0 3px 0 #4E4C48,
+    0 4px 0 #3E3D3A,
+    0 8px 14px rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+}
+@media (max-width: 899px), (max-height: 760px) {
+  [data-theme="departures"] body.compose-page .compose-sheet::before { content: none; }
 }
 
 /* "Don't allow" on the destructive-event card (both approval UIs) is lettered white in
