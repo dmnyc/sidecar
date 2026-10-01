@@ -509,6 +509,22 @@ body {
   background-repeat: repeat, no-repeat, no-repeat;
 }
 
+/* Ben Day — two Ben-Day tints: red dots coming down from the top of the panel and yellow
+   dots coming up from the bottom, each thinning out 340px in, so the middle is plain
+   paper and the lock screen's logo stands clear (themes/ben-day-dots*.svg, from
+   scripts/gen-ben-day.py). Fixed to the viewport, so the red stays at the top and the
+   yellow at the bottom however far a view scrolls; tiled sideways only, at the size
+   they were drawn, so the dots stay round. The dot colors are held against the body inks
+   by test/theme-svg-assets.test.js. */
+[data-theme="ben-day"] body {
+  background-color: var(--bg);
+  background-image: url(ben-day-dots.svg), url(ben-day-dots-yellow.svg);
+  background-size: 36px 360px, 36px 360px;
+  background-position: 0 0, 0 100%;
+  background-repeat: repeat-x, repeat-x;
+  background-attachment: fixed, fixed;
+}
+
 /* ---- The full-tab composer (compose.html) ----------------------------------------
    Every field above is drawn for a side panel about 360px wide, and several are sized
    to the frame: a tile at 100% of the width, a sheet that covers it. On a tab four

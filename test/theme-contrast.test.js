@@ -392,6 +392,10 @@ const FLOORS = {
   // darker paper), the first green accent in the set; the chanterelle is --balance-ink
   // and is a `color:` only at display size.
   mycelium: { '--muted': 6.78, '--faint': 5.50, '--gold': 4.64 },
+  // Ben Day's accent is the black plate, so --gold is the body ink's own ratio; the grays
+  // are measured on --bg-2, the darker paper, and the dots are held separately in
+  // test/theme-svg-assets.test.js.
+  'ben-day': { '--muted': 8.94, '--faint': 6.95, '--gold': 16.28 },
 };
 
 for (const theme of THEMES) {

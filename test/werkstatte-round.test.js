@@ -17,7 +17,8 @@ const ROOT = path.join(__dirname, '..');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 const promptInline = (fs.readFileSync(path.join(ROOT, 'prompt.html'), 'utf8')
   .match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n');
-const wk = fs.readFileSync(path.join(ROOT, 'themes', 'werkstatte.css'), 'utf8');
+// Ben Day squares its panels with the same blanket rule and the same exceptions.
+const SQUARE_THEMES = ['werkstatte', 'ben-day'];
 
 // Not themed, or matched from a compound selector whose real target is covered.
 const IGNORE = new Set([
@@ -27,22 +28,26 @@ const IGNORE = new Set([
   'css', 'json', 'low', 'profile-body', // captured from compound selectors
 ]);
 
-test('every circular thing in the app has a Werkstätte exception', () => {
-  const src = css + '\n' + promptInline;
-  const circular = new Set();
-  for (const m of src.matchAll(/(?:^|\})([^{}@]*?)\{([^}]*)\}/g)) {
-    if (!/border-radius:\s*50%/.test(m[2])) continue;
-    for (const part of m[1].split(',')) {
-      for (const c of part.matchAll(/\.([a-zA-Z][\w-]*)/g)) circular.add(c[1]);
+for (const theme of SQUARE_THEMES) {
+  test(`every circular thing in the app has a ${theme} exception`, () => {
+    const sheet = fs.readFileSync(path.join(ROOT, 'themes', theme + '.css'), 'utf8');
+    const src = css + '\n' + promptInline;
+    const circular = new Set();
+    for (const m of src.matchAll(/(?:^|\})([^{}@]*?)\{([^}]*)\}/g)) {
+      if (!/border-radius:\s*50%/.test(m[2])) continue;
+      for (const part of m[1].split(',')) {
+        for (const c of part.matchAll(/\.([a-zA-Z][\w-]*)/g)) circular.add(c[1]);
+      }
     }
-  }
-  const excepted = new Set(
-    [...wk.matchAll(/\[data-theme="werkstatte"\] \.([\w-]+):not\(\.theme-card\)/g)].map((m) => m[1])
-  );
-  const missing = [...circular].filter((c) => !excepted.has(c) && !IGNORE.has(c)).sort();
-  assert.deepEqual(
-    missing, [],
-    'these are round everywhere else and square in Werkstätte. Add them to the exception ' +
-    'list, or add them to IGNORE with a reason:\n  ' + missing.join('\n  ')
-  );
-});
+    const excepted = new Set(
+      [...sheet.matchAll(new RegExp('\\[data-theme="' + theme + '"\\] \\.([\\w-]+):not\\(\\.theme-card\\)', 'g'))]
+        .map((m) => m[1])
+    );
+    const missing = [...circular].filter((c) => !excepted.has(c) && !IGNORE.has(c)).sort();
+    assert.deepEqual(
+      missing, [],
+      'these are round everywhere else and square in ' + theme + '. Add them to the exception ' +
+      'list, or add them to IGNORE with a reason:\n  ' + missing.join('\n  ')
+    );
+  });
+}

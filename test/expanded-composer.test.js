@@ -255,8 +255,17 @@ test('A PAGE THAT OPENS IN A TAB SAYS WHOSE IT IS', () => {
   assert.match(bar, /background: var\(--velvet-1\)/);
   assert.ok(!/rgba\(/.test(bar), 'no hardcoded color in the composer bar');
   // And the wordmark itself swaps, since the default is baked lavender and vanishes on a
-  // light field. Same function and same set the panel uses.
-  assert.match(bare, /logo\.src = logoSrcFor\(name\)/);
+  // light field. Same function and same set the panel uses, with one exception: a light
+  // theme that draws this bar dark keeps the light wordmark, and every theme named there
+  // has to actually draw it dark, or its wordmark vanishes the other way.
+  assert.match(bare, /logo\.src = DARK_BAR_THEMES\.has\(name\) \? 'icons\/sidecar-logo\.svg' : logoSrcFor\(name\)/);
+  const darkBar = bare.match(/const DARK_BAR_THEMES = new Set\(\[([^\]]*)\]\)/);
+  assert.ok(darkBar, 'DARK_BAR_THEMES moved');
+  for (const [, theme] of darkBar[1].matchAll(/'([\w-]+)'/g)) {
+    const sheet = fs.readFileSync(path.join(__dirname, '..', 'themes', theme + '.css'), 'utf8');
+    assert.match(sheet, new RegExp('\\[data-theme="' + theme + '"\\] \\.compose-topbar \\{[^}]*background: #111111'),
+      theme + ' is listed as drawing the composer bar dark, and does not');
+  }
   assert.match(bare, /const \{ h, icon, logoSrcFor, avatarPhSrc \} = SC;/);
 });
 

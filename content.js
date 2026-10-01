@@ -626,7 +626,10 @@
     '.pill .ck{display:none;width:14px;height:14px;flex:0 0 auto;{CARD_SUCCESS};}' +
     '.pill.paid .sp{display:none;}' +
     '.pill.paid .ck{display:block;}' +
-    '@media (prefers-reduced-motion:reduce){.pw{transition:none;}.pill .sp{animation:none;}}';
+    '@media (prefers-reduced-motion:reduce){.pw{transition:none;}.pill .sp{animation:none;}}' +
+    // A theme's own additions, last so they win ties. Empty for every theme but the few
+    // whose look is a matter of shape rather than color (see CARD_EXTRA below).
+    '{CARD_EXTRA}';
 
   const CARD_CSS =
     '.ov{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;' +
@@ -692,7 +695,8 @@
     '.tg-thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#1c0c00;transition:transform .15s ease;}' +
     '.tg-input:checked~.tg-track .tg-thumb{transform:translateX(16px);}' +
     '.tg-input:not(:checked)~.tg-track{background:{CARD_TOGGLE_OFF};}' +
-    '.tg-input:not(:checked)~.tg-track .tg-thumb{background:{CARD_THUMB_OFF};}';
+    '.tg-input:not(:checked)~.tg-track .tg-thumb{background:{CARD_THUMB_OFF};}' +
+    '{CARD_EXTRA}';
 
   // Current theme for the payment card. Asked for at load and re-asked on any settings
   // or binding change, so a theme change in the panel also reaches pages already open.
@@ -717,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -759,6 +763,57 @@
   } catch (_) { /* storage unavailable — keep speakeasy default */ }
 
   // Get theme colors for payment card theming
+  // Ben Day's yellow dot wash (themes/ben-day-dots-wash.svg, from scripts/gen-ben-day.py),
+  // inlined for the pay card. The card is in someone else's page, and pointing it at the
+  // extension's file would mean making that file fetchable by any site, which is a way to
+  // detect Sidecar; a data URI fetches nothing. Regenerate the file and paste its
+  // URL-encoded text here if the wash changes (test/pay-card-themes.test.js compares them).
+  const BEN_DAY_WASH = 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2236%22%20height=%22180%22%20viewBox=%220%200%2036%20180%22%3E%3Cg%20fill=%22%23FFD84D%22%3E%3Ccircle%20cx=%220.00%22%20cy=%223.90%22%20r=%223.50%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%223.90%22%20r=%223.50%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%223.90%22%20r=%223.50%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%223.90%22%20r=%223.50%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%223.90%22%20r=%223.50%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%2211.69%22%20r=%223.29%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%2211.69%22%20r=%223.29%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%2211.69%22%20r=%223.29%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%2211.69%22%20r=%223.29%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%2219.49%22%20r=%223.09%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%2219.49%22%20r=%223.09%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%2219.49%22%20r=%223.09%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%2219.49%22%20r=%223.09%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%2219.49%22%20r=%223.09%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%2227.28%22%20r=%222.89%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%2227.28%22%20r=%222.89%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%2227.28%22%20r=%222.89%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%2227.28%22%20r=%222.89%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%2235.07%22%20r=%222.70%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%2235.07%22%20r=%222.70%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%2235.07%22%20r=%222.70%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%2235.07%22%20r=%222.70%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%2235.07%22%20r=%222.70%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%2242.87%22%20r=%222.50%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%2242.87%22%20r=%222.50%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%2242.87%22%20r=%222.50%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%2242.87%22%20r=%222.50%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%2250.66%22%20r=%222.31%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%2250.66%22%20r=%222.31%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%2250.66%22%20r=%222.31%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%2250.66%22%20r=%222.31%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%2250.66%22%20r=%222.31%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%2258.46%22%20r=%222.13%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%2258.46%22%20r=%222.13%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%2258.46%22%20r=%222.13%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%2258.46%22%20r=%222.13%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%2266.25%22%20r=%221.94%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%2266.25%22%20r=%221.94%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%2266.25%22%20r=%221.94%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%2266.25%22%20r=%221.94%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%2266.25%22%20r=%221.94%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%2274.05%22%20r=%221.76%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%2274.05%22%20r=%221.76%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%2274.05%22%20r=%221.76%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%2274.05%22%20r=%221.76%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%2281.84%22%20r=%221.58%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%2281.84%22%20r=%221.58%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%2281.84%22%20r=%221.58%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%2281.84%22%20r=%221.58%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%2281.84%22%20r=%221.58%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%2289.63%22%20r=%221.41%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%2289.63%22%20r=%221.41%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%2289.63%22%20r=%221.41%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%2289.63%22%20r=%221.41%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%2297.43%22%20r=%221.24%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%2297.43%22%20r=%221.24%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%2297.43%22%20r=%221.24%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%2297.43%22%20r=%221.24%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%2297.43%22%20r=%221.24%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%22105.22%22%20r=%221.08%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%22105.22%22%20r=%221.08%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%22105.22%22%20r=%221.08%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%22105.22%22%20r=%221.08%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%22113.02%22%20r=%220.92%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%22113.02%22%20r=%220.92%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%22113.02%22%20r=%220.92%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%22113.02%22%20r=%220.92%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%22113.02%22%20r=%220.92%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%22120.81%22%20r=%220.76%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%22120.81%22%20r=%220.76%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%22120.81%22%20r=%220.76%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%22120.81%22%20r=%220.76%22/%3E%3Ccircle%20cx=%220.00%22%20cy=%22128.60%22%20r=%220.62%22/%3E%3Ccircle%20cx=%229.00%22%20cy=%22128.60%22%20r=%220.62%22/%3E%3Ccircle%20cx=%2218.00%22%20cy=%22128.60%22%20r=%220.62%22/%3E%3Ccircle%20cx=%2227.00%22%20cy=%22128.60%22%20r=%220.62%22/%3E%3Ccircle%20cx=%2236.00%22%20cy=%22128.60%22%20r=%220.62%22/%3E%3Ccircle%20cx=%224.50%22%20cy=%22136.40%22%20r=%220.47%22/%3E%3Ccircle%20cx=%2213.50%22%20cy=%22136.40%22%20r=%220.47%22/%3E%3Ccircle%20cx=%2222.50%22%20cy=%22136.40%22%20r=%220.47%22/%3E%3Ccircle%20cx=%2231.50%22%20cy=%22136.40%22%20r=%220.47%22/%3E%3C/g%3E%3C/svg%3E';
+
+  // Ben Day's ZAP! burst (themes/ben-day-zap.svg, from scripts/gen-ben-day.py), inlined
+  // for the page-side strike for the same reason as the wash above; the panel shows the
+  // same picture on its own strike. test/pay-card-themes.test.js compares the two.
+  const BEN_DAY_ZAP = 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22220%22%20height=%22160%22%20viewBox=%220%200%20220%20160%22%3E%3Cpolygon%20points=%22110.0,6.0%20123.7,31.9%20144.2,21.2%20148.9,39.3%20181.3,29.2%20168.2,52.8%20188.8,56.8%20178.7,70.4%20218.2,80.0%20178.7,89.6%20196.5,105.5%20168.2,107.2%20179.9,129.7%20148.9,120.7%20141.8,134.7%20123.7,128.1%20110.0,155.5%2096.3,128.1%2075.0,140.2%2071.1,120.7%2037.9,131.3%2051.8,107.2%2029.3,103.8%2041.3,89.6%202.9,80.0%2041.3,70.4%2026.4,55.4%2051.8,52.8%2041.6,31.3%2071.1,39.3%2077.0,23.3%2096.3,31.9%22%20fill=%22%23FFD400%22%20stroke=%22%23111111%22%20stroke-width=%224%22%20stroke-linejoin=%22miter%22/%3E%3Cg%20transform=%22translate(110.0%2082.0)%20rotate(-7)%20skewX(-10)%20scale(0.92)%22%20fill-rule=%22evenodd%22%3E%3Cg%20transform=%22translate(4%204)%22%20fill=%22%23111111%22%20stroke=%22%23111111%22%20stroke-width=%225%22%20stroke-linejoin=%22round%22%3E%3Cpath%20transform=%22translate(-67.5%20-25)%22%20d=%22M0%200H34V9L13%2041H34V50H0V41L21%209H0Z%22/%3E%3Cpath%20transform=%22translate(-29.5%20-25)%22%20d=%22M0%2050L12%200H26L38%2050H27L24.6%2039H13.4L11%2050ZM15.4%2030H22.6L19%2013Z%22/%3E%3Cpath%20transform=%22translate(12.5%20-25)%22%20d=%22M0%200H22C31%200%2036%206%2036%2015C36%2024%2031%2030%2022%2030H11V50H0ZM11%209V21H21C24%2021%2025.5%2019%2025.5%2015C25.5%2011%2024%209%2021%209Z%22/%3E%3Cpath%20transform=%22translate(52.5%20-25)%22%20d=%22M2%200H13L11%2034H4ZM2.5%2039H12.5V50H2.5Z%22/%3E%3C/g%3E%3Cg%20fill=%22%23C8102E%22%20stroke=%22%23111111%22%20stroke-width=%225%22%20stroke-linejoin=%22round%22%20paint-order=%22stroke%22%3E%3Cpath%20transform=%22translate(-67.5%20-25)%22%20d=%22M0%200H34V9L13%2041H34V50H0V41L21%209H0Z%22/%3E%3Cpath%20transform=%22translate(-29.5%20-25)%22%20d=%22M0%2050L12%200H26L38%2050H27L24.6%2039H13.4L11%2050ZM15.4%2030H22.6L19%2013Z%22/%3E%3Cpath%20transform=%22translate(12.5%20-25)%22%20d=%22M0%200H22C31%200%2036%206%2036%2015C36%2024%2031%2030%2022%2030H11V50H0ZM11%209V21H21C24%2021%2025.5%2019%2025.5%2015C25.5%2011%2024%209%2021%209Z%22/%3E%3Cpath%20transform=%22translate(52.5%20-25)%22%20d=%22M2%200H13L11%2034H4ZM2.5%2039H12.5V50H2.5Z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E';
+
+  // A LETTERED CARD (Ben Day's Bangers on the amount and the Pay button). The card is in
+  // the page and a font declared inside its shadow root is ignored, so the face is
+  // registered with the page's document.fonts, and only for as long as a card is up:
+  // the page can see it then, when the card already shows Sidecar is here, and not
+  // otherwise. The bytes come from the background (SIDECAR_CARD_FONT) the first time
+  // such a card opens, never from a web-accessible file a site could probe for.
+  const CARD_FONT_THEMES = new Set(['ben-day']);
+  let cardFontBytes = null;
+  let cardFontFace = null;
+  let cardFontAsked = false;
+  function mountCardFont() {
+    if (!CARD_FONT_THEMES.has(cardTheme)) return;
+    const add = () => {
+      try {
+        if (!cardFontFace) cardFontFace = new FontFace('Sidecar Card Lettering', cardFontBytes, { display: 'swap' });
+        if (!document.fonts.has(cardFontFace)) document.fonts.add(cardFontFace);
+        cardFontFace.load().catch(() => {});
+      } catch (_) { /* decoration: the card falls back to the system face */ }
+    };
+    if (cardFontBytes) { add(); return; }
+    if (cardFontAsked) return;
+    cardFontAsked = true;
+    try {
+      chrome.runtime.sendMessage({ type: 'SIDECAR_CARD_FONT' }, (r) => {
+        if (chrome.runtime.lastError || !r || !r.ok || typeof r.result !== 'string') { cardFontAsked = false; return; }
+        const bin = atob(r.result);
+        const u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        cardFontBytes = u8.buffer;
+        // Only if a card is still up: one closed while the bytes were in flight must not
+        // leave the face registered behind it.
+        if (cardHost && shownMode === 'card') add();
+      });
+    } catch (_) { cardFontAsked = false; }
+  }
+  function unmountCardFont() {
+    try { if (cardFontFace && document.fonts.has(cardFontFace)) document.fonts.delete(cardFontFace); } catch (_) {}
+  }
+
   function getThemeColors() {
     // Default to speakeasy theme if not set
     const themeColors = {
@@ -1171,12 +1226,67 @@
         CARD_WARN: 'color:#A33A2A',
         CARD_SUCCESS: 'color:#2E6B4F',
         CARD_PAY_SHADOW: 'rgba(56,83,43,0.26)'
+      },
+      /* Ben Day — the comic page. Mirrors themes/ben-day.css: a white panel with the black
+         keyline, the pay button flat red with white (5.88), and the toggles as the panel
+         draws its switches. CARD_EXTRA carries the shape. */
+      'ben-day': {
+        CARD_COLOR: 'color:#111111',
+        CARD_BORDER: '#111111',
+        CARD_BACKGROUND: '#FFFFFF',
+        CARD_MUTED: 'color:#4A4A4A',
+        CARD_GOLD: 'color:#111111',
+        CARD_TEXT_2: 'color:#2A2A2A',
+        CARD_LAV: '#111111',
+        CARD_PAY_TEXT: 'color:#FFFFFF',
+        CARD_PAY_BG: '#C8102E',
+        CARD_CANCEL_BG: 'rgba(17,17,17,0.08)',
+        CARD_TEXT: '#111111',
+        CARD_BORDER_FAINT: 'rgba(17,17,17,0.22)',
+        CARD_TOGGLE_OFF: '#FFFFFF',
+        CARD_TRACK: '#C8102E',
+        CARD_THUMB_OFF: '#111111',
+        CARD_WARN: 'color:#B00D26',
+        CARD_SUCCESS: 'color:#1F6B3F',
+        CARD_PAY_SHADOW: 'transparent',
+        // The comic page's shape, which the shared templates cannot express in color:
+        // the yellow dot wash across the head of the card over a paper that shades down
+        // into cream, square corners, the black keyline and a hard drop on the card, the pill and the
+        // Pay button; the two quieter actions as cream caption tags; the amount lettered
+        // like the panel's balance (white face, one outline round the whole figure, the
+        // red plate offset behind it), which needs no font of the theme's own; and the
+        // switches as the panel draws them, white with a black knob off, red with a white
+        // knob on. The amount and the Pay button are lettered in Bangers, which reaches the
+        // page only while a card is up (see mountCardFont); everything else keeps the
+        // system face.
+        CARD_EXTRA:
+          '.card{border-radius:0;border:3px solid #111111;box-shadow:8px 8px 0 #111111;' +
+          'background:url("' + BEN_DAY_WASH + '") repeat-x 0 0/36px 180px,linear-gradient(180deg,#FFFFFF 45%,#F6EFDC);}' +
+          '.eyebrow{color:#111111;font-weight:700;}' +
+          '.amt .num{color:#FFFFFF;letter-spacing:.03em;font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:48px;' +
+          'filter:drop-shadow(.06em 0 0 #111111) drop-shadow(-.06em 0 0 #111111) ' +
+          'drop-shadow(0 .06em 0 #111111) drop-shadow(0 -.06em 0 #111111) drop-shadow(.08em .08em 0 #C8102E);}' +
+          '.amt .unit{margin-left:5px;}' +
+          '.pay{border-radius:0;box-shadow:inset 0 0 0 2.5px #111111,4px 4px 0 #111111;' +
+          'font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:20px;letter-spacing:.05em;}' +
+          '.pay:active{transform:translate(2px,2px);box-shadow:inset 0 0 0 2.5px #111111,2px 2px 0 #111111;}' +
+          '.cancel,.other{border-radius:0;background:#FFF4C2;box-shadow:inset 0 0 0 2px #111111;color:#111111;}' +
+          '.cancel:hover,.other:hover{background:#FFD400;color:#111111;}' +
+          '.tg{border-top:2px solid #111111;}' +
+          '.tg-track{box-shadow:inset 0 0 0 2px #111111;}' +
+          '.tg-input:checked~.tg-track .tg-thumb{background:#FFFFFF;}' +
+          '.pill{border-radius:0;border:2.5px solid #111111;box-shadow:4px 4px 0 #111111;}' +
+          '.x{border-radius:0;}'
       }
     };
 
     // The theme is read once at load into `cardTheme` (chrome.storage.get is
     // async and can't return a value synchronously here); fall back to speakeasy.
-    return themeColors[cardTheme] || themeColors.speakeasy;
+    // CARD_EXTRA is optional: CSS a theme appends to the card and the pill, for the
+    // themes whose look is shape rather than color. The templates are otherwise shared
+    // by all of them, so it defaults to nothing and every other theme renders exactly as
+    // it did.
+    return Object.assign({ CARD_EXTRA: '' }, themeColors[cardTheme] || themeColors.speakeasy);
   }
 
   // ---- lightning strike (a payment settled) ----
@@ -1278,6 +1388,20 @@
         svg.append(core);
       }
       layer.appendChild(svg);
+      // Ben Day's sound effect, popped over the bolt the way the panel pops it: a drawn
+      // picture, so there is nothing in it to translate.
+      if (cardTheme === 'ben-day') {
+        style.textContent +=
+          '.zap{position:fixed;left:50%;top:42%;width:340px;height:248px;margin:-124px 0 0 -170px;' +
+          'background:url("' + BEN_DAY_ZAP + '") center/contain no-repeat;opacity:0;' +
+          'animation:sczap .88s cubic-bezier(.2,.9,.3,1) both}' +
+          '@keyframes sczap{0%{opacity:0;transform:scale(.3) rotate(-14deg)}' +
+          '22%{opacity:1;transform:scale(1.12) rotate(3deg)}36%{transform:scale(.96) rotate(-1deg)}' +
+          '48%{transform:scale(1) rotate(0)}78%{opacity:1}100%{opacity:0;transform:scale(1.04)}}';
+        const zap = document.createElement('div');
+        zap.className = 'zap';
+        layer.appendChild(zap);
+      }
       root.append(style, layer);
       (document.body || document.documentElement).appendChild(host);
       // Top layer via popover — see the z-index note above. Falls back silently to the
@@ -1292,6 +1416,7 @@
 
   function removeCard() {
     awaitingDecision = false; // whatever tore this down, no card is holding a decision now
+    unmountCardFont();
     if (cardHost && cardHost.parentNode) cardHost.parentNode.removeChild(cardHost);
     cardHost = null;
     shownInvoice = '';
@@ -1474,7 +1599,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
@@ -1642,6 +1767,7 @@
     window.addEventListener('keydown', escHandler, true);
 
     (document.documentElement || document.body).appendChild(cardHost);
+    mountCardFont();
     requestAnimationFrame(() => ov.classList.add('in'));
     // Reopened from the corner because the payment failed. Try again and Not now are the
     // right affordances the moment there is a decision to make again, which is the whole

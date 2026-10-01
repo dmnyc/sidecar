@@ -88,7 +88,10 @@
 
   const THEME_ALIASES = { 'art-deco': 'industria' };
   const VALID_THEMES = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation',
-    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium'];
+    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
+  // Light themes whose composer bar is drawn dark, so it takes the light wordmark. Above
+  // applyTheme, which reads it and can run before anything below this line has.
+  const DARK_BAR_THEMES = new Set(['ben-day']);
   function applyTheme(settings, pubkey) {
     const by = (settings && settings.themeBy) || null;
     let name = (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
@@ -98,8 +101,10 @@
     // The wordmark is baked lavender for a dark field and disappears on marble or
     // eggshell, so the six light themes get the dark-wordmark cut. Same function the
     // panel uses, from the same set, so a new theme is registered once.
+    // Ben Day is a light theme but draws this bar black (themes/ben-day.css), so its bar
+    // takes the light wordmark, the one the help pages' dark bar uses in every theme.
     const logo = $('compose-logo');
-    if (logo) logo.src = logoSrcFor(name);
+    if (logo) logo.src = DARK_BAR_THEMES.has(name) ? 'icons/sidecar-logo.svg' : logoSrcFor(name);
   }
 
   // ---- relays, and the one page-local pool ----

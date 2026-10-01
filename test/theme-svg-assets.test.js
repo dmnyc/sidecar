@@ -381,3 +381,24 @@ test('both Film Noir sheets use the same inks', () => {
   assert.ok(tall.length >= 4, 'could not read the strips\' inks');
   assert.deepEqual(inks(read('film-noir-strips-wide.svg')), tall);
 });
+
+// Ben Day's dots are solid, and prose sits on them: the dot's color is the darkest pixel a
+// hint can land on anywhere in the field, so every body ink is measured against it.
+test('the Ben Day dots leave its body inks above AA', () => {
+  const css = fs.readFileSync(path.join(THEMES, 'ben-day.css'), 'utf8');
+  const token = (name) => {
+    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(m, 'could not read --' + name + ' from ben-day.css');
+    return m[1];
+  };
+  for (const file of ['ben-day-dots.svg', 'ben-day-dots-yellow.svg', 'ben-day-dots-wash.svg']) {
+    const svg = fs.readFileSync(path.join(THEMES, file), 'utf8');
+    assert.ok(!/opacity=/.test(svg), file + ': the dots have to be solid, or this measures the wrong color');
+    const fills = [...new Set([...svg.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]))];
+    assert.equal(fills.length, 1, file + ': expected the dots in one ink');
+    for (const name of ['text', 'text-2', 'muted', 'faint']) {
+      const r = ratio(token(name), fills[0]);
+      assert.ok(r >= 4.5, `${file}: --${name} measures ${r.toFixed(2)}:1 on a dot (${fills[0]}), under AA`);
+    }
+  }
+});
