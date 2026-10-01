@@ -662,6 +662,16 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.15.3</p>
+      <ul class="whatsnew-list">
+        <li><strong>Bitcoin only.</strong> A switch under Local currency takes local currency out of Sidecar: your balance cycles sats and BTC, and no exchange rate is fetched. Turn it off and your currency comes back.</li>
+        <li><strong>Pay a lightning: link on any site.</strong> Turn on <strong>Show on unconnected sites</strong> under Settings &rarr; Apps &amp; browsing, and a payment link on a site you are not signed in to, such as a checkout's Pay in wallet button, opens Sidecar's pay card. With it off, Sidecar offers to pay the link instead. Every payment still waits for your approval.</li>
+        <li><strong>A &#8942; menu on every notification</strong> shows the event's kind and copies its ID, the sender's npub, the note it points to, the link or the signed JSON.</li>
+        <li><strong>Replies sent to your inbox show up in Notifications.</strong> A reply delivered only to the read relays in your relay list could be missing; the bell now reads your inbox.</li>
+        <li><strong>A wallet backup you just saved reads as saved,</strong> instead of "a different wallet", when your relay list differs from Settings.</li>
+        <li><strong>Easier to see on the light themes.</strong> The zap bolt is lemon yellow in every theme, spinners can be seen turning, and an upload stripes the whole Media button.</li>
+        <li><strong>Smaller fixes:</strong> "balance unavailable" clears once the balance loads, a payment you just made appears in Recent transactions, and Film Noir's balance reads as one piece of lettering.</li>
+      </ul>
       <p class="whatsnew-version">Version 1.15.2</p>
       <ul class="whatsnew-list">
         <li><strong>Open tabs stay connected when Sidecar restarts.</strong> After an update or a restart, a client you had open could fail every signature with "Sidecar was updated". Sidecar now reconnects open tabs itself, with no reload.</li>
