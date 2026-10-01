@@ -254,6 +254,10 @@
     // 11 (1813), and "Self-Reliance" in Essays, First Series (1841).
     { text: 'I declare, after all, there is no enjoyment like reading!', who: 'Jane Austen, 1813' },
     { text: 'To be great is to be misunderstood.', who: 'Ralph Waldo Emerson, 1841' },
+    // 1.15.4. Checked against the Project Gutenberg texts: Jane Eyre (1847),
+    // where the line runs on past "will"; and A Tale of Two Cities, its opening (1859).
+    { text: 'I am no bird; and no net ensnares me; I am a free human being with an independent will.', who: 'Charlotte Brontë, 1847' },
+    { text: 'It was the best of times, it was the worst of times.', who: 'Charles Dickens, 1859' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

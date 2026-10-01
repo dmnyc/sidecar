@@ -9,6 +9,17 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.15.4] — 2026-10-01
+
+### Added
+- **The reaction picker learns your favorites.** The row of eight above the picker becomes the eight reactions you use most. A reaction counts once it is sent, and the count is kept on this device and never published. Each default starts as if used once and anything else needs two uses to get on, so one unusual reaction does not push ❤️ off the row, and the row does not move while the picker is open. (#421)
+
+### Fixed
+- **Notifications arrive with bootstrap relays off.** Once "Use bootstrap relays" was off, 1.15.3 read notifications only from the account's own relays, and many clients leave a reply on their own relays rather than in the recipient's inbox, so replies and reactions that 1.15.2 showed went missing. A new switch under it, **Use them for notifications** (on by default, and recommended), keeps reading the bootstrap relays for notifications; reading publishes nothing. The bell also sends all its filters in one request per relay instead of one per filter, up to 14 at a time before, which was enough for relays that limit requests to cut it off. (#420)
+
+### Changed
+- **The Bootstrap relays heading names the account it applies to,** and the setting's second hint paragraph is gone. (#420)
+
 ## [1.15.3] — 2026-10-01
 
 ### Added
