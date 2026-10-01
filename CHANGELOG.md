@@ -15,6 +15,7 @@ Update that section alongside this file as part of every release.
 
 ### Fixed
 - **The zap bolt is the same lemon yellow in every theme.** It was drawn in each theme's accent color, so on the light themes the lightning came out brown, blue, green or black. The panel and the pay card on a page now strike in one yellow everywhere, with a white-hot core down its middle, and Film Noir in white.
+- **A wallet backup you just saved reads as saved.** The backup was published to your account's relays from its relay list but checked on the relays in Settings alone. When the two differed, or with bootstrap relays off, the check kept finding the previous wallet's copy and said the backup was a different wallet, however many times you saved it again. The check now reads the relays the backup is written to.
 - **A payment you just made shows up in Recent transactions.** The history was checked the moment a payment returned, and some wallets report a payment settled a few seconds before they list it, so it did not appear until the wallet was reopened. Sidecar now looks again a few seconds later.
 - **Film Noir's balance reads as one piece of lettering.** Each digit cast its own title-card extrusion, and each one fell across the face of the digit to its left, so the figure looked like overlapping letters. The extrusion now falls behind the neighboring digit, and behind the currency symbol too.
 
