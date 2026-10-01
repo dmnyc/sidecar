@@ -1017,6 +1017,7 @@
       const lbl = addBtn.querySelector('span');
       const prev = lbl.textContent;
       lbl.textContent = t('Uploading…');
+      addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
       try {
         const url = await composer.uploadMedia(file, state.activePubkey);
         // Into the media slot only. The URL is appended to the content at publish
@@ -1032,6 +1033,7 @@
         toast(e.message, 'error');
       }
       addBtn.disabled = false;
+      addBtn.classList.remove('is-uploading');
       lbl.textContent = prev;
       fileInput.value = '';
     });

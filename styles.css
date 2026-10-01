@@ -2971,6 +2971,29 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 7px; margin: 0; flex: 1 0 auto;
 }
 .compose-add svg { width: 15px; height: 15px; }
+/* AN UPLOAD IN PROGRESS STRIPES THE WHOLE BUTTON. The label's shimmer alone was a band of
+   --text across --muted on one 15px word, and the disabled button's dimming took most of
+   what was left: on a light theme, where both inks are dark, it could not be seen. The
+   button keeps its full strength while it works (it is busy, not unavailable), and angled
+   stripes of the theme's accent run across all of it toward the right, the way a busy bar
+   does. With motion reduced, the stripes hold still: still plainly busy. */
+.compose-add.is-uploading { position: relative; overflow: hidden; cursor: progress; }
+.compose-add.is-uploading:disabled { opacity: 1; }
+.compose-add.is-uploading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(-45deg,
+    rgba(var(--accent-rgb), 0.24) 0 8px, transparent 8px 16px);
+  background-size: 22.63px 22.63px; /* one stripe pair across: 16px / sin 45 */
+  animation: upload-stripes 0.9s linear infinite;
+}
+@keyframes upload-stripes { to { background-position: 22.63px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .compose-add.is-uploading::after { animation: none; }
+}
+html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 /* ---- the expanded composer ----
    The panel's own corner button for it, and then the page it opens. The page reuses the
    panel's stylesheet and themes wholesale: it is the same product at a different size, so
@@ -3965,7 +3988,11 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .recv-spinner,
 .ac-spinner {
   width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
-  border: 2px solid var(--border-strong); border-top-color: var(--lav);
+  /* The track is a faint tint of the theme's border and the arc its accent at full
+     strength, so the arc always stands off the track. --border-strong was the track,
+     which on a light theme is a dark ink close to the arc's own (near-black in two
+     themes), and the spinner could not be seen turning. */
+  border: 2px solid rgba(var(--border-rgb), 0.16); border-top-color: var(--lav);
   animation: spin 0.8s linear infinite;
 }
 .recv-success { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0 0; margin-bottom: 24px; }
