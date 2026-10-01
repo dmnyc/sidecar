@@ -31,15 +31,22 @@ function handlerSource() {
 
 function run(checked) {
   const sent = [];
-  const dim = { on: null };
-  const $ = (id) => (id === 'relay-section-body'
-    ? { classList: { toggle: (cls, v) => { if (cls === 'hidden') dim.on = v; } } }
-    : null);
+  const dim = { on: null, notifRowHidden: null, refetched: 0 };
+  const notifToggle = { checked: null };
+  const $ = (id) => {
+    if (id === 'relay-section-body') return { classList: { toggle: (cls, v) => { if (cls === 'hidden') dim.on = v; } } };
+    if (id === 'notif-bootstrap-row') return { classList: { toggle: (cls, v) => { if (cls === 'hidden') dim.notifRowHidden = v; } } };
+    if (id === 'notif-bootstrap-toggle') return notifToggle;
+    return null;
+  };
   const call = async (msg) => { sent.push(msg); };
   const state = { activePubkey: 'a'.repeat(64) };
+  const notifBootstrapFor = async () => true;
+  const _notifCache = new Map([[state.activePubkey, { refetch: () => { dim.refetched++; } }]]);
   // eslint-disable-next-line no-new-func
-  const handler = new Function('$', 'call', 'state', `return async (e) => ${handlerSource()};`)($, call, state);
-  return handler({ target: { checked } }).then(() => ({ sent, dim: dim.on }));
+  const handler = new Function('$', 'call', 'state', 'notifBootstrapFor', '_notifCache',
+    `return async (e) => ${handlerSource()};`)($, call, state, notifBootstrapFor, _notifCache);
+  return handler({ target: { checked } }).then(() => ({ sent, dim: dim.on, notifRowHidden: dim.notifRowHidden, refetched: dim.refetched, notifToggle }));
 }
 
 test('SWITCHING BOOTSTRAP RELAYS OFF TURNS NIP-65 ONLY ON', async () => {
@@ -64,4 +71,27 @@ test('the old control is gone, so nothing can still write it the old way round',
   assert.doesNotMatch(src + html, /nip65-only-toggle/);
   assert.match(html, /<input type="checkbox" id="bootstrap-toggle" \/>/);
   assert.match(html, /Use bootstrap relays/);
+});
+
+test('with bootstrap relays off, "Use them for notifications" appears, and on is the default', async () => {
+  const off = await run(false);
+  assert.equal(off.notifRowHidden, false, 'shown while bootstrap relays are off');
+  assert.equal(off.notifToggle.checked, true);
+  assert.equal(off.refetched, 1, 'the bell re-reads its relays at once');
+  const on = await run(true);
+  assert.equal(on.notifRowHidden, true, 'hidden while they are on: it decides nothing then');
+  assert.match(html, /<label class="switch-label switch-nested hidden" id="notif-bootstrap-row">/);
+  assert.match(html, /<input type="checkbox" id="notif-bootstrap-toggle" checked \/>/);
+  assert.match(html, /data-i18n="Use them for notifications">Use them for notifications</);
+});
+
+test('the notification switch is stored per account as the accounts that said no', () => {
+  const bg = fs.readFileSync(path.join(__dirname, '..', 'background.js'), 'utf8');
+  const at = bg.indexOf("case 'SIDECAR_SET_NOTIF_BOOTSTRAP': {");
+  assert.ok(at > 0);
+  const body = bg.slice(at, bg.indexOf('break;', at));
+  assert.match(body, /if \(message\.on\) delete map\[message\.pubkey\];\s*else map\[message\.pubkey\] = true;/);
+  assert.match(body, /notifBootstrapOffBy: map/);
+  assert.match(src, /return !\(s && s\.notifBootstrapOffBy && s\.notifBootstrapOffBy\[pubkey\]\);/, 'absent reads as on');
+  assert.match(src, /\$\('notif-bootstrap-toggle'\)\.addEventListener\('change', async \(e\) => \{\s*await call\(\{ type: 'SIDECAR_SET_NOTIF_BOOTSTRAP', pubkey: state\.activePubkey, on: e\.target\.checked \}\);/);
 });
