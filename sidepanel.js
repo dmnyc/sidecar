@@ -250,6 +250,10 @@
     // Book VIII (1872), and Through the Looking-Glass (December 1871).
     { text: 'What do we live for, if it is not to make life less difficult to each other?', who: 'George Eliot, 1872' },
     { text: 'Why, sometimes I’ve believed as many as six impossible things before breakfast.', who: 'Lewis Carroll, 1871' },
+    // 1.15.3. Checked against the Project Gutenberg texts: Pride and Prejudice, chapter
+    // 11 (1813), and "Self-Reliance" in Essays, First Series (1841).
+    { text: 'I declare, after all, there is no enjoyment like reading!', who: 'Jane Austen, 1813' },
+    { text: 'To be great is to be misunderstood.', who: 'Ralph Waldo Emerson, 1841' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

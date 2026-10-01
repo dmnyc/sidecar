@@ -906,9 +906,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-01': [
     { year: 1890, text: "Congress made Yosemite a national park." },
+    { year: 1908, text: "Ford began building the Model T, and over the next nineteen years made fifteen million of them." }, // Ford Model T production dates
   ],
   '10-02': [
     { year: 1950, text: "Charles Schulz published the first Peanuts comic strip in seven newspapers." },
+    { year: 1925, text: "John Logie Baird transmitted the first television picture in London, of a ventriloquist's dummy named Stooky Bill." }, // Baird's laboratory notes
   ],
   '10-03': [
     { year: 1863, text: "President Lincoln proclaimed a national day of Thanksgiving to be held in November." },
@@ -921,6 +923,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-06': [
     { year: 1889, text: "Thomas Edison showed his first motion picture in New Jersey." }, // Kinetophone
+    { year: 1927, text: "The Jazz Singer premiered in New York, and audiences heard a feature film's actors speak." }, // Warner Bros. premiere
   ],
   '10-07': [
     { year: 1913, text: "Henry Ford's moving assembly line began producing Model T cars." }, // Highland Park
@@ -970,6 +973,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-22': [
     { year: 1797, text: "Andre-Jacques Garnerin jumped from a balloon over Paris with a silk parachute, the first to do it." }, // Parc Monceau
+    { year: 1938, text: "Chester Carlson made the first xerographic copy in Queens. It read 10-22-38 Astoria." }, // Carlson's glass slide
   ],
   '10-23': [
     { year: 1915, text: "Tens of thousands marched up Fifth Avenue in New York demanding the right to vote for women." },
