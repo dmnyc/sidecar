@@ -5650,13 +5650,78 @@
   // worth more than making them findable.
   const QUICK_REACTIONS = ['❤️', '🔥', '👍', '😂', '🙌', '🤙', '😮', '🫡'];
 
+  // THE ROW LEARNS. Those eight are where everyone starts; after that, every reaction you
+  // send is counted, on this device only and never published, and the row is your eight
+  // most used. A default counts as used once already, and anything else needs two uses to
+  // get on, so one reaction with something unusual does not knock ❤️ off the row. Most
+  // used first, a tie going to the more recent and then to the defaults' own order.
+  //
+  // Counted only from the emoji table, so a stored key that is not an emoji the picker
+  // offers is ignored rather than drawn. Read when the picker opens and not again while
+  // it is up: a row that reshuffled between two taps would put the wrong emoji under
+  // your finger.
+  const REACTION_USE_KEY = 'sidecar_reaction_use';
+  const REACTION_USE_MAX = 40;
+  let _emojiChars = null;
+  function isPickerEmoji(ch) {
+    if (!_emojiChars) {
+      const groups = emojiGroups();
+      if (!groups) return QUICK_REACTIONS.includes(ch);
+      _emojiChars = new Set(groups.flatMap(([, rows]) => rows.map((r) => r[0])));
+    }
+    return _emojiChars.has(ch);
+  }
+  function rankQuickReactions(use) {
+    const rows = new Map();
+    QUICK_REACTIONS.forEach((ch, i) => rows.set(ch, { ch, n: 1, at: 0, def: i }));
+    for (const [ch, u] of Object.entries(use || {})) {
+      if (!u || !Number.isFinite(u.n) || u.n < 1 || !isPickerEmoji(ch)) continue;
+      const at = Number.isFinite(u.at) ? u.at : 0;
+      const row = rows.get(ch);
+      if (row) { row.n += u.n; row.at = at; } else if (u.n >= 2) rows.set(ch, { ch, n: u.n, at, def: Infinity });
+    }
+    return [...rows.values()]
+      .sort((a, b) => b.n - a.n || b.at - a.at || a.def - b.def)
+      .slice(0, QUICK_REACTIONS.length)
+      .map((r) => r.ch);
+  }
+  function loadReactionUse() {
+    return new Promise((res) => {
+      try {
+        chrome.storage.local.get(REACTION_USE_KEY, (got) => {
+          void chrome.runtime.lastError;
+          const use = got && got[REACTION_USE_KEY];
+          res(use && typeof use === 'object' ? use : {});
+        });
+      } catch (_) { res({}); }
+    });
+  }
+  // Read into a variable, then written: never one expression, which can zero the store
+  // when the write begins before the read lands. Past the cap the least used go first.
+  async function noteReactionUse(ch) {
+    if (!isPickerEmoji(ch)) return;
+    const use = await loadReactionUse();
+    const prev = use[ch];
+    use[ch] = { n: (prev && Number.isFinite(prev.n) ? prev.n : 0) + 1, at: Date.now() };
+    // The one just sent is never a candidate: at a single use it would be the least used.
+    const others = Object.keys(use).filter((k) => k !== ch);
+    if (others.length >= REACTION_USE_MAX) {
+      others.sort((a, b) => ((use[a].n || 0) - (use[b].n || 0)) || ((use[a].at || 0) - (use[b].at || 0)))
+        .slice(0, others.length - REACTION_USE_MAX + 1)
+        .forEach((k) => { delete use[k]; });
+    }
+    try {
+      await new Promise((res) => chrome.storage.local.set({ [REACTION_USE_KEY]: use }, () => { void chrome.runtime.lastError; res(); }));
+    } catch (_) { /* the row just does not learn this one */ }
+  }
+
   // OPENED OVER THE SHEET, not instead of it. There is one #modal element, so anything
   // routed through openModal replaces whatever is already there — which meant reacting
   // destroyed the notification list and dropped you back on the panel, losing your place
   // in it. This layers itself inside the sheet instead: the list, its loaded pages and
   // its scroll position all sit untouched underneath, and dismissing the picker reveals
   // exactly what you left.
-  function emojiPickerOver(host, onPick) {
+  function emojiPickerOver(host, onPick, quickRow = QUICK_REACTIONS) {
     const groups = emojiGroups();
     const sheet = h('div', { className: 'emoji-over' });
     const close = () => sheet.remove();
@@ -5688,7 +5753,7 @@
       const pick = (ch) => { close(); onPick(ch); };
 
       const quick = h('div', { className: 'emoji-quick' });
-      QUICK_REACTIONS.forEach((ch) => {
+      quickRow.forEach((ch) => {
         const b = h('button', { className: 'emoji-cell emoji-quick-cell', type: 'button', textContent: ch, title: ch });
         b.addEventListener('click', () => pick(ch));
         quick.append(b);
@@ -7001,11 +7066,15 @@
       });
 
       const reactBtn = actBtn(t('React'), icon('heart'));
-      reactBtn.addEventListener('click', (e) => {
+      reactBtn.addEventListener('click', async (e) => {
         stop(e);
+        const quickRow = rankQuickReactions(await loadReactionUse());
         emojiPickerOver($('modal'), async (ch) => {
           try {
             await publishReaction(ev, ch);
+            // Counted once it is sent, not on the tap: a reaction that failed to sign or
+            // publish is not one you made.
+            noteReactionUse(ch);
             // The chip is what makes this durable feedback. The toast says it happened;
             // the chip is still there tomorrow, which is when you want to know whether
             // you already answered something. A minimal event shape: the picker is
@@ -7015,7 +7084,7 @@
           } catch (e2) {
             toast(e2.message, 'error');
           }
-        });
+        }, quickRow);
       });
 
       // REPOST OR QUOTE, one button and two answers. Both are "send this on", and they
