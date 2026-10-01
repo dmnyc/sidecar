@@ -18,7 +18,7 @@ function lift(name) {
   throw new Error(name);
 }
 function harness() {
-  const live = [], history = [];
+  const live = [], history = [], reqs = [];
   const ctx = {
     state: { accounts: [{ pubkey: 'me' }], activePubkey: 'me' },
     _notifCache: new Map(), _ownNoteIds: new Map([['me', new Set(['old'])]]),
@@ -38,6 +38,19 @@ function harness() {
     poolSubscribeManyEose: (urls, filter, params) => {
       history.push({ urls, filter, params }); params.onclose?.(); return { close() {} };
     },
+    // The bell sends all its filters in one REQ per relay. Recorded one entry per filter,
+    // so the assertions below still read filters, with the call itself counted in `reqs`.
+    poolSubscribeAll: (urls, filters, params) => {
+      reqs.push({ urls, filters, live: true });
+      const group = { closed: false, close() { this.closed = true; } };
+      filters.forEach((filter) => live.push({ urls, filter, params, get closed() { return group.closed; }, close() { group.close(); } }));
+      return group;
+    },
+    poolSubscribeAllEose: (urls, filters, params) => {
+      reqs.push({ urls, filters, live: false });
+      filters.forEach((filter) => history.push({ urls, filter, params }));
+      params.onclose?.(); return { close() {} };
+    },
   };
   // The bell reads the account's inbox (inboxRelays, relay-policy.js's read half). Here it
   // is whatever relayUrls returns, so a test that swaps the relay list swaps the inbox.
@@ -47,7 +60,7 @@ function harness() {
     'function isOwnNoteReply(', 'function closeNotifSubsExcept(', 'async function initNotifSubs(']) {
     vm.runInContext(lift(name), ctx);
   }
-  return { ctx, live, history, active: () => live.filter((s) => !s.closed) };
+  return { ctx, live, history, reqs, active: () => live.filter((s) => !s.closed) };
 }
 const event = (id, kind, tags, rest = {}) => ({ id, kind, tags, pubkey: 'them', created_at: 10, ...rest });
 
@@ -151,4 +164,17 @@ test('publishing after a relay refresh uses the refreshed relay list', async () 
   await h.ctx._notifCache.get('me').refetch();
   h.ctx.rememberOwnNote('me', 'new');
   assert.ok(h.active().every((s) => s.urls[0] === 'wss://new.example.com'));
+});
+
+test('every filter goes out in one request per relay set, not one per filter', async () => {
+  // One subscription per filter was up to seven requests per relay for each set, and the
+  // bell opens a history set and a live set together: relays that rate-limit closed them.
+  const h = harness();
+  await h.ctx.initNotifSubs();
+  assert.ok(h.live.length > 1 && h.history.length > 1, 'several filters, as before');
+  assert.equal(h.reqs.filter((r) => r.live).length, 1, 'the live set is one request');
+  assert.equal(h.reqs.filter((r) => !r.live).length, 1, 'the history set is one request');
+  const bare = source.replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(bare, /for \(const f of buildFilters\(/, 'a loop over the filters is one request each');
+  assert.doesNotMatch(bare, /buildFilters\([^)]*\)\.map\(/, 'so is a map over them');
 });

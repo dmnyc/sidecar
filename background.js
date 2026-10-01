@@ -3651,6 +3651,19 @@ async function handleControl(message, sender, sendResponse) {
         result = { ok: true };
         break;
       }
+      // Whether an account with bootstrap relays off still reads its notifications from
+      // them. Stored as the accounts that said NO, so absent is on: everyone who had turned
+      // bootstrap relays off before this existed gets the coverage back on update. Same
+      // shape and reason as SIDECAR_SET_NIP65_ONLY above.
+      case 'SIDECAR_SET_NOTIF_BOOTSTRAP': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.notifBootstrapOffBy || {}) };
+        if (message.on) delete map[message.pubkey];
+        else map[message.pubkey] = true;
+        await sset({ sidecar_settings: { ...prev, notifBootstrapOffBy: map } });
+        result = { ok: true };
+        break;
+      }
       // Same shape and the same reason as SIDECAR_SET_NIP65_ONLY above: the map has to be
       // edited in the background, because SIDECAR_SET_SETTINGS merges shallowly and a
       // panel sending the whole map would clobber another account's choice.

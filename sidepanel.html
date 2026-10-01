@@ -694,23 +694,34 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Bootstrap relays">Bootstrap relays</h3>
+            <!-- Per account, so the heading names the account when Settings opens
+                 (nip65-only-scope): "Bootstrap relays for {{name}}", one sentence, so a
+                 language can order it its own way. With more than one account it is
+                 clear these switches are not global. -->
+            <h3 id="nip65-only-scope">Bootstrap relays</h3>
             <p class="hint" data-i18n="Used to find your relay list, and as a fallback if it cannot be reached.">Used to find your relay list, and as a fallback if it cannot be reached.</p>
-            <!-- The exception, true but not what a reader of this screen needs: the discovery
-                 fetch still queries these once a session to find the account's own relay
-                 list. getRelays() follows this switch too, so a connected client is told the
-                 same relays the panel posts to (relay-policy.js, #274). -->
-            <p class="hint" data-i18n="Per account. When off, these relays are only used to find that account's relay list.">Per account. When off, these relays are only used to find that account's relay list.</p>
+            <!-- No second hint. "Per account" is said by the scope beside the switch, and what
+                 off means by the switch that appears under it. The discovery fetch still
+                 queries these relays once a session to find the account's relay list, and
+                 getRelays() follows this switch too (relay-policy.js, #274). -->
             <!-- ON = bootstrap relays in use, the way every other switch here reads: on means
                  the thing it names is active, and the list below dims when it is off. Stored
                  inverted, as nip65OnlyBy, which is what the relay code reads; only this
                  control flips it. -->
             <label class="switch-label">
-              <!-- Per account: the scope span names the active account, so with more than
-                   one it's clear this isn't a global switch. -->
-              <span><span data-i18n="Use bootstrap relays">Use bootstrap relays</span> <span class="switch-scope" id="nip65-only-scope"></span></span>
+              <span data-i18n="Use bootstrap relays">Use bootstrap relays</span>
               <span class="switch">
                 <input type="checkbox" id="bootstrap-toggle" />
+                <span class="switch-track"></span>
+              </span>
+            </label>
+            <!-- Under the switch while it is off: whether the bell still reads these relays.
+                 On by default; see SIDECAR_SET_NOTIF_BOOTSTRAP. -->
+            <label class="switch-label switch-nested hidden" id="notif-bootstrap-row">
+              <span><span data-i18n="Use them for notifications">Use them for notifications</span>
+                <span class="switch-note" data-i18n="Recommended">Recommended</span></span>
+              <span class="switch">
+                <input type="checkbox" id="notif-bootstrap-toggle" checked />
                 <span class="switch-track"></span>
               </span>
             </label>

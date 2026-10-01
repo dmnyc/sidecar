@@ -205,13 +205,17 @@ test('the bell subscribes on the inbox, not on the bootstrap set alone', () => {
   const sp = read('sidepanel.js').replace(/^\s*\/\/.*$/gm, '');
   const fn = sp.slice(sp.indexOf('async function inboxRelays('));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
-  assert.match(body, /P\.readRelays\(P\.relayMap\(\{ list: info\.list, configured, bootstrap: !nip65Only \}\)\)/,
+  assert.match(body, /P\.readRelays\(P\.relayMap\(\{ list: info\.list, configured, bootstrap \}\)\)/,
     'the inbox is the shared rule, not a second copy of it');
+  // Bootstrap relays off still reads them for notifications unless the account said no:
+  // an inbox alone missed replies other clients left on their own relays (2026-10-01).
+  assert.match(body, /const bootstrap = !nip65Only \|\| await notifBootstrapFor\(pubkey\);/);
+  assert.match(body, /if \(!bootstrap && !info\.resolved && !info\.stale\) return \[\];/);
   assert.doesNotMatch(body, /wss:\/\//, 'the inbox names no relay of its own');
   const init = sp.slice(sp.indexOf('async function initNotifSubs('));
   const initBody = init.slice(0, init.indexOf('\n  async function ') > 0 ? init.indexOf('\n  async function ') : 20000);
   assert.match(initBody, /const inbox = await inboxRelays\(a\.pubkey\);/);
-  assert.match(initBody, /poolSubscribeManyEose\(inbox, f,/);
+  assert.match(initBody, /poolSubscribeAllEose\(inbox, buildFilters\(since, 50\),/);
   assert.match(initBody, /let liveRelays = inbox;/);
   assert.match(initBody, /const urls = await inboxRelays\(a\.pubkey\);/, 'the refresh button reads the inbox too');
 });

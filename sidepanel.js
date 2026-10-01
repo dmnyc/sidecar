@@ -3574,6 +3574,25 @@
   const poolPublish = (relays, event, params) => getPool().publish(relays, event, withAuth(params));
   const poolSubscribeMany = (relays, filters, params) => getPool().subscribeMany(relays, filters, withAuth(params));
   const poolSubscribeManyEose = (relays, filters, params) => getPool().subscribeManyEose(relays, filters, withAuth(params));
+  // SEVERAL FILTERS, ONE REQ PER RELAY. subscribeMany takes a single filter, so a reader
+  // with seven filters opened seven subscriptions on every relay, and the notification
+  // bell opens a history set and a live set at once, then both again on each refresh: 14
+  // requests per relay at a time. Relays that rate-limit read that as a broken client and
+  // close the subscriptions, and a reply that reached only such a relay never arrived.
+  // subscribeMap groups every filter bound for one relay into a single REQ.
+  const poolSubscribeAll = (relays, filters, params) => getPool().subscribeMap(relays.flatMap((url) => filters.map((filter) => ({ url, filter }))), withAuth(params));
+  // The same, closed on EOSE, as subscribeManyEose does for one filter.
+  const poolSubscribeAllEose = (relays, filters, params) => {
+    let closer = null;
+    closer = poolSubscribeAll(relays, filters, Object.assign({}, params, {
+      oneose() {
+        const reason = 'closed automatically on eose';
+        if (closer) closer.close(reason);
+        else params.onclose?.(relays.map(() => reason));
+      },
+    }));
+    return closer;
+  };
   // One relay, open-ended: the Lazarus scan needs each relay's EOSE separately,
   // which the aggregated subscribeMany folds away. The scan reaches archival
   // relays outside the account's own list, so the auth-required retry is offered
@@ -3686,6 +3705,20 @@
       return !!(s && s.nip65OnlyBy && s.nip65OnlyBy[pubkey]);
     } catch (_) {
       return false; // can't read the setting → behave as if off, which keeps bootstrap
+    }
+  }
+
+  // Does this account read its notifications from the bootstrap relays even with them off?
+  // On unless the account said no (notifBootstrapOffBy). Many clients deliver a reply to
+  // their own relays rather than to the recipient's declared inbox, so an inbox alone
+  // misses them; the bootstrap set is where they land. Reading publishes nothing.
+  async function notifBootstrapFor(pubkey) {
+    if (!pubkey) return true;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      return !(s && s.notifBootstrapOffBy && s.notifBootstrapOffBy[pubkey]);
+    } catch (_) {
+      return true;
     }
   }
 
@@ -4057,13 +4090,18 @@
   //
   // NIP-65-only with no list ever seen reads nothing, as postRelays refuses to post: the
   // bootstrap relays are the ones the account asked to stop using.
+  //
+  // WITH THEM OFF, still read here unless the account said no (notifBootstrapFor): turning
+  // bootstrap relays off is about where you publish and what clients are told, and an
+  // inbox alone missed replies that 1.15.2's bootstrap reads caught.
   async function inboxRelays(pubkey) {
     const info = await getNip65Info(pubkey);
     const nip65Only = await nip65OnlyFor(pubkey);
-    if (nip65Only && !info.resolved && !info.stale) return [];
+    const bootstrap = !nip65Only || await notifBootstrapFor(pubkey);
+    if (!bootstrap && !info.resolved && !info.stale) return [];
     const configured = await call({ type: 'SIDECAR_GET_RELAYS' });
     const P = self.SidecarRelayPolicy;
-    const urls = P.readRelays(P.relayMap({ list: info.list, configured, bootstrap: !nip65Only }));
+    const urls = P.readRelays(P.relayMap({ list: info.list, configured, bootstrap }));
     // One socket per relay: a declared URL with a trailing slash and a configured one
     // without it are the same relay.
     return [...new Set(urls.map(normalizeRelay))];
@@ -6421,23 +6459,18 @@
         cache.refetching = true;
         cache.refetchAdded = 0;
         try {
-          await Promise.all(
-            buildFilters(from, 50).map(
-              (f) =>
-                new Promise((resolve) => {
-                  let settled = false;
-                  const finish = () => { if (!settled) { settled = true; resolve(); } };
-                  // Capped, because a relay that never sends EOSE would otherwise leave
-                  // the button spinning for as long as the sheet stays open.
-                  setTimeout(finish, 6000);
-                  try {
-                    poolSubscribeManyEose(urls, f, { onevent: addEvent, onclose: finish });
-                  } catch (_) {
-                    finish();
-                  }
-                })
-            )
-          );
+          await new Promise((resolve) => {
+            let settled = false;
+            const finish = () => { if (!settled) { settled = true; resolve(); } };
+            // Capped, because a relay that never sends EOSE would otherwise leave the
+            // button spinning for as long as the sheet stays open.
+            setTimeout(finish, 6000);
+            try {
+              poolSubscribeAllEose(urls, buildFilters(from, 50), { onevent: addEvent, onclose: finish });
+            } catch (_) {
+              finish();
+            }
+          });
         } finally {
           cache.refetching = false;
         }
@@ -6449,12 +6482,10 @@
       if (!inbox.length) continue;
       if (state?.activePubkey !== a.pubkey || cache.liveSub) continue;
       const liveSince = Math.floor(Date.now() / 1000);
-      // nostr-tools ≥2.20 subscriptions take a single filter object, not an array —
-      // open one subscription per filter (the pool shares the relay sockets).
+      // Every filter in one REQ per relay (poolSubscribeAll): one subscription per filter
+      // was seven requests per relay for this set alone.
       try {
-        for (const f of buildFilters(since, 50)) {
-          poolSubscribeManyEose(inbox, f, { onevent: addEvent });
-        }
+        poolSubscribeAllEose(inbox, buildFilters(since, 50), { onevent: addEvent });
       } catch (_) {}
       let liveRelays = inbox;
       cache.replaceLive = (urls = liveRelays) => {
@@ -6464,10 +6495,8 @@
         // repeated refreshes must not accumulate relay requests.
         cache.liveSub?.close();
         const subs = [];
-        for (const f of buildFilters(liveSince)) {
-          try { subs.push(poolSubscribeMany(urls, f, { onevent: addEvent })); }
-          catch (e) { console.warn('Notification subscription failed', e); }
-        }
+        try { subs.push(poolSubscribeAll(urls, buildFilters(liveSince), { onevent: addEvent })); }
+        catch (e) { console.warn('Notification subscription failed', e); }
         cache.liveSub = subs.length
           ? { close: () => subs.forEach((sub) => { try { sub.close(); } catch (_) {} }) }
           : null;
@@ -9971,10 +10000,13 @@
     // is edited from an account that uses it.
     const relayBody = $('relay-section-body');
     if (relayBody) relayBody.classList.toggle('hidden', nip65Only);
+    // Only shown with bootstrap relays off, the one case it decides anything.
+    $('notif-bootstrap-row')?.classList.toggle('hidden', !nip65Only);
+    $('notif-bootstrap-toggle').checked = await notifBootstrapFor(state.activePubkey);
     const nip65Scope = $('nip65-only-scope');
     if (nip65Scope) {
       const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey);
-      nip65Scope.textContent = acct ? t('for {{name}}', { name: displayName(acct) }) : '';
+      nip65Scope.textContent = acct ? t('Bootstrap relays for {{name}}', { name: displayName(acct) }) : t('Bootstrap relays');
     }
     $('autozap-toggle').checked = settings.autoZap === true;
     const azMax = Number(settings.autoZapMaxSats) || AUTOZAP_DEFAULT_MAX;
@@ -20798,6 +20830,17 @@
     const nip65Only = !e.target.checked;
     await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey: state.activePubkey, on: nip65Only });
     $('relay-section-body')?.classList.toggle('hidden', nip65Only);
+    $('notif-bootstrap-row')?.classList.toggle('hidden', !nip65Only);
+    if (nip65Only) $('notif-bootstrap-toggle').checked = await notifBootstrapFor(state.activePubkey);
+    // Either switch can change where the bell reads, so it re-reads now rather than at
+    // the next refresh. refetch picks up the new inbox and reopens the live subscription.
+    _notifCache.get(state.activePubkey)?.refetch?.();
+  });
+
+  // Use them for notifications: shown under Use bootstrap relays while it is off.
+  $('notif-bootstrap-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_NOTIF_BOOTSTRAP', pubkey: state.activePubkey, on: e.target.checked });
+    _notifCache.get(state.activePubkey)?.refetch?.();
   });
 
   // Settings → Relays → Edit relay list. The editor is the Relays block on the
