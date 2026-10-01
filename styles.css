@@ -2098,19 +2098,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    button's svg with no size at all, and an unconstrained icon blew the row up.
    Specificity: (0,2,1) beats the (0,2,0) of `.profile-body .profile-edit-cta`,
    so this wins without !important. */
+/* The two buttons share a row while both labels fit, and stack when they do not. They
+   used to shrink instead, which truncated both labels at German's length ("Profil
+   bearbeiten" needs 133px in the shared face at the shared size, and half the row is
+   less). Stacking is the row-controls rule in CLAUDE.md: a label never shrinks to fit,
+   and a stacked control takes the full row, which is what the grow is for. English
+   still fits side by side, the pair sharing the row. */
 .profile-cta-row {
-  display: flex; align-items: center; justify-content: center;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
   gap: 8px; margin: 12px 0 2px;
 }
 .profile-body .profile-cta-row > button {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  flex: 0 1 auto; min-width: 0; margin: 0;
+  flex: 1 0 auto; max-width: 100%; margin: 0;
   padding: 8px 18px; border-radius: 999px;
 }
 .profile-body .profile-cta-row > button svg {
   width: 15px; height: 15px; display: block; flex-shrink: 0;
 }
-/* The label truncates before the button does. */
+/* The last resort, for one label wider than the whole row once stacked. */
 .profile-body .profile-cta-row > button span {
   min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
