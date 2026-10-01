@@ -917,6 +917,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-04': [
     { year: 1883, text: "The Orient Express departed Paris on its first official journey to Istanbul." },
+    { year: 1927, text: "Gutzon Borglum began carving Mount Rushmore. The work took fourteen years and four hundred workers." }, // Mount Rushmore construction dates
   ],
   '10-05': [
     { year: 1921, text: "The World Series was broadcast on the radio for the first time." }, // KDKA Pittsburgh
@@ -933,6 +934,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-09': [
     { year: 1936, text: "Generators at Hoover Dam began transmitting electricity to Los Angeles." },
+    { year: 1888, text: "The Washington Monument opened to the public, three years after it was dedicated." }, // National Park Service
   ],
   '10-10': [
     { year: 1845, text: "The Naval School opened in Annapolis with fifty midshipmen." }, // US Naval Academy
@@ -945,6 +947,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-13': [
     { year: 1792, text: "The cornerstone of the White House was laid in Washington by George Washington and a group of Freemasons." },
+    { year: 1903, text: "Boston won the eighth game against Pittsburgh and with it the first World Series." }, // 1903 World Series, game 8
   ],
   '10-14': [
     { year: 1947, text: "Chuck Yeager flew faster than sound over the Mojave, with two broken ribs he had not mentioned." }, // Bell X-1
