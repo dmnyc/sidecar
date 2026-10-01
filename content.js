@@ -721,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -1253,6 +1253,32 @@
           '.pay{text-shadow:0 0 8px rgba(255,190,170,0.7);' +
           'box-shadow:inset 0 1px 0 rgba(255,200,190,0.45),0 0 0 1px rgba(255,90,100,0.5),0 0 12px rgba(230,40,60,0.75),0 0 30px rgba(230,40,60,0.45);}' +
           '.tg-input:checked~.tg-track .tg-thumb{background:#FFF4E2;}'
+      },
+      /* Departures — the board. Mirrors themes/departures.css: a black strip with a hairline
+         edge, the amount in the board's white, Pay the yellow with black lettering, and the
+         toggles in the yellow with a black knob. */
+      departures: {
+        CARD_COLOR: 'color:#F2F1EA',
+        CARD_BORDER: 'rgba(242,241,234,0.22)',
+        CARD_BACKGROUND: 'linear-gradient(180deg,#141413,#0E0E0D)',
+        CARD_MUTED: 'color:#A9A79D',
+        CARD_GOLD: 'color:#F2F1EA',
+        CARD_TEXT_2: 'color:#DCDBD3',
+        CARD_LAV: '#F5C400',
+        CARD_PAY_TEXT: 'color:#0E0E0D',
+        CARD_PAY_BG: '#F5C400',
+        CARD_CANCEL_BG: 'rgba(242,241,234,0.08)',
+        CARD_TEXT: '#F2F1EA',
+        CARD_BORDER_FAINT: 'rgba(242,241,234,0.16)',
+        CARD_TOGGLE_OFF: 'rgba(242,241,234,0.18)',
+        CARD_TRACK: '#F5C400',
+        CARD_THUMB_OFF: '#A9A79D',
+        CARD_WARN: 'color:#FF8A70',
+        CARD_SUCCESS: 'color:#8FDBA4',
+        CARD_PAY_SHADOW: 'rgba(0,0,0,0.6)',
+        CARD_EXTRA:
+          '.pay{text-transform:uppercase;letter-spacing:.06em;}' +
+          '.tg-input:checked~.tg-track .tg-thumb{background:#0E0E0D;}'
       },
       /* Ben Day — the comic page. Mirrors themes/ben-day.css: a white panel with the black
          keyline, the pay button flat red with white (5.88), and the toggles as the panel

@@ -399,6 +399,9 @@ const FLOORS = {
   // Jazz Age: ivory on the black stage. --gold is the rose accent ink (the crimson is a
   // fill only, 4.47 on the stage); the worst surface for all three is the lighter card.
   'jazz-age': { '--muted': 8.04, '--faint': 7.47, '--gold': 7.98 },
+  // Departures: the board's white and two grays on a black board. Every ink's worst
+  // surface is the board itself; the yellow is the accent ink.
+  departures: { '--muted': 7.63, '--faint': 6.85, '--gold': 11.21 },
 };
 
 for (const theme of THEMES) {
