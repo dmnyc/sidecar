@@ -532,7 +532,7 @@
     // this window always rendered Speakeasy regardless of what the panel was wearing.
     // Same allowlist as sidepanel.js's applyTheme: an unknown value falls back rather
     // than writing an arbitrary string into the DOM.
-    const THEMES = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
+    const THEMES = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
     // Renamed themes: a stored 'art-deco' predates the Industria rebrand and is never
     // rewritten, so it is mapped on read here exactly as sidepanel.js and content.js do.
     const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -552,7 +552,7 @@
     // script in a page's world, and this window — and the alternative is a fourth file
     // loaded by all three to hold ten strings. The cost is that a new light theme must be
     // registered in all three, so each copy names the others.
-    const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
+    const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
     const isLight = LIGHT_THEMES.includes(theme);
     if (isLight) {
       const mark = document.querySelector('.brand img');

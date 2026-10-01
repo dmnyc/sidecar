@@ -88,10 +88,10 @@
 
   const THEME_ALIASES = { 'art-deco': 'industria' };
   const VALID_THEMES = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures',
-    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day'];
+    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
   // Light themes whose composer bar is drawn dark, so it takes the light wordmark. Above
   // applyTheme, which reads it and can run before anything below this line has.
-  const DARK_BAR_THEMES = new Set(['ben-day']);
+  const { COMPOSE_DARK_BAR_THEMES } = window.SidecarCore;
   function applyTheme(settings, pubkey) {
     const by = (settings && settings.themeBy) || null;
     let name = (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
@@ -104,7 +104,7 @@
     // Ben Day is a light theme but draws this bar black (themes/ben-day.css), so its bar
     // takes the light wordmark, the one the help pages' dark bar uses in every theme.
     const logo = $('compose-logo');
-    if (logo) logo.src = DARK_BAR_THEMES.has(name) ? 'icons/sidecar-logo.svg' : logoSrcFor(name);
+    if (logo) logo.src = COMPOSE_DARK_BAR_THEMES.has(name) ? 'icons/sidecar-logo.svg' : logoSrcFor(name);
   }
 
   // ---- relays, and the one page-local pool ----

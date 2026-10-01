@@ -3388,7 +3388,19 @@ async function handleControl(message, sender, sendResponse) {
         // lives in the page and cannot use a font declared in its own shadow root, and
         // listing the file as web-accessible would let any site fetch it to detect
         // Sidecar. The file is the unmodified original from fonts/, public in the repo.
-        const buf = await (await fetch(chrome.runtime.getURL('fonts/bangers.ttf'))).arrayBuffer();
+        // A lettered theme's faces, chosen from this fixed list by the theme's name and the
+        // face's role, so a page can only ever receive one of these files, never a path it
+        // names. A request with no theme or face is from a content script older than the
+        // list, which only knew Ben Day's lettering.
+        const CARD_FONTS = {
+          'ben-day': { lettering: 'fonts/bangers.ttf' },
+          turnstile: { lettering: 'fonts/pathway-gothic-one.ttf', figures: 'fonts/archivo-expanded-800.woff2' },
+        };
+        const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+        const theme = message.theme === undefined ? 'ben-day' : message.theme;
+        const face = message.face === undefined ? 'lettering' : message.face;
+        if (!own(CARD_FONTS, theme) || !own(CARD_FONTS[theme], face)) throw new Error('No card lettering for that theme');
+        const buf = await (await fetch(chrome.runtime.getURL(CARD_FONTS[theme][face]))).arrayBuffer();
         const u8 = new Uint8Array(buf);
         let bin = '';
         for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));

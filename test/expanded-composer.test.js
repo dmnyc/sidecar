@@ -258,13 +258,22 @@ test('A PAGE THAT OPENS IN A TAB SAYS WHOSE IT IS', () => {
   // light field. Same function and same set the panel uses, with one exception: a light
   // theme that draws this bar dark keeps the light wordmark, and every theme named there
   // has to actually draw it dark, or its wordmark vanishes the other way.
-  assert.match(bare, /logo\.src = DARK_BAR_THEMES\.has\(name\) \? 'icons\/sidecar-logo\.svg' : logoSrcFor\(name\)/);
-  const darkBar = bare.match(/const DARK_BAR_THEMES = new Set\(\[([^\]]*)\]\)/);
-  assert.ok(darkBar, 'DARK_BAR_THEMES moved');
+  assert.match(bare, /logo\.src = COMPOSE_DARK_BAR_THEMES\.has\(name\) \? 'icons\/sidecar-logo\.svg' : logoSrcFor\(name\)/);
+  // The set lives in the core, beside the panel's own list for its top bars.
+  assert.match(bare, /const \{ COMPOSE_DARK_BAR_THEMES \} = window\.SidecarCore;/);
+  const darkBar = core.match(/const COMPOSE_DARK_BAR_THEMES = new Set\(\[([^\]]*)\]\)/);
+  assert.ok(darkBar, 'COMPOSE_DARK_BAR_THEMES moved');
+  const lum = (hex) => {
+    const c = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
   for (const [, theme] of darkBar[1].matchAll(/'([\w-]+)'/g)) {
     const sheet = fs.readFileSync(path.join(__dirname, '..', 'themes', theme + '.css'), 'utf8');
-    assert.match(sheet, new RegExp('\\[data-theme="' + theme + '"\\] \\.compose-topbar \\{[^}]*background: #111111'),
-      theme + ' is listed as drawing the composer bar dark, and does not');
+    const rule = sheet.match(new RegExp('\\[data-theme="' + theme + '"\\] \\.compose-topbar[^{]*\\{([^}]*)\\}'));
+    assert.ok(rule, theme + ' is listed as drawing the composer bar dark, and has no rule for it');
+    const bg = rule[1].match(/background:[^;]*#([0-9A-Fa-f]{6})\s*;/);
+    assert.ok(bg && lum(bg[1]) < 0.05, theme + ' is listed as drawing the composer bar dark, and does not');
   }
   assert.match(bare, /const \{ h, icon, logoSrcFor, avatarPhSrc \} = SC;/);
 });
@@ -275,7 +284,7 @@ test('the theme artwork helpers live in the core, not a fifth copy', () => {
   // fifth, so they moved to the core and the panel takes them back.
   assert.match(core, /const LIGHT_THEMES = new Set\(\[/);
   assert.ok(!/const LIGHT_THEMES = new Set/.test(panel), 'a second copy defeats the point');
-  assert.match(panel, /const \{ LIGHT_THEMES, logoSrcFor, avatarPhSrc \} = window\.SidecarCore;/);
+  assert.match(panel, /const \{ LIGHT_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc \} = window\.SidecarCore;/);
   // The avatar placeholder is drawn in white, so a light theme needs the other cut. The
   // page was appending an <img> with no src at all before this.
   assert.match(bare, /img\.src = avatarPhSrc\(\);/);
@@ -744,4 +753,25 @@ test('CLOSING THE TAB KEEPS WHAT WAS TYPED, AND BEFOREUNLOAD IS NOT HOW', () => 
   // text in the same slot.
   const flush = bare.slice(bare.indexOf('function flushDraft()'));
   assert.match(flush.slice(0, flush.indexOf('\n  }')), /clearTimeout\(saveTimer\); saveTimer = null;/);
+});
+
+test('a theme listed as drawing the panel bar dark draws it dark', () => {
+  // The panel's own list, separate from the composer's: Ben Day draws only its composer bar
+  // dark, and while one list served both, its white panel bars got the light wordmark,
+  // lavender on white. Every theme named here must paint .topbar near-black.
+  const lum = (hex) => {
+    const c = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  assert.match(panel, /const barSrc = PANEL_DARK_BAR_THEMES\.has\(themeName\) \? 'icons\/sidecar-logo\.svg' : src;/);
+  const listed = core.match(/const PANEL_DARK_BAR_THEMES = new Set\(\[([^\]]*)\]\)/);
+  assert.ok(listed, 'PANEL_DARK_BAR_THEMES moved');
+  for (const [, theme] of listed[1].matchAll(/'([\w-]+)'/g)) {
+    const sheet = fs.readFileSync(path.join(__dirname, '..', 'themes', theme + '.css'), 'utf8');
+    const rule = sheet.match(new RegExp('\\[data-theme="' + theme + '"\\] \\.topbar[,\\s{][^{]*\\{([^}]*)\\}'));
+    assert.ok(rule, theme + ' is listed as drawing the panel bar dark, and has no rule for it');
+    const bg = rule[1].match(/background:[^;]*#([0-9A-Fa-f]{6})\s*;/);
+    assert.ok(bg && lum(bg[1]) < 0.05, theme + ' is listed as drawing the panel bar dark, and does not');
+  }
 });

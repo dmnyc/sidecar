@@ -525,6 +525,19 @@ body {
   background-attachment: fixed, fixed;
 }
 
+/* Turnstile — the station wall: white glazed tile in running bond, each tile a shade off
+   its neighbor (themes/turnstile-wall.svg), repeated at its own size and fixed to the
+   viewport. Everything with words on it is an enamel plate or a tablet over it; the grays
+   are dark enough to read on the grout where a hint does sit on the wall
+   (test/theme-svg-assets.test.js). */
+[data-theme="turnstile"] body {
+  background-color: var(--bg);
+  background-image: url(turnstile-wall.svg);
+  background-size: 120px 30px;
+  background-repeat: repeat;
+  background-attachment: fixed;
+}
+
 /* Departures — the board: a grid of empty flaps, each split across the middle
    (themes/departures-flaps.svg), repeated at its own size and fixed to the viewport so
    the grid stays put as a view scrolls. Barely lighter than the board, so it reads as the
