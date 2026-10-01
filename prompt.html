@@ -116,6 +116,7 @@
     .prompt-footer #pin-error { margin: 7px 0 0; }
     .prompt-footer #relax-row,
     .prompt-footer #autozap-offer,
+    .prompt-footer #payanywhere-offer,
     .prompt-footer #remember { margin-bottom: 10px; }
     /* The chips are the last thing in the relax row; its own margin spaces them from
        the buttons, so don't pay twice. */
@@ -348,6 +349,15 @@
     .remember .check { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text); font-size: 13px; text-transform: none; letter-spacing: 0; margin-bottom: 8px; cursor: pointer; }
     .remember input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; }
     .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    /* The group is as wide as its widest row and centered, so one checkbox sits where it
+       always did; inside it the rows start at the same edge. The budget amount row is not
+       indented under its label: at the popup's ~340px that pushed "sats / day without
+       asking" onto two lines. A longer language may still wrap it, so it wraps flush left
+       with the rows rather than centered under itself. */
+    .check-group { width: fit-content; max-width: 100%; margin: 0 auto; }
+    .check-group .remember .check { justify-content: flex-start; }
+    .check-group .budget-row { justify-content: flex-start; }
+    .check-group .budget-unit { text-align: left; }
     .remember input[type=number] {
       width: 110px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
       background: var(--input-bg, linear-gradient(180deg, rgba(var(--well-rgb), 0.6), rgba(var(--velvet-1-rgb), 0.6)));
@@ -450,6 +460,9 @@
            already adjacent to the budget row). -->
       <div class="error" id="pin-error"></div>
     </div>
+    <!-- The payment's checkboxes, one group so that when more than one shows they share a
+         left edge. Each row centered on its own width put the boxes at different points. -->
+    <div class="check-group">
     <!-- Offered by the payment card; confirmed here because a page must not be able
          to switch automatic spending on by itself. Ticked by default since the user
          already asked for it on the card — untick to pay without enabling it. -->
@@ -457,12 +470,19 @@
       <label class="check"><input type="checkbox" id="autozap-offer-box" checked />
       <span id="autozap-offer-label" data-i18n="Turn on Auto Zaps" data-i18n-review>Turn on Auto Zaps</span></label>
     </div>
+    <!-- "Show on unconnected sites", asked here because the card that offered to pay is on a
+         page, and no page may switch that on. Unticked: nobody has asked for it yet. -->
+    <div id="payanywhere-offer" class="remember hidden">
+      <label class="check"><input type="checkbox" id="payanywhere-offer-box" />
+      <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
+    </div>
 
     <div id="remember" class="remember hidden">
     <label class="check"><input type="checkbox" id="remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
     <div class="budget-row">
       <input type="number" id="budget-amount" min="1" placeholder="sats" data-i18n-placeholder="sats" />
       <span class="budget-unit" data-i18n="sats / day without asking" data-i18n-review>sats / day without asking</span>
+    </div>
     </div>
     </div>
     <div id="relax-row" class="relax-row hidden">

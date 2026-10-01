@@ -85,7 +85,7 @@ test('the pill opens the card, and dismissing it is remembered', () => {
 test('a TAPPED lightning: link opens the card', () => {
   const at = content.indexOf('document.addEventListener(\'click\'');
   assert.ok(at !== -1, 'nothing listens for a tapped lightning: link');
-  const handler = stripComments(content.slice(at, at + 1100));
+  const handler = stripComments(content.slice(at, at + 1600));
   assert.match(handler, /lightning:/i, 'the listener does not look for a lightning link');
   assert.match(handler, /renderCard\(inv\)/, 'a tapped link does not open the card');
   assert.match(handler, /composedPath/, 'a link inside a shadow root is missed');
@@ -105,10 +105,14 @@ test('A TAPPED LINK ANSWERS TO THE SWITCH FOR ITS KIND OF SITE', () => {
   // it. "Show on unconnected sites" (off by default) is what lets Sidecar take that tap;
   // "Show on Nostr sites" covers a signed-in site's. Neither reaches the other's.
   const at = content.indexOf('document.addEventListener(\'click\'');
-  const handler = stripComments(content.slice(at, at + 1100));
-  assert.match(handler, /if \(!hasWallet \|\| !\(connectedToSite \? showCard : pillAnywhere\)\) return;/,
-    'a tap is taken without a wallet, or under the other kind of site\'s switch');
-  assert.match(handler, /tappedInvoice = inv;\s*tappedHref = href;\s*renderCard\(inv\);/, 'the tapped card is not marked as tapped');
+  const handler = stripComments(content.slice(at, at + 1600));
+  assert.match(handler, /if \(!hasWallet\) return;/, 'a tap is taken with no wallet to pay it');
+  assert.match(handler, /if \(connectedToSite\) \{ if \(!showCard\) return; \}/, 'a signed-in site ignores Show on Nostr sites');
+  // An unconnected site with its switch off gets the OFFER, unless that was dismissed.
+  assert.match(handler, /else if \(!pillAnywhere\) \{ if \(payOfferDismissed\) return; offer = true; \}/,
+    'an unconnected site either takes every tap or never offers');
+  assert.match(handler, /tappedInvoice = inv;\s*tappedHref = href;\s*if \(offer\) offerInvoice = inv;\s*renderCard\(inv\);/,
+    'the tapped card is not marked as tapped, or not as the offer');
 });
 
 test('the scan still offers nothing unasked on an unconnected site, and leaves a tapped card up', () => {
@@ -189,7 +193,7 @@ test('PAYING FROM AN UNBOUND SITE DOES NOT BIND IT, OR IT WOULD STOP BEING UNCON
   const pay = lift(background, 'async function payFromPage(');
   assert.match(pay, /const wasBound = !!\(await getSiteAccount\(host\)\);/);
   assert.ok(pay.indexOf('wasBound') < pay.indexOf('resolveSiteAccount'), 'the binding is read after it could have changed');
-  assert.match(pay, /payInvoiceCore\([^)]*\{ bind: wasBound \}\)/, 'the card path binds whatever it pays');
+  assert.match(pay, /bind: wasBound,/, 'the card path binds whatever it pays');
   const core = lift(background, 'async function payInvoiceLocked(');
   assert.match(core, /if \(!\(opts && opts\.bind === false\)\) await setSiteAccount\(host, pubkey\);/);
   // Every other caller keeps binding: WebLN from a client is how a site gets paired.
@@ -203,6 +207,55 @@ test('the wallet list looks again a few seconds after a payment lands', () => {
   const h = panel.slice(at, at + 1800);
   assert.match(h, /setTimeout\(\(\) => \{[\s\S]*?refreshTransactionList\(\);[\s\S]*?\}, 4000\)/,
     'a payment the wallet lists a moment late never shows in Recent transactions');
+});
+
+// ---- the offer: how anyone learns Sidecar pays invoices on other sites --------------------
+
+test('THE OFFER CARD SAYS WHAT SIDECAR CAN DO, AND ITS TOGGLE ONLY STOPS ASKING', () => {
+  const card = stripComments(lift(content, 'function renderCard('));
+  // An offer for as long as it still is one, so a redraw (theme, retry) keeps the wording.
+  assert.match(card, /const offer = invoice === offerInvoice && !connectedToSite && !pillAnywhere;/);
+  assert.match(card, /msg\('cardOfferEyebrow', 'Sidecar can pay this invoice'\)/);
+  assert.match(card, /msg\('cardOfferDontAsk', 'Don\\'t ask again'\)/);
+  assert.match(card, /const settings = offer \? \{ payOfferDismissed: true \}/, '"Don\'t ask again" switches something else off');
+  // Pay carries the intent only. The card has no way to turn the setting on.
+  assert.match(card, /offerPayAnywhere: offer,/);
+  assert.doesNotMatch(card, /payPillAnywhere: true/, 'the page card turns on Show on unconnected sites itself');
+  const en = JSON.parse(fs.readFileSync(path.join(ROOT, '_locales', 'en', 'messages.json'), 'utf8'));
+  assert.equal(en.cardOfferEyebrow.message, 'Sidecar can pay this invoice');
+  assert.equal(en.cardOfferDontAsk.message, "Don't ask again");
+});
+
+test('THE OPT-IN IS ASKED ON SIDECAR\'S APPROVAL SCREEN, NEVER BY THE PAGE', () => {
+  const bg = stripComments(background);
+  // Only for a site that was not bound, and only while the setting is still off.
+  assert.match(bg, /offerPayAnywhere: !wasBound && offerPayAnywhere === true,/);
+  assert.match(bg, /offerPayAnywhere: !!\(opts && opts\.offerPayAnywhere\) && settings\.payPillAnywhere !== true,/);
+  // An approval with the box ticked turns it on and tells every open page.
+  const core = lift(background, 'async function payInvoiceLocked(');
+  assert.match(core, /if \(decision\.enablePayAnywhere\) \{[\s\S]*?payPillAnywhere: true[\s\S]*?pushPageSettings\(merged\);/);
+  assert.ok(core.indexOf("decision.action === 'reject'") < core.indexOf('decision.enablePayAnywhere'),
+    'a rejected payment can still switch it on');
+  // A page may write the dismissal, only to true, and still never the setting itself.
+  assert.match(bg, /if \(s\.payOfferDismissed === true\) clamped\.payOfferDismissed = true;/);
+  assert.doesNotMatch(bg, /clamped\.payPillAnywhere = (true|!!)/);
+});
+
+test('BOTH APPROVAL SCREENS ASK, UNTICKED, AND ONLY AN APPROVAL CARRIES THE ANSWER', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'prompt.html'), 'utf8');
+  assert.match(html, /<input type="checkbox" id="payanywhere-offer-box" \/>/, 'the popup pre-ticks it, or lost it');
+  const prompt = fs.readFileSync(path.join(ROOT, 'prompt.js'), 'utf8');
+  assert.match(prompt, /if \(data\.offerPayAnywhere === true\) els\.payAnywhereOffer\.classList\.remove\('hidden'\);/);
+  assert.match(prompt, /if \(data\.offerPayAnywhere === true && els\.payAnywhereOfferBox\.checked\) \{\s*extra = Object\.assign\(\{\}, extra, \{ enablePayAnywhere: true \}\);/);
+  const panelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  assert.match(panelHtml, /<input type="checkbox" id="approval-payanywhere-offer-box" \/>/, 'the panel pre-ticks it, or lost it');
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  // The panel's approval card is reused: the row follows each approval, and the box
+  // starts unticked every time, so an earlier tick is never taken as this one's answer.
+  assert.match(panel, /\$\('approval-payanywhere-offer'\)\.classList\.toggle\('hidden', data\.offerPayAnywhere !== true\);\s*\$\('approval-payanywhere-offer-box'\)\.checked = false;/);
+  assert.match(panel, /pendingApproval\.data\.offerPayAnywhere === true &&\s*\$\('approval-payanywhere-offer-box'\)\.checked\) \{\s*extra = Object\.assign\(\{\}, extra, \{ enablePayAnywhere: true \}\);/);
+  // And the Auto Zaps row, which had the same reuse bug: shown once, never hidden again.
+  assert.match(panel, /\$\('approval-autozap-offer'\)\.classList\.toggle\('hidden', !\(data\.offerAutoZap > 0\)\);/);
 });
 
 // ---- no wallet, no offer ------------------------------------------------------------------

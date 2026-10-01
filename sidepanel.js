@@ -21778,12 +21778,19 @@
       hide($('approval-unlock'));
     }
 
-    // The payment card offered to enable automatic zaps; confirm it here.
+    // The payment card offered to enable automatic zaps; confirm it here. Toggled rather
+    // than only revealed: this card is reused, and a row left up from an earlier approval
+    // showed an offer the current one does not carry.
+    $('approval-autozap-offer').classList.toggle('hidden', !(data.offerAutoZap > 0));
     if (data.offerAutoZap > 0) {
-      $('approval-autozap-offer').classList.remove('hidden');
+      $('approval-autozap-offer-box').checked = true;
       $('approval-autozap-offer-label').textContent =
         tSec('Turn on Auto Zaps ({{max}} sats max)', { max: fmtSats(data.offerAutoZap) });
     }
+    // The page's card was the "Sidecar can pay this invoice" offer (see prompt.js).
+    // Unticked every time: a tick left over from another approval is not an answer.
+    $('approval-payanywhere-offer').classList.toggle('hidden', data.offerPayAnywhere !== true);
+    $('approval-payanywhere-offer-box').checked = false;
 
     // Payment: one Pay button + an optional "remember a budget" toggle (no Trust).
     const remember = $('approval-remember');
@@ -21964,6 +21971,10 @@
     if (pendingApproval && pendingApproval.data && pendingApproval.data.offerAutoZap > 0 &&
         $('approval-autozap-offer-box').checked) {
       extra = Object.assign({}, extra, { enableAutoZap: true });
+    }
+    if (pendingApproval && pendingApproval.data && pendingApproval.data.offerPayAnywhere === true &&
+        $('approval-payanywhere-offer-box').checked) {
+      extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {

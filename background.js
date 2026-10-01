@@ -2704,6 +2704,11 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
         offerAutoZap && settings.autoZap !== true && sats != null && sats <= AUTOZAP_DEFAULT_MAX
           ? AUTOZAP_DEFAULT_MAX
           : 0,
+      // "Show on unconnected sites", asked HERE and never on the page, for the reason the
+      // auto-zap offer is: a switch that lets Sidecar act on every website must not be
+      // one a website can flip, even by arranging a click. Unticked by default, because
+      // nobody asked for it yet: the card only said Sidecar could pay.
+      offerPayAnywhere: !!(opts && opts.offerPayAnywhere) && settings.payPillAnywhere !== true,
     }, originWindowId);
     if (decision.action === 'reject') throw new Error('You rejected this payment');
     if (KS.isLocked()) throw new Error('Keystore is locked');
@@ -2720,6 +2725,13 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
           autoZapDailyMaxSats: AUTOZAP_DEFAULT_MAX * AUTOZAP_DAILY_MULTIPLE,
         },
       });
+    }
+    // Approved with "Offer Sidecar on sites like this" ticked → Show on unconnected sites.
+    if (decision.enablePayAnywhere) {
+      const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+      const merged = { ...prev, payPillAnywhere: true };
+      await sset({ sidecar_settings: merged });
+      pushPageSettings(merged);
     }
     // 'budget' → remember an allowance for this site before paying.
     if (decision.action === 'budget' && decision.budgetSats) {
@@ -3066,8 +3078,37 @@ function notifyTabPayFailed(tabId, invoice, error) {
   }
 }
 
+// The pay settings every open page's content script keeps a copy of, pushed so a change
+// takes effect without a reload. Only the pay card's own switches, the same set the
+// clamped GET_SETTINGS hands a page.
+function pushPageSettings(merged) {
+  if (!chrome.tabs) return;
+  chrome.tabs.query({}, (tabs) => {
+    for (const t of tabs) {
+      if (t.id != null) {
+        chrome.tabs.sendMessage(
+          t.id,
+          {
+            type: 'SIDECAR_EVENT',
+            event: 'settings',
+            showPayButton: merged.showPayButton,
+            payPillAnywhere: merged.payPillAnywhere === true,
+            payOfferDismissed: merged.payOfferDismissed === true,
+            // Keep the card's auto-zap offer in step: turning the setting on
+            // in Settings should retire the offer without a page reload.
+            autoZapOffer: merged.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
+          },
+          () => void chrome.runtime.lastError
+        );
+      }
+    }
+  });
+}
+
 // Resolve the account/wallet for the page, then pay via the shared core.
-async function payFromPage(invoiceRaw, host, originWindowId, offerAutoZap) {
+// `offerPayAnywhere`: the card was the "Sidecar can pay this invoice" offer on a site not
+// signed in with Sidecar, so the approval asks whether to show it on sites like this.
+async function payFromPage(invoiceRaw, host, originWindowId, offerAutoZap, offerPayAnywhere) {
   await KS.ensureLoaded();
   if (!(await KS.isInitialized())) throw new Error('Sidecar has no accounts set up yet');
   // Read before resolving: whether the site was bound decides whether paying binds it.
@@ -3076,7 +3117,10 @@ async function payFromPage(invoiceRaw, host, originWindowId, offerAutoZap) {
   if (!pubkey) throw new Error('No active Sidecar account');
   if ((await PERMS.getLevel(pubkey, host)) === 'blocked') throw new Error('This site is blocked in Sidecar');
   if (!(await KS.hasNwc(pubkey))) throw new Error('No wallet connected in Sidecar');
-  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId, offerAutoZap, { bind: wasBound });
+  return payInvoiceCore(invoiceRaw, host, pubkey, undefined, originWindowId, offerAutoZap, {
+    bind: wasBound,
+    offerPayAnywhere: !wasBound && offerPayAnywhere === true,
+  });
 }
 
 // First BOLT11 invoice inside a blob of text (selection, link, decoded QR).
@@ -3713,27 +3757,7 @@ async function handleControl(message, sender, sendResponse) {
           bumpAutoLock();
         }
         // Push the pay-pill setting to content scripts so it toggles live.
-        if (chrome.tabs) {
-          chrome.tabs.query({}, (tabs) => {
-            for (const t of tabs) {
-              if (t.id != null) {
-                chrome.tabs.sendMessage(
-                  t.id,
-                  {
-                    type: 'SIDECAR_EVENT',
-                    event: 'settings',
-                    showPayButton: merged.showPayButton,
-                    payPillAnywhere: merged.payPillAnywhere === true,
-                    // Keep the card's auto-zap offer in step: turning the setting on
-                    // in Settings should retire the offer without a page reload.
-                    autoZapOffer: merged.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
-                  },
-                  () => void chrome.runtime.lastError
-                );
-              }
-            }
-          });
-        }
+        pushPageSettings(merged);
         result = merged;
         break;
       }
@@ -4074,6 +4098,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const clamped = {};
     if ('showPayButton' in s) clamped.showPayButton = !!s.showPayButton;
     if (s.payPillAnywhere === false) clamped.payPillAnywhere = false;
+    // "Don't ask again" on the offer card: a page may only make Sidecar quieter.
+    if (s.payOfferDismissed === true) clamped.payOfferDismissed = true;
     message = { type: 'SIDECAR_SET_SETTINGS', settings: clamped };
   }
   if (!fromExtPage && message.type === 'SIDECAR_GET_SETTINGS') {
@@ -4129,6 +4155,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Whether a site not signed in with Sidecar may show the corner pill. The
           // content script's own business; the page never sees it.
           payPillAnywhere: st.payPillAnywhere === true,
+          // The offer card's "Don't ask again", so a dismissed offer stays dismissed.
+          payOfferDismissed: st.payOfferDismissed === true,
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
           cardTheme: (cardAccount && by[cardAccount]) || st.theme || '',
           hasWallet,
@@ -4192,7 +4220,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // in hand when the decision clears.
     const key = payKey(message.invoice);
     payTabs.set(key, { tabId, invoice: message.invoice });
-    payFromPage(message.invoice, host, originWindowId, message.enableAutoZap === true)
+    payFromPage(message.invoice, host, originWindowId, message.enableAutoZap === true, message.offerPayAnywhere === true)
       .then((r) => {
         payTabs.delete(key);
         notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');

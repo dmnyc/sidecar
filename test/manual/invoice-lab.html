@@ -26,14 +26,19 @@
 
   Case 9 is a BTCPay checkout, and the one case that wants a site NOT connected to
   Sidecar, which is what a real BTCPay server is. Serve the lab a second time on a port
-  that has never connected, and do not press Connect there:
+  that has never connected, and do not press Connect there. Connect binds the port to
+  your account, and a bound port is a connected site for good, until it is removed under
+  Activity → Connected sites; if case 9 opens the card by itself, that is what happened,
+  so pick a fresh port:
 
       python3 -m http.server 8022
       open http://localhost:8022/test/manual/invoice-lab.html
 
-  It answers to Settings → Apps & browsing → "Show on unconnected sites": off, Sidecar
-  leaves the page alone and a tap on Pay in wallet goes to whatever app handles
-  lightning: (BlueWallet); on, the corner pill appears and the tap opens the card. Case 0's
+  It answers to Settings → Apps & browsing → "Show on unconnected sites": off, nothing
+  appears until you tap Pay in wallet, which opens the card as an offer ("Sidecar can pay
+  this invoice"; its approval asks "Offer Sidecar on sites like this", and "Don't ask
+  again" gives such taps back to your Lightning app); on, the corner pill appears and the
+  tap opens the card. Case 0's
   "Show as a BTCPay checkout" puts its real invoice in the same shape, to test a payment
   from an unconnected site end to end: that it lands in Recent transactions, and that the
   port does NOT turn up under Activity → Connected sites afterwards.

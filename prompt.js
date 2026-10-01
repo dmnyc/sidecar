@@ -39,6 +39,8 @@
     autozapOffer: $('autozap-offer'),
     autozapOfferBox: $('autozap-offer-box'),
     autozapOfferLabel: $('autozap-offer-label'),
+    payAnywhereOffer: $('payanywhere-offer'),
+    payAnywhereOfferBox: $('payanywhere-offer-box'),
   };
 
   // Same transport, same reason as sidepanel.js — see the long note on bg() there (#224).
@@ -339,6 +341,9 @@
       els.autozapOfferLabel.textContent =
         tSec('Turn on Auto Zaps ({{max}} sats max)', { max: fmtSats(data.offerAutoZap) });
     }
+    // The page's card was the "Sidecar can pay this invoice" offer: ask here whether to
+    // show it on sites like this, where a page cannot be the one answering.
+    if (data.offerPayAnywhere === true) els.payAnywhereOffer.classList.remove('hidden');
 
     if (isPayment) {
       const rows = [];
@@ -991,6 +996,9 @@
     // reaches here, so declining the payment can never enable the setting.
     if (data.offerAutoZap > 0 && els.autozapOfferBox.checked) {
       extra = Object.assign({}, extra, { enableAutoZap: true });
+    }
+    if (data.offerPayAnywhere === true && els.payAnywhereOfferBox.checked) {
+      extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
     // "Wrong account" escape: carry the account to make active. The background detaches
     // and then throws, so this never signs.
