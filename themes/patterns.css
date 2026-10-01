@@ -3,16 +3,28 @@
    Unique SVG patterns for each theme.
    ============================================================ */
 
-/* Speakeasy — Purple velvet glow + diamond lattice with gold dots */
+/* Speakeasy — diamond-quilted velvet, a booth's wall: padded diamonds with a crease down
+   every seam and lavender double stitching beside it (themes/speakeasy-quilt.svg, from
+   scripts/gen-speakeasy.py), under the room's purple glow and the warm lamp in the far
+   corner. No gold on the wall: it is kept for the wallet and the accents. The thread and
+   the padding are at the brightest the hints allow (test/theme-svg-assets.test.js).
+   Fixed to the viewport, as a wall is, so the quilting stays put while a view scrolls. */
 body {
   background-image:
-    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='38'%20height='38'%3E%3Cpath%20d='M0%2019%2019%200%2038%2019%2019%2038Z'%20fill='none'%20stroke='%23a78bfa'%20stroke-opacity='0.05'/%3E%3Ccircle%20cx='19'%20cy='19'%20r='1'%20fill='%23cba14e'%20fill-opacity='0.08'/%3E%3C/svg%3E"),
+    url(speakeasy-quilt.svg),
     radial-gradient(1100px 480px at 50% -12%, rgba(167, 139, 250, 0.14), transparent 60%),
     radial-gradient(820px 560px at 115% 112%, rgba(234, 119, 47, 0.12), transparent 55%),
     linear-gradient(165deg, #170630 0%, var(--bg) 62%);
   /* Center the tile; the gradients stay anchored. Every theme does this now,
      so a pattern is never clipped at the left edge. */
   background-position: center, 0% 0%, 0% 0%, 0% 0%;
+}
+/* The tile's size and the fixed wall are Speakeasy's alone. The rule above reaches every
+   theme's body, and a theme that sets its own image but not these would take them. */
+[data-theme="speakeasy"] body,
+html:not([data-theme]) body {
+  background-size: 40px 56px, auto, auto, auto;
+  background-attachment: fixed, fixed, fixed, fixed;
 }
 
 /* Film Noir — strips of 35mm film laid loose on a light table: each tipped a few degrees
