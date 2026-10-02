@@ -130,6 +130,9 @@ Sidecar requests only the permissions it needs to function:
 - **Alarms** — to auto-lock the keystore after a period of inactivity.
 - **Context menus** — for the right-click "Pay with Sidecar" option.
 - **Notifications** — to confirm payment results.
+- **Scripting** — to reconnect tabs that were already open when Sidecar updated or
+  restarted, by adding its own bundled script back to them, so a client you keep
+  open doesn't stop signing. It adds nothing else and reads no page content.
 - **Host access (all sites)** — to provide the Nostr signer
   (`window.nostr`/`window.webln`) to whatever Nostr web client you visit. Sidecar
   only acts when a page requests signing/payment and you approve; it does not
