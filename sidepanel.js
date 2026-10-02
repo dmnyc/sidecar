@@ -4447,6 +4447,8 @@
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable,
     buildPollTags, buildPollEditor,
   } = window.SidecarCore;
+  // Saved drafts, listed the same way the expanded composer lists them.
+  const { otherDraftEntries, buildSavedDraftList } = window.SidecarCore;
   const POLL_RESPONSE_KIND = 1018;
 
   // TWENTY-FOUR HOURS unless the author says otherwise.
@@ -8603,7 +8605,7 @@
     modal.innerHTML = '';
     // Both per-modal variants reset here, or the last one to open leaks into the next:
     // a composer would leave every later dialog 620px wide.
-    modal.classList.remove('modal-sheet', 'compose-modal'); // opt back in per modal
+    modal.classList.remove('modal-sheet', 'compose-modal', 'has-drafts-btn'); // opt back in per modal
     // And the dismiss guard, for the same reason a class is: a stale one would make an
     // unrelated dialog refuse to close.
     _modalDismissGuard = null;
@@ -12651,6 +12653,86 @@
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(persistDraft, 400);
     }
+    // Write now, and drop the pending one so the two cannot race to the same slot.
+    function flushDraftNow() {
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      return Promise.resolve(persistDraft()).catch(() => {});
+    }
+
+    // ---- the corner: close, and the other drafts ----
+    //
+    // Added by every view that clears the modal, not once after the first one: the
+    // close box used to be appended after the builder's first paint, so resuming a draft
+    // rebuilt the modal without it.
+    //
+    // THE FOLDER holds this account's other drafts, with their count on it. The Write /
+    // Preview / Expand row is full at this width, so it sits where the bell sheet puts
+    // its refresh: the corner, beside the close box, costing the editor no width.
+    let switchingDraft = false;
+    function addCorner(withDrafts) {
+      const closeX = h('button', { className: 'modal-x', title: t('Close') });
+      closeX.append(icon('x'));
+      closeX.addEventListener('click', closeModal);
+      modal.append(closeX);
+      if (!withDrafts) return;
+      const count = h('span', { className: 'compose-drafts-count' });
+      const btn = h('button', { className: 'modal-x compose-drafts-btn hidden', type: 'button', title: t('Saved drafts') });
+      btn.append(icon('folder'), count);
+      btn.addEventListener('click', () => { showSavedDrafts(); });
+      modal.append(btn);
+      call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).then((all) => {
+        const n = otherDraftEntries(all || {}, pubkey, dkey).length;
+        if (!n || !btn.isConnected) return;
+        count.textContent = I18N.fmtNum(n);
+        btn.classList.remove('hidden');
+        modal.classList.add('has-drafts-btn');
+      }).catch(() => {});
+    }
+
+    // The list, in place of the editor, with a way back to it. The draft on screen is
+    // saved before it goes, because the list is built from the store.
+    async function showSavedDrafts() {
+      await flushDraftNow();
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
+      const entries = otherDraftEntries(all, pubkey, dkey);
+      if (!entries.length) { showEditor(); return; }
+      stopCountdown();
+      modal.innerHTML = '';
+      modal.classList.remove('has-drafts-btn');
+      addCorner(false);
+      const back = h('button', { className: 'ghost', textContent: t('Back to your draft') });
+      back.addEventListener('click', () => showEditor());
+      modal.append(
+        h('h3', { textContent: t('Saved drafts') }),
+        buildSavedDraftList({
+          entries,
+          nameFor: (pk) => Promise.resolve(notifAuthorName(pk)),
+          onPick: (entry) => switchToSavedDraft(entry),
+          onDelete: async (entry) => {
+            const now = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+            delete now[entry.key];
+            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: now });
+            toast(t('Draft deleted.'), 'success');
+            showSavedDrafts();
+          },
+        }),
+        h('div', { className: 'actions' }, [back]),
+      );
+    }
+
+    // Another draft, in this composer. The slot is fixed for a composer's whole session
+    // (dkey, above), so a switch is this one closing and the other opening, resumed
+    // directly: it was just chosen, so asking "Resume your draft?" again would be asking
+    // twice. The close handler skips its save and the way back, both of which belong to
+    // the draft being left.
+    async function switchToSavedDraft(entry) {
+      await flushDraftNow();
+      const wasReply = !!replyTo && !!((draft.text || '').trim() || (draft.media || []).length);
+      switchingDraft = true;
+      closeModal();
+      if (wasReply) toast(t('Your reply is saved.'), 'info');
+      openComposer('', { replyTo: entry.draft.replyTo || null, resumeSaved: true });
+    }
 
     // What is being answered. Built fresh on each call rather than held as one node,
     // because a DOM element lives in exactly one place: the editor pane and the review
@@ -12920,6 +13002,8 @@
       stopCountdown();
       enteredEditor = true;
       modal.innerHTML = '';
+      modal.classList.remove('has-drafts-btn');
+      addCorner(true);
 
       // Write / Preview tab bar
       let preview = false;
@@ -13578,6 +13662,28 @@
     }
 
     // Offer to resume a saved draft (or start fresh) before opening the editor.
+    // RESUME A SAVED DRAFT, from the chooser's button or straight from Saved drafts.
+    function resumeFrom(saved) {
+      // Restore the target too, or this resumes as a note and posts as one. And
+      // strip the attachment URLs an older draft carried in its text: they live in
+      // the media slot alone now, or publishing would append them a second time.
+      replyTo = saved.replyTo || null;
+      draft = {
+        text: stripDraftMediaUrls(saved.text, saved.media),
+        media: (saved.media || []).slice(),
+        replyTo,
+        poll: saved.poll || null,
+      };
+      // The rung chosen for THIS draft, over the account's standing one. Resuming a
+      // note and finding its difficulty reset is the same surprise as finding its
+      // reply target reset, which is why that is restored on the line above.
+      if (saved.pow && typeof saved.pow.bits === 'number') {
+        powForThisPost = { on: !!saved.pow.on, bits: saved.pow.bits };
+        draft.pow = powForThisPost;
+      }
+      showEditor();
+    }
+
     function showDraftChooser(saved) {
       modal.innerHTML = '';
       // Collapse horizontal whitespace and cap long blank-line runs, but keep
@@ -13599,26 +13705,7 @@
         : '';
 
       const resume = h('button', { className: 'primary', textContent: t('Resume draft') });
-      resume.addEventListener('click', () => {
-        // Restore the target too, or this resumes as a note and posts as one. And
-        // strip the attachment URLs an older draft carried in its text: they live in
-        // the media slot alone now, or publishing would append them a second time.
-        replyTo = saved.replyTo || null;
-        draft = {
-          text: stripDraftMediaUrls(saved.text, saved.media),
-          media: (saved.media || []).slice(),
-          replyTo,
-          poll: saved.poll || null,
-        };
-        // The rung chosen for THIS draft, over the account's standing one. Resuming a
-        // note and finding its difficulty reset is the same surprise as finding its
-        // reply target reset, which is why that is restored on the line above.
-        if (saved.pow && typeof saved.pow.bits === 'number') {
-          powForThisPost = { on: !!saved.pow.on, bits: saved.pow.bits };
-          draft.pow = powForThisPost;
-        }
-        showEditor();
-      });
+      resume.addEventListener('click', () => resumeFrom(saved));
       const fresh = h('button', { className: 'ghost', textContent: t('Start fresh') });
       fresh.addEventListener('click', () => {
         clearComposeDraft(dkey);
@@ -13665,16 +13752,14 @@
         // truly destroyed by a stray click, but "it came back later" is not the same as
         // "it never went away".
         _modalDismissGuard = () => !!(draft.text.trim() || (draft.media || []).length);
-        if (hasSaved) showDraftChooser(saved); else showEditor();
-        // AFTER the content, because showEditor clears the modal to build itself. An X is
-        // where people look for the way out, and someone who does not find one clicks the
-        // background instead — which is now guarded and does nothing, so without this the
-        // guard would read as a stuck dialog. It discards like Cancel does; the draft is
-        // already saved, so nothing is actually lost.
-        const closeX = h('button', { className: 'modal-x', title: t('Close') });
-        closeX.append(icon('x'));
-        closeX.addEventListener('click', closeModal);
-        modal.append(closeX);
+        // Chosen from Saved drafts a moment ago, so it opens rather than asking again.
+        if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
+        else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
+        else showEditor();
+        // The close box comes with each view (addCorner). An X is where people look for
+        // the way out, and someone who does not find one clicks the background instead,
+        // which is guarded and does nothing, so without it the guard would read as a
+        // stuck dialog. It discards like Cancel does; the draft is already saved.
       },
       () => {
         stopCountdown();
@@ -13690,7 +13775,7 @@
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
-        if (!published && !handedToTab && enteredEditor) persistDraft();
+        if (!published && !handedToTab && !switchingDraft && enteredEditor) persistDraft();
         // WHERE THIS CAME FROM. A reply started in the bell sheet had to give the
         // composer the whole panel, and dropping the user out onto the main view
         // afterwards loses their place in a list they were working through. Runs whether
@@ -13698,7 +13783,7 @@
         //
         // Last, and guarded: it reopens a modal, and it must not be able to stop the
         // draft above from being saved.
-        if (opts && typeof opts.returnTo === 'function') {
+        if (!switchingDraft && opts && typeof opts.returnTo === 'function') {
           try { opts.returnTo(); } catch (_) {}
         }
       }
@@ -21057,6 +21142,11 @@
 
   $('compose-tab-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { composeInTab: e.target.checked } });
+  });
+  // The tab's footer has the same switch, so this one follows storage too.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.sidecar_settings) return;
+    $('compose-tab-toggle').checked = (changes.sidecar_settings.newValue || {}).composeInTab === true;
   });
 
   $('countdown-toggle').addEventListener('change', async (e) => {

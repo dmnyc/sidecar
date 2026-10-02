@@ -48,6 +48,10 @@
       <!-- The card's own corner, the same slot every sheet in the panel puts its close box
            in. The page bar above belongs to Sidecar; this one belongs to the note. -->
       <button type="button" class="modal-x compose-x" id="compose-x" title="Close" data-i18n-title="Close"></button>
+      <!-- This account's other drafts, beside the close box as in the panel's composer:
+           both leave the draft on screen, which the Write / Preview row never does.
+           Hidden while there is nothing else saved. -->
+      <button type="button" class="modal-x compose-drafts-btn hidden" id="compose-drafts-btn" title="Saved drafts" data-i18n-title="Saved drafts"><span class="compose-drafts-count" id="compose-drafts-count"></span></button>
 
       <header class="compose-head">
         <div class="compose-who">
@@ -74,12 +78,23 @@
            editor back exactly as it was instead of rebuilding it around a lost caret. -->
       <div class="compose-countdown hidden" id="compose-countdown"></div>
       <div class="compose-preview compose-preview-lg hidden" id="compose-preview"></div>
+      <div class="compose-drafts-pane hidden" id="compose-drafts-pane"></div>
       <div class="compose-thumbs" id="compose-thumbs"></div>
 
       <div class="compose-actions" id="compose-actions"></div>
       <p class="error" id="compose-err"></p>
 
       <footer class="compose-foot">
+        <!-- The same setting as Settings → Posting → Where to write, offered where the
+             question answers itself: someone writing in the tab is deciding whether they
+             want to start here next time. Same words, so the two read as one switch. -->
+        <label class="switch-label compose-default">
+          <span class="switch">
+            <input type="checkbox" id="compose-default-toggle" />
+            <span class="switch-track"></span>
+          </span>
+          <span data-i18n="Always use the full-size composer">Always use the full-size composer</span>
+        </label>
         <span class="compose-status" id="compose-status"></span>
         <span class="compose-count" id="compose-count"></span>
         <!-- Not a button. Leaving is not an action with the same weight as publishing, and

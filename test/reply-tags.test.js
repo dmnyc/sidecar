@@ -313,8 +313,10 @@ test('A SAVED REPLY REMEMBERS WHAT IT ANSWERS', () => {
 });
 
 test('resuming a draft restores its target', () => {
-  const at = source.indexOf("const resume = h('button'");
-  const block = source.slice(at, at + 600);
+  // The chooser's button and Saved drafts both resume through resumeFrom.
+  assert.match(source, /resume\.addEventListener\('click', \(\) => resumeFrom\(saved\)\);/);
+  const at = source.indexOf('function resumeFrom(saved) {');
+  const block = source.slice(at, at + 800);
   assert.match(block, /replyTo = saved\.replyTo \|\| null/);
   assert.match(block, /media: \(saved\.media \|\| \[\]\)\.slice\(\),/);
   // A draft saved before the attachment URLs left the editor carries them in its

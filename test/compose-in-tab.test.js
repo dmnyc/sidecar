@@ -42,7 +42,10 @@ test('DECIDED ONCE, NOT AT EACH CALL SITE', () => {
   assert.match(composer, /composeInTab === true/);
   const calls = (bare.match(/openComposer\(/g) || []).length - 1; // minus the declaration
   assert.ok(calls >= 4, 'expected several entry routes, found ' + calls);
-  assert.equal((bare.match(/composeInTab/g) || []).length, 3,
+  // Lines that only mirror the setting into the Settings switch do not route anything,
+  // and that switch follows storage now that the tab's footer can flip it too.
+  const routing = bare.split('\n').filter((l) => /composeInTab/.test(l) && !/compose-tab-toggle|e\.target\.checked/.test(l));
+  assert.equal(routing.length, 1,
     'the setting is read in more than one place, so a route can disagree with another');
 });
 
@@ -90,4 +93,15 @@ test('a settings read that fails leaves you in the panel', () => {
   // send somebody to a tab they did not ask for and cannot easily get back from.
   assert.match(composer, /let inTab = false;/);
   assert.match(composer, /catch \(_\) \{\}/);
+});
+
+test('THE TAB CAN TURN ITS OWN DEFAULT ON AND OFF', () => {
+  // The same setting as Settings, from the tab's footer, and each follows the other.
+  const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
+  const tabHtml = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
+  assert.match(tabHtml, /id="compose-default-toggle"/);
+  assert.match(tabHtml, /data-i18n="Always use the full-size composer"/);
+  assert.match(page, /settings: \{ composeInTab: tabDefault\.checked \}/);
+  assert.match(page, /changes\.sidecar_settings\.newValue \|\| \{\}\)\.composeInTab === true/);
+  assert.match(bare, /\$\('compose-tab-toggle'\)\.checked = \(changes\.sidecar_settings\.newValue/);
 });

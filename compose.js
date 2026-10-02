@@ -508,6 +508,77 @@
     }).catch(() => {});
   }
 
+  // ---- the other drafts, one tap away ----
+  //
+  // A reply in progress used to hide the note you were writing, and the only way back was
+  // through the panel. "Saved drafts" sits at the far end of the Write / Preview row and
+  // lists every other draft this account holds, built by composer-core so the panel's
+  // list is the same one. A tap does what the panel's switch message does: what is on
+  // screen goes back to its own slot first, then the key moves. No "New note" entry: a
+  // reply is a reply, and a new note starts from the panel's button.
+  const draftHasContent = SC.draftHasContent;
+  function busy() { return posting || mining || !!countdown; }
+
+  async function readAllDrafts() {
+    try { return (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {}; }
+    catch (_) { return {}; }
+  }
+
+  // The folder, its count, and the list if it is the one showing. Called whenever the set
+  // of drafts could have changed: a switch, an account change, a post, coming back.
+  async function paintSavedDrafts() {
+    const btn = $('compose-drafts-btn');
+    if (!btn || !state || !state.activePubkey) return;
+    const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey);
+    const pane = $('compose-drafts-pane');
+    const listing = !pane.classList.contains('hidden');
+    // Not while the list is up: the list is what it opens, and "Back to your draft" is
+    // the way out of it, as in the panel.
+    btn.classList.toggle('hidden', !others.length || listing);
+    document.querySelector('.compose-sheet').classList.toggle('has-drafts-btn', !!others.length && !listing);
+    $('compose-drafts-count').textContent = I18N.fmtNum(others.length);
+    if (!listing) return;
+    if (!others.length) { showTab('write'); return; }
+    pane.innerHTML = '';
+    const back = h('button', { className: 'ghost compose-drafts-back', type: 'button', textContent: t('Back to your draft') });
+    back.addEventListener('click', () => showTab('write'));
+    pane.append(h('h3', { className: 'compose-drafts-title', textContent: t('Saved drafts') }));
+    pane.append(SC.buildSavedDraftList({
+      entries: others,
+      nameFor: (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null),
+      onPick: (entry) => switchToDraft(entry.replyId),
+      onDelete: async (entry) => {
+        // A pending save writes the whole store back, so it lands first rather than
+        // putting the deleted draft back a moment later.
+        await flushDraft();
+        const all = await readAllDrafts();
+        delete all[entry.key];
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        toast(t('Draft deleted.'), 'success');
+        paintSavedDrafts();
+      },
+    }));
+    pane.append(back);
+  }
+
+  // The one way this tab moves between drafts, for a chip and for the panel's message
+  // alike. Leaving a reply with something in it says where it went, since the editor it
+  // was in is about to show something else.
+  async function switchToDraft(want) {
+    if (busy() || want === replyId) return;
+    const leavingReply = !!replyTo && draftHasContent(draft);
+    await flushDraft();
+    replyId = want;
+    // The address follows, so a reload opens the draft on screen rather than the one
+    // the tab was first opened on.
+    try {
+      history.replaceState(null, '', location.pathname + (want ? '?reply=' + want : ''));
+    } catch (_) {}
+    await reopenDraft();
+    showTab('write');
+    if (leavingReply) toast(t('Your reply is saved.'), 'info');
+  }
+
   // RELOAD FROM WHATEVER SLOT dkey NOW NAMES. The account switch does this inline for
   // its own reasons; this is the same work for the other thing that moves a slot, which
   // is the panel pointing this tab at a different draft.
@@ -528,6 +599,7 @@
     editorSetText(draft.text);
     renderThumbs();
     paintCount();
+    paintSavedDrafts();
   }
 
   function paintWho() {
@@ -588,6 +660,7 @@
     repaintPow();
     editorSetText(draft.text);
     renderThumbs();
+    paintSavedDrafts(); // another account, another set of drafts
     paintCount();
     const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
     toast(t('Now writing as {{name}}', { name: acct.name || shortNpub(acct.npub) || t('another account') }), 'success');
@@ -662,6 +735,8 @@
     // thumbnails and the attachments' drawer would each be the same note a second
     // time, and a second rendering is not a second look.
     if (on) closeAltEditor(); // nothing left to edit: the note was decided at Post
+    // Back on this draft's own view, which is what the review window hands back to.
+    if (on) showTab('write');
     document.querySelector('.compose-sheet').classList.toggle('is-reviewing', on);
     $('compose-slot').classList.toggle('hidden', on);
     $('compose-tabs').classList.toggle('hidden', on);
@@ -669,6 +744,8 @@
     // The whole footer, not its two buttons. Hiding those alone left the character count
     // dangling under the countdown's own row, attached to nothing.
     document.querySelector('.compose-foot').classList.toggle('hidden', on);
+    // Nothing to switch to while a post is decided, and back when it is canceled.
+    if (!on) paintSavedDrafts();
   }
 
   async function doPost() {
@@ -679,6 +756,7 @@
     if (!text && !draft.media.length) return;
     posting = true;
     paintCount();
+    $('compose-drafts-btn').classList.add('hidden');
     const status = $('compose-status');
     try {
       // THREADING FIRST, from the same builder the panel uses. NIP-10 readers take the
@@ -775,6 +853,7 @@
     posting = false;
     paintCount();
     paintLocked();
+    paintSavedDrafts();
   }
 
   // ---- what the one button currently is ----
@@ -1247,17 +1326,37 @@
   //
   // The same renderer the panel previews with, so what this shows and what that shows
   // cannot disagree about a mention, an embed or a link card.
+  let showTab = () => {};
   function buildTabs() {
     const write = $('tab-write');
     const prev = $('tab-preview');
     const pane = $('compose-preview');
+    const list = $('compose-drafts-pane');
     const slot = $('compose-slot');
-    const show_ = (previewing) => {
-      write.classList.toggle('active', !previewing);
-      prev.classList.toggle('active', previewing);
-      slot.classList.toggle('hidden', previewing);
-      pane.classList.toggle('hidden', !previewing);
-      if (!previewing) return;
+    showTab = (which) => {
+      // THE LIST TAKES THE EDITOR'S PLACE AT THE EDITOR'S SIZE, measured before the
+      // editor is hidden, so the card does not jump when you open it.
+      if (which === 'drafts' && !slot.classList.contains('hidden') && slot.offsetHeight) {
+        list.style.minHeight = slot.offsetHeight + 'px';
+      }
+      write.classList.toggle('active', which === 'write');
+      prev.classList.toggle('active', which === 'preview');
+      // The list is not a third view of this draft, so the row naming the two views
+      // steps aside while it is up.
+      $('compose-tabs').classList.toggle('hidden', which === 'drafts');
+      slot.classList.toggle('hidden', which !== 'write');
+      pane.classList.toggle('hidden', which !== 'preview');
+      list.classList.toggle('hidden', which !== 'drafts');
+      // The toolbar edits this draft, so it stands down while another draft is being
+      // chosen rather than offering to attach a photo to a list.
+      $('compose-actions').classList.toggle('hidden', which === 'drafts');
+      // And Post goes with it. From a list of other drafts it would publish the one you
+      // cannot see; Cancel and the setting beside it still apply, so they stay.
+      $('compose-post').classList.toggle('hidden', which === 'drafts');
+      // Invisible rather than gone: it is the spacer that holds Cancel to the right.
+      $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
+      if (which === 'drafts') { paintSavedDrafts(); return; }
+      if (which !== 'preview') return;
       pane.innerHTML = '';
       // What will actually go out: the prose and, appended at the end, the
       // attachments — the preview and the published note are rendered from the one
@@ -1271,8 +1370,11 @@
       composer.renderNotePreview(box, body);
       pane.append(box);
     };
-    write.addEventListener('click', () => show_(false));
-    prev.addEventListener('click', () => show_(true));
+    write.addEventListener('click', () => showTab('write'));
+    prev.addEventListener('click', () => showTab('preview'));
+    const folder = $('compose-drafts-btn');
+    folder.prepend(icon('folder'));
+    folder.addEventListener('click', () => { if (!busy()) showTab('drafts'); });
   }
 
   async function boot() {
@@ -1307,6 +1409,10 @@
     // reply is visible, a reply silently published as a note is not.
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
     paintReplyTarget();
+    paintSavedDrafts();
+    // A reply started in the panel while this tab sat in the background shows up when
+    // you come back to it.
+    window.addEventListener('focus', () => { paintSavedDrafts(); });
     // The poll rides in the same slot as the text, so a poll started in the panel and
     // expanded here arrives whole. Painted after buildToolbar has made the editor.
     draft.poll = (saved && saved.poll) || null;
@@ -1368,7 +1474,7 @@
         if (want === replyId) return;   // already here
         // Whatever is on screen belongs to the slot it was typed in, so it goes back
         // there before the key moves. Same rule as the account switch.
-        flushDraft().then(() => { replyId = want; return reopenDraft(); }).catch(() => {});
+        switchToDraft(want).catch(() => {});
         return;
       }
       if (!msg || msg.type !== 'SIDECAR_EVENT') return;
@@ -1394,6 +1500,21 @@
     x.append(icon('x'));
     x.addEventListener('click', leave);
     $('compose-close').addEventListener('click', leave);
+
+    // WRITE HERE NEXT TIME. The panel's switch writes the same setting, so this one
+    // follows storage rather than only its own clicks: flipping it in either place shows
+    // in the other without a reload.
+    const tabDefault = $('compose-default-toggle');
+    call({ type: 'SIDECAR_GET_SETTINGS' })
+      .then((s) => { tabDefault.checked = !!(s && s.composeInTab === true); })
+      .catch(() => {});
+    tabDefault.addEventListener('change', () => {
+      call({ type: 'SIDECAR_SET_SETTINGS', settings: { composeInTab: tabDefault.checked } }).catch(() => {});
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes.sidecar_settings) return;
+      tabDefault.checked = (changes.sidecar_settings.newValue || {}).composeInTab === true;
+    });
     // A tab can be closed without pressing anything, and the 400ms debounce means the
     // last sentence is the one at risk. Cancel and the close box chain their close off
     // the save, so they were never the problem.

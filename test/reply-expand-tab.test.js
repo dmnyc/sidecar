@@ -197,7 +197,10 @@ test('AN OPEN TAB IS TOLD TO SWITCH, BECAUSE IT CANNOT BE NAVIGATED', () => {
   assert.match(handler.slice(0, 700), /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(msg\.replyId\)/);
   // The open draft is written back before the key moves, or the text on screen lands in
   // the slot it was not typed in.
-  assert.match(handler.slice(0, 700), /flushDraft\(\)\.then\(\(\) => \{ replyId = want; return reopenDraft\(\); \}\)/);
+  // Through switchToDraft, the one path a draft chip takes too.
+  assert.match(handler.slice(0, 700), /switchToDraft\(want\)/);
+  const sw = page.slice(page.indexOf('async function switchToDraft'));
+  assert.match(sw.slice(0, 900), /await flushDraft\(\);\s*replyId = want;[\s\S]*await reopenDraft\(\);/);
   // And a message naming the draft already open does nothing.
   assert.match(handler.slice(0, 700), /if \(want === replyId\) return;/);
 
@@ -210,7 +213,7 @@ test('the target survives an account switch, or follows it', () => {
   // The slot is keyed by account, so switching accounts inside the tab moves to that
   // account's draft for the same note. Replying from two accounts is two drafts, and the
   // new one may not exist, in which case the tab correctly stops being a reply.
-  const sw = page.slice(page.indexOf('await flushDraft();'));
+  const sw = page.slice(page.indexOf('await flushDraft();\n    dkey = slotFor(state.activePubkey);'));
   const body = sw.slice(0, 1400);
   assert.match(body, /dkey = slotFor\(state\.activePubkey\);/);
   assert.match(body, /replyTo = \(saved && saved\.replyTo && saved\.replyTo\.id\) \? saved\.replyTo : null;/);
@@ -272,7 +275,7 @@ test('CLOSING THE MODAL DOES NOT DELETE THE SLOT IT JUST HANDED OVER', () => {
   // saves the draft one more time. For a reply with nothing typed yet, that save deletes
   // the slot, taking the target the handoff had just written. The tab then opened on a
   // slot that was not there and drew a blank note.
-  assert.match(panel, /if \(!published && !handedToTab && enteredEditor\) persistDraft\(\);/,
+  assert.match(panel, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) persistDraft\(\);/,
     'the close handler writes over the draft the tab now owns');
   // Set BEFORE the close, or it is set too late to matter.
   const handler = panel.slice(panel.indexOf("expand.addEventListener('click'"));
@@ -313,4 +316,35 @@ test('the quote is shown whole in the tab, which is the room the panel lacks', (
   const html = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
   const target = html.indexOf('id="compose-reply-target"');
   assert.ok(target > -1 && target < html.indexOf('id="compose-tabs"'));
+});
+
+test('SAVED DRAFTS IS THE FOLDER IN THE CORNER, AS IN THE PANEL', () => {
+  const tabHtml = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
+  // Beside the close box, not on the Write / Preview row: those are two views of this
+  // draft, and the list leaves it. And not above the tabs, where it read as the subject.
+  assert.match(tabHtml, /id="compose-x"[^>]*><\/button>\s*(<!--[\s\S]*?-->\s*)?<button[^>]*class="modal-x compose-drafts-btn hidden" id="compose-drafts-btn"/);
+  const row = tabHtml.slice(tabHtml.indexOf('id="compose-tabs"'));
+  assert.ok(!/Saved drafts/.test(row.slice(0, row.indexOf('</div>'))), 'the tab row is back to Write and Preview');
+  // The list is composer-core's, shared with the panel; behavior is pinned in
+  // saved-drafts.test.js. Here, only that the tab uses it.
+  assert.match(page, /SC\.otherDraftEntries\(await readAllDrafts\(\), state\.activePubkey, dkey\)/);
+  assert.match(page, /SC\.buildSavedDraftList\(\{/);
+  // The folder hides when there is nothing else, while the list is up, and while a
+  // post is going out.
+  assert.match(page, /btn\.classList\.toggle\('hidden', !others\.length \|\| listing\)/);
+  assert.match(page, /posting = true;\s*paintCount\(\);\s*\$\('compose-drafts-btn'\)\.classList\.add\('hidden'\);/);
+  assert.match(page, /function busy\(\) \{ return posting \|\| mining \|\| !!countdown; \}/);
+  // A reply is a reply: nothing in the list starts a new note.
+  assert.ok(!/New note/.test(page.slice(page.indexOf('async function paintSavedDrafts'), page.indexOf('async function switchToDraft'))));
+});
+
+test('LEAVING A REPLY WITH SOMETHING IN IT SAYS IT WAS SAVED', () => {
+  const sw = page.slice(page.indexOf('async function switchToDraft'));
+  const body = sw.slice(0, sw.indexOf('\n  }\n'));
+  assert.match(body, /if \(busy\(\) \|\| want === replyId\) return;/);
+  assert.match(body, /const leavingReply = !!replyTo && draftHasContent\(draft\);/);
+  assert.match(body, /if \(leavingReply\) toast\(t\('Your reply is saved\.'\), 'info'\);/);
+  // And the address follows, so a reload opens the draft on screen, on its editor.
+  assert.match(body, /history\.replaceState/);
+  assert.match(body, /await reopenDraft\(\);\s*showTab\('write'\);/);
 });

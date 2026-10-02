@@ -19,6 +19,8 @@ window.SidecarCore = (function () {
 
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
+    // Feather's folder, for the composer's saved drafts.
+    folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>',
     // Feather's video: a camera body with the lens flare cut out of its side. Used as
     // the placeholder on a video attachment's thumbnail, where a decoded frame is both
     // expensive and, in a 72px square, not actually informative.
@@ -1722,6 +1724,95 @@ window.SidecarCore = (function () {
   //
   // Returns the pieces the caller mounts: the editor itself, the button that starts one,
   // and the two paints, since adding media has to re-run the either-or from outside.
+  // ---- saved drafts, listed ----
+  //
+  // One account holds a note draft and a reply draft per note it is answering. Both
+  // composers list the others the same way, from here: the tab under its Saved drafts tab,
+  // the panel behind the folder in its corner.
+  //
+  // ONLY DRAFTS WITH SOMETHING IN THEM. A reply keeps its slot while empty because the
+  // slot holds the target, but an empty slot is nothing to go back to.
+  function draftHasContent(d) {
+    return !!(d && ((d.text && d.text.trim()) || (d.media && d.media.length)
+      || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))));
+  }
+  // Every draft of this account but the one on screen, the note first and then replies
+  // newest first. `replyId` is the note a reply answers, or null for the note draft.
+  function otherDraftEntries(all, pubkey, currentKey) {
+    return Object.keys(all || {})
+      .filter((k) => k !== currentKey && (k === pubkey || k.startsWith(pubkey + '|r:'))
+        && draftHasContent(all[k]))
+      .map((k) => ({
+        key: k, draft: all[k], reply: k !== pubkey,
+        replyId: k === pubkey ? null : k.slice(k.indexOf('|r:') + 3),
+      }))
+      .sort((a, b) => (a.reply - b.reply) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
+  }
+  function draftSnippet(d) {
+    const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
+    if (text) return text;
+    if (d.media && d.media.length) return tn('{{count}} attachment', '{{count}} attachments', d.media.length);
+    return '';
+  }
+
+  // The list itself. d: { entries, nameFor(pubkey) -> Promise<name|null>, onPick(entry),
+  // onDelete(entry) -> Promise }.
+  //
+  // THE TRASH CONFIRMS BY REWRITING ITS OWN ROW, the account switcher's two taps: the
+  // first turns the row into the question, the second, anywhere on it, deletes. A draft
+  // lives only in this browser, so there is nothing to recover it from, and the toast
+  // has no Undo to offer instead. The question goes back on its own after a few seconds.
+  function buildSavedDraftList(d) {
+    const list = h('div', { className: 'saved-drafts' });
+    d.entries.forEach((entry) => {
+      const label = h('span', { className: 'saved-draft-label',
+        textContent: entry.reply ? t('Reply') : t('Your note') });
+      const when = h('span', { className: 'saved-draft-when',
+        textContent: entry.draft.savedAt ? relTime(entry.draft.savedAt) : '' });
+      const snip = h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: draftSnippet(entry.draft) });
+      const open = h('button', { className: 'saved-draft-open', type: 'button' }, [
+        h('span', { className: 'saved-draft-top' }, [label, when]), snip,
+      ]);
+      const trash = h('button', { className: 'saved-draft-x', type: 'button', title: t('Delete draft') });
+      trash.append(icon('trash'));
+      const row = h('div', { className: 'saved-draft' }, [open, trash]);
+
+      let name = null;
+      if (entry.reply && entry.draft.replyTo && entry.draft.replyTo.pubkey && d.nameFor) {
+        Promise.resolve(d.nameFor(entry.draft.replyTo.pubkey)).then((n) => {
+          if (!n || !label.isConnected) return;
+          name = n;
+          if (!row.classList.contains('confirming')) label.textContent = t('Reply to {{name}}', { name });
+        }).catch(() => {});
+      }
+
+      let timer = null;
+      const settle = () => {
+        clearTimeout(timer);
+        row.classList.remove('confirming');
+        label.textContent = entry.reply ? (name ? t('Reply to {{name}}', { name }) : t('Reply')) : t('Your note');
+        when.classList.remove('hidden');
+        snip.textContent = draftSnippet(entry.draft);
+      };
+      const confirmDelete = () => {
+        row.classList.add('confirming');
+        label.textContent = t('Delete this draft?');
+        when.classList.add('hidden');
+        snip.textContent = t('Tap again to delete');
+        timer = setTimeout(settle, 4000);
+      };
+      const remove = async () => {
+        clearTimeout(timer);
+        trash.disabled = true; open.disabled = true;
+        try { await d.onDelete(entry); } catch (_) { settle(); trash.disabled = false; open.disabled = false; }
+      };
+      trash.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else confirmDelete(); });
+      open.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else d.onPick(entry); });
+      list.append(row);
+    });
+    return list;
+  }
+
   function buildPollEditor(d) {
     const pollWrap = h('div', { className: 'poll-editor hidden' });
     const pollAdd = h('button', { className: 'mini compose-add' });
@@ -2587,5 +2678,6 @@ window.SidecarCore = (function () {
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
+    draftHasContent, otherDraftEntries, buildSavedDraftList,
   };
 })();
