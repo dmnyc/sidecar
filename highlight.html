@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="Highlight with Sidecar">Highlight with Sidecar</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+  <link rel="stylesheet" href="themes/film-noir.css" />
+  <link rel="stylesheet" href="themes/industria.css" />
+  <link rel="stylesheet" href="themes/aegean.css" />
+  <link rel="stylesheet" href="themes/brownstone.css" />
+  <link rel="stylesheet" href="themes/bauhaus.css" />
+  <link rel="stylesheet" href="themes/populuxe.css" />
+  <link rel="stylesheet" href="themes/nixie.css" />
+  <link rel="stylesheet" href="themes/cast-iron.css" />
+  <link rel="stylesheet" href="themes/metropolis.css" />
+  <link rel="stylesheet" href="themes/par-avion.css" />
+  <link rel="stylesheet" href="themes/werkstatte.css" />
+  <link rel="stylesheet" href="themes/wabi-sabi.css" />
+  <link rel="stylesheet" href="themes/ukiyo-e.css" />
+  <link rel="stylesheet" href="themes/constellation.css" />
+  <link rel="stylesheet" href="themes/jazz-age.css" />
+  <link rel="stylesheet" href="themes/departures.css" />
+  <link rel="stylesheet" href="themes/turnstile.css" />
+  <link rel="stylesheet" href="themes/mycelium.css" />
+  <link rel="stylesheet" href="themes/ben-day.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
+  <!-- Marks which Constellation plate this session shows; see sky-plate.js. In the head
+       and synchronous, so the mark is set before the first paint. -->
+  <script src="sky-plate.js"></script>
+  <!-- The last theme this tab drew with, and the card held back until it is built; see
+       compose-boot.js. Synchronous and in the head for the same reason as the line above. -->
+  <script src="compose-boot.js"></script>
+</head>
+<body class="compose-page hl-page">
+  <!-- A popup window opened from the page's context menu (background.js, startHighlight).
+       It borrows the expanded composer's bar, card and footer so it reads as the same
+       place, and holds only what a highlight needs: the passage, where it came from,
+       and an optional comment. -->
+  <header class="compose-topbar">
+    <span class="compose-brand">
+      <img id="compose-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
+    </span>
+  </header>
+
+  <div class="compose-body">
+    <main class="compose-sheet">
+      <button type="button" class="modal-x compose-x" id="hl-x" title="Close" data-i18n-title="Close"></button>
+
+      <header class="compose-head">
+        <div class="compose-who">
+          <span class="avatar compose-av" id="hl-av"></span>
+          <span class="compose-who-text">
+            <span class="compose-name" id="hl-name" data-i18n="Loading…">Loading…</span>
+            <span class="compose-sub" data-i18n="Highlighting as this account">Highlighting as this account</span>
+          </span>
+        </div>
+      </header>
+
+      <!-- The passage is the page's text, not ours, so it takes its own direction. -->
+      <blockquote class="hl-quote" id="hl-quote" dir="auto"></blockquote>
+      <div class="hl-source">
+        <span class="hl-source-title" id="hl-source-title" dir="auto"></span>
+        <span class="hl-source-host" id="hl-source-host"></span>
+      </div>
+
+      <textarea id="hl-comment" class="autosize" dir="auto" rows="3"
+        placeholder="Add a comment (optional)" data-i18n-placeholder="Add a comment (optional)"></textarea>
+
+      <p class="error" id="hl-err"></p>
+      <p class="compose-status" id="hl-status"></p>
+
+      <footer class="compose-foot hl-foot">
+        <button type="button" class="compose-cancel" id="hl-cancel" data-i18n="Cancel">Cancel</button>
+        <button type="button" class="primary compose-post" id="hl-post" disabled data-i18n="Post highlight">Post highlight</button>
+      </footer>
+    </main>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script src="i18n.js"></script>
+  <script src="nostr-tools.js"></script>
+  <script src="ws-guard.js"></script>
+  <script src="composer-core.js"></script>
+  <script src="highlight-event.js"></script>
+  <script src="highlight.js"></script>
+</body>
+</html>

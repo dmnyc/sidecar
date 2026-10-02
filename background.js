@@ -3187,7 +3187,109 @@ function createPayMenu() {
     );
     create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
     create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
+    // NIP-84: quote the selected passage as a kind:9802 highlight, sourced to the page.
+    // Waits for the language file, since the title is fixed once the item exists.
+    const I18N = self.SidecarI18n;
+    Promise.resolve(I18N && I18N.ready).catch(() => {}).then(() => {
+      const t = I18N ? I18N.t : (s) => s;
+      create({ id: 'sidecar-highlight', title: t('Highlight with Sidecar'), contexts: ['selection'] });
+    });
   });
+}
+
+// ---- highlights (NIP-84) ----
+//
+// The selection is read from the page itself rather than from info.selectionText, which
+// collapses every line break into a space and so would flatten a quoted list or verse.
+// selectionText stays the fallback for the pages scripts cannot run in (the web store,
+// the PDF viewer, other extensions' pages).
+//
+// What was selected is parked in storage.session under a random id and the popup is
+// handed only the id. The page URL and the passage never travel in a query string,
+// where they would sit in the window's history.
+const HIGHLIGHT_PREFIX = 'sidecar_hl_';
+const HIGHLIGHT_TTL_MS = 60 * 60 * 1000;
+const HIGHLIGHT_MAX_CHARS = 20000; // a bound on what is stored; the page trims further
+const memHighlights = new Map(); // only where storage.session is missing
+
+function highlightSourceUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    u.hash = ''; // text fragments (#:~:text=) and anchors are where you were, not what it is
+    return u.href;
+  } catch (_) { return null; }
+}
+
+async function readSelectionIn(tab, frameId) {
+  if (!chrome.scripting || !tab || tab.id == null) return null;
+  try {
+    const [res] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, frameIds: [frameId || 0] },
+      func: () => {
+        const sel = window.getSelection();
+        const text = sel ? sel.toString() : '';
+        let context = '';
+        if (sel && sel.rangeCount) {
+          let node = sel.getRangeAt(0).commonAncestorContainer;
+          if (node && node.nodeType !== 1) node = node.parentElement;
+          const block = node && node.closest
+            ? node.closest('p, li, blockquote, dd, td, figcaption, pre, h1, h2, h3, h4, h5, h6') || node
+            : null;
+          if (block) context = block.innerText || block.textContent || '';
+        }
+        return { text, context };
+      },
+    });
+    return res && res.result ? res.result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function highlightPut(id, value) {
+  if (chrome.storage.session) {
+    const all = await chrome.storage.session.get(null);
+    const stale = Object.keys(all).filter((k) =>
+      k.startsWith(HIGHLIGHT_PREFIX) && !(all[k] && Date.now() - all[k].at < HIGHLIGHT_TTL_MS));
+    if (stale.length) await chrome.storage.session.remove(stale);
+    await chrome.storage.session.set({ [HIGHLIGHT_PREFIX + id]: value });
+  } else {
+    memHighlights.set(id, value);
+  }
+}
+async function highlightGet(id) {
+  if (!/^[0-9a-f]{32}$/.test(id || '')) return null;
+  const v = chrome.storage.session
+    ? (await chrome.storage.session.get(HIGHLIGHT_PREFIX + id))[HIGHLIGHT_PREFIX + id]
+    : memHighlights.get(id);
+  return v && Date.now() - v.at < HIGHLIGHT_TTL_MS ? v : null;
+}
+async function highlightDrop(id) {
+  if (!/^[0-9a-f]{32}$/.test(id || '')) return;
+  if (chrome.storage.session) await chrome.storage.session.remove(HIGHLIGHT_PREFIX + id);
+  else memHighlights.delete(id);
+}
+
+async function startHighlight(info, tab) {
+  const { t } = self.SidecarI18n;
+  try { await openHighlight(info, tab, t); }
+  catch (e) { notify((e && e.message) || t('Could not start the highlight.')); }
+}
+async function openHighlight(info, tab, t) {
+  const url = highlightSourceUrl(info.pageUrl || (tab && tab.url) || '');
+  if (!url) return notify(t('Highlights can only be made on web pages.'));
+  const read = await readSelectionIn(tab, info.frameId);
+  const text = ((read && read.text) || info.selectionText || '').slice(0, HIGHLIGHT_MAX_CHARS);
+  if (!text.trim()) return notify(t('Select some text on the page first.'));
+  const context = ((read && read.context) || '').slice(0, HIGHLIGHT_MAX_CHARS);
+  const id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  await highlightPut(id, { text, context, url, title: (tab && tab.title) || '', at: Date.now() });
+  const { left, top } = await popupPlacement(tab && tab.windowId != null ? tab.windowId : undefined);
+  chrome.windows.create(
+    { url: chrome.runtime.getURL('highlight.html?id=' + id), type: 'popup', width: POPUP_W, height: POPUP_H, left, top, focused: true },
+    () => void chrome.runtime.lastError
+  );
 }
 chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(createPayMenu);
 
@@ -3205,6 +3307,10 @@ chrome.contextMenus &&
         })
         .catch((e) => notify((e && e.message) || 'Payment failed'));
 
+    if (info.menuItemId === 'sidecar-highlight') {
+      startHighlight(info, tab);
+      return;
+    }
     if (info.menuItemId === 'sidecar-pay-qr') {
       pay(invoiceFromQrImage(info.srcUrl));
     } else if (info.menuItemId === 'sidecar-pay-link' || info.menuItemId === 'sidecar-pay-selection') {
@@ -3646,6 +3752,21 @@ async function handleControl(message, sender, sendResponse) {
       }
       case 'SIDECAR_GET_RELAYS':
         result = await getConfiguredRelays();
+        break;
+      // The highlight popup's passage, and where the active account writes. Extension
+      // pages only, like everything outside CONTENT_OK: a page that could read this
+      // would learn what you selected on another site.
+      case 'SIDECAR_HIGHLIGHT_GET': {
+        const hl = await highlightGet(message.id);
+        if (!hl) throw new Error('Highlight expired'); // the popup says it in the reader's language
+        const pk = await KS.getActivePubkey();
+        const map = await relaysForAccount(pk);
+        result = { ...hl, relays: Object.keys(map || {}).filter((u) => map[u] && map[u].write !== false) };
+        break;
+      }
+      case 'SIDECAR_HIGHLIGHT_DROP':
+        await highlightDrop(message.id);
+        result = true;
         break;
       case 'SIDECAR_SET_RELAYS':
         await sset({ sidecar_relays: message.relays });
