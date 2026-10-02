@@ -246,7 +246,10 @@ test('what the core hands back is what the panel takes', () => {
   const ret = core.slice(core.lastIndexOf('  return {'));
   const exported = new Set([...ret.matchAll(/([A-Za-z_$][\w$]*)\s*(?:,|:|\n)/g)].map((m) => m[1]));
   const taken = [...panel.matchAll(/const \{([^}]*)\} = window\.SidecarCore;/g)]
-    .flatMap((m) => m[1].split(',').map((s) => s.trim()))
+    // `{ replyTags: SC_replyTags }` takes replyTags and binds it locally under another
+    // name. The EXPORTED name is the left side; scanning the whole clause looks for an
+    // export called "replyTags: SC_replyTags", which nothing will ever be called.
+    .flatMap((m) => m[1].split(',').map((s) => s.trim().split(':')[0].trim()))
     .filter(Boolean);
   assert.ok(taken.length > 5, 'the scan found almost nothing, so it is probably broken');
   for (const name of taken) assert.ok(exported.has(name), 'the core never returns ' + name);

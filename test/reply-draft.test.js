@@ -154,5 +154,8 @@ test('cancel really does keep the draft, which is what makes that copy true', ()
   // Pinned because the copy is only honest while this is: persistDraft on close, for
   // anything actually edited.
   const fn = stripComments(lift('async function openComposer('));
-  assert.match(fn, /if \(!published && enteredEditor\) persistDraft\(\)/, 'closing no longer saves the draft');
+    // `!handedToTab` joined it when Expand learned to hand a reply to the tab: this
+  // save runs on the close at the end of that handoff and, for a reply with nothing
+  // typed, deletes the very slot just written.
+  assert.match(fn, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) persistDraft\(\)/, 'closing no longer saves the draft');
 });

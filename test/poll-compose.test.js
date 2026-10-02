@@ -297,13 +297,17 @@ test('TURNING A NOTE INTO A POLL RE-ASKS WHETHER IT CAN BE POSTED', () => {
   // kind:1068 with zero option tags. Nothing downstream re-validates: the click handler
   // only asks whether Post is disabled.
   const add = bare.slice(bare.indexOf("pollAdd.addEventListener('click'"));
-  const body = add.slice(0, add.indexOf('\n      });'));
-  assert.match(body, /draft\.poll = newPollDraft\(\);/);
-  assert.match(body, /updatePostState\(\);/, 'adding a poll must re-check whether Post is allowed');
+  const body = add.slice(0, add.indexOf('\n    });'));
+  assert.match(body, /d\.setPoll\(newPollDraft\(\)\);/);
+  // changed() is updatePostState AND the save, together. They were two calls and two of
+  // the sites only ever saved, which is how one of them could stop updating the button.
+  assert.match(body, /d\.changed\(\);/, 'adding a poll must re-check whether Post is allowed');
+  assert.match(source, /changed: \(\) => \{ updatePostState\(\); scheduleSave\(\); \},/,
+    'the panel no longer re-checks Post when the editor says the draft moved');
 
   // Both directions, or the same bug returns wearing the other hat.
   const remove = bare.slice(bare.indexOf("remove.addEventListener('click'"));
-  assert.match(remove.slice(0, remove.indexOf('\n        });')), /updatePostState\(\);/, 'and so must removing one');
+  assert.match(remove.slice(0, remove.indexOf('\n      });')), /d\.changed\(\);/, 'and so must removing one');
 
   // The floor those checks enforce, which is the thing the gap let through.
   assert.match(bare, /post\.disabled = !draft\.text\.trim\(\) \|\| !pollDraftIsPostable\(draft\.poll\) \|\| !endsOk;/);
@@ -453,9 +457,11 @@ const fnBody = (anchor, indent = '  ') => {
   return fn.slice(0, end);
 };
 
+// The poll editor moved into composer-core's buildPollEditor, shared with the expanded
+// tab, so it sits two spaces shallower and reads the draft through accessors.
 const paintPollBody = () => {
-  const fn = bare.slice(bare.indexOf('      function paintPoll() {'));
-  return fn.slice(0, fn.indexOf('\n      }'));
+  const fn = bare.slice(bare.indexOf('    function paintPoll() {'));
+  return fn.slice(0, fn.indexOf('\n    }'));
 };
 const notifModalBody = () => {
   const fn = bare.slice(bare.indexOf('async function showNotifModal(a, place)'));

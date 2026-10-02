@@ -22,10 +22,10 @@ test('EVERY EXTENSION PAGE LOADS i18n.js BEFORE ITS OWN SCRIPTS', () => {
     const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
     const at = scripts.indexOf('i18n.js');
     assert.ok(at !== -1, page + ' does not load i18n.js');
-    // Everything after it may use it; only the head's sky-plate script, which never
-    // shows a word, runs earlier.
+    // Everything after it may use it; only the head scripts that never show a word run
+    // earlier: the sky plate, and the composer's first-paint theme.
     for (const early of scripts.slice(0, at)) {
-      assert.equal(early, 'sky-plate.js', page + ' runs ' + early + ' before i18n.js');
+      assert.ok(['sky-plate.js', 'compose-boot.js'].includes(early), page + ' runs ' + early + ' before i18n.js');
     }
   }
 });

@@ -74,12 +74,17 @@
 
   // ---- state ----
   let state = null;
-  let draft = { text: '', media: [] };
+  let draft = { text: '', media: [], poll: null };
   let dkey = null;
   let saveTimer = null;
   let posting = false;
   let followCache = null;
   let handoverRelays = null;
+  // WHAT THIS TAB IS ANSWERING, or null for a plain note. Read from the draft rather
+  // than from the URL: the id in the query says WHICH draft to open, and the draft is
+  // what actually carries the target. A tab told to open a reply whose draft has since
+  // been posted or dropped falls back to a plain note rather than inventing a thread.
+  let replyTo = null;
   let reduceMotion = false;
   let countdown = null;
 
@@ -95,6 +100,8 @@
     name = THEME_ALIASES[name] || name;
     if (!VALID_THEMES.includes(name)) name = 'speakeasy';
     document.documentElement.setAttribute('data-theme', name);
+    // For the next load's first paint (compose-boot.js), before any message is answered.
+    try { localStorage.setItem('sidecar_compose_theme', name); } catch (_) {}
     // The wordmark is baked lavender for a dark field and disappears on marble or
     // eggshell, so the six light themes get the dark-wordmark cut. Same function the
     // panel uses, from the same set, so a new theme is registered once.
@@ -356,12 +363,26 @@
     // Media counts as content on its own: an upload with no words yet is still work, and
     // dropping it because the caption had not been written is the kind of thing that makes
     // a draft store worse than none.
-    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length));
+    const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length)
+      || (draft.poll && draft.poll.options && draft.poll.options.some((o) => o.trim())));
     if (hasContent) {
       all[dkey] = { ...(all[dkey] || {}), text: draft.text, media: draft.media, savedAt: Date.now() };
+      // Written back on every save. The spread above preserves it when it is already
+      // there, but a slot this tab created from scratch would otherwise hold a reply
+      // with no target, and the panel would reopen it as a plain note.
+      if (replyTo) all[dkey].replyTo = replyTo;
+      if (draft.poll) all[dkey].poll = draft.poll;
+      else if (all[dkey]) delete all[dkey].poll;
       // The difficulty travels with the note, the same as the text does, so cancelling out
       // of this tab and reopening the panel's composer finds the rung still chosen.
       if (draft.pow) all[dkey].pow = draft.pow;
+    }
+    // A REPLY WITH NOTHING TYPED YET STILL KEEPS ITS SLOT, because the slot is where the
+    // target lives and the target is the one thing here that cannot be reconstructed.
+    // Deleting it on the first save of an untouched reply is the same shape of bug the
+    // panel's handoff had: reload the tab and the parent note is simply gone.
+    else if (replyTo) {
+      all[dkey] = { ...(all[dkey] || {}), text: '', media: [], replyTo, savedAt: Date.now() };
     }
     else delete all[dkey];
     await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
@@ -396,6 +417,206 @@
     const status = $('compose-status');
     if (posting) return; // it is mid-flight and has something more urgent to say
     status.textContent = (state && state.locked) ? t('Sidecar is locked.') : '';
+  }
+
+  // THE DRAFT SLOT THIS TAB OWNS. A reply lives in its own slot, keyed by the note it
+  // answers, exactly as the panel keys it: one account can hold a plain draft and a
+  // reply to each of several notes at once, and they must not overwrite each other.
+  // Mirrors draftKey() in sidepanel.js; pinned to it by test.
+  function slotFor(pubkey) {
+    return replyId ? pubkey + '|r:' + replyId : pubkey;
+  }
+
+  // Which note this tab is answering. Seeded from the URL it was opened with and
+  // REASSIGNABLE, because an already-open tab cannot be navigated to a new one: doing
+  // that needs the "tabs" permission, which this extension deliberately does not ask
+  // for, and chrome.tabs.update fails silently without it. So the panel sends a message
+  // and the tab re-keys itself instead. `let`, not `const`, for exactly that.
+  let replyId = (() => {
+    try {
+      const v = new URLSearchParams(location.search).get('reply') || '';
+      // A draft key is built from this, so it has to be a note id and nothing else.
+      return /^[0-9a-f]{64}$/i.test(v) ? v.toLowerCase() : null;
+    } catch (_) { return null; }
+  })();
+
+  // The note being answered, drawn above the tabs. Deliberately NOT the panel's
+  // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
+  // is a face, a name and the text, all of which this file already knows how to get.
+  function paintReplyTarget() {
+    const box = document.getElementById('compose-reply-target');
+    if (!box) return;
+    box.innerHTML = '';
+
+    // IT SAYS SO WHEN IT CANNOT FIND WHAT IT WAS SENT TO ANSWER.
+    //
+    // This tab is only ever given a ?reply= by the panel pressing Expand on a reply, so
+    // an id with no draft behind it means the handoff did not arrive. Silence there is
+    // what made this so hard to place: the tab looked like an ordinary new note, which
+    // is also exactly what it looks like when nothing is wrong, so there was no way to
+    // tell a broken handoff from a tab somebody opened themselves.
+    //
+    // Not dev-only. A user who presses Expand and gets a blank note needs to know their
+    // reply is not attached to anything, before they write it and post it as a note.
+    if (!replyTo && replyId) {
+      box.classList.remove('hidden');
+      box.classList.add('reply-target-lost');
+      box.append(
+        h('div', { className: 'reply-target-name', textContent: t('The note you were answering could not be loaded') }),
+        h('div', { className: 'reply-target-body', textContent:
+          t('This will post as a new note, not a reply. Close this tab and reply from the panel instead.') }),
+        h('div', { className: 'reply-target-body reply-target-dbg', textContent: 'slot ' + dkey }),
+      );
+      return;
+    }
+
+    if (!replyTo) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    box.classList.remove('reply-target-lost');
+
+    const av = h('span', { className: 'avatar reply-target-av' });
+    applyAvatar(av, null);
+    const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
+    box.append(h('div', { className: 'reply-target-who' }, [av, name]));
+
+    const body = h('div', { className: 'reply-target-body' });
+    // NO CAP HERE. The panel truncates at 240 because it has 360px to work with; this
+    // tab is the room the panel does not have, so the note it is answering is shown
+    // whole and the CSS lets it scroll if it is very long.
+    // composer.renderNoteText, NOT SC.renderNoteText. It is returned by installComposer,
+    // not exported on the core: the core's own comment says so, listing "a reply's
+    // context strip" among the callers. SC.renderNoteText is undefined, and calling it
+    // throws mid-paint with the page half built.
+    composer.renderNoteText(body, replyTo.content || '', Infinity);
+    SC.makeMediaExpandable(box, body);
+    box.append(body);
+    box.classList.add('is-open');
+
+    fetchPreviewProfile(replyTo.pubkey).then((p) => {
+      if (!box.isConnected) return;
+      if (p && p.name) name.textContent = p.name;
+      // Same fallback the mention resolver two hundred lines down already uses, rather
+      // than SC.shortNpub, which the core passes in as a dep and does not export.
+      else {
+        try { name.textContent = shortNpub(NT.nip19.npubEncode(replyTo.pubkey)); }
+        catch (_) { name.textContent = replyTo.pubkey.slice(0, 10) + '\u2026'; }
+      }
+      if (p && p.picture) applyAvatar(av, p);
+    }).catch(() => {});
+  }
+
+  // ---- the other drafts, one tap away ----
+  //
+  // A reply in progress used to hide the note you were writing, and the only way back was
+  // through the panel. "Saved drafts" sits at the far end of the Write / Preview row and
+  // lists every other draft this account holds, built by composer-core so the panel's
+  // list is the same one. A tap does what the panel's switch message does: what is on
+  // screen goes back to its own slot first, then the key moves. No "New note" entry: a
+  // reply is a reply, and a new note starts from the panel's button.
+  const draftHasContent = SC.draftHasContent;
+  function busy() { return posting || mining || !!countdown; }
+
+  async function readAllDrafts() {
+    try { return (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {}; }
+    catch (_) { return {}; }
+  }
+
+  // NOT THE DRAFT THE PANEL HAS OPEN. Listed here it could be deleted while the panel
+  // is writing it, and the panel's next autosave would put it straight back. The panel
+  // leaves its key in session storage; it is believed only while a side panel is open,
+  // so one closed without tidying up cannot hide a draft. A browser without
+  // getContexts lists everything, which is how this worked before.
+  async function draftOpenInPanel() {
+    try {
+      if (!chrome.runtime.getContexts || !chrome.storage.session) return null;
+      const panels = await chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] });
+      if (!panels || !panels.length) return null;
+      const got = await chrome.storage.session.get('sidecar_panel_compose');
+      return (got && got.sidecar_panel_compose) || null;
+    } catch (_) { return null; }
+  }
+
+  // The folder, its count, and the list if it is the one showing. Called whenever the set
+  // of drafts could have changed: a switch, an account change, a post, coming back.
+  async function paintSavedDrafts() {
+    const btn = $('compose-drafts-btn');
+    if (!btn || !state || !state.activePubkey) return;
+    const inPanel = await draftOpenInPanel();
+    const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
+      .filter((e) => e.key !== inPanel);
+    const pane = $('compose-drafts-pane');
+    const listing = !pane.classList.contains('hidden');
+    // Not while the list is up: the list is what it opens, and "Back to your draft" is
+    // the way out of it, as in the panel.
+    btn.classList.toggle('hidden', !others.length || listing);
+    document.querySelector('.compose-sheet').classList.toggle('has-drafts-btn', !!others.length && !listing);
+    $('compose-drafts-count').textContent = I18N.fmtNum(others.length);
+    // Said in words, because the count is the button's only text and would otherwise be
+    // its whole name to a screen reader: "2".
+    btn.setAttribute('aria-label', tn('{{count}} saved draft', '{{count}} saved drafts', others.length));
+    if (!listing) return;
+    if (!others.length) { showTab('write'); return; }
+    pane.innerHTML = '';
+    const back = h('button', { className: 'ghost compose-drafts-back', type: 'button', textContent: t('Back to your draft') });
+    back.addEventListener('click', () => showTab('write'));
+    pane.append(h('h3', { className: 'compose-drafts-title', textContent: t('Saved drafts') }));
+    pane.append(SC.buildSavedDraftList({
+      entries: others,
+      nameFor: (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null),
+      onPick: (entry) => switchToDraft(entry.replyId),
+      onDelete: async (entry) => {
+        // A pending save writes the whole store back, so it lands first rather than
+        // putting the deleted draft back a moment later.
+        await flushDraft();
+        const all = await readAllDrafts();
+        delete all[entry.key];
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        toast(t('Draft deleted.'), 'success');
+        paintSavedDrafts();
+      },
+    }));
+    pane.append(back);
+  }
+
+  // The one way this tab moves between drafts, for a chip and for the panel's message
+  // alike. Leaving a reply with something in it says where it went, since the editor it
+  // was in is about to show something else.
+  async function switchToDraft(want) {
+    if (busy() || want === replyId) return;
+    const leavingReply = !!replyTo && draftHasContent(draft);
+    await flushDraft();
+    replyId = want;
+    // The address follows, so a reload opens the draft on screen rather than the one
+    // the tab was first opened on.
+    try {
+      history.replaceState(null, '', location.pathname + (want ? '?reply=' + want : ''));
+    } catch (_) {}
+    await reopenDraft();
+    showTab('write');
+    if (leavingReply) toast(t('Your reply is saved.'), 'info');
+  }
+
+  // RELOAD FROM WHATEVER SLOT dkey NOW NAMES. The account switch does this inline for
+  // its own reasons; this is the same work for the other thing that moves a slot, which
+  // is the panel pointing this tab at a different draft.
+  async function reopenDraft() {
+    dkey = slotFor(state.activePubkey);
+    handoverRelays = null;
+    const saved = await loadDraft();
+    draft.text = SC.stripDraftMediaUrls(saved && saved.text, saved && saved.media);
+    draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
+    replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
+    draft.poll = (saved && saved.poll) || null;
+    if (pollEditor) pollEditor.paint();
+    paintReplyTarget();
+    closeAltEditor();
+    powForThisPost = await seedPow(saved);
+    repaintPow();
+    editorSetText(draft.text);
+    renderThumbs();
+    paintCount();
+    paintSavedDrafts();
   }
 
   function paintWho() {
@@ -433,7 +654,7 @@
     // belongs to the account that was active when it was typed, so it is written back
     // there before the key moves rather than being carried across into someone else's.
     await flushDraft();
-    dkey = state.activePubkey;
+    dkey = slotFor(state.activePubkey);
     handoverRelays = null; // a different account can publish somewhere else entirely
     followCache = null;
     const saved = await loadDraft();
@@ -441,6 +662,12 @@
     // media slot alone now, or publishing would append them a second time.
     draft.text = SC.stripDraftMediaUrls(saved && saved.text, saved && saved.media);
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
+    // The slot moved with the account, so what it is answering moves too. Replying to
+    // one note from two accounts is two drafts, and the new account may not have one.
+    replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    draft.poll = (saved && saved.poll) || null;
+    if (pollEditor) pollEditor.paint();
+    paintReplyTarget();
     // The row edits a slot of the PREVIOUS account's draft, which was just swapped
     // under it — the same reason the editor itself is rewritten below.
     closeAltEditor();
@@ -450,6 +677,7 @@
     repaintPow();
     editorSetText(draft.text);
     renderThumbs();
+    paintSavedDrafts(); // another account, another set of drafts
     paintCount();
     const acct = (state.accounts || []).find((a) => a.pubkey === state.activePubkey) || {};
     toast(t('Now writing as {{name}}', { name: acct.name || shortNpub(acct.npub) || t('another account') }), 'success');
@@ -524,6 +752,10 @@
     // thumbnails and the attachments' drawer would each be the same note a second
     // time, and a second rendering is not a second look.
     if (on) closeAltEditor(); // nothing left to edit: the note was decided at Post
+    // Back on this draft's own view, which is what the review window hands back to, and
+    // the folder goes with the rest: a post is decided, so there is nothing to switch to,
+    // and a control left showing that does nothing reads as broken.
+    if (on) { showTab('write'); $('compose-drafts-btn').classList.add('hidden'); }
     document.querySelector('.compose-sheet').classList.toggle('is-reviewing', on);
     $('compose-slot').classList.toggle('hidden', on);
     $('compose-tabs').classList.toggle('hidden', on);
@@ -531,6 +763,8 @@
     // The whole footer, not its two buttons. Hiding those alone left the character count
     // dangling under the countdown's own row, attached to nothing.
     document.querySelector('.compose-foot').classList.toggle('hidden', on);
+    // Nothing to switch to while a post is decided, and back when it is canceled.
+    if (!on) paintSavedDrafts();
   }
 
   async function doPost() {
@@ -541,16 +775,29 @@
     if (!text && !draft.media.length) return;
     posting = true;
     paintCount();
+    $('compose-drafts-btn').classList.add('hidden');
     const status = $('compose-status');
     try {
+      // THREADING FIRST, from the same builder the panel uses. NIP-10 readers take the
+      // first e marked root as the thread and NIP-22 scope is read positionally, so
+      // these lead; the client tag and imeta follow.
+      const reply = replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
+      // A POLL IS ITS OWN KIND, and never a reply: a 1068 answering a note is not a
+      // shape anything threads, which is why the editor refuses to offer one there.
+      const asPoll = draft.poll && !replyTo;
       let template = {
-        kind: 1,
+        kind: asPoll ? SC.POLL_KIND : reply ? reply.kind : 1,
         created_at: Math.floor(Date.now() / 1000),
         // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it),
         // describing the same URLs composeNoteContent appends to the content, in
         // the same order. Undescribed media emits nothing, so a note of bare URLs
         // is byte-identical to what it published before alt text existed.
-        tags: [['client', 'Sidecar'], ...SC.imetaTagsForMedia(draft.media)],
+        tags: [
+          ...(reply ? reply.tags : []),
+          ['client', 'Sidecar'],
+          ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
+          ...SC.imetaTagsForMedia(draft.media),
+        ],
         content: SC.composeNoteContent(text, draft.media),
       };
       // MINE FIRST, THEN SIGN. The event id commits to the pubkey, so the nonce has to be
@@ -595,13 +842,20 @@
           type: 'SIDECAR_EVENT', event: 'notePublished', pubkey: signed.pubkey, id: signed.id,
         }).catch(() => {});
       } catch (_) { /* nobody listening is the normal case */ }
+      // WHAT WENT OUT, for the receipt, before the draft forgets it.
+      const what = signed.kind === SC.POLL_KIND ? 'poll' : replyTo ? 'reply' : 'note';
+      // ALL of it goes, the poll and the target included, so the save below deletes the
+      // slot. Clearing only the text left a posted poll's options behind, saved as a
+      // draft one tap from going out twice, and a reply's slot kept its target.
       draft.text = '';
       draft.media = [];
+      draft.poll = null;
+      replyTo = null;
       await persistDraft();
       editorSetText('');
       renderThumbs();
       status.textContent = '';
-      await showPosted(signed, ok);
+      await showPosted(signed, ok, what);
     } catch (e) {
       status.textContent = '';
       // A stop is the user's own decision, and the editor coming back is the answer.
@@ -625,6 +879,7 @@
     posting = false;
     paintCount();
     paintLocked();
+    paintSavedDrafts();
   }
 
   // ---- what the one button currently is ----
@@ -657,6 +912,15 @@
     post.textContent = t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
+    if (draft.poll) {
+      // A poll needs its question, where a plain note can be an image on its own: the
+      // content IS the question, and a 1068 with empty content is a set of options
+      // nobody can interpret. Two filled options is the other floor, and a custom end
+      // time nobody has picked yet is not postable either. Same three as the panel.
+      const endsOk = draft.poll.ends.kind !== 'at' || draft.poll.ends.at > 0;
+      post.disabled = posting || !n || !SC.pollDraftIsPostable(draft.poll) || !endsOk;
+      return;
+    }
     post.disabled = posting || (!n && !draft.media.length);
   }
 
@@ -783,7 +1047,7 @@
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
-  async function showPosted(signed, relayCount) {
+  async function showPosted(signed, relayCount, what) {
     const sheet = document.querySelector('.compose-sheet');
     let href = null;
     let label = null;
@@ -805,7 +1069,8 @@
     mark.append(icon('check'));
     sheet.append(
       mark,
-      h('h2', { className: 'compose-done-title', textContent: t('Your note is live.') }),
+      h('h2', { className: 'compose-done-title', textContent: what === 'poll' ? t('Your poll is live.')
+        : what === 'reply' ? t('Your reply is live.') : t('Your note is live.') }),
       h('p', {
         className: 'compose-done-sub',
         textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', relayCount),
@@ -823,7 +1088,9 @@
       row.append(open);
     }
     const again = h('button', { className: 'mini ghost', type: 'button', textContent: t('Write another') });
-    again.addEventListener('click', () => window.location.reload());
+    // A NEW NOTE, not this page again. After a reply the address still names the note it
+    // answered, and reloading it opened another reply to the same note.
+    again.addEventListener('click', () => window.location.replace(location.pathname));
     row.append(again);
     sheet.append(row);
 
@@ -836,6 +1103,10 @@
   function renderThumbs() {
     const host = $('compose-thumbs');
     host.innerHTML = '';
+    // A POLL AND ATTACHMENTS ARE ONE OR THE OTHER, and every change to the attachments
+    // comes through here: an upload, a paste, a removal, a draft loaded. The Poll button
+    // stood its ground after an upload, because nothing here told it to.
+    if (pollEditor) pollEditor.paintEitherOr();
     // Where a dragged thumb will land, across renderThumbs' rebuilds.
     let dragFrom = -1;
     draft.media.forEach((m, i) => {
@@ -997,7 +1268,13 @@
     mediaDrawer.wrap.after(altRow);
   }
 
-  // ---- the toolbar: media, and a proof of work for this note ----
+  // The poll editor, from composer-core, the same one the panel builds. Held here so
+  // the draft load and the publish path can both reach it.
+  let pollEditor = null;
+  // Set by buildToolbar: uploads files into the attachments, as the Media button does.
+  let uploadFiles = async () => {};
+
+  // ---- the toolbar: media, a poll, and a proof of work for this note ----
   function buildToolbar() {
     const row = $('compose-actions');
     const err = $('compose-err');
@@ -1011,7 +1288,11 @@
     addBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0];
-      if (!file) return;
+      if (file) await uploadFiles([file]);
+      fileInput.value = '';
+    });
+    // The Media button and a pasted image take the one path.
+    uploadFiles = async (files) => {
       err.textContent = '';
       addBtn.disabled = true;
       const lbl = addBtn.querySelector('span');
@@ -1019,12 +1300,14 @@
       lbl.textContent = t('Uploading…');
       addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
       try {
-        const url = await composer.uploadMedia(file, state.activePubkey);
-        // Into the media slot only. The URL is appended to the content at publish
-        // (SC.composeNoteContent), so nothing touches the editor here — and since no
-        // input event fires, both the autosave and the Post button (media alone is
-        // postable) have to be told by hand.
-        draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+        for (const file of files) {
+          const url = await composer.uploadMedia(file, state.activePubkey);
+          // Into the media slot only. The URL is appended to the content at publish
+          // (SC.composeNoteContent), so nothing touches the editor here — and since no
+          // input event fires, both the autosave and the Post button (media alone is
+          // postable) have to be told by hand.
+          draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+        }
         scheduleSave();
         paintCount();
         renderThumbs();
@@ -1035,8 +1318,7 @@
       addBtn.disabled = false;
       addBtn.classList.remove('is-uploading');
       lbl.textContent = prev;
-      fileInput.value = '';
-    });
+    };
 
     // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same labels as the
     // panel. "PoW 18" and "PoW off" are the same width, so cycling never makes the row
@@ -1062,24 +1344,59 @@
     });
     paintPow();
 
-    row.append(addBtn, powBtn, fileInput);
+    pollEditor = SC.buildPollEditor({
+      poll: () => draft.poll || null,
+      setPoll: (p) => { draft.poll = p; },
+      // Both, always. They were two calls in the panel and two sites only saved, which
+      // is how one of them stopped repainting Post.
+      changed: () => { paintCount(); scheduleSave(); },
+      // A reply CAN be a poll here as much as it cannot in the panel: same rule, same
+      // reason, that a kind 1068 answering a note is not a shape anything threads.
+      isReply: () => !!replyTo,
+      hasMedia: () => !!(draft.media && draft.media.length),
+      mediaBtn: () => addBtn,
+    });
+    row.append(addBtn, pollEditor.addBtn, powBtn, fileInput);
+    // Below the toolbar rather than inside it: the editor is a form, and the row is a
+    // row of buttons.
+    row.after(pollEditor.wrap);
   }
 
   // ---- Write / Preview ----
   //
   // The same renderer the panel previews with, so what this shows and what that shows
   // cannot disagree about a mention, an embed or a link card.
+  let showTab = () => {};
   function buildTabs() {
     const write = $('tab-write');
     const prev = $('tab-preview');
     const pane = $('compose-preview');
+    const list = $('compose-drafts-pane');
     const slot = $('compose-slot');
-    const show_ = (previewing) => {
-      write.classList.toggle('active', !previewing);
-      prev.classList.toggle('active', previewing);
-      slot.classList.toggle('hidden', previewing);
-      pane.classList.toggle('hidden', !previewing);
-      if (!previewing) return;
+    showTab = (which) => {
+      // THE LIST TAKES THE EDITOR'S PLACE AT THE EDITOR'S SIZE, measured before the
+      // editor is hidden, so the card does not jump when you open it.
+      if (which === 'drafts' && !slot.classList.contains('hidden') && slot.offsetHeight) {
+        list.style.minHeight = slot.offsetHeight + 'px';
+      }
+      write.classList.toggle('active', which === 'write');
+      prev.classList.toggle('active', which === 'preview');
+      // The list is not a third view of this draft, so the row naming the two views
+      // steps aside while it is up.
+      $('compose-tabs').classList.toggle('hidden', which === 'drafts');
+      slot.classList.toggle('hidden', which !== 'write');
+      pane.classList.toggle('hidden', which !== 'preview');
+      list.classList.toggle('hidden', which !== 'drafts');
+      // The toolbar edits this draft, so it stands down while another draft is being
+      // chosen rather than offering to attach a photo to a list.
+      $('compose-actions').classList.toggle('hidden', which === 'drafts');
+      // And Post goes with it. From a list of other drafts it would publish the one you
+      // cannot see; Cancel and the setting beside it still apply, so they stay.
+      $('compose-post').classList.toggle('hidden', which === 'drafts');
+      // Invisible rather than gone: it is the spacer that holds Cancel to the right.
+      $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
+      if (which === 'drafts') { paintSavedDrafts(); return; }
+      if (which !== 'preview') return;
       pane.innerHTML = '';
       // What will actually go out: the prose and, appended at the end, the
       // attachments — the preview and the published note are rendered from the one
@@ -1093,8 +1410,11 @@
       composer.renderNotePreview(box, body);
       pane.append(box);
     };
-    write.addEventListener('click', () => show_(false));
-    prev.addEventListener('click', () => show_(true));
+    write.addEventListener('click', () => showTab('write'));
+    prev.addEventListener('click', () => showTab('preview'));
+    const folder = $('compose-drafts-btn');
+    folder.prepend(icon('folder'));
+    folder.addEventListener('click', () => { if (!busy()) showTab('drafts'); });
   }
 
   async function boot() {
@@ -1105,6 +1425,7 @@
     if (!state || !state.activePubkey) {
       document.body.innerHTML = '';
       document.body.append(h('p', { className: 'hint compose-empty', textContent: t('Open Sidecar and unlock it, then expand the composer again.') }));
+      document.documentElement.classList.remove('compose-booting');
       return;
     }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
@@ -1114,7 +1435,7 @@
     paintWho();
     paintLocked();
 
-    dkey = state.activePubkey;
+    dkey = slotFor(state.activePubkey);
     const saved = await loadDraft();
     // Same strip as the account switch: a draft saved before the URLs left the editor
     // carries them in its text, and publishing must not append them twice.
@@ -1122,6 +1443,20 @@
     if (saved && Array.isArray(saved.media)) draft.media = saved.media;
     // The relay set the panel worked out, left beside the draft when you pressed expand.
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
+    // THE TARGET COMES OFF THE DRAFT, not off the URL. The query said which slot to
+    // open; the slot is what carries what is being answered. A tab pointed at a reply
+    // whose draft was posted or dropped in the meantime finds nothing here and stays a
+    // plain note, which is the safe direction to fail: a note that should have been a
+    // reply is visible, a reply silently published as a note is not.
+    replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    paintReplyTarget();
+    paintSavedDrafts();
+    // A reply started in the panel while this tab sat in the background shows up when
+    // you come back to it.
+    window.addEventListener('focus', () => { paintSavedDrafts(); });
+    // The poll rides in the same slot as the text, so a poll started in the panel and
+    // expanded here arrives whole. Painted after buildToolbar has made the editor.
+    draft.poll = (saved && saved.poll) || null;
 
     editorApi = composer.createMentionEditor({
       placeholder: t('What’s on your mind?'),
@@ -1146,6 +1481,29 @@
     $('compose-slot').append(editorApi.wrap);
     editorApi.setText(draft.text);
     buildToolbar();
+    // PASTE, AS THE PANEL HANDLES IT. An image on the clipboard is uploaded into the
+    // attachments, and anything else goes in as plain text. Left to the browser, a
+    // contenteditable takes the image as an inline picture at its own size, never
+    // uploaded and never published, and rich text keeps its fonts and colors.
+    editorApi.editor.addEventListener('paste', (e) => {
+      const images = Array.from((e.clipboardData && e.clipboardData.items) || [])
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      e.preventDefault();
+      if (!images.length) {
+        const plain = e.clipboardData && e.clipboardData.getData('text/plain');
+        if (plain) document.execCommand('insertText', false, plain);
+        return;
+      }
+      // A poll and its attachments are one or the other; the Media button is hidden
+      // for the same reason.
+      if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
+      uploadFiles(images);
+    });
+    // After the toolbar, because that is what builds the poll editor: a poll restored
+    // from the slot above has nothing to paint into until it exists.
+    paintCount();
     // THE DRAFT'S OWN RUNG FIRST, then the account's. Seeding from Settings alone meant an
     // account that had asked for 20 bits got none of them here, and seeding from Settings
     // over a draft meant a rung chosen in the panel a second before pressing Expand was
@@ -1168,6 +1526,18 @@
     // leave this page still saying Unlock to post until something else happened to it,
     // so the worker says so instead. It already broadcast the lock for the same reason.
     chrome.runtime.onMessage.addListener((msg) => {
+      // SWITCH TO ANOTHER DRAFT, sent by the panel when Expand is pressed while this tab
+      // is already open on something else. Focusing it without this showed whatever was
+      // already here, which is how a reply arrived looking like a blank new note.
+      if (msg && msg.type === 'SIDECAR_COMPOSE_OPEN') {
+        const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
+          ? msg.replyId.toLowerCase() : null;
+        if (want === replyId) return;   // already here
+        // Whatever is on screen belongs to the slot it was typed in, so it goes back
+        // there before the key moves. Same rule as the account switch.
+        switchToDraft(want).catch(() => {});
+        return;
+      }
       if (!msg || msg.type !== 'SIDECAR_EVENT') return;
       if (msg.event !== 'locked' && msg.event !== 'unlocked') return;
       if (state) state.locked = msg.event === 'locked';
@@ -1191,6 +1561,21 @@
     x.append(icon('x'));
     x.addEventListener('click', leave);
     $('compose-close').addEventListener('click', leave);
+
+    // WRITE HERE NEXT TIME. The panel's switch writes the same setting, so this one
+    // follows storage rather than only its own clicks: flipping it in either place shows
+    // in the other without a reload.
+    const tabDefault = $('compose-default-toggle');
+    call({ type: 'SIDECAR_GET_SETTINGS' })
+      .then((s) => { tabDefault.checked = !!(s && s.composeInTab === true); })
+      .catch(() => {});
+    tabDefault.addEventListener('change', () => {
+      call({ type: 'SIDECAR_SET_SETTINGS', settings: { composeInTab: tabDefault.checked } }).catch(() => {});
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes.sidecar_settings) return;
+      tabDefault.checked = (changes.sidecar_settings.newValue || {}).composeInTab === true;
+    });
     // A tab can be closed without pressing anything, and the 400ms debounce means the
     // last sentence is the one at risk. Cancel and the close box chain their close off
     // the save, so they were never the problem.
@@ -1214,7 +1599,10 @@
     window.addEventListener('beforeunload', flushDraft);
   }
 
-  boot().catch((e) => {
+  // The card was held back by compose-boot.js until it had a theme and a draft in it.
+  const shown = () => document.documentElement.classList.remove('compose-booting');
+  boot().then(shown, (e) => {
+    shown();
     document.body.innerHTML = '';
     document.body.append(h('p', { className: 'hint compose-empty', textContent: e.message || t('Sidecar could not open the composer.') }));
   });

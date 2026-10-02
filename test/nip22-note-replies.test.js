@@ -18,14 +18,19 @@ const ROOT = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const bare = panel.replace(/^\s*\/\/.*$/gm, '');
 
-function lift(decl) {
-  const at = panel.indexOf(decl);
+// replyTags moved into composer-core so both composers build the same threading; the
+// rest of what this file reads is still the panel's.
+const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
+
+function lift(decl, from) {
+  const src = from || panel;
+  const at = src.indexOf(decl);
   if (at === -1) throw new Error('Could not find ' + decl);
-  const open = panel.indexOf('{', panel.indexOf('(', at));
+  const open = src.indexOf('{', src.indexOf('(', at));
   let depth = 0;
-  for (let i = open; i < panel.length; i++) {
-    if (panel[i] === '{') depth++;
-    else if (panel[i] === '}' && --depth === 0) return panel.slice(at, i + 1);
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) return src.slice(at, i + 1);
   }
   throw new Error('Unbalanced braces after ' + decl);
 }
@@ -101,7 +106,7 @@ test('our own comments name the root author, which they never used to', () => {
   // NIP-22: comments MUST point to the authors, P for the root scope. Ours copied the
   // root SCOPE verbatim and dropped the author, so a client watching #P for replies in its
   // own threads could not see ours. The mirror of the bug this branch fixes.
-  const fn = lift('function replyTags(');
+  const fn = lift('function replyTags(', core);
   const branch = fn.slice(fn.indexOf('target.kind === WEB_COMMENT_KIND'));
   assert.match(branch, /const rootP = tgTags\.find\(\(t\) => t\[0\] === 'P' && t\[1\]\);/);
   assert.match(branch, /if \(rootP\) tags\.push\(rootP\.slice\(\)\);/, 'the root author carries through a reply');

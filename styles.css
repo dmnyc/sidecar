@@ -1778,8 +1778,127 @@ a.notif-clickable:hover { background: var(--hover-soft); }
   opacity: 0;
 }
 .reply-target.is-clipped::after { opacity: 1; }
+/* OPEN IT AND IT SCROLLS, rather than growing without limit. The composer lives in a
+   360px panel and the note being answered is context, not the subject: a long one
+   allowed to push the editor off the bottom would answer "let me read the rest" by
+   moving the problem one step down the sheet. Roughly three times the clamped height,
+   which is enough to read a paragraph at a time without the editor leaving the screen. */
+.reply-target.is-open .reply-target-body { max-height: 320px; overflow-y: auto; }
+/* The fade means "there is more below". Once it scrolls the scrollbar says that, and a
+   gradient over a scrollable region only hides the line you are trying to read. */
+.reply-target.is-open::after { opacity: 0; }
+/* Its own row under the quote, left-aligned with the text rather than centered, so it
+   reads as belonging to the block it opens. */
+.reply-target .show-toggle { margin-top: 4px; }
+/* The tab was sent to answer something and could not find it. Warn-colored rather
+   than muted: what follows is a note that will publish detached from its thread,
+   which is worth interrupting for. */
+.reply-target-lost { border-left-color: var(--warn); }
+.reply-target-lost .reply-target-name { color: var(--warn); }
+.reply-target-dbg { opacity: 0.55; font-size: 10px; word-break: break-all; margin-top: 4px; }
+/* ---- code in a note ----
+   A fence is a box that SCROLLS SIDEWAYS rather than wrapping, the way Jumble and every
+   code viewer worth the name shows one: wrapping a line of code invents line breaks that
+   are not in it, and in a shell command or a path that is the difference between correct
+   and wrong. The panel is 360px, so something has to give, and it should be the viewport
+   rather than the content. */
+/* The copy button lives OUTSIDE the scroller, in this wrapper, or it would slide away
+   with the content the moment a long line was read. */
+.note-code-wrap { position: relative; }
+.note-code-copy {
+  position: absolute; top: 6px; right: 6px;
+  width: 24px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--velvet-2); color: var(--muted); cursor: pointer;
+}
+.note-code-copy svg { width: 13px; height: 13px; }
+.note-code-copy:hover { color: var(--text); border-color: var(--border-strong); }
+.note-code-copy.ok { color: var(--success); border-color: var(--success); }
+/* Room for it, so the first line of code does not start underneath the button. */
+pre.note-code { padding-right: 36px; }
+pre.note-code {
+  margin: 8px 0;
+  padding: 9px 10px;
+  background: var(--velvet-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  max-height: 320px;
+  overflow-y: auto;
+}
+pre.note-code code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre;
+  tab-size: 2;
+}
+/* Inline code stays in the line: tinted rather than boxed, because a border on a word
+   mid-sentence breaks the line's rhythm at every occurrence, and these come in runs. */
+.note-code-inline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  word-break: break-word;
+}
 .reply-target-body img,
 .reply-target-body video { max-width: 100%; border-radius: 6px; }
+/* ---- media in a quoted note ----
+   CAPPED AT REST, so the quote stays a strip and the editor stays on screen: an
+   uncapped photo in a 360px column is most of the panel before a word is typed. Cover,
+   not contain, because a letterboxed sliver in a short box shows less of the picture
+   than a crop of its middle does.
+
+   Opened, the cap lifts and it becomes contain, which is the whole point: the full
+   frame, nothing cropped away. The block's own scroll carries whatever is taller than
+   the window. */
+.note-media-wrap { position: relative; display: block; margin: 6px 0; }
+.note-media-wrap .note-media { max-height: 120px; width: 100%; object-fit: cover; display: block; }
+/* ---- full size, which means the viewport ----
+   Growing the image inside the quote only trades a 108px window for a 320px one, and in
+   a 360px column that is still not the picture. z-index above the panel's own overlays
+   (150 is the highest of those) because this opens FROM inside one of them. */
+.media-lightbox {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background: rgba(3, 0, 8, 0.92);
+  cursor: zoom-out;
+}
+/* contain, and bounded by the viewport in both directions: the whole frame, nothing
+   cropped, nothing off screen. */
+.media-lightbox-item {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: auto;
+}
+.media-lightbox-x {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 50%;
+  background: rgba(5, 0, 12, 0.7); color: #fff; cursor: pointer;
+}
+.media-lightbox-x svg { width: 15px; height: 15px; }
+.media-lightbox-x:hover { border-color: var(--gold-soft); }
+.note-media-zoom {
+  position: absolute; top: 6px; right: 6px;
+  width: 24px; height: 24px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: rgba(5, 0, 12, 0.72); color: #fff; cursor: pointer;
+}
+.note-media-zoom svg { width: 13px; height: 13px; }
+.note-media-zoom:hover { border-color: var(--gold-soft); }
+/* The page has room, so the resting cap is bigger there. Same reasoning as the type
+   scale beside it: this is the space the panel does not have. */
+.compose-page .note-media-wrap .note-media { max-height: 260px; }
 .notif-content {
   font-size: 12.5px;
   color: var(--text-2);
@@ -3018,9 +3137,9 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 /* 12px padding, a 22px wordmark, 12px padding, 1px rule. Written once because the
    centered card below has to subtract it, and two literals would drift.
 
-   --compose-pane-h is the height Write and Preview share. One variable rather than two
-   equal numbers, because the two panes agreeing is the point: switching tabs must not
-   move the card. */
+   --compose-pane-h is the height Write, Preview and Saved drafts share. One variable
+   rather than equal numbers, because the panes agreeing is the point: switching tabs
+   must not move the card. */
 .compose-page {
   margin: 0; min-height: 100vh;
   --compose-topbar-h: 47px;
@@ -3079,6 +3198,11 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 /* The close box wants a corner to be absolute against, and the card is it. */
 .compose-sheet { position: relative; }
 .compose-x { top: 14px; right: 14px; }
+/* Held back until boot has a theme and a draft to show (compose-boot.js): the card would
+   otherwise paint empty, and the wordmark in the wrong cut, for as long as the worker
+   takes to answer. Visibility, not display, so the page's layout is already settled. */
+html.compose-booting .compose-sheet,
+html.compose-booting .compose-brand { visibility: hidden; }
 .compose-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
 .compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .compose-av { width: 40px; height: 40px; flex-shrink: 0; }
@@ -3119,6 +3243,20 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-preview-lg .preview-body { font-size: 17px; line-height: 1.6; }
+/* THE QUOTE SCALES WITH THE PAGE. .reply-target-body is 12px because the panel is
+   360px wide; on this page that is the size of a footnote under a 17px preview, and the
+   thing being answered is what the reply is about. A step under the preview rather than
+   level with it: it is still context, not the subject.
+
+   Scoped to .compose-page so the panel's own reply block is untouched, where 12px is
+   correct and where the whole block is deliberately small enough to keep the editor on
+   screen. */
+.compose-page .reply-target-body { font-size: 15px; line-height: 1.55; }
+.compose-page .reply-target-name { font-size: 14px; }
+.compose-page .reply-target-av { width: 24px; height: 24px; }
+/* Inline code tracks its own line, so it needs nothing here; a fence does not, and at
+   11.5px it would read as smaller than the prose around it rather than as code. */
+.compose-page pre.note-code code { font-size: 13px; }
 /* And the things a note carries scale with it. 220px of embedded media is sized for a
    360px column and looks like a stamp on a 720px one. */
 .compose-preview-lg .embed-body .note-media { max-height: 360px; }
@@ -3130,8 +3268,57 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 .compose-sheet .compose-tabs,
 .compose-sheet .compose-media-note,
 .compose-sheet .compose-alt-row { margin: 0; }
-.compose-foot { display: flex; align-items: center; gap: 14px; }
+.compose-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .compose-status { font-size: 12px; color: var(--muted); }
+/* SAVED DRAFTS in the expanded composer: the folder beside the card's close box, as in
+   the panel, and the head gives up the width it covers. */
+.compose-sheet .compose-drafts-btn { top: 14px; right: 50px; }
+.compose-sheet.has-drafts-btn .compose-head { padding-right: 72px; }
+.compose-drafts-title { margin: 0 0 12px; }
+.compose-drafts-back { align-self: center; margin-top: 12px; }
+.compose-drafts-pane {
+  display: flex; flex-direction: column; box-sizing: border-box; min-height: var(--compose-pane-h);
+}
+/* SAVED DRAFTS, the list both composers show. A row is the draft, which opens it, and a
+   trash icon in the inline slot beside it: icon only, flex-shrink 0, so the draft's
+   text is what gives way. */
+.saved-drafts { display: flex; flex-direction: column; gap: 8px; }
+.saved-draft {
+  display: flex; align-items: stretch; min-width: 0;
+  border-radius: 10px; background: var(--hover-soft); border: 1px solid var(--border);
+}
+.saved-draft:hover { border-color: var(--gold-soft); }
+.saved-draft-open {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left;
+  padding: 10px 4px 10px 12px; background: none; border: none; cursor: pointer; color: var(--text);
+}
+.saved-draft-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.saved-draft-label {
+  min-width: 0; font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.saved-draft-when { margin-left: auto; flex-shrink: 0; font-size: 12px; color: var(--muted); }
+.saved-draft-snip {
+  font-size: 13px; color: var(--text-2); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.saved-draft-x {
+  flex-shrink: 0; width: 38px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 0 10px 10px 0; color: var(--muted); cursor: pointer;
+}
+.saved-draft-x:hover { color: var(--text); }
+.saved-draft-x svg { width: 16px; height: 16px; }
+/* The question, in the row's own two lines. Warn-colored, because the second tap cannot
+   be taken back. */
+.saved-draft.confirming { border-color: var(--red); }
+.saved-draft.confirming .saved-draft-label,
+.saved-draft.confirming .saved-draft-x { color: var(--red); }
+/* Bottom left, at the status line's size: a preference about next time, so it sits with
+   the quiet things in the row and not with the two ways out of this one. */
+.compose-default { font-size: 12px; font-weight: 400; color: var(--muted); margin-bottom: 0; }
+/* Too narrow for one row: the switch takes a row of its own, so Cancel and Post stay
+   together rather than Post wrapping away from the word beside it. */
+@media (max-width: 560px) { .compose-default { flex-basis: 100%; } }
 /* NOT A BUTTON. Leaving is not an action with the same weight as publishing, and two
    filled controls side by side claim it is. A word that underlines when you reach for it
    is the whole affordance this needs. */
@@ -5152,6 +5339,16 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    left of the close button rather than in the heading, which has to hold a two-line
    title beside an avatar on a multi-account panel. */
 .notif-refresh { right: 48px; }
+/* The composer's saved drafts, in the same slot beside the close box, with their count
+   in a capsule on the folder's corner. The author line gives up the width it covers. */
+.compose-drafts-btn { right: 48px; }
+.compose-drafts-btn svg { width: 17px; height: 17px; display: block; }
+.compose-drafts-count {
+  position: absolute; top: 0; right: -2px; min-width: 15px; height: 15px; padding: 0 4px;
+  box-sizing: border-box; border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 15px;
+  color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold));
+}
+.modal.has-drafts-btn .compose-author { padding-right: 72px; }
 .notif-refresh svg { width: 17px; height: 17px; display: block; }
 /* Spins while the fetch is in flight, so a slow relay looks busy rather than dead —
    the same treatment .profile-backup-jump uses. */

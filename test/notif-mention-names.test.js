@@ -59,12 +59,17 @@ test('row hydration preserves expanded text and truncates collapsed text', async
   const source = between('      if (isNoteLike && contentEl) {\n        resolveNotifMentions', '      return item;');
   for (const expanded of [false, true]) {
     const text = 'x'.repeat(160);
-    const contentEl = { classList: { contains: () => expanded } };
+    // An expanded row is BUILT now rather than assigned, because it renders code blocks.
+    // The stub records what it was handed either way, so both branches stay checkable.
+    let built = null;
+    const contentEl = { classList: { contains: () => expanded }, innerHTML: '' };
     vm.runInNewContext(source, {
       isNoteLike: true, contentEl, ev: { content: text },
       resolveNotifMentions: (_, update) => update(text),
+      renderTextWithCode: (el, t) => { built = t; },
     });
-    assert.equal(contentEl.textContent, expanded ? text : 'x'.repeat(140) + '…');
+    if (expanded) assert.equal(built, text, 'the expanded row lost its resolved names');
+    else assert.equal(contentEl.textContent, 'x'.repeat(140) + '…');
   }
   // buildItem is shared by initial pages, lazy outside-network rows, and live rows.
   assert.match(panel, /offNet\.forEach\(\(ev\) => inner\.insertBefore\(buildItem\(ev\), note\)\)/);

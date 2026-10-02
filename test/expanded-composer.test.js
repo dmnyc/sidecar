@@ -32,6 +32,7 @@ const strip = (src) => src
   .replace(/(["'`])(?:\\.|(?!\1)[^\\\n])*\1/g, "''");
 const bare = page.replace(/^\s*\/\/.*$/gm, '');
 const panelBare = panel.replace(/^\s*\/\/.*$/gm, '');
+const pageBare = page.replace(/^\s*\/\/.*$/gm, '');
 
 test('THE DRAFT IS SHARED, NOT HANDED OVER', () => {
   // Both ends read and write the one slot in the background's draft store, keyed by
@@ -39,11 +40,23 @@ test('THE DRAFT IS SHARED, NOT HANDED OVER', () => {
   // moment where the note exists in one place only, and that is the moment a tab gets
   // closed. It also means the panel already holds what you typed in the tab.
   assert.match(bare, /store: 'drafts'/);
-  assert.match(bare, /dkey = state\.activePubkey;/);
+  assert.match(bare, /dkey = slotFor\(state\.activePubkey\);/);
   assert.match(panelBare, /const draftKey = \(pubkey, replyTo\) =>/);
-  // The URL carries nothing at all.
-  assert.match(panelBare, /chrome\.tabs\.create\(\{ url: chrome\.runtime\.getURL\('compose\.html'\) \}\)/);
-  assert.ok(!/getURL\('compose\.html\?/.test(panelBare), 'the draft must not ride in the URL');
+
+  // THE URL NAMES A SLOT, IT NEVER CARRIES CONTENT. It gained ?reply=<id> when replies
+  // learned to expand, and an id is a pointer into the same store both ends read. The
+  // rule that matters is unchanged: nothing anybody typed goes in a URL, where it would
+  // sit in history, in the omnibox, and in whatever logs a URL reaches.
+  // The query is appended to the RESOLVED url, not passed to getURL inside the path:
+  // getURL takes a path and what it does with a "?" in one is not worth discovering
+  // from a bug report.
+  assert.match(panelBare, /chrome\.runtime\.getURL\('compose\.html'\)\s*\n?\s*\+ \(wantId \? '\?reply=' \+ encodeURIComponent\(wantId\) : ''\)/);
+  const q = panelBare.match(/'\?([a-z]+)=' \+ encodeURIComponent/g) || [];
+  assert.deepEqual([...new Set(q)], ["'?reply=' + encodeURIComponent"],
+    'a second query parameter appeared; check it is a pointer and not content');
+  // And what comes back off it is validated as an id before it becomes a storage key.
+  assert.match(pageBare, /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(v\)/,
+    'the reply id is used unvalidated, so any string could become a draft key');
 });
 
 test('THE DRAFT IS CLEARED ONLY AFTER THE NOTE IS OUT', () => {
@@ -98,12 +111,59 @@ test('THE BLOSSOM SERVER LIST IS ACTUALLY LOOKED FOR', () => {
   assert.ok(!/\} catch \(_\) \{\}\n    _blossomServerCache/.test(core), 'a swallowed lookup reads as no servers');
 });
 
-test('A REPLY IS NOT OFFERED THE TAB', () => {
-  // The page composes a top-level note. A reply that arrived there would publish as one,
-  // silently, which is the exact failure the draft store learned to carry replyTo to
-  // avoid. Same for a poll, which is a different kind with its own editor.
-  assert.match(panelBare, /const expand = replyTo \? null : h\('button', \{/);
+test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
+  // This used to be refused outright, because the page composed a top-level note and a
+  // reply that reached it would publish as one, silently. What changed is that the page
+  // can now build threading: replyTags moved to composer-core and compose.js reads the
+  // target off the draft slot the panel names in the URL.
+  //
+  // So the refusal is gone, and what replaces it is the chain that makes it safe. Each
+  // link is asserted, because a break in any one of them is a reply published as a note
+  // with nothing on screen to say so.
+  assert.doesNotMatch(panelBare, /const expand = replyTo \? null/,
+    'the tab is refused to replies again');
+
+  // 1. The panel names the slot in the URL.
+  assert.match(panelBare, /'\?reply=' \+ encodeURIComponent\(wantId\)/);
+  // 2. The page turns that into the same draft key draftKey() builds.
+  assert.match(pageBare, /return replyId \? pubkey \+ '\|r:' \+ replyId : pubkey;/);
+  assert.match(panelBare, /replyTo && replyTo\.id \? pubkey \+ '\|r:' \+ replyTo\.id : pubkey/,
+    'the two key builders have drifted, so the tab would open a slot the panel never wrote');
+  // 3. The target is read off the DRAFT, not the URL, so a posted draft cannot resurrect
+  //    a thread from a stale query.
+  assert.match(pageBare, /replyTo = \(saved && saved\.replyTo && saved\.replyTo\.id\) \? saved\.replyTo : null;/);
+  // 4. And publishing runs it through the shared builder.
+  assert.match(pageBare, /const reply = replyTo \? SC\.replyTags\(replyTo, state\.activePubkey\) : null;/);
+  // A poll is its own kind and is never a reply, so the ternary has a third arm now.
+  assert.match(pageBare, /kind: asPoll \? SC\.POLL_KIND : reply \? reply\.kind : 1,/);
+  // Threading leads, then the client tag, then the poll tags, then imeta. NIP-10 takes
+  // the first e marked root and NIP-22 reads scope positionally, so the order is
+  // load-bearing rather than tidy.
+  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\['client', 'Sidecar'\],/,
+    'threading must lead: NIP-10 takes the first e marked root, NIP-22 reads scope positionally');
+
+  // A poll is still refused. It is a different kind with its own editor, and none of
+  // the above gives the page one.
   assert.match(panelBare, /if \(expand\) expand\.classList\.toggle\('hidden', !!draft\.poll\);/);
+});
+
+test('ONE TAB, AND IT IS THE RIGHT DRAFT', () => {
+  // The tab carries ?reply=<id> now, so the "is one already open" check had to stop
+  // comparing the URL exactly: it found nothing, and Expand would have opened a second
+  // tab while Compose opened a third.
+  assert.match(panelBare, /c\.documentUrl\.split\(\/\[\?#\]\/\)\[0\] === url/);
+  // And it reports WHICH draft the tab holds, because focusing a tab that is open on
+  // something else shows the wrong draft and says nothing.
+  assert.match(panelBare, /searchParams\.get\('reply'\)/);
+  assert.match(panelBare, /if \(open && open\.replyId === wantId\)/,
+    'the panel composer stands down for a tab holding a different draft');
+  // A tab on another draft is TOLD to switch, not navigated. Pointing an open tab at
+  // another URL needs the "tabs" permission, which this extension does not ask for, and
+  // chrome.tabs.update fails silently without it: the tab stays on the old draft and
+  // says nothing, which is how expanding a reply landed on a blank new note.
+  assert.match(panelBare, /if \(open\.replyId !== wantId\) \{[\s\S]{0,240}SIDECAR_COMPOSE_OPEN/);
+  assert.ok(!/chrome\.tabs\.update\([^)]*url:/.test(panelBare),
+    'navigating an open tab needs a permission the manifest does not ask for');
 });
 
 test('the way in is a word on the tab bar, not an icon in the corner', () => {
@@ -579,7 +639,10 @@ test('media is content on its own', () => {
   // Decided in paintPostButton, which is the one place that knows whether the button is
   // Post, Stop mining or Unlock to post right now.
   assert.match(bare, /post\.disabled = posting \|\| \(!n && !draft\.media\.length\);/);
-  assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)\)/);
+  // A poll with options typed and no question yet is also work worth keeping, so the
+  // clause grew a third arm rather than changing meaning.
+  assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)/);
+  assert.match(bare, /\|\| \(draft\.poll && draft\.poll\.options && draft\.poll\.options\.some\(\(o\) => o\.trim\(\)\)\)\);/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.media\)\) draft\.media = saved\.media;/);
   // And the empty prose of a media-only note is not a reason to stop either: the URL
   // lives in the media slot now, so "no text" no longer means "no note".
@@ -621,11 +684,12 @@ test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
   // The panel drops a banner because its composer is a modal that closes onto a whole
   // app. A tab has nothing underneath it: the card IS the page, and leaving an empty
   // editor sitting there reads as a note lost rather than published.
-  assert.match(bare, /await showPosted\(signed, ok\)/);
+  assert.match(bare, /await showPosted\(signed, ok, what\)/);
   const fn = bare.slice(bare.indexOf('async function showPosted('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /sheet\.innerHTML = '';/);
-  assert.match(body, /textContent: t\('Your note is live\.'\)/);
+  // Named for what went out: a poll, a reply, or a note.
+  assert.match(body, /t\('Your poll is live\.'\)[\s\S]*t\('Your reply is live\.'\)[\s\S]*t\('Your note is live\.'\)/);
   assert.match(body, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', relayCount\)/);
 
   // Only after the publish resolved. A receipt for a note no relay took is a lie.
@@ -684,12 +748,25 @@ test('ONE COMPOSER PER ACCOUNT, BECAUSE THERE IS ONE DRAFT SLOT PER ACCOUNT', ()
   assert.match(panelBare, /chrome\.tabs\.update\(open\.tabId, \{ active: true \}\)/);
   assert.match(panelBare, /toast\(t\('Your draft is already open in a tab'\), 'info'\)/);
 
-  // A reply is a different slot, so only the main composer is held back.
-  assert.match(panelBare, /if \(!\(opts && opts\.replyTo\)\) \{\n\s*const open = await liveComposeTab\(\)/);
+  // A reply is a different slot, so it collides only with a tab holding that same
+  // reply. The comparison used to be "is this a reply at all", which was right while the
+  // tab could only ever hold the plain draft and is wrong now that it can hold either.
+  assert.match(panelBare, /const wantId = \(opts && opts\.replyTo && opts\.replyTo\.id\) \|\| null;/);
+  assert.match(panelBare, /if \(open && open\.replyId === wantId\) \{/);
 
-  // And Expand reuses a tab rather than opening a second one with the same draft in it.
-  const expand = panelBare.slice(panelBare.indexOf("expand.addEventListener('click'"));
-  assert.match(expand.slice(0, 2000), /if \(open\) \{[\s\S]*?\} else \{\n\s*chrome\.tabs\.create\(/);
+  // And Expand reuses a tab rather than opening a second one. A tab on a DIFFERENT
+  // draft is navigated to this one, since merely focusing it would show the wrong draft
+  // and say nothing about why.
+  // The handoff itself moved into handOffToTab, shared with the always-expanded setting:
+  // two copies of it drifted once already, and a missing reply target was the result.
+  const handoff = panelBare.slice(panelBare.indexOf('async function handOffToTab('));
+  const head = handoff.slice(0, 2400);
+  assert.match(head, /if \(open\) \{/);
+  assert.match(head, /SIDECAR_COMPOSE_OPEN/, 'an open tab is never told to switch drafts');
+  assert.match(head, /chrome\.tabs\.create\(\{ url \}\)/);
+  // And Expand still goes through it rather than keeping its own copy.
+  const expand = panelBare.slice(panelBare.indexOf("expand.addEventListener('click'"), panelBare.indexOf('if (expand) tabBar.append(expand);'));
+  assert.match(expand, /await handOffToTab\(dkey, replyTo\)/);
 });
 
 test('WHO THIS IS WRITTEN AS CAN CHANGE UNDER THE TAB', () => {
@@ -708,7 +785,7 @@ test('WHO THIS IS WRITTEN AS CAN CHANGE UNDER THE TAB', () => {
   // belongs to the account it was typed as, so it is written back THERE before the key
   // moves rather than being carried into someone else's slot.
   const flushAt = body.indexOf('await flushDraft();');
-  const rekeyAt = body.indexOf('dkey = state.activePubkey;');
+  const rekeyAt = body.indexOf('dkey = slotFor(state.activePubkey);');
   assert.ok(flushAt > -1 && rekeyAt > -1, 'could not find the flush or the rekey');
   assert.ok(flushAt < rekeyAt, "the old account's text would be written to the new one's slot");
 
@@ -735,4 +812,25 @@ test('CLOSING THE TAB KEEPS WHAT WAS TYPED, AND BEFOREUNLOAD IS NOT HOW', () => 
   // text in the same slot.
   const flush = bare.slice(bare.indexOf('function flushDraft()'));
   assert.match(flush.slice(0, flush.indexOf('\n  }')), /clearTimeout\(saveTimer\); saveTimer = null;/);
+});
+
+test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
+  // Left to the browser, the contenteditable took a pasted image as an inline picture at
+  // full size, never uploaded and never published, and rich text kept its formatting.
+  const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
+  const at = page.indexOf("editorApi.editor.addEventListener('paste'");
+  assert.ok(at > -1, 'the tab has no paste handler of its own');
+  const body = page.slice(at, at + 1400);
+  assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
+  assert.match(body, /e\.preventDefault\(\);/);
+  assert.match(body, /document\.execCommand\('insertText', false, plain\)/);
+  assert.match(body, /uploadFiles\(images\)/);
+  // The Media button and a paste share one upload path.
+  assert.match(page, /if \(file\) await uploadFiles\(\[file\]\);/);
+  // Neither composer lets a paste attach to a poll.
+  assert.match(body, /if \(draft\.poll\) \{ toast\(t\('A poll can’t carry attachments\.'\), 'error'\); return; \}/);
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  assert.match(panel, /if \(draft\.poll\) \{ toast\(t\('A poll can’t carry attachments\.'\), 'error'\); return; \}/);
+  // And the tab's Poll button follows the attachments, as the panel's does.
+  assert.match(page, /function renderThumbs\(\) \{[\s\S]{0,400}if \(pollEditor\) pollEditor\.paintEitherOr\(\);/);
 });

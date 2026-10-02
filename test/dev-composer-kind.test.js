@@ -5,20 +5,31 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
-function lift(name) {
-  const start = source.indexOf(name);
-  assert.ok(start >= 0);
+// replyTags moved to composer-core so the expanded tab can build the same threading;
+// devComposerReply still lives in the panel and calls it through a shim.
+const core = fs.readFileSync(path.join(__dirname, '..', 'composer-core.js'), 'utf8');
+function lift(name, from) {
+  const src = from || source;
+  const start = src.indexOf(name);
+  assert.ok(start >= 0, 'could not find ' + name);
   let depth = 0;
-  for (let i = source.indexOf('{', start); i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    else if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1);
+  for (let i = src.indexOf('{', start); i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) return src.slice(start, i + 1);
   }
 }
 function setup(dev = true) {
   const ctx = { state: { activePubkey: 'me' }, WEB_COMMENT_KIND: 1111,
     isDevBuild: () => dev, fetchNoteById: async () => ({ pubkey: 'root-author' }) };
   vm.createContext(ctx);
-  vm.runInContext(lift('function replyTags(') + '\n' + lift('async function devComposerReply('), ctx);
+  vm.runInContext(
+    lift('function replyTags(', core) + '\n' +
+    // The shim the panel now holds, so devComposerReply's own calls still resolve and
+    // still leave the active account out of the p tags.
+    'const SC_replyTags = replyTags;\n' +
+    'function replyTagsShim(t) { return SC_replyTags(t, state.activePubkey); }\n' +
+    lift('async function devComposerReply(').replace(/\breplyTags\(/g, 'replyTagsShim('),
+    ctx);
   return ctx;
 }
 const note = { id: 'note', pubkey: 'gatsby', kind: 1, tags: [] };
