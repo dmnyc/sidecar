@@ -258,6 +258,8 @@
     // where the line runs on past "will"; and A Tale of Two Cities, its opening (1859).
     { text: 'I am no bird; and no net ensnares me; I am a free human being with an independent will.', who: 'Charlotte Brontë, 1847' },
     { text: 'It was the best of times, it was the worst of times.', who: 'Charles Dickens, 1859' },
+    { text: 'Beware, for I am fearless and therefore powerful.', who: 'Mary Shelley, 1818' },
+    { text: 'Truth is stranger than fiction, but it is because Fiction is obliged to stick to possibilities; Truth isn’t.', who: 'Mark Twain, 1897' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
