@@ -465,9 +465,9 @@
       box.classList.remove('hidden');
       box.classList.add('reply-target-lost');
       box.append(
-        h('div', { className: 'reply-target-name', textContent: 'The note you were answering could not be loaded' }),
+        h('div', { className: 'reply-target-name', textContent: t('The note you were answering could not be loaded') }),
         h('div', { className: 'reply-target-body', textContent:
-          'This will post as a new note, not a reply. Close this tab and reply from the panel instead.' }),
+          t('This will post as a new note, not a reply. Close this tab and reply from the panel instead.') }),
         h('div', { className: 'reply-target-body reply-target-dbg', textContent: 'slot ' + dkey }),
       );
       return;
@@ -479,7 +479,7 @@
 
     const av = h('span', { className: 'avatar reply-target-av' });
     applyAvatar(av, null);
-    const name = h('span', { className: 'reply-target-name', textContent: 'Loading…' });
+    const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
     box.append(h('div', { className: 'reply-target-who' }, [av, name]));
 
     const body = h('div', { className: 'reply-target-body' });

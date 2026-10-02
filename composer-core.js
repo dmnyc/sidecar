@@ -1568,7 +1568,7 @@ window.SidecarCore = (function () {
     const pre = h('pre', { className: 'note-code' });
     pre.append(h('code', { textContent: body }));
 
-    const copy = h('button', { className: 'note-code-copy', type: 'button', title: 'Copy code' });
+    const copy = h('button', { className: 'note-code-copy', type: 'button', title: t('Copy code') });
     copy.append(icon('copy'));
     copy.addEventListener('click', (e) => {
       // The block can sit inside a row that is itself a link to the note.
@@ -1616,6 +1616,16 @@ window.SidecarCore = (function () {
     { secs: 14 * 86400, label: '14 days' },
     { secs: 30 * 86400, label: '30 days' },
   ];
+  // The label above is English for tests and logs; what the select shows is built here,
+  // since "6 hours" is a count and takes its language's plural form.
+  function pollDurationLabel(secs) {
+    if (secs < 86400) {
+      const n = secs / 3600;
+      return tn('{{count}} hour', '{{count}} hours', n);
+    }
+    const n = secs / 86400;
+    return tn('{{count}} day', '{{count}} days', n);
+  }
   // Four, matching what Jumble writes. These tags tell a voter where to publish, and a
   // long list is not more reachable: it is the same votes scattered wider, which makes
   // the count slower to gather and more likely to be partial.
@@ -1715,7 +1725,7 @@ window.SidecarCore = (function () {
   function buildPollEditor(d) {
     const pollWrap = h('div', { className: 'poll-editor hidden' });
     const pollAdd = h('button', { className: 'mini compose-add' });
-    pollAdd.append(icon('bar-chart'), h('span', { textContent: 'Poll' }));
+    pollAdd.append(icon('bar-chart'), h('span', { textContent: t('Poll') }));
     pollAdd.addEventListener('click', () => {
       d.setPoll(newPollDraft());
       paintPoll();
@@ -1744,7 +1754,7 @@ window.SidecarCore = (function () {
           type: 'text',
           value,
           maxLength: 200,
-          placeholder: 'Option ' + (i + 1),
+          placeholder: t('Option {{number}}', { number: i + 1 }),
         });
         input.addEventListener('input', () => {
           d.poll().options[i] = input.value;
@@ -1755,7 +1765,7 @@ window.SidecarCore = (function () {
         // would only ever be disabled. An icon-only control in the inline slot, per
         // the panel's row rules: a worded button here would leave the input no width.
         if (opts.length > 2) {
-          const rm = h('button', { className: 'poll-option-x', title: 'Remove option ' + (i + 1) });
+          const rm = h('button', { className: 'poll-option-x', title: t('Remove option {{number}}', { number: i + 1 }) });
           rm.append(icon('x'));
           rm.addEventListener('click', () => {
             d.poll().options.splice(i, 1);
@@ -1789,7 +1799,7 @@ window.SidecarCore = (function () {
       paintPollOptions(list);
 
       const addOpt = h('button', { className: 'poll-add-option' });
-      addOpt.append(icon('plus'), h('span', { textContent: 'Add option' }));
+      addOpt.append(icon('plus'), h('span', { textContent: t('Add option') }));
       addOpt.addEventListener('click', () => {
         d.poll().options.push('');
         paintPollOptions(list);
@@ -1805,16 +1815,16 @@ window.SidecarCore = (function () {
       });
       const multiRow = h('label', { className: 'toggle-row' }, [
         multi,
-        h('span', { textContent: 'Allow multiple choices' }),
+        h('span', { textContent: t('Allow multiple choices') }),
       ]);
 
       // Durations, plus the two ends of the range: a specific moment, and none at all.
       const sel = h('select', { className: 'poll-ends-select' });
       POLL_DURATIONS.forEach((d) => {
-        sel.append(h('option', { value: 'in:' + d.secs, textContent: d.label }));
+        sel.append(h('option', { value: 'in:' + d.secs, textContent: pollDurationLabel(d.secs) }));
       });
-      sel.append(h('option', { value: 'at', textContent: 'Custom date and time…' }));
-      sel.append(h('option', { value: 'none', textContent: 'No end date' }));
+      sel.append(h('option', { value: 'at', textContent: t('Custom date and time…') }));
+      sel.append(h('option', { value: 'none', textContent: t('No end date') }));
       sel.value =
         d.poll().ends.kind === 'in' ? 'in:' + d.poll().ends.secs : d.poll().ends.kind;
 
@@ -1845,14 +1855,14 @@ window.SidecarCore = (function () {
           // real uses for one that never closes, but a running total is not a result:
           // there is no moment the number means anything, and nothing stops a late
           // arrival moving it a year from now.
-          endsNote.textContent = 'Not recommended: the count never settles, so the poll has no final result.';
+          endsNote.textContent = t('Not recommended: the count never settles, so the poll has no final result.');
         } else if (k === 'at' && !(d.poll().ends.at > 0)) {
-          endsNote.textContent = 'Pick the date and time the poll should close.';
+          endsNote.textContent = t('Pick the date and time the poll should close.');
         } else {
           const at = pollEndsAtFor(d.poll(), Math.floor(Date.now() / 1000));
           endsNote.textContent = at && at <= Math.floor(Date.now() / 1000)
-            ? 'That time has already passed, so the poll would close on posting.'
-            : 'Votes stop counting when the poll closes.';
+            ? t('That time has already passed, so the poll would close on posting.')
+            : t('Votes stop counting when the poll closes.');
         }
       }
       sel.addEventListener('change', () => {
@@ -1876,11 +1886,11 @@ window.SidecarCore = (function () {
       // color alone (the point made above .destructive-warn).
       const clientWarn = h('div', {
         className: 'kind-warn',
-        textContent: 'Some clients cannot show polls. On those, this will not appear at all.',
+        textContent: t('Some clients cannot show polls. On those, this will not appear at all.'),
       });
 
       const remove = h('button', { className: 'poll-remove' });
-      remove.append(icon('trash'), h('span', { textContent: 'Remove poll' }));
+      remove.append(icon('trash'), h('span', { textContent: t('Remove poll') }));
       remove.addEventListener('click', () => {
         d.setPoll(null);
         paintPoll();
@@ -1892,7 +1902,7 @@ window.SidecarCore = (function () {
         addOpt,
         h('div', { className: 'poll-editor-sep' }),
         multiRow,
-        h('label', { className: 'poll-ends-label', textContent: 'Runs for' }),
+        h('label', { className: 'poll-ends-label', textContent: t('Runs for') }),
         sel,
         custom,
         endsNote,
@@ -1924,7 +1934,7 @@ window.SidecarCore = (function () {
     el.referrerPolicy = 'no-referrer';
     el.src = src;
 
-    const close = h('button', { className: 'media-lightbox-x', type: 'button', title: 'Close' });
+    const close = h('button', { className: 'media-lightbox-x', type: 'button', title: t('Close') });
     close.append(icon('x'));
 
     let gone = false;
@@ -1961,7 +1971,7 @@ window.SidecarCore = (function () {
       el.replaceWith(wrap);
       wrap.append(el);
 
-      const btn = h('button', { className: 'note-media-zoom', type: 'button', title: 'Show the full image' });
+      const btn = h('button', { className: 'note-media-zoom', type: 'button', title: t('Show the full image') });
       btn.append(icon('arrow-up-right'));
       btn.addEventListener('click', (e) => {
         // The quote sits inside a sheet that closes on an outside click, and can sit

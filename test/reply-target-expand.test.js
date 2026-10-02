@@ -76,6 +76,6 @@ test('it reuses the bio toggle rather than inventing a second one', () => {
   // renderAbout already does show-more/show-less with .show-toggle. Two controls that
   // do the same thing in one panel is two things to keep in step.
   assert.match(body, /className: 'show-toggle'/);
-  assert.match(body, /toggle\.textContent = expanded \? 'Show less' : 'Show more'/);
+  assert.match(body, /toggle\.textContent = expanded \? t\('Show less'\) : t\('Show more'\)/);
   assert.match(css, /\.show-toggle \{/);
 });

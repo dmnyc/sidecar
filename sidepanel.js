@@ -12705,7 +12705,7 @@
       // allowed to push the editor off the bottom of the sheet would answer this
       // request by creating the problem one step further down.
       let expanded = false;
-      const toggle = h('button', { className: 'show-toggle', type: 'button', textContent: 'Show more' });
+      const toggle = h('button', { className: 'show-toggle', type: 'button', textContent: t('Show more') });
       toggle.addEventListener('click', () => {
         expanded = !expanded;
         body.innerHTML = '';
@@ -12718,7 +12718,7 @@
         // The fade means "there is more below". Once it scrolls, the scrollbar says so
         // and a gradient over a scrollable region only hides the last line.
         block.classList.toggle('is-clipped', !expanded && wasClipped);
-        toggle.textContent = expanded ? 'Show less' : 'Show more';
+        toggle.textContent = expanded ? t('Show less') : t('Show more');
         if (!expanded) body.scrollTop = 0;
       });
 
