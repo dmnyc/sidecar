@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -53,6 +54,7 @@ function harness(answers, pubkey = 'alice') {
     publishSigned: async (ev) => { published.push(ev); },
     _bmCache: { pubkey: 'alice', evs: [{ id: 'stale' }], events: new Map() },
   };
+  withI18n(ctx); // the errors go through t() now
   vm.createContext(ctx);
   vm.runInContext(lift('async function addBookmark(') + '\nglobalThis.out = addBookmark;', ctx);
   return { add: ctx.out, published, queries, cache: ctx._bmCache };

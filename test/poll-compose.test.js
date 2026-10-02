@@ -253,7 +253,7 @@ test('THE TAB OPENS ON WHAT IT SHOWED LAST TIME', () => {
 
   // And the placeholder belongs to the cold case only. A list that already has rows in it
   // must never be cleared back to a waiting line to say it is checking.
-  assert.match(fill, /waitingRow\('Looking for your polls…'\)/, 'a first open still says what it is doing');
+  assert.match(fill, /waitingRow\(t\('Looking for your polls…'\)\)/, 'a first open still says what it is doing');
   const placeholder = fill.indexOf("'Looking for your polls…'");
   assert.ok(placeholder > paintedFromCache, 'the placeholder must sit in the else branch');
 
@@ -334,7 +334,7 @@ test('the waiting line reads as work, and cannot drift from its own shadow', () 
   // These three are regions, so they take the row, and the row is what bookmarks uses too.
   for (const label of ['Looking for your polls…', 'Counting votes…', 'Fetching the poll…']) {
     assert.doesNotMatch(bare, new RegExp("textContent: '" + label + "'"), label + ' needs an indicator');
-    assert.ok(bare.includes("waitingRow('" + label + "')"), label + ' must use the shared row');
+    assert.ok(bare.includes("waitingRow(t('" + label + "'))"), label + ' must use the shared row');
   }
   // The count cell shimmers only while it is unknown, and is cleared when the value lands.
   //
@@ -505,7 +505,9 @@ test('an empty tally says it too, because that is when the author asks', () => {
   const body = fnBody('function paintPollResults(');
   const empty = body.slice(body.indexOf('if (!voters)'));
   assert.match(empty, /Clients without poll support show nothing to vote on\./);
-  assert.match(empty, /ended \? 'This poll closed without any votes\.' : 'No votes yet\.'/);
+  // Whole sentences per case, not a clause glued on.
+  assert.match(empty, /t\('This poll closed without any votes\. Clients without poll support show nothing to vote on\.'\)/);
+  assert.match(empty, /t\('No votes yet\. Clients without poll support show nothing to vote on\.'\)/);
   assert.match(empty, /className: 'hint'/);
   assert.doesNotMatch(empty, /hint warn/, 'nothing has gone wrong for the reader to fix');
 });
@@ -936,8 +938,8 @@ test('THE TWO CORNERS ARE TWO DIFFERENT EXITS', () => {
   // box at the right, and the arrow only when there is something under it.
   const fn = bare.slice(bare.indexOf('async function openPollResults'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /className: 'modal-x', type: 'button', title: 'Close'/);
-  assert.match(body, /if \(returnTo\) \{\n +const backBtn = h\('button', \{ className: 'modal-x modal-back', type: 'button', title: 'Back' \}\);/);
+  assert.match(body, /className: 'modal-x', type: 'button', title: t\('Close'\)/);
+  assert.match(body, /if \(returnTo\) \{\n +const backBtn = h\('button', \{ className: 'modal-x modal-back', type: 'button', title: t\('Back'\) \}\);/);
   assert.match(body, /backBtn\.append\(icon\('arrow-left'\)\)/);
   assert.match(bare, /'arrow-left': '<line/, 'the icon has to exist, or the button is empty');
 

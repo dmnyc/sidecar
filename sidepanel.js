@@ -1688,13 +1688,13 @@
       author.append(avatarEl(active || {}, 'compose-author-av'));
       author.append(
         h('div', { className: 'compose-author-info' }, [
-          h('span', { className: 'compose-author-eyebrow', textContent: 'Commenting as' }),
+          h('span', { className: 'compose-author-eyebrow', textContent: t('Commenting as') }),
           h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '\u2014' }),
         ])
       );
 
-      const tabWrite = h('button', { className: 'compose-tab active', textContent: 'Write' });
-      const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
+      const tabWrite = h('button', { className: 'compose-tab active', textContent: t('Write') });
+      const tabPreview = h('button', { className: 'compose-tab', textContent: t('Preview') });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
       // The note composer's editor, reused verbatim, so a comment can tag people
@@ -1704,7 +1704,7 @@
       // close \u2014 the overlay click path tears the modal down without going through
       // Cancel, so anything deferred to teardown is the thing that gets lost.
       const commentEditor = createMentionEditor({
-        placeholder: 'Write a comment about this page\u2026',
+        placeholder: t('Write a comment about this page\u2026'),
         onChange: (text) => saveWebCommentDraft(state.activePubkey, target, text),
       });
       // Kept in memory against this page, not in the encrypted store the post composer
@@ -1713,9 +1713,9 @@
       _modalDismissGuard = () => !!commentEditor.getText().trim();
       const previewPane = h('div', { className: 'compose-preview hidden' });
 
-      const post = h('button', { className: 'primary', textContent: 'Post comment' });
+      const post = h('button', { className: 'primary', textContent: t('Post comment') });
       post.disabled = true;
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       let target = null;   // the normalized URL this comments on
@@ -1753,7 +1753,7 @@
         previewPane.innerHTML = '';
         const text = commentEditor.getText().trim();
         if (!text) {
-          previewPane.append(h('p', { className: 'hint', textContent: 'Nothing written yet.' }));
+          previewPane.append(h('p', { className: 'hint', textContent: t('Nothing written yet.') }));
           return;
         }
         // renderNotePreview, not textContent: a mention serializes to a bare
@@ -1789,7 +1789,7 @@
         return a;
       };
 
-      const heading = h('h3', { textContent: 'Comment on this page' });
+      const heading = h('h3', { textContent: t('Comment on this page') });
       const actions = h('div', { className: 'actions' }, [post, cancel]);
 
       // The editor pane. Re-appending the same nodes is enough to come back from the
@@ -1814,7 +1814,7 @@
         const text = commentEditor.getText().trim();
         showCommentEditor(); // the countdown may have replaced the pane
         post.disabled = true;
-        post.textContent = 'Posting\u2026';
+        post.textContent = t('Posting\u2026');
         try {
           // Same opt-out the note composer honours (Settings → "Show client tag").
           const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
@@ -1838,27 +1838,27 @@
           post.classList.add('hidden');
           done.classList.remove('hidden');
           done.append(
-            h('div', { className: 'webcomment-done-title', textContent: 'Comment posted' }),
+            h('div', { className: 'webcomment-done-title', textContent: t('Comment posted') }),
             // Jumble is named because it's currently the only client that renders a
             // kind:1111 over a web target \u2014 "view your comment" without saying where
             // suggests it's visible wherever you normally read Nostr, and it isn't.
             // Drop the name once other clients catch up.
-            nevent ? link('View your comment on Jumble \u2192', jumbleNoteUrl(nevent)) : document.createTextNode(''),
-            link('See all comments on this page \u2192', jumbleThreadUrl(target))
+            nevent ? link(t('View your comment on {{client}} \u2192', { client: 'Jumble' }), jumbleNoteUrl(nevent)) : document.createTextNode(''),
+            link(t('See all comments on this page \u2192'), jumbleThreadUrl(target))
           );
-          cancel.textContent = 'Close';
-          toast('Comment posted', 'success');
+          cancel.textContent = t('Close');
+          toast(t('Comment posted'), 'success');
         } catch (e) {
-          err.textContent = (e && e.message) || 'Could not post that comment.';
+          err.textContent = (e && e.message) || t('Could not post that comment.');
           post.disabled = false;
-          post.textContent = 'Post comment';
+          post.textContent = t('Post comment');
         }
       }
 
       post.addEventListener('click', async () => {
         const text = commentEditor.getText().trim();
-        if (!target) return (err.textContent = 'No page to comment on.');
-        if (!text) return (err.textContent = 'Write something first.');
+        if (!target) return (err.textContent = t('No page to comment on.'));
+        if (!text) return (err.textContent = t('Write something first.'));
         err.textContent = '';
         // Same setting the note composer reads — "Review countdown before posting"
         // covers everything publishable, so this doesn't get a switch of its own.
@@ -1878,14 +1878,14 @@
           // parameter. A comment carries an identity as publicly as a note does.
           author: composeAuthorStrip(),
           secs,
-          title: 'Posting your comment',
-          hint: 'Check the page and your comment before it posts.',
+          title: t('Posting your comment'),
+          hint: t('Check the page and your comment before it posts.'),
           preview: cdPreview,
           onFire: doPost,
           onCancel: () => {
             showCommentEditor();
             post.disabled = false;
-            post.textContent = 'Post comment';
+            post.textContent = t('Post comment');
             commentEditor.focus();
           },
         });
@@ -2155,7 +2155,7 @@
     publish: async (relay, event) => {
       const results = await Promise.allSettled(poolPublish([relay], event));
       if (!results.some((r) => !publishFailed(r))) {
-        throw new Error('Could not reach the relay this offer listens on.');
+        throw new Error(t('Could not reach the relay this offer listens on.'));
       }
     },
   });
@@ -2189,7 +2189,7 @@
   // pay block builds its code.
   function openPayQr(value, label) {
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: t('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
       modal.append(xClose, h('h3', { textContent: label }));
@@ -2205,11 +2205,11 @@
       copy.addEventListener('click', async () => {
         try {
           await copyPlain(value);
-          copy.textContent = 'Copied ✓';
+          copy.textContent = t('Copied ✓');
           setTimeout(() => (copy.textContent = value), 1200);
         } catch (_) {}
       });
-      out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Scan or copy to pay from any wallet.' }));
+      out.append(canvas, copy, h('p', { className: 'hint', textContent: t('Scan or copy to pay from any wallet.') }));
       modal.append(out);
     });
   }
@@ -2287,13 +2287,13 @@
           if (!modal.isConnected) return;
           if ((list || []).some((c) => c.pubkey === pubkey)) {
             rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
-            rel.append(h('span', { className: 'profile-stat', textContent: 'You follow' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: t('You follow') }));
           }
         }).catch(() => {});
         followsYou(pubkey).then((yes) => {
           if (modal.isConnected && yes) {
             rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
-            rel.append(h('span', { className: 'profile-stat', textContent: 'Follows you' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: t('Follows you') }));
           }
         });
       }
@@ -2895,15 +2895,15 @@
       // Only ever a positive claim. Tier 0 gets nothing rather than "unknown":
       // absence of a vouch is not evidence, and labelling it would read as an
       // accusation the panel cannot support.
-      if (c.tier === 2) item.append(h('span', { className: 'ac-item-trust', textContent: 'Following' }));
-      else if (c.tier === 1) item.append(h('span', { className: 'ac-item-trust', textContent: 'In your network' }));
+      if (c.tier === 2) item.append(h('span', { className: 'ac-item-trust', textContent: t('Following') }));
+      else if (c.tier === 1) item.append(h('span', { className: 'ac-item-trust', textContent: t('In your network') }));
       item.addEventListener('mousedown', (e) => { e.preventDefault(); closeSearch(); openProfileSheet(c.pubkey); });
       box.append(item);
     });
     if (loading) {
       box.append(h('div', { className: 'ac-loading' }, [
         h('span', { className: 'ac-spinner' }),
-        h('span', { textContent: items.length ? 'Searching more…' : 'Searching Nostr…' }),
+        h('span', { textContent: items.length ? t('Searching more…') : t('Searching Nostr…') }),
       ]));
     }
     // Above the results, same as the composer dropdown: this box caps and scrolls
@@ -4685,8 +4685,10 @@
     options.forEach((o) => { top = Math.max(top, counts.get(o.id) || 0); });
     if (!top) return null;
     const leaders = options.filter((o) => (counts.get(o.id) || 0) === top);
-    if (leaders.length > 1) return { label: 'Tied', share: top + ' of ' + voters };
-    return { label: leaders[0].label, share: top + ' of ' + voters };
+    // "3 of 5": the winning votes against everyone who voted, as one phrase.
+    const share = t('{{top}} of {{voters}}', { top: I18N.fmtNum(top), voters: I18N.fmtNum(voters) });
+    if (leaders.length > 1) return { label: t('Tied'), share };
+    return { label: leaders[0].label, share };
   }
 
   // Whether the row shows a result rather than a countdown. Both non-open groups do.
@@ -4845,7 +4847,7 @@
   async function devComposerReply(target, selectedKind) {
     if (!isDevBuild() || !selectedKind) return target ? replyTags(target) : null;
     if (!target) {
-      if (selectedKind === WEB_COMMENT_KIND) throw new Error('Reply to a note to create a kind 1111 comment.');
+      if (selectedKind === WEB_COMMENT_KIND) throw new Error(t('Reply to a note to create a kind 1111 comment.'));
       return null;
     }
     const normal = replyTags(target);
@@ -4856,7 +4858,7 @@
       const rootId = rootTag ? rootTag[1] : target.id;
       const rootAuthor = rootId === target.id ? target.pubkey
         : rootTag[4] || (await fetchNoteById(rootId))?.pubkey;
-      if (!rootAuthor) throw new Error('Could not load the thread author. Try again before posting this comment.');
+      if (!rootAuthor) throw new Error(t('Could not load the thread author. Try again before posting this comment.'));
       return { kind: WEB_COMMENT_KIND, tags: [
         ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
         ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,
@@ -8177,7 +8179,7 @@
       check.classList.add('active-check');
       actions.appendChild(check);
     }
-    const moreBtn = iconButton('Account options', 'more', () => accountMenuModal(a));
+    const moreBtn = iconButton(t('Account options'), 'more', () => accountMenuModal(a));
     actions.appendChild(moreBtn);
 
     if (!isActive) {
@@ -8187,7 +8189,7 @@
       const clickables = [av, main];
       for (const el of clickables) {
         el.style.cursor = 'pointer';
-        el.title = 'Set as active account';
+        el.title = t('Set as active account');
       }
       // WHILE ARMED, THE SLOT HOLDS A CANCEL INSTEAD OF THE MENU. Arming a row used to
       // have no way out: the two lines rewrite to "Set as active?" / "Tap again to
@@ -8223,8 +8225,8 @@
           if (!(await offerTabReload())) maybeShowSwitchTip();
         } else {
           row.classList.add('item-pending');
-          label.textContent = 'Set as active?';
-          sub.textContent = 'Tap again to confirm';
+          label.textContent = t('Set as active?');
+          sub.textContent = t('Tap again to confirm');
           if (moreBtn.parentElement) actions.replaceChild(cancelBtn, moreBtn);
         }
       };
@@ -8249,7 +8251,7 @@
     const chev = icon('chevron-down');
     chev.classList.add('account-stats-chevron');
     if (!accountStatsExpanded) chev.style.transform = 'rotate(-90deg)';
-    header.append(chev, document.createTextNode('Overview'));
+    header.append(chev, document.createTextNode(t('Overview')));
     header.addEventListener('click', () => {
       accountStatsExpanded = !accountStatsExpanded;
       drawer.classList.toggle('collapsed', !accountStatsExpanded);
@@ -8273,7 +8275,7 @@
     const relayNum = placeholder();
     // The relay label is variable, unlike the other two: the number is meaningless
     // without saying WHICH set it counts, so loadStats() rewrites it below.
-    const relayLabel = h('span', { className: 'account-stat-block-label', textContent: 'Relays' });
+    const relayLabel = h('span', { className: 'account-stat-block-label', textContent: t('Relays') });
     function statBlock(iconName, numEl, label) {
       const ic = icon(iconName);
       ic.classList.add('account-stat-block-ic');
@@ -8287,8 +8289,8 @@
     }
     const relayBlock = statBlock('wifi', relayNum, relayLabel);
     const topRow = h('div', { className: 'account-stat-grid' }, [
-      statBlock('users', followNum, 'Following'),
-      statBlock('bell', notifNum, 'Alerts'),
+      statBlock('users', followNum, t('Following')),
+      statBlock('bell', notifNum, t('Alerts')),
       relayBlock,
     ]);
 
@@ -8309,7 +8311,7 @@
       const btn = h('button', { className: 'account-stat-notset', title });
       const ic = icon('help-circle');
       ic.classList.add('account-stat-help');
-      btn.append(ic, document.createTextNode('Not set'));
+      btn.append(ic, document.createTextNode(t('Not set')));
       btn.addEventListener('click', () => openExtensionPage('help.html', hash));
       return btn;
     }
@@ -8336,10 +8338,10 @@
 
     // Same shape as notSetLink, for a read that failed rather than came back empty.
     function retryLink() {
-      const btn = h('button', { className: 'account-stat-notset', title: 'The relays didn’t answer. Try again.' });
+      const btn = h('button', { className: 'account-stat-notset', title: t('The relays didn’t answer. Try again.') });
       const ic = icon('reload');
       ic.classList.add('account-stat-help');
-      btn.append(ic, document.createTextNode('Couldn’t load'));
+      btn.append(ic, document.createTextNode(t('Couldn’t load')));
       btn.addEventListener('click', retryFailed);
       return btn;
     }
@@ -8351,13 +8353,13 @@
 
     const idSection = h('div', { className: 'account-stat-ids' }, [
       idRow('badge-check', 'NIP-05', nip05Val),
-      idRow('zap', 'Lightning', lud16Val),
-      idRow('wallet', 'Wallet', walletVal),
+      idRow('zap', t('Lightning'), lud16Val),
+      idRow('wallet', t('Wallet'), walletVal),
     ]);
 
     // Profile link.
     const profileLink = h('button', { className: 'account-stats-link' }, [
-      document.createTextNode('View full profile'),
+      document.createTextNode(t('View full profile')),
       icon('arrow-up-right'),
     ]);
     profileLink.addEventListener('click', () => {
@@ -8377,7 +8379,7 @@
       // row can take up to the 8s backstop, long enough that a static mark looks stuck.
       nip05Val.textContent = '';
       lud16Val.textContent = '';
-      const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), 'Loading…', true)));
+      const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), t('Loading…'), true)));
       const rec = await getProfile(pubkey);
       idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
@@ -8406,7 +8408,7 @@
           paintNip05Favicon(nip05Val, content.nip05, res);
         });
       } else {
-        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
+        nip05Val.appendChild(notSetLink(t('What is a NIP-05?'), '#nip05'));
       }
 
       if (content.lud16) {
@@ -8414,7 +8416,7 @@
         ok.classList.add('stat-mini-ok');
         lud16Val.append(ok, document.createTextNode(content.lud16));
       } else {
-        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
+        lud16Val.appendChild(notSetLink(t('What is a Lightning address?'), '#lightning-address'));
       }
     }
 
@@ -8439,7 +8441,7 @@
       Promise.all([getNip65(pubkey), nip65OnlyFor(pubkey)]).then(async ([nip65, only]) => {
         const declared = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
         let count = declared;
-        let label = 'Relays';
+        let label = t('Relays');
         let warn = false;
         if (!declared) {
           if (only) {
@@ -8447,18 +8449,13 @@
             // publish. 0 is accurate here, but it's a fault to flag, not a neutral
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
-            relayBlock.title =
-              'Bootstrap relays are off for this account, but it has no published relay list, ' +
-              'so it can’t publish. Publish a relay list from the Profile tab, or turn ' +
-              'bootstrap relays back on in Settings.';
+            relayBlock.title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
             // keeps the number honest instead of silently reporting a different set.
             count = (await relayUrls(false)).length;
-            label = 'Bootstrap';
-            relayBlock.title =
-              'Using Sidecar’s bootstrap relays. Publish a relay list from the Profile ' +
-              'tab to use your own.';
+            label = t('Bootstrap');
+            relayBlock.title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
           }
         }
         relayNum.textContent = String(count);
@@ -8474,7 +8471,7 @@
       // colored check or X so the state reads at a glance.
       call({ type: 'SIDECAR_NWC_META' }).then(async ({ has }) => {
         if (!has) {
-          const link = h('button', { className: 'account-stat-add-link', textContent: 'Add wallet →' });
+          const link = h('button', { className: 'account-stat-add-link', textContent: t('Add wallet →') });
           link.addEventListener('click', () => {
             const tab = document.querySelector('.tab[data-tab="wallet"]');
             if (tab) tab.click();
@@ -8526,8 +8523,14 @@
     b.textContent = '';
     b.append(icon(name), h('span', { textContent: text }));
   }
-  labelButton('add-generate', 'user-plus', 'Generate new');
-  labelButton('add-import', 'download', 'Import nsec');
+  // Labeled at load and again once the language file is in: this runs before it has
+  // loaded, when t() still answers in English.
+  const labelAddButtons = () => {
+    labelButton('add-generate', 'user-plus', t('Generate new'));
+    labelButton('add-import', 'download', t('Import nsec'));
+  };
+  labelAddButtons();
+  I18N.ready.catch(() => {}).then(labelAddButtons);
   $('add-generate').addEventListener('click', () => generateAccount());
   $('add-import').addEventListener('click', () => importAccountModal());
   $('add-account-link').addEventListener('click', () => addAccountModal());
@@ -11376,7 +11379,7 @@
       if (m.words.length) extras.push(plural(m.words.length, 'word'));
       if (m.threads.size) extras.push(plural(m.threads.size, 'thread'));
       if (labelEl && extras.length) {
-        labelEl.title = 'Also muted: ' + extras.join(', ') + '. Only people are counted here.';
+        labelEl.title = t('Also muted: {{list}}. Only people are counted here.', { list: extras.join(', ') });
       }
     } catch (_) {
       setWaiting(numEl, '—', false); // a dash is an answer, and must not keep sweeping
@@ -11440,10 +11443,10 @@
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
-      textContent: 'Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.',
+      textContent: t('Also search every Nostr name? This uses a third-party index ({{host}}) that sees what you type and who you follow.', { host: 'api.nostrarchives.com' }),
     }));
-    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: 'Search everyone' });
-    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: 'Just my follows' });
+    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: t('Search everyone') });
+    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: t('Just my follows') });
     const pick = (on) => (e) => { e.preventDefault(); e.stopPropagation(); onDecided(on); };
     yes.addEventListener('mousedown', pick(true));
     no.addEventListener('mousedown', pick(false));
@@ -11586,14 +11589,14 @@
   }
 
   function npubChip(npub) {
-    const el = h('div', { className: 'profile-npub', title: 'Copy npub' });
+    const el = h('div', { className: 'profile-npub', title: t('Copy npub') });
     el.append(icon('copy'), h('span', { textContent: shortNpub(npub) }));
     el.addEventListener('click', async () => {
       try {
         await copyPlain(npub);
         const span = el.querySelector('span');
         const prev = span.textContent;
-        span.textContent = 'Copied ✓';
+        span.textContent = t('Copied ✓');
         setTimeout(() => (span.textContent = prev), 1200);
       } catch (_) {}
     });
@@ -11668,12 +11671,12 @@
 
     requestAnimationFrame(() => {
       if (bodyEl.scrollHeight > bodyEl.clientHeight + 4) {
-        const toggle = h('button', { className: 'show-toggle', textContent: 'Show more' });
+        const toggle = h('button', { className: 'show-toggle', textContent: t('Show more') });
         let expanded = false;
         toggle.addEventListener('click', () => {
           expanded = !expanded;
           bodyEl.classList.toggle('about-clamp', !expanded);
-          toggle.textContent = expanded ? 'Show less' : 'Show more';
+          toggle.textContent = expanded ? t('Show less') : t('Show more');
         });
         container.append(toggle);
       } else {
@@ -12240,7 +12243,7 @@
     author.append(avatarEl(active || {}, 'compose-author-av'));
     author.append(
       h('div', { className: 'compose-author-info' }, [
-        h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+        h('span', { className: 'compose-author-eyebrow', textContent: t('Posting as') }),
         h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
       ])
     );
@@ -12349,12 +12352,12 @@
     const fab = $('compose-fab');
     if (fab) {
       fab.disabled = locked;
-      fab.title = locked ? 'Mining a post. Stop it first.' : 'Post a note';
+      fab.title = locked ? t('Mining a post. Stop it first.') : t('Post a note');
     }
     const acct = $('acct-btn');
     if (acct) {
       acct.disabled = locked || !((state && state.accounts) || []).length;
-      if (locked) acct.title = 'Mining a post for this account';
+      if (locked) acct.title = t('Mining a post for this account');
       else acct.removeAttribute('title');
     }
   }
@@ -13654,7 +13657,7 @@
       // what this last screen shows. Media alone still previews as the note it is.
       const bodyText = composeNoteContent(draft.text, draft.media);
       if (bodyText) renderNotePreview(previewBody, bodyText);
-      else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
+      else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? t('Empty reply.') : t('Empty note.') }));
       previewScroll.append(previewBody);
       // THE CHOICES BELONG ON THIS SCREEN TOO. It is the last thing seen before the
       // event goes out, and for a poll the options are most of what is being published:
@@ -14270,7 +14273,7 @@
       if (!polls.length) {
         list.classList.add('empty');
         list.append(
-          h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
+          h('p', { className: 'hint', textContent: t('No polls yet. The composer can post one.') })
         );
         return { cells: new Map(), leads: new Map() };
       }
@@ -14358,7 +14361,7 @@
       // The same row the bookmarks list uses, because it is the same situation: a list with
       // room for a line, waiting to fill. It shimmered here and spun there, which is the
       // divergence this rule exists to end.
-      list.append(waitingRow('Looking for your polls…'));
+      list.append(waitingRow(t('Looking for your polls…')));
     }
 
     let polls = [];
@@ -14609,14 +14612,14 @@
     const ended = pollHasEnded(endsAt);
 
     const meta = [
-      multiple ? 'Multiple choice' : 'Single choice',
+      multiple ? t('Multiple choice') : t('Single choice'),
       pollEndsText(endsAt),
       tn('{{count}} vote', '{{count}} votes', voters),
     ];
     container.append(h('div', { className: 'poll-result-meta', textContent: meta.join(' · ') }));
 
     if (!options.length) {
-      container.append(h('p', { className: 'hint', textContent: 'This poll carries no options.' }));
+      container.append(h('p', { className: 'hint', textContent: t('This poll carries no options.') }));
       return;
     }
 
@@ -14735,9 +14738,9 @@
           // gets asked: a poll with nothing on it is the moment an author wonders whether
           // anyone saw it. Only on an empty tally, so it is not repeated copy, and a plain
           // hint rather than .hint warn, because here it is an explanation, not a caution.
-          textContent:
-            (ended ? 'This poll closed without any votes.' : 'No votes yet.') +
-            ' Clients without poll support show nothing to vote on.',
+          textContent: ended
+            ? t('This poll closed without any votes. Clients without poll support show nothing to vote on.')
+            : t('No votes yet. Clients without poll support show nothing to vote on.'),
         })
       );
     }
@@ -14761,22 +14764,22 @@
       // both the way back to that sheet and the way out of the whole stack. Icon buttons
       // in the corners rather than words in the actions column: the column is where the
       // things you do to this poll live, and neither of these is one of those.
-      const xBtn = h('button', { className: 'modal-x', type: 'button', title: 'Close' });
+      const xBtn = h('button', { className: 'modal-x', type: 'button', title: t('Close') });
       xBtn.append(icon('x'));
       xBtn.addEventListener('click', () => { dismissAll = true; closeModal(); });
       modal.append(xBtn);
       if (returnTo) {
-        const backBtn = h('button', { className: 'modal-x modal-back', type: 'button', title: 'Back' });
+        const backBtn = h('button', { className: 'modal-x modal-back', type: 'button', title: t('Back') });
         backBtn.append(icon('arrow-left'));
         backBtn.addEventListener('click', closeModal);
         modal.append(backBtn);
       }
 
-      modal.append(h('h3', { textContent: 'Poll results' }));
+      modal.append(h('h3', { textContent: t('Poll results') }));
       const question = h('p', { className: 'poll-result-question' });
       const body = h('div', { className: 'poll-result-body' });
-      body.append(waitingRow('Counting votes…'));
-      const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
+      body.append(waitingRow(t('Counting votes…')));
+      const recount = h('button', { className: 'secondary', textContent: t('Refresh') });
       const openOut = h('button', { className: 'ghost hidden' });
       const actions = h('div', { className: 'actions' }, [recount, openOut]);
       modal.append(question, body, actions);
@@ -14788,14 +14791,14 @@
         try {
           if (!pollEv) {
             body.innerHTML = '';
-            body.append(waitingRow('Fetching the poll…'));
+            body.append(waitingRow(t('Fetching the poll…')));
             pollEv = await loadPollEvent(typeof poll === 'string' ? poll : poll.id, relayHints);
           }
           if (!pollEv) {
             question.textContent = '';
             body.innerHTML = '';
             body.append(
-              h('p', { className: 'hint', textContent: 'That poll could not be found on your relays.' })
+              h('p', { className: 'hint', textContent: t('That poll could not be found on your relays.') })
             );
             return;
           }
@@ -14810,12 +14813,12 @@
             const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
             client = resolveClient(settings, state.activePubkey);
             const url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
-            openOut.textContent = 'Open in ' + client.label;
+            openOut.textContent = t('Open in {{client}}', { client: client.label });
             openOut.classList.remove('hidden');
             openOut.onclick = () => openInClient(url);
           } catch (_) {}
           body.innerHTML = '';
-          body.append(waitingRow('Counting votes…'));
+          body.append(waitingRow(t('Counting votes…')));
           const votes = await fetchPollVotes(pollEv);
           if (!body.isConnected) return;
           paintPollResults(body, pollEv, votes, client);
@@ -14879,13 +14882,13 @@
   // that is the right way round.
   async function addBookmark(ev) {
     const pubkey = state.activePubkey;
-    if (!pubkey) throw new Error('No account is unlocked.');
+    if (!pubkey) throw new Error(t('No account is unlocked.'));
     const relays = await readRelayUrls(pubkey);
     const got = await poolQuerySync(relays, { kinds: [0, 10003], authors: [pubkey] }, { maxWait: 6000 });
     const lists = (got || []).filter((e) => e.kind === 10003).sort((a, b) => b.created_at - a.created_at);
     const list = lists[0] || null;
     if (!list && !(got || []).some((e) => e.kind === 0)) {
-      throw new Error('Could not read your bookmarks, so nothing was published.');
+      throw new Error(t('Could not read your bookmarks, so nothing was published.'));
     }
     const tags = list ? list.tags.map((t) => t.slice()) : [];
     if (tags.some((t) => t[0] === 'e' && t[1] === ev.id)) return false;
@@ -14956,11 +14959,11 @@
     if (!state?.activePubkey) return;
     openModal((modal) => {
       modal.classList.add('modal-sheet');
-      const x = h('button', { className: 'modal-x', title: 'Close' });
+      const x = h('button', { className: 'modal-x', title: t('Close') });
       x.appendChild(icon('x'));
       x.addEventListener('click', closeModal);
       const scroll = h('div', { className: 'bm-scroll' });
-      modal.append(x, h('h3', { textContent: 'Bookmarks' }), scroll);
+      modal.append(x, h('h3', { textContent: t('Bookmarks') }), scroll);
       const gone = () => $('modal-overlay').classList.contains('hidden');
       if (_bmCache.pubkey === state.activePubkey && _bmCache.evs) {
         fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
@@ -14977,7 +14980,7 @@
         // goes straight from this screen to the empty one, and a quote that changed on
         // the way would be a quote nobody finished reading.
         const waitQuote = pickQuote();
-        scroll.append(loadingQuote('Reading your relays…', waitQuote));
+        scroll.append(loadingQuote(t('Reading your relays…'), waitQuote));
         refreshBookmarks().then(() => {
           if (!gone()) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events, waitQuote);
         });
@@ -15035,7 +15038,7 @@
     const panelQuote = q || pickQuote();
     const empty = () => {
       scroll.textContent = '';
-      scroll.append(emptyQuote('Bookmark a note from any Nostr client and it shows up here.', panelQuote));
+      scroll.append(emptyQuote(t('Bookmark a note from any Nostr client and it shows up here.'), panelQuote));
     };
     if (!sections.length) return empty();
 
@@ -15058,11 +15061,11 @@
       const prof = ref ? profiles.get(ref.pubkey) : null;
       let npub = '';
       if (ref) { try { npub = NT.nip19.npubEncode(ref.pubkey); } catch (_) {} }
-      const item = h('div', { className: 'bm-item' + (missing ? ' bm-missing' : ''), title: 'Open in your web client' });
+      const item = h('div', { className: 'bm-item' + (missing ? ' bm-missing' : ''), title: t('Open in your web client') });
       const main = h('div', { className: 'bm-main' }, [
         h('div', { className: 'bm-head' }, [
           avatarEl({ picture: prof && prof.picture, npub }, 'bm-av'),
-          h('div', { className: 'bm-name', textContent: (prof && prof.name) || (npub ? shortNpub(npub) : 'Unknown author') }),
+          h('div', { className: 'bm-name', textContent: (prof && prof.name) || (npub ? shortNpub(npub) : t('Unknown author')) }),
         ]),
         h('div', {
           className: 'bm-snippet',
@@ -15088,7 +15091,7 @@
         confirmRow.remove();
         confirmRow.textContent = '';
         actions.textContent = '';
-        actions.append(iconButton('Remove bookmark', 'x', (e) => {
+        actions.append(iconButton(t('Remove bookmark'), 'x', (e) => {
           e.stopPropagation();
           drawConfirm();
         }));
@@ -15097,12 +15100,12 @@
         confirming = true;
         item.classList.add('bm-confirming');
         confirmRow.textContent = '';
-        const yes = h('button', { className: 'mini del-confirm', textContent: 'Remove' });
-        const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+        const yes = h('button', { className: 'mini del-confirm', textContent: t('Remove') });
+        const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
         yes.addEventListener('click', async (e) => {
           e.stopPropagation();
           yes.disabled = true;
-          yes.textContent = 'Removing…';
+          yes.textContent = t('Removing…');
           // Republish the owning list minus EVERY e-tag for this id — a client
           // that wrote the same bookmark twice should see both copies go. The
           // 30001's d-tag rides through untouched (only e-tags are filtered),
@@ -15116,14 +15119,14 @@
             item.remove();
             if (group && !group.querySelector('.bm-item')) group.remove();
             if (!list.querySelector('.bm-item')) empty();
-            toast('Bookmark removed', 'success');
+            toast(t('Bookmark removed'), 'success');
           } catch (err) {
-            toast((err && err.message) || 'Could not remove the bookmark', 'error');
+            toast((err && err.message) || t('Could not remove the bookmark'), 'error');
             drawResting();
           }
         });
         no.addEventListener('click', (e) => { e.stopPropagation(); drawResting(); });
-        confirmRow.append(h('span', { className: 'confirm-msg', textContent: 'Remove this bookmark?' }), yes, no);
+        confirmRow.append(h('span', { className: 'confirm-msg', textContent: t('Remove this bookmark?') }), yes, no);
         item.append(confirmRow);
       };
       drawResting();
@@ -15177,7 +15180,7 @@
       if (s.title) group.append(h('div', { className: 'bm-cat', textContent: s.title }));
       found.forEach((id) => group.append(buildRow(id, s.ev, false)));
       if (missing.length) {
-        if (found.length) group.append(h('div', { className: 'bm-missing-head', textContent: 'Not on your relays' }));
+        if (found.length) group.append(h('div', { className: 'bm-missing-head', textContent: t('Not on your relays') }));
         missing.forEach((id) => group.append(buildRow(id, s.ev, true)));
       }
       list.append(group);
