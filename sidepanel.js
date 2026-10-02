@@ -94,7 +94,7 @@
         fn(arg);
       };
       const timer = setTimeout(
-        () => finish(reject, new Error('Sidecar’s background worker did not respond.')),
+        () => finish(reject, new Error(t('Sidecar’s background worker did not respond.'))),
         timeoutMs || BG_TIMEOUT_MS
       );
       try {
@@ -102,7 +102,7 @@
           // Read INSIDE the callback and before anything else: this is what marks the
           // error as handled, and it is only readable here.
           const err = chrome.runtime.lastError;
-          if (err) return finish(reject, new Error(err.message || 'Sidecar’s background worker is unavailable.'));
+          if (err) return finish(reject, new Error(err.message || t('Sidecar’s background worker is unavailable.')));
           finish(resolve, resp);
         });
       } catch (e) {
@@ -114,7 +114,7 @@
   async function call(message) {
     const resp = await bg(message);
     if (!resp || !resp.ok) {
-      const err = new Error((resp && resp.error) || 'Request failed');
+      const err = new Error((resp && resp.error) || t('Request failed'));
       // The wipe check refuses an owner sign by throwing; carrying the finding
       // through lets a caller offer a specific confirmation ("Removes all 1,071
       // accounts you follow") rather than a generic failure.
@@ -3031,7 +3031,7 @@
   function maybeShowSwitchTip() {
     chrome.storage.local.get('switchTipDismissed', ({ switchTipDismissed }) => {
       if (switchTipDismissed || $('switch-tip')) return;
-      const x = h('button', { className: 'switch-tip-x', title: 'Dismiss' });
+      const x = h('button', { className: 'switch-tip-x', title: t('Dismiss') });
       x.append(icon('x'));
       x.addEventListener('click', () => {
         chrome.storage.local.set({ switchTipDismissed: true });
@@ -3040,7 +3040,7 @@
       const guideLink = h('a', {
         className: 'switch-tip-link',
         href: '#',
-        textContent: 'Read the guide →',
+        textContent: t('Read the guide →'),
       });
       guideLink.addEventListener('click', (e) => {
         e.preventDefault();
@@ -3049,12 +3049,12 @@
       const tip = h('div', { id: 'switch-tip', className: 'switch-tip' }, [
         h('div', { className: 'switch-tip-title' }, [
           icon('refresh'),
-          h('span', { textContent: 'Switching accounts?' }),
+          h('span', { textContent: t('Switching accounts?') }),
         ]),
         h('p', {
           className: 'switch-tip-body',
           textContent:
-            'Clients keep using the account you logged in with. Reload the page or log out and back in to switch accounts.',
+            t('Clients keep using the account you logged in with. Reload the page or log out and back in to switch accounts.'),
         }),
         guideLink,
         x,
@@ -3081,14 +3081,14 @@
         chrome.storage.local.remove('versionCard');
         card.remove();
       };
-      const x = h('button', { className: 'switch-tip-x', title: 'Dismiss' });
+      const x = h('button', { className: 'switch-tip-x', title: t('Dismiss') });
       x.append(icon('x'));
       x.addEventListener('click', done);
 
       const link = h('a', {
         className: 'switch-tip-link',
         href: '#',
-        textContent: "See what's new →",
+        textContent: t("See what's new →"),
       });
       link.addEventListener('click', (e) => {
         e.preventDefault();
@@ -3101,7 +3101,7 @@
       const card = h('div', { id: 'version-card', className: 'switch-tip version-card' }, [
         h('div', { className: 'switch-tip-title' }, [
           icon('sparkle'),
-          h('span', { textContent: 'Updated to ' + versionCard.to }),
+          h('span', { textContent: t('Updated to {{version}}', { version: versionCard.to }) }),
         ]),
         h('p', {
           className: 'switch-tip-body',
@@ -3329,7 +3329,7 @@
     // The two never collide: you cannot switch to the account you are already on, so an
     // active row never arms.
     function armCancel(row, a) {
-      const cancel = iconButton('Cancel', 'x', (e) => {
+      const cancel = iconButton(t('Cancel'), 'x', (e) => {
         e.stopPropagation();
         resetRow(row, a);
       });
@@ -3368,8 +3368,8 @@
             if (!(await offerTabReload())) maybeShowSwitchTip();
           } else {
             row.classList.add('acct-row-pending');
-            row.querySelector('.acct-row-name').textContent = 'Switch to ' + displayName(a) + '?';
-            row.querySelector('.acct-row-npub').textContent = 'Tap again to confirm';
+            row.querySelector('.acct-row-name').textContent = t('Switch to {{name}}?', { name: displayName(a) });
+            row.querySelector('.acct-row-npub').textContent = t('Tap again to confirm');
             pendingRow = row;
             row.dataset.pubkey = a.pubkey;
             armCancel(row, a);
@@ -3383,7 +3383,7 @@
     // so there's one path to Generate/Import rather than two.
     const addRow = h('button', { className: 'acct-row foot' }, [
       h('span', { className: 'add-account-badge sm' }, [icon('plus')]),
-      h('span', { className: 'acct-row-name', textContent: 'Add account' }),
+      h('span', { className: 'acct-row-name', textContent: t('Add account') }),
     ]);
     addRow.addEventListener('click', () => {
       closeAcctMenu();
@@ -3392,7 +3392,7 @@
     menu.append(addRow);
 
     const foot = h('button', { className: 'acct-row foot' }, [
-      h('span', { className: 'acct-row-name', textContent: 'Manage accounts' }),
+      h('span', { className: 'acct-row-name', textContent: t('Manage accounts') }),
     ]);
     foot.addEventListener('click', () => {
       closeAcctMenu();
@@ -7855,12 +7855,12 @@
     wrap.append(
       sparks,
       mark,
-      h('h2', { className: 'welcome-title', textContent: 'Welcome to Sidecar' }),
+      h('h2', { className: 'welcome-title', textContent: t('Welcome to Sidecar') }),
       h('p', {
         className: 'welcome-sub',
-        textContent: 'A classy Nostr signer and Lightning wallet that lives in your browser sidebar.',
+        textContent: t('A classy Nostr signer and Lightning wallet that lives in your browser sidebar.'),
       }),
-      h('p', { className: 'welcome-cta', textContent: 'Create a new account or import your nsec to begin.' })
+      h('p', { className: 'welcome-cta', textContent: t('Create a new account or import your nsec to begin.') })
     );
     return wrap;
   }
@@ -7974,7 +7974,7 @@
     if (!hasAccounts && !tip) {
       tip = h('div', { id: 'welcome-tip', className: 'welcome-tip' }, [
         icon('pin'),
-        h('span', { textContent: 'For the best experience, keep Sidecar pinned and open in your sidebar.' }),
+        h('span', { textContent: t('For the best experience, keep Sidecar pinned and open in your sidebar.') }),
       ]);
       document.querySelector('#tab-accounts .add-actions').insertAdjacentElement('afterend', tip);
     } else if (hasAccounts && tip) {
@@ -8020,7 +8020,7 @@
     applyAvatar($('chip-av'), active || {});
     // The name is no longer drawn in the bar, so the tooltip has to carry it —
     // otherwise two accounts with similar avatars are indistinguishable here.
-    $('acct-btn').title = active ? 'Switch account — ' + displayName(active) : 'No account';
+    $('acct-btn').title = active ? t('Switch account: {{name}}', { name: displayName(active) }) : t('No account');
     // LAST, and after everything above has had its say. See the note by acct-btn.
     if (miningStatus) setComposeLocked(true);
     refreshBell();
@@ -8767,7 +8767,7 @@
           if (!settle) return;
           nip49Pending.delete(id);
           if (ok) settle.resolve(result);
-          else settle.reject(new Error(error || 'NIP-49 worker failed'));
+          else settle.reject(new Error(error || t('NIP-49 worker failed')));
         };
         nip49Worker.onerror = () => {
           // A packaging miss or a load failure: settle everything waiting and
@@ -8776,7 +8776,7 @@
           nip49WorkerBroken = true;
           for (const [id, settle] of nip49Pending) {
             nip49Pending.delete(id);
-            settle.reject(new Error('NIP-49 worker failed'));
+            settle.reject(new Error(t('NIP-49 worker failed')));
           }
         };
       }
@@ -8823,7 +8823,7 @@
     // are 16–18. A null (undecodable here) falls through — nip49.decrypt is
     // still the validity gate, this only caps the work we'll attempt.
     if (ncryptsecLogn(ncryptsec) > 20) {
-      throw new Error('Incorrect password, or not a valid ncryptsec key.');
+      throw new Error(tSec('Incorrect password, or not a valid ncryptsec key.'));
     }
     let sk;
     try {
@@ -8832,7 +8832,7 @@
       // would otherwise throw nostr-tools' raw error at the user.
       return NT.nip19.nsecEncode(sk);
     } catch (_) {
-      throw new Error('Incorrect password, or not a valid ncryptsec key.');
+      throw new Error(tSec('Incorrect password, or not a valid ncryptsec key.'));
     }
   }
 
@@ -8847,8 +8847,8 @@
     _jsqrPromise = new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = 'jsqr.js';
-      s.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error('QR reader failed to load')));
-      s.onerror = () => { _jsqrPromise = null; reject(new Error('QR reader failed to load')); };
+      s.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error(t('QR reader failed to load'))));
+      s.onerror = () => { _jsqrPromise = null; reject(new Error(t('QR reader failed to load'))); };
       document.head.appendChild(s);
     });
     return _jsqrPromise;
@@ -8922,20 +8922,20 @@
         } catch (_) { /* not a Flate stream, or truncated — try the next */ }
       }
     }
-    throw new Error("No key found in that PDF — is it a Sidecar backup sheet?");
+    throw new Error(t('No key found in that PDF. Is it a Sidecar backup sheet?'));
   }
 
   // Read a key from an image of the backup sheet. Entirely local — the image is a
   // plaintext key and never leaves the extension.
   async function secretFromImageFile(file) {
-    if (!file) throw new Error('No image to read');
-    if (file.type && !/^image\//.test(file.type)) throw new Error('That file is not an image');
+    if (!file) throw new Error(t('No image to read'));
+    if (file.type && !/^image\//.test(file.type)) throw new Error(t('That file is not an image'));
     const jsQR = await ensurePanelJsQR();
     let bmp;
     try {
       bmp = await createImageBitmap(file);
     } catch (_) {
-      throw new Error("Couldn't read that image");
+      throw new Error(t("Couldn't read that image"));
     }
     try {
       // Ascending sizes: the small pass is fast and usually enough for a tight
@@ -8947,9 +8947,9 @@
         if (secret) return secret;
         // A QR was found but holds something else — an npub, a URL, a wallet
         // string. Say so rather than reporting "no code found".
-        throw new Error('That QR code is not a private key');
+        throw new Error(tSec('That QR code is not a private key'));
       }
-      throw new Error('No QR code found in that image');
+      throw new Error(t('No QR code found in that image'));
     } finally {
       if (bmp.close) bmp.close();
     }
@@ -8957,7 +8957,7 @@
 
   // Route on what the user actually picked, so the PDF and a photo of it both work.
   function secretFromFile(file) {
-    if (!file) throw new Error('No file to read');
+    if (!file) throw new Error(t('No file to read'));
     const isPdf = /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
     return isPdf ? secretFromPdfFile(file) : secretFromImageFile(file);
   }
@@ -8969,14 +8969,14 @@
     // watching you.
     let stopCamera = null;
     openModal((modal) => {
-      modal.append(h('h3', { textContent: 'Import account' }));
+      modal.append(h('h3', { textContent: t('Import account') }));
       const err = h('div', { className: 'error' });
       const secretInput = h('input', {
         type: 'password',
         className: 'nsec-field',
         placeholder: 'nsec1…, ncryptsec1…, or 64-char hex',
       });
-      modal.append(h('label', { textContent: 'Private key' }), secretInput);
+      modal.append(h('label', { textContent: tSec('Private key') }), secretInput);
 
       // Read the key from a photo or scan of the printable backup sheet, so
       // restoring doesn't mean transcribing 63 bech32 characters by hand. Fills the
@@ -8987,11 +8987,11 @@
       // matches the Generate/Import buttons on the Accounts tab (.add-actions).
       const camBtn = h('button', { className: 'secondary hidden', type: 'button' }, [
         icon('qr'),
-        h('span', { textContent: 'Scan with camera' }),
+        h('span', { textContent: t('Scan with camera') }),
       ]);
       const fileBtn = h('button', { className: 'secondary', type: 'button' }, [
         icon('file-text'),
-        h('span', { textContent: 'Choose file' }),
+        h('span', { textContent: t('Choose file') }),
       ]);
       const scanRow = h('div', { className: 'scan-qr-row' }, [camBtn, fileBtn]);
       // Labels live in their own spans: assigning textContent to the button would
@@ -9004,7 +9004,7 @@
         className: 'hint compact scan-qr-hint',
         // Leads with the PDF because it's the most reliable path and the one people
         // are most likely to have — the sheet tells them keeping the file is fine.
-        textContent: 'Choose your backup sheet — the PDF, a photo, or a scan. You can paste an image here too.',
+        textContent: t('Choose your backup sheet: the PDF, a photo, or a scan. You can paste an image here too.'),
       });
       const scanFile = document.createElement('input');
       scanFile.type = 'file';
@@ -9023,14 +9023,14 @@
       async function readFile(file) {
         err.textContent = '';
         fileBtn.disabled = true;
-        fileLabel.textContent = 'Reading…';
+        fileLabel.textContent = t('Reading…');
         try {
           accept(await secretFromFile(file), /pdf/i.test(file.type || '') ? 'PDF' : 'image');
         } catch (e) {
           err.textContent = e.message;
         }
         fileBtn.disabled = false;
-        fileLabel.textContent = 'Choose file';
+        fileLabel.textContent = t('Choose file');
       }
 
       fileBtn.addEventListener('click', () => scanFile.click());
@@ -9052,13 +9052,13 @@
         err.textContent = '';
         if (stopCamera) stopCamera(); // a re-click replaces the previous poll
         camBtn.disabled = true;
-        camLabel.textContent = 'Scanning…';
+        camLabel.textContent = t('Scanning…');
         try {
           await call({ type: 'SIDECAR_OPEN_QR_SCANNER' });
         } catch (_) {
           camBtn.disabled = false;
-          camLabel.textContent = 'Scan with camera';
-          err.textContent = "Couldn't open the scanner window.";
+          camLabel.textContent = t('Scan with camera');
+          err.textContent = t("Couldn't open the scanner window.");
           return;
         }
         let tries = 0;
@@ -9082,7 +9082,7 @@
           clearInterval(timer);
           stopCamera = null;
           camBtn.disabled = false;
-          camLabel.textContent = 'Scan with camera';
+          camLabel.textContent = t('Scan with camera');
         };
       });
 
@@ -9099,9 +9099,9 @@
 
       // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
       // to decrypt — shown only once the pasted value looks like one.
-      const cryptPass = h('input', { type: 'password', placeholder: 'Decryption password' });
+      const cryptPass = h('input', { type: 'password', placeholder: tSec('Decryption password') });
       const cryptRow = h('div', { className: 'stack hidden' }, [
-        h('label', { textContent: 'Password' }),
+        h('label', { textContent: tSec('Password') }),
         cryptPass,
       ]);
       modal.append(cryptRow);
@@ -9145,7 +9145,7 @@
         if (!pubkey) return preview.classList.add('hidden');
         const npub = NT.nip19.npubEncode(pubkey);
         applyAvatar(pav, {});
-        pname.textContent = 'Fetching profile…';
+        pname.textContent = t('Fetching profile…');
         pnpub.textContent = shortNpub(npub);
         preview.classList.remove('hidden');
         const prof = await fetchPreviewProfile(pubkey);
@@ -9154,7 +9154,7 @@
           applyAvatar(pav, { picture: prof.picture, name: prof.name });
           pname.textContent = prof.name || shortNpub(npub);
         } else {
-          pname.textContent = 'No profile found';
+          pname.textContent = t('No profile found');
         }
       }
       secretInput.addEventListener('input', () => {
@@ -9170,22 +9170,22 @@
         h('p', {
           className: 'hint',
           textContent:
-            'Your nsec stays encrypted on this device. Sidecar signs locally, so sites only get signatures, never your key. Much safer than pasting it into a website.',
+            tSec('Your nsec stays encrypted on this device. Sidecar signs locally, so sites only get signatures, never your key. Much safer than pasting it into a website.'),
         })
       );
       modal.append(err);
 
-      const save = h('button', { className: 'primary', textContent: 'Import account' });
+      const save = h('button', { className: 'primary', textContent: t('Import account') });
       save.addEventListener('click', async () => {
         err.textContent = '';
         // Busy through the decrypt: a ncryptsec import runs the same scrypt as
         // a sheet mint, and with the panel no longer frozen mid-click, an idle
         // button invites a second one.
         save.disabled = true;
-        save.textContent = 'Importing…';
+        save.textContent = t('Importing…');
         try {
           const raw = secretInput.value.trim();
-          if (!raw) throw new Error('Enter an nsec, ncryptsec, or hex private key.');
+          if (!raw) throw new Error(tSec('Enter an nsec, ncryptsec, or hex private key.'));
           const secret = /^ncryptsec1/i.test(raw) ? await decryptNcryptsec(raw, cryptPass.value) : raw;
           await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
           closeModal();
@@ -9196,7 +9196,7 @@
           toast(e.message, 'error');
         }
         save.disabled = false;
-        save.textContent = 'Import account';
+        save.textContent = t('Import account');
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
@@ -9228,7 +9228,7 @@
     openModal((modal) => {
       const canvas = document.createElement('canvas');
       canvas.className = 'npub-qr';
-      const value = h('button', { className: 'secondary npub-qr-value', title: 'Copy' });
+      const value = h('button', { className: 'secondary npub-qr-value', title: t('Copy') });
       const valueText = h('span');
       value.append(valueText);
 
@@ -9266,12 +9266,13 @@
         try {
           await copyPlain(encoded());
           const prev = valueText.textContent;
-          valueText.textContent = 'Copied ✓';
-          setTimeout(() => { if (valueText.textContent === 'Copied ✓') valueText.textContent = prev; }, 1200);
+          const copied = t('Copied ✓');
+          valueText.textContent = copied;
+          setTimeout(() => { if (valueText.textContent === copied) valueText.textContent = prev; }, 1200);
         } catch (_) {}
       });
 
-      const done = h('button', { className: 'ghost', textContent: 'Done' });
+      const done = h('button', { className: 'ghost', textContent: t('Done') });
       done.addEventListener('click', closeModal);
 
       // The face sits OVER the code as an element rather than being drawn into it. Two
@@ -9290,7 +9291,7 @@
       }
 
       modal.append(
-        h('h3', { textContent: displayName(a) || 'Your npub' }),
+        h('h3', { textContent: displayName(a) || t('Your npub') }),
         h('div', { className: 'npub-qr-wrap' }, [stack, chips, value]),
         h('div', { className: 'actions' }, [done])
       );
@@ -9767,12 +9768,14 @@
   function autoLockNoticeModal(minutes) {
     openModal((modal) => {
       const body = h('p', { className: 'hint pin-reminder-body' });
-      body.append(
-        document.createTextNode('Sidecar now locks itself after ' + minutes + ' minutes of inactivity. Unlocking uses the PIN you chose when you set up Sidecar — '),
-        h('strong', { className: 'pin-reminder-warn', textContent: "it can't be recovered" }),
-        document.createTextNode(", so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.")
-      );
-      const settingsBtn = h('button', { className: 'ghost', textContent: 'Auto-lock settings' });
+      // One sentence with the warning set inside it, through fill(), rather than three
+      // fragments a translation could not reorder.
+      const warn = h('strong', { className: 'pin-reminder-warn', textContent: tSec("it can't be recovered") });
+      body.append(...I18N.fill(tn(
+        "Sidecar now locks itself after {{count}} minute of inactivity. Unlocking uses the PIN you chose when you set up Sidecar, and {{warning}}, so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.",
+        "Sidecar now locks itself after {{count}} minutes of inactivity. Unlocking uses the PIN you chose when you set up Sidecar, and {{warning}}, so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.",
+        minutes, { warning: '{{warning}}' }), { warning: warn }));
+      const settingsBtn = h('button', { className: 'ghost', textContent: t('Auto-lock settings') });
       settingsBtn.addEventListener('click', () => {
         closeModal();
         hide($('view-main'));
@@ -9782,10 +9785,10 @@
         openSettingsSection('security');
         renderSettings();
       });
-      const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+      const ok = h('button', { className: 'primary', textContent: t('OK, got it') });
       ok.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { className: 'pin-reminder-title', textContent: 'Sidecar now locks automatically' }),
+        h('h3', { className: 'pin-reminder-title', textContent: t('Sidecar now locks automatically') }),
         body,
         h('div', { className: 'actions' }, [settingsBtn, ok])
       );
@@ -10060,9 +10063,9 @@
 
   function renameModal(a) {
     openModal((modal) => {
-      const input = h('input', { type: 'text', value: a.name || '', placeholder: 'Display name' });
+      const input = h('input', { type: 'text', value: a.name || '', placeholder: t('Display name') });
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Save' });
+      const save = h('button', { className: 'primary', textContent: t('Save') });
       save.addEventListener('click', async () => {
         try {
           await call({ type: 'SIDECAR_RENAME_ACCOUNT', pubkey: a.pubkey, name: input.value.trim() });
@@ -10075,10 +10078,10 @@
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Rename account' }),
-        h('label', { textContent: 'Name' }),
+        h('h3', { textContent: t('Rename account') }),
+        h('label', { textContent: t('Name') }),
         input,
-        h('p', { className: 'hint', textContent: 'Overrides the name from your Nostr profile on this device.' }),
+        h('p', { className: 'hint', textContent: t('Overrides the name from your Nostr profile on this device.') }),
         err,
         h('div', { className: 'actions' }, [save, cancel])
       );
@@ -10091,11 +10094,9 @@
       const warn = h('p', {
         className: 'hint',
         textContent:
-          'Removing ' +
-          displayName(a) +
-          ' deletes its encrypted key from this device. Make sure you have a backup of the nsec — this cannot be undone.',
+          tSec('Removing {{name}} deletes its encrypted key from this device. Make sure you have a backup of the nsec. This cannot be undone.', { name: displayName(a) }),
       });
-      const del = h('button', { className: 'danger', textContent: 'Remove account' });
+      const del = h('button', { className: 'danger', textContent: tSec('Remove account') });
       del.addEventListener('click', async () => {
         try {
           await call({ type: 'SIDECAR_REMOVE_ACCOUNT', pubkey: a.pubkey });
@@ -10109,7 +10110,7 @@
       });
       const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
       cancel.addEventListener('click', closeModal);
-      modal.append(h('h3', { textContent: 'Remove account?' }), warn, err, h('div', { className: 'actions' }, [del, cancel]));
+      modal.append(h('h3', { textContent: tSec('Remove account?') }), warn, err, h('div', { className: 'actions' }, [del, cancel]));
     });
   }
 

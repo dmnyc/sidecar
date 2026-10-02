@@ -99,7 +99,7 @@ test('THE FLAG IS CLEARED ON ACKNOWLEDGEMENT, NOT ON PAINT', () => {
     'the link does not acknowledge, so the card survives being read');
 
   // It says which version, which is half of what was asked for.
-  assert.match(body, /'Updated to ' \+ versionCard\.to/);
+  assert.match(body, /t\('Updated to {{version}}', { version: versionCard\.to }\)/);
   // Guarded against a second one stacking under the tabs on a re-entry.
   assert.match(body, /\$\('version-card'\)\) return;/);
 });
