@@ -702,11 +702,12 @@ test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
   // The panel drops a banner because its composer is a modal that closes onto a whole
   // app. A tab has nothing underneath it: the card IS the page, and leaving an empty
   // editor sitting there reads as a note lost rather than published.
-  assert.match(bare, /await showPosted\(signed, ok\)/);
+  assert.match(bare, /await showPosted\(signed, ok, what\)/);
   const fn = bare.slice(bare.indexOf('async function showPosted('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /sheet\.innerHTML = '';/);
-  assert.match(body, /textContent: t\('Your note is live\.'\)/);
+  // Named for what went out: a poll, a reply, or a note.
+  assert.match(body, /t\('Your poll is live\.'\)[\s\S]*t\('Your reply is live\.'\)[\s\S]*t\('Your note is live\.'\)/);
   assert.match(body, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', relayCount\)/);
 
   // Only after the publish resolved. A receipt for a note no relay took is a lie.

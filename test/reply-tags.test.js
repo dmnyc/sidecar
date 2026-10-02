@@ -317,7 +317,7 @@ test('resuming a draft restores its target', () => {
   assert.match(source, /resume\.addEventListener\('click', \(\) => resumeFrom\(saved\)\);/);
   const at = source.indexOf('function resumeFrom(saved) {');
   const block = source.slice(at, at + 800);
-  assert.match(block, /replyTo = saved\.replyTo \|\| null/);
+  assert.match(block, /replyTo = saved\.replyTo \|\| \(opts && opts\.replyTo\) \|\| null/);
   assert.match(block, /media: \(saved\.media \|\| \[\]\)\.slice\(\),/);
   // A draft saved before the attachment URLs left the editor carries them in its
   // text; resuming strips them, or publishing would append them a second time.

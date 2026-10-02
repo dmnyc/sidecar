@@ -11966,7 +11966,7 @@
     if (banner) hide(banner);
   }
 
-  async function showPostBanner(signed) {
+  async function showPostBanner(signed, isReply) {
     const banner = $('post-banner');
     if (!banner) return;
     let nevent;
@@ -11982,7 +11982,7 @@
     const isPoll = signed && signed.kind === POLL_KIND;
     const msg = h('span', {
       className: 'post-banner-msg',
-      textContent: isPoll ? 'Your poll is live.' : 'Your note is live.',
+      textContent: isPoll ? t('Your poll is live.') : isReply ? t('Your reply is live.') : t('Your note is live.'),
     });
     const open = document.createElement('a');
     open.className = 'post-banner-link';
@@ -12669,6 +12669,17 @@
     // Preview / Expand row is full at this width, so it sits where the bell sheet puts
     // its refresh: the corner, beside the close box, costing the editor no width.
     let switchingDraft = false;
+
+    // NOT THE DRAFT THE TAB HAS OPEN. Listed here it could be deleted while the tab is
+    // writing it, and the tab's next autosave would put it straight back; picking it
+    // would only focus the tab anyway.
+    async function draftsToList() {
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
+      const open = await liveComposeTab();
+      const tabKey = open ? draftKey(pubkey, open.replyId ? { id: open.replyId } : null) : null;
+      return otherDraftEntries(all, pubkey, dkey).filter((e) => e.key !== tabKey);
+    }
+
     function addCorner(withDrafts) {
       const closeX = h('button', { className: 'modal-x', title: t('Close') });
       closeX.append(icon('x'));
@@ -12676,14 +12687,17 @@
       modal.append(closeX);
       if (!withDrafts) return;
       const count = h('span', { className: 'compose-drafts-count' });
+      count.setAttribute('aria-hidden', 'true');
       const btn = h('button', { className: 'modal-x compose-drafts-btn hidden', type: 'button', title: t('Saved drafts') });
       btn.append(icon('folder'), count);
       btn.addEventListener('click', () => { showSavedDrafts(); });
       modal.append(btn);
-      call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).then((all) => {
-        const n = otherDraftEntries(all || {}, pubkey, dkey).length;
+      draftsToList().then((entries) => {
+        const n = entries.length;
         if (!n || !btn.isConnected) return;
         count.textContent = I18N.fmtNum(n);
+        // In words for a screen reader, which would otherwise read the count alone.
+        btn.setAttribute('aria-label', tn('{{count}} saved draft', '{{count}} saved drafts', n));
         btn.classList.remove('hidden');
         modal.classList.add('has-drafts-btn');
       }).catch(() => {});
@@ -12693,8 +12707,7 @@
     // saved before it goes, because the list is built from the store.
     async function showSavedDrafts() {
       await flushDraftNow();
-      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
-      const entries = otherDraftEntries(all, pubkey, dkey);
+      const entries = await draftsToList();
       if (!entries.length) { showEditor(); return; }
       stopCountdown();
       modal.innerHTML = '';
@@ -12726,12 +12739,22 @@
     // twice. The close handler skips its save and the way back, both of which belong to
     // the draft being left.
     async function switchToSavedDraft(entry) {
+      // A REPLY SAVED WITHOUT ITS TARGET, by a version from before drafts carried one.
+      // Opened as it stands it would open the NOTE draft, since the slot is chosen from
+      // the target, so the note it answers is looked up by id first. Not found, it stays
+      // listed and says why, rather than becoming a reply to nothing.
+      let target = entry.draft.replyTo || null;
+      if (entry.reply && !(target && target.id)) {
+        const ev = await fetchNoteById(entry.replyId);
+        if (!ev) { toast(t('The note this reply answers could not be loaded.'), 'error'); return; }
+        target = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content };
+      }
       await flushDraftNow();
       const wasReply = !!replyTo && !!((draft.text || '').trim() || (draft.media || []).length);
       switchingDraft = true;
       closeModal();
       if (wasReply) toast(t('Your reply is saved.'), 'info');
-      openComposer('', { replyTo: entry.draft.replyTo || null, resumeSaved: true });
+      openComposer('', { replyTo: target, resumeSaved: true });
     }
 
     // What is being answered. Built fresh on each call rather than held as one node,
@@ -13575,8 +13598,8 @@
         clearComposeDraft(dkey);
         endMinimizedMine(); // no-op unless this one was minimized
         closeModal();
-        toast(signed.kind === POLL_KIND ? t('Poll published') : t('Note published'), 'success');
-        showPostBanner(signed);
+        toast(signed.kind === POLL_KIND ? t('Poll published') : replyTo ? t('Reply published') : t('Note published'), 'success');
+        showPostBanner(signed, !!replyTo);
       } catch (e) {
         // BACK TO THE EDITOR WITH THE TEXT INTACT, whether the mine failed, the signer
         // refused or every relay did. draft is untouched on all three paths and was just
@@ -13667,7 +13690,10 @@
       // Restore the target too, or this resumes as a note and posts as one. And
       // strip the attachment URLs an older draft carried in its text: they live in
       // the media slot alone now, or publishing would append them a second time.
-      replyTo = saved.replyTo || null;
+      // Falling back to the target this composer was opened with: the slot was chosen by
+      // it, so it is the same note, and a reply saved before drafts carried a target
+      // would otherwise resume as a note.
+      replyTo = saved.replyTo || (opts && opts.replyTo) || null;
       draft = {
         text: stripDraftMediaUrls(saved.text, saved.media),
         media: (saved.media || []).slice(),
@@ -13748,6 +13774,10 @@
         // INSIDE the builder, not before the call: openModal clears the per-modal
         // variants first, so a class added ahead of it is wiped before anything renders.
         modal.classList.add('compose-modal'); // grows with the panel; see styles.css
+        // WHICH DRAFT THIS COMPOSER HAS OPEN, for the tab's Saved drafts to leave out, the
+        // same way this one leaves out the tab's. Session storage, so a browser restart
+        // forgets it; the tab trusts it only while a side panel is actually open.
+        try { chrome.storage.session.set({ sidecar_panel_compose: dkey }).catch(() => {}); } catch (_) {}
         // Something to lose = text or attached media. Drafts autosave here, so nothing is
         // truly destroyed by a stray click, but "it came back later" is not the same as
         // "it never went away".
@@ -13772,6 +13802,8 @@
         // Unless this close is a minimize, which is the one that means "keep going". The
         // footer bar is up by then and owns the stop.
         if (!powMinimizing) powCancel();
+        // No longer this composer's draft, for the tab's Saved drafts.
+        try { chrome.storage.session.remove('sidecar_panel_compose').catch(() => {}); } catch (_) {}
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.

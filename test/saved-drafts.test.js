@@ -63,7 +63,7 @@ function load() {
   });
   vm.createContext(ctx);
   vm.runInContext(
-    ['draftHasContent', 'otherDraftEntries', 'draftSnippet', 'buildSavedDraftList'].map(lift).join('\n') +
+    ['draftHasContent', 'otherDraftEntries', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') +
       '\nthis.draftHasContent = draftHasContent; this.otherDraftEntries = otherDraftEntries;' +
       ' this.buildSavedDraftList = buildSavedDraftList;',
     ctx
@@ -143,9 +143,61 @@ test('the panel lists them behind the folder, beside the close box', () => {
   assert.match(panel, /const \{ otherDraftEntries, buildSavedDraftList \} = window\.SidecarCore;/);
   assert.match(panel, /className: 'modal-x compose-drafts-btn hidden'/);
   // A pick opens that draft directly rather than asking "Resume your draft?" again.
-  assert.match(panel, /openComposer\('', \{ replyTo: entry\.draft\.replyTo \|\| null, resumeSaved: true \}\)/);
+  assert.match(panel, /openComposer\('', \{ replyTo: target, resumeSaved: true \}\)/);
   assert.match(panel, /if \(hasSaved && opts && opts\.resumeSaved\) resumeFrom\(saved\);/);
   // And leaving does not save over, or bounce back to, the draft being left.
   assert.match(panel, /switchingDraft = true;\s*closeModal\(\);/);
   assert.match(panel, /if \(!switchingDraft && opts && typeof opts\.returnTo === 'function'\)/);
+});
+
+test('a poll is listed as a poll, and previewed by its options until it has a question', () => {
+  const { otherDraftEntries, buildSavedDraftList } = load();
+  const entries = otherDraftEntries({ [PK]: { text: '', poll: { options: ['Tea', 'Coffee', ''] }, savedAt: 1 } }, PK, 'none');
+  const list = buildSavedDraftList({ entries, onPick() {}, onDelete: async () => {} });
+  assert.equal(find(list, 'saved-draft-label').textContent, 'Your poll');
+  assert.equal(find(list, 'saved-draft-snip').textContent, 'Tea · Coffee');
+});
+
+const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
+
+test('posting from the tab clears the whole slot, poll and target included', () => {
+  // Clearing only the text left a posted poll saved as a draft, one tap from going out
+  // twice, and kept a posted reply's slot alive.
+  assert.match(page, /draft\.text = '';\s*draft\.media = \[\];\s*draft\.poll = null;\s*replyTo = null;\s*await persistDraft\(\);/);
+  // And the receipt is told what went out before the draft forgets it.
+  assert.match(page, /const what = signed\.kind === SC\.POLL_KIND \? 'poll' : replyTo \? 'reply' : 'note';/);
+});
+
+test('"Write another" opens a new note, not another reply to the same one', () => {
+  assert.match(page, /again\.addEventListener\('click', \(\) => window\.location\.replace\(location\.pathname\)\);/);
+});
+
+test('the folder goes with the rest of the card while a post is being reviewed', () => {
+  assert.match(page, /if \(on\) \{ showTab\('write'\); \$\('compose-drafts-btn'\)\.classList\.add\('hidden'\); \}/);
+});
+
+test('both folders are named in words, not by their count', () => {
+  const label = /setAttribute\('aria-label', tn\('\{\{count\}\} saved draft', '\{\{count\}\} saved drafts', /;
+  assert.match(page, label);
+  assert.match(panel, label);
+  assert.match(fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8'), /id="compose-drafts-count" aria-hidden="true"/);
+  assert.match(panel, /count\.setAttribute\('aria-hidden', 'true'\);/);
+});
+
+test('neither composer lists the draft the other one has open', () => {
+  // Listed, it could be deleted while the other composer writes it, and that one's
+  // autosave would put it straight back.
+  assert.match(panel, /\.filter\(\(e\) => e\.key !== tabKey\)/);
+  assert.match(page, /\.filter\(\(e\) => e\.key !== inPanel\)/);
+  // The panel says which draft it holds, and clears it on close.
+  assert.match(panel, /chrome\.storage\.session\.set\(\{ sidecar_panel_compose: dkey \}\)/);
+  assert.match(panel, /chrome\.storage\.session\.remove\('sidecar_panel_compose'\)/);
+  // The tab believes that only while a side panel is actually open.
+  assert.match(page, /getContexts\(\{ contextTypes: \['SIDE_PANEL'\] \}\);\s*if \(!panels \|\| !panels\.length\) return null;/);
+});
+
+test('a reply saved without its target is looked up before it opens', () => {
+  // Opened as it stood, the slot would be chosen without a target: the note draft.
+  assert.match(panel, /if \(entry\.reply && !\(target && target\.id\)\) \{\s*const ev = await fetchNoteById\(entry\.replyId\);/);
+  assert.match(panel, /if \(!ev\) \{ toast\(t\('The note this reply answers could not be loaded\.'\), 'error'\); return; \}/);
 });

@@ -1751,8 +1751,16 @@ window.SidecarCore = (function () {
   function draftSnippet(d) {
     const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
     if (text) return text;
+    // A poll with its options typed and no question yet still says what it is.
+    const opts = (d.poll && d.poll.options || []).map((o) => (o || '').trim()).filter(Boolean);
+    if (opts.length) return opts.join(' · ');
     if (d.media && d.media.length) return tn('{{count}} attachment', '{{count}} attachments', d.media.length);
     return '';
+  }
+  // What a row is called: a reply, a poll, or the note.
+  function draftKindLabel(entry, name) {
+    if (entry.reply) return name ? t('Reply to {{name}}', { name }) : t('Reply');
+    return entry.draft.poll ? t('Your poll') : t('Your note');
   }
 
   // The list itself. d: { entries, nameFor(pubkey) -> Promise<name|null>, onPick(entry),
@@ -1765,8 +1773,7 @@ window.SidecarCore = (function () {
   function buildSavedDraftList(d) {
     const list = h('div', { className: 'saved-drafts' });
     d.entries.forEach((entry) => {
-      const label = h('span', { className: 'saved-draft-label',
-        textContent: entry.reply ? t('Reply') : t('Your note') });
+      const label = h('span', { className: 'saved-draft-label', textContent: draftKindLabel(entry, null) });
       const when = h('span', { className: 'saved-draft-when',
         textContent: entry.draft.savedAt ? relTime(entry.draft.savedAt) : '' });
       const snip = h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: draftSnippet(entry.draft) });
@@ -1782,7 +1789,7 @@ window.SidecarCore = (function () {
         Promise.resolve(d.nameFor(entry.draft.replyTo.pubkey)).then((n) => {
           if (!n || !label.isConnected) return;
           name = n;
-          if (!row.classList.contains('confirming')) label.textContent = t('Reply to {{name}}', { name });
+          if (!row.classList.contains('confirming')) label.textContent = draftKindLabel(entry, name);
         }).catch(() => {});
       }
 
@@ -1790,7 +1797,7 @@ window.SidecarCore = (function () {
       const settle = () => {
         clearTimeout(timer);
         row.classList.remove('confirming');
-        label.textContent = entry.reply ? (name ? t('Reply to {{name}}', { name }) : t('Reply')) : t('Your note');
+        label.textContent = draftKindLabel(entry, name);
         when.classList.remove('hidden');
         snip.textContent = draftSnippet(entry.draft);
       };

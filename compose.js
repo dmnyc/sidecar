@@ -526,12 +526,29 @@
     catch (_) { return {}; }
   }
 
+  // NOT THE DRAFT THE PANEL HAS OPEN. Listed here it could be deleted while the panel
+  // is writing it, and the panel's next autosave would put it straight back. The panel
+  // leaves its key in session storage; it is believed only while a side panel is open,
+  // so one closed without tidying up cannot hide a draft. A browser without
+  // getContexts lists everything, which is how this worked before.
+  async function draftOpenInPanel() {
+    try {
+      if (!chrome.runtime.getContexts || !chrome.storage.session) return null;
+      const panels = await chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] });
+      if (!panels || !panels.length) return null;
+      const got = await chrome.storage.session.get('sidecar_panel_compose');
+      return (got && got.sidecar_panel_compose) || null;
+    } catch (_) { return null; }
+  }
+
   // The folder, its count, and the list if it is the one showing. Called whenever the set
   // of drafts could have changed: a switch, an account change, a post, coming back.
   async function paintSavedDrafts() {
     const btn = $('compose-drafts-btn');
     if (!btn || !state || !state.activePubkey) return;
-    const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey);
+    const inPanel = await draftOpenInPanel();
+    const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
+      .filter((e) => e.key !== inPanel);
     const pane = $('compose-drafts-pane');
     const listing = !pane.classList.contains('hidden');
     // Not while the list is up: the list is what it opens, and "Back to your draft" is
@@ -539,6 +556,9 @@
     btn.classList.toggle('hidden', !others.length || listing);
     document.querySelector('.compose-sheet').classList.toggle('has-drafts-btn', !!others.length && !listing);
     $('compose-drafts-count').textContent = I18N.fmtNum(others.length);
+    // Said in words, because the count is the button's only text and would otherwise be
+    // its whole name to a screen reader: "2".
+    btn.setAttribute('aria-label', tn('{{count}} saved draft', '{{count}} saved drafts', others.length));
     if (!listing) return;
     if (!others.length) { showTab('write'); return; }
     pane.innerHTML = '';
@@ -737,8 +757,10 @@
     // thumbnails and the attachments' drawer would each be the same note a second
     // time, and a second rendering is not a second look.
     if (on) closeAltEditor(); // nothing left to edit: the note was decided at Post
-    // Back on this draft's own view, which is what the review window hands back to.
-    if (on) showTab('write');
+    // Back on this draft's own view, which is what the review window hands back to, and
+    // the folder goes with the rest: a post is decided, so there is nothing to switch to,
+    // and a control left showing that does nothing reads as broken.
+    if (on) { showTab('write'); $('compose-drafts-btn').classList.add('hidden'); }
     document.querySelector('.compose-sheet').classList.toggle('is-reviewing', on);
     $('compose-slot').classList.toggle('hidden', on);
     $('compose-tabs').classList.toggle('hidden', on);
@@ -825,13 +847,20 @@
           type: 'SIDECAR_EVENT', event: 'notePublished', pubkey: signed.pubkey, id: signed.id,
         }).catch(() => {});
       } catch (_) { /* nobody listening is the normal case */ }
+      // WHAT WENT OUT, for the receipt, before the draft forgets it.
+      const what = signed.kind === SC.POLL_KIND ? 'poll' : replyTo ? 'reply' : 'note';
+      // ALL of it goes, the poll and the target included, so the save below deletes the
+      // slot. Clearing only the text left a posted poll's options behind, saved as a
+      // draft one tap from going out twice, and a reply's slot kept its target.
       draft.text = '';
       draft.media = [];
+      draft.poll = null;
+      replyTo = null;
       await persistDraft();
       editorSetText('');
       renderThumbs();
       status.textContent = '';
-      await showPosted(signed, ok);
+      await showPosted(signed, ok, what);
     } catch (e) {
       status.textContent = '';
       // A stop is the user's own decision, and the editor coming back is the answer.
@@ -1023,7 +1052,7 @@
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
-  async function showPosted(signed, relayCount) {
+  async function showPosted(signed, relayCount, what) {
     const sheet = document.querySelector('.compose-sheet');
     let href = null;
     let label = null;
@@ -1045,7 +1074,8 @@
     mark.append(icon('check'));
     sheet.append(
       mark,
-      h('h2', { className: 'compose-done-title', textContent: t('Your note is live.') }),
+      h('h2', { className: 'compose-done-title', textContent: what === 'poll' ? t('Your poll is live.')
+        : what === 'reply' ? t('Your reply is live.') : t('Your note is live.') }),
       h('p', {
         className: 'compose-done-sub',
         textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', relayCount),
@@ -1063,7 +1093,9 @@
       row.append(open);
     }
     const again = h('button', { className: 'mini ghost', type: 'button', textContent: t('Write another') });
-    again.addEventListener('click', () => window.location.reload());
+    // A NEW NOTE, not this page again. After a reply the address still names the note it
+    // answered, and reloading it opened another reply to the same note.
+    again.addEventListener('click', () => window.location.replace(location.pathname));
     row.append(again);
     sheet.append(row);
 
