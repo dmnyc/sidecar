@@ -8,7 +8,7 @@ web apps you use, so you can sign in and sign events across Nostr clients withou
 pasting your nsec anywhere. It also has a built-in Lightning wallet (Nostr Wallet
 Connect) and a composer for posting notes directly from the panel.
 
-**[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox build](https://github.com/dmnyc/sidecar/releases)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
+**[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
 
 <img width="1280" height="800" alt="Sidecar" src="https://i.nostr.build/qRegMBIpFV8CPcAUMzZpNq.png" />
 
@@ -47,7 +47,7 @@ Connect) and a composer for posting notes directly from the panel.
 - **Outbox relays (NIP-65)** — view, edit, and publish your relay list (kind:10002) with per-relay read/write markers, right from your profile. Each relay carries its own icon (from its NIP-11 document), and an on-demand health check reports whether it answers, gates on payment or login, or holds none of your notes.
 - **Key backup** — back up a single account's key as an `nsec` or a password-encrypted NIP-49 `ncryptsec`, each revealed behind your PIN with an auto-hiding QR.
 - **Vault backup** — export every account *and* its wallet connection into one password-encrypted file, and restore it on another device (separate from a single account's key backup).
-- **Data recovery** — if a buggy client wipes or shrinks your follows, mutes, bookmarks, or profile, scan your relay history for the older versions and restore the one you pick, on your click, with your signer. Powered by [Lazarus](https://github.com/dmnyc/lazarus).
+- **Data recovery** — if a buggy client wipes or shrinks your follows, mutes, bookmarks, profile, or relay lists, scan your relay history for the older versions and restore the one you pick, on your click, with your signer. Powered by [Lazarus](https://github.com/dmnyc/lazarus).
 - **Note composer** — post kind:1 notes directly from the panel with a send countdown you can review (the full note renders) and cancel. Drafts autosave per account, so you can close the composer and resume — or start fresh — later. Features include:
   - **@mention autocomplete** — type `@` to search your follows *and* all of Nostr (global search via [Nostr Archives](https://github.com/barrydeen/nostrarchives-api)), so you can tag anyone; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
   - **Nostr event embeds** — paste a `note1`, `nevent1`, or `naddr1` entity and the preview renders a fetched embed card (author, timestamp, content excerpt).
@@ -68,13 +68,13 @@ Connect) and a composer for posting notes directly from the panel.
 
 ## Install
 
-The easiest way is the **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** — open the link and click **Add to Chrome**. Works in Chrome, Brave, and Edge.
+The easiest way is the **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** — open the link and click **Add to Chrome**. Works in Chrome, Brave, and Edge. On Firefox, install it from **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)**. Both update automatically.
 
 ### Advanced: install from this release zip
 
 For advanced users who'd rather not use the Chrome Web Store: every tagged version is published as a **[GitHub Release](https://github.com/dmnyc/sidecar/releases)** with a ready-to-load zip attached — the exact same build submitted to the Chrome Web Store, so you can inspect it before installing.
 
-1. **Download the zip.** Grab `sidecar-X.Y.Z.zip` from the **[latest release](https://github.com/dmnyc/sidecar/releases/latest)**, then unzip it — you'll get a folder containing `manifest.json`.
+1. **Download the zip.** Grab `sidecar-X.Y.Z-chrome.zip` from the **[latest release](https://github.com/dmnyc/sidecar/releases/latest)**, then unzip it — you'll get a folder containing `manifest.json`.
 
 2. **Open the extensions page** in a Chromium browser:
    - Chrome / Brave: visit `chrome://extensions`
@@ -118,10 +118,7 @@ Sidecar has **no build step** — it's plain JavaScript loaded directly. To run 
 
 Sidecar runs on Firefox **128 and later** — the same signer, wallet, and approval flow as Chrome, in the sidebar instead of the side panel.
 
-The Firefox build ships as `sidecar-X.Y.Z-firefox.zip` on the [releases page](https://github.com/dmnyc/sidecar/releases), and it is unsigned: release and Beta Firefox will not install an unsigned package permanently, and `xpinstall.signatures.required` can only be turned off on Developer Edition, Nightly and ESR. So there are two ways in.
-
-1. **For the session, on any Firefox.** Unzip it, visit `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on…** and pick `manifest.json`. Firefox removes it when it quits.
-2. **Permanently, on Developer Edition, Nightly or ESR.** Set `xpinstall.signatures.required` to `false` in `about:config`, then `about:addons` → the gear icon → **Install Add-on From File…** and pick the zip.
+Install it from **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)**, which signs it and keeps it up to date. Each GitHub release also carries the same signed build as `sidecar-X.Y.Z-firefox.xpi`, which installs like any add-on when you open it in Firefox.
 
 Then **open the sidebar** (View → Sidebar → Sidecar, or click the Sidecar toolbar button). On first run you'll set a PIN, then add an account, and you use it on a Nostr site the same way as on Chrome.
 
@@ -129,7 +126,7 @@ Two Firefox specifics: extensions stay off in private windows unless you allow t
 
 > **Developers:** to load Sidecar unpacked on Firefox, visit `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → select `manifest.json`. Temporary add-ons are removed when Firefox quits.
 
-**Updating:** A Chrome Web Store install updates automatically. A Firefox install does not, since nothing is serving it updates: download the next zip from the releases page and load it again. On Chrome you can also trigger a check from **Settings → Updates** or the About dialog (Firefox manages updates on its own). For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
+**Updating:** Chrome Web Store and Firefox Add-ons installs update automatically. On Chrome you can also trigger a check from **Settings → Updates** or the About dialog (Firefox manages updates on its own). For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
 
 #### Safari
 
@@ -182,7 +179,7 @@ dedicated, named support for:
 | NIP | Title | Used for |
 |-----|-------|----------|
 | [01](https://nips.nostr.com/1) | Basic protocol flow | Core event/profile handling (kind:0, kind:1) |
-| [02](https://nips.nostr.com/2) | Follow List | Follow count, follow-list recovery |
+| [02](https://nips.nostr.com/2) | Follow List | Follow count, recovering a wiped follow list |
 | [04](https://nips.nostr.com/4) | Encrypted Direct Messages (legacy) | `nip04.encrypt`/`.decrypt` NIP-07 methods; reading legacy private lists and wallet backups |
 | [05](https://nips.nostr.com/5) | Mapping Nostr keys to DNS identifiers | Verifying a profile's NIP-05 against its `/.well-known/nostr.json` |
 | [07](https://nips.nostr.com/7) | `window.nostr` capability | The signer interface itself |
@@ -231,7 +228,7 @@ dedicated, named support for:
 - **Emoji** — the picker's table is built from [unicode-emoji-json](https://github.com/muan/unicode-emoji-json) by [muan](https://github.com/muan) for the characters, names and groups, joined with search keywords from [emojibase](https://github.com/milesj/emojibase) by [Miles Johnson](https://github.com/milesj), which carries the [CLDR](https://cldr.unicode.org/) annotation keywords defined in [UTS #35](http://unicode.org/reports/tr35/tr35-general.html#Annotations). Both MIT. Those keywords are why searching "happy" or "scared" finds anything: emoji names describe the picture rather than the feeling, so the vocabulary for what they mean is Unicode's, not ours.
 - **Star data** — Constellation's charts are drawn from the star positions, magnitudes and constellation figures published by [d3-celestial](https://github.com/ofrohn/d3-celestial) by [Olaf Frohn](https://github.com/ofrohn) (BSD-3-Clause), which derives them from ESA's [Hipparcos catalogue](https://en.wikipedia.org/wiki/Hipparcos). The full notice is in `NOTICE`
 - **Music** — somewhere in Sidecar, if you know where to look, Scott Joplin’s *The Strenuous Life* (1902), a ragtime two-step, is playing in two voices. The score comes from the [Mutopia Project](https://www.mutopiaproject.org/) engraving by Benjamin Bloomfield, and the composition and the engraving are both public domain
-- **Fonts** — nearly every bundled face is under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL), with its license text in `fonts/`: Manrope for the UI, Oswald as Nixie's fallback, and Playfair Display, Bitter, Cinzel, Jost, EB Garamond, Josefin Sans, Rowdies, Limelight, Special Elite, Pinyon Script, Noto Serif Display (Film Noir), Yuji Syuku (Wabi-sabi), Kaisei Decol (Ukiyo-e), Cormorant Garamond (Constellation), Fraunces (Mycelium), Bangers with Comic Neue (Ben Day) and Fascinate with Federo (Jazz Age) Barlow Condensed (Departures), and Pathway Gothic One with Archivo and Crimson Pro (Turnstile) as the themes' display faces. Werkstätte is set in **Syncopate** (Astigmatic), under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) rather than the OFL, with its license text in [`fonts/LICENSE-Syncopate.txt`](fonts/LICENSE-Syncopate.txt). The one exception is Cast Iron's **Impressed Metal** (GemFonts, 1998), which is freeware rather than OFL and carries its own license record in [`fonts/LICENSE-ImpressedMetal.txt`](fonts/LICENSE-ImpressedMetal.txt). The Nixie theme is set in **Nixie Gothic**, a patched build of [Routed Gothic](https://webonastick.com/fonts/routed-gothic/) by Darren Embry — renamed per the OFL's reserved-name rule, with the modifications documented in [`fonts/OFL-NixieGothic.md`](fonts/OFL-NixieGothic.md). Routed Gothic itself is a digitization of the mid-century Leroy-style lettering that engraved the instrument panels this theme is about.
+- **Fonts** — nearly every bundled face is under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL), with its license text in `fonts/`: Manrope for the UI, Oswald as Nixie's fallback, and Playfair Display, Bitter, Cinzel, Jost, EB Garamond, Josefin Sans, Rowdies, Limelight, Special Elite, Pinyon Script, Noto Serif Display (Film Noir), Yuji Syuku (Wabi-sabi), Kaisei Decol (Ukiyo-e), Cormorant Garamond (Constellation), Fraunces (Mycelium), Bangers with Comic Neue (Ben Day) and Fascinate with Federo (Jazz Age), Barlow Condensed (Departures), and Pathway Gothic One with Archivo and Crimson Pro (Turnstile) as the themes' display faces. Werkstätte is set in **Syncopate** (Astigmatic), under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) rather than the OFL, with its license text in [`fonts/LICENSE-Syncopate.txt`](fonts/LICENSE-Syncopate.txt). The one exception is Cast Iron's **Impressed Metal** (GemFonts, 1998), which is freeware rather than OFL and carries its own license record in [`fonts/LICENSE-ImpressedMetal.txt`](fonts/LICENSE-ImpressedMetal.txt). The Nixie theme is set in **Nixie Gothic**, a patched build of [Routed Gothic](https://webonastick.com/fonts/routed-gothic/) by Darren Embry — renamed per the OFL's reserved-name rule, with the modifications documented in [`fonts/OFL-NixieGothic.md`](fonts/OFL-NixieGothic.md). Routed Gothic itself is a digitization of the mid-century Leroy-style lettering that engraved the instrument panels this theme is about.
 
 ## Author
 

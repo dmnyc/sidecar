@@ -22,8 +22,8 @@ clients without ever pasting your nsec into a website.
 - Full NIP-07 surface: `getPublicKey`, `signEvent`, `nip04`/`nip44` encrypt &
   decrypt, `getRelays`.
 - **Per-site permissions** — approve or reject each site, with a prompt that
-  previews what you're signing. Relay auth (NIP-42) signs automatically so clients
-  stay connected.
+  previews what you're signing. Relay sign-in (NIP-42) is answered for your own
+  relays, for reading as well as posting.
 - **Per-site account binding** — each site stays pinned to the account it logged in
   with (no identity desync). Move a site to another account from Connected Sites.
 - **Port-aware sites** — `localhost:3000` and `localhost:5173` are treated as
@@ -42,18 +42,20 @@ clients without ever pasting your nsec into a website.
   shows can be boosted straight from the page. The approval card names the show and
   the message rather than a bare node key, and a boost's splits are covered together
   by one spending limit. Offered only when your wallet supports keysend.
-- **Pay from any page** — when a site shows a Lightning invoice, a "Pay with
-  Sidecar" card appears (only on apps you're signed into). You can also right-click
-  a `lightning:` link, a selected invoice, or a QR.
+- **Pay from any page** — when a site you're signed into shows a Lightning invoice,
+  a "Pay with Sidecar" card appears. On other sites, tapping a `lightning:` link
+  offers to pay it. You can also right-click a `lightning:` link, a selected
+  invoice, or a QR.
 - **Auto-approve zaps** (optional, off by default) — pay zaps without a prompt up to
-  a limit you set (default 100 sats). Verified real zaps only; bigger zaps, non-zaps,
-  and a locked wallet still ask.
+  a per-zap limit (default 100 sats) and a daily total you set. Verified real zaps
+  only; bigger zaps, anything over the daily total, non-zaps, and a locked wallet
+  still ask.
 
 ## Profile & data recovery
 
 - View and edit your profile; publish kind 0.
 - **Data recovery** — if a buggy client wipes or shrinks your follows, mutes,
-  bookmarks, or profile, scan your relay history for the older versions and
+  bookmarks, profile, or relay lists, scan your relay history for the older versions and
   restore the one you pick, on your click, with your signer (Lazarus).
 
 ## Settings & safety

@@ -1,6 +1,6 @@
 # Sidecar Privacy Policy
 
-_Last updated: 2026-08-16_
+_Last updated: 2026-10-02_
 
 Sidecar is a browser extension that acts as a Nostr signer (NIP-07) and a
 Lightning wallet client (Nostr Wallet Connect / NIP-47). It is designed so that
@@ -101,9 +101,24 @@ Sidecar only talks to services **you choose**:
   (to resolve names your relays didn't return) — so that service sees both what
   you type and who you follow. Only that text and those public keys are sent.
 
+- **Bitcoin price** — to show your balance in a local currency, and the price
+  chart, Sidecar asks **mempool.space** or **Coinbase** for the price, whichever
+  lists your currency, with the other as a fallback. At most the request names the
+  currency; nothing about your keys or your wallet is sent. Prices are cached for
+  five minutes. With **Bitcoin only** turned on in Settings, no price is fetched.
+- **Data recovery** — a recovery scan asks your own relays, plus a fixed set of
+  well-known public relays that keep long histories, for earlier versions of the
+  data you chose to scan. The request is a read for your public key's events of
+  that kind; nothing is published unless you pick a version to restore.
+- **Wallet quick-start** — if you choose to set up a wallet through **Rizful**,
+  Sidecar exchanges the one-time code you enter for a wallet connection with
+  rizful.com. Nothing is sent there unless you use that option.
+
 Sidecar does not send any of this data to the developer. The services above are
-the only ones it contacts — those you configure (relays, wallet) or invoke by a
-specific action (a link preview, a media upload, an @-mention search) — and there
+the only ones it contacts — those you configure (relays, wallet), those a display
+you choose depends on (relay icons, NIP-05 marks, the Bitcoin price), and those you
+invoke by a specific action (a link preview, a media upload, an @-mention search, a
+recovery scan, a wallet quick-start) — and there
 is no analytics or tracking of any kind.
 
 ## Permissions
