@@ -247,7 +247,7 @@ test('the verdict is stated in words, not by color alone', () => {
 test('an unverifiable write is reported as unverified, not as fine', () => {
   // The failure mode that costs notes: NIP-11 not answering says nothing about whether
   // posting works, and this screen is where someone decides to keep a relay.
-  assert.match(panel, /writeKnown === false\) bits\.push\('writes unverified'\)/);
+  assert.match(panel, /writeKnown === false\) bits\.push\(t\('writes unverified'\)\)/);
 });
 
 test('the module ships — it is not under scripts/', () => {
@@ -263,7 +263,7 @@ test('the button reads the same before and after a check', () => {
   // when a check starts, and restored in the finally when it ends. Construction and
   // restore are far apart in the source, so renaming one and not the other leaves a
   // button that silently changes wording after its first use.
-  const texts = [...panel.matchAll(/checkBtn(?:\.textContent = |[^\n]*textContent: )'([^']+)'/g)]
+  const texts = [...panel.matchAll(/checkBtn(?:\.textContent = |[^\n]*textContent: )t\('([^']+)'\)/g)]
     .map((m) => m[1]);
   assert.equal(texts.length, 3, 'expected construction, in-flight, and restore');
   const [built, inFlight, restored] = texts;
@@ -272,7 +272,7 @@ test('the button reads the same before and after a check', () => {
   assert.equal(built, 'Check relay health');
   // "Check relays" alone sat directly above rows carrying two checkboxes each, where it
   // reads as "tick the relays". The noun is what removes that.
-  assert.doesNotMatch(panel, /textContent: 'Check relays'/);
+  assert.doesNotMatch(panel, /textContent: t\('Check relays'\)/);
 });
 
 // ---- NIP-42: probing as the account rather than as a stranger --------------------
@@ -428,8 +428,9 @@ test('a relay’s prose is reduced to the NIP-01 word', () => {
     if (src[i] === '{') depth++;
     else if (src[i] === '}' && --depth === 0) { end = i + 1; break; }
   }
-  const words = src.match(/const REASON_WORDS = \{[\s\S]*?\};/)[0];
-  const shortReason = new Function(words + '\n' + src.slice(at, end) + '\nreturn shortReason;')();
+  const words = src.match(/const REASON_WORDS = \{[\s\S]*?\};/)[0] + '\n' + src.match(/const PROBE_REASONS = \{[\s\S]*?\};/)[0];
+  const { englishI18n } = require('./helpers/i18n.js');
+  const shortReason = new Function('t', words + '\n' + src.slice(at, end) + '\nreturn shortReason;')(englishI18n().t);
 
   // The one from the screenshot: three lines in a row with room for one.
   assert.equal(
@@ -438,6 +439,9 @@ test('a relay’s prose is reduced to the NIP-01 word', () => {
   );
   assert.equal(shortReason('CLOSED: blocked: you are not welcome'), 'blocked');
   assert.equal(shortReason('auth-required: sign in first'), 'needs sign-in');
+  // The probe's own fixed phrases come through by their English, and a bad URL keeps its detail.
+  assert.equal(shortReason('demands AUTH'), 'demands AUTH');
+  assert.equal(shortReason('bad url (Invalid URL)'), 'bad url (Invalid URL)');
 
   // No recognized word: keep it, but cap it so a row cannot grow without limit.
   const long = shortReason('CLOSED: ' + 'x'.repeat(200));
