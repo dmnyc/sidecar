@@ -9,6 +9,9 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+### Changed
+- **Auto Zaps start at 100 sats a zap,** and 10,000 a day, down from 200 and 20,000. It is what Settings starts from and what turning Auto Zaps on from a payment card sets, so that offer now appears for zaps of 100 sats or less. A limit you already set is kept.
+
 ## [1.15.4] — 2026-10-01
 
 ### Added

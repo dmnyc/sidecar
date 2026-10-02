@@ -2340,7 +2340,7 @@ const AUTOZAP_DAILY_MULTIPLE = 100; // default daily cap = 100× the per-zap cap
 // amount large enough to want a second look.
 // What enabling auto-zap from a payment card sets it to. The panel mirrors this as
 // AUTOZAP_DEFAULT_MAX for its own input default.
-const AUTOZAP_DEFAULT_MAX = 200;
+const AUTOZAP_DEFAULT_MAX = 100;
 // Matches ZAP_DEFAULT_MAX in sidepanel.js: a preset is for the zaps you send without
 // thinking, so four digits is the range worth having one tap away.
 const ZAP_DEFAULT_ABS_MAX = 9999;

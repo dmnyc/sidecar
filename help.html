@@ -81,8 +81,9 @@
       <p>Everything is protected by the PIN you chose when you set up Sidecar, and the
       panel locks itself after a period of inactivity you can adjust in Settings.</p>
       <p>On Firefox, Sidecar lives in the sidebar rather than the side panel, with the
-      same signer and the same features. The current Firefox build is the zip on the
-      releases page, installed by hand and updated by fetching the next one.
+      same signer and the same features. Install it from
+      <a href="https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/">Firefox
+      Add-ons</a>, and Firefox keeps it up to date.
       Two Firefox specifics: extensions stay off in private windows unless you allow
       them (Manage Extensions → Sidecar → Run in Private Windows), and Sidecar needs
       the site access it asks for at install — if you declined that, the panel shows
@@ -369,8 +370,8 @@
 
       <p>This is the most common way people lose data on Nostr, and it happens quietly:
       the app looks like it worked, and you find out days later when your feed has gone
-      empty. Sidecar already helps you recover a lost follow list. This is the half that
-      tries to stop it happening.</p>
+      empty. Sidecar can already bring back what was lost, from follows and mutes to your
+      profile and relay lists. This is the half that tries to stop it happening.</p>
 
       <p><strong>Before signing one of these, Sidecar compares it to what you had.</strong>
       If the new version drops most of it, the prompt says so in plain numbers — not
@@ -511,7 +512,9 @@
       your relay list in the first place, and as a fallback if it can't be reached. Once
       you've published a list of your own these take a back seat. Turning off
       <strong>Use bootstrap relays</strong> for an account excludes them from its reads and
-      publishes entirely, except for the one discovery fetch that finds your list. Your
+      publishes entirely, except for the one discovery fetch that finds your list. Turning
+      it off shows a second switch, on by default, that keeps reading them for
+      notifications only, since replies often land on relays you don't write to. Your
       own list is edited on the Profile tab; <strong>Edit relay list</strong> in the same
       section takes you there.</p>
     </section>
