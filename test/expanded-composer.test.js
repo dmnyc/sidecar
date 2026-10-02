@@ -852,3 +852,24 @@ test('a theme listed as drawing the panel bar dark draws it dark', () => {
     assert.ok(bg && lum(bg[1]) < 0.05, theme + ' is listed as drawing the panel bar dark, and does not');
   }
 });
+
+test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
+  // Left to the browser, the contenteditable took a pasted image as an inline picture at
+  // full size, never uploaded and never published, and rich text kept its formatting.
+  const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
+  const at = page.indexOf("editorApi.editor.addEventListener('paste'");
+  assert.ok(at > -1, 'the tab has no paste handler of its own');
+  const body = page.slice(at, at + 1400);
+  assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
+  assert.match(body, /e\.preventDefault\(\);/);
+  assert.match(body, /document\.execCommand\('insertText', false, plain\)/);
+  assert.match(body, /uploadFiles\(images\)/);
+  // The Media button and a paste share one upload path.
+  assert.match(page, /if \(file\) await uploadFiles\(\[file\]\);/);
+  // Neither composer lets a paste attach to a poll.
+  assert.match(body, /if \(draft\.poll\) \{ toast\(t\('A poll can’t carry attachments\.'\), 'error'\); return; \}/);
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  assert.match(panel, /if \(draft\.poll\) \{ toast\(t\('A poll can’t carry attachments\.'\), 'error'\); return; \}/);
+  // And the tab's Poll button follows the attachments, as the panel's does.
+  assert.match(page, /function renderThumbs\(\) \{[\s\S]{0,400}if \(pollEditor\) pollEditor\.paintEitherOr\(\);/);
+});

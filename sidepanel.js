@@ -13373,6 +13373,9 @@
           return;
         }
         e.preventDefault();
+        // A poll and its attachments are one or the other, and the Media button is
+        // hidden while a poll is open; a paste was the way round that.
+        if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
         addBtn.disabled = true;
         const lbl = addBtn.querySelector('span');
         const prev = lbl.textContent;

@@ -1108,6 +1108,10 @@
   function renderThumbs() {
     const host = $('compose-thumbs');
     host.innerHTML = '';
+    // A POLL AND ATTACHMENTS ARE ONE OR THE OTHER, and every change to the attachments
+    // comes through here: an upload, a paste, a removal, a draft loaded. The Poll button
+    // stood its ground after an upload, because nothing here told it to.
+    if (pollEditor) pollEditor.paintEitherOr();
     // Where a dragged thumb will land, across renderThumbs' rebuilds.
     let dragFrom = -1;
     draft.media.forEach((m, i) => {
@@ -1272,6 +1276,8 @@
   // The poll editor, from composer-core, the same one the panel builds. Held here so
   // the draft load and the publish path can both reach it.
   let pollEditor = null;
+  // Set by buildToolbar: uploads files into the attachments, as the Media button does.
+  let uploadFiles = async () => {};
 
   // ---- the toolbar: media, a poll, and a proof of work for this note ----
   function buildToolbar() {
@@ -1287,7 +1293,11 @@
     addBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0];
-      if (!file) return;
+      if (file) await uploadFiles([file]);
+      fileInput.value = '';
+    });
+    // The Media button and a pasted image take the one path.
+    uploadFiles = async (files) => {
       err.textContent = '';
       addBtn.disabled = true;
       const lbl = addBtn.querySelector('span');
@@ -1295,12 +1305,14 @@
       lbl.textContent = t('Uploading…');
       addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
       try {
-        const url = await composer.uploadMedia(file, state.activePubkey);
-        // Into the media slot only. The URL is appended to the content at publish
-        // (SC.composeNoteContent), so nothing touches the editor here — and since no
-        // input event fires, both the autosave and the Post button (media alone is
-        // postable) have to be told by hand.
-        draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+        for (const file of files) {
+          const url = await composer.uploadMedia(file, state.activePubkey);
+          // Into the media slot only. The URL is appended to the content at publish
+          // (SC.composeNoteContent), so nothing touches the editor here — and since no
+          // input event fires, both the autosave and the Post button (media alone is
+          // postable) have to be told by hand.
+          draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+        }
         scheduleSave();
         paintCount();
         renderThumbs();
@@ -1311,8 +1323,7 @@
       addBtn.disabled = false;
       addBtn.classList.remove('is-uploading');
       lbl.textContent = prev;
-      fileInput.value = '';
-    });
+    };
 
     // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same labels as the
     // panel. "PoW 18" and "PoW off" are the same width, so cycling never makes the row
@@ -1475,6 +1486,26 @@
     $('compose-slot').append(editorApi.wrap);
     editorApi.setText(draft.text);
     buildToolbar();
+    // PASTE, AS THE PANEL HANDLES IT. An image on the clipboard is uploaded into the
+    // attachments, and anything else goes in as plain text. Left to the browser, a
+    // contenteditable takes the image as an inline picture at its own size, never
+    // uploaded and never published, and rich text keeps its fonts and colors.
+    editorApi.editor.addEventListener('paste', (e) => {
+      const images = Array.from((e.clipboardData && e.clipboardData.items) || [])
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      e.preventDefault();
+      if (!images.length) {
+        const plain = e.clipboardData && e.clipboardData.getData('text/plain');
+        if (plain) document.execCommand('insertText', false, plain);
+        return;
+      }
+      // A poll and its attachments are one or the other; the Media button is hidden
+      // for the same reason.
+      if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
+      uploadFiles(images);
+    });
     // After the toolbar, because that is what builds the poll editor: a poll restored
     // from the slot above has nothing to paint into until it exists.
     paintCount();
