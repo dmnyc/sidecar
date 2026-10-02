@@ -921,6 +921,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-05': [
     { year: 1921, text: "The World Series was broadcast on the radio for the first time." }, // KDKA Pittsburgh
+    { year: 1947, text: "Harry Truman gave the first presidential address televised from the White House." }, // Wikipedia, October 5
   ],
   '10-06': [
     { year: 1889, text: "Thomas Edison showed his first motion picture in New Jersey." }, // Kinetophone
@@ -938,12 +939,14 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-10': [
     { year: 1845, text: "The Naval School opened in Annapolis with fifty midshipmen." }, // US Naval Academy
+    { year: 1913, text: "Woodrow Wilson set off the blast that breached the Gamboa Dike, completing major construction on the Panama Canal." }, // Wikipedia, October 10
   ],
   '10-11': [
     { year: 1911, text: "An armed uprising in Wuchang began the revolution that overthrew the Qing dynasty." }, // Chinese Revolution
   ],
   '10-12': [
     { year: 1492, text: "Columbus made landfall in the Americas on an island he called San Salvador." },
+    { year: 1892, text: "Schoolchildren across the United States recited the Pledge of Allegiance for the first time, on Columbus Day." }, // Wikipedia, Pledge of Allegiance
   ],
   '10-13': [
     { year: 1792, text: "The cornerstone of the White House was laid in Washington by George Washington and a group of Freemasons." },
@@ -955,6 +958,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-15': [
     { year: 1917, text: "Mata Hari was executed by a French firing squad for espionage." },
+    { year: 1951, text: "I Love Lucy premiered on CBS." }, // Wikipedia, I Love Lucy
   ],
   '10-16': [
     { year: 1846, text: "A Boston surgeon removed a tumor from a patient put under with ether, and anesthesia went public." }, // Massachusetts General, "Ether Day"

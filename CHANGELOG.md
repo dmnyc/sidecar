@@ -9,8 +9,23 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.15.5] — 2026-10-02
+
+### Added
+- **Replies and polls in the full-size composer.** Expand now opens a reply in the tab, with the note you are answering above the editor, and a poll as well as a note. If the handoff ever fails, the tab says the reply is attached to nothing rather than opening a blank note. (#432)
+- **Always use the full-size composer.** A switch under Settings → Posting, and in the full-size composer's footer, opens notes, replies and polls there instead of in the panel. The two switches stay in step. (#432)
+- **Saved drafts.** A folder beside the close button, in both composers, lists this account's other drafts that have something in them: your note first, then replies, newest first, with a count on the folder. Picking one saves the draft you are on and opens that one, reply target and all, and each has a delete that asks before it deletes. A draft open in the other composer is left out. (#432)
+- **Code in a note reads as code,** inline and in blocks, with a copy button on each block, in previews, quotes and notifications. (#432)
+- **The note you are answering can be read in full.** Show more opens the rest of a long one, and a photo in it opens at full size. (#432)
+
+### Fixed
+- **A pasted image uploads in the full-size composer,** as it does in the panel, instead of appearing in the editor at its own size; pasted text arrives plain. Neither composer lets a paste attach to a poll. (#432)
+- **The full-size composer no longer flashes the default theme when refreshed.** It opens in the theme it last used and shows the card once it is built. (#432)
+- **The panel composer keeps its close button after Resume draft,** and a posted reply is called a reply, not a note. (#432)
+- **The tab underline stays on Accounts when the panel snaps back to it.** (#429)
+
 ### Changed
-- **Auto Zaps start at 100 sats a zap,** and 10,000 a day, down from 200 and 20,000. It is what Settings starts from and what turning Auto Zaps on from a payment card sets, so that offer now appears for zaps of 100 sats or less. A limit you already set is kept.
+- **Auto Zaps start at 100 sats a zap,** and 10,000 a day, down from 200 and 20,000. It is what Settings starts from and what turning Auto Zaps on from a payment card sets, so that offer now appears for zaps of 100 sats or less. A limit you already set is kept. (#433)
 
 ## [1.15.4] — 2026-10-01
 
