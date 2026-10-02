@@ -118,10 +118,11 @@ test('the post composer has an X, and it discards', () => {
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
   assert.match(body, /className: 'modal-x', title: t\('Close'\)/);
   assert.match(body, /closeX\.addEventListener\('click', closeModal\)/);
-  // After the content: showEditor clears the modal to build itself, so an X appended
-  // before it is wiped.
-  assert.ok(
-    body.indexOf('const closeX') > body.indexOf('showEditor();'),
-    'the X must be appended after the content that clears the modal'
-  );
+  // Each view that clears the modal adds it back, so resuming a draft (which rebuilds
+  // the modal) keeps its way out. It used to be appended once, after the first view.
+  const editor = body.slice(body.indexOf('function showEditor() {'));
+  assert.match(editor.slice(0, 400), /modal\.innerHTML = '';[\s\S]*addCorner\(true\);/,
+    'the editor clears the modal without putting the X back');
+  assert.match(body, /showDraftChooser\(saved\); addCorner\(false\);/,
+    'the resume chooser has no X');
 });

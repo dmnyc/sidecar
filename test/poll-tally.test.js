@@ -15,7 +15,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// The poll helpers moved into composer-core so the expanded tab can compose one too.
+// Both files are the panel's source as far as these assertions are concerned, the same
+// way poll-compose.test.js already reads them.
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8') +
+  '\n' + fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 
 function lift(pattern, label) {
   const m = source.match(pattern);

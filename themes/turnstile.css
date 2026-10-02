@@ -205,6 +205,7 @@
 [data-theme="turnstile"] .reply-target-av:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .compose-done-mark:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .dev-badge:not(.theme-card):not(.theme-card *),
+[data-theme="turnstile"] .media-lightbox-x:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .fab:not(.theme-card):not(.theme-card *) {
   border-radius: 50%;
 }

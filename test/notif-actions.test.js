@@ -109,8 +109,12 @@ test('EXPANDING LIFTS BOTH TRUNCATIONS, AND COLLAPSING PUTS THEM BACK', () => {
   const item = stripComments(lift('function buildItem('));
   assert.match(item, /const text = cleanSnippet\(ev\.content \|\| ''\)/,
     'the expanded text is a build-time snapshot, so resolved mention names are lost');
-  assert.match(item, /contentEl\.textContent = open\s*\?\s*text/, 'the text is not swapped both ways');
-  assert.match(item, /: \(text\.length > 140 \? text\.slice\(0, 140\) \+ '…' : text\)/,
+  // Both ways still, but the expanded branch BUILDS rather than assigns now: it renders
+  // code blocks, which a textContent assignment cannot carry.
+  assert.match(item, /if \(open\) renderTextWithCode\(contentEl, text\);/, 'expanding no longer redraws');
+  assert.match(item, /else contentEl\.textContent = text\.length > 140/, 'collapsing no longer re-truncates');
+  assert.match(item, /contentEl\.innerHTML = '';/, 'the old content is left behind on a redraw');
+  assert.match(item, /text\.length > 140 \? text\.slice\(0, 140\) \+ '…' : text/,
     'collapsing does not put the 140-char cut back');
   assert.match(item, /contentEl\.classList\.toggle\('notif-content-full', open\)/,
     'the CSS clamp is lifted but never restored');
@@ -316,9 +320,15 @@ test('REPLYING COMES BACK TO WHERE YOU WERE', () => {
   assert.match(actions, /returnTo: \(\) => showNotifModal\(a, place\)/, 'nothing brings the sheet back');
   const composer = stripComments(lift('async function openComposer('));
   assert.match(composer, /typeof opts\.returnTo === 'function'/, 'the composer ignores returnTo');
-  // Guarded and last: it opens a modal, and must not be able to stop the draft save.
-  const at = composer.indexOf('opts.returnTo');
-  assert.match(composer.slice(at - 200, at), /persistDraft\(\)/, 'the return runs before the draft is saved');
+  // Guarded and last in the CLOSE handler: it opens a modal, and must not be able to
+  // stop the draft save. Anchored on the guarded form rather than the first occurrence,
+  // because there is a second call site now: when the always-expanded setting sends a
+  // reply to the tab, the way back is owed just the same, and the slot was written by
+  // handOffToTab before that point rather than by persistDraft.
+  const at = composer.indexOf("typeof opts.returnTo === 'function'");
+  assert.match(composer.slice(at - 260, at), /persistDraft\(\)/, 'the return runs before the draft is saved');
+  assert.match(composer, /await handOffToTab\(dk, \(opts && opts\.replyTo\) \|\| null\);\s*\n(\s*\n)?\s*if \(opts && opts\.returnTo\) opts\.returnTo\(\);/,
+    'a reply sent to the tab never gives the bell back');
   assert.match(composer.slice(at, at + 120), /try \{/, 'a failing return can break closing the composer');
 });
 

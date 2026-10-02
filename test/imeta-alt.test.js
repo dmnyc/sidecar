@@ -31,6 +31,7 @@ const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
 const pageBare = page.replace(/^\s*\/\/.*$/gm, '');
+const coreBare = core.replace(/^\s*\/\/.*$/gm, '');
 const panelBare = panel.replace(/^\s*\/\/.*$/gm, '');
 
 // The REAL write-side functions, lifted out of composer-core.js — a local mirror could
@@ -219,7 +220,11 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   // one publishing without the helper is a note whose images ship undescribed, and
   // nothing else would catch it.
   assert.match(panelBare, /tags\.push\(\.\.\.imetaTagsForMedia\(draft\.media\)\);/);
-  assert.match(pageBare, /tags: \[\['client', 'Sidecar'\], \.\.\.SC\.imetaTagsForMedia\(draft\.media\)\]/);
+  // Threading leads the list now that the tab can publish a reply; the client tag and
+  // the imeta rows follow it, in that order, exactly as the panel assembles them.
+  // imeta comes last, after threading, the client tag and any poll tags.
+  assert.match(pageBare, /\.\.\.SC\.imetaTagsForMedia\(draft\.media\),\s*\n\s*\],/);
+  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\['client', 'Sidecar'\],/);
 });
 
 test('THE STRIP REORDERS BY MORE THAN DRAG', () => {
@@ -248,15 +253,25 @@ test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
   // client renders, and the tag push in doPublish once claimed it could not arrive
   // while nothing enforced it. Each side's button stands down while the other holds
   // the draft, and every media mutation repaints the pair.
-  assert.match(panelBare, /function paintEitherOr\(\) \{/);
-  assert.match(panelBare, /pollAdd\.classList\.toggle\('hidden', !!draft\.poll \|\| !!replyTo \|\| !!\(draft\.media && draft\.media\.length\)\)/);
-  assert.match(panelBare, /addBtn\.classList\.toggle\('hidden', !!draft\.poll\);/, 'Media stays offered under an open poll');
+  // The pair now lives in composer-core's buildPollEditor, shared with the tab, and asks
+  // the panel for its two answers through accessors rather than closing over them.
+  assert.match(coreBare, /function paintEitherOr\(\) \{/);
+  assert.match(coreBare, /pollAdd\.classList\.toggle\('hidden', !!d\.poll\(\) \|\| d\.isReply\(\) \|\| d\.hasMedia\(\)\)/);
+  assert.match(coreBare, /d\.mediaBtn\(\)\.classList\.toggle\('hidden', !!d\.poll\(\)\);/, 'Media stays offered under an open poll');
+  // And the panel supplies exactly those, off its own draft.
+  assert.match(panelBare, /isReply: \(\) => !!replyTo,/);
+  assert.match(panelBare, /hasMedia: \(\) => !!\(draft\.media && draft\.media\.length\),/);
+  assert.match(panelBare, /mediaBtn: \(\) => addBtn,/);
   // In preview mode the clauses compose with the preview hide.
   assert.match(panelBare, /addBtn\.classList\.toggle\('hidden', p \|\| !!draft\.poll\);/);
   assert.match(panelBare, /pollAdd\.classList\.toggle\('hidden', p \|\| !!draft\.poll \|\| !!replyTo \|\| !!\(draft\.media && draft\.media\.length\)\);/);
   // And every way media changes repaints, so the excluded button never lingers.
-  assert.equal((panelBare.match(/paintEitherOr\(\);/g) || []).length, 6,
-    'paintPoll + the media mutations (uploads, removal, attach, stepper) must repaint the pair');
+  // paintPoll's own call moved with it; the media mutations still live in the panel.
+  const inCore = (coreBare.match(/paintEitherOr\(\);/g) || []).length;
+  const inPanel = (panelBare.match(/paintEitherOr\(\);/g) || []).length;
+  assert.equal(inCore + inPanel, 6,
+    'paintPoll + the media mutations (uploads, removal, attach, stepper) must repaint the pair, '
+    + 'found ' + inCore + ' in the core and ' + inPanel + ' in the panel');
 });
 
 test('ATTACHING AN ALREADY-ATTACHED URL CONVERTS, NEVER DUPLICATES', () => {
@@ -438,6 +453,10 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
     closeAltEditor: () => {},
     renderThumbs: () => {},
     dkey: 'pk1',
+    // The tab's persistDraft writes the reply target back into the slot as well, now
+    // that a tab can hold a reply. Null here: this vector is a plain note, and what it
+    // is checking is that the media entries survive the round trip untouched.
+    replyTo: null,
     call: async (m) => {
       if (m.type === 'SIDECAR_SECRET_GET') return JSON.parse(JSON.stringify(store));
       if (m.type === 'SIDECAR_SECRET_SET') { store.pk1 = JSON.parse(JSON.stringify(m.value)).pk1; return true; }

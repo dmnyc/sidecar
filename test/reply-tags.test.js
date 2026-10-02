@@ -21,29 +21,35 @@ const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 
-function lift(decl) {
-  const at = source.indexOf(decl);
+// `from` defaults to sidepanel.js, since most of what this file lifts still lives there.
+function lift(decl, from) {
+  const src = from || source;
+  const at = src.indexOf(decl);
   if (at === -1) throw new Error('Could not find ' + decl);
-  const open = source.indexOf('{', at);
+  const open = src.indexOf('{', at);
   let depth = 0;
-  for (let i = open; i < source.length; i++) {
-    if (source[i] === '{') depth++;
-    else if (source[i] === '}' && --depth === 0) return source.slice(at, i + 1);
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) return src.slice(at, i + 1);
   }
   throw new Error('Unbalanced braces after ' + decl);
 }
 
 const ME = 'me'.padEnd(64, '0');
+// LIFTED FROM composer-core NOW, not sidepanel. It moved there so the expanded tab can
+// build the same threading as the panel; these thirty-odd vectors are what says the move
+// changed nothing about what either of them produces.
 function build(target, activePubkey) {
   const ctx = {
     console, Set, Array, String,
     WEB_COMMENT_KIND: 1111,
-    state: { activePubkey: activePubkey || ME },
   };
   vm.createContext(ctx);
-  vm.runInContext(lift('function replyTags(') + '\nglobalThis.replyTags = replyTags;', ctx);
-  const r = ctx.replyTags(target);
+  vm.runInContext(lift('function replyTags(', core) + '\nglobalThis.replyTags = replyTags;', ctx);
+  // The self key is an argument now rather than a global the function reaches for.
+  const r = ctx.replyTags(target, activePubkey || ME);
   // Spread the OUTER array on the host side too. r.tags.map() runs the vm's
   // Array.prototype.map and returns a vm array, which assert.deepEqual (strict)
   // rejects on prototype identity even when the contents match.
@@ -209,7 +215,10 @@ test('NOTHING IN AN EXPANDED ROW ALSO FOLLOWS THE ROW LINK', () => {
 
 test('the composer shows what is being answered', () => {
   const fn = lift('function buildReplyBlock(');
-  assert.match(fn, /renderNoteText\(body, replyTo\.content/);
+  // Hoisted into `full` so the Show more toggle can re-render at no cap; still the
+  // target's own content and nothing else.
+  assert.match(fn, /const full = replyTo\.content \|\| '';/);
+  assert.match(fn, /renderNoteText\(body, full, 240\)/);
   assert.match(fn, /notifAuthorName\(replyTo\.pubkey\)/);
 });
 
@@ -304,9 +313,11 @@ test('A SAVED REPLY REMEMBERS WHAT IT ANSWERS', () => {
 });
 
 test('resuming a draft restores its target', () => {
-  const at = source.indexOf("const resume = h('button'");
-  const block = source.slice(at, at + 600);
-  assert.match(block, /replyTo = saved\.replyTo \|\| null/);
+  // The chooser's button and Saved drafts both resume through resumeFrom.
+  assert.match(source, /resume\.addEventListener\('click', \(\) => resumeFrom\(saved\)\);/);
+  const at = source.indexOf('function resumeFrom(saved) {');
+  const block = source.slice(at, at + 800);
+  assert.match(block, /replyTo = saved\.replyTo \|\| \(opts && opts\.replyTo\) \|\| null/);
   assert.match(block, /media: \(saved\.media \|\| \[\]\)\.slice\(\),/);
   // A draft saved before the attachment URLs left the editor carries them in its
   // text; resuming strips them, or publishing would append them a second time.
@@ -387,7 +398,8 @@ test('media is clipped, not stripped', () => {
   // Sometimes the image IS the note being answered. Removing it loses the context the
   // strip exists to give.
   const fn = lift('function buildReplyBlock(');
-  assert.match(fn, /renderNoteText\(body, replyTo\.content/, 'still the full renderer');
+  assert.match(fn, /renderNoteText\(body, full,/, 'still the full renderer');
+  assert.match(fn, /const full = replyTo\.content \|\| '';/, 'and still the target\u2019s own content');
   assert.doesNotMatch(fn, /replace\(.*http/, 'no url stripping');
 });
 

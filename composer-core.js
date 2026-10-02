@@ -19,6 +19,8 @@ window.SidecarCore = (function () {
 
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
+    // Feather's folder, for the composer's saved drafts.
+    folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>',
     // Feather's video: a camera body with the lens flare cut out of its side. Used as
     // the placeholder on a video attachment's thumbnail, where a decoded frame is both
     // expensive and, in a 72px square, not actually informative.
@@ -1020,6 +1022,23 @@ window.SidecarCore = (function () {
           quotes.push({ el: a, bech });
           pushBlock(a);
         }
+      } else if (m[3]) {
+        // A fence is block-level, so it goes through pushBlock and takes the newlines
+        // around it with it, the same as an image or a quote box.
+        //
+        // COUNTED AGAINST THE CAP, or a truncated context strip could be one enormous
+        // listing. It is counted whole and refused whole: half a code block is worse
+        // than a line saying there is one, because a reader cannot tell a cut from the
+        // code actually ending there.
+        if (!truncated) {
+          if (used + m[3].length > maxLen) { pushText('…'); truncated = true; }
+          else { pushBlock(codeBlockEl(m[3])); used += m[3].length; }
+        }
+      } else if (m[4]) {
+        if (!truncated) {
+          if (used + m[4].length > maxLen) { pushText('…'); truncated = true; }
+          else { container.append(codeInlineEl(m[4])); used += m[4].length; }
+        }
       }
       last = PREVIEW_RE.lastIndex;
     }
@@ -1339,6 +1358,66 @@ window.SidecarCore = (function () {
     return kept.join('\n').replace(/\s+$/, '');
   }
 
+  // ---- reply threading, shared by both composers ------------------------------------
+  //
+  // MOVED HERE so the panel and the expanded tab build byte-identical threading. It used
+  // to live in sidepanel.js, which is why Expand was disabled on replies: the tab had no
+  // way to produce these tags and popping a reply out would have published a top-level
+  // note, detached from the thread, with nothing on screen saying so.
+  //
+  // selfPubkey is a parameter rather than a read of some global, because the two callers
+  // keep the active account in different places and the one thing this must not get wrong
+  // is which key to leave OUT of the p tags.
+  const WEB_COMMENT_KIND = 1111;
+
+  function replyTags(target, selfPubkey) {
+    const tags = [];
+    const tgTags = (target && target.tags) || [];
+    const id = target && target.id;
+    const author = target && target.pubkey;
+
+    // Everyone already in the conversation, so they are notified. Deduped, and never
+    // the replier themselves — self-p-tagging shows up as a notification from you.
+    const people = [];
+    const seenP = new Set([selfPubkey]);
+    const addP = (pk) => {
+      if (!pk || seenP.has(pk)) return;
+      seenP.add(pk);
+      people.push(['p', pk]);
+    };
+    addP(author);
+    tgTags.forEach((t) => { if (t[0] === 'p' && t[1]) addP(t[1]); });
+
+    if (target.kind === WEB_COMMENT_KIND) {
+      // Scope, verbatim. A 1111 always carries its root in uppercase tags.
+      tgTags.forEach((t) => { if (t[0] === 'I' || t[0] === 'K' || t[0] === 'E' || t[0] === 'A') tags.push(t.slice()); });
+      // AND THE ROOT AUTHOR, which NIP-22 says a comment MUST carry and this did not.
+      // It is the mirror of the bug this branch fixes: a client watching `#P` for replies
+      // in its own threads could not see ours. Copied from the parent when the parent is
+      // itself the root, since then the two are the same person.
+      const rootP = tgTags.find((t) => t[0] === 'P' && t[1]);
+      if (rootP) tags.push(rootP.slice());
+      else {
+        // No P on the parent. The spec also carries the root author as the FOURTH element
+        // of the E tag, so that is where to look before giving up rather than guessing at
+        // the parent's author, who is only the same person on a top-level comment. A
+        // web-rooted comment (an I tag) has no author at all and correctly gets none.
+        const rootE = tgTags.find((t) => t[0] === 'E' && t[3]);
+        if (rootE) tags.push(['P', rootE[3]]);
+      }
+      // Parent: the comment being answered.
+      tags.push(['e', id], ['k', String(target.kind)]);
+      return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
+    }
+
+    // NIP-10. Reuse the target's root when it has one; otherwise the target is the root.
+    const rootTag = tgTags.find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
+    const root = rootTag ? rootTag[1] : id;
+    tags.push(['e', root, '', 'root']);
+    if (root !== id) tags.push(['e', id, '', 'reply']);
+    return { kind: 1, tags: [...tags, ...people] };
+  }
+
   // THE COVER A VIDEO WEARS INSTEAD OF A FRAME.
   //
   // A <video> in a 72px cell is a bad thumbnail three ways: it paints black until it has
@@ -1461,7 +1540,586 @@ window.SidecarCore = (function () {
 
   const VID_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
-  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})/gi;
+  // CODE IS APPENDED, NOT PREPENDED, so m[1] and m[2] keep meaning what they meant to
+  // every existing branch. It still wins over a URL inside a fence: the engine takes the
+  // LEFTMOST match, and a fence opens before anything it contains.
+  //
+  // Fenced first, then inline, or ``` would match as an empty inline pair followed by a
+  // stray backtick. Inline refuses newlines, so an unclosed backtick in prose cannot
+  // swallow the rest of a note looking for its partner.
+  const PREVIEW_RE = /(https?:\/\/[^\s]+)|(?:nostr:)?(npub1[0-9a-z]{58}|nprofile1[0-9a-z]{50,}|note1[0-9a-z]{58}|nevent1[0-9a-z]{50,}|naddr1[0-9a-z]{50,})|(```[\s\S]*?```)|(`[^`\n]+`)/gi;
+
+  // The text inside a fence, without the fences and without the language tag authors put
+  // on the opening line. The tag is dropped rather than shown: it is an instruction to a
+  // highlighter, and there is no highlighter here.
+  function fenceBody(raw) {
+    let t = String(raw).slice(3, -3);
+    t = t.replace(/^[^\n`]*\n/, '');   // ```js\n  -> drop the tag line
+    return t.replace(/^\n+/, '').replace(/\s+$/, '');
+  }
+
+  // THE BLOCK IS COPYABLE, because the reason somebody pastes code into a note is for
+  // you to run it, and a box that scrolls sideways is the worst possible thing to select
+  // by hand on a phone or in a 360px panel.
+  //
+  // The button sits OUTSIDE the scrolling element, in a wrapper, or it would scroll away
+  // with the content the moment a long line was read.
+  function codeBlockEl(raw) {
+    const body = fenceBody(raw);
+    const wrap = h('div', { className: 'note-code-wrap' });
+    const pre = h('pre', { className: 'note-code' });
+    pre.append(h('code', { textContent: body }));
+
+    const copy = h('button', { className: 'note-code-copy', type: 'button', title: t('Copy code') });
+    copy.append(icon('copy'));
+    copy.addEventListener('click', (e) => {
+      // The block can sit inside a row that is itself a link to the note.
+      e.preventDefault();
+      e.stopPropagation();
+      navigator.clipboard.writeText(body).then(() => {
+        copy.innerHTML = '';
+        copy.append(icon('check'));
+        copy.classList.add('ok');
+        // Reverted rather than left as a tick: the next block down is a different block,
+        // and a permanent tick on one of several says the wrong thing about which.
+        setTimeout(() => {
+          if (!copy.isConnected) return;
+          copy.innerHTML = '';
+          copy.append(icon('copy'));
+          copy.classList.remove('ok');
+        }, 1200);
+      }, () => {});
+    });
+
+    wrap.append(pre, copy);
+    return wrap;
+  }
+
+  // ---- polls, shared by both composers -------------------------------------------
+  //
+  // Moved here from sidepanel.js so the expanded tab can compose one too. Until it
+  // could, the always-expanded setting had to refuse a poll draft outright, since a tab
+  // with no poll editor shows the question and the options as nothing and then publishes
+  // a plain note over the top of them.
+  const POLL_KIND = 1068;
+  const POLL_SINGLE = 'singlechoice';
+  const POLL_MULTIPLE = 'multiplechoice';
+  // A day rather than the week this started at, because a week is not what anyone means
+  // by "I'm asking". Twitter defaults to a day and caps at seven; Amethyst's own poll
+  // composer opens on oneDayAhead. Longer is still offered, up to thirty days, since a
+  // poll about something slow is a real thing to want. The default is the common case.
+  const POLL_DEFAULT_SECS = 86400;
+  const POLL_DURATIONS = [
+    { secs: 3600, label: '1 hour' },
+    { secs: 6 * 3600, label: '6 hours' },
+    { secs: POLL_DEFAULT_SECS, label: '1 day' },
+    { secs: 3 * 86400, label: '3 days' },
+    { secs: 7 * 86400, label: '7 days' },
+    { secs: 14 * 86400, label: '14 days' },
+    { secs: 30 * 86400, label: '30 days' },
+  ];
+  // The label above is English for tests and logs; what the select shows is built here,
+  // since "6 hours" is a count and takes its language's plural form.
+  function pollDurationLabel(secs) {
+    if (secs < 86400) {
+      const n = secs / 3600;
+      return tn('{{count}} hour', '{{count}} hours', n);
+    }
+    const n = secs / 86400;
+    return tn('{{count}} day', '{{count}} days', n);
+  }
+  // Four, matching what Jumble writes. These tags tell a voter where to publish, and a
+  // long list is not more reachable: it is the same votes scattered wider, which makes
+  // the count slower to gather and more likely to be partial.
+  const POLL_RELAY_LIMIT = 4;
+
+  // Alphanumeric, which is all NIP-88 asks of an option id. Nine characters matches what
+  // Jumble writes, so ids from either client look the same on a relay.
+  function pollOptionId() {
+    const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = new Uint8Array(9);
+    crypto.getRandomValues(bytes);
+    let out = '';
+    for (const b of bytes) out += abc[b % abc.length];
+    return out;
+  }
+
+  function newPollDraft() {
+    return {
+      options: ['', ''],
+      multiple: false,
+      ends: { kind: 'in', secs: POLL_DEFAULT_SECS },
+    };
+  }
+
+  // A DURATION IS RESOLVED AT PUBLISH, NOT AT DRAFT. Storing the absolute timestamp when
+  // the editor opened meant a poll drafted on Monday and posted on Thursday went out with
+  // three of its days already gone, and one left in a draft past its own duration
+  // published already closed. `kind: 'at'` is the one case the author really did name a
+  // moment, so that one is passed through untouched.
+  function pollEndsAtFor(pollDraft, nowSecs) {
+    const ends = pollDraft && pollDraft.ends;
+    if (!ends || ends.kind === 'none') return null;
+    if (ends.kind === 'at') return ends.at > 0 ? ends.at : null;
+    return nowSecs + ends.secs;
+  }
+
+  // Two options with something in them is the floor: one option is not a question, and
+  // a blank is not a choice anyone can pick. Blanks are dropped rather than rejected so
+  // an author can leave the trailing empty row alone instead of tidying it.
+  function pollDraftOptions(pollDraft) {
+    return ((pollDraft && pollDraft.options) || []).map((o) => o.trim()).filter(Boolean);
+  }
+
+  function pollDraftIsPostable(pollDraft) {
+    return pollDraftOptions(pollDraft).length >= 2;
+  }
+
+  // The tags that turn a note into a poll. Pure, so the shape of a published poll is
+  // testable without a relay or a signer.
+  //
+  // Ids are generated here rather than in the editor because they are not the author's
+  // business, and because an id has to be unique WITHIN the poll: pollOptions drops a
+  // duplicate rather than merging it, so a collision would silently lose an option
+  // between what the author typed and what anyone can vote for.
+  function buildPollTags(pollDraft, nowSecs, relays) {
+    const tags = [];
+    const used = new Set();
+    pollDraftOptions(pollDraft).forEach((label) => {
+      let id = pollOptionId();
+      while (used.has(id)) id = pollOptionId();
+      used.add(id);
+      tags.push(['option', id, label]);
+    });
+    // Written even for the default. NIP-88 says an absent polltype is singlechoice, so
+    // this is redundant on paper, and it is the difference between a reader having to
+    // know the default and being told.
+    tags.push(['polltype', pollDraft.multiple ? POLL_MULTIPLE : POLL_SINGLE]);
+    const endsAt = pollEndsAtFor(pollDraft, nowSecs);
+    if (endsAt) tags.push(['endsAt', String(endsAt)]);
+    (relays || []).slice(0, POLL_RELAY_LIMIT).forEach((u) => tags.push(['relay', u]));
+    return tags;
+  }
+
+  // THE POLL EDITOR, built here so both composers have one.
+  //
+  // It used to live inside openComposer, which is why the expanded tab had no polls at
+  // all and the always-expanded setting had to refuse a poll draft: a tab with no editor
+  // shows the question and the options as nothing, then publishes a plain note over the
+  // top of them.
+  //
+  // `d` is everything it used to close over, as accessors rather than values, because
+  // the draft object is rebound under the tab when the account changes and a captured
+  // reference would go on editing the previous account's poll.
+  //
+  //   poll()      the draft's poll, or null
+  //   setPoll(p)  write it back
+  //   changed()   the draft moved: repaint Post and save. BOTH, always: the two were
+  //               separate calls here and two of the sites only ever saved, so folding
+  //               them apart is how one of those silently stops updating the button.
+  //   isReply()   polls are not offered on a reply
+  //   hasMedia()  a poll and attachments are one or the other
+  //   mediaBtn()  the button that stands down while a poll holds the draft
+  //   devSelect() optional, the dev kind override to disable
+  //
+  // Returns the pieces the caller mounts: the editor itself, the button that starts one,
+  // and the two paints, since adding media has to re-run the either-or from outside.
+  // ---- saved drafts, listed ----
+  //
+  // One account holds a note draft and a reply draft per note it is answering. Both
+  // composers list the others the same way, from here: the tab under its Saved drafts tab,
+  // the panel behind the folder in its corner.
+  //
+  // ONLY DRAFTS WITH SOMETHING IN THEM. A reply keeps its slot while empty because the
+  // slot holds the target, but an empty slot is nothing to go back to.
+  function draftHasContent(d) {
+    return !!(d && ((d.text && d.text.trim()) || (d.media && d.media.length)
+      || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))));
+  }
+  // Every draft of this account but the one on screen, the note first and then replies
+  // newest first. `replyId` is the note a reply answers, or null for the note draft.
+  function otherDraftEntries(all, pubkey, currentKey) {
+    return Object.keys(all || {})
+      .filter((k) => k !== currentKey && (k === pubkey || k.startsWith(pubkey + '|r:'))
+        && draftHasContent(all[k]))
+      .map((k) => ({
+        key: k, draft: all[k], reply: k !== pubkey,
+        replyId: k === pubkey ? null : k.slice(k.indexOf('|r:') + 3),
+      }))
+      .sort((a, b) => (a.reply - b.reply) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
+  }
+  function draftSnippet(d) {
+    const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
+    if (text) return text;
+    // A poll with its options typed and no question yet still says what it is.
+    const opts = (d.poll && d.poll.options || []).map((o) => (o || '').trim()).filter(Boolean);
+    if (opts.length) return opts.join(' · ');
+    if (d.media && d.media.length) return tn('{{count}} attachment', '{{count}} attachments', d.media.length);
+    return '';
+  }
+  // What a row is called: a reply, a poll, or the note.
+  function draftKindLabel(entry, name) {
+    if (entry.reply) return name ? t('Reply to {{name}}', { name }) : t('Reply');
+    return entry.draft.poll ? t('Your poll') : t('Your note');
+  }
+
+  // The list itself. d: { entries, nameFor(pubkey) -> Promise<name|null>, onPick(entry),
+  // onDelete(entry) -> Promise }.
+  //
+  // THE TRASH CONFIRMS BY REWRITING ITS OWN ROW, the account switcher's two taps: the
+  // first turns the row into the question, the second, anywhere on it, deletes. A draft
+  // lives only in this browser, so there is nothing to recover it from, and the toast
+  // has no Undo to offer instead. The question goes back on its own after a few seconds.
+  function buildSavedDraftList(d) {
+    const list = h('div', { className: 'saved-drafts' });
+    d.entries.forEach((entry) => {
+      const label = h('span', { className: 'saved-draft-label', textContent: draftKindLabel(entry, null) });
+      const when = h('span', { className: 'saved-draft-when',
+        textContent: entry.draft.savedAt ? relTime(entry.draft.savedAt) : '' });
+      const snip = h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: draftSnippet(entry.draft) });
+      const open = h('button', { className: 'saved-draft-open', type: 'button' }, [
+        h('span', { className: 'saved-draft-top' }, [label, when]), snip,
+      ]);
+      const trash = h('button', { className: 'saved-draft-x', type: 'button', title: t('Delete draft') });
+      trash.append(icon('trash'));
+      const row = h('div', { className: 'saved-draft' }, [open, trash]);
+
+      let name = null;
+      if (entry.reply && entry.draft.replyTo && entry.draft.replyTo.pubkey && d.nameFor) {
+        Promise.resolve(d.nameFor(entry.draft.replyTo.pubkey)).then((n) => {
+          if (!n || !label.isConnected) return;
+          name = n;
+          if (!row.classList.contains('confirming')) label.textContent = draftKindLabel(entry, name);
+        }).catch(() => {});
+      }
+
+      let timer = null;
+      const settle = () => {
+        clearTimeout(timer);
+        row.classList.remove('confirming');
+        label.textContent = draftKindLabel(entry, name);
+        when.classList.remove('hidden');
+        snip.textContent = draftSnippet(entry.draft);
+      };
+      const confirmDelete = () => {
+        row.classList.add('confirming');
+        label.textContent = t('Delete this draft?');
+        when.classList.add('hidden');
+        snip.textContent = t('Tap again to delete');
+        timer = setTimeout(settle, 4000);
+      };
+      const remove = async () => {
+        clearTimeout(timer);
+        trash.disabled = true; open.disabled = true;
+        try { await d.onDelete(entry); } catch (_) { settle(); trash.disabled = false; open.disabled = false; }
+      };
+      trash.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else confirmDelete(); });
+      open.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else d.onPick(entry); });
+      list.append(row);
+    });
+    return list;
+  }
+
+  function buildPollEditor(d) {
+    const pollWrap = h('div', { className: 'poll-editor hidden' });
+    const pollAdd = h('button', { className: 'mini compose-add' });
+    pollAdd.append(icon('bar-chart'), h('span', { textContent: t('Poll') }));
+    pollAdd.addEventListener('click', () => {
+      d.setPoll(newPollDraft());
+      paintPoll();
+      // Turning a note into a poll RAISES the bar for posting: a note needs text or an
+      // image, a poll needs its question and two filled options. Post was already enabled
+      // under the note rule, and without this it stayed that way, so typing a question,
+      // tapping here and tapping Post published a kind:1068 carrying no options at all.
+      // Nothing downstream re-checks; the click handler only asks whether Post is
+      // disabled. Remove poll has always done this, which is the tell.
+      d.changed();
+      const first = pollWrap.querySelector('.poll-option-input');
+      if (first) first.focus();
+    });
+
+    // Rebuilt wholesale on add/remove. The rows carry an index in their own handlers,
+    // and patching a list in place while indices shift underneath is how a remove
+    // button ends up deleting the row below the one it sits on.
+    function paintPollOptions(list) {
+      list.innerHTML = '';
+      const opts = d.poll().options;
+      opts.forEach((value, i) => {
+        const row = h('div', { className: 'poll-option' });
+        row.append(h('span', { className: 'poll-option-num', textContent: String(i + 1) + '.' }));
+        const input = h('input', {
+          className: 'poll-option-input',
+          type: 'text',
+          value,
+          maxLength: 200,
+          placeholder: t('Option {{number}}', { number: i + 1 }),
+        });
+        input.addEventListener('input', () => {
+          d.poll().options[i] = input.value;
+          d.changed();
+        });
+        row.append(input);
+        // TWO IS THE FLOOR, so below that there is nothing to remove and the button
+        // would only ever be disabled. An icon-only control in the inline slot, per
+        // the panel's row rules: a worded button here would leave the input no width.
+        if (opts.length > 2) {
+          const rm = h('button', { className: 'poll-option-x', title: t('Remove option {{number}}', { number: i + 1 }) });
+          rm.append(icon('x'));
+          rm.addEventListener('click', () => {
+            d.poll().options.splice(i, 1);
+            paintPollOptions(list);
+            d.changed();
+          });
+          row.append(rm);
+        }
+        list.append(row);
+      });
+    }
+
+    // A POLL AND ATTACHMENTS ARE ONE OR THE OTHER. A kind:1068 carrying appended
+    // image URLs and imeta tags is a shape no NIP-88 client renders, and the tag
+    // push in doPublish long claimed it could not arrive. Each side's button
+    // stands down while the other holds the draft, so the pair is decided by what
+    // refuses to appear rather than by what publishes.
+    function paintEitherOr() {
+      pollAdd.classList.toggle('hidden', !!d.poll() || d.isReply() || d.hasMedia());
+      d.mediaBtn().classList.toggle('hidden', !!d.poll());
+    }
+    function paintPoll() {
+      pollWrap.innerHTML = '';
+      pollWrap.classList.toggle('hidden', !d.poll());
+      paintEitherOr();
+      const devSelect = d.devSelect && d.devSelect();
+      if (devSelect) devSelect.disabled = !!d.poll();
+      if (!d.poll()) return;
+
+      const list = h('div', { className: 'poll-options' });
+      paintPollOptions(list);
+
+      const addOpt = h('button', { className: 'poll-add-option' });
+      addOpt.append(icon('plus'), h('span', { textContent: t('Add option') }));
+      addOpt.addEventListener('click', () => {
+        d.poll().options.push('');
+        paintPollOptions(list);
+        d.changed();
+        const inputs = list.querySelectorAll('.poll-option-input');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+      });
+
+      const multi = h('input', { type: 'checkbox', checked: d.poll().multiple });
+      multi.addEventListener('change', () => {
+        d.poll().multiple = multi.checked;
+        d.changed();
+      });
+      const multiRow = h('label', { className: 'toggle-row' }, [
+        multi,
+        h('span', { textContent: t('Allow multiple choices') }),
+      ]);
+
+      // Durations, plus the two ends of the range: a specific moment, and none at all.
+      const sel = h('select', { className: 'poll-ends-select' });
+      POLL_DURATIONS.forEach((d) => {
+        sel.append(h('option', { value: 'in:' + d.secs, textContent: pollDurationLabel(d.secs) }));
+      });
+      sel.append(h('option', { value: 'at', textContent: t('Custom date and time…') }));
+      sel.append(h('option', { value: 'none', textContent: t('No end date') }));
+      sel.value =
+        d.poll().ends.kind === 'in' ? 'in:' + d.poll().ends.secs : d.poll().ends.kind;
+
+      const custom = h('input', { className: 'poll-ends-custom', type: 'datetime-local' });
+      if (d.poll().ends.kind === 'at' && d.poll().ends.at) {
+        // datetime-local wants local wall time with no zone, which is what an author
+        // picked in the first place; toISOString would shift it by the offset.
+        const d = new Date(d.poll().ends.at * 1000);
+        const pad = (n) => String(n).padStart(2, '0');
+        custom.value =
+          d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+          'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      }
+      custom.addEventListener('change', () => {
+        const at = custom.value ? Math.floor(new Date(custom.value).getTime() / 1000) : 0;
+        d.poll().ends = { kind: 'at', at };
+        paintEndsNote();
+        d.changed();
+      });
+
+      const endsNote = h('p', { className: 'hint poll-ends-note' });
+      function paintEndsNote() {
+        const k = d.poll().ends.kind;
+        custom.classList.toggle('hidden', k !== 'at');
+        endsNote.classList.toggle('warn', k === 'none');
+        if (k === 'none') {
+          // Said plainly rather than blocked. It is the author's poll, and there are
+          // real uses for one that never closes, but a running total is not a result:
+          // there is no moment the number means anything, and nothing stops a late
+          // arrival moving it a year from now.
+          endsNote.textContent = t('Not recommended: the count never settles, so the poll has no final result.');
+        } else if (k === 'at' && !(d.poll().ends.at > 0)) {
+          endsNote.textContent = t('Pick the date and time the poll should close.');
+        } else {
+          const at = pollEndsAtFor(d.poll(), Math.floor(Date.now() / 1000));
+          endsNote.textContent = at && at <= Math.floor(Date.now() / 1000)
+            ? t('That time has already passed, so the poll would close on posting.')
+            : t('Votes stop counting when the poll closes.');
+        }
+      }
+      sel.addEventListener('change', () => {
+        const v = sel.value;
+        if (v === 'none') d.poll().ends = { kind: 'none' };
+        else if (v === 'at') d.poll().ends = { kind: 'at', at: d.poll().ends.at || 0 };
+        else d.poll().ends = { kind: 'in', secs: parseInt(v.slice(3), 10) };
+        paintEndsNote();
+        d.changed();
+      });
+      paintEndsNote();
+
+      // WHAT POSTING A POLL ACTUALLY COSTS, said where it can still change the decision.
+      // A 1068 is not a kind:1, so a client that has not implemented NIP-88 does not render
+      // it at all: it never appears in a feed filtered to notes, and the author gets no
+      // signal. Silence from the other side is indistinguishable from nobody caring.
+      //
+      // A box rather than a second amber line, because the ends note directly above is
+      // already amber text on the no-end-date case and two of those read as one sentence.
+      // No glyph: .kind-warn is bordered and filled, so the warning is not carried by
+      // color alone (the point made above .destructive-warn).
+      const clientWarn = h('div', {
+        className: 'kind-warn',
+        textContent: t('Some clients cannot show polls. On those, this will not appear at all.'),
+      });
+
+      const remove = h('button', { className: 'poll-remove' });
+      remove.append(icon('trash'), h('span', { textContent: t('Remove poll') }));
+      remove.addEventListener('click', () => {
+        d.setPoll(null);
+        paintPoll();
+        d.changed();
+      });
+
+      pollWrap.append(
+        list,
+        addOpt,
+        h('div', { className: 'poll-editor-sep' }),
+        multiRow,
+        h('label', { className: 'poll-ends-label', textContent: t('Runs for') }),
+        sel,
+        custom,
+        endsNote,
+        h('div', { className: 'poll-editor-sep' }),
+        clientWarn,
+        remove
+      );
+    }
+
+    paintPoll();
+    return { wrap: pollWrap, addBtn: pollAdd, paint: paintPoll, paintEitherOr };
+  }
+
+  // A PHOTO IN A QUOTED NOTE OPENS AT FULL SIZE.
+  //
+  // Not inline. The quote block is capped so the editor stays on screen, and growing the
+  // image inside it only trades a 108px window for a 320px one: still a window, still
+  // not the picture. In a 360px column "full size" can only mean taking the viewport,
+  // so it takes the viewport.
+  //
+  // Self-contained rather than routed through the panel's openModal, because this runs
+  // in two documents and the expanded page has no such thing. It owns its overlay, its
+  // key handler and its teardown.
+  function openMediaLightbox(src, isVideo) {
+    const back = h('div', { className: 'media-lightbox' });
+    const el = isVideo
+      ? h('video', { className: 'media-lightbox-item', controls: true, autoplay: false })
+      : h('img', { className: 'media-lightbox-item', alt: '' });
+    el.referrerPolicy = 'no-referrer';
+    el.src = src;
+
+    const close = h('button', { className: 'media-lightbox-x', type: 'button', title: t('Close') });
+    close.append(icon('x'));
+
+    let gone = false;
+    const shut = () => {
+      if (gone) return;
+      gone = true;
+      document.removeEventListener('keydown', onKey, true);
+      back.remove();
+    };
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); shut(); } }
+    // Capture, so Escape closes THIS and not whatever sheet is open behind it: the panel
+    // has its own Escape handler and the quote is usually inside one of its modals.
+    document.addEventListener('keydown', onKey, true);
+
+    close.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); shut(); });
+    // The backdrop closes, the media does not. Clicking a video means using its controls.
+    back.addEventListener('click', (e) => { if (e.target === back) shut(); });
+
+    back.append(el, close);
+    document.body.append(back);
+    return shut;
+  }
+
+  // The corner control on each piece of media in a quoted note.
+  //
+  // A BUTTON, NOT A CLICK ON THE MEDIA. A <video> carries its own controls and a click
+  // there means play; overloading that would make one gesture mean two things depending
+  // on where in the frame it landed. Same corner control the code block uses, so the
+  // quote has one idiom rather than two.
+  function makeMediaExpandable(block, body) {
+    body.querySelectorAll('.note-media').forEach((el) => {
+      if (el.parentNode && el.parentNode.classList.contains('note-media-wrap')) return;
+      const wrap = h('div', { className: 'note-media-wrap' });
+      el.replaceWith(wrap);
+      wrap.append(el);
+
+      const btn = h('button', { className: 'note-media-zoom', type: 'button', title: t('Show the full image') });
+      btn.append(icon('arrow-up-right'));
+      btn.addEventListener('click', (e) => {
+        // The quote sits inside a sheet that closes on an outside click, and can sit
+        // inside a link to the note.
+        e.preventDefault();
+        e.stopPropagation();
+        openMediaLightbox(el.getAttribute('src') || el.src, el.tagName === 'VIDEO');
+      });
+      wrap.append(btn);
+    });
+  }
+
+  // Text with code in it, and nothing else rendered. The notification list wants the
+  // code boxes without the images, videos and quote cards renderNoteText also draws: a
+  // row there is a snippet beside two dozen others, not a note.
+  function renderTextWithCode(container, text) {
+    const RE = /(```[\s\S]*?```)|(`[^`\n]+`)/g;
+    let last = 0;
+    let m;
+    RE.lastIndex = 0;
+    // The newlines an author puts around a fence are padding on top of the block's own
+    // margin, and the containers this draws into are pre-wrap, so each one renders as a
+    // full empty line. Trimmed either side of a BLOCK only; inline code stays in its
+    // sentence and must not lose the spaces around it. Same rule as pushBlock.
+    let skipLead = false;
+    const pushText = (str) => {
+      let t = str;
+      if (skipLead) { t = t.replace(/^\s+/, ''); skipLead = false; }
+      if (t) container.append(document.createTextNode(t));
+    };
+    while ((m = RE.exec(text)) !== null) {
+      if (m.index > last) pushText(text.slice(last, m.index));
+      if (m[1]) {
+        const tail = container.lastChild;
+        if (tail && tail.nodeType === Node.TEXT_NODE) {
+          tail.textContent = tail.textContent.replace(/\s+$/, '');
+        }
+        container.append(codeBlockEl(m[1]));
+        skipLead = true;
+      } else {
+        container.append(codeInlineEl(m[2]));
+      }
+      last = RE.lastIndex;
+    }
+    if (last < text.length) pushText(text.slice(last));
+  }
+
+  function codeInlineEl(raw) {
+    return h('code', { className: 'note-code-inline', textContent: String(raw).slice(1, -1) });
+  }
 
   function renderNotePreview(container, text) {
     const mentions = [];
@@ -1530,6 +2188,12 @@ window.SidecarCore = (function () {
         } else {
           flushText(bech);
         }
+      } else if (m[3]) {
+        // No cap in the preview: this pane is what the note will look like, so a fence
+        // shows whole or the preview is not one.
+        pushBlock(codeBlockEl(m[3]));
+      } else if (m[4]) {
+        container.append(codeInlineEl(m[4]));
       }
       last = PREVIEW_RE.lastIndex;
     }
@@ -2016,6 +2680,11 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
+    replyTags, WEB_COMMENT_KIND, renderTextWithCode, makeMediaExpandable, openMediaLightbox,
+    POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
+    pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
+    buildPollEditor,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
+    draftHasContent, otherDraftEntries, buildSavedDraftList,
   };
 })();

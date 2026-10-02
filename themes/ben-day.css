@@ -221,6 +221,7 @@
 [data-theme="ben-day"] .reply-target-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .compose-done-mark:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .dev-badge:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .media-lightbox-x:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .fab:not(.theme-card):not(.theme-card *) {
   border-radius: 50%;
 }
