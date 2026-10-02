@@ -54,7 +54,7 @@
   // digits is the whole range that needs to be one tap away — anything bigger is worth
   // typing out in full, and a stray zero is caught rather than saved.
   const ZAP_DEFAULT_MAX = 9999;
-  const AUTOZAP_DEFAULT_MAX = 200;
+  const AUTOZAP_DEFAULT_MAX = 100;
   const AUTOZAP_DAILY_MULT = 100; // default daily cap = 100× the per-zap cap
   // Ceilings on the no-confirmation path — mirrored from background.js, which is
   // where they are actually enforced. Reflected here only so a clamped entry snaps
