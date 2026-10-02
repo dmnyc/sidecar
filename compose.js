@@ -103,6 +103,8 @@
     name = THEME_ALIASES[name] || name;
     if (!VALID_THEMES.includes(name)) name = 'speakeasy';
     document.documentElement.setAttribute('data-theme', name);
+    // For the next load's first paint (compose-boot.js), before any message is answered.
+    try { localStorage.setItem('sidecar_compose_theme', name); } catch (_) {}
     // The wordmark is baked lavender for a dark field and disappears on marble or
     // eggshell, so the six light themes get the dark-wordmark cut. Same function the
     // panel uses, from the same set, so a new theme is registered once.
@@ -1385,6 +1387,7 @@
     if (!state || !state.activePubkey) {
       document.body.innerHTML = '';
       document.body.append(h('p', { className: 'hint compose-empty', textContent: t('Open Sidecar and unlock it, then expand the composer again.') }));
+      document.documentElement.classList.remove('compose-booting');
       return;
     }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
@@ -1538,7 +1541,10 @@
     window.addEventListener('beforeunload', flushDraft);
   }
 
-  boot().catch((e) => {
+  // The card was held back by compose-boot.js until it had a theme and a draft in it.
+  const shown = () => document.documentElement.classList.remove('compose-booting');
+  boot().then(shown, (e) => {
+    shown();
     document.body.innerHTML = '';
     document.body.append(h('p', { className: 'hint compose-empty', textContent: e.message || t('Sidecar could not open the composer.') }));
   });

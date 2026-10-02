@@ -3204,6 +3204,11 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 /* The close box wants a corner to be absolute against, and the card is it. */
 .compose-sheet { position: relative; }
 .compose-x { top: 14px; right: 14px; }
+/* Held back until boot has a theme and a draft to show (compose-boot.js): the card would
+   otherwise paint empty, and the wordmark in the wrong cut, for as long as the worker
+   takes to answer. Visibility, not display, so the page's layout is already settled. */
+html.compose-booting .compose-sheet,
+html.compose-booting .compose-brand { visibility: hidden; }
 .compose-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
 .compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .compose-av { width: 40px; height: 40px; flex-shrink: 0; }
