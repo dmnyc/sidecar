@@ -63,7 +63,7 @@ test('one source, three uses', () => {
   assert.match(panel, /function emptyQuote\(hint, q\)/);
   assert.match(panel, /function endQuote\(q\)/);
   // Bookmarks: empty, and the end of the list.
-  assert.match(panel, /scroll\.append\(emptyQuote\('Bookmark a note from any Nostr client/);
+  assert.match(panel, /scroll\.append\(emptyQuote\(t\('Bookmark a note from any Nostr client/);
   assert.match(panel, /scroll\.append\(endQuote\(panelQuote\)\);/);
   // Notifications: empty for a new account, and the caught-up note.
   assert.match(panel, /emptyQuote\(t\('Replies, reactions and zaps show up here\.'\), panelQuote\)/);
@@ -162,7 +162,7 @@ test('A PANEL KEEPS THE QUOTE IT STARTED WITH', () => {
   assert.match(panel, /emptyQuote\(t\('Replies, reactions and zaps show up here\.'\), panelQuote\)/);
   assert.match(panel, /endQuote\(panelQuote\),/);
   // Bookmarks follow the same rule.
-  assert.match(panel, /emptyQuote\('Bookmark a note from any Nostr client and it shows up here\.', panelQuote\)/);
+  assert.match(panel, /emptyQuote\(t\('Bookmark a note from any Nostr client and it shows up here\.'\), panelQuote\)/);
   assert.match(panel, /scroll\.append\(endQuote\(panelQuote\)\);/);
   // And nothing draws its own mid-render.
   assert.doesNotMatch(panel, /endQuote\(\)\)/, 'no bare endQuote() call should remain');
