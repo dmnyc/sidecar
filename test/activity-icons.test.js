@@ -37,7 +37,9 @@ function block(name, pattern) {
 // DOM; the mapping itself is plain data and is what actually broke.
 const iconsSrc = block('ICONS', /const ICONS = \{([\s\S]*?)\n  \};/);
 const kindIconsSrc = block('KIND_ICONS', /const KIND_ICONS = \{([\s\S]*?)\n  \};/);
-const kindNamesSrc = block('KIND_NAMES', /const KIND_NAMES = \{([\s\S]*?)\n  \};/);
+// The activity list's kind names: a function returning a literal t() per kind, so the
+// key script lists them, read here as the plain map it is.
+const kindNamesSrc = block('activityKindName', /const activityKindName = \(kind\) => \(\{([\s\S]*?)\n  \}\)\[kind\];/);
 
 const ICON_NAMES = new Set(
   [...iconsSrc.matchAll(/^\s*'?([\w-]+)'?:\s*'/gm)].map((m) => m[1])
@@ -46,7 +48,7 @@ const KIND_ICONS = Object.fromEntries(
   [...kindIconsSrc.matchAll(/^\s*(\d+):\s*'([\w-]+)'/gm)].map((m) => [Number(m[1]), m[2]])
 );
 const KIND_NAMES = Object.fromEntries(
-  [...kindNamesSrc.matchAll(/(\d+):\s*'([^']+)'/g)].map((m) => [Number(m[1]), m[2]])
+  [...kindNamesSrc.matchAll(/(\d+):\s*t\('([^']+)'\)/g)].map((m) => [Number(m[1]), m[2]])
 );
 
 // ---- nothing renders blank -------------------------------------------------------

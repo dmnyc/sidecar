@@ -252,7 +252,7 @@ test('any account can be dressed from its own menu', () => {
   const fn = stripComments(lift('function themeOverrideModal('));
   assert.match(fn, /SIDECAR_SET_THEME_FOR/, 'the modal does not write the account theme');
   assert.doesNotMatch(fn, /settings: \{ theme:/, 'the modal writes the default for every account');
-  assert.match(fn, /value: '', textContent: 'Use the default'/, 'no way back to the default');
+  assert.match(fn, /value: '', textContent: t\('Use the default'\)/, 'no way back to the default');
 });
 
 test('DRESSING ANOTHER ACCOUNT DOES NOT REPAINT THE PANEL', () => {
@@ -299,8 +299,8 @@ test('THE THEME SELECT IS GROUPED, AND TAKES THE SPLIT FROM THE GALLERY', () => 
   // Par Avion are light, Nixie and Cast Iron are not, and no one can tell from the word.
   // The gallery answers that with a picture. A select can only answer it by grouping.
   const fn = stripComments(lift('function themeOverrideModal('));
-  assert.match(fn, /h\('optgroup', \{ label: 'Dark' \}\)/, 'the dark group is gone');
-  assert.match(fn, /h\('optgroup', \{ label: 'Light' \}\)/, 'the light group is gone');
+  assert.match(fn, /h\('optgroup', \{ label: t\('Dark'\) \}\)/, 'the dark group is gone');
+  assert.match(fn, /h\('optgroup', \{ label: t\('Light'\) \}\)/, 'the light group is gone');
   // Read from the cards, not restated. sidepanel.html calls data-mode the only place the
   // split is made, and a second copy here would be right until the next theme is added.
   assert.match(fn, /querySelector\('\.theme-card\[data-theme="' \+ key \+ '"\]'\)/,

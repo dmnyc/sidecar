@@ -90,7 +90,7 @@ test('the action is an icon button, not a labelled one', () => {
   // rows — the recurring mistake CLAUDE.md is written about.
   const at = panel.indexOf('function activityRow(');
   const fn = panel.slice(at, panel.indexOf('\n  }\n', at));
-  assert.match(fn, /iconButton\('View this event', 'external'/);
+  assert.match(fn, /iconButton\(t\('View this event'\), 'external'/);
   assert.match(fn, /className: 'item-actions'/, 'and lives in the inline action slot');
 });
 

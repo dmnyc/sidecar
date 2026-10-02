@@ -10270,25 +10270,30 @@
   }
 
   // ---- activity tab: connected sites (permission tiers) + signing history ----
-  const LEVELS = [
-    ['ask', 'Ask every time'],
-    ['readonly', 'Read only'],
-    ['trusted', 'Trusted'],
-    ['blocked', 'Blocked'],
+  // A function, not a table: it is read at render, after the language file has loaded,
+  // and each label is a literal t() so the key script lists it for translators.
+  const LEVELS = () => [
+    ['ask', t('Ask every time')],
+    ['readonly', t('Read only')],
+    ['trusted', t('Trusted')],
+    ['blocked', t('Blocked')],
   ];
-  const KIND_NAMES = {
-    0: 'profile', 1: 'note', 3: 'contacts', 4: 'direct message', 5: 'deletion',
-    6: 'repost', 7: 'reaction', 8: 'badge award', 62: 'vanish request',
-    1018: 'poll response', 1059: 'gift wrap', 1068: 'poll', 1111: 'comment', 1222: 'voice message',
-    1337: 'code snippet', 1985: 'label', 4454: 'DM device key', 4455: 'DM key transfer',
-    4550: 'community post', 9041: 'zap goal', 9321: 'nutzap', 9734: 'zap request',
-    9802: 'highlight', 10000: 'mute list', 10002: 'relay list', 10006: 'blocked relays',
-    10007: 'search relays', 10012: 'favorite relays', 10015: 'interests', 10030: 'emoji list',
-    10044: 'DM encryption key', 10050: 'DM relay list', 10063: 'blossom servers',
-    22242: 'relay auth', 24133: 'connect', 24242: 'blossom auth', 27235: 'HTTP auth',
-    30000: 'follow set', 30023: 'article', 30078: 'app data', 30315: 'status',
-    30818: 'wiki article', 34550: 'community', 39089: 'starter pack', 39701: 'web bookmark',
-  };
+  // The kind names the activity list says it signed. A function for the reason LEVELS
+  // is one: read at render, each name a literal t().
+  const activityKindName = (kind) => ({
+    0: t('profile'), 1: t('note'), 3: t('contacts'), 4: t('direct message'),
+    5: t('deletion'), 6: t('repost'), 7: t('reaction'), 8: t('badge award'),
+    62: t('vanish request'), 1018: t('poll response'), 1059: t('gift wrap'), 1068: t('poll'),
+    1111: t('comment'), 1222: t('voice message'), 1337: t('code snippet'), 1985: t('label'),
+    4454: t('DM device key'), 4455: t('DM key transfer'), 4550: t('community post'), 9041: t('zap goal'),
+    9321: t('nutzap'), 9734: t('zap request'), 9802: t('highlight'), 10000: t('mute list'),
+    10002: t('relay list'), 10006: t('blocked relays'), 10007: t('search relays'), 10012: t('favorite relays'),
+    10015: t('interests'), 10030: t('emoji list'), 10044: t('DM encryption key'), 10050: t('DM relay list'),
+    10063: t('blossom servers'), 22242: t('relay auth'), 24133: t('connect'), 24242: t('blossom auth'),
+    27235: t('HTTP auth'), 30000: t('follow set'), 30023: t('article'), 30078: t('app data'),
+    30315: t('status'), 30818: t('wiki article'), 34550: t('community'), 39089: t('starter pack'),
+    39701: t('web bookmark'),
+  })[kind];
 
   // Which icon each signed kind gets in the Recent activity list. Everything used to
   // show the same feather, so a client firing a dozen relay auths produced an
@@ -10352,20 +10357,22 @@
   };
 
   const METHOD_META = {
-    getPublicKey: { icon: 'key', label: () => 'Shared public key' },
+    getPublicKey: { icon: 'key', label: () => t('Shared public key') },
     signEvent: {
       icon: (e) => KIND_ICONS[e.kind] || KIND_ICON_DEFAULT,
-      label: (e) => 'Signed ' + (KIND_NAMES[e.kind] || ('kind ' + e.kind)),
+      label: (e) => (activityKindName(e.kind)
+        ? t('Signed {{what}}', { what: activityKindName(e.kind) })
+        : t('Signed kind {{kind}}', { kind: e.kind })),
     },
-    getRelays: { icon: 'wifi', label: () => 'Read relay list' },
-    'nip04.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
-    'nip04.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
-    'nip44.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
-    'nip44.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
+    getRelays: { icon: 'wifi', label: () => t('Read relay list') },
+    'nip04.encrypt': { icon: 'lock', label: () => t('Encrypted a message') },
+    'nip04.decrypt': { icon: 'unlock', label: () => t('Decrypted a message') },
+    'nip44.encrypt': { icon: 'lock', label: () => t('Encrypted a message') },
+    'nip44.decrypt': { icon: 'unlock', label: () => t('Decrypted a message') },
     // Without these the activity list falls through to the default and prints the raw
     // method string under a quill — 'webln.keysend' four times over for one boost.
-    'webln.sendPayment': { icon: 'zap', label: () => 'Paid a Lightning invoice' },
-    'webln.keysend': { icon: 'zap', label: () => 'Sent a keysend payment' },
+    'webln.sendPayment': { icon: 'zap', label: () => t('Paid a Lightning invoice') },
+    'webln.keysend': { icon: 'zap', label: () => t('Sent a keysend payment') },
   };
 
 
@@ -10385,14 +10392,14 @@
     if (boundAcct) {
       const who = h('div', { className: 'site-bound' + (isActiveBound ? '' : ' site-bound-other') });
       who.append(avatarEl(boundAcct, 'site-bound-av'));
-      who.append(h('span', { textContent: 'Signs in as ' + displayName(boundAcct) }));
+      who.append(h('span', { textContent: t('Signs in as {{name}}', { name: displayName(boundAcct) }) }));
       main.append(who);
     }
     if (isShared) {
       const shared = h('div', { className: 'site-shared' });
       shared.append(icon('users'));
-      shared.append(h('span', { textContent: authorizedPks.length + ' accounts have signed in here' }));
-      const manage = h('button', { className: 'site-shared-manage', textContent: 'Manage' });
+      shared.append(h('span', { textContent: tn('{{count}} account has signed in here', '{{count}} accounts have signed in here', authorizedPks.length) }));
+      const manage = h('button', { className: 'site-shared-manage', textContent: t('Manage') });
       manage.addEventListener('click', () => sharedSiteModal(host, authorizedPks));
       shared.append(manage);
       main.append(shared);
@@ -10409,8 +10416,8 @@
       const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
       const btn = h('button', {
         className: 'switch-site-btn',
-        textContent: 'Use ' + (active ? displayName(active) : 'this account'),
-        title: 'Switch ' + host + ' to the active account',
+        textContent: active ? t('Use {{name}}', { name: displayName(active) }) : t('Use this account'),
+        title: t('Switch {{host}} to the active account', { host }),
       });
       btn.addEventListener('click', () => switchSiteModal(host, boundAcct, active));
       controls.append(btn);
@@ -10426,7 +10433,7 @@
       controls.innerHTML = '';
       const sel = document.createElement('select');
       sel.className = 'level-select';
-      LEVELS.forEach(([v, l]) => {
+      LEVELS().forEach(([v, l]) => {
         const o = h('option', { value: v, textContent: l });
         if (v === level) o.selected = true;
         sel.append(o);
@@ -10434,11 +10441,11 @@
       sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
       // Forget needs a deliberate step — first tap swaps the controls for an inline
       // "Forget this site?" confirm so a stray click can't wipe a site's trust.
-      const rm = iconButton('Forget site', 'trash', () => {
+      const rm = iconButton(t('Forget site'), 'trash', () => {
         controls.innerHTML = '';
-        const msg = h('span', { className: 'confirm-msg', textContent: 'Forget this site?' });
-        const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
-        const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+        const msg = h('span', { className: 'confirm-msg', textContent: t('Forget this site?') });
+        const yes = h('button', { className: 'mini del-confirm', textContent: t('Forget') });
+        const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
         no.addEventListener('click', buildControls); // restore controls in place
         yes.addEventListener('click', async () => {
           await call({ type: 'SIDECAR_REMOVE_HOST', host });
@@ -10457,17 +10464,16 @@
   // Detaching alone isn't enough — the web client caches the old pubkey, so the
   // user must sign out and back in for Sidecar to re-bind it.
   function switchSiteModal(host, boundAcct, active) {
-    const activeName = active ? displayName(active) : 'the active account';
+    const activeName = active ? displayName(active) : t('the active account');
     openModal((modal) => {
-      const p = h('p', { className: 'hint' }, [
-        document.createTextNode(host + ' is signing in as '),
-        h('b', { textContent: displayName(boundAcct) }),
-        document.createTextNode('. To use '),
-        h('b', { textContent: activeName }),
-        document.createTextNode(' instead:'),
-      ]);
-      const go = h('button', { className: 'primary', textContent: 'Detach ' + host });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      // One sentence with the two names set in bold inside it, through fill(), rather
+      // than five fragments a translation could not reorder.
+      const p = h('p', { className: 'hint' }, I18N.fill(
+        t('{{host}} is signing in as {{bound}}. To use {{active}} instead:', { host, bound: '{{bound}}', active: '{{active}}' }),
+        { bound: h('b', { textContent: displayName(boundAcct) }), active: h('b', { textContent: activeName }) }
+      ));
+      const go = h('button', { className: 'primary', textContent: t('Detach {{host}}', { host }) });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_BINDING', host });
@@ -10476,11 +10482,11 @@
         renderActivity();
       });
       modal.append(
-        h('h3', { textContent: 'Switch ' + host }),
+        h('h3', { textContent: t('Switch {{host}}', { host }) }),
         p,
         h('ol', { className: 'restore-list' }, [
-          h('li', { textContent: 'Detach the site below.' }),
-          h('li', { textContent: 'On ' + host + ', sign out and sign back in.' }),
+          h('li', { textContent: t('Detach the site below.') }),
+          h('li', { textContent: t('On {{host}}, sign out and sign back in.', { host }) }),
         ]),
         h('div', { className: 'actions' }, [go, cancel])
       );
@@ -10500,7 +10506,7 @@
     openModal((modal) => {
       modal.append(
         h('h3', { textContent: host }),
-        h('p', { className: 'hint', textContent: 'More than one account has signed in here, so Sidecar asks who is posting each time. Remove one to stop.' })
+        h('p', { className: 'hint', textContent: t('More than one account has signed in here, so Sidecar asks who is posting each time. Remove one to stop.') })
       );
       const list = h('div', { className: 'stack' });
       authorizedPks.forEach((pk) => {
@@ -10509,11 +10515,11 @@
         const row = h('div', { className: 'shared-acct-row' });
         row.append(avatarEl(a, 'site-bound-av'));
         row.append(h('span', { className: 'shared-acct-name', textContent: displayName(a) }));
-        const rm = iconButton('Remove from this site', 'trash', async () => {
+        const rm = iconButton(t('Remove from this site'), 'trash', async () => {
           await call({ type: 'SIDECAR_REMOVE_SITE_ACCOUNT', host, pubkey: pk });
           closeModal();
           renderActivity();
-          toast(displayName(a) + ' removed from ' + host, 'success');
+          toast(t('{{name}} removed from {{host}}', { name: displayName(a), host }), 'success');
         });
         row.append(rm);
         list.append(row);
@@ -10536,8 +10542,8 @@
       // sheet and did not need saying twice in smaller type.
       const row = h('label', { className: 'shared-acct-row always-active-row' }, [
         h('span', { className: 'shared-acct-name' }, [
-          h('span', { className: 'always-active-label', textContent: 'Don\u2019t ask which account' }),
-          h('span', { className: 'always-active-note', textContent: 'Posts may not match the client.' }),
+          h('span', { className: 'always-active-label', textContent: tSec('Don\u2019t ask which account') }),
+          h('span', { className: 'always-active-note', textContent: tSec('Posts may not match the client.') }),
         ]),
         toggle,
       ]);
@@ -10546,7 +10552,7 @@
         toggle.disabled = true;
         try {
           await call({ type: 'SIDECAR_SET_ALWAYS_ACTIVE', host, on });
-          toast(on ? 'Signing as the active account on ' + host : 'Confirms are back on ' + host, 'success');
+          toast(on ? t('Signing as the active account on {{host}}', { host }) : t('Confirms are back on {{host}}', { host }), 'success');
         } catch (e) {
           toggle.checked = !on; // put the switch back where the stored state actually is
           toast(e.message, 'error');
@@ -10556,7 +10562,7 @@
       });
       modal.append(row);
 
-      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      const close = h('button', { className: 'ghost', textContent: t('Close') });
       close.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [close]));
     });
@@ -10574,7 +10580,7 @@
       const iconBox = h('div', { className: 'act-icon' });
       iconBox.appendChild(icon('alert'));
       const main = h('div', { className: 'item-main' }, [
-        h('div', { className: 'item-label', textContent: 'Refused an unreadable signing request' }),
+        h('div', { className: 'item-label', textContent: tSec('Refused an unreadable signing request') }),
         h('div', { className: 'item-sub', textContent: (e.host || '') + ' · ' + relTime(e.ts) }),
         h('div', { className: 'item-sub', textContent: String(e.rejected).replace(/^signEvent: /, '') }),
       ]);
@@ -10607,7 +10613,7 @@
     // also goes on the row title, so it can be read and copied without leaving.
     if (e.id) {
       row.title = e.id;
-      const open = iconButton('View this event', 'external', async () => {
+      const open = iconButton(t('View this event'), 'external', async () => {
         try {
           const nevent = NT.nip19.neventEncode({ id: e.id, author: e.pubkey || undefined });
           const client = await preferredClient();
@@ -10653,7 +10659,7 @@
     if (!hosts.length) {
       sites.innerHTML = '';
       sites.classList.add('empty');
-      listState(sites, 'No sites have connected yet.');
+      listState(sites, t('No sites have connected yet.'));
       hide(sitesMore);
       hide(sitesFilter);
     } else {
@@ -10664,7 +10670,7 @@
       const onSiteForgotten = () => {
         if (sites.querySelector('.site-item')) return;
         sites.classList.add('empty');
-        listState(sites, 'No sites have connected yet.');
+        listState(sites, t('No sites have connected yet.'));
         hide(sitesMore);
         hide(sitesFilter);
       };
@@ -10674,7 +10680,7 @@
         const filtered = q ? hosts.filter((host) => host.toLowerCase().includes(q)) : hosts;
         sites.classList.toggle('empty', !filtered.length);
         if (!filtered.length) {
-          listState(sites, 'No sites match "' + sitesFilter.value.trim() + '".');
+          listState(sites, t('No sites match “{{query}}”.', { query: sitesFilter.value.trim() }));
           hide(sitesMore);
           return;
         }
@@ -10693,7 +10699,7 @@
           if (shownSites >= filtered.length) hide(sitesMore);
           else {
             show(sitesMore);
-            sitesMore.textContent = 'Show more (' + (filtered.length - shownSites) + ')';
+            sitesMore.textContent = t('Show more ({{count}})', { count: I18N.fmtNum(filtered.length - shownSites) });
           }
         };
         sitesMore.onclick = () => { sitesShownN = Math.min(shownSites + SITES_PAGE, filtered.length); renderSitesPage(); };
@@ -10718,11 +10724,11 @@
       show(forgetWrap);
       const buildForgetAll = () => {
         forgetWrap.innerHTML = '';
-        const btn = h('button', { className: 'ghost', textContent: 'Forget all sites' });
+        const btn = h('button', { className: 'ghost', textContent: t('Forget all sites') });
         btn.addEventListener('click', () => {
           forgetWrap.innerHTML = '';
-          const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
-          const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+          const yes = h('button', { className: 'mini del-confirm', textContent: t('Forget') });
+          const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
           no.addEventListener('click', buildForgetAll);
           yes.addEventListener('click', async () => {
             await call({ type: 'SIDECAR_FORGET_ALL_SITES' });
@@ -10733,7 +10739,7 @@
           forgetWrap.append(
             h('span', {
               className: 'confirm-msg',
-              textContent: 'Forget every site? Pairings, permission tiers, and Recent activity are erased.',
+              textContent: tSec('Forget every site? Pairings, permission tiers, and Recent activity are erased.'),
             }),
             yes,
             no
@@ -10751,7 +10757,7 @@
     const more = $('activity-more');
     if (!log.length) {
       list.innerHTML = '';
-      listState(list, 'No signing activity yet.');
+      listState(list, t('No signing activity yet.'));
       hide(more);
       hide(activityFilter);
       return;
@@ -10763,7 +10769,7 @@
       const q = activityFilter.value.trim().toLowerCase();
       const filtered = q ? log.filter((e) => (e.host || '').toLowerCase().includes(q)) : log;
       if (!filtered.length) {
-        listState(list, 'No activity matches "' + activityFilter.value.trim() + '".');
+        listState(list, t('No activity matches “{{query}}”.', { query: activityFilter.value.trim() }));
         hide(more);
         return;
       }
@@ -10777,7 +10783,7 @@
         if (shown >= filtered.length) hide(more);
         else {
           show(more);
-          more.textContent = 'Show more (' + (filtered.length - shown) + ')';
+          more.textContent = t('Show more ({{count}})', { count: I18N.fmtNum(filtered.length - shown) });
         }
       }
       more.onclick = () => { logShownN = Math.min(shown + PAGE, filtered.length); renderPage(); };
@@ -11794,14 +11800,14 @@
   // modal for any account — including back to the default, which the gallery cannot say.
   function themeOverrideModal(a) {
     openModal((modal) => {
-      modal.append(h('h3', { textContent: 'Theme for ' + displayName(a) }));
+      modal.append(h('h3', { textContent: t('Theme for {{name}}', { name: displayName(a) }) }));
       modal.append(h('p', {
         className: 'hint',
-        textContent: 'The theme this account wears, so you can tell at a glance which one you are in.',
+        textContent: t('The theme this account wears, so you can tell at a glance which one you are in.'),
       }));
 
       const sel = h('select');
-      sel.append(h('option', { value: '', textContent: 'Use the default' }));
+      sel.append(h('option', { value: '', textContent: t('Use the default') }));
       // Grouped Dark and Light, the same split the gallery shows, and READ FROM THE
       // GALLERY'S OWN CARDS rather than restated here. sidepanel.html says data-mode is
       // the only place that split is made; a second copy in this file would be right
@@ -11819,8 +11825,8 @@
         return (card && card.dataset.mode) === 'light' ? 'light' : 'dark';
       };
       const groups = {
-        dark: h('optgroup', { label: 'Dark' }),
-        light: h('optgroup', { label: 'Light' }),
+        dark: h('optgroup', { label: t('Dark') }),
+        light: h('optgroup', { label: t('Light') }),
       };
       THEME_LABELS.forEach(([key, label]) =>
         groups[modeOf(key)].append(h('option', { value: key, textContent: label })));
@@ -11831,8 +11837,8 @@
       sel.addEventListener('change', () => { touched = true; });
 
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Save' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const save = h('button', { className: 'primary', textContent: t('Save') });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       save.addEventListener('click', async () => {
@@ -11845,7 +11851,7 @@
             paintThemePicker(applyResolvedTheme(await call({ type: 'SIDECAR_GET_SETTINGS' })));
           }
           closeModal();
-          toast(sel.value ? 'Theme set' : 'Using the default theme', 'success');
+          toast(sel.value ? t('Theme set') : t('Using the default theme'), 'success');
         } catch (e) {
           err.textContent = e.message;
           save.disabled = false;
@@ -11991,8 +11997,8 @@
     open.href = client.url(nevent);
     open.target = '_blank';
     open.rel = 'noreferrer noopener';
-    open.append(h('span', { textContent: 'Open in ' + client.label }));
-    const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
+    open.append(h('span', { textContent: t('Open in {{client}}', { client: client.label }) }));
+    const close = h('button', { className: 'post-banner-x', title: t('Dismiss') });
     close.append(icon('x'));
     close.addEventListener('click', dismissPostBanner);
     // ONE WORDED ACTION FITS ON THE MESSAGE'S ROW. TWO DO NOT.
@@ -12014,7 +12020,7 @@
     } else {
       // The results sheet first: it is the thing just made, and the one view the web
       // client link cannot stand in for.
-      const results = h('button', { className: 'post-banner-link post-banner-btn', textContent: 'See results' });
+      const results = h('button', { className: 'post-banner-link post-banner-btn', textContent: t('See results') });
       results.addEventListener('click', () => {
         dismissPostBanner();
         openPollResults(signed);
@@ -12062,8 +12068,8 @@
     // "Reload client window", not "Reload jumble.social". The host was noise — this
     // banner only ever offers the tab you're already looking at, so naming it told
     // the user something they could see, and a long host stretched the button.
-    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: 'Reload client window' })]);
-    reload.title = 'Reload ' + host; // still available on hover, just not shouted
+    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: t('Reload client window') })]);
+    reload.title = t('Reload {{host}}', { host }); // still available on hover, just not shouted
     reload.addEventListener('click', () => {
       try { chrome.tabs.reload(tab.id); } catch (_) {}
       dismissReloadBanner();
@@ -12072,13 +12078,13 @@
     // but a user who has decided not to reload shouldn't have to wait it out.
     const close = h('button', {
       className: 'reload-banner-x',
-      title: 'Dismiss',
+      title: t('Dismiss'),
       textContent: '✕',
     });
     // setAttribute, not h(): h() does Object.assign, which sets a JS PROPERTY named
     // 'aria-label' and never reaches the attribute — so this button had no accessible
     // name at all, only a hover title. Same trap as elsewhere in this file.
-    close.setAttribute('aria-label', 'Dismiss');
+    close.setAttribute('aria-label', t('Dismiss'));
     close.addEventListener('click', dismissReloadBanner);
     banner.append(reload, close);
     show(banner);
@@ -20752,7 +20758,7 @@
   // ---- About + zap the creator (opened from the Sidecar logo) ----
   function aboutModal() {
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: t('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
 
@@ -20766,16 +20772,16 @@
       preferredClient().then((client) => { creator.href = client.profile(CREATOR_NPUB); }).catch(() => {});
       fetchProfileName(CREATOR_NPUB).then((name) => { if (name) creator.textContent = '@' + name.replace(/^@/, ''); });
 
-      const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });
+      const website = h('a', { className: 'about-link', textContent: t('Website'), href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
+      const privacy = h('a', { className: 'about-link', textContent: t('Privacy Policy'), href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });
       const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const support = h('a', { className: 'about-link', textContent: 'Support', href: SIDECAR_SITE_URL + '/support', target: '_blank', rel: 'noopener noreferrer' });
-      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Donate '), boltIcon()]);
+      const support = h('a', { className: 'about-link', textContent: t('Support'), href: SIDECAR_SITE_URL + '/support', target: '_blank', rel: 'noopener noreferrer' });
+      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode(t('Donate') + ' '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
       // Firefox has no requestUpdateCheck — the browser updates add-ons itself.
       const canCheckUpdates = typeof chrome.runtime.requestUpdateCheck === 'function';
-      const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
+      const updateBtn = h('button', { className: 'about-update-btn', textContent: t('Check for updates') });
       const updateStatus = h('p', { className: 'hint about-update-status' });
       updateBtn.addEventListener('click', () => checkForUpdates(updateBtn, updateStatus));
 
@@ -20792,8 +20798,8 @@
         xClose,
         h('div', { className: 'about-modal' }, [
           logo,
-          h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
-          h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
+          h('p', { className: 'about-description', textContent: t('A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.') }),
+          h('div', { className: 'about-creator' }, I18N.fill(t('Created by {{creator}}', { creator: '{{creator}}' }), { creator })),
           versionChip('about-version', true) || document.createTextNode(''),
           canCheckUpdates ? updateBtn : document.createTextNode(''),
           canCheckUpdates ? updateStatus : document.createTextNode(''),
@@ -20807,10 +20813,10 @@
   async function creatorZapModal() {
     const { has } = await call({ type: 'SIDECAR_HAS_NWC' });
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: t('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
-      modal.append(xClose, h('h3', {}, [document.createTextNode('Zap the creator '), boltIcon()]));
+      modal.append(xClose, h('h3', {}, [document.createTextNode(t('Zap the creator') + ' '), boltIcon()]));
 
       const qr = h('div', { className: 'recv-out' });
       const canvas = document.createElement('canvas');
@@ -20820,33 +20826,33 @@
       copy.addEventListener('click', async () => {
         try {
           await copyPlain(CREATOR_LN);
-          copy.textContent = 'Copied ✓';
+          copy.textContent = t('Copied ✓');
           setTimeout(() => (copy.textContent = CREATOR_LN), 1200);
         } catch (_) {}
       });
-      qr.append(canvas, copy, h('p', { className: 'hint', textContent: 'Scan to zap from any wallet.' }));
+      qr.append(canvas, copy, h('p', { className: 'hint', textContent: t('Scan to zap from any wallet.') }));
       modal.append(qr);
 
       // No connected wallet: leave the QR/address only, with a gentle nudge.
       if (!has) {
-        modal.append(h('p', { className: 'hint zap-noconnect', textContent: 'Connect a wallet in the Wallet tab to zap from here.' }));
+        modal.append(h('p', { className: 'hint zap-noconnect', textContent: t('Connect a wallet in the Wallet tab to zap from here.') }));
         return;
       }
 
       // Inline send via the connected NWC wallet.
       const err = h('div', { className: 'error' });
-      const message = h('input', { type: 'text', placeholder: 'Message (optional)', value: 'Thanks for Sidecar! 🍸', maxLength: 200 });
+      const message = h('input', { type: 'text', placeholder: t('Message (optional)'), value: 'Thanks for Sidecar! 🍸', maxLength: 200 });
       const amount = satsInput('sats');
-      const send = h('button', { className: 'primary', textContent: 'Zap' });
-      const creatorGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => 'Zap', confirmLabel: 'Confirm' });
+      const send = h('button', { className: 'primary', textContent: tSec('Zap') });
+      const creatorGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Zap'), confirmLabel: tSec('Confirm') });
       amount.addEventListener('input', creatorGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
-        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        if (!sats || sats < 1) return (err.textContent = tSec('Enter an amount in sats.'));
         err.textContent = '';
         if (!creatorGate.pass(sats)) return;
         send.disabled = true;
-        send.textContent = 'Sending…';
+        send.textContent = t('Sending…');
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
@@ -20862,7 +20868,7 @@
         }
       });
       modal.append(
-        h('label', { textContent: 'Message' }),
+        h('label', { textContent: t('Message') }),
         message,
         h('div', { className: 'zap-inline' }, [amount, send]),
         err
@@ -20873,7 +20879,7 @@
   // Footer logo on every screen (main tabs + settings) opens the About card.
   document.querySelectorAll('.brand-foot').forEach((foot) => {
     foot.classList.add('brand-foot-btn');
-    foot.title = 'About Sidecar';
+    foot.title = t('About Sidecar');
     foot.addEventListener('click', aboutModal);
   });
 
@@ -22718,7 +22724,7 @@
     openModal((modal) => {
       modal.classList.add('modal-sheet');
 
-      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      const xBtn = h('button', { className: 'modal-x', title: t('Close') });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
@@ -22728,8 +22734,8 @@
       const verText = ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '');
       modal.append(
         h('div', {}, [
-          h('div', { className: 'notif-modal-title', textContent: 'Dev tools' }),
-          h('div', { className: 'hint', textContent: 'Sidecar ' + verText + ' · dev build' }),
+          h('div', { className: 'notif-modal-title', textContent: t('Dev tools') }),
+          h('div', { className: 'hint', textContent: t('Sidecar {{version}} · dev build', { version: verText }) }),
         ])
       );
 
@@ -22772,7 +22778,7 @@
       // without this there is no way to look at it on a local build. It writes the same
       // flag the worker writes rather than building a lookalike, so what you preview is
       // what ships.
-      const cardBtn = h('button', { className: 'secondary', textContent: 'Preview the update card' });
+      const cardBtn = h('button', { className: 'secondary', textContent: t('Preview the update card') });
       cardBtn.addEventListener('click', () => {
         chrome.storage.local.set({ versionCard: { to: ver || 'this version', from: null } }, () => {
           // Through afterModalClose, or the card paints under the sheet you are standing
@@ -22785,15 +22791,15 @@
         });
       });
       modal.append(h('section', { className: 'dev-controls-section' }, [
-        h('h3', { className: 'settings-section-title', textContent: 'Dev controls' }),
+        h('h3', { className: 'settings-section-title', textContent: t('Dev controls') }),
         h('label', { className: 'toggle-row' }, [
-          demoToggle, h('span', { textContent: 'Demo event kind selector' }),
+          demoToggle, h('span', { textContent: t('Demo event kind selector') }),
         ]),
-        h('p', { className: 'hint', textContent: 'Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.' }),
+        h('p', { className: 'hint', textContent: t('Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.') }),
         h('label', { className: 'toggle-row' }, [
-          silentToggle, h('span', { textContent: 'Silent p tags' }),
+          silentToggle, h('span', { textContent: t('Silent p tags') }),
         ]),
-        h('p', { className: 'hint', textContent: 'Tag keys in the composer that the note itself never mentions. Applies when you next open the composer.' }),
+        h('p', { className: 'hint', textContent: t('Tag keys in the composer that the note itself never mentions. Applies when you next open the composer.') }),
         cardBtn,
       ]));
 
@@ -22801,14 +22807,14 @@
       const list = h('div', { className: 'list' });
       scroll.appendChild(list);
       const logSection = h('section', { className: 'dev-log-section' }, [
-        h('h3', { className: 'settings-section-title', textContent: 'Debug log' }),
+        h('h3', { className: 'settings-section-title', textContent: t('Debug log') }),
         scroll,
       ]);
       modal.appendChild(logSection);
 
       function render() {
         if (!entries.length) {
-          listState(list, 'No log entries yet — use the app and they’ll appear here.');
+          listState(list, t('No log entries yet. Use the app and they’ll appear here.'));
           return;
         }
         list.innerHTML = '';
@@ -22820,15 +22826,15 @@
         render();
       };
 
-      const copyBtn = h('button', { className: 'secondary', textContent: 'Copy' });
+      const copyBtn = h('button', { className: 'secondary', textContent: t('Copy') });
       copyBtn.addEventListener('click', async () => {
         try {
           await copyPlain(debugLogText(entries) || '(empty)');
-          copyBtn.textContent = 'Copied ✓';
-          setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
+          copyBtn.textContent = t('Copied ✓');
+          setTimeout(() => (copyBtn.textContent = t('Copy')), 1200);
         } catch (_) {}
       });
-      const clearBtn = h('button', { className: 'ghost', textContent: 'Clear' });
+      const clearBtn = h('button', { className: 'ghost', textContent: t('Clear') });
       clearBtn.addEventListener('click', async () => {
         try { entries = await call({ type: 'SIDECAR_CLEAR_DEBUG_LOG' }); } catch (_) { return; }
         render();
