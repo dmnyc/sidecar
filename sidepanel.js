@@ -4252,7 +4252,7 @@
   // configured and it was the LOOKUP that failed.
   class RelayListUnavailable extends Error {
     constructor() {
-      super('Could not load your relay list — check your connection and try again.');
+      super(t('Could not load your relay list — check your connection and try again.'));
       this.name = 'RelayListUnavailable';
     }
   }
@@ -4315,7 +4315,7 @@
     (typeof r.value === 'string' && r.value.startsWith('connection failure:'));
 
   async function publishToRelays(relays, signed) {
-    if (!relays.length) throw new Error('No relays configured (add some in Settings)');
+    if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
     // Dedupe the way the pool will. A plain Set over the raw strings keeps
     // 'wss://nos.lol' and 'wss://nos.lol/' as two entries, but SimplePool normalizes
     // before connecting and rejects the second with 'duplicate url' — which then
@@ -4363,19 +4363,30 @@
   // network, or Sidecar holding too many connections). Says so, rather than making
   // the user infer it from a list.
   function publishFailureMessage(targets, results) {
+    // A CODE per reason, never the words: the sentence is chosen by comparing codes, and
+    // comparing translated text would break the moment a language changed it. A reason
+    // the relay put in its own words is passed through as data (code 'raw').
     const reasonOf = (r) => {
       const raw = r.status === 'rejected'
         ? (r.reason && r.reason.message) || String(r.reason || 'rejected')
         : String(r.value || 'refused');
-      // 'connection failure: connection timed out' → 'timed out'
-      if (/timed?\s*out/i.test(raw)) return 'timed out';
-      if (/connection failure|failed to connect|websocket/i.test(raw)) return "couldn't connect";
-      if (/blocked|restricted|not allowed|forbidden/i.test(raw)) return 'refused the note';
-      if (/rate|too many|slow down/i.test(raw)) return 'rate-limited us';
-      if (/auth/i.test(raw)) return 'wants authentication';
+      // 'connection failure: connection timed out' → timeout
+      if (/timed?\s*out/i.test(raw)) return 'timeout';
+      if (/connection failure|failed to connect|websocket/i.test(raw)) return 'connect';
+      if (/blocked|restricted|not allowed|forbidden/i.test(raw)) return 'refused';
+      if (/rate|too many|slow down/i.test(raw)) return 'rate';
+      if (/auth/i.test(raw)) return 'auth';
       // Something specific and short enough to be worth showing verbatim.
-      return raw.replace(/^connection failure:\s*/i, '').slice(0, 60);
+      return 'raw:' + raw.replace(/^connection failure:\s*/i, '').slice(0, 60);
     };
+    // The short form, for naming each group when the reasons are mixed.
+    const shortWhy = (code) => ({
+      timeout: t('timed out'),
+      connect: t("couldn't connect"),
+      refused: t('refused the note'),
+      rate: t('rate-limited us'),
+      auth: t('wants authentication'),
+    }[code] || code.slice(4));
 
     const byReason = new Map();
     results.forEach((r, i) => {
@@ -4385,15 +4396,19 @@
     });
 
     const n = targets.length;
-    const relayCount = n === 1 ? 'your relay' : `all ${n} of your relays`;
-    // Every relay failed the same way — almost certainly local, so lead with that.
+    // Every relay failed the same way: almost certainly local, so lead with that. One
+    // whole sentence per outcome, singular and plural, so a language can build each its
+    // own way.
     if (byReason.size === 1) {
       const [why] = [...byReason.keys()];
-      if (why === 'timed out' || why === "couldn't connect") {
-        return `Couldn't reach ${relayCount}. Check your connection, then try again — your note is saved as a draft.`;
+      if (why === 'timeout' || why === 'connect') {
+        return tn("Couldn't reach your relay. Check your connection, then try again — your note is saved as a draft.",
+          "Couldn't reach all {{count}} of your relays. Check your connection, then try again — your note is saved as a draft.", n);
       }
-      const subject = n === 1 ? 'Your relay' : `All ${n} relays`;
-      return `${subject} ${why}. Your note is saved as a draft.`;
+      if (why === 'refused') return tn('Your relay refused the note. Your note is saved as a draft.', 'All {{count}} relays refused the note. Your note is saved as a draft.', n);
+      if (why === 'rate') return tn('Your relay rate-limited us. Your note is saved as a draft.', 'All {{count}} relays rate-limited us. Your note is saved as a draft.', n);
+      if (why === 'auth') return tn('Your relay wants authentication. Your note is saved as a draft.', 'All {{count}} relays want authentication. Your note is saved as a draft.', n);
+      return tn('Your relay answered: {{reason}}. Your note is saved as a draft.', 'All {{count}} relays answered: {{reason}}. Your note is saved as a draft.', n, { reason: why.slice(4) });
     }
 
     // Mixed reasons: name each group, capped so the toast stays a toast.
@@ -4401,12 +4416,14 @@
       .sort((a, b) => b[1].length - a[1].length)
       .slice(0, 3)
       .map(([why, hosts]) => {
-        const shown = hosts.slice(0, 2).join(', ');
-        const more = hosts.length > 2 ? ` +${hosts.length - 2} more` : '';
-        return `${shown}${more} ${why}`;
+        const shown = hosts.length > 2
+          ? tn('{{hosts}} +{{count}} more', '{{hosts}} +{{count}} more', hosts.length - 2, { hosts: hosts.slice(0, 2).join(', ') })
+          : hosts.join(', ');
+        return t('{{hosts}}: {{reason}}', { hosts: shown, reason: shortWhy(why) });
       });
-    return `Couldn't publish to any relay — ${parts.join('; ')}. Your note is saved as a draft.`;
+    return t("Couldn't publish to any relay — {{groups}}. Your note is saved as a draft.", { groups: parts.join('; ') });
   }
+
 
   // 'wss://relay.nostr.wine/' → 'relay.nostr.wine'
   function hostOf(url) {
@@ -15757,32 +15774,32 @@
   function renderNip65Section(view, active) {
     const setting = h('div', { className: 'setting nip65-setting' });
     setting.append(
-      h('h3', { textContent: 'Relays' }),
+      h('h3', { textContent: t('Relays') }),
       h('p', {
         className: 'hint',
         textContent:
-          'Your public relay list (NIP-65) — tells other Nostr apps where to find your notes and where to send you replies and DMs. Keep it small and reliable.',
+          t('Your public relay list (NIP-65) — tells other Nostr apps where to find your notes and where to send you replies and DMs. Keep it small and reliable.'),
       })
     );
 
-    const status = h('p', { className: 'hint compact nip65-status', textContent: 'Loading…' });
+    const status = h('p', { className: 'hint compact nip65-status', textContent: t('Loading…') });
     const list = h('div', { className: 'list flat nip65-list' });
     const warn = h('p', { className: 'hint warn nip65-warn' });
     const addInput = h('input', { type: 'text', placeholder: 'wss://relay.example.com' });
-    const addBtn = h('button', { className: 'secondary', textContent: 'Add' });
+    const addBtn = h('button', { className: 'secondary', textContent: t('Add') });
     const err = h('div', { className: 'error' });
-    const publishBtn = h('button', { className: 'primary', textContent: 'Publish relay list' });
+    const publishBtn = h('button', { className: 'primary', textContent: t('Publish relay list') });
 
     // MANUAL, NEVER ON RENDER. Probing opens a socket to every relay in the list; doing
     // that on each repaint would hammer them for nothing and make the panel's presence
     // legible to anyone watching. It runs when asked and the answers are kept for the
     // session.
-    const checkBtn = h('button', { className: 'secondary nip65-check', textContent: 'Check relay health' });
+    const checkBtn = h('button', { className: 'secondary nip65-check', textContent: t('Check relay health') });
 
     // Its own full-width row under the status line, not a control beside it: it carries
     // words, and the panel is too narrow for a label and a button to share a line
     // (see CLAUDE.md). Hidden unless the list is remembered or missing.
-    const retryBtn = h('button', { className: 'secondary nip65-retry', textContent: 'Retry loading relay list' });
+    const retryBtn = h('button', { className: 'secondary nip65-retry', textContent: t('Retry loading relay list') });
     // The ROW is hidden, not just the button — a hidden child still leaves the row's
     // own margin behind, which reads as a gap nobody can explain.
     const retryRow = h('div', { className: 'actions nip65-retry-row' }, [retryBtn]);
@@ -15811,11 +15828,11 @@
       // and it can arrive from a PUBLISHED list as easily as from the input below —
       // this check covers both, which is why it doesn't live in the Add handler.
       if (relayList.some((r) => r.url.startsWith('ws://'))) {
-        warn.textContent = 'A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.';
+        warn.textContent = t('A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.');
       } else if (!relayList.some((r) => r.write)) {
-        warn.textContent = 'No write relays selected — other apps may not find your new notes.';
+        warn.textContent = t('No write relays selected — other apps may not find your new notes.');
       } else if (!relayList.some((r) => r.read)) {
-        warn.textContent = 'No read relays selected — you may not see replies or mentions here.';
+        warn.textContent = t('No read relays selected — you may not see replies or mentions here.');
       } else {
         warn.textContent = '';
       }
@@ -15824,17 +15841,17 @@
     // WORD PLUS COLOR, never color alone (WCAG 1.4.1) — and the word carries the whole
     // verdict, so a theme that renders the dot poorly still leaves the row readable.
     const VERDICT_TEXT = {
-      healthy: 'Healthy',
+      healthy: t('Healthy'),
       // "Paid", not "Gated". This verdict comes from NIP-11 flags read anonymously, and
       // it does NOT mean your posts bounce: an EVENT is signed, so a paid relay reads
       // event.pubkey and accepts a subscriber's note without any connection auth. The
       // old wording read as breakage and invited dropping a relay that works.
-      gated: 'Paid',
+      gated: t('Paid'),
       // Only ever shown now when signing in was impossible or refused — an answered
       // challenge classifies as healthy. See relay-health.js classify().
-      'auth-gated': 'Sign-in needed',
-      'not-serving': 'Not answering',
-      down: 'Unreachable',
+      'auth-gated': t('Sign-in needed'),
+      'not-serving': t('Not answering'),
+      down: t('Unreachable'),
     };
     // A relay's CLOSED/OK reason is free text and can be any length, in any tone —
     // nostrelites.org answers a burst with "rate-limited: there is a bug in the client,
@@ -15845,25 +15862,40 @@
     // not have to show the prose. Use that; keep the prose only when there is no word we
     // recognize, and cap it.
     const REASON_WORDS = {
-      'rate-limited': 'rate limited',
-      blocked: 'blocked',
-      restricted: 'restricted',
-      'auth-required': 'needs sign-in',
-      pow: 'wants proof of work',
-      invalid: 'rejected as invalid',
-      duplicate: 'already have it',
+      'rate-limited': t('rate limited'),
+      blocked: t('blocked'),
+      restricted: t('restricted'),
+      'auth-required': t('needs sign-in'),
+      pow: t('wants proof of work'),
+      invalid: t('rejected as invalid'),
+      duplicate: t('already have it'),
       error: '',
     };
+    // The probe's own reasons (relay-health.js) are fixed English phrases, so they are
+    // translated here, where they are shown, keyed by that same English; the module stays
+    // usable without the translation layer.
+    const PROBE_REASONS = {
+      'connect timeout': t('connect timeout'),
+      'no WebSocket': t('no WebSocket'),
+      'no EOSE': t('no EOSE'),
+      'signed in but never answered': t('signed in but never answered'),
+      'demands AUTH': t('demands AUTH'),
+      'connection refused': t('connection refused'),
+      'closed before serving': t('closed before serving'),
+    };
     function shortReason(why) {
-      let t = String(why || '').replace(/^CLOSED:\s*/i, '').trim();
-      if (!t) return '';
-      const m = /^([a-z-]+):\s*(.*)$/i.exec(t);
+      let text = String(why || '').replace(/^CLOSED:\s*/i, '').trim();
+      if (!text) return '';
+      if (Object.prototype.hasOwnProperty.call(PROBE_REASONS, text)) return PROBE_REASONS[text];
+      const bad = /^bad url \((.*)\)$/.exec(text);
+      if (bad) return t('bad url ({{detail}})', { detail: bad[1] });
+      const m = /^([a-z-]+):\s*(.*)$/i.exec(text);
       if (m && Object.prototype.hasOwnProperty.call(REASON_WORDS, m[1].toLowerCase())) {
         const word = REASON_WORDS[m[1].toLowerCase()];
         if (word) return word;
-        t = m[2] || m[1]; // "error:" carries nothing itself — fall through to its detail
+        text = m[2] || m[1]; // "error:" carries nothing itself — fall through to its detail
       }
-      return t.length > 44 ? t.slice(0, 43).trimEnd() + '…' : t;
+      return text.length > 44 ? text.slice(0, 43).trimEnd() + '…' : text;
     }
 
     function healthLine(url) {
@@ -15872,7 +15904,7 @@
       const line = h('div', { className: 'nip65-health' });
       if (r === 'checking') {
         line.classList.add('checking');
-        line.append(h('span', { className: 'nip65-dot' }), document.createTextNode('Checking…'));
+        line.append(h('span', { className: 'nip65-dot' }), document.createTextNode(t('Checking…')));
         return line;
       }
       line.classList.add('v-' + r.verdict);
@@ -15883,16 +15915,16 @@
       const bits = [VERDICT_TEXT[r.verdict] || r.verdict];
       // Which account the verdict is FOR. Without it, a verdict on a subscriber-only
       // relay reads as though it would hold for anyone, which is the opposite of true.
-      if (r.authed) bits.push('signed in');
+      if (r.authed) bits.push(t('signed in'));
       // Latency for anything that actually served, not just the unpaid ones — a paid
       // relay's speed is exactly as relevant to keeping it.
-      if (r.probe && r.probe.served && r.probe.connectMs != null) bits.push(r.probe.connectMs + 'ms');
+      if (r.probe && r.probe.served && r.probe.connectMs != null) bits.push(t('{{ms}}ms', { ms: I18N.fmtNum(r.probe.connectMs) }));
       // The keep-or-drop signal, and the one no client shows: up, serving, and holding
       // nothing of yours. Only stated when the probe actually asked for this account.
-      if (r.probe && r.probe.served && r.probe.hasAuthorData === false) bits.push('no notes here');
+      if (r.probe && r.probe.served && r.probe.hasAuthorData === false) bits.push(t('no notes here'));
       // "Writes unknown" rather than silence: NIP-11 not answering is not evidence that
       // posting works, and this screen exists to decide whether to keep a relay.
-      if (r.verdict === 'healthy' && r.writeKnown === false) bits.push('writes unverified');
+      if (r.verdict === 'healthy' && r.writeKnown === false) bits.push(t('writes unverified'));
       // A paid relay's NIP-11 flags describe what a STRANGER faces. Restating them at the
       // user implies their own posts are failing, which is not what the flags mean.
       if (r.verdict !== 'gated' && r.why) bits.push(shortReason(r.why));
@@ -15905,7 +15937,7 @@
       const urls = relayList.map((r) => r.url);
       if (!RH || !urls.length) return;
       checkBtn.disabled = true;
-      checkBtn.textContent = 'Checking…';
+      checkBtn.textContent = t('Checking…');
       urls.forEach((u) => health.set(u, 'checking'));
       renderRows();
       try {
@@ -15917,7 +15949,7 @@
           // as this account sees it; anything else stays anonymous.
           onauth: (template) => {
             if (!authRelays.has(normalizeRelay(urlOfTemplate(template)))) {
-              return Promise.reject(new Error('not an allowlisted relay'));
+              return Promise.reject(new Error(t('not an allowlisted relay')));
             }
             return signRelayAuth(template);
           },
@@ -15935,14 +15967,14 @@
         renderRows();
       } finally {
         checkBtn.disabled = false;
-        checkBtn.textContent = 'Check relay health';
+        checkBtn.textContent = t('Check relay health');
       }
     }
     checkBtn.addEventListener('click', runHealthCheck);
 
     function renderRows() {
       if (!relayList.length) {
-        listState(list, 'No relays yet — add one below.');
+        listState(list, t('No relays yet — add one below.'));
         updateWarn();
         return;
       }
@@ -15955,7 +15987,7 @@
         writeCb.checked = r.write;
         writeCb.addEventListener('change', () => { r.write = writeCb.checked; updateWarn(); });
 
-        const rm = iconButton('Remove', 'trash', () => {
+        const rm = iconButton(t('Remove'), 'trash', () => {
           relayList.splice(i, 1);
           renderRows();
         });
@@ -15972,8 +16004,8 @@
             h('div', { className: 'nip65-url', textContent: r.url }),
           ]),
           h('div', { className: 'nip65-controls' }, [
-            h('label', { className: 'nip65-chip' }, [readCb, document.createTextNode('Read')]),
-            h('label', { className: 'nip65-chip' }, [writeCb, document.createTextNode('Write')]),
+            h('label', { className: 'nip65-chip' }, [readCb, document.createTextNode(t('Read'))]),
+            h('label', { className: 'nip65-chip' }, [writeCb, document.createTextNode(t('Write'))]),
             rm,
           ]),
         ]);
@@ -15992,7 +16024,7 @@
       if (!url) return;
       if (!/^wss?:\/\//i.test(url)) url = 'wss://' + url;
       url = url.replace(/\/+$/, ''); // drop trailing slash so wss://x and wss://x/ dedupe
-      if (!/^wss?:\/\/[^/]+/i.test(url)) { err.textContent = "That doesn't look like a relay URL."; return; }
+      if (!/^wss?:\/\/[^/]+/i.test(url)) { err.textContent = t("That doesn't look like a relay URL."); return; }
       if (relayList.some((r) => r.url === url)) { addInput.value = ''; return; }
       err.textContent = '';
       relayList.push({ url, read: true, write: true });
@@ -16002,18 +16034,18 @@
 
     publishBtn.addEventListener('click', async () => {
       err.textContent = '';
-      if (!relayList.length) { err.textContent = 'Add at least one relay first.'; return; }
+      if (!relayList.length) { err.textContent = t('Add at least one relay first.'); return; }
       if (!relayList.some((r) => r.read || r.write)) {
-        err.textContent = 'Check Read or Write on at least one relay first.';
+        err.textContent = t('Check Read or Write on at least one relay first.');
         return;
       }
       publishBtn.disabled = true;
-      publishBtn.textContent = 'Publishing…';
+      publishBtn.textContent = t('Publishing…');
       try {
         await publishNip65(active.pubkey, relayList);
-        status.textContent = 'Published ✓';
+        status.textContent = t('Published ✓');
         status.classList.add('done');
-        toast('Relay list published', 'success');
+        toast(t('Relay list published'), 'success');
         // Offer to switch to NIP-65-only mode if bootstrap relays are still active.
         if (!(await nip65OnlyFor(active.pubkey))) {
           maybeOfferNip65Only(active.pubkey);
@@ -16023,7 +16055,7 @@
         toast(e.message, 'error');
       }
       publishBtn.disabled = false;
-      publishBtn.textContent = 'Publish relay list';
+      publishBtn.textContent = t('Publish relay list');
     });
 
     // 'unknown' is the state worth being careful about: the editor has nothing to show,
@@ -16037,17 +16069,17 @@
       publishBtn.disabled = failed;
       retryRow.hidden = !failed && res.state !== 'remembered';
       status.classList.toggle('warn', failed || res.state === 'remembered');
-      if (res.state === 'published') status.textContent = 'Loaded from your published relay list.';
-      else if (res.state === 'remembered') status.textContent = 'Relays did not answer — showing your last known list.';
-      else if (res.state === 'none') status.textContent = 'Not published yet — starting from your configured relays.';
-      else status.textContent = 'Could not load your relay list. Retry before publishing.';
+      if (res.state === 'published') status.textContent = t('Loaded from your published relay list.');
+      else if (res.state === 'remembered') status.textContent = t('Relays did not answer — showing your last known list.');
+      else if (res.state === 'none') status.textContent = t('Not published yet — starting from your configured relays.');
+      else status.textContent = t('Could not load your relay list. Retry before publishing.');
       renderRows();
     }
 
     function loadEditor() {
       status.classList.remove('warn');
       loadRelayIcons().then(renderRows, () => {}); // cached icons, then repaint with them
-      status.textContent = 'Loading your relay list…';
+      status.textContent = t('Loading your relay list…');
       retryRow.hidden = true;
       loadNip65Editor(active.pubkey)
         .then(applyLoad)
@@ -16074,18 +16106,18 @@
     openModal((modal) => {
       modal.append(
         h('div', { className: 'setup-modal' }, [
-          h('h3', { textContent: 'Switch to your relay list?' }),
+          h('h3', { textContent: t('Switch to your relay list?') }),
           h('p', { className: 'hint', textContent:
-            'You’ve published a relay list (NIP-65). Sidecar can now read and publish through those relays exclusively, leaving the bootstrap relays behind. They’ll stay in Settings if you ever need them again.'
+            t('You’ve published a relay list (NIP-65). Sidecar can now read and publish through those relays exclusively, leaving the bootstrap relays behind. They’ll stay in Settings if you ever need them again.')
           }),
           h('div', { className: 'row-actions' }, [
-            h('button', { className: 'secondary', textContent: 'Not now', onclick: closeModal }),
-            h('button', { className: 'primary', textContent: 'Use my relays only', onclick: async () => {
+            h('button', { className: 'secondary', textContent: t('Not now'), onclick: closeModal }),
+            h('button', { className: 'primary', textContent: t('Use my relays only'), onclick: async () => {
               // `pubkey`, not state.activePubkey — the account whose list was just
               // published is the one this applies to, even if the active one changed.
               await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey, on: true });
               closeModal();
-              toast('Now using your NIP-65 relays only', 'success');
+              toast(t('Now using your NIP-65 relays only'), 'success');
             }}),
           ]),
         ])
@@ -21108,7 +21140,7 @@
     _notifCache.get(state.activePubkey)?.refetch?.();
   });
 
-  // Use them for notifications: shown under Use bootstrap relays while it is off.
+  // Use for notifications only: shown under Use bootstrap relays while it is off.
   $('notif-bootstrap-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_NOTIF_BOOTSTRAP', pubkey: state.activePubkey, on: e.target.checked });
     _notifCache.get(state.activePubkey)?.refetch?.();
