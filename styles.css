@@ -6011,3 +6011,85 @@ button.poll-bar-head {
 /* The hint carries no bottom margin, so a button after it needs its own gap. */
 .dev-controls-section .hint + button { margin-top: 12px; }
 .dev-log-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 12px; }
+
+/* THE GIF PICKER, under the composer's toolbar. A card like the poll editor, with every
+   row full width: the credit line above, the search field, the chips, then the grid. The
+   one inline control is the close button, an icon in a flex-shrink: 0 slot, so the credit
+   beside it is what gives way. The chips wrap onto another line instead of shrinking,
+   and the grid scrolls inside the card so the Post button stays where it was. */
+.gif-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: var(--sheen);
+}
+.gif-picker.hidden { display: none; }
+.gif-head { display: flex; align-items: center; gap: 8px; }
+.gif-credit {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gif-credit a { color: var(--lav); }
+.gif-x {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.gif-x:hover { color: var(--text); background: var(--hover-soft); }
+.gif-x svg { width: 15px; height: 15px; }
+.gif-search { padding: 8px 11px; font-size: 14px; }
+.gif-search:focus { outline: none; border-color: var(--gold-soft); }
+.gif-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.gif-chips.hidden { display: none; }
+.gif-chip {
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--hover-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.gif-chip:hover { border-color: var(--lav); color: var(--lav); }
+.gif-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  border-radius: 8px;
+}
+.gif-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gif-cell {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--hover-soft);
+  cursor: pointer;
+}
+.gif-cell img { display: block; width: 100%; height: auto; }
+.gif-cell:hover, .gif-cell:focus-visible { outline: 2px solid var(--lav); outline-offset: -2px; }
+.gif-status { margin: 0; text-align: center; }
+.gif-status.error { color: var(--red); }

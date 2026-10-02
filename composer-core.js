@@ -129,6 +129,9 @@ window.SidecarCore = (function () {
     'message-circle': '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
     bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>',
     award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
+    // A frame with a play mark, for the GIF picker: a picture that moves. Its label says
+    // GIF beside it, which is what keeps it from reading as the video placeholder above.
+    gif: '<rect x="2" y="4" width="20" height="16" rx="3"></rect><polygon points="10 9 15 12 10 15 10 9"></polygon>',
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
     globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
   };
@@ -1720,6 +1723,7 @@ window.SidecarCore = (function () {
   //   isReply()   polls are not offered on a reply
   //   hasMedia()  a poll and attachments are one or the other
   //   mediaBtn()  the button that stands down while a poll holds the draft
+  //   gif()       optional, the GIF picker, which stands down with it
   //   devSelect() optional, the dev kind override to disable
   //
   // Returns the pieces the caller mounts: the editor itself, the button that starts one,
@@ -1884,6 +1888,13 @@ window.SidecarCore = (function () {
     function paintEitherOr() {
       pollAdd.classList.toggle('hidden', !!d.poll() || d.isReply() || d.hasMedia());
       d.mediaBtn().classList.toggle('hidden', !!d.poll());
+      // A GIF is an attachment like any other, so it follows Media off the row, and an
+      // open picker closes rather than sitting under a poll it can no longer add to.
+      const gif = d.gif && d.gif();
+      if (gif) {
+        gif.addBtn.classList.toggle('hidden', !!d.poll());
+        if (d.poll()) gif.close();
+      }
     }
     function paintPoll() {
       pollWrap.innerHTML = '';
@@ -2012,6 +2023,335 @@ window.SidecarCore = (function () {
 
     paintPoll();
     return { wrap: pollWrap, addBtn: pollAdd, paint: paintPoll, paintEitherOr };
+  }
+
+  // ---- GIF search, from nostr.build ----
+  //
+  // gifs.nostr.build indexes the GIFs in nostr.build's free public upload pool, so every
+  // result is already on a Nostr media host: picking one attaches its URL the way a
+  // pasted image URL is attached, and nothing is uploaded.
+  //
+  // The API answers registered clients only, and Sidecar is one (the client "sidecar" on
+  // the gifs.nostr.build dashboard). It knows a web app by its Origin and anything else by
+  // a key. A key is the one way in for an extension: Firefox gives every install its own
+  // moz-extension:// origin, and an extension cannot set its own User-Agent. Whatever
+  // key goes here ships inside the extension, where anyone can read it, so it identifies
+  // Sidecar rather than proving anything. If one is ever abused, revoke it on the
+  // dashboard and ship a new one. Empty, the picker still opens and says search is
+  // unavailable.
+  //
+  // Registering came with a promise: "GIFs from nostr.build", linked to nostr.build,
+  // wherever these GIFs appear. That is the picker's header, and it stays there.
+  const GIF_API = 'https://gifs.nostr.build/api/v1';
+  const GIF_API_KEY = '';
+  const GIF_PAGE_SIZE = 24;
+  // A query's list is at most 200 long, and the API rejects an offset past 199.
+  const GIF_LAST_OFFSET = 199;
+  const GIF_QUERY_MAX = 500;
+  const GIF_SUGGEST_LIMIT = 6;
+  // There is no trending list to open on, so the picker opens on a search for a Nostr
+  // staple and offers a few more as chips. Search terms, not interface text: they are
+  // what the index is tagged with, and translating them would find nothing.
+  const GIF_TOPICS = ['gm', 'gn', 'pv', 'zap', 'bitcoin', 'coffee', 'lfg', 'wow'];
+  const GIF_FORMATS = { gif: 'image/gif', webp: 'image/webp' };
+
+  // safe=1 is the API's default, spelled out: adult GIFs stay out of a picker anyone
+  // can open.
+  function gifSearchUrl(query, offset) {
+    const params = new URLSearchParams({
+      q: String(query || '').trim().slice(0, GIF_QUERY_MAX),
+      limit: String(GIF_PAGE_SIZE),
+      offset: String(offset || 0),
+      safe: '1',
+    });
+    return GIF_API + '/search?' + params;
+  }
+  function gifSuggestUrl(query) {
+    const params = new URLSearchParams({
+      q: String(query || '').trim().slice(0, GIF_QUERY_MAX),
+      limit: String(GIF_SUGGEST_LIMIT),
+      safe: '1',
+    });
+    return GIF_API + '/suggest?' + params;
+  }
+
+  const isHttps = (u) => typeof u === 'string' && /^https:\/\/\S+$/.test(u);
+
+  // One result, or null when it cannot be shown and posted as it is. The URL goes into a
+  // published note, so it has to be an https link in one of the two formats the index
+  // serves. The grid shows the w240 preview, the size the API documents for column
+  // grids, animated when it can be and its first frame when the GIF is too big to animate.
+  function gifFromItem(item) {
+    if (!item || typeof item !== 'object') return null;
+    if (!isHttps(item.url) || !GIF_FORMATS[item.format]) return null;
+    const pv = item.previews && (item.previews.w240 || item.previews.medium);
+    const preview = pv && [pv.animated, pv.still].find(isHttps);
+    const width = Number(item.width);
+    const height = Number(item.height);
+    if (!preview || !(width > 0) || !(height > 0)) return null;
+    return {
+      url: item.url,
+      preview,
+      width,
+      height,
+      title: typeof item.title === 'string' ? item.title.trim() : '',
+    };
+  }
+
+  // A page of results, and the offset of the next page or null at the end. `count` is
+  // the length of the query's whole list, so paging stops there or at the API's last
+  // offset, whichever comes first.
+  function parseGifPage(body) {
+    const items = Array.isArray(body && body.items) ? body.items : [];
+    const offset = Number(body && body.offset) || 0;
+    const count = Number(body && body.count) || 0;
+    const gifs = items.map(gifFromItem).filter(Boolean);
+    const next = offset + items.length;
+    return { gifs, next: items.length && next < count && next <= GIF_LAST_OFFSET ? next : null };
+  }
+
+  function parseGifSuggestions(body) {
+    const terms = Array.isArray(body && body.terms) ? body.terms : [];
+    const out = [];
+    for (const entry of terms) {
+      const term = entry && typeof entry.term === 'string' ? entry.term.trim() : '';
+      if (term && !out.includes(term)) out.push(term);
+    }
+    return out.slice(0, GIF_SUGGEST_LIMIT);
+  }
+
+  // What the picker says when a request fails. 401 and 403 are the API refusing the key,
+  // which nobody at the keyboard can fix, so it says so rather than suggesting a retry.
+  function gifErrorMessage(status) {
+    if (status === 401 || status === 403) return t('GIF search isn’t available right now.');
+    if (status === 429) return t('Too many searches. Try again in a minute.');
+    return t('Couldn’t load GIFs. Check your connection and try again.');
+  }
+
+  // No cookies and no referrer: the query is all nostr.build needs to answer it.
+  async function gifRequest(url, signal) {
+    let res;
+    try {
+      const headers = { Accept: 'application/json' };
+      if (GIF_API_KEY) headers.Authorization = 'Bearer ' + GIF_API_KEY;
+      res = await fetch(url, {
+        headers,
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        signal,
+      });
+      if (!res.ok) throw new Error(gifErrorMessage(res.status));
+      return await res.json();
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw e;
+      throw new Error(res && !res.ok ? gifErrorMessage(res.status) : gifErrorMessage(0));
+    }
+  }
+
+  // THE GIF PICKER, built here so both composers have one, the way the poll editor is.
+  //
+  // It opens under the toolbar rather than over the composer: the panel's composer is
+  // already a sheet, and a sheet over a sheet would hide the note the GIF is for. Search
+  // on top, chips under it (topics while the field is empty, suggestions while typing),
+  // then two columns of previews that load more as they scroll. Tapping one attaches it
+  // and closes the picker.
+  //
+  //   onPick(gif)  attach { url, width, height, title }; the picker closes itself after
+  //
+  // Returns the button for the toolbar, the picker to mount below it, and open/close.
+  function buildGifPicker(d) {
+    const addBtn = h('button', { className: 'mini compose-add', type: 'button' });
+    addBtn.append(icon('gif'), h('span', { textContent: t('GIF') }));
+    addBtn.setAttribute('aria-expanded', 'false');
+
+    const wrap = h('div', { className: 'gif-picker hidden' });
+    const link = h('a', {
+      href: 'https://nostr.build',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+      textContent: 'nostr.build',
+    });
+    const credit = h('span', { className: 'gif-credit' }, I18N.fill(t('GIFs from {{source}}'), { source: link }));
+    const closeBtn = h('button', { className: 'gif-x', type: 'button', title: t('Close GIF search') });
+    closeBtn.setAttribute('aria-label', t('Close GIF search'));
+    closeBtn.append(icon('x'));
+    const input = h('input', {
+      className: 'gif-search',
+      type: 'search',
+      placeholder: t('Search GIFs'),
+      maxLength: GIF_QUERY_MAX,
+      autocomplete: 'off',
+      spellcheck: false,
+    });
+    input.setAttribute('aria-label', t('Search GIFs'));
+    const chips = h('div', { className: 'gif-chips' });
+    // Two columns filled shortest first, so GIFs of every shape pack without cropping.
+    // CSS columns would do the packing, but reflow every earlier GIF on each new page.
+    const cols = [h('div', { className: 'gif-col' }), h('div', { className: 'gif-col' })];
+    const grid = h('div', { className: 'gif-grid' }, cols);
+    const status = h('p', { className: 'hint gif-status hidden' });
+    wrap.append(h('div', { className: 'gif-head' }, [credit, closeBtn]), input, chips, grid, status);
+
+    let query = '';
+    let next = null;
+    let loading = false;
+    let pageCtrl = null;
+    let suggestCtrl = null;
+    let typingTimer = null;
+    let heights = [0, 0];
+    const seen = new Set();
+
+    function setStatus(text, isError) {
+      status.textContent = text || '';
+      status.classList.toggle('hidden', !text);
+      status.classList.toggle('error', !!isError);
+    }
+
+    function paintChips(terms) {
+      chips.innerHTML = '';
+      for (const term of terms) {
+        const chip = h('button', { className: 'gif-chip', type: 'button', textContent: term });
+        chip.addEventListener('click', () => {
+          input.value = term;
+          paintChips(GIF_TOPICS);
+          search(term);
+        });
+        chips.append(chip);
+      }
+      chips.classList.toggle('hidden', !terms.length);
+    }
+
+    function cellFor(gif) {
+      const name = gif.title || t('GIF');
+      const cell = h('button', { className: 'gif-cell', type: 'button', title: name });
+      cell.setAttribute('aria-label', name);
+      const img = h('img', { alt: '', loading: 'lazy', decoding: 'async' });
+      img.referrerPolicy = 'no-referrer';
+      // Sized before it loads, so the columns hold their shape and the scroll position
+      // does not jump as previews arrive.
+      img.style.aspectRatio = gif.width + ' / ' + gif.height;
+      img.src = gif.preview;
+      cell.append(img);
+      cell.addEventListener('click', () => {
+        d.onPick(gif);
+        close();
+      });
+      return cell;
+    }
+
+    function place(gifs) {
+      for (const gif of gifs) {
+        if (seen.has(gif.url)) continue;
+        seen.add(gif.url);
+        const col = heights[0] <= heights[1] ? 0 : 1;
+        heights[col] += gif.height / gif.width;
+        cols[col].append(cellFor(gif));
+      }
+    }
+
+    async function load(offset) {
+      if (pageCtrl) pageCtrl.abort();
+      const mine = new AbortController();
+      pageCtrl = mine;
+      loading = true;
+      if (!offset) setStatus(t('Loading GIFs…'));
+      try {
+        const page = parseGifPage(await gifRequest(gifSearchUrl(query, offset), mine.signal));
+        if (pageCtrl !== mine) return;
+        place(page.gifs);
+        next = page.next;
+        setStatus(!offset && !page.gifs.length ? t('No GIFs found for “{{query}}”.', { query }) : '');
+      } catch (e) {
+        if (pageCtrl !== mine || (e && e.name === 'AbortError')) return;
+        setStatus(e.message, true);
+      } finally {
+        if (pageCtrl === mine) {
+          pageCtrl = null;
+          loading = false;
+        }
+      }
+    }
+
+    function search(q) {
+      clearTimeout(typingTimer);
+      query = String(q || '').trim() || GIF_TOPICS[0];
+      cols.forEach((c) => { c.innerHTML = ''; });
+      heights = [0, 0];
+      seen.clear();
+      next = null;
+      grid.scrollTop = 0;
+      load(0);
+    }
+
+    async function suggest(q) {
+      if (suggestCtrl) suggestCtrl.abort();
+      const mine = new AbortController();
+      suggestCtrl = mine;
+      try {
+        const terms = parseGifSuggestions(await gifRequest(gifSuggestUrl(q), mine.signal));
+        if (suggestCtrl === mine && input.value.trim() === q) paintChips(terms);
+      } catch (_) {
+        // Suggestions are a nicety: a failure leaves the chips as they were.
+      }
+    }
+
+    input.addEventListener('input', () => {
+      clearTimeout(typingTimer);
+      const q = input.value.trim();
+      if (!q) paintChips(GIF_TOPICS);
+      // Searched once typing pauses, not per keystroke: each search is a request to
+      // nostr.build and each one replaces the grid.
+      typingTimer = setTimeout(() => {
+        search(q);
+        if (q) suggest(q);
+      }, 350);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        search(input.value);
+      } else if (e.key === 'Escape') {
+        // The picker, not the sheet around it: Escape in the panel closes the composer.
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+        addBtn.focus();
+      }
+    });
+    grid.addEventListener('scroll', () => {
+      if (loading || next == null) return;
+      if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 160) load(next);
+    });
+
+    function open() {
+      wrap.classList.remove('hidden');
+      addBtn.classList.add('compose-add-on');
+      addBtn.setAttribute('aria-expanded', 'true');
+      if (!seen.size && !pageCtrl) {
+        paintChips(GIF_TOPICS);
+        search(input.value);
+      }
+      input.focus();
+    }
+    function close() {
+      clearTimeout(typingTimer);
+      if (pageCtrl) { pageCtrl.abort(); pageCtrl = null; loading = false; }
+      if (suggestCtrl) { suggestCtrl.abort(); suggestCtrl = null; }
+      // A search cut off by closing is run again on the next open.
+      if (!seen.size) setStatus('');
+      wrap.classList.add('hidden');
+      addBtn.classList.remove('compose-add-on');
+      addBtn.setAttribute('aria-expanded', 'false');
+    }
+    const isOpen = () => !wrap.classList.contains('hidden');
+
+    addBtn.addEventListener('click', () => (isOpen() ? close() : open()));
+    closeBtn.addEventListener('click', () => {
+      close();
+      addBtn.focus();
+    });
+
+    return { addBtn, wrap, open, close, isOpen };
   }
 
   // A PHOTO IN A QUOTED NOTE OPENS AT FULL SIZE.
@@ -2684,6 +3024,7 @@ window.SidecarCore = (function () {
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
+    GIF_TOPICS, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
   };

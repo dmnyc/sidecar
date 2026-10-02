@@ -269,8 +269,8 @@ test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
   // paintPoll's own call moved with it; the media mutations still live in the panel.
   const inCore = (coreBare.match(/paintEitherOr\(\);/g) || []).length;
   const inPanel = (panelBare.match(/paintEitherOr\(\);/g) || []).length;
-  assert.equal(inCore + inPanel, 6,
-    'paintPoll + the media mutations (uploads, removal, attach, stepper) must repaint the pair, '
+  assert.equal(inCore + inPanel, 7,
+    'paintPoll + the media mutations (uploads, removal, attach, stepper, a picked GIF) must repaint the pair, '
     + 'found ' + inCore + ' in the core and ' + inPanel + ' in the panel');
 });
 
@@ -334,13 +334,14 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
     // An upload fires no editor input, so the autosave is told by hand — and so is
     // the Post button, since media alone is postable: without this, a first upload
     // into an empty composer leaves Post inert and a last removal leaves it lit.
-    // The panel repaints at four sites (file upload, paste upload, removal, and the
-    // pasted-URL conversion); the tab likewise, minus the image-paste upload.
+    // The panel repaints at five sites (file upload, paste upload, removal, the
+    // pasted-URL conversion and a picked GIF); the tab likewise, minus the image-paste
+    // upload.
     assert.match(src, /draft\.media\.push\(/, name + ' lost the upload push');
     const taps = name === 'sidepanel.js'
       ? src.match(/scheduleSave\(\);\n\s*updatePostState\(\);\n\s*renderThumbs\(\);/g) || []
       : src.match(/scheduleSave\(\);\n\s*paintCount\(\);\n\s*renderThumbs\(\);/g) || [];
-    const want = name === 'sidepanel.js' ? 4 : 3;
+    const want = name === 'sidepanel.js' ? 5 : 4;
     assert.equal(taps.length, want, name + ' repaints the button at every media change (found ' + taps.length + ')');
   }
 });

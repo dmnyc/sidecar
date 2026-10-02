@@ -1278,6 +1278,8 @@
   let pollEditor = null;
   // Set by buildToolbar: uploads files into the attachments, as the Media button does.
   let uploadFiles = async () => {};
+  // Set by buildToolbar: closes the GIF picker, which sits outside the toolbar row.
+  let closeGifPicker = () => {};
 
   // ---- the toolbar: media, a poll, and a proof of work for this note ----
   function buildToolbar() {
@@ -1349,6 +1351,21 @@
     });
     paintPow();
 
+    // A GIF from nostr.build goes into the media slot by URL, as a pasted image URL does:
+    // it is already hosted, so there is nothing to upload.
+    const gifPicker = SC.buildGifPicker({
+      onPick: (gif) => {
+        if (draft.poll) return;
+        if (!draft.media.some((m) => m && m.url === gif.url)) {
+          draft.media.push({ url: gif.url, isVideo: false });
+        }
+        scheduleSave();
+        paintCount();
+        renderThumbs();
+      },
+    });
+    closeGifPicker = gifPicker.close;
+
     pollEditor = SC.buildPollEditor({
       poll: () => draft.poll || null,
       setPoll: (p) => { draft.poll = p; },
@@ -1360,11 +1377,13 @@
       isReply: () => !!replyTo,
       hasMedia: () => !!(draft.media && draft.media.length),
       mediaBtn: () => addBtn,
+      gif: () => gifPicker,
     });
-    row.append(addBtn, pollEditor.addBtn, powBtn, fileInput);
+    row.append(addBtn, gifPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
     // Below the toolbar rather than inside it: the editor is a form, and the row is a
     // row of buttons.
     row.after(pollEditor.wrap);
+    row.after(gifPicker.wrap);
   }
 
   // ---- Write / Preview ----
@@ -1395,6 +1414,7 @@
       // The toolbar edits this draft, so it stands down while another draft is being
       // chosen rather than offering to attach a photo to a list.
       $('compose-actions').classList.toggle('hidden', which === 'drafts');
+      if (which === 'drafts') closeGifPicker();
       // And Post goes with it. From a list of other drafts it would publish the one you
       // cannot see; Cancel and the setting beside it still apply, so they stay.
       $('compose-post').classList.toggle('hidden', which === 'drafts');
