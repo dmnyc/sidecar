@@ -149,12 +149,16 @@
     },
   };
 
-  // Define window.nostr. A malicious page can still shadow this (same limitation as
-  // any web NIP-07 provider); we make it non-writable where the engine allows.
+  // Define window.nostr as an ordinary property: writable and configurable, as most
+  // NIP-07 extensions leave it. Login libraries put a wrapper in front of the extension
+  // by assigning their own window.nostr and keeping ours behind it, and they do it in
+  // strict-mode code, where assigning to a read-only property throws and takes the
+  // library's setup down with it. Locking it protected nothing: this script runs in the
+  // page's own world, so the page could always shadow or replace whatever it found.
   try {
-    Object.defineProperty(window, 'nostr', { value: nostr, configurable: false, writable: false });
+    Object.defineProperty(window, 'nostr', { value: nostr, configurable: true, writable: true, enumerable: true });
   } catch (e) {
-    window.nostr = nostr;
+    try { window.nostr = nostr; } catch (_) {}
   }
 
   // ---- window.webln (Lightning) ----
@@ -220,10 +224,12 @@
       },
     };
 
+    // Writable for the same reason as window.nostr: wallet libraries wrap window.webln
+    // the same way, by assigning over it.
     try {
-      Object.defineProperty(window, 'webln', { value: webln, configurable: true, writable: false });
+      Object.defineProperty(window, 'webln', { value: webln, configurable: true, writable: true, enumerable: true });
     } catch (e) {
-      window.webln = webln;
+      try { window.webln = webln; } catch (_) {}
     }
 
     // Discovery handshake: webln.requestProvider() resolves immediately if
