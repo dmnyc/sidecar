@@ -4936,7 +4936,9 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   border: 1px solid var(--border-strong); background: none;
   color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer;
 }
-.mining-status-stop:hover { border-color: var(--gold-soft); background: var(--hover-medium); }
+.mining-status-stop:hover:not(:disabled) { border-color: var(--gold-soft); background: var(--hover-medium); }
+/* Found and posting: nothing left to stop, and it looks it. */
+.mining-status-stop:disabled { opacity: 0.45; cursor: default; }
 /* Lift the floating compose FAB clear of the bar, the same way .relax-active does.
    The relax bar is two rows and lifts the FAB to 72px; this one is a single row, so it
    needs less. Both can be up at once, and the combined rule carries higher specificity

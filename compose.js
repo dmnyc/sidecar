@@ -78,6 +78,25 @@
   let dkey = null;
   let saveTimer = null;
   let posting = false;
+  // The fingerprint Post last asked "again?" about, or null: see reviewThenPost.
+  let repeatAsked = null;
+  const SC_freshRecentPosts = SC.freshRecentPosts;
+  const SC_RECENT_KEY = SC.RECENT_POSTS_KEY;
+  // The pages' end of the repeat-post guard: the store itself. See postFingerprint.
+  async function recentlyPostedAt(fp) {
+    try {
+      const got = await chrome.storage.session.get(SC_RECENT_KEY);
+      return SC_freshRecentPosts((got && got[SC_RECENT_KEY]) || {}, Date.now())[fp] || 0;
+    } catch (_) { return 0; }
+  }
+  async function rememberPosted(fp) {
+    try {
+      const got = await chrome.storage.session.get(SC_RECENT_KEY);
+      const all = SC_freshRecentPosts((got && got[SC_RECENT_KEY]) || {}, Date.now());
+      all[fp] = Date.now();
+      await chrome.storage.session.set({ [SC_RECENT_KEY]: all });
+    } catch (_) { /* a guard, not a record: losing it costs one missed warning */ }
+  }
   let followCache = null;
   let handoverRelays = null;
   // WHAT THIS TAB IS ANSWERING, or null for a plain note. Read from the draft rather
@@ -713,6 +732,17 @@
     if (state && state.locked) return;
     const text = (draft.text || '').trim();
     if (!text && !draft.media.length) return;
+    // THIS NOTE WENT OUT ALREADY, AND ASKS ONCE BEFORE IT GOES AGAIN, as in the panel:
+    // the same words left here after a post would publish twice. A second press posts,
+    // and any edit puts the button back to Post.
+    const fp = await SC.postFingerprint(state.activePubkey, draft, replyTo);
+    const at = repeatAsked === fp ? 0 : await recentlyPostedAt(fp);
+    if (at) {
+      repeatAsked = fp;
+      paintPostButton();
+      $('compose-err').textContent = t('You posted this {{when}}.', { when: composer.relTime(at) });
+      return;
+    }
     // Through the core, not read again here. This page had its own copy with its own
     // default of five seconds, where the panel defaults to fifteen: the same account got
     // three times less time to catch a mistake depending on which composer it was in.
@@ -849,6 +879,8 @@
       } catch (_) { /* nobody listening is the normal case */ }
       // WHAT WENT OUT, for the receipt, before the draft forgets it.
       const what = signed.kind === SC.POLL_KIND ? 'poll' : replyTo ? 'reply' : 'note';
+      // Remembered before the draft forgets it, so the same words cannot go out twice.
+      SC.postFingerprint(state.activePubkey, draft, replyTo).then(rememberPosted).catch(() => {});
       // ALL of it goes, the poll and the target included, so the save below deletes the
       // slot. Clearing only the text left a posted poll's options behind, saved as a
       // draft one tap from going out twice, and a reply's slot kept its target.
@@ -914,7 +946,7 @@
       post.disabled = true;
       return;
     }
-    post.textContent = t('Post');
+    post.textContent = repeatAsked ? t('Post it again?') : t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
     if (draft.poll) {
@@ -1465,7 +1497,13 @@
 
     editorApi = composer.createMentionEditor({
       placeholder: t('What’s on your mind?'),
-      onChange: (text) => { draft.text = text; paintCount(); scheduleSave(); },
+      onChange: (text) => {
+        draft.text = text;
+        // An edit makes it a different note, so the repeat question no longer applies.
+        if (repeatAsked) { repeatAsked = null; $('compose-err').textContent = ''; }
+        paintCount();
+        scheduleSave();
+      },
       // A URL pasted on its own becomes a real attachment: cut from the prose,
       // into the strip, appended at publish — as if it had been uploaded.
       onAttachUrl: (url) => {

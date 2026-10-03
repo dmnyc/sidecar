@@ -517,7 +517,9 @@ test('the bar is retired on every way out', () => {
   // Three exits: it published, it failed, or Stop was pressed. A bar left up after any of
   // them claims a post is coming that is not, and keeps the composer locked forever.
   const pub = bare.slice(bare.indexOf('async function doPublish'));
-  assert.match(pub, /endMinimizedMine\(\); \/\/ no-op unless this one was minimized/);
+  // Published: a minimized post says Posted for a moment, then the bar retires itself.
+  assert.match(pub, /if \(miningStatus\) postedMinimizedMine\(\); else endMinimizedMine\(\);/);
+  assert.match(bare, /function postedMinimizedMine\(\) \{[\s\S]*?setTimeout\(endMinimizedMine, \d+\);/);
   assert.match(pub, /const wasMinimized = !!miningStatus;\s*\n\s*endMinimizedMine\(\);/);
   // Stop goes through powCancel, which rejects the pending promise and lands in the
   // catch above, so there is one retirement path rather than two.
@@ -632,4 +634,19 @@ test('an unavailable control says so with the pointer', () => {
   // The unscoped rules keep their own cursor, so onboarding is unchanged.
   assert.match(css, /\.fab:disabled \{[^}]*cursor: default/);
   assert.match(css, /\.acct-chip:disabled \{ cursor: default; \}/);
+});
+
+test('A MINIMIZED MINE THAT IS FOUND SAYS SO, AND ITS STOP STANDS DOWN', () => {
+  // Signing and the relays come after the mine. For those seconds the bar read "mining"
+  // beside a Stop that did nothing, because the mine was over and powCancel found
+  // nothing pending: it looked like a broken button.
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'sidepanel.js'), 'utf8');
+  assert.match(src, /if \(pane\) pane\.done\(\);\s*\}\s*\/\/[^\n]*\n\s*if \(miningStatus\) \{ miningStatus\.posting = true; renderMiningStatus\(\); \}/,
+    'the bar is not told when the mine is found');
+  const render = src.slice(src.indexOf('function renderMiningStatus()'));
+  const body = render.slice(0, render.indexOf('\n  }\n'));
+  assert.match(body, /if \(stop\) stop\.disabled = !!\(miningStatus\.posting \|\| miningStatus\.posted\);/);
+  assert.match(body, /miningStatus\.posted\s*\? t\('Posted\.'\)/);
+  assert.match(body, /miningStatus\.posting\s*\? t\('Found it\. Posting…'\)/);
+  assert.ok(!/' bits \\u00b7 '/.test(body), 'the line is glued English again');
 });
