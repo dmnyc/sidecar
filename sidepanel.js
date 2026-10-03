@@ -4022,6 +4022,18 @@
           try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {}
         }
       }
+      // purplepag.es answers a many-author kind:0 query with no more events than authors
+      // asked, and counts a profile's older versions against that, so one author's
+      // history can crowd another's profile out. The few it missed are asked of it alone,
+      // one author per request, all at once and capped, before the rows are drawn.
+      const missed = need.filter((pk) => !cachedProfile(pk)).slice(0, 12);
+      await Promise.all(missed.map(async (pk) => {
+        const ev = await Promise.race([
+          poolGetProfile(['wss://purplepag.es'], pk),
+          new Promise((r) => setTimeout(() => r(null), 4000)),
+        ]).catch(() => null);
+        if (ev) { try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {} }
+      }));
     }
     return new Map(await Promise.all(all.map(async (pk) =>
       [pk, cachedProfile(pk) || (own.has(pk) ? await getProfile(pk).catch(() => null) : null)])));
