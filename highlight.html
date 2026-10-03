@@ -66,6 +66,15 @@
         <span class="hl-source-host" id="hl-source-host"></span>
       </div>
 
+      <!-- THE PARAGRAPH AROUND IT, which is published too, as the event's context tag. It
+           is shown because it goes out under your signature, with the passage marked in
+           it, and it can be left out. Hidden when there is no paragraph to send. -->
+      <div class="hl-context hidden" id="hl-context">
+        <span class="hl-context-label" data-i18n="Posted with the paragraph around it">Posted with the paragraph around it</span>
+        <p class="hl-context-text" id="hl-context-text" dir="auto"></p>
+        <label class="toggle-row hl-context-off"><input type="checkbox" id="hl-context-off"> <span data-i18n="Leave out the surrounding paragraph">Leave out the surrounding paragraph</span></label>
+      </div>
+
       <textarea id="hl-comment" class="autosize" dir="auto" rows="3"
         placeholder="Add a comment (optional)" data-i18n-placeholder="Add a comment (optional)"></textarea>
 

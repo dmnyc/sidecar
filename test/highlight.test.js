@@ -97,3 +97,157 @@ test('the popup loads the builder before itself, and signs through the owner doo
   const js = read('highlight.js');
   assert.match(js, /type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state\.activePubkey/);
 });
+
+// ---- what you sign, you see ----
+
+test('THE PARAGRAPH THAT GOES OUT AS CONTEXT IS SHOWN, AND CAN BE LEFT OUT', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'highlight.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'highlight.js'), 'utf8');
+  assert.match(html, /id="hl-context"/);
+  assert.match(html, /id="hl-context-off"/);
+  assert.match(html, /data-i18n="Leave out the surrounding paragraph"/);
+  // Shown exactly when the builder would send one, with the passage marked, as text.
+  assert.match(js, /const ctx = HL\.contextFor\(passage, hl\.context\);/);
+  assert.match(js, /h\('mark', \{ textContent: passage \}\)/);
+  assert.ok(!/innerHTML\s*=\s*[^'"]*ctx/.test(js), 'the paragraph must not be built as markup');
+  // And the event carries it only if it was shown and not left out.
+  assert.match(js, /context: withContext \? hl\.context : ''/);
+});
+
+test('THE BUILDER\'S ENGLISH REFUSALS ARE SAID IN THE READER\'S LANGUAGE', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'highlight.js'), 'utf8');
+  for (const m of ['Nothing selected', 'Selection too long', 'Not a web page']) {
+    assert.ok(js.includes("'" + m + "': t("), m + ' is shown untranslated');
+  }
+});
+
+test('THE POPUP PAINTS ITS LOGO WITH OR WITHOUT THE DARK-BAR LIST', () => {
+  const js = fs.readFileSync(path.join(__dirname, '..', 'highlight.js'), 'utf8');
+  assert.match(js, /const darkBar = COMPOSE_DARK_BAR_THEMES && COMPOSE_DARK_BAR_THEMES\.has\(name\);/);
+});
+
+test('THE PASSAGE IS SET IN THE READING FACE, SO IT READS AS THE PAGE WROTE IT', () => {
+  // Several display faces set everything in capitals (Ben Day's Bangers among them), which
+  // showed a quote you were about to sign in a case the page never used.
+  const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+  const rule = css.match(/\.hl-quote \{([^}]*)\}/);
+  assert.ok(rule, '.hl-quote is gone');
+  assert.match(rule[1], /font-family: var\(--font-ui\);/);
+  assert.match(rule[1], /text-transform: none;/);
+  assert.ok(!/--font-display/.test(rule[1]), 'the quote is back in a display face');
+});
+
+// ---- a Nostr note read in a web client is cited as the note ----
+
+const vmod = require('node:vm');
+const NT = (() => {
+  const c = { TextEncoder, TextDecoder, Uint8Array, ArrayBuffer };
+  vmod.createContext(c);
+  vmod.runInContext(read('nostr-tools.js'), c);
+  return c.NostrTools;
+})();
+const decode = NT.nip19.decode;
+const ID = '0f8d5c8b30880d4a9721cb4f8f689ea9c81230e1f3e4c0db3237fb2f6e5c939a';
+const PK = '8498bd7c5bbcb5a4622b9629faa23cb9854fdfa9aac19561f3a6caaebfbb4a4c';
+
+test('THE NOTE IS FOUND IN EVERY CLIENT\'S ADDRESS FORMAT', () => {
+  const nevent = NT.nip19.neventEncode({ id: ID, author: PK, relays: ['wss://relay.example'] });
+  const note = NT.nip19.noteEncode(ID);
+  const naddr = NT.nip19.naddrEncode({ kind: 30023, pubkey: PK, identifier: 'essay', relays: [] });
+  for (const url of [
+    'https://jumble.social/notes/' + nevent,
+    'https://njump.me/' + nevent,
+    'https://coracle.social/notes/' + nevent + '?x=1',
+    'https://snort.social/e/' + nevent,
+  ]) {
+    const r = HL.nostrRefFromUrl(url, decode);
+    assert.equal(r && r.tag, 'e', url);
+    assert.equal(r.id, ID);
+    assert.equal(r.author, PK, 'an nevent carries its author');
+    assert.equal(r.relay, 'wss://relay.example');
+  }
+  const bare = HL.nostrRefFromUrl('https://primal.net/e/' + note, decode);
+  assert.equal(bare.tag, 'e');
+  assert.equal(bare.author, '', 'a note1 has no author; the popup looks it up');
+  const art = HL.nostrRefFromUrl('https://habla.news/a/' + naddr, decode);
+  assert.equal(art.tag, 'a');
+  assert.equal(art.coord, '30023:' + PK + ':essay');
+  assert.equal(art.author, PK);
+  // Ordinary pages, and garbage that only looks like a reference, cite the page.
+  assert.equal(HL.nostrRefFromUrl('https://example.com/article', decode), null);
+  assert.equal(HL.nostrRefFromUrl('https://example.com/note1notreallybech32', decode), null);
+});
+
+test('A HIGHLIGHT OF A NOTE IS SOURCED TO THE NOTE AND CREDITS ITS AUTHOR', () => {
+  const url = 'https://jumble.social/notes/' + NT.nip19.neventEncode({ id: ID, author: PK, relays: ['wss://relay.example'] });
+  const ref = HL.nostrRefFromUrl(url, decode);
+  const ev = HL.buildTemplate({ text: 'I’m literally just a sponge.', url, comment: 'I said that!', nostrRef: ref, now: 1 });
+  assert.deepEqual(tagsNamed(ev, 'e'), [['e', ID, 'wss://relay.example', 'source']]);
+  assert.deepEqual(tagsNamed(ev, 'p'), [['p', PK, '', 'author']]);
+  assert.deepEqual(tagsNamed(ev, 'r'), [], 'the web client\'s address is not the source');
+  assert.deepEqual(tagsNamed(ev, 'alt'), [['alt', 'Highlight from a Nostr note']]);
+  // No author known: still the note, just no p tag.
+  const noAuthor = HL.buildTemplate({ text: 'x', url, nostrRef: { ...ref, author: '' }, now: 1 });
+  assert.deepEqual(tagsNamed(noAuthor, 'p'), []);
+  assert.equal(tagsNamed(noAuthor, 'e').length, 1);
+  // An article is an a tag.
+  const art = HL.buildTemplate({ text: 'x', url: 'https://habla.news/a/x', now: 1,
+    nostrRef: { tag: 'a', coord: '30023:' + PK + ':essay', relay: '', author: PK, kind: 30023 } });
+  assert.deepEqual(tagsNamed(art, 'a'), [['a', '30023:' + PK + ':essay', '', 'source']]);
+  assert.deepEqual(tagsNamed(art, 'alt'), [['alt', 'Highlight from a Nostr article']]);
+});
+
+// ---- the Saved sheet's Highlights tab ----
+
+const panelSrc = read('sidepanel.js');
+function liftPanel(decl) {
+  const at = panelSrc.indexOf(decl);
+  assert.ok(at > -1, decl + ' is gone from sidepanel.js');
+  const open = panelSrc.indexOf('{', at);
+  let depth = 0;
+  for (let i = open; i < panelSrc.length; i++) {
+    if (panelSrc[i] === '{') depth++;
+    else if (panelSrc[i] === '}' && --depth === 0) return panelSrc.slice(at, i + 1);
+  }
+  throw new Error('unbalanced');
+}
+
+test('A HIGHLIGHT ROW SAYS WHERE IT CAME FROM: A PAGE BY HOST, A NOTE BY ITS AUTHOR', () => {
+  const c = { URL };
+  vmod.createContext(c);
+  vmod.runInContext(liftPanel('function highlightSource(ev)') + '\nthis.highlightSource = highlightSource;', c);
+  const src = (tags) => JSON.parse(JSON.stringify(c.highlightSource({ tags })));
+  assert.deepEqual(src([['r', 'https://www.theonion.com/x', 'source']]), { kind: 'page', host: 'www.theonion.com' });
+  assert.deepEqual(src([['e', ID, '', 'source'], ['p', PK, '', 'author']]), { kind: 'note', author: PK });
+  assert.deepEqual(src([['a', '30023:' + PK + ':essay', '', 'source']]), { kind: 'article', author: PK });
+  // The old shape, before notes were cited as notes: still a page, by its host.
+  assert.deepEqual(src([['r', 'https://jumble.social/notes/nevent1x', 'source'], ['comment', 'I said that!']]),
+    { kind: 'page', host: 'jumble.social' });
+  assert.equal(c.highlightSource({ tags: [] }), null);
+});
+
+test('BOOKMARKS AND HIGHLIGHTS ARE TWO TABS, AND HIGHLIGHTS LOAD ONLY WHEN ASKED FOR', () => {
+  const body = liftPanel('function renderBookmarks()');
+  assert.match(body, /textContent: t\('Bookmarks'\)/);
+  assert.match(body, /textContent: t\('Highlights'\)/);
+  assert.match(body, /if \(hl && !hlFilled\) \{\s*hlFilled = true;\s*fillHighlights\(/);
+  const fetch = liftPanel('async function fetchHighlights(pubkey)');
+  assert.match(fetch, /kinds: \[9802\], authors: \[pubkey\]/);
+});
+
+test('A BOOKMARKED NOTE IS LOOKED FOR ON THE WRITE RELAYS, AND ON ITS HINT WHEN ALLOWED', () => {
+  const fn = liftPanel('async function fetchEventsByIds(ids, hints)');
+  // The account's own notes live on its write relays, which the read list need not name.
+  assert.match(fn, /write = await postRelays\(\)/);
+  // A bookmark's own relay hint, only when the account allows relays it did not choose.
+  assert.match(fn, /if \(!\(await nip65OnlyFor\(pubkey\)\)\) \{\s*extra = /);
+  assert.match(fn, /\[\.\.\.read, \.\.\.write, \.\.\.extra\]/);
+  // And the hints are collected from the bookmarks' e tags.
+  assert.match(liftPanel('async function refreshBookmarks()'), /if \(t && t\[0\] === 'e' && typeof t\[2\] === 'string' && t\[2\]\) hints\.push\(t\[2\]\);/);
+});
+
+test('SAVED ROWS CARRY THE SAME ⋮ MENU AS A NOTIFICATION', () => {
+  assert.match(panelSrc, /^  function buildEventMenu\(ev, linkTarget\) \{/m, 'the menu is shared, not inside the bell');
+  assert.match(liftPanel('async function fillHighlights('), /const menu = buildEventMenu\(ev, null\);/);
+  assert.match(panelSrc, /const menu = ref \? buildEventMenu\(ref, null\) : null;/);
+});

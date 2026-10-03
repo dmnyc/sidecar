@@ -23,6 +23,11 @@
   let state = null;
   let hl = null;
   let posting = false;
+  // The Nostr note the page was showing, when its address carries one (see
+  // nostrRefFromUrl), and the lookup that fills in its author when the reference lacks
+  // one. Post waits for that lookup, which gives up after a few seconds.
+  let nostrRef = null;
+  let refReady = Promise.resolve();
 
   function bg(message) {
     return new Promise((resolve, reject) => {
@@ -56,7 +61,9 @@
     if (!VALID_THEMES.includes(name)) name = 'speakeasy';
     document.documentElement.setAttribute('data-theme', name);
     const logo = $('compose-logo');
-    if (logo) logo.src = COMPOSE_DARK_BAR_THEMES.has(name) ? 'icons/sidecar-logo.svg' : logoSrcFor(name);
+    // Guarded: a build without the dark-bar list (the 1.15 line) still paints its logo.
+    const darkBar = COMPOSE_DARK_BAR_THEMES && COMPOSE_DARK_BAR_THEMES.has(name);
+    if (logo) logo.src = darkBar ? 'icons/sidecar-logo.svg' : logoSrcFor(name);
   }
 
   function applyAvatar(box, a) {
@@ -124,8 +131,12 @@
         const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
         clientTag = !(s && s.showClientTag === false);
       } catch (_) { /* default on, matching the composer */ }
+      // The paragraph goes out only if it was shown and not left out.
+      const withContext = !$('hl-context').classList.contains('hidden') && !$('hl-context-off').checked;
+      await refReady; // the note's author, if it was still being looked up
       const template = HL.buildTemplate({
-        text: hl.text, url: hl.url, context: hl.context, comment: $('hl-comment').value, clientTag,
+        text: hl.text, url: hl.url, context: withContext ? hl.context : '', comment: $('hl-comment').value, clientTag,
+        nostrRef,
       });
       status.textContent = t('Signing…');
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
@@ -146,11 +157,95 @@
         if (state) state.locked = true;
         $('hl-err').textContent = t('Sidecar is locked. Unlock it, then press Post again.');
       } else {
-        $('hl-err').textContent = (e && e.message) || t('Could not post');
+        $('hl-err').textContent = builderError((e && e.message) || '') || (e && e.message) || t('Could not post');
       }
     }
     posting = false;
     if (!document.querySelector('.compose-done')) paint();
+  }
+
+  // The event builder's refusals, in English because it is a module with no language of
+  // its own, said in the reader's.
+  function builderError(message) {
+    return ({
+      'Nothing selected': t('Select some text on the page first.'),
+      'Selection too long': t('That selection is too long for a highlight. Select a shorter passage.'),
+      'Not a web page': t('Highlights can only be made on web pages.'),
+    })[message] || '';
+  }
+
+  // The paragraph the passage sits in, with the passage marked, shown only when there is
+  // one the event would carry. Built from text nodes and a <mark>, never from markup.
+  function paintContext() {
+    const box = $('hl-context');
+    const passage = HL.tidy(hl.text);
+    const ctx = HL.contextFor(passage, hl.context);
+    box.classList.toggle('hidden', !ctx);
+    if (!ctx) return;
+    const at = ctx.indexOf(passage);
+    const para = $('hl-context-text');
+    para.replaceChildren(
+      document.createTextNode(ctx.slice(0, at)),
+      h('mark', { textContent: passage }),
+      document.createTextNode(ctx.slice(at + passage.length))
+    );
+    const off = $('hl-context-off');
+    const label = box.querySelector('.hl-context-label');
+    const sync = () => {
+      box.classList.toggle('is-off', off.checked);
+      label.textContent = off.checked ? t('The paragraph around it won’t be posted') : t('Posted with the paragraph around it');
+    };
+    off.addEventListener('change', sync);
+    sync();
+  }
+
+  // A short-lived read of one event or profile from the account's relays and the
+  // reference's own hint, never longer than `ms`.
+  async function readOne(filter, ms) {
+    const relays = [...new Set([...(hl.relays || []), ...(nostrRef && nostrRef.relay ? [nostrRef.relay] : [])])];
+    if (!relays.length) return null;
+    const ws = (window.SidecarWsGuard && window.SidecarWsGuard.impl()) || undefined;
+    const pool = new NT.SimplePool({ websocketImplementation: ws });
+    try {
+      return await Promise.race([pool.get(relays, filter), new Promise((r) => setTimeout(() => r(null), ms))]);
+    } catch (_) {
+      return null;
+    } finally {
+      try { pool.close(relays); } catch (_) {}
+    }
+  }
+
+  // Who wrote the note, for the p tag and for the source line, and their name to show.
+  async function resolveRef() {
+    if (nostrRef.tag === 'e' && !nostrRef.author) {
+      const ev = await readOne({ ids: [nostrRef.id] }, 4000);
+      if (ev && ev.id === nostrRef.id) {
+        nostrRef.author = ev.pubkey;
+        nostrRef.kind = ev.kind;
+      }
+    }
+    paintRefSource(null);
+    if (!nostrRef.author) return;
+    const profile = await readOne({ kinds: [0], authors: [nostrRef.author] }, 4000);
+    let name = '';
+    try {
+      const meta = profile ? JSON.parse(profile.content || '{}') : {};
+      name = String(meta.display_name || meta.name || '').trim();
+    } catch (_) {}
+    paintRefSource(name);
+  }
+
+  // The source line for a Nostr note: what it is and who wrote it, so it is plain before
+  // posting that this highlight links to the note rather than to the page.
+  function paintRefSource(name) {
+    let who = name;
+    if (!who && nostrRef.author) {
+      try { who = shortNpub(NT.nip19.npubEncode(nostrRef.author)); } catch (_) {}
+    }
+    const article = nostrRef.kind === 30023;
+    $('hl-source-title').textContent = who
+      ? (article ? t('Nostr article by {{name}}', { name: who }) : t('Nostr note by {{name}}', { name: who }))
+      : (article ? t('A Nostr article') : t('A Nostr note'));
   }
 
   async function showPosted(signed, relayCount, relays) {
@@ -217,6 +312,12 @@
         $('hl-quote').textContent = HL.tidy(hl.text);
         $('hl-source-title').textContent = hl.title || '';
         try { $('hl-source-host').textContent = new URL(hl.url).host; } catch (_) {}
+        paintContext();
+        nostrRef = HL.nostrRefFromUrl(hl.url, NT.nip19.decode);
+        if (nostrRef) {
+          paintRefSource(null); // at once, and again when the author's name arrives
+          refReady = resolveRef().catch(() => {});
+        }
       } else {
         $('hl-quote').classList.add('hidden');
       }

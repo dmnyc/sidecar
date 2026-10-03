@@ -57,7 +57,41 @@
     return out;
   }
 
-  function buildTemplate({ text, url, context, comment, clientTag, now }) {
+  // A NOSTR NOTE READ IN A WEB CLIENT IS A NOSTR NOTE, not a web page. Clients put the
+  // note's reference in the address (jumble.social/notes/nevent1…, njump.me/note1…,
+  // primal.net/e/…, habla.news/a/naddr1…), and NIP-84 sources a highlight of Nostr
+  // content with an e or a tag and credits its author with a p tag, so clients can show
+  // it on the note and tell its author. The r tag is for content from outside Nostr.
+  //
+  // `decode` is nip19.decode, passed in so this module stays free of dependencies.
+  // Returns { tag: 'e', id } or { tag: 'a', coord }, with author, kind and a relay hint
+  // when the reference carries them, or null when the address has no usable reference.
+  const HEX64 = /^[0-9a-f]{64}$/;
+  function nostrRefFromUrl(raw, decode) {
+    let s = String(raw || '');
+    try { s = decodeURIComponent(s); } catch (_) { /* keep it as it was */ }
+    const m = s.match(/\b(?:nevent1|note1|naddr1)[02-9ac-hj-np-z]{6,}/);
+    if (!m || typeof decode !== 'function') return null;
+    let d;
+    try { d = decode(m[0]); } catch (_) { return null; }
+    const hint = (relays) => {
+      const r = Array.isArray(relays) && relays.find((u) => /^wss?:\/\/\S+$/.test(u));
+      return r || '';
+    };
+    const author = (pk) => (HEX64.test(pk || '') ? pk : '');
+    if (d.type === 'note' && HEX64.test(d.data)) return { tag: 'e', id: d.data, relay: '', author: '', kind: null };
+    if (d.type === 'nevent' && d.data && HEX64.test(d.data.id)) {
+      return { tag: 'e', id: d.data.id, relay: hint(d.data.relays), author: author(d.data.author),
+        kind: Number.isInteger(d.data.kind) ? d.data.kind : null };
+    }
+    if (d.type === 'naddr' && d.data && HEX64.test(d.data.pubkey) && Number.isInteger(d.data.kind)) {
+      return { tag: 'a', coord: d.data.kind + ':' + d.data.pubkey + ':' + (d.data.identifier || ''),
+        relay: hint(d.data.relays), author: d.data.pubkey, kind: d.data.kind };
+    }
+    return null;
+  }
+
+  function buildTemplate({ text, url, context, comment, clientTag, now, nostrRef }) {
     const passage = tidy(text);
     if (!passage) throw new Error('Nothing selected');
     if (passage.length > MAX_TEXT) throw new Error('Selection too long');
@@ -65,14 +99,23 @@
     if (!source) throw new Error('Not a web page');
     const note = tidy(comment);
     const ctx = contextFor(passage, context);
-    const tags = [['r', source, 'source']];
+    // A Nostr note is cited as itself, the way clients cite one: the event marked source
+    // and its author marked author. The client's web address is left out; which app it
+    // was read in is not where it came from.
+    const ref = nostrRef && (nostrRef.tag === 'e' ? HEX64.test(nostrRef.id || '') : !!nostrRef.coord) ? nostrRef : null;
+    const tags = ref
+      ? [[ref.tag, ref.tag === 'e' ? ref.id : ref.coord, ref.relay || '', 'source']]
+      : [['r', source, 'source']];
+    if (ref && HEX64.test(ref.author || '')) tags.push(['p', ref.author, '', 'author']);
     if (ctx) tags.push(['context', ctx]);
     if (note) {
       tags.push(['comment', note]);
       for (const u of mentionedUrls(note, source)) tags.push(['r', u, 'mention']);
     }
     // NIP-31, for clients that do not know the kind: what this is, in one line.
-    tags.push(['alt', 'Highlight from ' + source]);
+    tags.push(['alt', ref
+      ? (ref.kind === 30023 ? 'Highlight from a Nostr article' : 'Highlight from a Nostr note')
+      : 'Highlight from ' + source]);
     if (clientTag) tags.push(['client', 'Sidecar']);
     return {
       kind: KIND,
@@ -82,7 +125,7 @@
     };
   }
 
-  const api = { KIND, MAX_TEXT, MAX_CONTEXT, tidy, sourceUrl, tooLong, contextFor, mentionedUrls, buildTemplate };
+  const api = { KIND, MAX_TEXT, MAX_CONTEXT, tidy, sourceUrl, tooLong, contextFor, mentionedUrls, nostrRefFromUrl, buildTemplate };
   if (typeof self !== 'undefined') self.SidecarHighlight = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarHighlight = api;
 })();
