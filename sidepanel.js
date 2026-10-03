@@ -801,6 +801,7 @@
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   const _ownNoteIds = new Map(); // pubkey → Set<eventId> (this account's own recent kind:1 ids)
   const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  const _ownCommentIds = new Map(); // pubkey → Set<eventId> (own recent kind:1111 ids; see strayReplyToOwnComment)
   // Kept apart from the note ids rather than merged into one set. They are fetched with
   // their own limit, so an account that posts often cannot push its polls out of the
   // window and quietly stop reporting votes, and the vote filter can name poll ids only
@@ -928,7 +929,8 @@
     // notifications until this panel next queried its own notes from relays. The tab says
     // so instead of waiting to be found.
     if (msg.event === 'notePublished' && msg.pubkey && msg.id) {
-      rememberOwnNote(msg.pubkey, msg.id);
+      if (msg.kind === WEB_COMMENT_KIND) rememberOwnComment(msg.pubkey, msg.id);
+      else rememberOwnNote(msg.pubkey, msg.id);
       return;
     }
     if (msg.event === 'walletChanged' && state && !state.locked) {
@@ -5532,6 +5534,7 @@
     // inherits the light text color. The speech-bubble emoji (🗨️) rendered
     // near-black on the panel background.
     if (hasQ) return { glyph: '❝', text: t('quoted your note') };
+    if (strayReplyToOwnComment(ev, acctPubkey)) return { icon: 'message-filled', text: t('replied to your comment') };
     const hasE = ev.tags.some((t) => t[0] === 'e');
     return hasE
       ? { icon: 'message-filled', text: t('replied to your note') }
@@ -6450,6 +6453,44 @@
     _notifCache.get(pubkey)?.replaceLive?.();
   }
 
+  // This account's own comments, so a kind 1 answering one can be told apart from a
+  // reply to a note (strayReplyToOwnComment). Labels only: nothing is filtered on these.
+  function rememberOwnComment(pubkey, id) {
+    if (!pubkey || !id) return;
+    const ids = _ownCommentIds.get(pubkey) || new Set();
+    ids.add(id);
+    while (ids.size > OWN_NOTE_CEILING) ids.delete(ids.keys().next().value);
+    _ownCommentIds.set(pubkey, ids);
+  }
+  async function loadOwnCommentIds(pubkey, relays) {
+    try {
+      const evs = await poolQuerySync(relays, { kinds: [WEB_COMMENT_KIND], authors: [pubkey], limit: 100 });
+      for (const ev of (evs || []).sort((x, y) => x.created_at - y.created_at)) {
+        if (ev.pubkey === pubkey) rememberOwnComment(pubkey, ev.id);
+      }
+    } catch (_) {}
+  }
+
+  // A KIND 1 ANSWERING YOUR COMMENT IS A STRAY, not a reply in the comment's thread:
+  // NIP-22 threads are kind 1111 only, so comment-aware clients leave it out of the
+  // thread and its reply count. It still names you, so it still notifies, but saying
+  // "replied to your note" points at a note that was never answered. The parent is the
+  // NIP-10 reply (or a lone root), and it counts as your comment when it is one of
+  // yours, the cached note says so, or the reply's k tag says 1111 and its e tag names
+  // you. Anything unresolved keeps the ordinary label: never relabel on a guess.
+  function strayReplyToOwnComment(ev, acctPubkey) {
+    if (!ev || ev.kind !== 1 || !acctPubkey) return false;
+    const refs = (ev.tags || []).filter((tg) => tg[0] === 'e' && tg[1] && tg[3] !== 'mention');
+    const parent = refs.find((tg) => tg[3] === 'reply') ||
+      (refs.some((tg) => tg[3] === 'root') ? refs.find((tg) => tg[3] === 'root') : refs[refs.length - 1]);
+    if (!parent) return false;
+    if (_ownCommentIds.get(acctPubkey)?.has(parent[1])) return true;
+    const cached = _noteCache.get(parent[1]);
+    if (cached) return cached.kind === WEB_COMMENT_KIND && cached.pubkey === acctPubkey;
+    const kComment = (ev.tags || []).some((tg) => tg[0] === 'k' && tg[1] === String(WEB_COMMENT_KIND));
+    return kComment && parent[4] === acctPubkey;
+  }
+
   function forgetOwnNoteQuery(pubkey) {
     _ownNoteIdsPromises.delete(pubkey);
   }
@@ -6575,6 +6616,7 @@
       await Promise.all([
         Promise.race([loadMuteList(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
         Promise.race([loadOwnNoteIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
+        Promise.race([loadOwnCommentIds(a.pubkey, relays), new Promise((r) => setTimeout(r, 5000))]),
         Promise.race([loadOwnPollIds(a.pubkey, relays), new Promise((r) => setTimeout(() => r(new Set()), 5000))]),
       ]);
 
@@ -13763,6 +13805,7 @@
         // and it dismisses itself after a minute.
         if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id);
         else if (signed.kind === 1) rememberOwnNote(signed.pubkey, signed.id);
+        else if (signed.kind === WEB_COMMENT_KIND) rememberOwnComment(signed.pubkey, signed.id);
         published = true;
         postFingerprint(pubkey, draft, replyTo).then(rememberPosted).catch(() => {});
         clearComposeDraft(dkey);

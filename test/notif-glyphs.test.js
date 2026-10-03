@@ -45,6 +45,8 @@ const ctx = {
   // number, the constant here stops matching and the poll test below says so.
   POLL_RESPONSE_KIND: 1018,
   fmtSats: (n) => Math.round(n).toLocaleString('en-US'),
+  // What strayReplyToOwnComment reads; empty, so a kind 1 keeps its ordinary label.
+  _ownCommentIds: new Map(), _noteCache: new Map(),
 };
 withI18n(ctx); // notification labels go through t() and tn()
 vm.createContext(ctx);
@@ -57,6 +59,7 @@ vm.runInContext(
     // notifLabel's kind:7 branch delegates here, so the resolver goes into the context
     // beside it.
     lift('function reactionDisplay('),
+    lift('function strayReplyToOwnComment('),
     lift('function notifLabel('),
     'globalThis.notifLabel = notifLabel;',
   ].join('\n'),

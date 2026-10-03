@@ -22,7 +22,7 @@ function harness() {
   const ctx = {
     state: { accounts: [{ pubkey: 'me' }], activePubkey: 'me' },
     _notifCache: new Map(), _ownNoteIds: new Map([['me', new Set(['old'])]]),
-    _ownNoteIdsPromises: new Map(), _ownPollIds: new Map(), _muteLists: new Map(),
+    _ownNoteIdsPromises: new Map(), _ownCommentIds: new Map(), _ownPollIds: new Map(), _muteLists: new Map(),
     _openNotifBell: null, OWN_NOTE_CEILING: 250, WEB_COMMENT_KIND: 1111, POLL_RESPONSE_KIND: 1018,
     loadNotifSeen: async () => {}, relayUrls: async () => ['wss://example.com'],
     loadMuteList: async () => {}, loadOwnPollIds: async () => new Set(),
@@ -57,7 +57,7 @@ function harness() {
   ctx.inboxRelays = async () => ctx.relayUrls(false);
   vm.createContext(ctx);
   for (const name of ['function rememberOwnNote(', 'function forgetOwnNoteQuery(', 'function loadOwnNoteIds(',
-    'function isOwnNoteReply(', 'function closeNotifSubsExcept(', 'async function initNotifSubs(']) {
+    'function isOwnNoteReply(', 'function rememberOwnComment(', 'async function loadOwnCommentIds(', 'function closeNotifSubsExcept(', 'async function initNotifSubs(']) {
     vm.runInContext(lift(name), ctx);
   }
   return { ctx, live, history, reqs, active: () => live.filter((s) => !s.closed) };

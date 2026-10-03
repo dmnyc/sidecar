@@ -880,7 +880,7 @@
       // panel next re-queries its own notes from relays.
       try {
         chrome.runtime.sendMessage({
-          type: 'SIDECAR_EVENT', event: 'notePublished', pubkey: signed.pubkey, id: signed.id,
+          type: 'SIDECAR_EVENT', event: 'notePublished', pubkey: signed.pubkey, id: signed.id, kind: signed.kind,
         }).catch(() => {});
       } catch (_) { /* nobody listening is the normal case */ }
       // WHAT WENT OUT, for the receipt, before the draft forgets it.
