@@ -3645,6 +3645,7 @@ async function handleControl(message, sender, sendResponse) {
         await BUDGETS.clearAccount(message.pubkey);
         await clearSiteAccountsForPubkey(message.pubkey);
         await BASELINE.forget(message.pubkey); // don't leave overwrite baselines behind
+        await new Promise((r) => chrome.storage.local.remove('sidecar_reaction_use:' + message.pubkey, r)); // its quick-reaction row
         const acts = (await sget(ACTIVITY_KEY))[ACTIVITY_KEY] || [];
         await sset({ [ACTIVITY_KEY]: acts.filter((e) => e.pubkey !== message.pubkey) });
         break;

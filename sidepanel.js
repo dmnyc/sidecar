@@ -5834,7 +5834,8 @@
 
   // THE ROW LEARNS. Those eight are where everyone starts; after that, every reaction you
   // send is counted, on this device only and never published, and the row is your eight
-  // most used. A default counts as used once already, and anything else needs two uses to
+  // most used. Counted per account, under a key of its own: an account you test with
+  // should not reshuffle the row of the one you post from. A default counts as used once already, and anything else needs two uses to
   // get on, so one reaction with something unusual does not knock ❤️ off the row. Most
   // used first, a tie going to the more recent and then to the defaults' own order.
   //
@@ -5842,7 +5843,11 @@
   // offers is ignored rather than drawn. Read when the picker opens and not again while
   // it is up: a row that reshuffled between two taps would put the wrong emoji under
   // your finger.
-  const REACTION_USE_KEY = 'sidecar_reaction_use';
+  // The old one store shared by every account, dropped rather than handed to one: nothing
+  // recorded which account sent what.
+  const REACTION_USE_LEGACY_KEY = 'sidecar_reaction_use';
+  const REACTION_USE_PREFIX = 'sidecar_reaction_use:';
+  const reactionUseKey = (pubkey) => REACTION_USE_PREFIX + pubkey;
   const REACTION_USE_MAX = 40;
   let _emojiChars = null;
   function isPickerEmoji(ch) {
@@ -5867,12 +5872,15 @@
       .slice(0, QUICK_REACTIONS.length)
       .map((r) => r.ch);
   }
-  function loadReactionUse() {
+  function loadReactionUse(pubkey) {
+    if (!pubkey) return Promise.resolve({});
     return new Promise((res) => {
       try {
-        chrome.storage.local.get(REACTION_USE_KEY, (got) => {
+        chrome.storage.local.remove(REACTION_USE_LEGACY_KEY, () => { void chrome.runtime.lastError; });
+        const key = reactionUseKey(pubkey);
+        chrome.storage.local.get(key, (got) => {
           void chrome.runtime.lastError;
-          const use = got && got[REACTION_USE_KEY];
+          const use = got && got[key];
           res(use && typeof use === 'object' ? use : {});
         });
       } catch (_) { res({}); }
@@ -5880,10 +5888,11 @@
   }
   // Read into a variable, then written: never one expression, which can zero the store
   // when the write begins before the read lands. Past the cap the least used go first.
-  async function noteReactionUse(ch) {
-    if (!isPickerEmoji(ch)) return;
-    const use = await loadReactionUse();
-    const prev = use[ch];
+  // Returns the entry as it was, for undoReactionUse.
+  async function noteReactionUse(pubkey, ch) {
+    if (!pubkey || !isPickerEmoji(ch)) return null;
+    const use = await loadReactionUse(pubkey);
+    const prev = use[ch] ? { ...use[ch] } : null;
     use[ch] = { n: (prev && Number.isFinite(prev.n) ? prev.n : 0) + 1, at: Date.now() };
     // The one just sent is never a candidate: at a single use it would be the least used.
     const others = Object.keys(use).filter((k) => k !== ch);
@@ -5893,8 +5902,24 @@
         .forEach((k) => { delete use[k]; });
     }
     try {
-      await new Promise((res) => chrome.storage.local.set({ [REACTION_USE_KEY]: use }, () => { void chrome.runtime.lastError; res(); }));
+      await new Promise((res) => chrome.storage.local.set({ [reactionUseKey(pubkey)]: use }, () => { void chrome.runtime.lastError; res(); }));
     } catch (_) { /* the row just does not learn this one */ }
+    return prev;
+  }
+  // Takes back one count noteReactionUse made, for a reaction that then failed. One use
+  // off what is stored now rather than the old entry written back, so a reaction counted
+  // in between is not lost with it.
+  async function undoReactionUse(pubkey, ch, prev) {
+    if (!pubkey || !isPickerEmoji(ch)) return;
+    const use = await loadReactionUse(pubkey);
+    const cur = use[ch];
+    if (!cur) return;
+    const n = (Number.isFinite(cur.n) ? cur.n : 0) - 1;
+    if (n < 1) delete use[ch];
+    else use[ch] = { n, at: prev && Number.isFinite(prev.at) ? prev.at : cur.at };
+    try {
+      await new Promise((res) => chrome.storage.local.set({ [reactionUseKey(pubkey)]: use }, () => { void chrome.runtime.lastError; res(); }));
+    } catch (_) {}
   }
 
   // OPENED OVER THE SHEET, not instead of it. There is one #modal element, so anything
@@ -7308,13 +7333,18 @@
       const reactBtn = actBtn(t('React'), icon('heart'));
       reactBtn.addEventListener('click', async (e) => {
         stop(e);
-        const quickRow = rankQuickReactions(await loadReactionUse());
+        // The row of the account the reaction will be signed as, and counted for the one
+        // that signed it.
+        const quickRow = rankQuickReactions(await loadReactionUse(state.activePubkey));
         emojiPickerOver($('modal'), async (ch) => {
+          // Counted on the tap, so the next picker already has it, and taken back if the
+          // reaction fails: one that never signed or reached a relay is not one you made.
+          // Waiting for the publish instead left the row a reaction behind for as long as
+          // the slowest relay took. publishReaction signs only as the active account.
+          const who = state.activePubkey;
+          const counted = noteReactionUse(who, ch);
           try {
             await publishReaction(ev, ch);
-            // Counted once it is sent, not on the tap: a reaction that failed to sign or
-            // publish is not one you made.
-            noteReactionUse(ch);
             // The chip is what makes this durable feedback. The toast says it happened;
             // the chip is still there tomorrow, which is when you want to know whether
             // you already answered something. A minimal event shape: the picker is
@@ -7322,6 +7352,7 @@
             addMyReaction(ev.id, { content: ch, tags: [] });
             toast(t('Reacted {{reaction}}', { reaction: ch }), 'success');
           } catch (e2) {
+            counted.then((prev) => undoReactionUse(who, ch, prev)).catch(() => {});
             toast(e2.message, 'error');
           }
         }, quickRow);
