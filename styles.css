@@ -1396,6 +1396,29 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    That mix is --news-ink's default; a theme with its own --news names its own ink. */
 .version-card .switch-tip-title,
 .version-card .switch-tip-link { color: var(--news-ink); }
+/* THE SPECIAL-EDITION CARD (sidepanel.js maybeShowSeasonCard): a switch tip in the
+   gold, since it is an offer rather than news, with no dismiss X — "Not now" is the
+   dismissal, so the right padding the X reserves goes back to the content. The edition
+   is shown, not described: its gallery preview runs the full width, its name under it in
+   the edition's own face (each edition's sheet sets that, keyed on data-edition), and the
+   two buttons take their own full-width row beneath, stretched to share it (the
+   narrow-panel rule in CLAUDE.md). */
+.season-card { padding-right: 13px; }
+.season-card-preview { margin: 8px 0 7px; }
+.season-card-preview .theme-preview { border-radius: 7px; }
+.season-card-name {
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 24px;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.season-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.season-card-actions button { flex: 1; min-width: 0; }
 .switch-tip-x {
   position: absolute; top: 6px; right: 6px;
   background: none; border: none; padding: 2px;
@@ -2099,6 +2122,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    second qualifies the first) — the row carries no vertical margin of its own, so
    stacked ones would sit flush. Matched to the row's own 9px gap. */
 .toggle-row + .toggle-row { margin-top: 9px; }
+/* Settings → Developer: the pretend date for the special editions. */
+.dev-date-row { display: flex; align-items: center; gap: 9px; margin-top: 9px; color: var(--text); font-size: 14px; }
+.dev-date-row input { width: auto; }
 /* A switch that only means something while the one above it is on. Indented by the
    parent's box plus its gap, so the sub-label starts where the parent's label does.
    DISABLED rather than hidden: a control that appears and disappears as you tick the
@@ -5099,6 +5125,34 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   margin-top: 9px;
 }
 .theme-card.hidden-mode { display: none; }
+
+/* SPECIAL EDITIONS, above the Dark/Light filter (sidepanel.html). The cards share one row,
+   a column each, so a single edition gets the full width (a large preview, which is the
+   point of a special one) and the two that overlap at New Year split it. Hidden cards
+   take no column. Under them, while one is worn, the way back to the account's own
+   theme, on its own full-width row. */
+.theme-special { margin: 12px 0 4px; }
+.theme-special-head {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: calc(15px * var(--display-scale, 1));
+  line-height: 22px;
+  color: var(--gold);
+}
+.theme-special .hint { margin: 2px 0 9px; }
+.theme-special-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 9px;
+}
+.theme-until {
+  font-size: 11.5px;
+  line-height: 15px;
+  color: var(--muted);
+  margin-top: -3px;
+}
+.theme-special-off { width: 100%; margin-top: 9px; }
 
 /* THE PREVIEW IS AN IFRAME, and theme-tile.html explains at length why it has to be a
    document rather than a div. The short of it: `[data-theme="x"] .thing` matches on any

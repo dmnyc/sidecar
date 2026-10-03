@@ -116,13 +116,17 @@
 
   const THEME_ALIASES = { 'art-deco': 'industria' };
   const VALID_THEMES = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures',
-    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
+    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']
+    .concat(window.SidecarSeasons.KEYS);
   // Light themes whose composer bar is drawn dark, so it takes the light wordmark. Above
   // applyTheme, which reads it and can run before anything below this line has.
   const { COMPOSE_DARK_BAR_THEMES } = window.SidecarCore;
   function applyTheme(settings, pubkey) {
     const by = (settings && settings.themeBy) || null;
-    let name = (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
+    // A special edition worn over the account's own theme, while it is in season, as the
+    // panel resolves it (seasons.js).
+    let name = window.SidecarSeasons.resolve(settings, pubkey)
+      || (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
     name = THEME_ALIASES[name] || name;
     if (!VALID_THEMES.includes(name)) name = 'speakeasy';
     document.documentElement.setAttribute('data-theme', name);

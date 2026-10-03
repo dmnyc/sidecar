@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js');
+  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -1692,7 +1692,10 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // has never chosen. (Duplicated rather than shared: the panel, this worker
         // and the content script are three documents with no module system between
         // them, the same reasoning as the theme lists in each.)
-        theme: (promptSettings.themeBy && promptSettings.themeBy[activePubkey])
+        // A special edition this account has put on, while it is in season, sits over
+        // that (seasons.js), so the window matches the panel through the season too.
+        theme: SidecarSeasons.resolve(promptSettings, activePubkey)
+          || (promptSettings.themeBy && promptSettings.themeBy[activePubkey])
           || promptSettings.theme || 'speakeasy',
         // Auto-lock is off, so this unlock is the once-per-browser-session one rather
         // than an idle timeout. The UI says so — otherwise "Never" looks broken to
@@ -3727,6 +3730,20 @@ async function handleControl(message, sender, sendResponse) {
         result = { ok: true };
         break;
       }
+      // A special edition worn over this account's own theme (seasons.js), or taken off
+      // with an empty theme. Kept apart from themeBy so the account's own choice is still
+      // there when the season ends, and validated against the list so nothing but an
+      // edition's key can be stored here.
+      case 'SIDECAR_SET_SEASONAL_FOR': {
+        if (message.theme && !SidecarSeasons.isSeasonal(message.theme)) throw new Error('Not a special edition');
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.seasonalBy || {}) };
+        if (message.theme) map[message.pubkey] = message.theme;
+        else delete map[message.pubkey];
+        await sset({ sidecar_settings: { ...prev, seasonalBy: map } });
+        result = { ok: true };
+        break;
+      }
       // Same again, and additive for the same reason: an account that never picks a client
       // keeps following defaultClient.
       case 'SIDECAR_SET_CLIENT_FOR': {
@@ -4198,7 +4215,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // The offer card's "Don't ask again", so a dismissed offer stays dismissed.
           payOfferDismissed: st.payOfferDismissed === true,
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
-          cardTheme: (cardAccount && by[cardAccount]) || st.theme || '',
+          cardTheme: SidecarSeasons.resolve(st, cardAccount) || (cardAccount && by[cardAccount]) || st.theme || '',
           hasWallet,
         },
       });

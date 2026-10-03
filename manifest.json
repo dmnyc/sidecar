@@ -32,6 +32,7 @@
       "replaceable-baseline.js",
       "zap-requests.js",
       "relay-policy.js",
+      "seasons.js",
       "jsqr.js",
       "background.js"
     ]

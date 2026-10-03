@@ -24,6 +24,9 @@
   // comment beside LIGHT_THEMES already counts the places a new theme must be
   // registered, and the expanded composer page would have been one more.
   const { LIGHT_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc } = window.SidecarCore;
+  // The special editions: which there are, when each is in season, and what an account
+  // is wearing over its own theme. See seasons.js.
+  const SEASONS = window.SidecarSeasons;
   const { POW_LEVELS, POW_DEFAULT_BITS, powLevelFor } = window.SidecarCore;
   // Settings draws the picker from these, so the list the user chooses from and the
   // list a stored value is validated against are the same list.
@@ -442,7 +445,10 @@
     themeName = THEME_ALIASES[themeName] || themeName;
     // Dark themes first, then light, matching the picker's order in
     // sidepanel.html (which is the canonical list).
-    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
+    // The special editions come from seasons.js and are appended, not listed here: they
+    // are not in THEME_LABELS (the account menu offers what can be worn all year) and
+    // the gallery shows them in a slot of their own.
+    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'].concat(SEASONS.KEYS);
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);
@@ -1370,6 +1376,8 @@
       renderMain();
       initNotifSubs();
       maybeShowAutoLockNotice(settings);
+      maybeSayFarewell(settings);
+      maybeShowSeasonCard(settings);
       // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
       const activeTab = document.querySelector('.tab.active');
       const name = activeTab && activeTab.dataset.tab;
@@ -3117,6 +3125,159 @@
       ]);
       document.querySelector('nav.tabs').insertAdjacentElement('afterend', card);
     });
+  }
+
+  // ---- special editions: the seasonal themes ---------------------------------------
+  //
+  // seasons.js says which there are and when each is in season. Here is what the panel
+  // does with that: offers an edition once a season on a card under the tabs, lets the
+  // gallery put one on and take it off, and says so when the calendar has taken one off.
+  //
+  // WORN PER ACCOUNT, like a theme from the gallery, and OVER the account's own theme
+  // rather than instead of it (seasonalBy beside themeBy), so taking one off, or the
+  // season ending, puts back exactly what was there.
+  //
+  // THE CARD IS SHOWN ONCE A SEASON, not once per account: it is news about the extension,
+  // like the update card, and an answer to it ("Not now" as much as "Wear it") is
+  // remembered by the season it was given for. Next year's season asks again. Not offered
+  // in an edition's last few days, since putting on something that is about to vanish is a
+  // poor first impression of it, and never while the update card is waiting: one card at
+  // a time, and the update is the one that cannot wait for next year.
+  const SEASON_CARD_SEEN = 'seasonCardSeen';
+  const SEASON_CARD_QUIET_DAYS = 3;
+
+  // "November 2", in the reader's language: the last day an edition is worn.
+  function seasonUntil(key, now) {
+    const w = SEASONS.windowFor(key, now);
+    return w ? I18N.fmtDate(w.end, { month: 'long', day: 'numeric' }) : '';
+  }
+
+  // The account's own theme, what it goes back to: themeBy, then the default.
+  function ownTheme(settings, pubkey) {
+    const by = (settings && settings.themeBy) || null;
+    const name = (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
+    return THEME_ALIASES[name] || name;
+  }
+  function themeLabel(key) {
+    const row = THEME_LABELS.find(([k]) => k === key);
+    return row ? row[1] : key;
+  }
+
+  // Put an edition on the account you are in, or take it off with ''. Repaints from the
+  // stored settings rather than from the argument, so the panel shows what resolves.
+  async function wearEdition(key) {
+    await call({ type: 'SIDECAR_SET_SEASONAL_FOR', pubkey: state.activePubkey, theme: key });
+    const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    paintThemePicker(applyResolvedTheme(s));
+    paintSpecialEditions(s);
+    return s;
+  }
+
+  function maybeShowSeasonCard(settings) {
+    if (!state.activePubkey || $('season-card')) return;
+    if (settings && settings.seasonalOffers === false) return;
+    const now = SEASONS.now(settings);
+    const wearing = SEASONS.resolve(settings, state.activePubkey);
+    const ed = SEASONS.current(now).find((e) => e.key !== wearing
+      && SEASONS.windowFor(e.key, now).end - now > SEASON_CARD_QUIET_DAYS * 86400000);
+    if (!ed) return;
+    const id = SEASONS.seasonId(ed.key, now);
+    chrome.storage.local.get([SEASON_CARD_SEEN, 'versionCard'], (got) => {
+      if (got.versionCard || $('version-card') || $('season-card')) return;
+      if ((got[SEASON_CARD_SEEN] || []).includes(id)) return;
+      // Answered, either way. Kept short: a season a year per edition is all it holds.
+      const done = () => {
+        chrome.storage.local.get(SEASON_CARD_SEEN, (g) => {
+          const seen = (g[SEASON_CARD_SEEN] || []).filter((x) => x !== id).concat(id).slice(-12);
+          chrome.storage.local.set({ [SEASON_CARD_SEEN]: seen });
+        });
+        card.remove();
+      };
+      // The edition itself, in the same preview the gallery draws, so the card shows what
+      // it offers instead of describing it.
+      const preview = h('div', { className: 'season-card-preview' }, [h('span', { className: 'theme-preview' })]);
+      preview.dataset.theme = ed.key;
+      const name = h('div', { className: 'season-card-name', textContent: ed.name });
+      name.dataset.edition = ed.key;
+      const wear = h('button', { className: 'primary', textContent: t('Wear it') });
+      const later = h('button', { className: 'secondary', textContent: t('Not now') });
+      wear.addEventListener('click', async () => {
+        wear.disabled = true;
+        try {
+          await wearEdition(ed.key);
+          done();
+          toast(t('Wearing {{name}}. Settings → Appearance takes it off.', { name: ed.name }), 'success');
+        } catch (e) {
+          wear.disabled = false;
+          toast(e.message, 'error');
+        }
+      });
+      later.addEventListener('click', done);
+      // Rule 2 of the narrow-panel rules in CLAUDE.md: buttons with words take their own
+      // full-width row under the content, never a slot beside it.
+      const card = h('div', { id: 'season-card', className: 'switch-tip season-card' }, [
+        h('div', { className: 'switch-tip-title' }, [icon('sparkle'), h('span', { textContent: t('Special edition') })]),
+        preview,
+        name,
+        h('p', {
+          className: 'switch-tip-body',
+          textContent: t('A theme for the season, here until {{date}}. When it ends, this account goes back to its own theme.',
+            { date: seasonUntil(ed.key, now) }),
+        }),
+        h('div', { className: 'season-card-actions' }, [wear, later]),
+      ]);
+      document.querySelector('nav.tabs').insertAdjacentElement('afterend', card);
+      mountThemePreview(preview);
+      scaleThemePreview(preview.querySelector('.theme-preview'));
+    });
+  }
+
+  // THE CALENDAR TOOK IT OFF. The edition stopped resolving at midnight on its last day
+  // and the panel is already wearing the account's own theme; this says why, once, and
+  // clears the stored choice so next year's card offers it fresh. Only for an edition
+  // this build knows: a key from a removed edition is left alone and simply never resolves.
+  const farewellSaid = new Set();
+  function maybeSayFarewell(settings) {
+    const pk = state.activePubkey;
+    const key = pk && settings && settings.seasonalBy && settings.seasonalBy[pk];
+    if (!key || !SEASONS.isSeasonal(key) || SEASONS.resolve(settings, pk)) return;
+    if (farewellSaid.has(pk + key)) return;
+    farewellSaid.add(pk + key);
+    const ed = SEASONS.byKey(key);
+    call({ type: 'SIDECAR_SET_SEASONAL_FOR', pubkey: pk, theme: '' }).then(() => {
+      toast(t('{{name}} is over for this year. It comes back in {{month}}.', {
+        name: ed.name,
+        month: I18N.fmtDate(new Date(2000, ed.from[0] - 1, 1), { month: 'long' }),
+      }), 'success');
+    }).catch(() => {});
+  }
+
+  // The gallery's special-edition slot: a card for each edition in season, the day it
+  // leaves, and while one is worn, the way back to the account's own theme.
+  function paintSpecialEditions(settings) {
+    const slot = $('theme-special');
+    if (!slot) return;
+    const now = SEASONS.now(settings);
+    let any = false;
+    slot.querySelectorAll('.theme-card-special').forEach((card) => {
+      const key = card.dataset.theme;
+      const on = !!state.activePubkey && SEASONS.inSeason(key, now);
+      card.classList.toggle('hidden', !on);
+      any = any || on;
+      const until = card.querySelector('.theme-until');
+      if (until) until.textContent = on ? t('Until {{date}}', { date: seasonUntil(key, now) }) : '';
+    });
+    slot.classList.toggle('hidden', !any);
+    // Mounted here as well as by showThemeMode, which may have run while the slot was
+    // still hidden and so passed these cards over. Scaled once they can be measured.
+    slot.querySelectorAll('.theme-card-special:not(.hidden)').forEach((card) => {
+      mountThemePreview(card);
+      scaleThemePreview(card.querySelector('.theme-preview'));
+    });
+    const off = $('theme-special-off');
+    const wearing = SEASONS.resolve(settings, state.activePubkey);
+    off.classList.toggle('hidden', !wearing);
+    if (wearing) off.textContent = t('Back to {{theme}}', { theme: themeLabel(ownTheme(settings, state.activePubkey)) });
   }
 
   // ---- web of trust: who is worth putting first ------------------------------------
@@ -10249,6 +10410,8 @@
 
     // theme
     paintThemePicker(applyResolvedTheme(settings));
+    paintSpecialEditions(settings);
+    $('seasonal-offers-toggle').checked = settings.seasonalOffers !== false; // default on
 
     // relays
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
@@ -11862,6 +12025,9 @@
         save.disabled = true;
         try {
           await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: a.pubkey, theme: sel.value });
+          // A theme chosen here is meant to be seen, so it takes off any special edition
+          // the account was wearing over it, as choosing one in the gallery does.
+          await call({ type: 'SIDECAR_SET_SEASONAL_FOR', pubkey: a.pubkey, theme: '' });
           // Only repaint if this is the account on screen. Dressing another account must
           // not change the panel out from under you.
           if (a.pubkey === state.activePubkey) {
@@ -11884,7 +12050,11 @@
     });
   }
 
+  // A special edition this account has put on wins while it is in season, and then
+  // stops resolving on its own, leaving the account's own theme (seasons.js).
   function resolveTheme(settings, pubkey) {
+    const seasonal = SEASONS.resolve(settings, pubkey);
+    if (seasonal) return seasonal;
     const by = (settings && settings.themeBy) || null;
     return (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';
   }
@@ -21163,6 +21333,12 @@
     restrikeBalances();
   });
 
+  $('seasonal-offers-toggle').addEventListener('change', async (e) => {
+    // Off also takes down a card already showing; the gallery still offers the editions.
+    if (!e.target.checked && $('season-card')) $('season-card').remove();
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { seasonalOffers: e.target.checked } });
+  });
+
   $('otd-toggle').addEventListener('change', async (e) => {
     showOnThisDay = e.target.checked;
     renderOnThisDay();
@@ -21397,8 +21573,11 @@
     const modes = document.querySelector('.theme-modes');
     if (modes && modes.moveSlider) modes.moveSlider(null, !!animate);
     document.querySelectorAll('.theme-card').forEach((card) => {
-      const on = card.dataset.mode === mode;
-      card.classList.toggle('hidden-mode', !on);
+      // The special editions sit above the filter and outside it: shown whichever half is
+      // open, as long as one is in season (paintSpecialEditions hides the rest).
+      const special = card.classList.contains('theme-card-special');
+      const on = special ? !card.classList.contains('hidden') : card.dataset.mode === mode;
+      if (!special) card.classList.toggle('hidden-mode', !on);
       if (!on) return;
       // Mounted, not replayed. Six animations firing together on a filter switch is a
       // fairground, and it fights the one thing the grid is for — comparing them side by
@@ -21420,6 +21599,24 @@
     b.addEventListener('click', () => showThemeMode(b.dataset.mode, true));
   });
 
+  // The special editions' cards, one per edition in seasons.js, drawn before the listener
+  // below is attached so they take the same click handling as every other card. Hidden
+  // until paintSpecialEditions finds one in season. Theme names are not translated (the
+  // gallery's never are); the date line under it is.
+  SEASONS.EDITIONS.forEach((ed) => {
+    const card = h('button', { type: 'button', className: 'theme-card theme-card-special hidden' }, [
+      h('span', { className: 'theme-preview' }),
+      h('span', { className: 'theme-name', textContent: ed.name }),
+      h('span', { className: 'theme-until' }),
+    ]);
+    card.dataset.theme = ed.key;
+    card.dataset.mode = ed.mode;
+    $('theme-special-cards').append(card);
+  });
+  $('theme-special-off').addEventListener('click', async () => {
+    try { await wearEdition(''); } catch (e) { toast(e.message, 'error'); }
+  });
+
   document.querySelectorAll('.theme-card').forEach(card => {
     card.addEventListener('click', async (e) => {
       const selectedTheme = card.dataset.theme;
@@ -21436,7 +21633,14 @@
         // Routed through its own message because SIDECAR_SET_SETTINGS merges shallowly and
         // a panel sending the whole map would clobber another account's choice — the same
         // reasoning behind SIDECAR_SET_CLIENT_FOR.
-        await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: state.activePubkey, theme: selectedTheme });
+        // A special edition goes on OVER the account's own theme, which stays stored
+        // underneath for when it comes off (seasons.js). Choosing a theme of your own
+        // takes one off; otherwise the edition would go on resolving over the choice and
+        // the tap would appear to do nothing.
+        const seasonal = SEASONS.isSeasonal(selectedTheme);
+        if (!seasonal) await call({ type: 'SIDECAR_SET_THEME_FOR', pubkey: state.activePubkey, theme: selectedTheme });
+        await call({ type: 'SIDECAR_SET_SEASONAL_FOR', pubkey: state.activePubkey, theme: seasonal ? selectedTheme : '' });
+        paintSpecialEditions(await call({ type: 'SIDECAR_GET_SETTINGS' }));
         // NOT settings.theme, which is the default an account that never chose still
         // wants. Writing it here redressed every untouched account, which is the bug this
         // replaced. The pay card is not this handler's business either: it resolves its
@@ -22738,6 +22942,13 @@
     $('pseudo-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.PSEUDO : 'auto'));
     $('test-locale-toggle').checked = settings.language === I18N.TEST;
     $('test-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.TEST : 'auto'));
+    // A pretend date for the special editions (seasons.js). Clearing the card's record
+    // with it means the card is offered again on the reload, so it can be looked at.
+    $('dev-date').value = settings.devDate || '';
+    $('dev-date').addEventListener('change', async (e) => {
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devDate: e.target.value || null } });
+      chrome.storage.local.remove(SEASON_CARD_SEEN, () => location.reload());
+    });
   }
 
   // ---- language ----
