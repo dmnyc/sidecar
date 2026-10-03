@@ -3996,6 +3996,73 @@
     const hit = _profileCache.get(pubkey);
     return hit && hit.expiresAt > Date.now() ? hit : null;
   }
+  // ONE QUERY FOR A LIST OF AUTHORS, the way the bell reads its senders
+  // (prefetchNotifProfiles). A getProfile per author, all at once, is enough concurrent
+  // REQs that many fail, and each failure renders as an npub. The configured relays are
+  // asked with purplepag.es, the kind:0 aggregator, and the answers fill the profile
+  // cache. The user's own accounts still go through getProfile, which reads their
+  // declared relays; for everyone else nobody answering means no name, not a retry.
+  async function profilesFor(pubkeys) {
+    const all = [...new Set(pubkeys)].filter((pk) => /^[0-9a-f]{64}$/.test(pk || ''));
+    const own = new Set(((state && state.accounts) || []).map((a) => a.pubkey));
+    const need = all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
+    if (need.length) {
+      const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+      for (let i = 0; i < need.length; i += 100) {
+        const evs = await Promise.race([
+          poolQuerySync(relays, { kinds: [0], authors: need.slice(i, i + 100) }, { maxWait: 6000 }),
+          new Promise((r) => setTimeout(() => r([]), 6500)),
+        ]).catch(() => []);
+        const newest = new Map();
+        for (const ev of evs || []) {
+          const cur = newest.get(ev.pubkey);
+          if (!cur || ev.created_at > cur.created_at) newest.set(ev.pubkey, ev);
+        }
+        for (const [pk, ev] of newest) {
+          try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {}
+        }
+      }
+      // purplepag.es answers a many-author kind:0 query with no more events than authors
+      // asked, and counts a profile's older versions against that, so one author's
+      // history can crowd another's profile out. The few it missed are asked of it alone,
+      // one author per request, all at once and capped, before the rows are drawn.
+      const missed = need.filter((pk) => !cachedProfile(pk)).slice(0, 12);
+      await Promise.all(missed.map(async (pk) => {
+        const ev = await Promise.race([
+          poolGetProfile(['wss://purplepag.es'], pk),
+          new Promise((r) => setTimeout(() => r(null), 4000)),
+        ]).catch(() => null);
+        if (ev) { try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {} }
+      }));
+    }
+    return new Map(await Promise.all(all.map(async (pk) =>
+      [pk, cachedProfile(pk) || (own.has(pk) ? await getProfile(pk).catch(() => null) : null)])));
+  }
+
+  // nostr:npub and nostr:nprofile references in text, as the people they name.
+  const MENTION_RE = /nostr:((?:npub|nprofile)1[02-9ac-hj-np-z]+)/g;
+  function mentionPubkeys(text) {
+    const out = [];
+    for (const m of String(text || '').matchAll(MENTION_RE)) {
+      try {
+        const d = NT.nip19.decode(m[1]);
+        const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
+        if (pk) out.push(pk);
+      } catch (_) {}
+    }
+    return out;
+  }
+  function mentionsAsNames(text, profiles) {
+    return String(text || '').replace(MENTION_RE, (whole, code) => {
+      try {
+        const d = NT.nip19.decode(code);
+        const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
+        const prof = profiles && profiles.get(pk);
+        return '@' + ((prof && prof.name) || shortNpub(NT.nip19.npubEncode(pk)));
+      } catch (_) { return whole; }
+    });
+  }
+
   async function getProfile(pubkey) {
     if (!pubkey) return null;
     const hit = cachedProfile(pubkey);
@@ -6682,6 +6749,97 @@
     }
   }
 
+  // THE ⋮ MENU: the event itself rather than what it says — its kind, and the ids, npub
+  // and JSON you reach for when debugging a client or quoting a note somewhere else.
+  //
+  // A panel of full-width rows under the row header, not a floating popover. Every item
+  // has words, and words do not fit beside content in a 300px sheet (the rule in
+  // AGENTS.md); a popover would also need its own clipping and dismissal rules inside a
+  // sheet that already scrolls. Only the ⋮ itself sits in the top-right slot, icon only.
+  //
+  // For a zap the npub is the ZAPPER's (zapSender), the same person the row names. The
+  // receipt's own pubkey is the LNURL service, and it is still in the JSON. A caller
+  // can name whose npub it is (opts.npubOf): a highlight's is the quoted note's author,
+  // since the highlighter is you; null leaves the item out (a web page has no author).
+  // opts.sourceNote names the e tag as the note quoted rather than the one answered.
+  function buildEventMenu(ev, linkTarget, opts) {
+    const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+    // Enter or Space on a button inside a vote row would otherwise bubble to the row's
+    // own key handler and open the tally as well. Not prevented, so the button still
+    // activates.
+    const keepKeys = (e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); };
+
+    const btn = h('button', { className: 'notif-more-btn', type: 'button', title: t('More options') });
+    btn.setAttribute('aria-label', t('More options'));
+    btn.setAttribute('aria-expanded', 'false');
+    btn.appendChild(icon('more-v'));
+
+    const panel = h('div', { className: 'notif-more hidden' });
+    // A click anywhere in the panel, the gaps included, must not follow the row's link.
+    panel.addEventListener('click', stop);
+    panel.addEventListener('keydown', keepKeys);
+    btn.addEventListener('keydown', keepKeys);
+
+    const setOpen = (open) => {
+      panel.classList.toggle('hidden', !open);
+      btn.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    let built = false;
+    btn.addEventListener('click', (e) => {
+      stop(e);
+      if (!built) build();
+      setOpen(panel.classList.contains('hidden'));
+    });
+
+    // On first open rather than with the row: the list builds 25 of these at a time.
+    function build() {
+      built = true;
+      // Named from the approval card's table, so a kind reads the same here as it did
+      // when you were asked to sign one.
+      const kindName = approvalKindLabels()[ev.kind] || '';
+      // The number as written in the NIPs, never grouped: kind 9735, not 9,735.
+      const kind = String(ev.kind);
+      panel.appendChild(h('div', {
+        className: 'notif-more-kind',
+        textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
+      }));
+
+      const who = opts && 'npubOf' in opts ? opts.npubOf : zapSender(ev);
+      const targetId = notifTargetId(ev);
+      const items = [
+        [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
+        who ? [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)] : null,
+        targetId ? [opts && opts.sourceNote ? t('Copy source note ID') : t('Copy parent note ID'), 'copy',
+          () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
+        linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
+        [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
+      ].filter(Boolean);
+      // A reaction or a zap is only ever about the note it landed on, so that is all its
+      // menu offers. One whose note cannot be found keeps the full list rather than
+      // opening empty.
+      const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
+      const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
+
+      for (const [label, glyph, value] of shown) {
+        const row = h('button', { className: 'notif-more-item', type: 'button' });
+        row.append(icon(glyph), h('span', { textContent: label }));
+        row.addEventListener('click', async (e) => {
+          stop(e);
+          try {
+            await copyPlain(value());
+            toast(t('Copied'), 'success');
+            setOpen(false);
+          } catch (e2) {
+            toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
+          }
+        });
+        panel.appendChild(row);
+      }
+    }
+    return { btn, panel };
+  }
+
   // `place` puts the sheet back where it was: how many pages had been loaded, and how far
   // down it was scrolled. Passed when something had to take the panel away — replying
   // opens the composer — so coming back is not "start again at the top".
@@ -7071,93 +7229,6 @@
         });
       }
       return item;
-    }
-
-    // THE ⋮ MENU: the event itself rather than what it says — its kind, and the ids, npub
-    // and JSON you reach for when debugging a client or quoting a note somewhere else.
-    //
-    // A panel of full-width rows under the row header, not a floating popover. Every item
-    // has words, and words do not fit beside content in a 300px sheet (the rule in
-    // AGENTS.md); a popover would also need its own clipping and dismissal rules inside a
-    // sheet that already scrolls. Only the ⋮ itself sits in the top-right slot, icon only.
-    //
-    // For a zap the npub is the ZAPPER's (zapSender), the same person the row names. The
-    // receipt's own pubkey is the LNURL service, and it is still in the JSON.
-    function buildEventMenu(ev, linkTarget) {
-      const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
-      // Enter or Space on a button inside a vote row would otherwise bubble to the row's
-      // own key handler and open the tally as well. Not prevented, so the button still
-      // activates.
-      const keepKeys = (e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); };
-
-      const btn = h('button', { className: 'notif-more-btn', type: 'button', title: t('More options') });
-      btn.setAttribute('aria-label', t('More options'));
-      btn.setAttribute('aria-expanded', 'false');
-      btn.appendChild(icon('more-v'));
-
-      const panel = h('div', { className: 'notif-more hidden' });
-      // A click anywhere in the panel, the gaps included, must not follow the row's link.
-      panel.addEventListener('click', stop);
-      panel.addEventListener('keydown', keepKeys);
-      btn.addEventListener('keydown', keepKeys);
-
-      const setOpen = (open) => {
-        panel.classList.toggle('hidden', !open);
-        btn.classList.toggle('open', open);
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      };
-      let built = false;
-      btn.addEventListener('click', (e) => {
-        stop(e);
-        if (!built) build();
-        setOpen(panel.classList.contains('hidden'));
-      });
-
-      // On first open rather than with the row: the list builds 25 of these at a time.
-      function build() {
-        built = true;
-        // Named from the approval card's table, so a kind reads the same here as it did
-        // when you were asked to sign one.
-        const kindName = approvalKindLabels()[ev.kind] || '';
-        // The number as written in the NIPs, never grouped: kind 9735, not 9,735.
-        const kind = String(ev.kind);
-        panel.appendChild(h('div', {
-          className: 'notif-more-kind',
-          textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
-        }));
-
-        const who = zapSender(ev);
-        const targetId = notifTargetId(ev);
-        const items = [
-          [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
-          [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)],
-          targetId ? [t('Copy parent note ID'), 'copy', () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
-          linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
-          [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
-        ].filter(Boolean);
-        // A reaction or a zap is only ever about the note it landed on, so that is all its
-        // menu offers. One whose note cannot be found keeps the full list rather than
-        // opening empty.
-        const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
-        const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
-
-        for (const [label, glyph, value] of shown) {
-          const row = h('button', { className: 'notif-more-item', type: 'button' });
-          row.append(icon(glyph), h('span', { textContent: label }));
-          row.addEventListener('click', async (e) => {
-            stop(e);
-            try {
-              await copyPlain(value());
-              toast(t('Copied'), 'success');
-              setOpen(false);
-            } catch (e2) {
-              toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
-            }
-          });
-          panel.appendChild(row);
-        }
-      }
-      return { btn, panel };
     }
 
     // Reply, react and zap, on their own row under the note. Icon-only, and titled: the
@@ -15029,8 +15100,22 @@
   // in chunks; whichever relay answers first for an id is fine — same id,
   // same event. A row whose event never comes back still renders (and can
   // still be opened by id or removed); it just shows no preview.
-  async function fetchEventsByIds(ids) {
-    const relays = await readRelayUrls(state.activePubkey);
+  // WHERE A BOOKMARKED NOTE MIGHT BE. The account's read relays alone missed most of
+  // them: a bookmark points at someone else's note, kept on its author's relays, and even
+  // the account's own notes live on its WRITE relays, which the read list need not name.
+  // So the write relays always join, and the relay each bookmark names as its hint joins
+  // too, but only for an account that allows reaching past its own lists: with bootstrap
+  // relays off, contacting relays it never chose is what that setting rules out.
+  async function fetchEventsByIds(ids, hints) {
+    const pubkey = state.activePubkey;
+    const read = await readRelayUrls(pubkey);
+    let write = [];
+    try { write = await postRelays(); } catch (_) {}
+    let extra = [];
+    if (!(await nip65OnlyFor(pubkey))) {
+      extra = [...new Set((hints || []).filter((u) => /^wss:\/\/\S+$/.test(u)).map(normalizeRelay))];
+    }
+    const relays = [...new Set([...read, ...write, ...extra].map(normalizeRelay))];
     const found = new Map();
     const chunks = [];
     for (let i = 0; i < ids.length; i += 64) chunks.push(ids.slice(i, i + 64));
@@ -15056,7 +15141,29 @@
       x.appendChild(icon('x'));
       x.addEventListener('click', closeModal);
       const scroll = h('div', { className: 'bm-scroll' });
-      modal.append(x, h('h3', { textContent: 'Bookmarks' }), scroll);
+      // TWO VIEWS OF WHAT THIS ACCOUNT HAS SAVED: its bookmarks, and the passages it has
+      // highlighted. Separate tabs because they are separate things on Nostr, a list the
+      // account keeps and events it published, and one list mixing them would read as
+      // bookmarks that cannot be removed the same way. The heading names both.
+      const tabBm = h('button', { className: 'modal-tab active', type: 'button', textContent: t('Bookmarks') });
+      const tabHl = h('button', { className: 'modal-tab', type: 'button', textContent: t('Highlights') });
+      const hlPane = h('div', { className: 'bm-scroll hidden' });
+      modal.append(x, h('h3', { textContent: t('Saved') }), h('div', { className: 'modal-tabs' }, [tabBm, tabHl]), scroll, hlPane);
+      let hlFilled = false;
+      const pick = (hl) => {
+        tabBm.classList.toggle('active', !hl);
+        tabHl.classList.toggle('active', hl);
+        scroll.classList.toggle('hidden', hl);
+        hlPane.classList.toggle('hidden', !hl);
+        // On the first switch only, so opening bookmarks never pays for a highlights query
+        // nobody asked for.
+        if (hl && !hlFilled) {
+          hlFilled = true;
+          fillHighlights(hlPane, () => $('modal-overlay').classList.contains('hidden'), tabHl);
+        }
+      };
+      tabBm.addEventListener('click', () => pick(false));
+      tabHl.addEventListener('click', () => pick(true));
       const gone = () => $('modal-overlay').classList.contains('hidden');
       if (_bmCache.pubkey === state.activePubkey && _bmCache.evs) {
         fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
@@ -15081,6 +15188,120 @@
     });
   }
 
+  // ---- the account's own highlights (NIP-84), the Saved sheet's second tab ----
+  //
+  // Read from where they were written and where the account reads, newest first. A row is
+  // the passage, the comment if there was one, and where it came from: a web page by its
+  // host, a Nostr note or article by its author. Tapping it opens the highlight itself in
+  // the web client, as a bookmark opens its note.
+  const _hlCache = { pubkey: null, evs: null };
+  async function fetchHighlights(pubkey) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return [];
+    const got = await poolQuerySync(relays, { kinds: [9802], authors: [pubkey], limit: 100 }, { maxWait: 6000 });
+    const byId = new Map();
+    for (const ev of got || []) if (ev && ev.kind === 9802 && ev.pubkey === pubkey) byId.set(ev.id, ev);
+    return [...byId.values()].sort((a, b) => b.created_at - a.created_at);
+  }
+  // Where a highlight came from, as the row says it: { kind: 'page', host } or
+  // { kind: 'note' | 'article', author }, from the tag marked source, then e, a, r.
+  function highlightSource(ev) {
+    const tags = ev.tags || [];
+    const marked = tags.find((tg) => (tg[0] === 'r' && tg[2] === 'source') || ((tg[0] === 'e' || tg[0] === 'a') && tg[3] === 'source'));
+    const src = marked || tags.find((tg) => tg[0] === 'e') || tags.find((tg) => tg[0] === 'a') || tags.find((tg) => tg[0] === 'r');
+    if (!src) return null;
+    // The author as NIP-84 marks one, or, for highlights other clients made without the
+    // role, the first p tag that is not a mention.
+    const pTag = tags.find((tg) => tg[0] === 'p' && tg[3] === 'author') ||
+      tags.find((tg) => tg[0] === 'p' && tg[3] !== 'mention');
+    const author = (pTag && /^[0-9a-f]{64}$/.test(pTag[1] || '') && pTag[1]) || '';
+    if (src[0] === 'r') {
+      try { return { kind: 'page', host: new URL(src[1]).host }; } catch (_) { return null; }
+    }
+    const article = src[0] === 'a' && String(src[1]).startsWith('30023:');
+    const out = { kind: article ? 'article' : 'note', author: author || (src[0] === 'a' ? String(src[1]).split(':')[1] || '' : '') };
+    if (src[0] === 'e' && HEX_ID.test(src[1] || '')) out.id = src[1];
+    return out;
+  }
+  async function fillHighlights(pane, gone, tab) {
+    const pubkey = state.activePubkey;
+    const setCount = (n) => {
+      const cap = tab.querySelector('.modal-tab-count');
+      if (!n) { if (cap) cap.remove(); return; }
+      if (cap) cap.textContent = I18N.fmtNum(n);
+      else tab.append(h('span', { className: 'modal-tab-count', textContent: I18N.fmtNum(n) }));
+    };
+    const quote = pickQuote();
+    const paint = async (evs) => {
+      setCount(evs.length);
+      if (!evs.length) {
+        pane.textContent = '';
+        pane.append(emptyQuote(t('Highlight a passage on any web page and it shows up here.'), quote));
+        return;
+      }
+      // A highlight that cites a note without naming its author takes the author from the
+      // note itself, read once for all of them.
+      const sources = new Map(evs.map((ev) => [ev.id, highlightSource(ev)]));
+      const unknown = [...new Set([...sources.values()].filter((s) => s && s.id && !s.author).map((s) => s.id))];
+      if (unknown.length) {
+        const notes = await fetchEventsByIds(unknown).catch(() => new Map());
+        for (const s of sources.values()) if (s && s.id && !s.author && notes.get(s.id)) s.author = notes.get(s.id).pubkey;
+      }
+      const comments = new Map(evs.map((ev) => [ev.id, ((ev.tags || []).find((tg) => tg[0] === 'comment') || [])[1] || '']));
+      const profiles = await profilesFor([
+        ...[...sources.values()].filter((s) => s && s.author).map((s) => s.author),
+        ...evs.flatMap((ev) => [...mentionPubkeys(ev.content), ...mentionPubkeys(comments.get(ev.id))]),
+      ]);
+      if (gone()) return;
+      // Cleared only now, after the lookups, so the loading quote stays up through them.
+      pane.textContent = '';
+      const list = h('div', { className: 'bm-list' });
+      for (const ev of evs) {
+        const src = sources.get(ev.id);
+        let from = '';
+        if (src && src.kind === 'page') from = src.host;
+        else if (src) {
+          const prof = src.author ? profiles.get(src.author) : null;
+          let who = prof && prof.name;
+          if (!who && src.author) { try { who = shortNpub(NT.nip19.npubEncode(src.author)); } catch (_) {} }
+          from = who
+            ? (src.kind === 'article' ? t('Nostr article by {{name}}', { name: who }) : t('Nostr note by {{name}}', { name: who }))
+            : (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
+        }
+        const comment = mentionsAsNames(comments.get(ev.id), profiles);
+        const item = h('div', { className: 'bm-item hl-item', title: t('Open in your web client') });
+        // The same ⋮ as a notification's; its npub is the quoted author's, not yours.
+        const menu = buildEventMenu(ev, null, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
+        item.append(h('div', { className: 'bm-main' }, [
+          h('div', { className: 'hl-item-passage', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
+          comment ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: comment }) : null,
+          h('div', { className: 'bm-meta', textContent: from ? from + ' · ' + relativeTime(ev.created_at) : relativeTime(ev.created_at) }),
+          menu.panel,
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        item.addEventListener('click', async () => {
+          const client = await preferredClient();
+          try { openInClient(client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 9802, relays: [] }))); } catch (_) {}
+        });
+        list.append(item);
+      }
+      pane.append(list);
+      pane.append(endQuote(quote));
+    };
+    if (_hlCache.pubkey === pubkey && _hlCache.evs) await paint(_hlCache.evs);
+    else pane.append(loadingQuote(t('Reading your relays…'), quote));
+    let evs;
+    try { evs = await fetchHighlights(pubkey); } catch (_) { evs = null; }
+    if (gone() || !evs || state.activePubkey !== pubkey) {
+      if (!_hlCache.evs && !gone()) { pane.textContent = ''; pane.append(emptyQuote(t('Couldn’t read your highlights from your relays.'), quote)); }
+      return;
+    }
+    const changed = _hlCache.pubkey !== pubkey || (_hlCache.evs || []).map((e) => e.id).join() !== evs.map((e) => e.id).join();
+    _hlCache.pubkey = pubkey;
+    _hlCache.evs = evs;
+    if (changed) await paint(evs);
+  }
+
   // Session cache per account: the modal opens instantly from the last fetch,
   // and a background refresh keeps it honest. Signatures compare which list
   // events exist (id + created_at) and which bookmark ids resolved, so an
@@ -15097,12 +15318,14 @@
       return false;
     }
     const ids = [];
+    const hints = [];
     const seen = new Set();
     bookmarkSections(evs).forEach((s) => s.ev.tags.forEach((t) => {
       const id = t && t[0] === 'e' && t[1];
       if (HEX_ID.test(id || '') && !seen.has(id)) { seen.add(id); ids.push(id); }
+      if (t && t[0] === 'e' && typeof t[2] === 'string' && t[2]) hints.push(t[2]);
     }));
-    const events = await fetchEventsByIds(ids);
+    const events = await fetchEventsByIds(ids, hints);
     const changed = _bmCache.pubkey !== pubkey ||
       bmListsSig(_bmCache.evs) !== bmListsSig(evs) ||
       bmFoundSig(_bmCache.events) !== bmFoundSig(events);
@@ -15113,11 +15336,6 @@
   }
 
   async function fillBookmarks(scroll, gone, evs, events, q) {
-    // The scroll container is cleared rather than appended to: the quiet
-    // refresh re-runs this on a scroll that already holds rows (and the first
-    // run replaces the spinner), and a second .bm-list under the first would
-    // duplicate every bookmark.
-    scroll.textContent = '';
     // Sections: the flat list first (what clients without categories write),
     // then categories by name. A list with no e-tags renders nothing — no
     // entries to show, none to remove.
@@ -15135,12 +15353,17 @@
     };
     if (!sections.length) return empty();
 
-    // Profiles for the authors (getProfile is cached, so repeat authors are
-    // cheap and a cached reopen resolves instantly).
-    const authors = [...new Set([...events.values()].map((e) => e.pubkey))];
-    const profiles = new Map(await Promise.all(authors.map(async (pk) => [pk, await getProfile(pk)])));
+    // Profiles for the authors, in one query (profilesFor); cached, so a reopen
+    // resolves instantly.
+    const profiles = await profilesFor([...events.values()].map((e) => e.pubkey));
     if (gone()) return;
 
+    // The scroll container is cleared rather than appended to: the quiet
+    // refresh re-runs this on a scroll that already holds rows (and the first
+    // run replaces the spinner), and a second .bm-list under the first would
+    // duplicate every bookmark. Cleared only now, after the profile lookup, so
+    // the loading quote stays up through the wait instead of a blank sheet.
+    scroll.textContent = '';
     const list = h('div', { className: 'bm-list' });
     scroll.append(list);
 
@@ -15172,6 +15395,10 @@
         }),
       ]);
       const actions = h('div', { className: 'item-actions' });
+      // The same ⋮ menu as a notification's, for a bookmark whose note was found: its
+      // event ID, its author's npub and its JSON, to copy. Opens under the content.
+      const menu = ref ? buildEventMenu(ref, null) : null;
+      if (menu) main.append(menu.panel);
       // The resting row keeps a lone icon button in the inline slot; the confirm
       // has words, so it takes its own full-width row under the content (the
       // connected-site grammar) instead of squeezing a label and two buttons
@@ -15184,6 +15411,7 @@
         confirmRow.remove();
         confirmRow.textContent = '';
         actions.textContent = '';
+        if (menu) actions.append(menu.btn);
         actions.append(iconButton('Remove bookmark', 'x', (e) => {
           e.stopPropagation();
           drawConfirm();
@@ -15254,28 +15482,25 @@
       // nothing in a kind 10003 records WHEN an entry was added. That absence is the
       // whole reason this drifts between clients.
       //
-      // Entries whose events no longer resolve sort to the bottom under their own divider
-      // — they're still bookmarks, but they can't be previewed (or dated), and a wall of
-      // "not found" ahead of real notes reads as a broken modal.
+      // ONLY WHAT CAN BE SHOWN. An entry whose note no relay returns used to sort to the
+      // bottom as "Unknown author" with a shortened id: still a bookmark, but one nobody
+      // could read, open meaningfully or recognize, and a column of them read as a broken
+      // sheet. They are left out. They stay in the list itself, untouched, and appear
+      // here again the moment a relay answers for them.
       const found = [];
-      const missing = [];
       const seen = new Set();
       s.ev.tags.forEach((t) => {
         const id = t && t[0] === 'e' && t[1];
         if (!HEX_ID.test(id || '') || seen.has(id)) return;
         seen.add(id);
-        (events.has(id) ? found : missing).push(id);
+        if (events.has(id)) found.push(id);
       });
       // Ties keep tag order, which is at least stable within one read.
       found.sort((a, b) => (events.get(b).created_at || 0) - (events.get(a).created_at || 0));
-      if (!found.length && !missing.length) return;
+      if (!found.length) return;
       const group = h('div', { className: 'bm-group' });
       if (s.title) group.append(h('div', { className: 'bm-cat', textContent: s.title }));
       found.forEach((id) => group.append(buildRow(id, s.ev, false)));
-      if (missing.length) {
-        if (found.length) group.append(h('div', { className: 'bm-missing-head', textContent: 'Not on your relays' }));
-        missing.forEach((id) => group.append(buildRow(id, s.ev, true)));
-      }
       list.append(group);
     });
 

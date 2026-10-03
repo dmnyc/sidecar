@@ -2384,6 +2384,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border-bottom: 1px solid var(--border);
 }
 .bm-item:hover { background: var(--hover-soft); }
+/* The ⋮ and the × sit level with the row's first line, as on a notification, rather
+   than centered on a row whose height the snippet decides. */
+.bm-item > .item-actions { align-self: flex-start; }
 .bm-list .bm-group:last-child .bm-item:last-child { border-bottom: none; }
 .bm-main { flex: 1; min-width: 0; }
 .bm-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -2392,6 +2395,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bm-snippet { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .bm-meta { font-size: 11px; color: var(--faint); margin-top: 2px; }
+/* A highlight row: the passage leads, in the reading face, up to three lines. */
+.hl-item-passage {
+  font-size: 13px; line-height: 1.45; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  border-left: 2px solid var(--gold-soft); padding-left: 8px;
+}
 /* entries whose events the relays no longer return: below the found ones,
    under a divider, dimmed — present (they're still bookmarks) but quiet */
 /* remove confirm: the row becomes a column so "Remove this bookmark?" plus its
@@ -6095,3 +6104,49 @@ button.poll-bar-head {
 .gif-cell:hover, .gif-cell:focus-visible { outline: 2px solid var(--lav); outline-offset: -2px; }
 .gif-status { margin: 0; text-align: center; }
 .gif-status.error { color: var(--red); }
+/* ---- the highlight popup (highlight.html) ----
+   The expanded composer's card in a 440px window. The passage is the subject, so it is
+   set like a pull quote and scrolls inside itself rather than pushing Post off screen.
+   The source takes its own row under it: title truncates, host never does.
+
+   THE READING FACE, NOT THE DISPLAY FACE. A quote has to read as the page wrote it, and
+   several themes' display faces cannot: Bangers, Cinzel and Syncopate set everything in
+   capitals, so "Xi Jinping" showed as "XI JINPING" in Ben Day, a misquote on the one
+   screen that asks you to sign it. */
+.hl-quote {
+  margin: 0;
+  padding: 4px 0 4px 14px;
+  border-left: 3px solid var(--gold-soft);
+  font-family: var(--font-ui);
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.hl-source { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-left: 17px; }
+.hl-source-title {
+  font-size: 12.5px; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.hl-source-title:empty { display: none; }
+.hl-source-host { font-size: 12px; color: var(--muted); }
+/* The paragraph around the passage, published as its context. Quieter than the quote,
+   with the passage marked in it, and faded once it is left out. */
+.hl-context { display: flex; flex-direction: column; gap: 6px; padding-left: 17px; }
+.hl-context.hidden { display: none; }
+.hl-context-label { font-size: 12px; color: var(--muted); }
+.hl-context-text {
+  margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2);
+  white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto;
+}
+.hl-context-text mark { background: color-mix(in srgb, var(--gold) 28%, transparent); color: var(--text); border-radius: 2px; }
+.hl-context.is-off .hl-context-text { opacity: 0.4; text-decoration: line-through; }
+.hl-context-off { font-size: 13px; }
+.hl-page .compose-status:empty,
+.hl-page .error:empty { display: none; }
+.hl-foot { justify-content: flex-end; }

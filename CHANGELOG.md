@@ -11,6 +11,7 @@ Update that section alongside this file as part of every release.
 
 ### Added
 - **GIFs in both composers.** A GIF button beside Media searches nostr.build’s GIF index, with topic chips to start from and suggestions as you type. A GIF you pick is attached by its nostr.build link, so nothing is uploaded, and its title becomes its description, which you can edit. Like Media, it stands aside while a poll is open.
+- **Highlight a passage from any web page (NIP-84).** Select text, right-click, and choose **Highlight with Sidecar**. A small window shows the passage, the page it came from and the paragraph around it, which is published with it unless you leave it out, and takes an optional comment. Post publishes it as the active account to its write relays, with line breaks kept and a passage too long to quote whole refused rather than cut.
 
 ### Fixed
 - **Sites that sign you in through a login library work with Sidecar.** Some libraries put their own layer between the page and your signer extension. Sidecar now lets them, as most signer extensions do, where before the library stopped and its login button did nothing. The same goes for wallet libraries and Lightning payments.

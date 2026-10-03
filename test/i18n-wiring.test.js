@@ -14,7 +14,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 // ---- loading --------------------------------------------------------------------------
 
 const PAGES = ['sidepanel.html', 'prompt.html', 'welcome.html', 'compose.html', 'help.html',
-  'wallets.html', 'scan-qr.html', 'relay-rider.html', 'theme-tile.html'];
+  'wallets.html', 'scan-qr.html', 'relay-rider.html', 'theme-tile.html', 'highlight.html'];
 
 test('EVERY EXTENSION PAGE LOADS i18n.js BEFORE ITS OWN SCRIPTS', () => {
   for (const page of PAGES) {
