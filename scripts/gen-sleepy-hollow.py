@@ -36,6 +36,7 @@ THEMES = os.path.join(ROOT, 'themes')
 
 INK = '#06050A'        # the trees, the hills, the rider: one silhouette black
 FAR = '#141127'        # the far ridge, a step lighter so it reads behind the near one
+MID = '#0B0A17'        # the churchyard's slope, between the two: nearer than the knoll
 GROVE = '#0C0A17'      # the trees on the far ridge, between the two
 MOON = '#F2DCA8'
 MOON_RIM = '#DDB06A'
@@ -281,9 +282,11 @@ def moon(cx, cy, r):
 
 def moon_geo(w):
     # Where the moon sits, shared by the sky plate and the cloud plate so the wisps
-    # cross the same disc.
+    # cross the same disc. The narrow frame keeps it high: just under the tab bar in the
+    # panel, and wholly inside the top band the gallery's card crops to (the first 175
+    # units of the plate), so the card shows the moon and not a half-risen one.
     narrow = w < 600
-    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (150 if narrow else 210)
+    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (100 if narrow else 210)
 
 
 def clouds(rnd, w, mx, my, mr, blur):
@@ -353,24 +356,32 @@ def church(x, y, s, color):
             '</g>') % (f(x), f(y), f(s), color)
 
 
-def gravestone(x, y, s, tilt=0.0, cross=False):
-    # A churchyard stone: a rounded slab, or a small cross, leaning a little — ground
-    # for the church, and company for the foreground.
-    if cross:
-        body = '<path d="M1.7 0V-6.2H0.2V-7.8H1.7V-9.4H3.1V-7.8H4.6V-6.2H3.1V0Z"/>'
+def gravestone(x, y, s, tilt=0.0, tall=False):
+    # A churchyard stone: a weathered slab, round-shouldered or tall and narrow,
+    # leaning a little. Deliberately nondescript — ground for the church, and company
+    # for the foreground, with nothing on any of them to name a faith.
+    if tall:
+        body = '<path d="M0.4 0V-7.6Q0.4 -10.4 2.2 -10.4Q4 -10.4 4 -7.6V0Z"/>'
     else:
-        body = '<path d="M0 0V-6.6Q0 -9.2 2.5 -9.2Q5 -9.2 5 -6.6V0Z"/>'
+        body = '<path d="M0 0V-6.4Q0 -9.2 2.5 -9.2Q5 -9.2 5 -6.4V0Z"/>'
     return '<g transform="translate(%s %s) rotate(%s) scale(%s)" fill="%s">%s</g>' \
         % (f(x), f(y), f(tilt), f(s), INK, body)
 
 
-def graves(rnd, x0, x1, pts, n):
-    # A few stones along one stretch of a ridge, varied in size and lean.
+def graves(rnd, x0, x1, pts, n, minsep):
+    # A few stones along one stretch of a ridge, varied in size and lean, kept apart —
+    # a churchyard, not a cluster.
     o = []
-    for _ in range(n):
+    taken = []
+    tries = 0
+    while len(taken) < n and tries < 60:
+        tries += 1
         gx = rnd.uniform(x0, x1)
-        o.append(gravestone(gx, ridge_y(pts, gx) + 1.5, rnd.uniform(1.5, 2.4),
-                            rnd.uniform(-0.14, 0.14), cross=rnd.random() < 0.3))
+        if any(abs(gx - t) < minsep for t in taken):
+            continue
+        taken.append(gx)
+        o.append(gravestone(gx, ridge_y(pts, gx) + 1.5, rnd.uniform(1.4, 2.3),
+                            rnd.uniform(-0.13, 0.13), tall=rnd.random() < 0.4))
     return ''.join(o)
 
 
@@ -388,7 +399,9 @@ def bridge(x, y, s):
 
 
 def leaves(rnd, w, h, n):
-    # A few late leaves on the wind, rust and ochre, faint: they are weather, not ornament.
+    # A few late leaves on the wind, rust and ochre, faint: they are weather, not
+    # ornament. The plate is a still layer everywhere; on the lock screen the leaves
+    # come loose and fall (sidepanel.html's .lock-leaves, sleepy-hollow.css).
     o = []
     for _ in range(n):
         x, y = rnd.uniform(0, w), rnd.uniform(h * 0.12, h * 0.8)
@@ -399,6 +412,13 @@ def leaves(rnd, w, h, n):
                  'transform="translate(%s %s) rotate(%s) scale(%s)"/>'
                  % (c, f(rnd.uniform(0.28, 0.45)), f(x), f(y), f(a), f(s)))
     return ''.join(o)
+
+
+def leaves_plate(w, h, seed):
+    # The leaves on their own transparent plate, the sky's exact frame, so they can stand
+    # down on the lock screen while the falling ones take over.
+    rnd = random.Random(seed)
+    return svg(w, h, [leaves(rnd, w, h, 8 if w < 600 else 30)])
 
 
 def sky(w, h, seed):
@@ -416,7 +436,6 @@ def sky(w, h, seed):
     o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26 if narrow else h * 0.22, 22, 8, 0.04))
     if not narrow:
         o.append(tree(random.Random(seed + 2), w + 10, h * 0.66, -2.05, h * 0.2, 20, 8, 0.04))
-    o.append(leaves(rnd, w, h, 8 if narrow else 30))
     return svg(w, h, o)
 
 
@@ -451,7 +470,7 @@ def hollow(w, h, seed):
     gx0, gx1 = (680, 880) if not narrow else (272, 344)
     gx2, gx3 = (1130, 1260) if not narrow else (0, 0)
     clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gx0 - 14, gx1 + 14)]
-    if narrow == False:
+    if not narrow:
         clear.append((gx2 - 14, gx3 + 14))
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
     far, far_pts = hills(rnd, w, h, h * 0.5, h * 0.12, FAR, 0.4)
@@ -464,13 +483,18 @@ def hollow(w, h, seed):
                       -math.pi / 2 + rnd.uniform(-0.15, 0.15), rnd.uniform(9, 16), 2.4, 5, 0.0)
                  .replace(INK, GROVE))
     ky = ridge_y(far_pts, cx)
-    # The knoll: broad and shallow, so the church sits in a hillside rather than on a
-    # pimple, with two of its stones on the slope.
-    o.append('<path d="M%s %sQ%s %s %s %sZ" fill="%s"/>'
-             % (f(cx - 78), f(ky + 4), f(cx - 6), f(ky - 15), f(cx + 78), f(ky + 4), FAR))
+    # The church on its knoll, then the churchyard's own slope in front of it: a broad
+    # mound of MID whose crest runs just below the nave's floor, so the hillside masks
+    # the church's bottom and nothing floats. Its two stones stand on the crest.
     o.append(church(cx, ky - 9, 0.85 if narrow else 1.1, INK))
-    o.append(gravestone(cx - 26, ky - 8.5, 0.85, 0.1))
-    o.append(gravestone(cx + 30, ky - 8, 0.75, -0.14, cross=True))
+    span = 150 if narrow else 240
+    o.append('<path d="M%s %sQ%s %s %s %sQ%s %s %s %sQ%s %s %s %sL%s %sL%s %sZ" fill="%s"/>'
+             % (f(cx - span), f(ky + span * 0.35), f(cx - span * 0.42), f(ky + 18),
+                   f(cx - 30), f(ky - 8), f(cx + 2), f(ky - 15), f(cx + 34), f(ky - 8.4),
+                   f(cx + span * 0.5), f(ky + 6), f(cx + span), f(ky + span * 0.38),
+                   f(cx + span), f(h), f(cx - span), f(h), MID))
+    o.append(gravestone(cx - 36, ky - 7.6, 0.95, 0.1))
+    o.append(gravestone(cx + 40, ky - 7.9, 0.8, -0.14, tall=True))
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
     near, near_pts = hills(rnd, w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)
@@ -482,9 +506,9 @@ def hollow(w, h, seed):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(near_pts, tx) + 3,
                       -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02))
-    o.append(graves(rnd, gx0, gx1, near_pts, 3 if narrow else 4))
+    o.append(graves(rnd, gx0, gx1, near_pts, 2 if narrow else 3, 30 if narrow else 62))
     if not narrow:
-        o.append(graves(rnd, gx2, gx3, near_pts, 2))
+        o.append(graves(rnd, gx2, gx3, near_pts, 2, 62))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
     return svg(w, h, o)
 
@@ -493,9 +517,11 @@ def main():
     files = {
         'sleepy-hollow-sky.svg': sky(360, 420, 1790),
         'sleepy-hollow-clouds.svg': clouds_plate(360, 420, 1793),
+        'sleepy-hollow-leaves.svg': leaves_plate(360, 420, 1794),
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
         'sleepy-hollow-sky-wide.svg': sky(1920, 760, 1790),
         'sleepy-hollow-clouds-wide.svg': clouds_plate(1920, 760, 1793),
+        'sleepy-hollow-leaves-wide.svg': leaves_plate(1920, 760, 1794),
         'sleepy-hollow-hollow-wide.svg': hollow(1920, 300, 1820),
     }
     for name, body in files.items():

@@ -184,32 +184,98 @@
 
 /* ---- the lock screen: the sky is awake ------------------------------------------------
    The lock screen is where the theme performs (Departures has its clock, Turnstile its
-   signs), so here — and only here — the night moves. The clouds are their own background
-   layer (patterns.css), drawn wrapped and tiled repeat-x, so the body's background-position
-   can pan that one layer without disturbing the moon or the Horseman; the drift is slow
-   enough to watch rather than see. And the pumpkin gets its candle: a halo over the baked
-   glow that breathes, wider and dimmer, the way a flame does when the air is still.
-   Both stand down under prefers-reduced-motion, like every other animation in the theme
-   files. */
+   signs), so here — and only here — the night moves.
+
+   THE CLOUDS ride a strip: a fixed element three panels wide, its plate tiled at a third
+   of that, translated one panel width and looped — a transform, which Chrome always
+   paints, where a background-position animation on the body's fixed layers never
+   repaints (measured, not guessed: the computed value ran while the pixels held still).
+   The drift is westward and slow, 100vw in 75 seconds.
+
+   THE LEAVES come loose. sidepanel.html carries a .lock-leaves of ten <i> leaves; each
+   falls the height of the screen and a little west — the same wind the clouds ride —
+   turning as it goes, faster as it falls (the keyframes' steps widen downward, which is
+   gravity), fading in as it enters and out as it leaves, so new leaves arrive while old
+   ones go. Durations, delays and starts are staggered per leaf below, and the loop
+   restarts each leaf on its own clock, so the fall never repeats as a row. Their still
+   plate stands down while they fall (patterns.css), as the cloud plate does.
+
+   THE PUMPKIN gets its candle: .lock-ember, a halo over the baked glow that breathes,
+   wider and dimmer, the way a flame does when the air is still.
+
+   Under prefers-reduced-motion none of this runs: the strips and the falling leaves are
+   display:none, the body's own still clouds and leaves stay up (the stand-down in
+   patterns.css is scoped to motion-allowed), and the candle is a still halo. */
 @keyframes sleepy-hollow-drift {
-  from { background-position: top center, 0 center, bottom center, 0% 0%, 0% 0%; }
-  to   { background-position: top center, -260px center, bottom center, 0% 0%, 0% 0%; }
+  from { transform: translateX(-100vw); }
+  to   { transform: translateX(0); }
 }
-[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
-  animation: sleepy-hollow-drift 150s ease-in-out infinite alternate;
+[data-theme="sleepy-hollow"] #view-lock::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300vw;
+  height: 116.7vw; /* the sky plates are 420 tall in a 360 frame */
+  background-image: url(sleepy-hollow-clouds.svg);
+  background-size: 33.34% auto;
+  background-repeat: repeat-x;
+  animation: sleepy-hollow-drift 75s linear infinite reverse;
+  pointer-events: none;
+  z-index: -1; /* over the night's own layers, under the lock form */
 }
+
+@keyframes sleepy-hollow-fall {
+  0%   { transform: translate3d(0, -8vh, 0) rotate(0deg); opacity: 0; }
+  7%   { opacity: 0.9; }
+  30%  { transform: translate3d(-4vw, 20vh, 0) rotate(110deg); }
+  55%  { transform: translate3d(-7vw, 48vh, 0) rotate(215deg); }
+  80%  { transform: translate3d(-10vw, 80vh, 0) rotate(295deg); opacity: 0.65; }
+  100% { transform: translate3d(-12vw, 112vh, 0) rotate(380deg); opacity: 0; }
+}
+[data-theme="sleepy-hollow"] .lock-leaves {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1; /* over the night's own layers, under the lock form */
+}
+[data-theme="sleepy-hollow"] .lock-leaves i {
+  position: absolute;
+  top: 0;
+  left: var(--x);
+  width: 12px;
+  height: 9px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-3 -4 6 8'%3E%3Cpath d='M0 -3.4C2.2 -1.6 2.2 1.6 0 3.4C-2.2 1.6 -2.2 -1.6 0 -3.4Z' fill='%23B5652E'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: sleepy-hollow-fall var(--t) linear infinite;
+  animation-delay: var(--d);
+  opacity: 0;
+}
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3n) { filter: brightness(0.8); }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5n) { filter: brightness(1.2) hue-rotate(-12deg); }
+/* Ten leaves, ten clocks: a start across the sky, a fall between 11 and 17 seconds, and
+   a delay already deep in the fall, so the screen is leaved the moment it locks and no
+   two leaves ever share a phase. */
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(1)  { --x: 4vw;  --t: 13s;   --d: -3s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(2)  { --x: 14vw; --t: 16s;   --d: -9s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3)  { --x: 27vw; --t: 12s;   --d: -6s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(4)  { --x: 38vw; --t: 15s;   --d: -1s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5)  { --x: 49vw; --t: 11s;   --d: -7.5s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(6)  { --x: 58vw; --t: 14s;   --d: -4.5s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(7)  { --x: 66vw; --t: 12.5s; --d: -11s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(8)  { --x: 76vw; --t: 16.5s; --d: -2.5s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(9)  { --x: 85vw; --t: 12s;   --d: -8s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(10) { --x: 93vw; --t: 15.5s; --d: -5.5s; }
 
 @keyframes sleepy-hollow-candle {
   from { opacity: 0.5; transform: scale(0.92); }
   to   { opacity: 1; transform: scale(1.08); }
 }
-/* The halo sits over the pumpkin, whose place comes from the generator: the Horseman is
+/* The candle sits over the pumpkin, whose place comes from the generator: the Horseman is
    planted at 8% of the width, his pumpkin 151 units in (of the 360-unit plate) and 41.1
-   units-of-width above the foot, glow 12 units-of-width across — so the overlay is a 20vw
+   units-of-width above the foot, glow 12 units-of-width across — so the halo is a 20vw
    square centered on (33.2vw, bottom 41.1vw). If hx, PUMPKIN_AT or PUMPKIN_GLOW move in
    gen-sleepy-hollow.py, these three lines move with them. */
-[data-theme="sleepy-hollow"] #view-lock::before {
-  content: "";
+[data-theme="sleepy-hollow"] .lock-ember {
   position: fixed;
   left: 23.2vw;
   bottom: 31.1vw;
@@ -222,6 +288,7 @@
   z-index: -1; /* over the night's own layers, under the lock form */
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)),
-  [data-theme="sleepy-hollow"] #view-lock::before { animation: none; }
+  [data-theme="sleepy-hollow"] #view-lock::before,
+  [data-theme="sleepy-hollow"] .lock-leaves { display: none; }
+  [data-theme="sleepy-hollow"] .lock-ember { animation: none; }
 }

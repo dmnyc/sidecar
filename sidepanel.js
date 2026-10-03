@@ -3216,7 +3216,7 @@
       // Rule 2 of the narrow-panel rules in CLAUDE.md: buttons with words take their own
       // full-width row under the content, never a slot beside it.
       const card = h('div', { id: 'season-card', className: 'switch-tip season-card' }, [
-        h('div', { className: 'switch-tip-title' }, [icon('sparkle'), h('span', { textContent: t('Special edition') })]),
+        h('div', { className: 'switch-tip-title' }, [icon('sparkle'), h('span', { textContent: t('Special edition theme') })]),
         preview,
         name,
         h('p', {

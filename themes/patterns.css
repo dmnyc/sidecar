@@ -501,28 +501,49 @@ html:not([data-theme]) body {
   background-repeat: no-repeat, no-repeat, no-repeat;
 }
 
-/* Sleepy Hollow — the Hollow at night, in three layers from scripts/gen-sleepy-hollow.py:
+/* Sleepy Hollow — the Hollow at night, in four layers from scripts/gen-sleepy-hollow.py:
    the sky (themes/sleepy-hollow-sky.svg), a harvest moon behind the tulip tree's limbs,
    pinned to the top so the moon always rises just under the tab bar, where no label sits
-   on it; the clouds (themes/sleepy-hollow-clouds.svg) on their own transparent plate,
-   tiled repeat-x and drawn wrapped, so the lock screen can pan them without moving the
-   moon (sleepy-hollow.css); and the hollow (themes/sleepy-hollow-hollow.svg), the hills,
-   the church, the bridge and the Horseman, pinned to the bottom. Each is laid once at the
-   full width and never tiled — the clouds excepted, whose wrapped wisps make the tiling
-   seamless. Behind all, the sky, lifted toward the moon. */
+   on it; the clouds (sleepy-hollow-clouds.svg) and the late leaves
+   (sleepy-hollow-leaves.svg), each on their own transparent plate in the sky's exact
+   frame, tiled repeat-x and drawn wrapped, so the lock screen can set them drifting
+   (sleepy-hollow.css); and the hollow (sleepy-hollow-hollow.svg), the hills, the church,
+   the bridge and the Horseman, pinned to the bottom. Each is laid once at the full width
+   and never tiled — the clouds and leaves excepted, whose wrapped drawing makes the
+   tiling seamless. Behind all, the sky, lifted toward the moon. */
 [data-theme="sleepy-hollow"] body {
   background-image:
     url(sleepy-hollow-sky.svg),
     url(sleepy-hollow-clouds.svg),
+    url(sleepy-hollow-leaves.svg),
     url(sleepy-hollow-hollow.svg),
-    radial-gradient(420px 320px at 77% 150px, rgba(120, 104, 168, 0.16), transparent 70%),
+    radial-gradient(420px 320px at 77% 100px, rgba(120, 104, 168, 0.16), transparent 70%),
     linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-  background-size: 100% auto, 100% auto, 100% auto, auto, auto;
-  background-position: top center, top center, bottom center, 0% 0%, 0% 0%;
-  background-repeat: no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
+  background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
+  background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
+  background-repeat: no-repeat, repeat-x, repeat-x, no-repeat, no-repeat, no-repeat;
   /* Fixed to the viewport, so the Horseman stays on the bottom edge while a view
      scrolls over him rather than riding up with the page. */
-  background-attachment: fixed, fixed, fixed, fixed, fixed;
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
+}
+
+/* While the lock screen shows and motion is allowed, the clouds and the leaves ride
+   their own moving copies (sleepy-hollow.css) — strips and falling leaves painted above
+   these layers — so their static plates stand down rather than double them. The moving
+   copies draw exactly where the plates were, so locking and unlocking moves nothing.
+   Under reduced motion nothing moves, so nothing stands down: the still plates stay. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+    background-image:
+      url(sleepy-hollow-sky.svg),
+      url(sleepy-hollow-hollow.svg),
+      radial-gradient(420px 320px at 77% 100px, rgba(120, 104, 168, 0.16), transparent 70%),
+      linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+    background-size: 100% auto, 100% auto, auto, auto;
+    background-position: top center, bottom center, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+    background-attachment: fixed, fixed, fixed, fixed;
+  }
 }
 
 /* Mycelium — a mycelial network in sepia over oat-colored loam, after a pen drawing:
@@ -683,19 +704,20 @@ html:not([data-theme]) body {
     linear-gradient(180deg, #13110D 0%, var(--bg) 60%);
 }
 
-/* Sleepy Hollow: the same three layers in a wider frame, with a second tree in from the
+/* Sleepy Hollow: the same four layers in a wider frame, with a second tree in from the
    right edge, so a full tab draws the scene at about the panel's scale. */
 [data-theme="sleepy-hollow"] body.compose-page {
   background-image:
     url(sleepy-hollow-sky-wide.svg),
     url(sleepy-hollow-clouds-wide.svg),
+    url(sleepy-hollow-leaves-wide.svg),
     url(sleepy-hollow-hollow-wide.svg),
     radial-gradient(1000px 640px at 80% 210px, rgba(120, 104, 168, 0.14), transparent 70%),
     linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-  background-size: 100% auto, 100% auto, 100% auto, auto, auto;
-  background-position: top center, top center, bottom center, 0% 0%, 0% 0%;
-  background-repeat: no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
-  background-attachment: fixed, fixed, fixed, fixed, fixed;
+  background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
+  background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
+  background-repeat: no-repeat, repeat-x, repeat-x, no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
 }
 
 /* Metropolis: the same fan in a wider frame (metropolis-rays-wide.svg), still at 100% of

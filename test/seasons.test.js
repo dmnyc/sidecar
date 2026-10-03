@@ -210,7 +210,7 @@ test('the farewell clears the stored choice once the calendar has taken it off',
 test('new interface text goes through t()', () => {
   const src = read('sidepanel.js');
   const block = src.slice(src.indexOf('// ---- special editions: the seasonal themes'), src.indexOf('// ---- web of trust'));
-  for (const s of ["t('Wear it')", "t('Not now')", "t('Special edition')", "t('Until {{date}}'", "t('Back to {{theme}}'"]) {
+  for (const s of ["t('Wear it')", "t('Not now')", "t('Special edition theme')", "t('Until {{date}}'", "t('Back to {{theme}}'"]) {
     assert.ok(block.includes(s), s + ' is not translated');
   }
   assert.doesNotMatch(block, /innerHTML/);
