@@ -204,6 +204,7 @@ dedicated, named support for:
 | [65](https://nips.nostr.com/65) | Relay List Metadata | Outbox relay list editor |
 | [73](https://nips.nostr.com/73) | External Content IDs | The `web` target a page comment is scoped to |
 | [78](https://nips.nostr.com/78) | Application-specific Data | Encrypted wallet connection backup |
+| [85](https://nips.nostr.com/85) | Trusted Assertions | Reading a web-of-trust service's kind:10040 provider list on the signing card, and warning before it is emptied |
 | [88](https://nips.nostr.com/88) | Polls | Posting a poll (kind:1068), and counting the votes (kind:1018) on your own |
 | [89](https://nips.nostr.com/89) | Recommended Application Handlers | `client` tag on posts |
 | [98](https://nips.nostr.com/98) | HTTP Auth | Upload auth for Blossom and nostr.build |

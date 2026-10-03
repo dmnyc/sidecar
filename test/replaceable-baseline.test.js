@@ -378,3 +378,59 @@ test('check returns null when pubkey is missing', async () => {
   await B.record(pk, listEvent(3, 100), 1);
   assert.equal(await B.check(null, listEvent(3, 0)), null);
 });
+
+// ---- kind 10040: NIP-85 trust provider list ----
+//
+// A web-of-trust service switched off from its own site publishes an EMPTY 10040, which
+// also drops every row naming any other provider. Only that wipe is flagged: swapping one
+// provider for another is an ordinary edit, and encrypted rows count as still there.
+
+function trustList(n, content) {
+  const tags = [];
+  for (let i = 0; i < n; i++) tags.push(['30382:' + ['rank', 'followers', 'muters', 'reporters', 'hops'][i % 5], String(i).padStart(64, 'c'), 'wss://r.example']);
+  return { kind: 10040, tags, content: content || '' };
+}
+
+test('10040 is tracked and summarized by its rows', () => {
+  assert.equal(B.isTracked(10040), true);
+  assert.deepEqual(B.summarize(trustList(5)), { kind: 10040, count: 5, private: false });
+  assert.equal(B.summarize({ kind: 10040, tags: [['p', 'x'.repeat(64)]], content: '' }).count, 0);
+});
+
+test('10040 emptied after a populated list is flagged, with the count', async () => {
+  await B.record(pk, trustList(5), 1);
+  const f = await B.check(pk, trustList(0));
+  assert.equal(f.type, 'emptied');
+  assert.equal(f.from, 5);
+  assert.match(f.message, /all 5 entries in your trust provider list/);
+});
+
+test('10040 names the account when asked', async () => {
+  await B.record(pk, trustList(1), 1);
+  const f = await B.check(pk, trustList(0), { name: 'Alice' });
+  assert.match(f.message, /the 1 entry in Alice’s trust provider list/);
+});
+
+test('10040 shrinking or swapping providers is not flagged', async () => {
+  await B.record(pk, trustList(5), 1);
+  assert.equal(await B.check(pk, trustList(1)), null);
+  assert.equal(await B.check(pk, trustList(5)), null);
+});
+
+test('10040 with encrypted rows is never called empty', async () => {
+  await B.record(pk, trustList(5), 1);
+  assert.equal(await B.check(pk, trustList(0, 'ciphertext')), null);
+});
+
+test('10040 emptied after an encrypted-only list is flagged without a count', async () => {
+  await B.record(pk, trustList(0, 'ciphertext'), 1);
+  const f = await B.check(pk, trustList(0));
+  assert.equal(f.type, 'emptied');
+  assert.equal(f.from, 0);
+  assert.match(f.message, /^Clears your trust provider list, for every web-of-trust service it names\.$/);
+});
+
+test('10040 empty after empty is not flagged', async () => {
+  await B.record(pk, trustList(0), 1);
+  assert.equal(await B.check(pk, trustList(0)), null);
+});

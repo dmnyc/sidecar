@@ -205,6 +205,35 @@
     </div>
   </div>
 
+  <h2>4 · Trust provider lists (kind 10040, NIP-85)</h2>
+  <p class="lede" style="margin-bottom:10px">
+    Check each card in the side panel AND the popup window. Approving the two-provider list
+    makes it the baseline; the empty list then gets the erase warning instead of the softer
+    empty-list one. Fake keys and an <code>.invalid</code> relay, and nothing is published.
+  </p>
+  <div class="grid">
+    <div class="case">
+      <h3>Two providers <span class="tag quiet">expect rows</span></h3>
+      <p>Kind named; each provider with its relay and scores (rank, followers / rank).</p>
+      <button data-act="trust-two">Sign kind 10040 · 2 providers</button>
+    </div>
+    <div class="case">
+      <h3>Four providers <span class="tag quiet">expect rows</span></h3>
+      <p>Three shown, then “More providers: 1”.</p>
+      <button data-act="trust-four">Sign kind 10040 · 4 providers</button>
+    </div>
+    <div class="case">
+      <h3>Encrypted entries <span class="tag quiet">expect rows</span></h3>
+      <p>One public row plus content: “Private entries · Encrypted, not shown”, no empty warning.</p>
+      <button data-act="trust-private">Sign kind 10040 · 1 + encrypted</button>
+    </div>
+    <div class="case">
+      <h3>Empty list <span class="tag warn">expect warning</span></h3>
+      <p>No baseline: the empty-list warning. After approving two providers: the erase warning.</p>
+      <button data-act="trust-empty">Sign kind 10040 · empty</button>
+    </div>
+  </div>
+
   <div id="log"><span class="l-dim">Ready. Connect, seed a baseline, then try a case.</span></div>
 </div>
 
@@ -276,6 +305,21 @@
       return { kind: 3, tags, content: '' };
     },
     'relay-list':        () => ({ kind: 10002, tags: [['r', 'wss://relay.example.invalid']], content: '' }),
+
+    // NIP-85: ["<kind>:<score>", provider key, relay]. Two rows from one provider at one
+    // relay are one provider on the card.
+    'trust-two':         () => ({ kind: 10040, content: '', tags: [
+      ['30382:rank', fakePubkey(40), 'wss://wot-a.example.invalid'],
+      ['30382:followers', fakePubkey(40), 'wss://wot-a.example.invalid'],
+      ['30382:rank', fakePubkey(41), 'wss://wot-b.example.invalid'],
+    ] }),
+    'trust-four':        () => ({ kind: 10040, content: '', tags: [40, 41, 42, 43].map((i, n) =>
+      ['30382:rank', fakePubkey(i), 'wss://wot-' + 'abcd'[n] + '.example.invalid']) }),
+    // The content stands in for NIP-44 ciphertext; Sidecar only checks that it is there.
+    'trust-private':     () => ({ kind: 10040, content: 'AqV0ZW5jcnlwdGVkLXJvd3MtcGxhY2Vob2xkZXI=', tags: [
+      ['30382:rank', fakePubkey(40), 'wss://wot-a.example.invalid'],
+    ] }),
+    'trust-empty':       () => ({ kind: 10040, tags: [], content: '' }),
   };
 
   function setConnected(pk) {

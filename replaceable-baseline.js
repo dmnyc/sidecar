@@ -1,6 +1,7 @@
 // Sidecar — destructive-overwrite detection for replaceable events (isolated module).
 //
-// Kinds 0 (profile), 3 (follows) and 10000 (mute list) are REPLACEABLE: the event
+// Kinds 0 (profile), 3 (follows), 10000 (mute list) and 10040 (trust providers) are
+// REPLACEABLE: the event
 // being signed wholly overwrites the previous one on every relay. A buggy or naive
 // client that publishes a short/empty list silently destroys the real one — the most
 // common data-loss complaint on Nostr, and the reason Sidecar already ships follow-list
@@ -36,7 +37,11 @@
   const KIND_FOLLOWS = 3;
   const KIND_MUTE = 10000;
   const KIND_PROFILE = 0;
-  const TRACKED = new Set([KIND_PROFILE, KIND_FOLLOWS, KIND_MUTE]);
+  // NIP-85 trust provider list. A web-of-trust service switched off from its own site
+  // publishes an EMPTY one, which also removes every row naming any other provider —
+  // the same wipe shape as a client blanking a mute list. See nip85.js.
+  const KIND_TRUST = 10040;
+  const TRACKED = new Set([KIND_PROFILE, KIND_FOLLOWS, KIND_MUTE, KIND_TRUST]);
 
   // A shrink has to be BOTH proportionally large and numerically meaningful to warn.
   // Unfollowing a handful of people is routine; losing most of a list is not. Without
@@ -106,6 +111,23 @@
     return present;
   }
 
+  // Rows in a kind 10040: ["<kind>:<tag>", "<provider key>", "<relay>"], deduped. Same
+  // rule as nip85.js, repeated here so this module stays loadable on its own. Rows
+  // encrypted into .content can't be counted without decrypting, so the summary only
+  // records that they exist (`private`), and the check never calls such a list empty.
+  function countTrustRows(ev) {
+    const tags = ev && ev.tags;
+    if (!Array.isArray(tags)) return null;
+    const out = new Set();
+    for (const t of tags) {
+      if (Array.isArray(t) && typeof t[0] === 'string' && /^\d+:[A-Za-z0-9_]+$/.test(t[0]) &&
+          typeof t[1] === 'string' && /^[0-9a-f]{64}$/i.test(t[1])) {
+        out.add(t[0] + ' ' + t[1].toLowerCase());
+      }
+    }
+    return out.size;
+  }
+
   // Summarize an event into the shape we persist and compare. Returns null for kinds
   // we don't track, or when a kind:0's content can't be read.
   function summarize(ev) {
@@ -115,6 +137,12 @@
       const fields = profileFields(ev);
       if (!fields) return null;
       return { kind, fields };
+    }
+    if (kind === KIND_TRUST) {
+      const count = countTrustRows(ev);
+      if (count == null) return null;
+      const priv = typeof ev.content === 'string' && ev.content.trim() !== '';
+      return { kind, count, private: priv };
     }
     const count = countPTags(ev);
     if (count == null) return null; // malformed — can't judge it
@@ -182,6 +210,15 @@
         return { kind: s.kind, type: 'profile-fields', lost, name };
       }
 
+      if (s.kind === KIND_TRUST) {
+        // Only the empty list is judged. A 10040 holds a handful of rows, so the shrink
+        // floor below would never fire on one, and replacing one provider with another is
+        // an ordinary edit. Encrypted rows count as something still there.
+        if (s.count > 0 || s.private) return null;
+        if (!(prev.count > 0) && !prev.private) return null;
+        return { kind: s.kind, type: 'emptied', from: prev.count || 0, to: 0, lost: prev.count || 0, name };
+      }
+
       const from = prev.count || 0;
       const to = s.count || 0;
       if (to >= from) {
@@ -244,6 +281,21 @@
           f.added, nums);
     }
     const follows = f.kind === KIND_FOLLOWS;
+    if (f.kind === KIND_TRUST) {
+      // Without a count when the old list's rows were all encrypted: Sidecar never saw them.
+      if (!f.from) {
+        return name
+          ? tSec('Clears {{name}}’s trust provider list, for every web-of-trust service it names.', { name })
+          : tSec('Clears your trust provider list, for every web-of-trust service it names.');
+      }
+      return name
+        ? tn('Clears the {{count}} entry in {{name}}’s trust provider list, for every web-of-trust service it names.',
+          'Clears all {{count}} entries in {{name}}’s trust provider list, for every web-of-trust service it names.',
+          f.from, { name })
+        : tn('Clears the {{count}} entry in your trust provider list, for every web-of-trust service it names.',
+          'Clears all {{count}} entries in your trust provider list, for every web-of-trust service it names.',
+          f.from);
+    }
     if (f.type === 'emptied') {
       if (follows) {
         return name
@@ -294,7 +346,7 @@
 
   const api = {
     STORAGE_KEY, TRACKED, PROFILE_FIELDS, SHRINK_RATIO, SHRINK_FLOOR, GROWTH_FLOOR, GROWTH_RATIO,
-    KIND_PROFILE, KIND_FOLLOWS, KIND_MUTE,
+    KIND_PROFILE, KIND_FOLLOWS, KIND_MUTE, KIND_TRUST,
     summarize, record, recordIfNewer, check, describe, forget,
     isTracked: (k) => TRACKED.has(k),
   };

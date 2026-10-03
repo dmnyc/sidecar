@@ -29,7 +29,7 @@
   const CONTROL_KINDS = new Set([24133, 23194, 23195]);
 
   // Replaceable kinds whose new version WHOLLY REPLACES the old, with no merge and no
-  // undo: 0 (profile), 3 (follows), 10000 (mutes).
+  // undo: 0 (profile), 3 (follows), 10000 (mutes), 10040 (trust providers).
   //
   // These never relax either, and the reason is subtler than for CONTROL_KINDS. The
   // destructive check in replaceable-baseline.js already suppresses the relax offer
@@ -47,7 +47,7 @@
   // BEFORE replaceable-baseline.js by background.js's importScripts, and is
   // deliberately dependency-free so it can be unit-tested against a bare chrome mock.
   // test/relax-grant.test.js asserts the two sets stay in agreement.
-  const REPLACEABLE_KINDS = new Set([0, 3, 10000]);
+  const REPLACEABLE_KINDS = new Set([0, 3, 10000, 10040]);
 
   function sgetS(keys) {
     return new Promise((r) => chrome.storage.session.get(keys, r));
