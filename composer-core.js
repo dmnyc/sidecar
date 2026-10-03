@@ -1892,7 +1892,7 @@ window.SidecarCore = (function () {
       // open picker closes rather than sitting under a poll it can no longer add to.
       const gif = d.gif && d.gif();
       if (gif) {
-        gif.addBtn.classList.toggle('hidden', !!d.poll());
+        gif.addBtn.classList.toggle('hidden', !!d.poll() || !gif.available);
         if (d.poll()) gif.close();
       }
     }
@@ -2043,7 +2043,7 @@ window.SidecarCore = (function () {
   // Registering came with a promise: "GIFs from nostr.build", linked to nostr.build,
   // wherever these GIFs appear. That is the picker's header, and it stays there.
   const GIF_API = 'https://gifs.nostr.build/api/v1';
-  const GIF_API_KEY = '';
+  const GIF_API_KEY = 'gnb_czDUdII67HX2eq_6g3lH2QHk_wmpNZhu0ZXn532gDTg';
   const GIF_PAGE_SIZE = 24;
   // A query's list is at most 200 long, and the API rejects an offset past 199.
   const GIF_LAST_OFFSET = 199;
@@ -2053,6 +2053,14 @@ window.SidecarCore = (function () {
   // staple and offers a few more as chips. Search terms, not interface text: they are
   // what the index is tagged with, and translating them would find nothing.
   const GIF_TOPICS = ['gm', 'gn', 'pv', 'zap', 'bitcoin', 'coffee', 'lfg', 'wow'];
+  // The chips in the order the picker offers them: gm first through the day, gn first in
+  // the evening and overnight, by the device's own clock. Nothing is searched until one
+  // is tapped, so the clock only decides which comes first.
+  function gifTopicsFor(now) {
+    const hour = (now || new Date()).getHours();
+    const first = hour >= 4 && hour < 18 ? 'gm' : 'gn';
+    return [first, ...GIF_TOPICS.filter((t) => t !== first)];
+  }
   const GIF_FORMATS = { gif: 'image/gif', webp: 'image/webp' };
 
   // safe=1 is the API's default, spelled out: adult GIFs stay out of a picker anyone
@@ -2160,7 +2168,12 @@ window.SidecarCore = (function () {
   //
   // Returns the button for the toolbar, the picker to mount below it, and open/close.
   function buildGifPicker(d) {
-    const addBtn = h('button', { className: 'mini compose-add', type: 'button' });
+    // WITHOUT A KEY THERE IS NO BUTTON. The API refuses every request then, so a GIF
+    // button would open a picker that can only say search is unavailable: a control that
+    // does nothing, shown to everyone. The callers that show and hide it with the poll
+    // and the preview check this too, so nothing brings it back.
+    const available = !!GIF_API_KEY;
+    const addBtn = h('button', { className: 'mini compose-add' + (available ? '' : ' hidden'), type: 'button' });
     addBtn.append(icon('gif'), h('span', { textContent: t('GIF') }));
     addBtn.setAttribute('aria-expanded', 'false');
 
@@ -2185,10 +2198,13 @@ window.SidecarCore = (function () {
     });
     input.setAttribute('aria-label', t('Search GIFs'));
     const chips = h('div', { className: 'gif-chips' });
-    // Two columns filled shortest first, so GIFs of every shape pack without cropping.
-    // CSS columns would do the packing, but reflow every earlier GIF on each new page.
-    const cols = [h('div', { className: 'gif-col' }), h('div', { className: 'gif-col' })];
-    const grid = h('div', { className: 'gif-grid' }, cols);
+    // Columns filled shortest first, so GIFs of every shape pack without cropping. CSS
+    // columns would do the packing, but reflow every earlier GIF on each new page.
+    //
+    // AS MANY AS THE WIDTH TAKES, about 170px each, two to five: two in the panel, more
+    // in the expanded composer, where two columns made every GIF some 340px wide.
+    const grid = h('div', { className: 'gif-grid' });
+    let cols = [];
     const status = h('p', { className: 'hint gif-status hidden' });
     wrap.append(h('div', { className: 'gif-head' }, [credit, closeBtn]), input, chips, grid, status);
 
@@ -2198,8 +2214,21 @@ window.SidecarCore = (function () {
     let pageCtrl = null;
     let suggestCtrl = null;
     let typingTimer = null;
-    let heights = [0, 0];
+    let heights = [];
+    let placed = [];
     const seen = new Set();
+    const GIF_COL_WIDTH = 170;
+    const columnsFor = () => Math.max(2, Math.min(5, Math.round((grid.clientWidth || wrap.clientWidth || 0) / GIF_COL_WIDTH) || 2));
+    // Rebuild the columns and lay out what is already showing again, in its order.
+    function layout(n) {
+      const items = placed;
+      cols = Array.from({ length: n }, () => h('div', { className: 'gif-col' }));
+      grid.replaceChildren(...cols);
+      heights = cols.map(() => 0);
+      placed = [];
+      seen.clear();
+      place(items);
+    }
 
     function setStatus(text, isError) {
       status.textContent = text || '';
@@ -2213,7 +2242,7 @@ window.SidecarCore = (function () {
         const chip = h('button', { className: 'gif-chip', type: 'button', textContent: term });
         chip.addEventListener('click', () => {
           input.value = term;
-          paintChips(GIF_TOPICS);
+          paintChips(gifTopicsFor());
           search(term);
         });
         chips.append(chip);
@@ -2243,7 +2272,8 @@ window.SidecarCore = (function () {
       for (const gif of gifs) {
         if (seen.has(gif.url)) continue;
         seen.add(gif.url);
-        const col = heights[0] <= heights[1] ? 0 : 1;
+        placed.push(gif);
+        const col = heights.indexOf(Math.min(...heights));
         heights[col] += gif.height / gif.width;
         cols[col].append(cellFor(gif));
       }
@@ -2272,14 +2302,17 @@ window.SidecarCore = (function () {
       }
     }
 
+    // NOTHING LOADS UNTIL SOMETHING IS ASKED FOR. An empty query clears the grid and
+    // says what to do, rather than searching for a default nobody chose.
     function search(q) {
       clearTimeout(typingTimer);
-      query = String(q || '').trim() || GIF_TOPICS[0];
-      cols.forEach((c) => { c.innerHTML = ''; });
-      heights = [0, 0];
-      seen.clear();
+      query = String(q || '').trim();
+      if (pageCtrl) { pageCtrl.abort(); pageCtrl = null; loading = false; }
+      placed = [];
+      layout(columnsFor());
       next = null;
       grid.scrollTop = 0;
+      if (!query) { setStatus(t('Search or pick a topic.')); return; }
       load(0);
     }
 
@@ -2298,7 +2331,7 @@ window.SidecarCore = (function () {
     input.addEventListener('input', () => {
       clearTimeout(typingTimer);
       const q = input.value.trim();
-      if (!q) paintChips(GIF_TOPICS);
+      if (!q) paintChips(gifTopicsFor());
       // Searched once typing pauses, not per keystroke: each search is a request to
       // nostr.build and each one replaces the grid.
       typingTimer = setTimeout(() => {
@@ -2325,10 +2358,12 @@ window.SidecarCore = (function () {
 
     function open() {
       wrap.classList.remove('hidden');
+      // Measured once it is showing: a hidden picker has no width to divide.
+      if (cols.length !== columnsFor()) layout(columnsFor());
       addBtn.classList.add('compose-add-on');
       addBtn.setAttribute('aria-expanded', 'true');
       if (!seen.size && !pageCtrl) {
-        paintChips(GIF_TOPICS);
+        paintChips(gifTopicsFor());
         search(input.value);
       }
       input.focus();
@@ -2344,6 +2379,12 @@ window.SidecarCore = (function () {
       addBtn.setAttribute('aria-expanded', 'false');
     }
     const isOpen = () => !wrap.classList.contains('hidden');
+    // A window resized while the picker is open gets the column count for its new width.
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(() => {
+        if (isOpen() && cols.length !== columnsFor()) layout(columnsFor());
+      }).observe(grid);
+    }
 
     addBtn.addEventListener('click', () => (isOpen() ? close() : open()));
     closeBtn.addEventListener('click', () => {
@@ -2351,7 +2392,7 @@ window.SidecarCore = (function () {
       addBtn.focus();
     });
 
-    return { addBtn, wrap, open, close, isOpen };
+    return { addBtn, wrap, open, close, isOpen, available };
   }
 
   // A PHOTO IN A QUOTED NOTE OPENS AT FULL SIZE.
@@ -3024,7 +3065,7 @@ window.SidecarCore = (function () {
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
-    GIF_TOPICS, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
+    GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
   };

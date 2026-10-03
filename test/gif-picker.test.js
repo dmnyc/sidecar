@@ -163,7 +163,8 @@ test('both composers mount the picker and attach a pick by URL', () => {
   for (const [name, src] of [['sidepanel.js', panel], ['compose.js', page]]) {
     assert.match(src, /buildGifPicker\(\{/, name + ' builds the picker');
     assert.match(src, /gif: \(\) => gifPicker/, name + ' hands it to the poll editor');
-    assert.match(src, /draft\.media\.push\(\{ url: gif\.url, isVideo: false \}\)/, name + ' puts the pick in the media slot');
+    // With the GIF's title as the description to start from.
+    assert.match(src, /draft\.media\.push\(\{ url: gif\.url, isVideo: false, alt: gif\.title \|\| '' \}\)/, name + ' puts the pick in the media slot');
     assert.match(src, /gifPicker\.addBtn/, name + ' puts the button in the toolbar');
     assert.match(src, /gifPicker\.wrap/, name + ' mounts the picker');
   }
@@ -171,7 +172,7 @@ test('both composers mount the picker and attach a pick by URL', () => {
 
 test('A POLL SENDS THE GIF BUTTON OFF WITH MEDIA, AND CLOSES THE PICKER', () => {
   const body = lift(/function paintEitherOr\(\) \{[\s\S]*?\n    \}/, 'paintEitherOr');
-  assert.match(body, /gif\.addBtn\.classList\.toggle\('hidden', !!d\.poll\(\)\)/);
+  assert.match(body, /gif\.addBtn\.classList\.toggle\('hidden', !!d\.poll\(\) \|\| !gif\.available\)/);
   assert.match(body, /if \(d\.poll\(\)\) gif\.close\(\)/);
 });
 
@@ -185,4 +186,50 @@ test('the picker keeps the panel row rules: the close box is fixed and the credi
   assert.match(rule('.gif-credit'), /min-width: 0/);
   assert.match(rule('.gif-credit'), /text-overflow: ellipsis/);
   assert.match(rule('.gif-chips'), /flex-wrap: wrap/);
+});
+
+test('WITHOUT A KEY THERE IS NO GIF BUTTON, AND NOTHING BRINGS ONE BACK', () => {
+  // The API refuses every request without a key, so a button would open a picker that can
+  // only say search is unavailable. Hidden from the start, and the poll and preview
+  // toggles that show it again both ask whether the picker is available.
+  const at = core.indexOf('function buildGifPicker(d)');
+  const body = core.slice(at, core.indexOf('\n  }\n', at));
+  assert.match(body, /const available = !!GIF_API_KEY;/);
+  assert.match(body, /'mini compose-add' \+ \(available \? '' : ' hidden'\)/);
+  assert.match(body, /return \{ addBtn, wrap, open, close, isOpen, available \};/);
+  assert.match(panel, /gifPicker\.addBtn\.classList\.toggle\('hidden', p \|\| !!draft\.poll \|\| !gifPicker\.available\)/);
+});
+
+test('THE GRID TAKES AS MANY COLUMNS AS ITS WIDTH HOLDS, NOT ALWAYS TWO', () => {
+  // Two columns in the expanded composer's card made every GIF some 340px wide.
+  const at = core.indexOf('function buildGifPicker(d)');
+  const body = core.slice(at, core.indexOf('\n  }\n', at));
+  assert.match(body, /const GIF_COL_WIDTH = 170;/);
+  assert.match(body, /Math\.max\(2, Math\.min\(5, Math\.round\(\(grid\.clientWidth \|\| wrap\.clientWidth \|\| 0\) \/ GIF_COL_WIDTH\) \|\| 2\)\)/);
+  // Measured on open, and again if the window is resized while it is open.
+  assert.match(body, /if \(cols\.length !== columnsFor\(\)\) layout\(columnsFor\(\)\);/);
+  assert.match(body, /new ResizeObserver\(/);
+  // The shortest column takes the next GIF, whatever the count.
+  assert.match(body, /const col = heights\.indexOf\(Math\.min\(\.\.\.heights\)\);/);
+});
+
+test('THE PICKER OPENS ON CHIPS, GM OR GN FIRST BY THE CLOCK, AND LOADS NOTHING ON ITS OWN', () => {
+  const c = { Date };
+  vm.createContext(c);
+  vm.runInContext(
+    (core.match(/const GIF_TOPICS = [^\n]*/) || [''])[0] + '\n' +
+      core.slice(core.indexOf('function gifTopicsFor('), core.indexOf('\n  }\n', core.indexOf('function gifTopicsFor(')) + 4) +
+      '\nthis.gifTopicsFor = gifTopicsFor;',
+    c
+  );
+  const at = (hh) => new Date(2026, 9, 2, hh, 30);
+  assert.equal(c.gifTopicsFor(at(9))[0], 'gm');
+  assert.equal(c.gifTopicsFor(at(13))[0], 'gm');
+  assert.equal(c.gifTopicsFor(at(21))[0], 'gn');
+  assert.equal(c.gifTopicsFor(at(2))[0], 'gn');
+  assert.equal(c.gifTopicsFor(at(21)).length, c.gifTopicsFor(at(9)).length, 'reordering must not drop a topic');
+  // An empty query searches nothing; it says what to do instead.
+  const body = core.slice(core.indexOf('function buildGifPicker(d)'));
+  assert.match(body, /if \(!query\) \{ setStatus\(t\('Search or pick a topic\.'\)\); return; \}/);
+  assert.ok(!/\|\| GIF_TOPICS\[0\]/.test(body), 'a default search is back');
 });

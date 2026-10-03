@@ -1357,7 +1357,8 @@
       onPick: (gif) => {
         if (draft.poll) return;
         if (!draft.media.some((m) => m && m.url === gif.url)) {
-          draft.media.push({ url: gif.url, isVideo: false });
+          // The GIF's own title as its description to start from, as in the panel.
+          draft.media.push({ url: gif.url, isVideo: false, alt: gif.title || '' });
         }
         scheduleSave();
         paintCount();

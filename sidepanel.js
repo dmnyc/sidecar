@@ -13101,7 +13101,7 @@
         editorWrap.classList.toggle('hidden', p);
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p || !!draft.poll);
-        gifPicker.addBtn.classList.toggle('hidden', p || !!draft.poll);
+        gifPicker.addBtn.classList.toggle('hidden', p || !!draft.poll || !gifPicker.available);
         if (p) gifPicker.close();
         pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
         pollWrap.classList.toggle('hidden', p || !draft.poll);
@@ -13460,7 +13460,9 @@
         onPick: (gif) => {
           if (draft.poll) return;
           if (!draft.media.some((m) => m && m.url === gif.url)) {
-            draft.media.push({ url: gif.url, isVideo: false });
+            // The GIF's own title as its description to start from: nostr.build names
+            // each one, and a GIF with no alt text is a blank to a screen reader.
+            draft.media.push({ url: gif.url, isVideo: false, alt: gif.title || '' });
           }
           scheduleSave();
           updatePostState();

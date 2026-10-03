@@ -9,6 +9,9 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+### Added
+- **GIFs in both composers.** A GIF button beside Media searches nostr.build’s GIF index, with topic chips to start from and suggestions as you type. A GIF you pick is attached by its nostr.build link, so nothing is uploaded, and its title becomes its description, which you can edit. Like Media, it stands aside while a poll is open.
+
 ### Fixed
 - **Sites that sign you in through a login library work with Sidecar.** Some libraries put their own layer between the page and your signer extension. Sidecar now lets them, as most signer extensions do, where before the library stopped and its login button did nothing. The same goes for wallet libraries and Lightning payments.
 
