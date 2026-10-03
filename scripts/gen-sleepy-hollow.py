@@ -6,11 +6,15 @@ Writes, in themes/:
 
   sleepy-hollow-sky.svg      the top of the panel: a harvest moon behind the bare limbs of
                              the great tulip tree, and a few late leaves on the wind.
+  sleepy-hollow-clouds.svg   the clouds on their own transparent plate, the sky's exact
+                             frame, so the lock screen can drift them (repeat-x, drawn
+                             wrapped) without moving the moon.
   sleepy-hollow-hollow.svg   the foot of the panel: the hills of the Hollow with the old
-                             Dutch church on its knoll, the bridge over the brook, and the
-                             Horseman riding the ridge with his pumpkin alight.
-  sleepy-hollow-*-wide.svg   the same two in a wider frame for the expanded composer, so a
-                             full tab draws the scene at about the size the panel does.
+                             Dutch church on its churchyard knoll, gravestones in the
+                             foreground, and the Horseman riding the ridge with his
+                             pumpkin alight.
+  sleepy-hollow-*-wide.svg   the same three in a wider frame for the expanded composer, so
+                             a full tab draws the scene at about the size the panel does.
 
 Two layers rather than one plate, each laid once at the full width and pinned to its own
 edge: the moon then sits at the same place under the tab bar however tall the panel is,
@@ -275,18 +279,30 @@ def moon(cx, cy, r):
     return ''.join(o)
 
 
-def clouds(rnd, w, mx, my, mr, n):
-    # Long, low wisps drawn as stacked flat lenses with pointed ends — the engraved sky of
-    # the old prints, not soft blobs — darker than the sky where they cross the moon, and
-    # near it a thin line of the moon's light along a wisp's underside. The first two
-    # cross the moon's disc.
-    o = []
+def moon_geo(w):
+    # Where the moon sits, shared by the sky plate and the cloud plate so the wisps
+    # cross the same disc.
+    narrow = w < 600
+    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (150 if narrow else 210)
+
+
+def clouds(rnd, w, mx, my, mr, blur):
+    # Long, low wisps, stacked in banks: soft-edged (a gaussian blur, which is why the
+    # plate carries a filter) and drawn three times each, at x, x-w and x+w, so the layer
+    # tiles seamlessly when the lock screen pans it. The first two banks cross the moon's
+    # disc. No bright under-strokes: the softness is the whole remark.
+    narrow = w < 600
+    o = ['<filter id="cloudsoft" x="-60%" y="-500%" width="220%" height="1200%">'
+         '<feGaussianBlur stdDeviation="' + f(blur) + '"/></filter>',
+         '<g filter="url(#cloudsoft)">']
 
     def lens(x, y, L, T, op):
-        o.append('<path d="M%s %sQ%s %s %s %sQ%s %s %s %sZ" fill="#0D0B18" fill-opacity="%s"/>'
-                 % (f(x - L), f(y), f(x - L * 0.2), f(y - T * 2.4), f(x + L), f(y),
-                    f(x + L * 0.1), f(y + T * 0.8), f(x - L), f(y), f(op)))
+        for dx in (-w, 0, w):
+            o.append('<path d="M%s %sQ%s %s %s %sQ%s %s %s %sZ" fill="#0D0B18" fill-opacity="%s"/>'
+                     % (f(x - L + dx), f(y), f(x - L * 0.2 + dx), f(y - T * 2.4), f(x + L + dx), f(y),
+                        f(x + L * 0.1 + dx), f(y + T * 0.8), f(x - L + dx), f(y), f(op)))
 
+    n = 3 if narrow else 6
     for i in range(n):
         if i < 2:
             x = mx + rnd.uniform(-mr * 0.9, mr * 0.5)
@@ -297,13 +313,11 @@ def clouds(rnd, w, mx, my, mr, n):
             y = my + rnd.uniform(-mr * 0.8, mr * 1.1)
             L = rnd.uniform(w * 0.05, w * 0.11)
         T = rnd.uniform(4.5, 9)
-        lens(x, y, L, T, rnd.uniform(0.55, 0.75))
+        lens(x, y, L, T, rnd.uniform(0.5, 0.68))
         # a thinner wisp riding above, as clouds travel in banks
         lens(x + L * rnd.uniform(-0.4, 0.4), y - T * rnd.uniform(1.4, 2.0),
-             L * rnd.uniform(0.45, 0.65), T * 0.85, rnd.uniform(0.35, 0.55))
-        if abs(y - my) < mr * 1.2:
-            o.append('<path d="M%s %sQ%s %s %s %s" fill="none" stroke="%s" stroke-opacity="0.15" stroke-width="1.2"/>'
-                     % (f(x - L * 0.7), f(y + T * 0.9), f(x), f(y + T * 1.4), f(x + L * 0.7), f(y + T * 0.9), MOON))
+             L * rnd.uniform(0.45, 0.65), T * 0.85, rnd.uniform(0.3, 0.45))
+    o.append('</g>')
     return ''.join(o)
 
 
@@ -339,6 +353,27 @@ def church(x, y, s, color):
             '</g>') % (f(x), f(y), f(s), color)
 
 
+def gravestone(x, y, s, tilt=0.0, cross=False):
+    # A churchyard stone: a rounded slab, or a small cross, leaning a little — ground
+    # for the church, and company for the foreground.
+    if cross:
+        body = '<path d="M1.7 0V-6.2H0.2V-7.8H1.7V-9.4H3.1V-7.8H4.6V-6.2H3.1V0Z"/>'
+    else:
+        body = '<path d="M0 0V-6.6Q0 -9.2 2.5 -9.2Q5 -9.2 5 -6.6V0Z"/>'
+    return '<g transform="translate(%s %s) rotate(%s) scale(%s)" fill="%s">%s</g>' \
+        % (f(x), f(y), f(tilt), f(s), INK, body)
+
+
+def graves(rnd, x0, x1, pts, n):
+    # A few stones along one stretch of a ridge, varied in size and lean.
+    o = []
+    for _ in range(n):
+        gx = rnd.uniform(x0, x1)
+        o.append(gravestone(gx, ridge_y(pts, gx) + 1.5, rnd.uniform(1.5, 2.4),
+                            rnd.uniform(-0.14, 0.14), cross=rnd.random() < 0.3))
+    return ''.join(o)
+
+
 def bridge(x, y, s):
     # The bridge over the brook, where the Horseman's chase ended: a low wooden span on
     # posts, with a hand rail.
@@ -367,18 +402,17 @@ def leaves(rnd, w, h, n):
 
 
 def sky(w, h, seed):
-    # The top of the frame: the moon, the cloud across it, and the great tulip tree leaning
-    # in with its limbs across the sky. In the tale it stood in the middle of the road and
-    # the country people would not pass it after dark. Pinned to the top of the panel, so
-    # the moon is always just under the tab bar, where no label sits on it, and rises
-    # behind whatever card comes first.
+    # The top of the frame: the moon and the great tulip tree leaning in with its limbs
+    # across the sky. In the tale it stood in the middle of the road and the country
+    # people would not pass it after dark. Pinned to the top of the panel, so the moon is
+    # always just under the tab bar, where no label sits on it, and rises behind whatever
+    # card comes first. The clouds are their own plate (clouds(), below), so the lock
+    # screen can drift them without moving the moon.
     rnd = random.Random(seed)
     narrow = w < 600
     o = [defs()]
-    mr = 38 if narrow else 64
-    mx, my = (w - 82, 150) if narrow else (w * 0.8, 210)
+    mr, mx, my = moon_geo(w)
     o.append(moon(mx, my, mr))
-    o.append(clouds(rnd, w, mx, my, mr, 3 if narrow else 6))
     o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26 if narrow else h * 0.22, 22, 8, 0.04))
     if not narrow:
         o.append(tree(random.Random(seed + 2), w + 10, h * 0.66, -2.05, h * 0.2, 20, 8, 0.04))
@@ -386,22 +420,39 @@ def sky(w, h, seed):
     return svg(w, h, o)
 
 
+def clouds_plate(w, h, seed):
+    # The clouds, on a transparent plate of the sky's exact frame, so they sit in the same
+    # place over the moon and can be panned by the lock screen without moving anything
+    # else. The layer is tiled repeat-x and the wisps are drawn wrapped, so the pan is
+    # seamless at any panel width.
+    rnd = random.Random(seed)
+    mr, mx, my = moon_geo(w)
+    return svg(w, h, [clouds(rnd, w, mx, my, mr, 2.2 if w < 600 else 4.5)])
+
+
 def hollow(w, h, seed):
-    # The foot of the frame: the far ridge with its grove and the old Dutch church, mist
-    # over the brook, the near ridge with the bridge, and the Horseman. Pinned to the
-    # bottom. The church and the Horseman are kept clear of the trees on either ridge,
+    # The foot of the frame: the far ridge with its grove and the old Dutch church on its
+    # churchyard knoll, mist over the brook, and the near ridge with the bridge, a
+    # churchyard's worth of gravestones, and the Horseman. Pinned to the bottom. The
+    # church, the graves and the Horseman are kept clear of the trees on either ridge,
     # since a silhouette crossing a silhouette is just a larger blot.
     rnd = random.Random(seed)
     narrow = w < 600
     o = [defs()]
     # The church stands on its own knoll of the far ridge, a quarter of the frame in from
-    # one side — small, high, and alone, the way the prints draw it — with the Horseman
-    # riding the near ridge below and on the other side. The Horseman rides the left of
-    # the panel, clear of the compose button that sits over the bottom right corner.
+    # one side — small, high, and alone, the way the prints draw it — with two of its
+    # gravestones beside it to seat it, and the Horseman riding the near ridge below on
+    # the other side, clear of the compose button that sits over the bottom right corner.
     cx = w * (0.7 if narrow else 0.24)
     hx = w * (0.08 if narrow else 0.76)
     hs = 0.6 if narrow else 0.8
-    clear = [(cx - 58, cx + 58), (hx - 15, hx + 226 * hs)]
+    # The foreground gravestones' stretches, on the near ridge: beside the churchyard on
+    # the wide plate, right of the bridge on the narrow one.
+    gx0, gx1 = (680, 880) if not narrow else (272, 344)
+    gx2, gx3 = (1130, 1260) if not narrow else (0, 0)
+    clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gx0 - 14, gx1 + 14)]
+    if narrow == False:
+        clear.append((gx2 - 14, gx3 + 14))
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
     far, far_pts = hills(rnd, w, h, h * 0.5, h * 0.12, FAR, 0.4)
     o.append(far)
@@ -413,9 +464,13 @@ def hollow(w, h, seed):
                       -math.pi / 2 + rnd.uniform(-0.15, 0.15), rnd.uniform(9, 16), 2.4, 5, 0.0)
                  .replace(INK, GROVE))
     ky = ridge_y(far_pts, cx)
+    # The knoll: broad and shallow, so the church sits in a hillside rather than on a
+    # pimple, with two of its stones on the slope.
     o.append('<path d="M%s %sQ%s %s %s %sZ" fill="%s"/>'
-             % (f(cx - 54), f(ky + 3), f(cx), f(ky - 11), f(cx + 54), f(ky + 3), FAR))
-    o.append(church(cx, ky - 7, 0.85 if narrow else 1.1, INK))
+             % (f(cx - 78), f(ky + 4), f(cx - 6), f(ky - 15), f(cx + 78), f(ky + 4), FAR))
+    o.append(church(cx, ky - 9, 0.85 if narrow else 1.1, INK))
+    o.append(gravestone(cx - 26, ky - 8.5, 0.85, 0.1))
+    o.append(gravestone(cx + 30, ky - 8, 0.75, -0.14, cross=True))
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
     near, near_pts = hills(rnd, w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)
@@ -427,6 +482,9 @@ def hollow(w, h, seed):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(near_pts, tx) + 3,
                       -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02))
+    o.append(graves(rnd, gx0, gx1, near_pts, 3 if narrow else 4))
+    if not narrow:
+        o.append(graves(rnd, gx2, gx3, near_pts, 2))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
     return svg(w, h, o)
 
@@ -434,8 +492,10 @@ def hollow(w, h, seed):
 def main():
     files = {
         'sleepy-hollow-sky.svg': sky(360, 420, 1790),
+        'sleepy-hollow-clouds.svg': clouds_plate(360, 420, 1793),
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
         'sleepy-hollow-sky-wide.svg': sky(1920, 760, 1790),
+        'sleepy-hollow-clouds-wide.svg': clouds_plate(1920, 760, 1793),
         'sleepy-hollow-hollow-wide.svg': hollow(1920, 300, 1820),
     }
     for name, body in files.items():

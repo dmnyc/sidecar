@@ -181,3 +181,47 @@
 @media (prefers-reduced-motion: reduce) {
   [data-theme="sleepy-hollow"] .bal-glyph.bal-in { animation: none; }
 }
+
+/* ---- the lock screen: the sky is awake ------------------------------------------------
+   The lock screen is where the theme performs (Departures has its clock, Turnstile its
+   signs), so here — and only here — the night moves. The clouds are their own background
+   layer (patterns.css), drawn wrapped and tiled repeat-x, so the body's background-position
+   can pan that one layer without disturbing the moon or the Horseman; the drift is slow
+   enough to watch rather than see. And the pumpkin gets its candle: a halo over the baked
+   glow that breathes, wider and dimmer, the way a flame does when the air is still.
+   Both stand down under prefers-reduced-motion, like every other animation in the theme
+   files. */
+@keyframes sleepy-hollow-drift {
+  from { background-position: top center, 0 center, bottom center, 0% 0%, 0% 0%; }
+  to   { background-position: top center, -260px center, bottom center, 0% 0%, 0% 0%; }
+}
+[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  animation: sleepy-hollow-drift 150s ease-in-out infinite alternate;
+}
+
+@keyframes sleepy-hollow-candle {
+  from { opacity: 0.5; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1.08); }
+}
+/* The halo sits over the pumpkin, whose place comes from the generator: the Horseman is
+   planted at 8% of the width, his pumpkin 151 units in (of the 360-unit plate) and 41.1
+   units-of-width above the foot, glow 12 units-of-width across — so the overlay is a 20vw
+   square centered on (33.2vw, bottom 41.1vw). If hx, PUMPKIN_AT or PUMPKIN_GLOW move in
+   gen-sleepy-hollow.py, these three lines move with them. */
+[data-theme="sleepy-hollow"] #view-lock::before {
+  content: "";
+  position: fixed;
+  left: 23.2vw;
+  bottom: 31.1vw;
+  width: 20vw;
+  height: 20vw;
+  background: radial-gradient(closest-side,
+              rgba(240, 154, 62, 0.38), rgba(240, 154, 62, 0.15) 46%, rgba(240, 154, 62, 0) 72%);
+  animation: sleepy-hollow-candle 3.4s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: -1; /* over the night's own layers, under the lock form */
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)),
+  [data-theme="sleepy-hollow"] #view-lock::before { animation: none; }
+}
