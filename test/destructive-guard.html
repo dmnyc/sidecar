@@ -184,8 +184,8 @@
   <h2>4 · Edge cases</h2>
   <div class="grid">
     <div class="case">
-      <h3>Malformed kind 3 <span class="tag quiet">expect quiet</span></h3>
-      <p>No <code>tags</code> array at all — should read as unknown, not as a wipe.</p>
+      <h3>Missing tags, kind 3 <span class="tag warn">expect warning</span></h3>
+      <p>No <code>tags</code> at all. Sidecar signs that as <code>tags: []</code>, so it is a real wipe.</p>
       <button data-act="malformed-follows">Sign kind 3 · no tags</button>
     </div>
     <div class="case">
@@ -205,7 +205,7 @@
     </div>
   </div>
 
-  <h2>4 · Trust provider lists (kind 10040, NIP-85)</h2>
+  <h2>5 · Trust provider lists (kind 10040, NIP-85)</h2>
   <p class="lede" style="margin-bottom:10px">
     Check each card in the side panel AND the popup window. Approving the two-provider list
     makes it the baseline; the empty list then gets the erase warning instead of the softer
@@ -296,7 +296,8 @@
     'drop-custom':       () => ({ kind: 0, tags: [], content: profile(null, ['customThing']) }),
     'add-field':         () => ({ kind: 0, tags: [], content: profile({ website: 'https://example.invalid' }) }),
 
-    // No `tags` key at all — the malformed case that used to read as a wipe.
+    // No `tags` key at all. normalizeSignEventParams (background.js) signs a missing tags
+    // as [], so what would be signed is an empty follow list, and the warning is right.
     'malformed-follows': () => ({ kind: 3, content: '' }),
     'malformed-profile': () => ({ kind: 0, tags: [], content: '<not json at all>' }),
     'dupe-follows':      () => {
