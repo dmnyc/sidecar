@@ -160,7 +160,7 @@
       10004: tSec('Communities list'), 10005: tSec('Public chats list'), 10006: tSec('Blocked relays list'),
       10007: tSec('Search relays list'), 10008: tSec('Profile badges'), 10009: tSec('Groups list'),
       10012: tSec('Favorite relays list'), 10015: tSec('Interests list'), 10020: tSec('Media follows'),
-      10030: tSec('Emoji list'), 10044: tSec('DM encryption key'), 10050: tSec('DM relay list'),
+      10030: tSec('Emoji list'), 10040: tSec('Trust provider list'), 10044: tSec('DM encryption key'), 10050: tSec('DM relay list'),
       10063: tSec('Blossom server list'),
       13194: tSec('Wallet info'), 22242: tSec('Relay auth'), 23194: tSec('Wallet request'), 23195: tSec('Wallet response'),
       24133: tSec('Remote signing handshake'), 24242: tSec('Blossom authorization'), 27235: tSec('HTTP auth'),
@@ -200,6 +200,35 @@
     if (kind == null) return null;
     return kindWarnings()[kind] || (!kindLabels()[kind] ? tSec('Unrecognized event kind. Review carefully before approving.') : null);
   }
+  // A kind 10040 says which web-of-trust services compute your scores. It is replaceable,
+  // so the new list replaces every row of the old one: the card says what the new one
+  // holds rather than leaving it to a tag count (nip85.js). Returned as [label, value]
+  // pairs. Duplicated in sidepanel.js — same rows on both approval surfaces.
+  function trustProviderRows(ev) {
+    const N = self.SidecarNip85;
+    if (!N) return [];
+    const out = [];
+    const groups = N.providers(ev);
+    const shown = groups.slice(0, 3);
+    for (const g of shown) {
+      out.push([tSec('Provider'), tSec('{{key}} at {{relay}}', { key: truncMid(g.pubkey, 8, 6), relay: N.relayHost(g.relay) || '—' })]);
+      out.push([tSec('Scores'), g.types.map(N.typeLabel).join(', ')]);
+    }
+    if (groups.length > shown.length) out.push([tSec('More providers'), I18N.fmtNum(groups.length - shown.length)]);
+    if (N.hasPrivateRows(ev)) out.push([tSec('Private entries'), tSec('Encrypted, not shown')]);
+    else if (!groups.length) out.push([tSec('Providers'), tSec('None')]);
+    return out;
+  }
+  // An empty 10040 is how a service switches itself off, and it switches off every other
+  // service the list named too. Said even with no baseline to compare against; when the
+  // overwrite guard has a finding, its louder warning says it instead.
+  function trustEmptyWarning(ev) {
+    const N = self.SidecarNip85;
+    if (!N || !ev || ev.kind !== 10040) return null;
+    if (N.providers(ev).length || N.hasPrivateRows(ev)) return null;
+    return tSec('This empty list stops every web-of-trust service from scoring for you, including any that another app set up.');
+  }
+
   // A request we can't read as an event at all — no integer kind, so there is nothing
   // to label, no tag count, and no content to preview. normalizeSignEventParams in
   // background.js now rejects these at the RPC boundary, so this should be
@@ -371,8 +400,11 @@
       const rows = [];
       rows.push(row(tSec('Kind'), unreadable ? tSec('Unreadable') : kindLabel(ev.kind)));
       if (Array.isArray(ev.tags)) rows.push(row(tSec('Tags'), I18N.fmtNum(ev.tags.length)));
+      if (!unreadable && ev.kind === 10040) {
+        trustProviderRows(ev).forEach(([k, v]) => rows.push(row(k, v)));
+      }
       els.preview.innerHTML = rows.join('');
-      const warning = unreadable ? unreadableWarning() : kindWarning(ev.kind);
+      const warning = unreadable ? unreadableWarning() : ((!data.destructive && trustEmptyWarning(ev)) || kindWarning(ev.kind));
       if (warning) {
         const warn = document.createElement('div');
         warn.className = 'kind-warn';

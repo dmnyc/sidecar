@@ -160,7 +160,7 @@ test('isControlKind flags wallet/account-control kinds only', () => {
 // baseline, so the comparison the guard relies on is gone by then.
 
 test('isReplaceableKind flags the wipeable kinds', () => {
-  for (const k of [0, 3, 10000]) {
+  for (const k of [0, 3, 10000, 10040]) {
     assert.equal(RELAX.isReplaceableKind(k), true, 'replaceable kind ' + k);
   }
   assert.equal(RELAX.isReplaceableKind(1), false, 'a note replaces nothing');
@@ -174,7 +174,7 @@ test('kind 0 never relaxes — the reported case', () => {
 });
 
 test('neverRelaxes covers both control and replaceable kinds', () => {
-  for (const k of [24133, 23194, 23195, 0, 3, 10000]) {
+  for (const k of [24133, 23194, 23195, 0, 3, 10000, 10040]) {
     assert.equal(RELAX.neverRelaxes(k), true, 'kind ' + k + ' must never relax');
   }
 });
@@ -193,7 +193,7 @@ test('the replaceable set agrees with replaceable-baseline.js', () => {
   // Two files hold this list: relax-grants.js can't import the baseline module (it is
   // loaded first by background.js's importScripts, and stays dependency-free so it can
   // be tested against a bare chrome mock). If the destructive guard ever starts
-  // tracking a fourth kind, this fails until relax excludes it too — otherwise that
+  // tracking another kind, this fails until relax excludes it too — otherwise that
   // kind would be wipeable inside a relax window.
   const baselineSrc = fs.readFileSync(path.join(ROOT, 'replaceable-baseline.js'), 'utf8');
   const m = baselineSrc.match(/const TRACKED = new Set\(\[([^\]]*)\]\)/);
@@ -206,7 +206,7 @@ test('the replaceable set agrees with replaceable-baseline.js', () => {
     assert.ok(dm, 'could not resolve ' + t);
     return Number(dm[1]);
   });
-  assert.deepEqual(kinds.slice().sort((a, b) => a - b), [0, 3, 10000],
+  assert.deepEqual(kinds.slice().sort((a, b) => a - b), [0, 3, 10000, 10040],
     'baseline tracks a different set than expected');
   for (const k of kinds) {
     assert.equal(RELAX.neverRelaxes(k), true,
