@@ -3022,6 +3022,37 @@ window.SidecarCore = (function () {
 
   const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }
 
+  // ---- the same note, twice ----
+  //
+  // A note can go out without the person who wrote it knowing: a minimized mine posts
+  // when it finds, and the toast that says so is easy to miss. If the same words are
+  // still in a composer afterwards, Post would publish them again. So each composer
+  // remembers a fingerprint of what this account posted in the last fifteen minutes,
+  // and an identical note asks once before it goes.
+  //
+  // The fingerprint is the account, the text, the attachments, what it answers and a
+  // poll's options, hashed: the store holds no note text. The pages keep the store
+  // (session storage, so it forgets with the browser), since settings and storage belong
+  // to the page that reads them; this module only says what a fingerprint is and when one
+  // has gone stale.
+  const RECENT_POSTS_KEY = 'sidecar_recent_posts';
+  const RECENT_POST_MS = 15 * 60 * 1000;
+  async function postFingerprint(pubkey, draft, replyTo) {
+    const d = draft || {};
+    const poll = d.poll ? (d.poll.options || []).map((o) => String(o || '').trim()) : null;
+    const shape = JSON.stringify([
+      pubkey || '', String(d.text || '').trim(), (d.media || []).map((m) => m && m.url),
+      (replyTo && replyTo.id) || '', poll,
+    ]);
+    return sha256Hex(new TextEncoder().encode(shape));
+  }
+  // The stored map with anything older than the window dropped.
+  function freshRecentPosts(all, now) {
+    const out = {};
+    for (const [k, at] of Object.entries(all || {})) if (now - at < RECENT_POST_MS) out[k] = at;
+    return out;
+  }
+
   async function sha256Hex(buffer) {
     const digest = await crypto.subtle.digest('SHA-256', buffer);
     return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -3067,6 +3098,7 @@ window.SidecarCore = (function () {
     buildPollEditor,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
+    postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
   };
 })();

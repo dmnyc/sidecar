@@ -4452,6 +4452,28 @@
   const { buildGifPicker } = window.SidecarCore;
   // Saved drafts, listed the same way the expanded composer lists them.
   const { otherDraftEntries, buildSavedDraftList } = window.SidecarCore;
+  // The same note posted twice: see postFingerprint in composer-core.js.
+  const { postFingerprint, freshRecentPosts, RECENT_POSTS_KEY } = window.SidecarCore;
+  const SC_freshRecentPosts = freshRecentPosts;
+  const SC_RECENT_KEY = RECENT_POSTS_KEY;
+  // How long "Post it again?" waits before it can be pressed.
+  const REPEAT_HOLD_MS = 2000;
+  // The pages' end of the repeat-post guard: the store itself. See postFingerprint.
+  async function recentlyPostedAt(fp) {
+    try {
+      const got = await chrome.storage.session.get(SC_RECENT_KEY);
+      return SC_freshRecentPosts((got && got[SC_RECENT_KEY]) || {}, Date.now())[fp] || 0;
+    } catch (_) { return 0; }
+  }
+  async function rememberPosted(fp) {
+    try {
+      const got = await chrome.storage.session.get(SC_RECENT_KEY);
+      const all = SC_freshRecentPosts((got && got[SC_RECENT_KEY]) || {}, Date.now());
+      all[fp] = Date.now();
+      await chrome.storage.session.set({ [SC_RECENT_KEY]: all });
+    } catch (_) { /* a guard, not a record: losing it costs one missed warning */ }
+  }
+
   const POLL_RESPONSE_KIND = 1018;
 
   // TWENTY-FOUR HOURS unless the author says otherwise.
@@ -12273,7 +12295,7 @@
   // The mine itself never moved: the worker is module scope and has always kept hashing
   // after its pane closed. What this holds is the promise that somebody is still going to
   // sign and publish the result, plus enough to draw the bar that says so.
-  let miningStatus = null; // { bits, pubkey, startedAt, best, tick }
+  let miningStatus = null; // { bits, pubkey, startedAt, best, tick, posting }
   // Set for exactly as long as it takes closeModal to run. The composer's close handler
   // cancels the mine on purpose (a note nobody is watching must not publish itself), and
   // minimizing is the one close that means the opposite.
@@ -12291,9 +12313,19 @@
     show(bar);
     if (view) view.classList.add('mining-active'); // lift the compose FAB off the bar
     const secs = Math.round((Date.now() - miningStatus.startedAt) / 1000);
-    $('mining-status-line').textContent =
-      miningStatus.bits + ' bits \u00b7 ' + secs + 's' +
-      (miningStatus.best ? ' \u00b7 best ' + miningStatus.best : '');
+    // ONCE THE MINE IS FOUND THE BAR SAYS SO, and Stop stands down, the way the open
+    // pane does. Signing and the relays come after the mine, and for those seconds the
+    // bar went on reading "mining" beside a Stop that had nothing left to stop: the mine
+    // was over, and a signed post cannot be called back.
+    const stop = $('mining-status-stop');
+    if (stop) stop.disabled = !!(miningStatus.posting || miningStatus.posted);
+    $('mining-status-line').textContent = miningStatus.posted
+      ? t('Posted.')
+      : miningStatus.posting
+      ? t('Found it. Posting…')
+      : miningStatus.best
+        ? t('{{bits}} bits · {{secs}}s · best {{best}}', { bits: miningStatus.bits, secs: I18N.fmtNum(secs), best: miningStatus.best })
+        : t('{{bits}} bits · {{secs}}s', { bits: miningStatus.bits, secs: I18N.fmtNum(secs) });
     const accts = (state && state.accounts) || [];
     const acct = accts.find((a) => a.pubkey === miningStatus.pubkey);
     // WHOSE POST THIS IS. The id commits to the pubkey, so a mine belongs to one account
@@ -12311,6 +12343,15 @@
     miningStatus.tick = setInterval(renderMiningStatus, 1000);
     renderMiningStatus();
     setComposeLocked(true);
+  }
+
+  // The bar's last word on a minimized post: Posted, for a few seconds, then gone.
+  function postedMinimizedMine() {
+    if (!miningStatus) return;
+    clearInterval(miningStatus.tick);
+    miningStatus.posted = true;
+    renderMiningStatus();
+    setTimeout(endMinimizedMine, 3500);
   }
 
   function endMinimizedMine() {
@@ -12559,6 +12600,10 @@
     // NOT named `expanded`: buildReplyBlock has its own `expanded` for the Show more
     // toggle, and a shadowed flag whose two meanings are both "expanded" is the next bug.
     let handedToTab = false;
+    // The fingerprint Post last asked "again?" about, or null. Declared here rather than
+    // beside the Post button because the editor's change handler reads it, and the editor
+    // can report a change while it is still being built, before that line would run.
+    let repeatAsked = null;
     // PER POST, seeded from Settings when the composer opens. Changing it here is a
     // decision about this note, not a new preference: at 22 bits a mine is tens of
     // seconds, which is worth opting into for one post without signing up for it on
@@ -12937,6 +12982,8 @@
           clearTimeout(showPane);
           if (pane) pane.done();
         }
+        // Found, and on to signing: a minimized mine's bar has to know too.
+        if (miningStatus) { miningStatus.posting = true; renderMiningStatus(); }
         // pubkey is dropped again: finalizeEvent sets it from the key it signs with, and
         // sending our own copy invites the two to disagree about the one field neither
         // of them should be guessing at.
@@ -13041,7 +13088,13 @@
       // modal. Edits flow back through onChange into the draft + Post button.
       const mentionEditor = createMentionEditor({
         placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
-        onChange: (text) => { draft.text = text; updatePostState(); scheduleSave(); },
+        onChange: (text) => {
+          draft.text = text;
+          // An edit makes it a different note, so the repeat question no longer applies.
+          if (repeatAsked) { repeatAsked = null; post.textContent = t('Post'); err.textContent = ''; }
+          updatePostState();
+          scheduleSave();
+        },
         // A URL pasted on its own becomes a real attachment: cut from the prose,
         // into the strip, appended at publish — as if it had been uploaded.
         onAttachUrl: (url) => {
@@ -13506,9 +13559,25 @@
         }
         post.disabled = !draft.text.trim() && !draft.media.length;
       }
+      // THIS NOTE WENT OUT ALREADY, AND ASKS ONCE BEFORE IT GOES AGAIN. A minimized mine
+      // can post while you are elsewhere, and the same words left in a composer would
+      // post twice. Post turns into the question; a second press posts, and any edit
+      // puts it back to Post. (repeatAsked lives with the composer, above.)
       post.addEventListener('click', async () => {
         if (post.disabled) return;
         closeAltEditor(); // the description commits before the note is snapshotted
+        const fp = await postFingerprint(pubkey, draft, replyTo);
+        const at = repeatAsked === fp ? 0 : await recentlyPostedAt(fp);
+        if (at) {
+          repeatAsked = fp;
+          post.textContent = t('Post it again?');
+          err.textContent = t('You posted this {{when}}.', { when: relTime(at) });
+          // A beat before it can be pressed, so a double-tap or an impatient second press
+          // cannot carry straight through the question. A deliberate repeat still can.
+          post.disabled = true;
+          setTimeout(() => { if (repeatAsked === fp) post.disabled = false; }, REPEAT_HOLD_MS);
+          return;
+        }
         const { on, secs } = await postCountdownSetting();
         if (on) {
           showCountdown(secs);
@@ -13624,8 +13693,11 @@
         if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id);
         else if (signed.kind === 1) rememberOwnNote(signed.pubkey, signed.id);
         published = true;
+        postFingerprint(pubkey, draft, replyTo).then(rememberPosted).catch(() => {});
         clearComposeDraft(dkey);
-        endMinimizedMine(); // no-op unless this one was minimized
+        // A minimized post says it landed before the bar goes, since the panel may be
+        // showing something else entirely and a toast is easy to miss.
+        if (miningStatus) postedMinimizedMine(); else endMinimizedMine();
         closeModal();
         toast(signed.kind === POLL_KIND ? t('Poll published') : replyTo ? t('Reply published') : t('Note published'), 'success');
         showPostBanner(signed, !!replyTo);
