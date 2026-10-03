@@ -67,3 +67,13 @@ test('both composers ask before posting it again, forget the question on an edit
   // The core stays free of storage; the pages own it.
   assert.ok(!/chrome\.storage/.test(core.replace(/^\s*\/\/.*$/gm, '')));
 });
+
+test('"POST IT AGAIN?" WAITS A BEAT BEFORE IT CAN BE PRESSED', () => {
+  // So a double-tap or an impatient second press cannot carry straight through the
+  // question, while a deliberate repeat still can.
+  assert.match(panel, /const REPEAT_HOLD_MS = 2000;/);
+  assert.match(panel, /post\.disabled = true;\s*setTimeout\(\(\) => \{ if \(repeatAsked === fp\) post\.disabled = false; \}, REPEAT_HOLD_MS\);/);
+  assert.match(page, /const REPEAT_HOLD_MS = 2000;/);
+  assert.match(page, /repeatHoldUntil = Date\.now\(\) \+ REPEAT_HOLD_MS;/);
+  assert.match(page, /if \(repeatAsked && Date\.now\(\) < repeatHoldUntil\) post\.disabled = true;/);
+});

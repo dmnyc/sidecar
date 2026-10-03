@@ -4455,6 +4455,8 @@
   const { postFingerprint, freshRecentPosts, RECENT_POSTS_KEY } = window.SidecarCore;
   const SC_freshRecentPosts = freshRecentPosts;
   const SC_RECENT_KEY = RECENT_POSTS_KEY;
+  // How long "Post it again?" waits before it can be pressed.
+  const REPEAT_HOLD_MS = 2000;
   // The pages' end of the repeat-post guard: the store itself. See postFingerprint.
   async function recentlyPostedAt(fp) {
     try {
@@ -13547,6 +13549,10 @@
           repeatAsked = fp;
           post.textContent = t('Post it again?');
           err.textContent = t('You posted this {{when}}.', { when: relTime(at) });
+          // A beat before it can be pressed, so a double-tap or an impatient second press
+          // cannot carry straight through the question. A deliberate repeat still can.
+          post.disabled = true;
+          setTimeout(() => { if (repeatAsked === fp) post.disabled = false; }, REPEAT_HOLD_MS);
           return;
         }
         const { on, secs } = await postCountdownSetting();

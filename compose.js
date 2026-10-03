@@ -80,6 +80,10 @@
   let posting = false;
   // The fingerprint Post last asked "again?" about, or null: see reviewThenPost.
   let repeatAsked = null;
+  // Until when "Post it again?" stays inert: a beat, so a double-tap or an impatient
+  // second press cannot carry straight through the question.
+  let repeatHoldUntil = 0;
+  const REPEAT_HOLD_MS = 2000;
   const SC_freshRecentPosts = SC.freshRecentPosts;
   const SC_RECENT_KEY = SC.RECENT_POSTS_KEY;
   // The pages' end of the repeat-post guard: the store itself. See postFingerprint.
@@ -739,7 +743,9 @@
     const at = repeatAsked === fp ? 0 : await recentlyPostedAt(fp);
     if (at) {
       repeatAsked = fp;
+      repeatHoldUntil = Date.now() + REPEAT_HOLD_MS;
       paintPostButton();
+      setTimeout(paintPostButton, REPEAT_HOLD_MS + 20);
       $('compose-err').textContent = t('You posted this {{when}}.', { when: composer.relTime(at) });
       return;
     }
@@ -956,9 +962,12 @@
       // time nobody has picked yet is not postable either. Same three as the panel.
       const endsOk = draft.poll.ends.kind !== 'at' || draft.poll.ends.at > 0;
       post.disabled = posting || !n || !SC.pollDraftIsPostable(draft.poll) || !endsOk;
+      if (repeatAsked && Date.now() < repeatHoldUntil) post.disabled = true;
       return;
     }
     post.disabled = posting || (!n && !draft.media.length);
+    // "Post it again?" holds for a beat before it can be pressed.
+    if (repeatAsked && Date.now() < repeatHoldUntil) post.disabled = true;
   }
 
   // Post and Stop are the same button in two states, because there is only ever one of
