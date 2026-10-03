@@ -2384,6 +2384,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   border-bottom: 1px solid var(--border);
 }
 .bm-item:hover { background: var(--hover-soft); }
+/* The ⋮ and the × sit level with the row's first line, as on a notification, rather
+   than centered on a row whose height the snippet decides. */
+.bm-item > .item-actions { align-self: flex-start; }
 .bm-list .bm-group:last-child .bm-item:last-child { border-bottom: none; }
 .bm-main { flex: 1; min-width: 0; }
 .bm-head { display: flex; align-items: center; gap: 8px; min-width: 0; }

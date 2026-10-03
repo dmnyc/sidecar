@@ -63,7 +63,7 @@ test('it offers the ids, the npub and the JSON, and names the kind', () => {
   assert.match(menu, /approvalKindLabels\(\)\[ev\.kind\]/, 'kind names come from the approval table');
   assert.match(menu, /t\('Kind \{\{kind\}\} · \{\{name\}\}', \{ kind, name: kindName \}\)/);
   // A zap's npub is the zapper the row names, not the LNURL service that signed it.
-  assert.match(menu, /const who = zapSender\(ev\)/);
+  assert.match(menu, /const who = opts && 'npubOf' in opts \? opts\.npubOf : zapSender\(ev\);/);
   assert.match(menu, /npubEncode\(who\)/);
 });
 

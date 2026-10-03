@@ -131,9 +131,9 @@
         const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
         clientTag = !(s && s.showClientTag === false);
       } catch (_) { /* default on, matching the composer */ }
+      await refReady; // the note's author and paragraph, if still being looked up
       // The paragraph goes out only if it was shown and not left out.
       const withContext = !$('hl-context').classList.contains('hidden') && !$('hl-context-off').checked;
-      await refReady; // the note's author, if it was still being looked up
       const template = HL.buildTemplate({
         text: hl.text, url: hl.url, context: withContext ? hl.context : '', comment: $('hl-comment').value, clientTag,
         nostrRef,
@@ -216,12 +216,16 @@
   }
 
   // Who wrote the note, for the p tag and for the source line, and their name to show.
+  // A note is always read: its own text is where the paragraph comes from (see
+  // noteParagraph). Not found, the highlight goes out without one.
   async function resolveRef() {
-    if (nostrRef.tag === 'e' && !nostrRef.author) {
+    if (nostrRef.tag === 'e') {
       const ev = await readOne({ ids: [nostrRef.id] }, 4000);
       if (ev && ev.id === nostrRef.id) {
-        nostrRef.author = ev.pubkey;
+        if (!nostrRef.author) nostrRef.author = ev.pubkey;
         nostrRef.kind = ev.kind;
+        hl.context = HL.noteParagraph(ev.content, hl.text);
+        paintContext();
       }
     }
     paintRefSource(null);
@@ -312,8 +316,10 @@
         $('hl-quote').textContent = HL.tidy(hl.text);
         $('hl-source-title').textContent = hl.title || '';
         try { $('hl-source-host').textContent = new URL(hl.url).host; } catch (_) {}
-        paintContext();
         nostrRef = HL.nostrRefFromUrl(hl.url, NT.nip19.decode);
+        // The page's paragraph for a note is the client's drawing of it, cards and all.
+        if (nostrRef && nostrRef.tag === 'e') hl.context = '';
+        paintContext();
         if (nostrRef) {
           paintRefSource(null); // at once, and again when the author's name arrives
           refReady = resolveRef().catch(() => {});

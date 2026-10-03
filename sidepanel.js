@@ -3996,6 +3996,61 @@
     const hit = _profileCache.get(pubkey);
     return hit && hit.expiresAt > Date.now() ? hit : null;
   }
+  // ONE QUERY FOR A LIST OF AUTHORS, the way the bell reads its senders
+  // (prefetchNotifProfiles). A getProfile per author, all at once, is enough concurrent
+  // REQs that many fail, and each failure renders as an npub. The configured relays are
+  // asked with purplepag.es, the kind:0 aggregator, and the answers fill the profile
+  // cache. The user's own accounts still go through getProfile, which reads their
+  // declared relays; for everyone else nobody answering means no name, not a retry.
+  async function profilesFor(pubkeys) {
+    const all = [...new Set(pubkeys)].filter((pk) => /^[0-9a-f]{64}$/.test(pk || ''));
+    const own = new Set(((state && state.accounts) || []).map((a) => a.pubkey));
+    const need = all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
+    if (need.length) {
+      const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+      for (let i = 0; i < need.length; i += 100) {
+        const evs = await Promise.race([
+          poolQuerySync(relays, { kinds: [0], authors: need.slice(i, i + 100) }, { maxWait: 6000 }),
+          new Promise((r) => setTimeout(() => r([]), 6500)),
+        ]).catch(() => []);
+        const newest = new Map();
+        for (const ev of evs || []) {
+          const cur = newest.get(ev.pubkey);
+          if (!cur || ev.created_at > cur.created_at) newest.set(ev.pubkey, ev);
+        }
+        for (const [pk, ev] of newest) {
+          try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {}
+        }
+      }
+    }
+    return new Map(await Promise.all(all.map(async (pk) =>
+      [pk, cachedProfile(pk) || (own.has(pk) ? await getProfile(pk).catch(() => null) : null)])));
+  }
+
+  // nostr:npub and nostr:nprofile references in text, as the people they name.
+  const MENTION_RE = /nostr:((?:npub|nprofile)1[02-9ac-hj-np-z]+)/g;
+  function mentionPubkeys(text) {
+    const out = [];
+    for (const m of String(text || '').matchAll(MENTION_RE)) {
+      try {
+        const d = NT.nip19.decode(m[1]);
+        const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
+        if (pk) out.push(pk);
+      } catch (_) {}
+    }
+    return out;
+  }
+  function mentionsAsNames(text, profiles) {
+    return String(text || '').replace(MENTION_RE, (whole, code) => {
+      try {
+        const d = NT.nip19.decode(code);
+        const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
+        const prof = profiles && profiles.get(pk);
+        return '@' + ((prof && prof.name) || shortNpub(NT.nip19.npubEncode(pk)));
+      } catch (_) { return whole; }
+    });
+  }
+
   async function getProfile(pubkey) {
     if (!pubkey) return null;
     const hit = cachedProfile(pubkey);
@@ -6691,8 +6746,11 @@
   // sheet that already scrolls. Only the ⋮ itself sits in the top-right slot, icon only.
   //
   // For a zap the npub is the ZAPPER's (zapSender), the same person the row names. The
-  // receipt's own pubkey is the LNURL service, and it is still in the JSON.
-  function buildEventMenu(ev, linkTarget) {
+  // receipt's own pubkey is the LNURL service, and it is still in the JSON. A caller
+  // can name whose npub it is (opts.npubOf): a highlight's is the quoted note's author,
+  // since the highlighter is you; null leaves the item out (a web page has no author).
+  // opts.sourceNote names the e tag as the note quoted rather than the one answered.
+  function buildEventMenu(ev, linkTarget, opts) {
     const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
     // Enter or Space on a button inside a vote row would otherwise bubble to the row's
     // own key handler and open the tally as well. Not prevented, so the button still
@@ -6735,12 +6793,13 @@
         textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
       }));
 
-      const who = zapSender(ev);
+      const who = opts && 'npubOf' in opts ? opts.npubOf : zapSender(ev);
       const targetId = notifTargetId(ev);
       const items = [
         [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
-        [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)],
-        targetId ? [t('Copy parent note ID'), 'copy', () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
+        who ? [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)] : null,
+        targetId ? [opts && opts.sourceNote ? t('Copy source note ID') : t('Copy parent note ID'), 'copy',
+          () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
         linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
         [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
       ].filter(Boolean);
@@ -15140,12 +15199,18 @@
     const marked = tags.find((tg) => (tg[0] === 'r' && tg[2] === 'source') || ((tg[0] === 'e' || tg[0] === 'a') && tg[3] === 'source'));
     const src = marked || tags.find((tg) => tg[0] === 'e') || tags.find((tg) => tg[0] === 'a') || tags.find((tg) => tg[0] === 'r');
     if (!src) return null;
-    const author = (tags.find((tg) => tg[0] === 'p' && tg[3] === 'author') || [])[1] || '';
+    // The author as NIP-84 marks one, or, for highlights other clients made without the
+    // role, the first p tag that is not a mention.
+    const pTag = tags.find((tg) => tg[0] === 'p' && tg[3] === 'author') ||
+      tags.find((tg) => tg[0] === 'p' && tg[3] !== 'mention');
+    const author = (pTag && /^[0-9a-f]{64}$/.test(pTag[1] || '') && pTag[1]) || '';
     if (src[0] === 'r') {
       try { return { kind: 'page', host: new URL(src[1]).host }; } catch (_) { return null; }
     }
     const article = src[0] === 'a' && String(src[1]).startsWith('30023:');
-    return { kind: article ? 'article' : 'note', author: author || (src[0] === 'a' ? String(src[1]).split(':')[1] || '' : '') };
+    const out = { kind: article ? 'article' : 'note', author: author || (src[0] === 'a' ? String(src[1]).split(':')[1] || '' : '') };
+    if (src[0] === 'e' && HEX_ID.test(src[1] || '')) out.id = src[1];
+    return out;
   }
   async function fillHighlights(pane, gone, tab) {
     const pubkey = state.activePubkey;
@@ -15157,18 +15222,31 @@
     };
     const quote = pickQuote();
     const paint = async (evs) => {
-      pane.textContent = '';
       setCount(evs.length);
       if (!evs.length) {
+        pane.textContent = '';
         pane.append(emptyQuote(t('Highlight a passage on any web page and it shows up here.'), quote));
         return;
       }
-      const authors = [...new Set(evs.map(highlightSource).filter((s) => s && s.author).map((s) => s.author))];
-      const profiles = new Map(await Promise.all(authors.map(async (pk) => [pk, await getProfile(pk).catch(() => null)])));
+      // A highlight that cites a note without naming its author takes the author from the
+      // note itself, read once for all of them.
+      const sources = new Map(evs.map((ev) => [ev.id, highlightSource(ev)]));
+      const unknown = [...new Set([...sources.values()].filter((s) => s && s.id && !s.author).map((s) => s.id))];
+      if (unknown.length) {
+        const notes = await fetchEventsByIds(unknown).catch(() => new Map());
+        for (const s of sources.values()) if (s && s.id && !s.author && notes.get(s.id)) s.author = notes.get(s.id).pubkey;
+      }
+      const comments = new Map(evs.map((ev) => [ev.id, ((ev.tags || []).find((tg) => tg[0] === 'comment') || [])[1] || '']));
+      const profiles = await profilesFor([
+        ...[...sources.values()].filter((s) => s && s.author).map((s) => s.author),
+        ...evs.flatMap((ev) => [...mentionPubkeys(ev.content), ...mentionPubkeys(comments.get(ev.id))]),
+      ]);
       if (gone()) return;
+      // Cleared only now, after the lookups, so the loading quote stays up through them.
+      pane.textContent = '';
       const list = h('div', { className: 'bm-list' });
       for (const ev of evs) {
-        const src = highlightSource(ev);
+        const src = sources.get(ev.id);
         let from = '';
         if (src && src.kind === 'page') from = src.host;
         else if (src) {
@@ -15179,11 +15257,12 @@
             ? (src.kind === 'article' ? t('Nostr article by {{name}}', { name: who }) : t('Nostr note by {{name}}', { name: who }))
             : (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
         }
-        const comment = ((ev.tags || []).find((tg) => tg[0] === 'comment') || [])[1] || '';
+        const comment = mentionsAsNames(comments.get(ev.id), profiles);
         const item = h('div', { className: 'bm-item hl-item', title: t('Open in your web client') });
-        const menu = buildEventMenu(ev, null); // the same ⋮ as a notification's
+        // The same ⋮ as a notification's; its npub is the quoted author's, not yours.
+        const menu = buildEventMenu(ev, null, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
         item.append(h('div', { className: 'bm-main' }, [
-          h('div', { className: 'hl-item-passage', dir: 'auto', textContent: ev.content }),
+          h('div', { className: 'hl-item-passage', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
           comment ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: comment }) : null,
           h('div', { className: 'bm-meta', textContent: from ? from + ' · ' + relativeTime(ev.created_at) : relativeTime(ev.created_at) }),
           menu.panel,
@@ -15245,11 +15324,6 @@
   }
 
   async function fillBookmarks(scroll, gone, evs, events, q) {
-    // The scroll container is cleared rather than appended to: the quiet
-    // refresh re-runs this on a scroll that already holds rows (and the first
-    // run replaces the spinner), and a second .bm-list under the first would
-    // duplicate every bookmark.
-    scroll.textContent = '';
     // Sections: the flat list first (what clients without categories write),
     // then categories by name. A list with no e-tags renders nothing — no
     // entries to show, none to remove.
@@ -15267,12 +15341,17 @@
     };
     if (!sections.length) return empty();
 
-    // Profiles for the authors (getProfile is cached, so repeat authors are
-    // cheap and a cached reopen resolves instantly).
-    const authors = [...new Set([...events.values()].map((e) => e.pubkey))];
-    const profiles = new Map(await Promise.all(authors.map(async (pk) => [pk, await getProfile(pk)])));
+    // Profiles for the authors, in one query (profilesFor); cached, so a reopen
+    // resolves instantly.
+    const profiles = await profilesFor([...events.values()].map((e) => e.pubkey));
     if (gone()) return;
 
+    // The scroll container is cleared rather than appended to: the quiet
+    // refresh re-runs this on a scroll that already holds rows (and the first
+    // run replaces the spinner), and a second .bm-list under the first would
+    // duplicate every bookmark. Cleared only now, after the profile lookup, so
+    // the loading quote stays up through the wait instead of a blank sheet.
+    scroll.textContent = '';
     const list = h('div', { className: 'bm-list' });
     scroll.append(list);
 
@@ -15391,28 +15470,25 @@
       // nothing in a kind 10003 records WHEN an entry was added. That absence is the
       // whole reason this drifts between clients.
       //
-      // Entries whose events no longer resolve sort to the bottom under their own divider
-      // — they're still bookmarks, but they can't be previewed (or dated), and a wall of
-      // "not found" ahead of real notes reads as a broken modal.
+      // ONLY WHAT CAN BE SHOWN. An entry whose note no relay returns used to sort to the
+      // bottom as "Unknown author" with a shortened id: still a bookmark, but one nobody
+      // could read, open meaningfully or recognize, and a column of them read as a broken
+      // sheet. They are left out. They stay in the list itself, untouched, and appear
+      // here again the moment a relay answers for them.
       const found = [];
-      const missing = [];
       const seen = new Set();
       s.ev.tags.forEach((t) => {
         const id = t && t[0] === 'e' && t[1];
         if (!HEX_ID.test(id || '') || seen.has(id)) return;
         seen.add(id);
-        (events.has(id) ? found : missing).push(id);
+        if (events.has(id)) found.push(id);
       });
       // Ties keep tag order, which is at least stable within one read.
       found.sort((a, b) => (events.get(b).created_at || 0) - (events.get(a).created_at || 0));
-      if (!found.length && !missing.length) return;
+      if (!found.length) return;
       const group = h('div', { className: 'bm-group' });
       if (s.title) group.append(h('div', { className: 'bm-cat', textContent: s.title }));
       found.forEach((id) => group.append(buildRow(id, s.ev, false)));
-      if (missing.length) {
-        if (found.length) group.append(h('div', { className: 'bm-missing-head', textContent: 'Not on your relays' }));
-        missing.forEach((id) => group.append(buildRow(id, s.ev, true)));
-      }
       list.append(group);
     });
 

@@ -215,10 +215,14 @@ function liftPanel(decl) {
 test('A HIGHLIGHT ROW SAYS WHERE IT CAME FROM: A PAGE BY HOST, A NOTE BY ITS AUTHOR', () => {
   const c = { URL };
   vmod.createContext(c);
-  vmod.runInContext(liftPanel('function highlightSource(ev)') + '\nthis.highlightSource = highlightSource;', c);
+  vmod.runInContext("const HEX_ID = /^[0-9a-f]{64}$/;\n" + liftPanel('function highlightSource(ev)') + '\nthis.highlightSource = highlightSource;', c);
   const src = (tags) => JSON.parse(JSON.stringify(c.highlightSource({ tags })));
   assert.deepEqual(src([['r', 'https://www.theonion.com/x', 'source']]), { kind: 'page', host: 'www.theonion.com' });
-  assert.deepEqual(src([['e', ID, '', 'source'], ['p', PK, '', 'author']]), { kind: 'note', author: PK });
+  assert.deepEqual(src([['e', ID, '', 'source'], ['p', PK, '', 'author']]), { kind: 'note', author: PK, id: ID });
+  // Another client's highlight with an unmarked p: that is the author.
+  assert.deepEqual(src([['e', ID], ['p', PK]]), { kind: 'note', author: PK, id: ID });
+  // A mention is not the author; with nothing else, the note is looked up for one.
+  assert.deepEqual(src([['e', ID], ['p', PK, '', 'mention']]), { kind: 'note', author: '', id: ID });
   assert.deepEqual(src([['a', '30023:' + PK + ':essay', '', 'source']]), { kind: 'article', author: PK });
   // The old shape, before notes were cited as notes: still a page, by its host.
   assert.deepEqual(src([['r', 'https://jumble.social/notes/nevent1x', 'source'], ['comment', 'I said that!']]),
@@ -247,7 +251,86 @@ test('A BOOKMARKED NOTE IS LOOKED FOR ON THE WRITE RELAYS, AND ON ITS HINT WHEN 
 });
 
 test('SAVED ROWS CARRY THE SAME ⋮ MENU AS A NOTIFICATION', () => {
-  assert.match(panelSrc, /^  function buildEventMenu\(ev, linkTarget\) \{/m, 'the menu is shared, not inside the bell');
-  assert.match(liftPanel('async function fillHighlights('), /const menu = buildEventMenu\(ev, null\);/);
+  assert.match(panelSrc, /^  function buildEventMenu\(ev, linkTarget, opts\) \{/m, 'the menu is shared, not inside the bell');
+  assert.match(liftPanel('async function fillHighlights('), /const menu = buildEventMenu\(ev, null, \{ npubOf:/);
   assert.match(panelSrc, /const menu = ref \? buildEventMenu\(ref, null\) : null;/);
+});
+
+test('A BOOKMARK NO RELAY RETURNS IS LEFT OUT, NOT SHOWN AS AN UNKNOWN AUTHOR', () => {
+  const fill = liftPanel('async function fillBookmarks(');
+  assert.match(fill, /if \(events\.has\(id\)\) found\.push\(id\);/);
+  assert.ok(!/buildRow\(id, s\.ev, true\)/.test(fill), 'missing rows are drawn again');
+  assert.ok(!/'Not on your relays'/.test(fill));
+});
+
+test('A NOTE\'S PARAGRAPH COMES FROM THE NOTE, not from the client drawing it', () => {
+  // A quote post: its own line, the quoted note's reference, and a GIF on its own line.
+  const content = 'There is only one classy way to pronounce GIF. 🍸👌✨\nnostr:nevent1qqsabc123\n\nhttps://example.com/a.gif';
+  assert.equal(HL.noteParagraph(content, 'There is only one classy way to pronounce GIF.'),
+    'There is only one classy way to pronounce GIF. 🍸👌✨');
+  // Paragraphs are split on blank lines; a link inside the prose stays.
+  const two = 'First thought.\n\nSecond one, see https://example.com/x for more.';
+  assert.equal(HL.noteParagraph(two, 'Second one'), 'Second one, see https://example.com/x for more.');
+  // Text that is not in the note (a quoted note's card) gets no paragraph at all.
+  assert.equal(HL.noteParagraph(content, 'via Damus'), '');
+});
+
+test('the popup takes a note\'s paragraph from the fetched note and never from the page', () => {
+  const page = fs.readFileSync(path.join(__dirname, '..', 'highlight.js'), 'utf8');
+  assert.match(page, /if \(nostrRef && nostrRef\.tag === 'e'\) hl\.context = '';\s*paintContext\(\);/);
+  assert.match(page, /hl\.context = HL\.noteParagraph\(ev\.content, hl\.text\);\s*paintContext\(\);/);
+  // Post decides on the paragraph only after the lookup has had its chance.
+  assert.match(page, /await refReady;[^\n]*\n\s*\/\/[^\n]*\n\s*const withContext =/);
+});
+
+test('A MENTION IN A HIGHLIGHT OR ITS COMMENT READS AS A NAME, not a nostr:npub', () => {
+  const c = { console, TextEncoder, TextDecoder, crypto: globalThis.crypto, Uint8Array };
+  c.window = c; c.self = c; c.globalThis = c;
+  vmod.createContext(c);
+  vmod.runInContext(fs.readFileSync(path.join(__dirname, '..', 'nostr-tools.js'), 'utf8'), c);
+  const re = panelSrc.match(/const MENTION_RE = [^\n]+/)[0];
+  vmod.runInContext('const NT = window.NostrTools;\n' + re + '\n' +
+    liftPanel('function shortNpub(npub)') + '\n' + liftPanel('function mentionPubkeys(text)') + '\n' +
+    liftPanel('function mentionsAsNames(text, profiles)') +
+    '\nthis.mentionPubkeys = mentionPubkeys; this.mentionsAsNames = mentionsAsNames;', c);
+  const named = 'a'.repeat(64);
+  const nameless = 'b'.repeat(64);
+  const npubA = c.NostrTools.nip19.npubEncode(named);
+  const nprofB = c.NostrTools.nip19.nprofileEncode({ pubkey: nameless });
+  const text = 'Highlighted on nostr:' + npubA + ' with nostr:' + nprofB;
+  assert.deepEqual([...c.mentionPubkeys(text)], [named, nameless]);
+  const out = c.mentionsAsNames(text, new Map([[named, { name: 'Alice' }]]));
+  assert.ok(out.startsWith('Highlighted on @Alice with @npub1'), out);
+  assert.ok(!/nostr:/.test(out));
+});
+
+test('the Saved lists read their authors in one query, not one per author', () => {
+  const body = liftPanel('async function profilesFor(pubkeys)');
+  assert.match(body, /kinds: \[0\], authors: need\.slice\(i, i \+ 100\)/);
+  assert.match(body, /'wss:\/\/purplepag\.es'/);
+  assert.match(liftPanel('async function fillHighlights('), /const profiles = await profilesFor\(\[/);
+  assert.match(liftPanel('async function fillBookmarks('), /const profiles = await profilesFor\(/);
+  assert.ok(!/authors\.map\(async \(pk\) => \[pk, await getProfile/.test(panelSrc), 'a per-author lookup is back');
+});
+
+test('a highlight\'s Copy npub is the quoted author\'s, and a web page offers none', () => {
+  assert.match(liftPanel('async function fillHighlights('),
+    /buildEventMenu\(ev, null, \{ npubOf: \(src && src\.kind !== 'page' && src\.author\) \|\| null,/);
+  const menu = liftPanel('function buildEventMenu(ev, linkTarget, opts)');
+  assert.match(menu, /const who = opts && 'npubOf' in opts \? opts\.npubOf : zapSender\(ev\);/);
+  assert.match(menu, /who \? \[t\('Copy npub'\)/);
+  // The e tag on a highlight is the note it quotes, so it is not called a parent.
+  assert.match(menu, /opts && opts\.sourceNote \? t\('Copy source note ID'\) : t\('Copy parent note ID'\)/);
+  assert.match(liftPanel('async function fillHighlights('), /sourceNote: true \}\)/);
+});
+
+test('THE LOADING QUOTE STAYS UP UNTIL THE ROWS ARE READY, not a blank sheet', () => {
+  // Both lists wait on relays for names after they have their events; clearing first
+  // left the sheet empty for those seconds, which reads as broken.
+  const bm = liftPanel('async function fillBookmarks(');
+  assert.ok(bm.lastIndexOf("scroll.textContent = '';") > bm.indexOf('await profilesFor('), 'bookmarks clear before the lookup');
+  const hl = liftPanel('async function fillHighlights(');
+  const lastClear = hl.lastIndexOf("pane.textContent = '';");
+  assert.ok(lastClear > hl.indexOf('await profilesFor('), 'highlights clear before the lookup');
+  assert.ok(hl.indexOf("pane.textContent = '';") > hl.indexOf('if (!evs.length) {'), 'a clear runs ahead of the waits');
 });

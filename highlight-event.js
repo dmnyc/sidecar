@@ -46,6 +46,21 @@
     return c;
   }
 
+  // A NOTE'S PARAGRAPH COMES FROM THE NOTE, not from the page showing it. Web clients
+  // draw a note without <p> tags, so the page's nearest block is the whole note body,
+  // quote cards and link previews included, and that would go out as the context. The
+  // note's own text is split into paragraphs instead, with nostr: references and links
+  // standing on a line of their own (what clients turn into cards) taken out.
+  function noteParagraph(content, text) {
+    const passage = tidy(text);
+    if (!passage) return '';
+    const body = tidy(String(content || '')
+      .replace(/(^|\s)nostr:[a-z0-9]+/gi, '$1')
+      .replace(/^[ \t]*https?:\/\/\S+[ \t]*$/gim, ''));
+    const paras = body.split(/\n{2,}/).map(tidy);
+    return paras.find((p) => p.includes(passage)) || (body.includes(passage) ? body : '');
+  }
+
   // Links written in the comment, as NIP-84 asks: r tags marked "mention", so they are
   // never mistaken for the source.
   function mentionedUrls(comment, source) {
@@ -125,7 +140,7 @@
     };
   }
 
-  const api = { KIND, MAX_TEXT, MAX_CONTEXT, tidy, sourceUrl, tooLong, contextFor, mentionedUrls, nostrRefFromUrl, buildTemplate };
+  const api = { KIND, MAX_TEXT, MAX_CONTEXT, tidy, sourceUrl, tooLong, contextFor, noteParagraph, mentionedUrls, nostrRefFromUrl, buildTemplate };
   if (typeof self !== 'undefined') self.SidecarHighlight = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarHighlight = api;
 })();
