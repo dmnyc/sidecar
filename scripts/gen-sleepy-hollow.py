@@ -48,25 +48,44 @@ def svg(w, h, body):
 
 
 # ---- the tree ------------------------------------------------------------------------
-# A limb is drawn as a curve with a stroke that thins as it divides, so the tree tapers
-# from trunk to twig the way an engraver's line does. Gnarled rather than regular: every
-# fork turns by a jittered angle and the limbs droop a little under their own length.
+# A limb is drawn in two segments with opposed bends — the gnarl of an old tree, not a
+# smooth arc — each stroke thinner than the one before it, so the tree tapers from trunk
+# to twig the way an engraver's line does. One dominant continuation with a branch
+# leaving it, rarely a third, and a claw of twigs at the tips: what winter leaves.
 
 def limb(o, rnd, x, y, ang, length, width, depth, droop=0.05):
     if depth == 0 or length < 3 or width < 0.35:
         return
-    bend = rnd.uniform(-0.35, 0.35)
-    mx = x + math.cos(ang + bend) * length * 0.5
-    my = y + math.sin(ang + bend) * length * 0.5
-    ex = x + math.cos(ang) * length
-    ey = y + math.sin(ang) * length + droop * length
+    b1 = rnd.uniform(-0.4, 0.4)
+    b2 = -b1 * rnd.uniform(0.6, 1.4) + rnd.uniform(-0.18, 0.18)
+    l1 = length * rnd.uniform(0.45, 0.6)
+    mx = x + math.cos(ang + b1) * l1
+    my = y + math.sin(ang + b1) * l1
+    ang2 = ang + b1 + b2
+    ex = x + math.cos(ang2) * length
+    ey = y + math.sin(ang2) * length + droop * length
+    c1x = x + math.cos(ang) * l1 * 0.55
+    c1y = y + math.sin(ang) * l1 * 0.55
+    c2x = mx + math.cos(ang + b1) * (length - l1) * 0.55
+    c2y = my + math.sin(ang + b1) * (length - l1) * 0.55
     o.append('<path d="M%s %sQ%s %s %s %s" stroke-width="%s"/>'
-             % (f(x), f(y), f(mx), f(my), f(ex), f(ey), f(width)))
-    kids = 2 if rnd.random() < 0.75 else 3
-    for k in range(kids):
-        turn = rnd.uniform(0.25, 0.7) * (1 if k % 2 else -1) + rnd.uniform(-0.15, 0.15)
-        limb(o, rnd, ex, ey, ang + turn, length * rnd.uniform(0.66, 0.82),
-             width * rnd.uniform(0.6, 0.72), depth - 1, droop)
+             % (f(x), f(y), f(c1x), f(c1y), f(mx), f(my), f(width)))
+    o.append('<path d="M%s %sQ%s %s %s %s" stroke-width="%s"/>'
+             % (f(mx), f(my), f(c2x), f(c2y), f(ex), f(ey), f(width * 0.68)))
+    if depth <= 2 and length < 14:
+        for _ in range(3):
+            ta = ang2 + rnd.uniform(-0.45, 0.45)
+            tl = length * rnd.uniform(0.3, 0.55)
+            o.append('<path d="M%s %sL%s %s" stroke-width="0.6"/>'
+                     % (f(ex), f(ey), f(ex + math.cos(ta) * tl), f(ey + math.sin(ta) * tl)))
+        return
+    limb(o, rnd, ex, ey, ang2 + rnd.uniform(-0.2, 0.2),
+         length * rnd.uniform(0.68, 0.78), width * rnd.uniform(0.6, 0.68), depth - 1, droop)
+    limb(o, rnd, ex, ey, ang2 + rnd.uniform(0.4, 0.85) * (1 if rnd.random() < 0.5 else -1),
+         length * rnd.uniform(0.5, 0.62), width * rnd.uniform(0.45, 0.55), depth - 1, droop)
+    if rnd.random() < 0.25:
+        limb(o, rnd, ex, ey, ang2 - rnd.uniform(0.35, 0.8) * (1 if rnd.random() < 0.5 else -1),
+             length * rnd.uniform(0.4, 0.5), width * 0.45, depth - 1, droop)
 
 
 def tree(rnd, x, y, ang, length, width, depth, droop=0.05):
@@ -77,50 +96,151 @@ def tree(rnd, x, y, ang, length, width, depth, droop=0.05):
 
 
 # ---- the Horseman ----------------------------------------------------------------------
-# Drawn facing right with the hooves about y = -20, then placed and scaled. The horse is
-# in the "flying gallop" of nineteenth-century prints, forelegs stretched ahead and hind
-# legs behind, which is how the illustrators of the tale drew the chase. The rider leans
-# into it with his cloak streaming: headless, and his arm up with the pumpkin, the one
-# lit thing on him.
+# The figure is one filled silhouette: the horse in the flying gallop of nineteenth-century
+# prints, the headless rider leaning into the chase with his cloak streaming and his arm up,
+# the pumpkin the one lit thing on him. Cutouts (the mane from the neck, the cloak from the
+# body, the legs from each other) are holes in the compound path, so the night shows through
+# them the way the engravers' white paper did. Drawn facing right with the ground at y = 0
+# and placed on the near ridge; flip mirrors it. The rider and horse were drawn by hand
+# against a reference, then simplified to what reads at panel scale; the pumpkin is drawn
+# freehand so it can glow.
 
-HORSE = ('M30 -54C30 -62 42 -64 52 -60C62 -57 72 -58 78 -61C86 -68 92 -76 97 -82'
-         'L95 -91L101 -85C106 -80 112 -72 117 -66C119 -63 118 -60 115 -59'
-         'C111 -60 107 -63 104 -64C100 -62 96 -56 92 -48C90 -44 86 -40 80 -38'
-         'C68 -36 52 -36 42 -40C34 -42 30 -48 30 -54Z')
-# Limbs as strokes: [points], width at the top. Upper leg thick, cannon thin.
-LIMBS = [
-    ([(84, -44), (99, -36), (117, -31)], 6.5, 3.2),   # far foreleg, reaching
-    ([(80, -42), (93, -28), (111, -22)], 7, 3.4),     # near foreleg
-    ([(40, -47), (22, -38), (4, -38)], 9, 3.4),       # far hind leg, thrown back
-    ([(44, -44), (28, -29), (9, -24)], 9.5, 3.6),     # near hind leg
-]
-TAIL = 'M32 -57C22 -64 10 -66 -6 -60C6 -61 16 -58 24 -52C14 -52 6 -48 -2 -44C12 -46 24 -48 31 -50Z'
-RIDER = ('M58 -58L62 -63C64 -72 68 -82 72 -89L80 -86C77 -78 72 -68 70 -58Z'
-         # the cloak, from the shoulders back on the wind, its hem torn
-         'M73 -89C62 -93 46 -92 30 -86L38 -83L28 -77L40 -77L35 -70L48 -73L52 -67L62 -73L66 -64Z')
-ARM = 'M76 -86L84 -94L85 -105'
+HORSEMAN_INK = (
+  'M159.0 -183.0C157.0 -183.8 156.8 -180.8 154.0 -181.0C151.2 -181.2 144.7 -184.0 142.0 -184.0C139.'
+  '3 -184.0 139.0 -183.7 138.0 -181.0C137.0 -178.3 135.0 -171.5 136.0 -168.0C137.0 -164.5 144.5 -16'
+  '3.3 144.0 -160.0C143.5 -156.7 136.8 -148.8 133.0 -148.0C129.2 -147.2 122.2 -153.5 121.0 -155.0C1'
+  '19.8 -156.5 126.5 -155.7 126.0 -157.0C125.5 -158.3 119.7 -162.3 118.0 -163.0C116.3 -163.7 116.3 '
+  '-160.3 116.0 -161.0C115.7 -161.7 117.7 -165.3 116.0 -167.0C114.3 -168.7 113.5 -173.3 106.0 -171.'
+  '0C98.5 -168.7 82.0 -155.7 71.0 -153.0C60.0 -150.3 48.3 -155.8 40.0 -155.0C31.7 -154.2 25.2 -150.'
+  '8 21.0 -148.0C16.8 -145.2 16.3 -141.5 15.0 -138.0C13.7 -134.5 9.7 -126.5 13.0 -127.0C16.3 -127.5'
+  ' 26.2 -138.3 35.0 -141.0C43.8 -143.7 56.2 -139.3 66.0 -143.0C75.8 -146.7 88.0 -159.7 94.0 -163.0'
+  'C100.0 -166.3 99.3 -163.8 102.0 -163.0C104.7 -162.2 111.5 -158.5 110.0 -158.0C108.5 -157.5 100.0'
+  ' -162.8 93.0 -160.0C86.0 -157.2 76.2 -144.3 68.0 -141.0C59.8 -137.7 50.7 -141.0 44.0 -140.0C37.3'
+  ' -139.0 28.7 -137.8 28.0 -135.0C27.3 -132.2 35.2 -124.2 40.0 -123.0C44.8 -121.8 55.0 -127.8 57.0'
+  ' -128.0C59.0 -128.2 52.3 -126.0 52.0 -124.0C51.7 -122.0 53.2 -116.5 55.0 -116.0C56.8 -115.5 58.5'
+  ' -119.8 63.0 -121.0C67.5 -122.2 77.0 -121.0 82.0 -123.0C87.0 -125.0 91.0 -129.8 93.0 -133.0C95.0'
+  ' -136.2 93.3 -143.0 94.0 -142.0C94.7 -141.0 97.5 -131.3 97.0 -127.0C96.5 -122.7 92.7 -117.3 91.0'
+  ' -116.0C89.3 -114.7 87.8 -120.2 87.0 -119.0C86.2 -117.8 88.5 -110.5 86.0 -109.0C83.5 -107.5 76.5'
+  ' -110.8 72.0 -110.0C67.5 -109.2 63.8 -104.8 59.0 -104.0C54.2 -103.2 47.2 -105.5 43.0 -105.0C38.8'
+  ' -104.5 35.8 -102.0 34.0 -101.0C32.2 -100.0 31.7 -99.3 32.0 -99.0C32.3 -98.7 37.2 -100.5 36.0 -9'
+  '9.0C34.8 -97.5 29.2 -91.8 25.0 -90.0C20.8 -88.2 12.0 -89.2 11.0 -88.0C10.0 -86.8 20.7 -83.8 19.0'
+  ' -83.0C17.3 -82.2 2.8 -84.2 1.0 -83.0C-0.8 -81.8 5.2 -77.3 8.0 -76.0C10.8 -74.7 17.5 -75.7 18.0 '
+  '-75.0C18.5 -74.3 11.8 -72.7 11.0 -72.0C10.2 -71.3 10.2 -70.7 13.0 -71.0C15.8 -71.3 24.2 -72.0 28'
+  '.0 -74.0C31.8 -76.0 35.2 -83.0 36.0 -83.0C36.8 -83.0 32.3 -74.3 33.0 -74.0C33.7 -73.7 38.2 -77.8'
+  ' 40.0 -81.0C41.8 -84.2 41.8 -90.2 44.0 -93.0C46.2 -95.8 52.3 -99.2 53.0 -98.0C53.7 -96.8 49.3 -9'
+  '2.0 48.0 -86.0C46.7 -80.0 47.8 -67.5 45.0 -62.0C42.2 -56.5 34.5 -58.3 31.0 -53.0C27.5 -47.7 26.3'
+  ' -35.5 24.0 -30.0C21.7 -24.5 19.5 -21.8 17.0 -20.0C14.5 -18.2 10.5 -20.8 9.0 -19.0C7.5 -17.2 5.2'
+  ' -9.2 8.0 -9.0C10.8 -8.8 21.5 -12.8 26.0 -18.0C30.5 -23.2 32.0 -35.0 35.0 -40.0C38.0 -45.0 38.3 '
+  '-44.8 44.0 -48.0C49.7 -51.2 63.0 -54.7 69.0 -59.0C75.0 -63.3 78.2 -72.5 80.0 -74.0C81.8 -75.5 76'
+  '.0 -70.2 80.0 -68.0C84.0 -65.8 99.2 -57.7 104.0 -61.0C108.8 -64.3 107.5 -82.5 109.0 -88.0C110.5 '
+  '-93.5 113.5 -98.8 113.0 -94.0C112.5 -89.2 105.3 -65.7 106.0 -59.0C106.7 -52.3 113.7 -54.5 117.0 '
+  '-54.0C120.3 -53.5 125.3 -54.2 126.0 -56.0C126.7 -57.8 122.7 -64.8 121.0 -65.0C119.3 -65.2 117.3 '
+  '-58.3 116.0 -57.0C114.7 -55.7 111.8 -53.8 113.0 -57.0C114.2 -60.2 121.3 -74.8 123.0 -76.0C124.7 '
+  '-77.2 122.0 -67.2 123.0 -64.0C124.0 -60.8 126.7 -58.0 129.0 -57.0C131.3 -56.0 135.8 -56.2 137.0 '
+  '-58.0C138.2 -59.8 135.5 -68.2 136.0 -68.0C136.5 -67.8 135.3 -60.3 140.0 -57.0C144.7 -53.7 159.2 '
+  '-50.3 164.0 -48.0C168.8 -45.7 169.5 -45.7 169.0 -43.0C168.5 -40.3 163.3 -34.5 161.0 -32.0C158.7 '
+  '-29.5 157.2 -28.0 155.0 -28.0C152.8 -28.0 150.3 -32.8 148.0 -32.0C145.7 -31.2 138.3 -24.3 141.0 '
+  '-23.0C143.7 -21.7 157.8 -20.8 164.0 -24.0C170.2 -27.2 175.8 -37.8 178.0 -42.0C180.2 -46.2 181.2 '
+  '-45.0 177.0 -49.0C172.8 -53.0 156.5 -62.8 153.0 -66.0C149.5 -69.2 149.8 -71.7 156.0 -68.0C162.2 '
+  '-64.3 183.5 -50.7 190.0 -44.0C196.5 -37.3 193.5 -31.2 195.0 -28.0C196.5 -24.8 198.7 -26.7 199.0 '
+  '-25.0C199.3 -23.3 196.3 -20.0 197.0 -18.0C197.7 -16.0 201.0 -13.8 203.0 -13.0C205.0 -12.2 210.8 '
+  '-6.0 209.0 -13.0C207.2 -20.0 198.0 -45.8 192.0 -55.0C186.0 -64.2 176.8 -66.0 173.0 -68.0C169.2 -'
+  '70.0 168.5 -64.8 169.0 -67.0C169.5 -69.2 175.0 -77.5 176.0 -81.0C177.0 -84.5 175.7 -87.3 175.0 -'
+  '88.0C174.3 -88.7 172.7 -85.0 172.0 -85.0C171.3 -85.0 169.8 -84.7 171.0 -88.0C172.2 -91.3 173.7 -'
+  '101.7 179.0 -105.0C184.3 -108.3 198.3 -108.5 203.0 -108.0C207.7 -107.5 205.7 -103.0 207.0 -102.0'
+  'C208.3 -101.0 209.3 -101.8 211.0 -102.0C212.7 -102.2 215.5 -101.8 217.0 -103.0C218.5 -104.2 222.'
+  '5 -102.5 220.0 -109.0C217.5 -115.5 204.5 -134.8 202.0 -142.0C199.5 -149.2 205.3 -151.0 205.0 -15'
+  '2.0C204.7 -153.0 201.0 -147.5 200.0 -148.0C199.0 -148.5 200.5 -155.0 199.0 -155.0C197.5 -155.0 1'
+  '94.0 -148.3 191.0 -148.0C188.0 -147.7 183.3 -152.3 181.0 -153.0C178.7 -153.7 177.0 -152.7 177.0 '
+  '-152.0C177.0 -151.3 183.0 -149.0 181.0 -149.0C179.0 -149.0 167.0 -152.3 165.0 -152.0C163.0 -151.'
+  '7 170.7 -148.0 169.0 -147.0C167.3 -146.0 157.7 -146.5 155.0 -146.0C152.3 -145.5 151.8 -144.5 153'
+  '.0 -144.0C154.2 -143.5 162.5 -143.8 162.0 -143.0C161.5 -142.2 152.3 -140.0 150.0 -139.0C147.7 -1'
+  '38.0 147.3 -137.3 148.0 -137.0C148.7 -136.7 153.8 -137.7 154.0 -137.0C154.2 -136.3 151.2 -133.7 '
+  '149.0 -133.0C146.8 -132.3 141.3 -133.7 141.0 -133.0C140.7 -132.3 147.0 -130.3 147.0 -129.0C147.0'
+  ' -127.7 143.0 -124.5 141.0 -125.0C139.0 -125.5 139.2 -129.8 135.0 -132.0C130.8 -134.2 119.5 -138'
+  '.7 116.0 -138.0C112.5 -137.3 112.3 -129.7 114.0 -128.0C115.7 -126.3 121.8 -129.5 126.0 -128.0C13'
+  '0.2 -126.5 138.0 -121.3 139.0 -119.0C140.0 -116.7 133.0 -113.8 132.0 -114.0C131.0 -114.2 133.5 -'
+  '119.0 133.0 -120.0C132.5 -121.0 130.7 -121.3 129.0 -120.0C127.3 -118.7 125.2 -113.3 123.0 -112.0'
+  'C120.8 -110.7 119.0 -113.5 116.0 -112.0C113.0 -110.5 108.5 -104.3 105.0 -103.0C101.5 -101.7 91.7'
+  ' -101.5 95.0 -104.0C98.3 -106.5 122.0 -114.7 125.0 -118.0C128.0 -121.3 114.2 -122.7 113.0 -124.0'
+  'C111.8 -125.3 119.5 -125.0 118.0 -126.0C116.5 -127.0 107.7 -127.2 104.0 -130.0C100.3 -132.8 95.2'
+  ' -142.8 96.0 -143.0C96.8 -143.2 106.2 -131.8 109.0 -131.0C111.8 -130.2 113.5 -136.2 113.0 -138.0'
+  'C112.5 -139.8 106.8 -140.0 106.0 -142.0C105.2 -144.0 106.7 -150.3 108.0 -150.0C109.3 -149.7 112.'
+  '0 -141.8 114.0 -140.0C116.0 -138.2 118.8 -137.2 120.0 -139.0C121.2 -140.8 120.5 -150.3 121.0 -15'
+  '1.0C121.5 -151.7 120.7 -145.0 123.0 -143.0C125.3 -141.0 132.3 -139.0 135.0 -139.0C137.7 -139.0 1'
+  '38.7 -141.7 139.0 -143.0C139.3 -144.3 136.5 -146.8 137.0 -147.0C137.5 -147.2 140.0 -142.3 142.0 '
+  '-144.0C144.0 -145.7 145.3 -153.5 149.0 -157.0C152.7 -160.5 161.2 -161.8 164.0 -165.0C166.8 -168.'
+  '2 166.8 -173.0 166.0 -176.0C165.2 -179.0 161.0 -182.2 159.0 -183.0ZM98.0 -118.0C94.0 -114.0 75.0'
+  ' -94.0 70.0 -88.0C65.0 -82.0 67.7 -82.7 68.0 -82.0C68.3 -81.3 66.8 -78.8 72.0 -84.0C77.2 -89.2 9'
+  '4.3 -107.7 99.0 -113.0C103.7 -118.3 100.7 -116.3 100.0 -116.0C99.3 -115.7 96.0 -111.7 95.0 -111.'
+  '0C94.0 -110.3 93.5 -110.8 94.0 -112.0C94.5 -113.2 102.0 -122.0 98.0 -118.0ZM186.0 -132.0C185.5 -'
+  '131.2 184.2 -128.5 184.0 -126.0C183.8 -123.5 185.5 -119.5 185.0 -117.0C184.5 -114.5 178.8 -112.0'
+  ' 181.0 -111.0C183.2 -110.0 195.8 -110.5 198.0 -111.0C200.2 -111.5 195.5 -113.3 194.0 -114.0C192.'
+  '5 -114.7 190.5 -114.2 189.0 -115.0C187.5 -115.8 185.7 -117.2 185.0 -119.0C184.3 -120.8 184.7 -12'
+  '4.0 185.0 -126.0C185.3 -128.0 186.8 -130.0 187.0 -131.0C187.2 -132.0 186.5 -132.8 186.0 -132.0ZM'
+  '122.0 -110.0C122.0 -109.7 127.8 -102.7 129.0 -100.0C130.2 -97.3 129.5 -95.7 129.0 -94.0C128.5 -9'
+  '2.3 127.7 -90.3 126.0 -90.0C124.3 -89.7 119.7 -92.0 119.0 -92.0C118.3 -92.0 120.8 -90.3 122.0 -9'
+  '0.0C123.2 -89.7 125.2 -90.3 126.0 -90.0C126.8 -89.7 128.5 -91.7 127.0 -88.0C125.5 -84.3 117.8 -6'
+  '9.5 117.0 -68.0C116.2 -66.5 120.5 -76.5 122.0 -79.0C123.5 -81.5 124.7 -80.3 126.0 -83.0C127.3 -8'
+  '5.7 129.5 -91.8 130.0 -95.0C130.5 -98.2 130.3 -99.5 129.0 -102.0C127.7 -104.5 122.0 -110.3 122.0'
+  ' -110.0ZM137.0 -104.0C136.3 -104.2 150.3 -97.2 155.0 -94.0C159.7 -90.8 163.3 -86.2 165.0 -85.0C1'
+  '66.7 -83.8 166.0 -85.7 165.0 -87.0C164.0 -88.3 163.7 -90.2 159.0 -93.0C154.3 -95.8 137.7 -103.8 '
+  '137.0 -104.0ZM87.0 -96.0C87.0 -93.8 84.7 -86.3 88.0 -84.0C91.3 -81.7 106.8 -81.8 107.0 -82.0C107'
+  '.2 -82.2 92.2 -82.5 89.0 -85.0C85.8 -87.5 88.3 -95.2 88.0 -97.0C87.7 -98.8 87.0 -98.2 87.0 -96.0'
+  'ZM133.0 -111.0C132.8 -111.2 133.7 -95.5 133.0 -91.0C132.3 -86.5 128.8 -84.2 129.0 -84.0C129.2 -8'
+  '3.8 133.3 -85.5 134.0 -90.0C134.7 -94.5 133.2 -110.8 133.0 -111.0ZM190.0 -132.0C191.7 -129.3 201'
+  '.7 -116.0 202.0 -116.0C202.3 -116.0 194.0 -129.3 192.0 -132.0C190.0 -134.7 188.3 -134.7 190.0 -1'
+  '32.0ZM92.0 -156.0C91.8 -154.8 91.7 -151.5 92.0 -150.0C92.3 -148.5 92.3 -147.3 94.0 -147.0C95.7 -'
+  '146.7 99.8 -147.2 102.0 -148.0C104.2 -148.8 106.2 -151.0 107.0 -152.0C107.8 -153.0 107.5 -154.3 '
+  '107.0 -154.0C106.5 -153.7 105.2 -151.0 104.0 -150.0C102.8 -149.0 101.7 -148.3 100.0 -148.0C98.3 '
+  '-147.7 95.3 -147.2 94.0 -148.0C92.7 -148.8 92.2 -151.5 92.0 -153.0C91.8 -154.5 93.0 -156.5 93.0 '
+  '-157.0C93.0 -157.5 92.2 -157.2 92.0 -156.0ZM176.0 -141.0C176.5 -141.5 170.0 -138.3 167.0 -136.0C'
+  '164.0 -133.7 158.5 -127.5 158.0 -127.0C157.5 -126.5 161.0 -130.7 164.0 -133.0C167.0 -135.3 175.5'
+  ' -140.5 176.0 -141.0ZM108.0 -127.0C107.0 -126.3 102.8 -121.3 103.0 -121.0C103.2 -120.7 108.2 -12'
+  '4.0 109.0 -125.0C109.8 -126.0 109.0 -127.7 108.0 -127.0ZM168.0 -85.0C167.5 -84.5 166.8 -81.8 167'
+  '.0 -81.0C167.2 -80.2 168.5 -79.5 169.0 -80.0C169.5 -80.5 170.2 -83.2 170.0 -84.0C169.8 -84.8 168'
+  '.5 -85.5 168.0 -85.0ZM199.0 -142.0C197.8 -141.8 194.2 -140.7 193.0 -140.0C191.8 -139.3 190.8 -13'
+  '7.8 192.0 -138.0C193.2 -138.2 198.8 -140.3 200.0 -141.0C201.2 -141.7 200.2 -142.2 199.0 -142.0ZM'
+  '167.0 -76.0C166.5 -75.3 164.0 -67.8 164.0 -67.0C164.0 -66.2 166.5 -69.5 167.0 -71.0C167.5 -72.5 '
+  '167.5 -76.7 167.0 -76.0ZM104.0 -168.0C103.5 -168.2 105.7 -168.2 107.0 -167.0C108.3 -165.8 111.5 '
+  '-161.2 112.0 -161.0C112.5 -160.8 111.3 -164.8 110.0 -166.0C108.7 -167.2 104.5 -167.8 104.0 -168.'
+  '0ZM205.0 -114.0C204.2 -114.0 202.0 -113.0 202.0 -113.0C202.0 -113.0 204.2 -114.2 205.0 -114.0C20'
+  '5.8 -113.8 207.2 -112.8 207.0 -112.0C206.8 -111.2 204.0 -109.3 204.0 -109.0C204.0 -108.7 206.5 -'
+  '109.3 207.0 -110.0C207.5 -110.7 207.3 -112.3 207.0 -113.0C206.7 -113.7 205.8 -114.0 205.0 -114.0'
+  'Z')
+
+# The rider's leg hangs free below the knee (the stirrup boot), so it is its own shape.
+LEG_INK = (
+  'M81.0 -65.0C78.0 -65.5 78.7 -65.3 77.0 -64.0C75.3 -62.7 71.5 -59.0 71.0 -57.0C70.5 -55.0 74.5 -5'
+  '5.5 74.0 -52.0C73.5 -48.5 66.0 -41.7 68.0 -36.0C70.0 -30.3 82.3 -22.2 86.0 -18.0C89.7 -13.8 88.2'
+  ' -12.8 90.0 -11.0C91.8 -9.2 95.8 -8.7 97.0 -7.0C98.2 -5.3 95.0 -2.2 97.0 -1.0C99.0 0.2 107.3 0.8'
+  ' 109.0 0.0C110.7 -0.8 111.7 -0.2 107.0 -6.0C102.3 -11.8 85.0 -29.0 81.0 -35.0C77.0 -41.0 80.7 -3'
+  '7.7 83.0 -42.0C85.3 -46.3 95.3 -57.2 95.0 -61.0C94.7 -64.8 84.0 -64.5 81.0 -65.0Z')
+
+# The pumpkin, lit: a ribbed body with a curved stem, drawn over the fist in the ember
+# color on its halo, with the ribs in the ink. The one warm thing in the whole hollow.
+PUMPKIN = ('M151 -180.5C146 -184 138 -183 134.5 -177C130.5 -170 130.5 -160 135 -153.5'
+           'C139 -148 147 -146.5 151 -147C155 -146.5 163 -148 167 -153.5C171.5 -160 171.5 -170 167.5 -177'
+           'C164 -183 156 -184 151 -180.5Z'
+           'M149.5 -180C149 -184.5 151.5 -187.5 155 -188C153 -186 152.5 -183.5 153.5 -180.8Z')
+PUMPKIN_RIBS = ['M143.5 -181.5C140 -172 140 -160 144 -150',
+                'M158.5 -181.5C162 -172 162 -160 158 -150']
+PUMPKIN_AT = (151, -166)   # the halo's center, a little below the body's middle
+PUMPKIN_GLOW = 36
 
 
 def horseman(x, y, s, flip=False):
     sx = -s if flip else s
-    g = ['<g transform="translate(%s %s) scale(%s %s)" fill="%s" stroke="%s" stroke-linecap="round" stroke-linejoin="round">'
-         % (f(x), f(y), f(sx), f(s), INK, INK),
-         '<path d="%s" stroke="none"/>' % HORSE, '<path d="%s" stroke="none"/>' % TAIL,
-         '<ellipse cx="41" cy="-50" rx="12" ry="10" stroke="none"/>',
-         '<ellipse cx="82" cy="-49" rx="8" ry="9" stroke="none"/>']
-    for pts, w0, w1 in LIMBS:
-        (ax, ay), (bx, by), (cx, cy) = pts
-        g.append('<path d="M%s %sL%s %s" fill="none" stroke-width="%s"/>' % (f(ax), f(ay), f(bx), f(by), f(w0)))
-        g.append('<path d="M%s %sL%s %s" fill="none" stroke-width="%s"/>' % (f(bx), f(by), f(cx), f(cy), f(w1)))
-        g.append('<circle cx="%s" cy="%s" r="%s" stroke="none"/>' % (f(cx), f(cy), f(w1 * 0.8)))
-    g += ['<path d="%s" stroke="none"/>' % RIDER,
-          '<path d="%s" fill="none" stroke-width="4.5"/>' % ARM, '</g>']
-    # The pumpkin, lit, with the glow round it, drawn after so nothing covers it.
-    px, py = x + 85.5 * sx, y - 111 * s
-    g.append('<circle cx="%s" cy="%s" r="%s" fill="url(#ember)"/>' % (f(px), f(py), f(20 * s)))
-    g.append('<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="%s"/>' % (f(px), f(py), f(6 * s), f(5 * s), EMBER))
-    g.append('<path d="M%s %sv%s" stroke="%s" stroke-width="%s" stroke-linecap="round"/>'
-             % (f(px), f(py - 4.6 * s), f(-2 * s), INK, f(1.4 * s)))
+    g = ['<g transform="translate(%s %s) scale(%s %s)">' % (f(x), f(y), f(sx), f(s)),
+         '<circle cx="%s" cy="%s" r="%s" fill="url(#ember)"/>'
+         % (f(PUMPKIN_AT[0]), f(PUMPKIN_AT[1]), f(PUMPKIN_GLOW)),
+         '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (LEG_INK, INK),
+         '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (HORSEMAN_INK, INK),
+         '<path d="%s" fill="%s"/>' % (PUMPKIN, EMBER)]
+    for rib in PUMPKIN_RIBS:
+        g.append('<path d="%s" fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round"/>'
+                 % (rib, INK))
+    g.append('</g>')
     return ''.join(g)
 
 
@@ -155,15 +275,35 @@ def moon(cx, cy, r):
     return ''.join(o)
 
 
-def clouds(rnd, w, y0, y1, n):
-    # Long low wisps across the sky, darker than the sky where they cross the moon.
+def clouds(rnd, w, mx, my, mr, n):
+    # Long, low wisps drawn as stacked flat lenses with pointed ends — the engraved sky of
+    # the old prints, not soft blobs — darker than the sky where they cross the moon, and
+    # near it a thin line of the moon's light along a wisp's underside. The first two
+    # cross the moon's disc.
     o = []
-    for _ in range(n):
-        x = rnd.uniform(-w * 0.2, w)
-        y = rnd.uniform(y0, y1)
-        lw = rnd.uniform(w * 0.25, w * 0.55)
-        o.append('<ellipse cx="%s" cy="%s" rx="%s" ry="%s" fill="#0D0B18" fill-opacity="%s"/>'
-                 % (f(x), f(y), f(lw / 2), f(rnd.uniform(2.2, 5)), f(rnd.uniform(0.55, 0.8))))
+
+    def lens(x, y, L, T, op):
+        o.append('<path d="M%s %sQ%s %s %s %sQ%s %s %s %sZ" fill="#0D0B18" fill-opacity="%s"/>'
+                 % (f(x - L), f(y), f(x - L * 0.2), f(y - T * 2.4), f(x + L), f(y),
+                    f(x + L * 0.1), f(y + T * 0.8), f(x - L), f(y), f(op)))
+
+    for i in range(n):
+        if i < 2:
+            x = mx + rnd.uniform(-mr * 0.9, mr * 0.5)
+            y = my + rnd.uniform(-mr * 0.3, mr * 0.4)
+            L = rnd.uniform(mr * 0.8, mr * 1.5)
+        else:
+            x = rnd.uniform(w * 0.05, w * 0.95)
+            y = my + rnd.uniform(-mr * 0.8, mr * 1.1)
+            L = rnd.uniform(w * 0.05, w * 0.11)
+        T = rnd.uniform(4.5, 9)
+        lens(x, y, L, T, rnd.uniform(0.55, 0.75))
+        # a thinner wisp riding above, as clouds travel in banks
+        lens(x + L * rnd.uniform(-0.4, 0.4), y - T * rnd.uniform(1.4, 2.0),
+             L * rnd.uniform(0.45, 0.65), T * 0.85, rnd.uniform(0.35, 0.55))
+        if abs(y - my) < mr * 1.2:
+            o.append('<path d="M%s %sQ%s %s %s %s" fill="none" stroke="%s" stroke-opacity="0.15" stroke-width="1.2"/>'
+                     % (f(x - L * 0.7), f(y + T * 0.9), f(x), f(y + T * 1.4), f(x + L * 0.7), f(y + T * 0.9), MOON))
     return ''.join(o)
 
 
@@ -238,7 +378,7 @@ def sky(w, h, seed):
     mr = 38 if narrow else 64
     mx, my = (w - 82, 150) if narrow else (w * 0.8, 210)
     o.append(moon(mx, my, mr))
-    o.append(clouds(rnd, w, my - mr * 0.1, my + mr * 0.8, 3 if narrow else 6))
+    o.append(clouds(rnd, w, mx, my, mr, 3 if narrow else 6))
     o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26 if narrow else h * 0.22, 22, 8, 0.04))
     if not narrow:
         o.append(tree(random.Random(seed + 2), w + 10, h * 0.66, -2.05, h * 0.2, 20, 8, 0.04))
@@ -254,12 +394,14 @@ def hollow(w, h, seed):
     rnd = random.Random(seed)
     narrow = w < 600
     o = [defs()]
-    # The Horseman rides the left of the panel, clear of the compose button that sits
-    # over the bottom right corner.
-    cx = w * (0.47 if narrow else 0.6)
+    # The church stands on its own knoll of the far ridge, a quarter of the frame in from
+    # one side — small, high, and alone, the way the prints draw it — with the Horseman
+    # riding the near ridge below and on the other side. The Horseman rides the left of
+    # the panel, clear of the compose button that sits over the bottom right corner.
+    cx = w * (0.7 if narrow else 0.24)
     hx = w * (0.08 if narrow else 0.76)
     hs = 0.6 if narrow else 0.8
-    clear = [(cx - 40, cx + 64), (hx - 10, hx + 125 * hs)]
+    clear = [(cx - 58, cx + 58), (hx - 15, hx + 226 * hs)]
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
     far, far_pts = hills(rnd, w, h, h * 0.5, h * 0.12, FAR, 0.4)
     o.append(far)
@@ -270,7 +412,10 @@ def hollow(w, h, seed):
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(far_pts, tx) + 2,
                       -math.pi / 2 + rnd.uniform(-0.15, 0.15), rnd.uniform(9, 16), 2.4, 5, 0.0)
                  .replace(INK, GROVE))
-    o.append(church(cx, ridge_y(far_pts, cx + 11) + 2, 0.85 if narrow else 1.1, INK))
+    ky = ridge_y(far_pts, cx)
+    o.append('<path d="M%s %sQ%s %s %s %sZ" fill="%s"/>'
+             % (f(cx - 54), f(ky + 3), f(cx), f(ky - 11), f(cx + 54), f(ky + 3), FAR))
+    o.append(church(cx, ky - 7, 0.85 if narrow else 1.1, INK))
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
     near, near_pts = hills(rnd, w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)
@@ -282,7 +427,7 @@ def hollow(w, h, seed):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(near_pts, tx) + 3,
                       -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02))
-    o.append(horseman(hx, ridge_y(near_pts, hx + 60 * hs) + 8 * hs, hs))
+    o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
     return svg(w, h, o)
 
 
