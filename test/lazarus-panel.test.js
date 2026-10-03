@@ -593,6 +593,16 @@ function modalHarness(deps = {}) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'replaceable-baseline.js'), 'utf8').replace(/\bself\.SidecarBaseline\b/, 'window.SidecarBaseline'), ctx);
   vm.runInContext([
     liftLine(/const describeFinding = \(f\) =>\n[^\n]+/, 'describeFinding'),
+    // What Lazarus says in English, translated where the panel shows it.
+    lift('function lzName('),
+    lift('function lzYour('),
+    lift('function lzYourCurrent('),
+    lift('function lzYourCurrentCap('),
+    lift('function lzCountOf('),
+    lift('function lzNote('),
+    lift('function lzOutcome('),
+    liftLine(/const LZ_NUM = [^\n]+/, 'LZ_NUM'),
+    lift('function lzBold('),
     lift('function iconButton('),
     liftLine(/const publishFailed = \(r\) =>\n[^\n]+\n[^\n]+/, 'publishFailed'),
     lift('function lazarusAttribution('),

@@ -8808,9 +8808,9 @@
       if (gen && gen.nsec) {
         nsecModal({
           nsec: gen.nsec,
-          title: 'Back up your new key',
+          title: t('Back up your new key'),
           intro:
-            'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
+            tSec('Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.'),
           // A brand-new key has no profile yet — once they've backed it up, run a
           // short setup wizard (name → photo → bio), which publishes what they
           // fill in and lands them on the Profile tab to complete the rest.
@@ -9477,7 +9477,7 @@
     // either/or view — showing the QR hides the string + its copy button and back
     // — so the two don't stack into an overlong panel.
     const qrExclusive = !!opts.qrExclusive;
-    const hideMsg = (s) => 'Hiding in ' + s + 's. Reveal again with your PIN.';
+    const hideMsg = (s) => tSec('Hiding in {{seconds}}s. Reveal again with your PIN.', { seconds: I18N.fmtNum(s) });
 
     // ---- text-secret auto-hide ----
     // The copyable string auto-hides after a short window; its countdown sits at
@@ -9506,14 +9506,14 @@
     // just the QR when it lapses — while it's open the text auto-hide is paused.
     // Case-sensitive bech32/URI, so encode as-is (byte mode).
     const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' });
-    const qrHint = h('p', { className: 'hint hidden', textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.' });
+    const qrHint = h('p', { className: 'hint hidden', textContent: opts.qrHint || tSec('Scan to sign in on a mobile client that supports QR login.') });
     const qrCountdown = h('p', { className: 'hint hidden' });
     const showQr = h('button', { className: 'secondary qr-reveal-btn' });
     let qrShown = false, qrCanvas = null, qrRemaining = QR_REVEAL_TIMEOUT_S, qrTimer = null;
-    const qrMsg = (s) => 'QR code hiding in ' + s + 's.';
+    const qrMsg = (s) => t('QR code hiding in {{seconds}}s.', { seconds: I18N.fmtNum(s) });
     const setQrLabel = () => {
       showQr.innerHTML = '';
-      showQr.append(icon('qr'), h('span', { textContent: qrShown ? 'Hide QR code' : 'Show QR code' }));
+      showQr.append(icon('qr'), h('span', { textContent: qrShown ? t('Hide QR code') : t('Show QR code') }));
     };
     function stopQr() { if (qrTimer) { clearInterval(qrTimer); qrTimer = null; } }
     function hideQr() {
@@ -9554,11 +9554,11 @@
     showQr.addEventListener('click', () => { if (qrShown) hideQr(); else openQr(); });
 
     const box = h('div', { className: 'secret-box', textContent: secret });
-    const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
+    const copy = h('button', { className: 'secondary', textContent: t('Copy {{what}}', { what: noun }) });
     copy.addEventListener('click', async () => {
       try {
         await copySecret(secret);
-        toast(noun + ' copied — clipboard clears in ' + CLIPBOARD_CLEAR_S + 's', 'success');
+        toast(t('{{what}} copied. The clipboard clears in {{seconds}}s.', { what: noun, seconds: I18N.fmtNum(CLIPBOARD_CLEAR_S) }), 'success');
       } catch (_) {}
     });
 
@@ -9571,7 +9571,7 @@
       qrCountdown, // sits with the QR so its timer is always in view while scanning
       h('p', {
         className: 'hint warn',
-        textContent: opts.warnText || 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
+        textContent: opts.warnText || tSec('Anyone with this key fully controls the account. Store it somewhere safe and never share it.'),
       }),
       countdown
     );
@@ -9662,7 +9662,7 @@
       toast('Saved — store it safely, never by email', 'success');
       return true;
     } catch (e) {
-      toast("Couldn't create the backup sheet", 'error');
+      toast(t("Couldn't create the backup sheet"), 'error');
       return false;
     }
   }
@@ -9675,26 +9675,26 @@
   // password is used once, in-panel, and dropped — same discipline as the
   // ncryptsec tab in keyBackupModal, which this deliberately mirrors.
   function encryptedPageControls(goBtn) {
-    const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
-    const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+    const pass = h('input', { type: 'password', placeholder: tSec('At least 8 characters') });
+    const pass2 = h('input', { type: 'password', placeholder: tSec('Confirm password') });
     const block = h('div', {}, [
       // Said up front, because the field looks like a login field: this is
       // not where an existing password gets entered, it's where a new one is
       // coined, for this sheet alone.
       h('p', {
         className: 'hint',
-        textContent: 'This password is unique to the sheet — choose a new one, not one you use anywhere else.',
+        textContent: tSec('This password is unique to the sheet — choose a new one, not one you use anywhere else.'),
       }),
-      h('label', { textContent: 'Set a password' }),
+      h('label', { textContent: tSec('Set a password') }),
       pass,
-      h('label', { textContent: 'Confirm password' }),
+      h('label', { textContent: tSec('Confirm password') }),
       pass2,
       // The two secrets get conflated the moment both are called passwords:
       // the PIN unlocks Sidecar on this device, this one travels with the
       // paper and is the only way back into the printed sheet.
       h('p', {
         className: 'hint',
-        textContent: 'This unlocks the printed sheet. It is not your Sidecar PIN.',
+        textContent: tSec('This unlocks the printed sheet. It is not your Sidecar PIN.'),
       }),
     ]);
     // Live check/x feedback on the pair, same as the ncryptsec tab and PIN
@@ -9716,17 +9716,17 @@
       // label the frozen panel could never paint.
       collect: async (nsec, errEl) => {
         if (!pass.value || pass.value.length < 8) {
-          errEl.textContent = 'Use a password of at least 8 characters.';
+          errEl.textContent = tSec('Use a password of at least 8 characters.');
           return null;
         }
         if (pass.value !== pass2.value) {
-          errEl.textContent = 'Passwords do not match.';
+          errEl.textContent = tSec('Passwords do not match.');
           return null;
         }
         try {
           return await nip49('encrypt', [NT.nip19.decode(nsec).data, pass.value]);
         } catch (_) {
-          errEl.textContent = 'Could not encrypt the key.';
+          errEl.textContent = t('Could not encrypt the key.');
           return null;
         }
       },
@@ -9744,18 +9744,18 @@
   // they're opting into.
   function backupSheetPromptModal(nsec, account) {
     openModal((modal) => {
-      const grab = h('button', { className: 'primary', textContent: 'Download' });
+      const grab = h('button', { className: 'primary', textContent: t('Download') });
       grab.addEventListener('click', () => {
         closeModal();
         downloadBackupSheet(nsec, account);
       });
-      const skip = h('button', { className: 'ghost', textContent: 'Not now' });
+      const skip = h('button', { className: 'ghost', textContent: t('Not now') });
       skip.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Print a backup sheet' }),
+        h('h3', { textContent: t('Print a backup sheet') }),
         h('p', {
           className: 'hint',
-          textContent: 'One page with your key and a QR code. Print it, or keep the file somewhere safe.',
+          textContent: tSec('One page with your key and a QR code. Print it, or keep the file somewhere safe.'),
         }),
         h('div', { className: 'actions' }, [grab, skip])
       );
@@ -9767,7 +9767,7 @@
     openModal(
       (modal) => {
         const body = h('div', {});
-        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        const done = h('button', { className: 'primary', textContent: tSec("I've saved it") });
         done.addEventListener('click', closeModal);
 
         // No sheet button here on purpose. At account creation there is no profile
@@ -9903,15 +9903,15 @@
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const goLabel = encrypted ? 'Download encrypted sheet' : sheetOnly ? 'Download sheet' : 'Reveal';
+      const goLabel = encrypted ? t('Download encrypted sheet') : sheetOnly ? t('Download sheet') : tSec('Reveal');
       const go = h('button', { className: 'primary', textContent: goLabel });
       // Built after go because the password pair gates it.
       const enc = encrypted ? encryptedPageControls(go) : null;
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        if (!pin.value) return (err.textContent = tSec('Enter your PIN.'));
         go.disabled = true;
-        go.textContent = sheetOnly ? 'Preparing…' : 'Revealing…';
+        go.textContent = sheetOnly ? t('Preparing…') : t('Revealing…');
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
           // Validate the optional password pair BEFORE closing: a mismatch must
@@ -9936,17 +9936,17 @@
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: sheetOnly ? 'Download key sheet' : 'Back up private key' }),
+        h('h3', { textContent: sheetOnly ? t('Download key sheet') : t('Back up private key') }),
         h('p', {
           className: 'hint',
           textContent: sheetOnly
-            ? 'Enter your PIN to build a printable backup sheet for ' + displayName(a) + '.'
-            : 'Enter your PIN to reveal the key for ' + displayName(a) + '.',
+            ? tSec('Enter your PIN to build a printable backup sheet for {{name}}.', { name: displayName(a) })
+            : tSec('Enter your PIN to reveal the key for {{name}}.', { name: displayName(a) }),
         }),
-        h('label', { textContent: 'PIN' }),
+        h('label', { textContent: tSec('PIN') }),
         pin,
         ...(enc ? [enc.block] : []),
         err,
@@ -9990,8 +9990,8 @@
           stopReveal = renderSecretReveal(body, {
             secret: nsec,
             noun: 'nsec',
-            warnText: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
-            qrHint: 'Scan to sign in on a mobile client that supports QR login.',
+            warnText: tSec('Anyone with this key fully controls the account. Store it somewhere safe and never share it.'),
+            qrHint: tSec('Scan to sign in on a mobile client that supports QR login.'),
             onExpire: closeModal,
           });
         }
@@ -9999,40 +9999,40 @@
         function showNcryptsecTab() {
           stop();
           body.innerHTML = '';
-          const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
-          const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+          const pass = h('input', { type: 'password', placeholder: tSec('At least 8 characters') });
+          const pass2 = h('input', { type: 'password', placeholder: tSec('Confirm password') });
           const err = h('div', { className: 'error' });
           ncPass = pass;
           ncPass2 = pass2;
           ncErr = err;
-          const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
+          const go = h('button', { className: 'primary', textContent: tSec('Encrypt & show') });
           go.addEventListener('click', async () => {
             err.textContent = '';
-            if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
-            if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+            if (!pass.value || pass.value.length < 8) return (err.textContent = tSec('Use a password of at least 8 characters.'));
+            if (pass.value !== pass2.value) return (err.textContent = tSec('Passwords do not match.'));
             go.disabled = true;
-            go.textContent = 'Encrypting…';
+            go.textContent = t('Encrypting…');
             try {
               const ncryptsec = await nip49('encrypt', [NT.nip19.decode(nsec).data, pass.value]);
               currentNcryptsec = ncryptsec;
               revealNcryptsec(); // rebuilds the body, taking the form (and its button) with it
             } catch (e) {
-              err.textContent = 'Could not encrypt the key.';
+              err.textContent = t('Could not encrypt the key.');
               // Restore through the pair's own validator, not blindly: the
               // button's enabled state belongs to the passwords, not to this click.
               go.disabled = !validatePair();
-              go.textContent = 'Encrypt & show';
+              go.textContent = tSec('Encrypt & show');
             }
           });
           body.append(
             h('p', {
               className: 'hint',
               textContent:
-                "This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it.",
+                tSec("This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it."),
             }),
-            h('label', { textContent: 'Password' }),
+            h('label', { textContent: tSec('Password') }),
             pass,
-            h('label', { textContent: 'Confirm password' }),
+            h('label', { textContent: tSec('Confirm password') }),
             pass2,
             err,
             h('div', { className: 'actions' }, [go])
@@ -10051,8 +10051,8 @@
           stopReveal = renderSecretReveal(body, {
             secret: currentNcryptsec,
             noun: 'ncryptsec',
-            warnText: 'Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.',
-            qrHint: 'Scan to import into another NIP-49-compatible app.',
+            warnText: tSec('Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.'),
+            qrHint: tSec('Scan to import into another NIP-49-compatible app.'),
             onExpire: closeModal,
           });
         }
@@ -10076,7 +10076,7 @@
           syncSheetLabel();
         });
 
-        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        const done = h('button', { className: 'primary', textContent: tSec("I've saved it") });
         done.addEventListener('click', closeModal);
 
         // Also offered here, so someone who came to look at the key can leave with
@@ -10088,11 +10088,11 @@
         // ncryptsec already revealed. Never the plain sheet from this tab — being
         // here is a statement of intent, and honoring it is how the right version
         // gets printed from here as from the Profile page.
-        const sheet = h('button', { className: 'secondary', textContent: 'Download backup sheet' });
+        const sheet = h('button', { className: 'secondary', textContent: t('Download backup sheet') });
         function syncSheetLabel() {
           sheet.textContent = tabNcrypt.classList.contains('active')
-            ? 'Download encrypted sheet'
-            : 'Download backup sheet';
+            ? t('Download encrypted sheet')
+            : t('Download backup sheet');
         }
         sheet.addEventListener('click', async () => {
           if (!tabNcrypt.classList.contains('active')) {
@@ -10115,13 +10115,13 @@
           // checks, so the only messages here are the honest ones — too short,
           // mismatch), mint, print. "Encrypt & show" stays the other exit, for
           // those who also want to see it.
-          if (!ncPass.value || ncPass.value.length < 8) return (ncErr.textContent = 'Use a password of at least 8 characters.');
-          if (ncPass.value !== ncPass2.value) return (ncErr.textContent = 'Passwords do not match.');
+          if (!ncPass.value || ncPass.value.length < 8) return (ncErr.textContent = tSec('Use a password of at least 8 characters.'));
+          if (ncPass.value !== ncPass2.value) return (ncErr.textContent = tSec('Passwords do not match.'));
           // Busy through the mint and the save: the scrypt is a second-plus even
           // off-thread, and with the panel live again a second click would queue
           // a second download.
           sheet.disabled = true;
-          sheet.textContent = 'Preparing…';
+          sheet.textContent = t('Preparing…');
           try {
             const ncryptsec = await nip49('encrypt', [NT.nip19.decode(nsec).data, ncPass.value]);
             // Deliberately NOT stored in currentNcryptsec: that would arm the
@@ -10129,17 +10129,17 @@
             // ncryptsec on screen — the one thing this path's user declined.
             await downloadBackupSheet(nsec, a, ncryptsec);
           } catch (e) {
-            ncErr.textContent = 'Could not encrypt the key.';
+            ncErr.textContent = t('Could not encrypt the key.');
           }
           sheet.disabled = false;
           syncSheetLabel();
         });
 
         modal.append(
-          h('h3', { textContent: 'Back up private key' }),
+          h('h3', { textContent: t('Back up private key') }),
           h('p', {
             className: 'hint',
-            textContent: 'Two formats of the same key for ' + displayName(a) + ' — nsec works with most apps; ncryptsec is password-protected, for apps that support it.',
+            textContent: tSec('Two formats of the same key for {{name}}: nsec works with most apps; ncryptsec is password-protected, for apps that support it.', { name: displayName(a) }),
           }),
           h('div', { className: 'modal-tabs' }, [tabNsec, tabNcrypt]),
           body,
@@ -15628,12 +15628,12 @@
 
   async function restoreNwcFromRelays() {
     const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
-    if (!ev) throw new Error('No wallet backup found on your relays');
+    if (!ev) throw new Error(t('No wallet backup found on your relays'));
     const scheme = (ev.tags.find((x) => x[0] === 'encryption') || [])[1];
     const nip = scheme === 'nip04' ? 4 : 44;
     const connection = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
     if (!connection || !connection.startsWith('nostr+walletconnect://')) {
-      throw new Error('Backup could not be read');
+      throw new Error(t('Backup could not be read'));
     }
     // Validate with a getInfo round-trip before saving, like manual connect.
     const client = window.SidecarNWC.makeClient(connection);
@@ -15655,30 +15655,30 @@
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Continue' });
+      const go = h('button', { className: 'primary', textContent: t('Continue') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        if (!pin.value) return (err.textContent = tSec('Enter your PIN.'));
         go.disabled = true;
-        go.textContent = 'Verifying…';
+        go.textContent = t('Verifying…');
         try {
           const { valid } = await call({ type: 'SIDECAR_VERIFY_PIN', pin: pin.value });
-          if (!valid) throw new Error('Incorrect PIN');
+          if (!valid) throw new Error(tSec('Incorrect PIN'));
           closeModal();
           setTimeout(() => encryptVaultModal(pin.value), 0);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
-          go.textContent = 'Continue';
+          go.textContent = t('Continue');
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Export vault' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to export every account on this device.' }),
-        h('label', { textContent: 'PIN' }),
+        h('h3', { textContent: t('Export vault') }),
+        h('p', { className: 'hint', textContent: tSec('Enter your PIN to export every account on this device.') }),
+        h('label', { textContent: tSec('PIN') }),
         pin,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -15688,16 +15688,16 @@
 
   function encryptVaultModal(pin) {
     openModal((modal) => {
-      const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
-      const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+      const pass = h('input', { type: 'password', placeholder: tSec('At least 8 characters') });
+      const pass2 = h('input', { type: 'password', placeholder: tSec('Confirm password') });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Export' });
+      const go = h('button', { className: 'primary', textContent: t('Export') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
-        if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+        if (!pass.value || pass.value.length < 8) return (err.textContent = tSec('Use a password of at least 8 characters.'));
+        if (pass.value !== pass2.value) return (err.textContent = tSec('Passwords do not match.'));
         go.disabled = true;
-        go.textContent = 'Exporting…';
+        go.textContent = t('Exporting…');
         try {
           const accounts = [];
           for (const a of state.accounts) {
@@ -15725,25 +15725,25 @@
           a2.click();
           URL.revokeObjectURL(url);
           closeModal();
-          toast('Exported ' + accounts.length + ' account(s)', 'success');
+          toast(tn('Exported {{count}} account', 'Exported {{count}} accounts', accounts.length), 'success');
         } catch (e) {
-          err.textContent = e.message || 'Could not export the vault.';
+          err.textContent = e.message || t('Could not export the vault.');
           go.disabled = false;
-          go.textContent = 'Export';
+          go.textContent = t('Export');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Set an export password' }),
+        h('h3', { textContent: tSec('Set an export password') }),
         h('p', {
           className: 'hint',
           textContent:
-            "Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it.",
+            tSec("Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it."),
         }),
-        h('label', { textContent: 'Password' }),
+        h('label', { textContent: tSec('Password') }),
         pass,
-        h('label', { textContent: 'Confirm password' }),
+        h('label', { textContent: tSec('Confirm password') }),
         pass2,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -15756,26 +15756,26 @@
   // counted as "already have it" and simply skipped.
   function importVaultModal(file) {
     openModal((modal) => {
-      const pass = h('input', { type: 'password', placeholder: 'Vault export password' });
+      const pass = h('input', { type: 'password', placeholder: tSec('Vault export password') });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Restore' });
+      const go = h('button', { className: 'primary', textContent: t('Restore') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pass.value) return (err.textContent = 'Enter the export password.');
+        if (!pass.value) return (err.textContent = tSec('Enter the export password.'));
         go.disabled = true;
-        go.textContent = 'Restoring…';
+        go.textContent = t('Restoring…');
         try {
-          if (!file || !file.kdf || !file.iv || !file.ct) throw new Error('Not a valid Sidecar vault file.');
+          if (!file || !file.kdf || !file.iv || !file.ct) throw new Error(t('Not a valid Sidecar vault file.'));
           const key = await window.SidecarCrypto.deriveKey(pass.value, file.kdf);
           let payload;
           try {
             payload = await window.SidecarCrypto.decryptString(key, { iv: file.iv, ct: file.ct });
           } catch (_) {
-            throw new Error('Incorrect password, or a corrupted file.');
+            throw new Error(tSec('Incorrect password, or a corrupted file.'));
           }
           const bundle = JSON.parse(payload);
           const accounts = Array.isArray(bundle.accounts) ? bundle.accounts : [];
-          if (!accounts.length) throw new Error('That vault has no accounts to restore.');
+          if (!accounts.length) throw new Error(t('That vault has no accounts to restore.'));
           let imported = 0, skipped = 0;
           for (const a of accounts) {
             try {
@@ -15795,19 +15795,23 @@
           }
           closeModal();
           await refresh();
-          toast('Imported ' + imported + ' account(s)' + (skipped ? ', ' + skipped + ' already present' : ''), 'success');
+          // Whole sentences, not a clause glued on: the count can sit anywhere in another
+          // language, and "already present" agrees with its own number.
+          toast(skipped
+            ? tn('Imported {{count}} account, {{skipped}} already on this device', 'Imported {{count}} accounts, {{skipped}} already on this device', imported, { skipped: I18N.fmtNum(skipped) })
+            : tn('Imported {{count}} account', 'Imported {{count}} accounts', imported), 'success');
         } catch (e) {
-          err.textContent = e.message || 'Could not restore the vault.';
+          err.textContent = e.message || t('Could not restore the vault.');
           go.disabled = false;
-          go.textContent = 'Restore';
+          go.textContent = t('Restore');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Restore vault' }),
-        h('p', { className: 'hint', textContent: 'Enter the password this vault was exported with. Accounts already on this device are left untouched.' }),
-        h('label', { textContent: 'Password' }),
+        h('h3', { textContent: t('Restore vault') }),
+        h('p', { className: 'hint', textContent: tSec('Enter the password this vault was exported with. Accounts already on this device are left untouched.') }),
+        h('label', { textContent: tSec('Password') }),
         pass,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -16415,6 +16419,113 @@
   }
 
   // ---- Lazarus: recovery of user data from relay history ----
+  //
+  // WHAT LAZARUS SAYS IN ENGLISH, translated here. lazarus.js stays free of the
+  // translation layer, as relay-health.js does, so its kind names, item nouns and the
+  // notes its delta explains itself with are mapped where the panel shows them. Each is
+  // a function, not a table built once, because t() answers in English until the
+  // language file has loaded.
+  //
+  // Two forms of a kind's name: the label on its chip, and the phrase for inside a
+  // sentence ("your follow list"), so a language can decline or inflect the whole
+  // phrase rather than have a lowercased label dropped into its grammar.
+  function lzName(kind) {
+    return ({
+      3: t('Follow list'), 10000: t('Mute list'), 0: t('Profile'), 10003: t('Bookmarks'),
+      10044: t('Encryption keys'), 10002: t('Relay list'), 10050: t('DM relays'), 10006: t('Blocked relays'),
+    })[kind] || String(kind);
+  }
+  function lzYour(kind) {
+    return ({
+      3: t('your follow list'), 10000: t('your mute list'), 0: t('your profile'), 10003: t('your bookmarks'),
+      10044: t('your encryption keys'), 10002: t('your relay list'), 10050: t('your DM relays'), 10006: t('your blocked relays'),
+    })[kind] || String(kind);
+  }
+  function lzYourCurrent(kind) {
+    return ({
+      3: t('your current follow list'), 10000: t('your current mute list'), 0: t('your current profile'),
+      10003: t('your current bookmarks'), 10044: t('your current encryption keys'), 10002: t('your current relay list'),
+      10050: t('your current DM relays'), 10006: t('your current blocked relays'),
+    })[kind] || String(kind);
+  }
+  // The same at the start of a sentence, where the language capitalizes it.
+  function lzYourCurrentCap(kind) {
+    return ({
+      3: t('Your current follow list'), 10000: t('Your current mute list'), 0: t('Your current profile'),
+      10003: t('Your current bookmarks'), 10044: t('Your current encryption keys'), 10002: t('Your current relay list'),
+      10050: t('Your current DM relays'), 10006: t('Your current blocked relays'),
+    })[kind] || String(kind);
+  }
+  // A count of a kind's items, as one phrase with the number in it. countOf takes the
+  // count to choose the plural by and what to print in its place, so a range or a
+  // "12+" can stand where the number goes.
+  function lzCountOf(kind, n, shown) {
+    const p = { count: shown == null ? I18N.fmtNum(n) : shown };
+    switch (kind) {
+      case 0: return tn('{{count}} profile field', '{{count}} profile fields', n, p);
+      case 3: return tn('{{count}} following', '{{count}} following', n, p);
+      case 10000: return tn('{{count}} muted', '{{count}} muted', n, p);
+      case 10003: return tn('{{count}} bookmarked', '{{count}} bookmarked', n, p);
+      case 10044: return tn('{{count}} key', '{{count}} keys', n, p);
+      case 10002: return tn('{{count}} relay', '{{count}} relays', n, p);
+      case 10050: return tn('{{count}} inbox', '{{count}} inboxes', n, p);
+      case 10006: return tn('{{count}} blocked', '{{count}} blocked', n, p);
+      default: return tn('{{count}} item', '{{count}} items', n, p);
+    }
+  }
+  // The notes lazarus.js attaches to a delta, keyed by their own English. One carries a
+  // number and is matched as a pattern; anything else passes through untranslated
+  // rather than disappearing.
+  function lzNote(note) {
+    const removed = /^(\d+) of the items in your current list aren’t in this version and would be removed\.$/.exec(note);
+    if (removed) {
+      const n = Number(removed[1]);
+      return tn('{{count}} of the items in your current list isn’t in this version and would be removed.',
+        '{{count}} of the items in your current list aren’t in this version and would be removed.', n);
+    }
+    return ({
+      'Restoring an old follow list re-follows the accounts it holds. That is mostly benign.':
+        tSec('Restoring an old follow list re-follows the accounts it holds. That is mostly benign.'),
+      'This re-silences accounts you may have unmuted since: a moderation action taken on your behalf.':
+        tSec('This re-silences accounts you may have unmuted since: a moderation action taken on your behalf.'),
+      'This replaces your current profile fields with this version’s.':
+        tSec('This replaces your current profile fields with this version’s.'),
+      'Restoring an old bookmark list affects nobody but you.':
+        tSec('Restoring an old bookmark list affects nobody but you.'),
+      'Restoring these keys means clients will encrypt direct messages to them again.':
+        tSec('Restoring these keys means clients will encrypt direct messages to them again.'),
+      'This announces you no longer use NIP-4e, so clients stop encrypting direct messages to your keys.':
+        tSec('This announces you no longer use NIP-4e, so clients stop encrypting direct messages to your keys.'),
+      'Your current version lists keys that clients encrypt direct messages to.':
+        tSec('Your current version lists keys that clients encrypt direct messages to.'),
+      'Your current empty version announces that you do not use NIP-4e.':
+        tSec('Your current empty version announces that you do not use NIP-4e.'),
+      'An old relay list can strand you on dead relays and silently break delivery. Check them first.':
+        tSec('An old relay list can strand you on dead relays and silently break delivery. Check them first.'),
+      'A wrong DM inbox list silently breaks direct-message delivery. Check the relays first.':
+        tSec('A wrong DM inbox list silently breaks direct-message delivery. Check the relays first.'),
+      'Low stakes: this only re-blocks relays you had blocked.':
+        tSec('Low stakes: this only re-blocks relays you had blocked.'),
+      'This version’s encrypted items couldn’t be read, so the counts leave private items out.':
+        tSec('This version’s encrypted items couldn’t be read, so the counts leave private items out.'),
+      'Your current encrypted items couldn’t be read. Restoring replaces them, so some may be lost.':
+        tSec('Your current encrypted items couldn’t be read. Restoring replaces them, so some may be lost.'),
+    })[note] || note;
+  }
+  // The outcome of asking one relay, in the words shown beside it.
+  function lzOutcome(state) {
+    return ({
+      answered: t('answered'), failed: t('failed'), 'timed out': t('timed out'), 'older page failed': t('older page failed'),
+    })[state] || state;
+  }
+  // A phrase with its number set in bold: the translated text is split where the number
+  // goes, so the bold follows the number wherever a language puts it.
+  const LZ_NUM = '\u0001';
+  function lzBold(text, shown) {
+    const at = text.indexOf(LZ_NUM);
+    if (at < 0) return [text];
+    return [text.slice(0, at), h('strong', { textContent: shown }), text.slice(at + LZ_NUM.length)].filter((x) => x !== '');
+  }
   // github.com/dmnyc/lazarus, spec 0.6.2-draft; the concept first shipped in
   // Mutable and was hardened in the Jumble fork. kind:3, 10000 and friends are
   // replaceable, so a buggy client publishing its own version destroys every
@@ -16601,21 +16712,25 @@
     scan.writeDefaults = false;
     scan.listNote = '';
     if (list.state === 'unknown') {
-      scan.listNote = 'Your relay list couldn’t be read, so your current version can’t be confirmed.';
+      scan.listNote = t('Your relay list couldn’t be read, so your current version can’t be confirmed.');
     } else if (list.state === 'none' || !list.write.length) {
-      const why = list.state === 'none' ? 'You have no relay list' : 'Your relay list names no write relays';
+      const none = list.state === 'none';
       if (scan.nip65Only) {
-        scan.listNote = why + ', and bootstrap relays are off, so no relay can confirm your current version.';
+        scan.listNote = none
+          ? t('You have no relay list, and bootstrap relays are off, so no relay can confirm your current version.')
+          : t('Your relay list names no write relays, and bootstrap relays are off, so no relay can confirm your current version.');
       } else {
         let fallback = [];
         try { fallback = await relayUrls(true); } catch (_) {}
         scan.writeRelays = lazarusRelaySet(fallback);
         scan.writeDefaults = true;
-        scan.listNote = why + ', so your configured relays stand in as write relays.';
+        scan.listNote = none
+          ? t('You have no relay list, so your configured relays stand in as write relays.')
+          : t('Your relay list names no write relays, so your configured relays stand in as write relays.');
       }
     } else {
       scan.writeRelays = lazarusRelaySet(list.write);
-      if (list.saved) scan.listNote = 'No relay returned your relay list, so the copy Sidecar saved stands in.';
+      if (list.saved) scan.listNote = t('No relay returned your relay list, so the copy Sidecar saved stands in.');
     }
   }
 
@@ -16804,7 +16919,7 @@
       target: '_blank',
       rel: 'noopener noreferrer',
     });
-    a.append(h('span', { textContent: 'Follows the Lazarus recovery spec (' + self.SidecarLazarus.SPEC_VERSION + ').' }));
+    a.append(h('span', { textContent: t('Follows the Lazarus recovery spec ({{version}}).', { version: self.SidecarLazarus.SPEC_VERSION }) }));
     return a;
   }
 
@@ -16825,7 +16940,7 @@
     };
     const settle = () => { if (session.closed) Promise.resolve(busy).catch(() => {}).finally(release); };
     openModal((modal) => {
-      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      const xBtn = h('button', { className: 'modal-x', title: t('Close') });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       const body = h('div', { className: 'recovery-modal' });
@@ -16838,7 +16953,7 @@
       const openRows = new Set(); // versions whose relays are showing, kept across redraws
       // Tier 3 is the relay lists: an old version can name relays that are dead or
       // moved, which the confirm screen spells out per kind.
-      const TIER_LABELS = { 1: 'Most worth recovering', 2: 'Also yours', 3: 'Check before restoring' };
+      const TIER_LABELS = { 1: t('Most worth recovering'), 2: t('Also yours'), 3: t('Check before restoring') };
 
       const rec = () => Lz.REGISTRY[kind];
 
@@ -16846,10 +16961,10 @@
       function intro() {
         clear();
         body.append(
-          h('h3', { textContent: 'Data recovery' }),
+          h('h3', { textContent: t('Data recovery') }),
           h('p', {
             className: 'hint',
-            textContent: 'Pick what to look for. Relays often keep older versions, and nothing is restored until you click.',
+            textContent: t('Pick what to look for. Relays often keep older versions, and nothing is restored until you click.'),
           })
         );
         let scanBtn = null;
@@ -16862,7 +16977,7 @@
             const chip = h('button', {
               className: 'lazarus-chip' + (kind === k ? ' on' : ''),
               type: 'button',
-              textContent: Lz.REGISTRY[k].name,
+              textContent: lzName(k),
             });
             chip.addEventListener('click', () => {
               kind = k;
@@ -16875,7 +16990,7 @@
           });
           body.append(row);
         });
-        scanBtn = h('button', { className: 'primary', textContent: 'Scan relays' });
+        scanBtn = h('button', { className: 'primary', textContent: t('Scan relays') });
         scanBtn.disabled = !kind;
         scanBtn.addEventListener('click', () => runScan());
         body.append(h('div', { className: 'actions' }, [scanBtn]), lazarusAttribution());
@@ -16884,8 +16999,8 @@
       async function runScan() {
         clear();
         body.append(
-          h('h3', { textContent: 'Scanning…' }),
-          waitingRow('Checking relays for older versions of your ' + rec().name.toLowerCase() + '…')
+          h('h3', { textContent: t('Scanning…') }),
+          waitingRow(t('Checking relays for older versions of {{what}}…', { what: lzYour(kind) }))
         );
         try {
           const res = await lazarusScan(active.pubkey, kind, session);
@@ -16904,8 +17019,8 @@
       async function runMore(what) {
         clear();
         body.append(
-          h('h3', { textContent: 'Scanning…' }),
-          waitingRow(what === 'page' ? 'Loading older versions…' : 'Asking the relays that failed again…')
+          h('h3', { textContent: t('Scanning…') }),
+          waitingRow(what === 'page' ? t('Loading older versions…') : t('Asking the relays that failed again…'))
         );
         try {
           const fresh = what === 'page'
@@ -16922,19 +17037,21 @@
       // One line saying how many items a version holds, honest about certainty:
       // exact after decryption, a band from the encrypted size, or "uncounted"
       // when neither applies. A private-only list must not read as a zero.
+      // One phrase per state, each with its number in it, bolded after translation.
       function countLine(c) {
         const range = Lz.itemRange(c);
-        const num = (n) => h('strong', { textContent: I18N.fmtNum(n) });
-        if (kind === 0) return [num(range.min), ' profile field' + (range.min === 1 ? '' : 's')];
-        const noun = rec().noun || 'items';
-        if (range.certainty === 'exact') return [num(range.min), ' ' + noun];
+        if (kind === 0 || range.certainty === 'exact') {
+          return lzBold(lzCountOf(kind, range.min, LZ_NUM), I18N.fmtNum(range.min));
+        }
         if (range.certainty === 'estimated') {
           const band = '≈' + I18N.fmtNum(range.min) + '–' + I18N.fmtNum(range.max);
-          return [h('strong', { textContent: band }), ' ' + noun + ' (encrypted)'];
+          return lzBold(t('{{items}} (encrypted)', { items: lzCountOf(kind, range.max, LZ_NUM) }), band);
         }
-        return range.min
-          ? [num(range.min), '+ ' + noun + ' (encrypted, uncounted)']
-          : [noun + ' (encrypted, uncounted)'];
+        if (range.min) {
+          return lzBold(t('{{items}} (encrypted, uncounted)', { items: lzCountOf(kind, range.min, LZ_NUM) }),
+            I18N.fmtNum(range.min) + '+');
+        }
+        return [t('Encrypted, uncounted')];
       }
 
       // Each relay's outcome, on request: a count alone can't say which relays a
@@ -16943,16 +17060,16 @@
       function outcomesBlock() {
         const rows = scan.asked.map((r) => {
           const outcome = scan.outcomes.get(r) || 'timed out';
-          const role = scan.writeRelays.includes(r) ? (scan.writeDefaults ? 'write (configured)' : 'write') : '';
+          const role = scan.writeRelays.includes(r) ? (scan.writeDefaults ? t('write (configured)') : t('write')) : '';
           const state = outcome === 'answered' && scan.pageFailed.has(r) ? 'older page failed' : outcome;
           return h('div', { className: 'lazarus-relay' + (state === 'answered' ? '' : ' bad') }, [
             h('span', { className: 'relay', textContent: lazarusRelayLabel(r), title: r }),
             role ? h('span', { className: 'role', textContent: role }) : null,
-            h('span', { className: 'state', textContent: state }),
+            h('span', { className: 'state', textContent: lzOutcome(state) }),
           ].filter(Boolean));
         });
         return h('details', { className: 'lazarus-outcomes' }, [
-          h('summary', { textContent: 'Relay outcomes' }),
+          h('summary', { textContent: t('Relay outcomes') }),
           ...rows,
         ]);
       }
@@ -16962,7 +17079,7 @@
       // account has no usable relay list, as in the outcomes block.
       function foundOnRows(c) {
         const write = new Set(scan.writeRelays);
-        const role = scan.writeDefaults ? 'write (configured)' : 'write';
+        const role = scan.writeDefaults ? t('write (configured)') : t('write');
         const byLabel = (a, b) => lazarusRelayLabel(a).localeCompare(lazarusRelayLabel(b));
         return [...c.foundOn]
           .sort((a, b) => (write.has(b) - write.has(a)) || byLabel(a, b))
@@ -16983,53 +17100,60 @@
         currentId = current ? current.id : null;
 
         const n = r.ordered.length;
-        const versions = n + ' version' + (n === 1 ? '' : 's');
         const quiet = scan.failedRelays.length;
-        const retry = h('button', { className: scan.failedScan ? 'primary' : 'secondary', textContent: 'Retry the relays that failed' });
+        const retry = h('button', { className: scan.failedScan ? 'primary' : 'secondary', textContent: t('Retry the relays that failed') });
         retry.addEventListener('click', () => runMore('retry'));
 
         if (scan.failedScan) {
           body.append(
-            h('h3', { textContent: 'No relay answered' }),
+            h('h3', { textContent: t('No relay answered') }),
             h('p', {
               className: 'hint warn',
               textContent: n
-                ? 'This history is incomplete. The ' + versions + ' below arrived before the relays went quiet.'
-                : 'None of the ' + scan.asked.length + ' relays asked answered. They may still hold versions.',
+                ? tn('This history is incomplete. The {{count}} version below arrived before the relays went quiet.',
+                  'This history is incomplete. The {{count}} versions below arrived before the relays went quiet.', n)
+                : tn('The {{count}} relay asked didn’t answer. It may still hold versions.',
+                  'None of the {{count}} relays asked answered. They may still hold versions.', scan.asked.length),
             }),
             h('div', { className: 'actions' }, [retry])
           );
         } else {
           body.append(
-            h('h3', { textContent: 'Choose a version to restore' }),
+            h('h3', { textContent: t('Choose a version to restore') }),
             h('p', {
               className: 'hint',
-              textContent: versions + ' found. ' + scan.answeredRelays.length + ' of ' + scan.asked.length + ' relays answered'
-                + (quiet ? ', ' + quiet + ' failed or timed out.' : '.'),
+              // Two sentences, each whole: how many versions, then how the relays did.
+              textContent: tn('{{count}} version found.', '{{count}} versions found.', n) + ' '
+                + (quiet
+                  ? tn('{{answered}} of {{count}} relay answered, {{quiet}} failed or timed out.',
+                    '{{answered}} of {{count}} relays answered, {{quiet}} failed or timed out.', scan.asked.length,
+                    { answered: I18N.fmtNum(scan.answeredRelays.length), quiet: I18N.fmtNum(quiet) })
+                  : tn('{{answered}} of {{count}} relay answered.', '{{answered}} of {{count}} relays answered.', scan.asked.length,
+                    { answered: I18N.fmtNum(scan.answeredRelays.length) })),
             })
           );
         }
         if (scan.listNote) body.append(h('p', { className: 'hint', textContent: scan.listNote }));
         if (!scan.failedScan) {
           if (r.currentUnconfirmed) {
-            body.append(h('p', { className: 'hint warn', textContent: 'No write relay answered, so the newest version may not be current. Nothing is recommended.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('No write relay answered, so the newest version may not be current. Nothing is recommended.') }));
           } else if (rec().meaningfulEmpty) {
-            body.append(h('p', { className: 'hint warn', textContent: 'An empty version here is a choice, not damage: it says you no longer use NIP-4e. Nothing is recommended.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('An empty version here is a choice, not damage: it says you no longer use NIP-4e. Nothing is recommended.') }));
           } else if (r.currentUnknown) {
             // Not "no recoverable improvement": nothing could be measured against it.
-            body.append(h('p', { className: 'hint warn', textContent: 'Your current version couldn’t be counted, so nothing is recommended.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('Your current version couldn’t be counted, so nothing is recommended.') }));
           } else if (r.recommended) {
-            body.append(h('p', { className: 'hint', textContent: 'Highlighted: the fullest version from before a sudden drop your list hasn’t recovered from.' }));
+            body.append(h('p', { className: 'hint', textContent: t('Highlighted: the fullest version from before a sudden drop your list hasn’t recovered from.') }));
           } else if (r.settled) {
-            body.append(h('p', { className: 'hint', textContent: 'After a sudden drop, you edited this list 5+ times over a week. Nothing is recommended.' }));
+            body.append(h('p', { className: 'hint', textContent: t('After a sudden drop, you edited this list 5+ times over a week. Nothing is recommended.') }));
           } else if (rec().profile === 'count') {
-            body.append(h('p', { className: 'hint', textContent: 'No recoverable improvement found. You can still restore any version below.' }));
+            body.append(h('p', { className: 'hint', textContent: t('No recoverable improvement found. You can still restore any version below.') }));
           }
           // A version that couldn't be counted is never recommended and takes no
           // part in finding a clobber (spec 0.6.2), so the answer above rests on the
           // others. The spec's partially-counted marker exists to warn of exactly this.
           if (r.skipped && !r.currentUnknown) {
-            body.append(h('p', { className: 'hint warn', textContent: 'Versions that couldn’t be counted were left out, so this may be wrong.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('Versions that couldn’t be counted were left out, so this may be wrong.') }));
           }
         }
 
@@ -17039,22 +17163,22 @@
           const isRec = r.recommended && c.id === r.recommended.id;
           const empty = Lz.itemRange(c).max === 0;
           const badges = [];
-          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: 'Current' }));
-          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: 'Recommended' }));
+          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: t('Current') }));
+          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: t('Recommended') }));
           if (empty && !rec().meaningfulEmpty) {
-            badges.push(h('span', { className: 'recovery-badge', textContent: isCurrent ? 'Empty, usually the clobber' : 'Empty, not offered' }));
+            badges.push(h('span', { className: 'recovery-badge', textContent: isCurrent ? t('Empty, usually the clobber') : t('Empty, not offered') }));
           }
           // WHERE THIS VERSION LIVES, one tap away: the row opens to the relays that
           // returned it. The whole head toggles, like a wallet tx row, and the relay
           // count is the button inside it, so the control has a name and a keyboard
           // path. The caret rides on the count, which says what opening reveals.
           const n = c.foundOn.length;
-          const where = h('button', { className: 'recovery-relays-btn', type: 'button', textContent: n + ' relay' + (n === 1 ? '' : 's') });
+          const where = h('button', { className: 'recovery-relays-btn', type: 'button', textContent: tn('{{count}} relay', '{{count}} relays', n) });
           where.append(icon('chevron-down'));
           const meta = h('div', { className: 'recovery-meta' }, [
             h('div', { className: 'recovery-count' }, countLine(c)),
             h('div', { className: 'recovery-sub' }, [
-              new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt) + ' · ',
+              I18N.fmtDate(c.createdAt * 1000, { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + relativeTime(c.createdAt) + ' · ',
               where,
             ]),
             badges.length ? h('div', { className: 'recovery-badges' }, badges) : null,
@@ -17064,7 +17188,7 @@
             // An icon, not a word: the inline action slot holds icon buttons only
             // (CLAUDE.md, row controls), and the count beside it does the truncating.
             // It stops the click here, so choosing a version never also opens its row.
-            head.append(h('div', { className: 'item-actions' }, [iconButton('Restore this version', 'rotate-ccw', (e) => {
+            head.append(h('div', { className: 'item-actions' }, [iconButton(t('Restore this version'), 'rotate-ccw', (e) => {
               e.stopPropagation();
               showConfirm(c);
             })]));
@@ -17092,7 +17216,7 @@
         // inclusive, so the next page repeats that event and the dedupe eats it.
         const more = [];
         if (scan.pages.size) {
-          const older = h('button', { className: 'secondary', textContent: 'Load older versions' });
+          const older = h('button', { className: 'secondary', textContent: t('Load older versions') });
           older.addEventListener('click', () => runMore('page'));
           more.push(older);
         }
@@ -17107,24 +17231,24 @@
         if (!current) { showResults(); return; }
         clear();
         const d = Lz.delta(c, current, kind);
-        const name = rec().name.toLowerCase();
+        const yours = lzYour(kind);
         // Nothing would change only when every item is counted on both sides: an
         // unreadable encrypted list on either side can hide a difference.
         const unchanged = kind !== 0 && !d.added && !d.removed && !d.uncounted;
 
         body.append(
-          h('h3', { textContent: 'Restore this version?' }),
-          h('p', { className: 'hint warn', textContent: 'This republishes your ' + name + ' everywhere and can’t be automatically undone.' })
+          h('h3', { textContent: tSec('Restore this version?') }),
+          h('p', { className: 'hint warn', textContent: tSec('This republishes {{what}} everywhere and can’t be automatically undone.', { what: yours }) })
         );
         if (recheck) {
-          body.append(h('p', { className: 'hint warn', textContent: 'Your current version changed while you reviewed. The counts below are against the new one.' }));
+          body.append(h('p', { className: 'hint warn', textContent: tSec('Your current version changed while you reviewed. The counts below are against the new one.') }));
         }
         body.append(
           h('div', { className: 'recovery-confirm' }, [
             h('div', { className: 'recovery-count-lg' }, countLine(c)),
             h('div', {
               className: 'recovery-sub',
-              textContent: new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt),
+              textContent: I18N.fmtDate(c.createdAt * 1000, { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + relativeTime(c.createdAt),
             }),
           ])
         );
@@ -17134,22 +17258,25 @@
         // delta says so where they can't.
         const deltaBox = h('div', { className: 'recovery-confirm' });
         if (kind === 0) {
+          // A sentence for each kind of change rather than clauses joined with semicolons,
+          // which a translation could not reorder. The field names are the profile's own
+          // keys (name, about, picture) and go in as they are.
           const bits = [];
-          if (d.fields.changed.length) bits.push('changes ' + d.fields.changed.join(', '));
-          if (d.fields.added.length) bits.push('adds ' + d.fields.added.join(', '));
-          if (d.fields.removed.length) bits.push('removes ' + d.fields.removed.join(', '));
-          if (d.tagsAdded) bits.push('adds ' + d.tagsAdded + ' tag' + (d.tagsAdded === 1 ? '' : 's'));
-          if (d.tagsRemoved) bits.push('removes ' + d.tagsRemoved + ' tag' + (d.tagsRemoved === 1 ? '' : 's'));
-          deltaBox.append(h('p', { className: 'hint', textContent: bits.length ? 'This version ' + bits.join('; ') + '.' : 'This version matches your current profile fields and tags.' }));
+          if (d.fields.changed.length) bits.push(tSec('This version changes {{fields}}.', { fields: d.fields.changed.join(', ') }));
+          if (d.fields.added.length) bits.push(tSec('This version adds {{fields}}.', { fields: d.fields.added.join(', ') }));
+          if (d.fields.removed.length) bits.push(tSec('This version removes {{fields}}.', { fields: d.fields.removed.join(', ') }));
+          if (d.tagsAdded) bits.push(tn('This version adds {{count}} tag.', 'This version adds {{count}} tags.', d.tagsAdded));
+          if (d.tagsRemoved) bits.push(tn('This version removes {{count}} tag.', 'This version removes {{count}} tags.', d.tagsRemoved));
+          deltaBox.append(h('p', { className: 'hint', textContent: bits.length ? bits.join(' ') : t('This version matches your current profile fields and tags.') }));
         } else if (unchanged) {
-          deltaBox.append(h('p', { className: 'hint', textContent: 'This version has the same items as your current list. Nothing would change.' }));
+          deltaBox.append(h('p', { className: 'hint', textContent: t('This version has the same items as your current list. Nothing would change.') }));
         } else {
-          deltaBox.append(h('p', { className: 'hint', textContent: 'Adds ' + d.added + ', removes ' + d.removed + ' against your current list.' }));
+          deltaBox.append(h('p', { className: 'hint', textContent: tSec('Adds {{added}}, removes {{removed}} against your current list.', { added: I18N.fmtNum(d.added), removed: I18N.fmtNum(d.removed) }) }));
         }
-        d.notes.forEach((note) => deltaBox.append(h('p', { className: 'hint warn', textContent: note })));
+        d.notes.forEach((note) => deltaBox.append(h('p', { className: 'hint warn', textContent: lzNote(note) })));
         body.append(deltaBox);
 
-        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        const back = h('button', { className: 'ghost', textContent: t('Back') });
         back.addEventListener('click', () => showResults());
 
         // A restore that shrinks the list, or may (the current version's encrypted
@@ -17160,16 +17287,17 @@
           clear();
           const publish = h('button', {
             className: 'primary danger',
-            textContent: d.removed ? 'Publish restore (removes ' + d.removed + ')' : 'Publish restore',
+            textContent: d.removed ? tSec('Publish restore (removes {{count}})', { count: I18N.fmtNum(d.removed) }) : tSec('Publish restore'),
           });
           publish.addEventListener('click', () => runRestore(c, { destructiveOk: true }));
           body.append(
-            h('h3', { textContent: 'This restore removes items' }),
+            h('h3', { textContent: tSec('This restore removes items') }),
             h('p', {
               className: 'hint warn',
               textContent: d.removed
-                ? d.removed + ' of the items in your current ' + name + ' aren’t in this version. Restoring removes them everywhere.'
-                : 'Your current ' + name + ' has encrypted items Sidecar couldn’t read. Restoring replaces them everywhere.',
+                ? tn('{{count}} of the items in {{what}} isn’t in this version. Restoring removes it everywhere.',
+                  '{{count}} of the items in {{what}} aren’t in this version. Restoring removes them everywhere.', d.removed, { what: lzYourCurrent(kind) })
+                : tSec('{{What}} has encrypted items Sidecar couldn’t read. Restoring replaces them everywhere.', { What: lzYourCurrentCap(kind) }),
             }),
             h('div', { className: 'actions' }, [publish, back])
           );
@@ -17178,14 +17306,14 @@
         // MEANINGFUL-EMPTY kinds ask the intent question before anything
         // publishes: which endpoint the user means. The answer is the button
         // itself, so nothing is pre-selected.
-        let label = d.shrink ? 'Continue' : 'Publish restore';
+        let label = d.shrink ? t('Continue') : tSec('Publish restore');
         if (rec().meaningfulEmpty) {
           const toEmpty = !Lz.itemRange(c).max;
           body.append(h('p', {
             className: 'hint',
-            textContent: toEmpty ? 'Do you mean to stop using NIP-4e encryption keys?' : 'Do you want direct messages encrypted to these keys again?',
+            textContent: toEmpty ? tSec('Do you mean to stop using NIP-4e encryption keys?') : tSec('Do you want direct messages encrypted to these keys again?'),
           }));
-          label = toEmpty ? 'Yes, stop using NIP-4e' : 'Yes, restore these keys';
+          label = toEmpty ? tSec('Yes, stop using NIP-4e') : tSec('Yes, restore these keys');
         }
         const go = h('button', { className: 'primary', textContent: label, disabled: unchanged });
         go.addEventListener('click', () => (d.shrink ? shrinkStep() : runRestore(c, {})));
@@ -17225,7 +17353,7 @@
           type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: active.pubkey, confirmedDestructive: !!destructiveOk,
         });
         if (!signed || signed.pubkey !== active.pubkey) {
-          throw new Error('Signing came back for a different account, so nothing was published.');
+          throw new Error(tSec('Signing came back for a different account, so nothing was published.'));
         }
         // Kind 10002 replaces the write relays themselves, so the restored list's
         // own write relays judge it: marked write, or unmarked, which NIP-65
@@ -17240,7 +17368,7 @@
         // NIP-65 only on, the write set is the only place this account publishes.
         const targets = scan.nip65Only ? judges : lazarusRelaySet([...judges, ...scan.answeredRelays]);
         if (!targets.length) {
-          throw new Error('No relay to publish to: bootstrap relays are off and no write relay is known.');
+          throw new Error(t('No relay to publish to: bootstrap relays are off and no write relay is known.'));
         }
         busy = lazarusPublish(targets, signed, judges);
         let pub;
@@ -17255,7 +17383,7 @@
       async function runRestore(c, opts) {
         opts = opts || {};
         clear();
-        body.append(h('h3', { textContent: 'Restoring…' }), waitingRow('Confirming your current version, then signing…'));
+        body.append(h('h3', { textContent: t('Restoring…') }), waitingRow(t('Confirming your current version, then signing…')));
         try {
           // THE RE-READ, decided by the core: proceed, changed, or unconfirmed.
           // Only a version NEWER than the reviewed one is a change: the re-read
@@ -17302,7 +17430,7 @@
 
       function showPublishing() {
         clear();
-        body.append(h('h3', { textContent: 'Restoring…' }), waitingRow('Signing and publishing your ' + rec().name.toLowerCase() + '…'));
+        body.append(h('h3', { textContent: t('Restoring…') }), waitingRow(t('Signing and publishing {{what}}…', { what: lzYour(kind) })));
       }
 
       // The wipe check (replaceable-baseline.js) refused the signature: it
@@ -17311,13 +17439,13 @@
       // ahead is its own explicit click, which re-runs the re-read first.
       function showDestructive(c, finding, opts) {
         clear();
-        const anyway = h('button', { className: 'primary danger', textContent: 'Restore anyway' });
+        const anyway = h('button', { className: 'primary danger', textContent: tSec('Restore anyway') });
         anyway.addEventListener('click', () => runRestore(c, { ...opts, destructiveOk: true }));
-        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        const back = h('button', { className: 'ghost', textContent: t('Back') });
         back.addEventListener('click', () => showResults());
         body.append(
-          h('h3', { textContent: 'This restore removes data' }),
-          h('p', { className: 'hint warn', textContent: describeFinding(finding) || 'Sidecar’s wipe check flagged this restore.' }),
+          h('h3', { textContent: tSec('This restore removes data') }),
+          h('p', { className: 'hint warn', textContent: describeFinding(finding) || tSec('Sidecar’s wipe check flagged this restore.') }),
           h('div', { className: 'actions' }, [anyway, back])
         );
       }
@@ -17329,23 +17457,23 @@
       // never pre-selected, and nothing remembers it between restores.
       function showUnconfirmed(c, opts) {
         clear();
-        const retry = h('button', { className: 'secondary', textContent: 'Retry' });
+        const retry = h('button', { className: 'secondary', textContent: t('Retry') });
         retry.addEventListener('click', () => runRestore(c, { ...opts, retried: true }));
         body.append(
-          h('h3', { textContent: 'Current version couldn’t be confirmed' }),
+          h('h3', { textContent: tSec('Current version couldn’t be confirmed') }),
           h('p', {
             className: 'hint warn',
-            textContent: 'No write relay answered, so Sidecar can’t confirm your current version. Nothing was signed.',
+            textContent: tSec('No write relay answered, so Sidecar can’t confirm your current version. Nothing was signed.'),
           }),
           h('div', { className: 'actions' }, [retry])
         );
         if (opts.retried) {
-          const anyway = h('button', { className: 'primary danger', textContent: 'Restore without confirming' });
+          const anyway = h('button', { className: 'primary danger', textContent: tSec('Restore without confirming') });
           anyway.addEventListener('click', () => {
             const reviewed = scan.byId.get(currentId) || null;
             publishAndReport(c, reviewed ? reviewed.createdAt : 0, opts);
           });
-          body.append(h('p', { className: 'hint warn', textContent: 'Restoring now may overwrite edits made since your review. Sidecar won’t remember this choice.' }));
+          body.append(h('p', { className: 'hint warn', textContent: tSec('Restoring now may overwrite edits made since your review. Sidecar won’t remember this choice.') }));
           body.append(h('div', { className: 'actions' }, [anyway]));
         }
       }
@@ -17379,15 +17507,15 @@
 
       function showDone(pub) {
         clear();
-        const done = h('button', { className: 'primary', textContent: 'Done' });
+        const done = h('button', { className: 'primary', textContent: t('Done') });
         done.addEventListener('click', () => { closeModal(); if (kind === 0) renderProfile(); });
         const accepted = pub.acceptedWrite.length
-          ? 'Accepted by ' + pub.acceptedWrite.map(lazarusRelayLabel).join(', ') + '.'
-          : 'Accepted by ' + pub.otherOk + ' relay' + (pub.otherOk === 1 ? '' : 's') + ' outside your write set.';
+          ? t('Accepted by {{relays}}.', { relays: pub.acceptedWrite.map(lazarusRelayLabel).join(', ') })
+          : tn('Accepted by {{count}} relay outside your write set.', 'Accepted by {{count}} relays outside your write set.', pub.otherOk);
         body.append(
-          h('h3', { textContent: 'Version restored' }),
+          h('h3', { textContent: t('Version restored') }),
           h('p', { className: 'hint', textContent: accepted }),
-          h('p', { className: 'hint', textContent: 'Your other clients will pick it up as the current version.' }),
+          h('p', { className: 'hint', textContent: t('Your other clients will pick it up as the current version.') }),
           h('div', { className: 'actions' }, [done])
         );
       }
@@ -17397,14 +17525,19 @@
       // choices the user already made.
       function showPublishFailed(pub, c, opts) {
         clear();
-        const retry = h('button', { className: 'secondary', textContent: 'Try publishing again' });
+        const retry = h('button', { className: 'secondary', textContent: t('Try publishing again') });
         retry.addEventListener('click', () => runRestore(c, opts));
+        // Up to two whole sentences: who refused it, then what that leaves.
+        const said = [];
+        if (pub.rejectedWrite.length) said.push(t('Refused by {{relays}}.', { relays: pub.rejectedWrite.map(lazarusRelayLabel).join(', ') }));
+        said.push(pub.otherOk
+          ? tn('{{count}} other relay took it, but only your write relays count.', '{{count}} other relays took it, but only your write relays count.', pub.otherOk)
+          : t('Nothing was restored.'));
         body.append(
-          h('h3', { textContent: 'No write relay accepted the restore' }),
+          h('h3', { textContent: t('No write relay accepted the restore') }),
           h('p', {
             className: 'hint warn',
-            textContent: (pub.rejectedWrite.length ? 'Refused by ' + pub.rejectedWrite.map(lazarusRelayLabel).join(', ') + '. ' : '')
-              + (pub.otherOk ? pub.otherOk + ' other relay' + (pub.otherOk === 1 ? '' : 's') + ' took it, but only your write relays count.' : 'Nothing was restored.'),
+            textContent: said.join(' '),
           }),
           h('div', { className: 'actions' }, [retry])
         );
@@ -17412,11 +17545,11 @@
 
       function showError(msg) {
         clear();
-        const retry = h('button', { className: 'secondary', textContent: 'Try again' });
+        const retry = h('button', { className: 'secondary', textContent: t('Try again') });
         retry.addEventListener('click', () => (scan ? showResults() : runScan()));
         body.append(
-          h('h3', { textContent: 'Something went wrong' }),
-          h('p', { className: 'error', textContent: msg || 'Please try again.' }),
+          h('h3', { textContent: t('Something went wrong') }),
+          h('p', { className: 'error', textContent: msg || t('Please try again.') }),
           h('div', { className: 'actions' }, [retry])
         );
       }
@@ -17431,14 +17564,14 @@
   function renderRecoverySection(view, active) {
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
-      h('h3', { textContent: 'Data recovery' }),
+      h('h3', { textContent: t('Data recovery') }),
       h('p', {
         className: 'hint',
-        textContent: 'If an app wiped your follows, mutes, bookmarks or profile, relays may still hold older versions.',
+        textContent: t('If an app wiped your follows, mutes, bookmarks, profile or relay lists, relays may still hold older versions.'),
       })
     );
     const wrap = h('div', { className: 'export-block recovery-block' });
-    const open = h('button', { className: 'secondary', textContent: 'Scan for older versions' });
+    const open = h('button', { className: 'secondary', textContent: t('Scan for older versions') });
     open.addEventListener('click', () => lazarusModal(active));
     wrap.append(open, lazarusAttribution());
     setting.append(wrap);
@@ -17449,11 +17582,11 @@
     // exactly the mistake that matters most here.
     const keyBackupWrap = h('div', { className: 'export-block' });
     keyBackupWrap.append(
-      h('h3', { textContent: 'Private key backup' }),
+      h('h3', { textContent: t('Private key backup') }),
       h('p', {
         className: 'hint',
         textContent:
-          'Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.',
+          tSec('Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.'),
       })
     );
     // The Accounts screen's "Back up private key" entry, mirrored here — the backup
@@ -17463,7 +17596,7 @@
     // action INSIDE the modal (plain from the nsec tab, encrypted masquerade from
     // the ncryptsec tab — printable straight from the typed password), which is
     // why this block carries no sheet button or encrypt toggle of its own.
-    const keyBtn = h('button', { className: 'secondary', textContent: 'Back up private key' });
+    const keyBtn = h('button', { className: 'secondary', textContent: t('Back up private key') });
     keyBtn.addEventListener('click', () => backupKeyModal(active));
     keyBackupWrap.append(keyBtn);
     setting.append(keyBackupWrap);
@@ -19991,7 +20124,7 @@
         // longer, so the QR uses level 'L' for the extra capacity.
         stop = renderSecretReveal(body, {
           secret: connection,
-          noun: 'connection string',
+          noun: t('connection string'),
           qrLevel: 'L',
           qrExclusive: true, // the URI is long — show the string OR the QR, not both
           qrHint: tSec('Scan in an NWC-compatible app to connect the same wallet.'),
