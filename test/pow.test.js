@@ -286,10 +286,10 @@ test('A FAILED OR STOPPED POST GOES BACK TO BEING A DRAFT', () => {
     'cancel has to be distinguishable from a mine that broke');
 });
 
-test('the three add buttons share a row, and it wraps rather than shrinks', () => {
-  // Media, Poll and PoW are peers, so they read as a toolbar rather than three stacked
-  // decisions. Short labels are what makes that fit: "Media", "Poll", "PoW 18".
-  assert.match(bare, /h\('div', \{ className: 'compose-actions' \}, \[addBtn, pollAdd, powBtn\]\)/);
+test('the add buttons share a row, and it wraps rather than shrinks', () => {
+  // Media, GIF, Poll and PoW are peers, so they read as a toolbar rather than stacked
+  // decisions. Short labels are what makes that fit: "Media", "GIF", "Poll", "PoW 18".
+  assert.match(bare, /h\('div', \{ className: 'compose-actions' \}, \[addBtn, gifPicker\.addBtn, pollAdd, powBtn\]\)/);
   const row = css.slice(css.indexOf('.compose-actions {'));
   const decls = row.slice(0, row.indexOf('}'));
   assert.match(decls, /display: flex/);

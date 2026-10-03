@@ -4449,6 +4449,7 @@
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable,
     buildPollTags, buildPollEditor,
   } = window.SidecarCore;
+  const { buildGifPicker } = window.SidecarCore;
   // Saved drafts, listed the same way the expanded composer lists them.
   const { otherDraftEntries, buildSavedDraftList } = window.SidecarCore;
   const POLL_RESPONSE_KIND = 1018;
@@ -13100,6 +13101,8 @@
         editorWrap.classList.toggle('hidden', p);
         thumbs.classList.toggle('hidden', p);
         addBtn.classList.toggle('hidden', p || !!draft.poll);
+        gifPicker.addBtn.classList.toggle('hidden', p || !!draft.poll || !gifPicker.available);
+        if (p) gifPicker.close();
         pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
         pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
@@ -13449,6 +13452,25 @@
       });
       paintPowBtn();
 
+      // ---- GIFs, from nostr.build ----
+      //
+      // Already hosted, so a pick goes into the media slot by URL, the way a pasted image
+      // URL does, with no upload in between.
+      const gifPicker = buildGifPicker({
+        onPick: (gif) => {
+          if (draft.poll) return;
+          if (!draft.media.some((m) => m && m.url === gif.url)) {
+            // The GIF's own title as its description to start from: nostr.build names
+            // each one, and a GIF with no alt text is a blank to a screen reader.
+            draft.media.push({ url: gif.url, isVideo: false, alt: gif.title || '' });
+          }
+          scheduleSave();
+          updatePostState();
+          renderThumbs();
+          paintEitherOr();
+        },
+      });
+
       const pollEditor = buildPollEditor({
         poll: () => draft.poll,
         setPoll: (p) => { draft.poll = p; },
@@ -13458,6 +13480,7 @@
         isReply: () => !!replyTo,
         hasMedia: () => !!(draft.media && draft.media.length),
         mediaBtn: () => addBtn,
+        gif: () => gifPicker,
         devSelect: () => modal.querySelector('#compose-dev-kind'),
       });
       const pollWrap = pollEditor.wrap;
@@ -13572,8 +13595,9 @@
         previewPane,
         thumbs,
         mediaDrawer.wrap,
-        h('div', { className: 'compose-actions' }, [addBtn, pollAdd, powBtn]),
+        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, pollAdd, powBtn]),
         fileInput,
+        gifPicker.wrap,
         pollWrap,
         err,
         h('div', { className: 'actions' }, [post, cancel])

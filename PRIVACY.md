@@ -91,6 +91,12 @@ Sidecar only talks to services **you choose**:
   server(s) (from your kind:10063 list) when you have them configured, and
   otherwise fall back to **nostr.build**. Only the media you choose to attach is
   sent.
+- **GIF search** — when you open the GIF picker in the composer, Sidecar searches
+  **nostr.build**'s GIF index (gifs.nostr.build). It sends what you type in the
+  picker's search field, the chips you tap, and Sidecar's own API key, which
+  identifies the app and not you, and it loads the previews from nostr.build's
+  servers. Nothing is sent until you open the picker. A GIF you pick is attached by
+  its nostr.build link, so nothing is uploaded.
 - **@-mention search** — when you type `@` in the composer to mention someone,
   Sidecar searches your follows locally. The first time you search a name, it
   offers to also query the **Nostr Archives** name index so you can find any
