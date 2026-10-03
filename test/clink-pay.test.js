@@ -233,8 +233,8 @@ test('the wallet is checked before a stranger is asked for an invoice', () => {
   assert.ok(body.indexOf('clink.requestInvoice') < body.indexOf('client.payInvoice'));
   // Two labels, because asking and paying fail differently and one spinner for both
   // cannot tell a wallet that is offline from a relay that is.
-  assert.match(body, /offerPay\.textContent = 'Asking…'/);
-  assert.match(body, /offerPay\.textContent = 'Paying…'/);
+  assert.match(body, /offerPay\.textContent = t\('Asking…'\)/);
+  assert.match(body, /offerPay\.textContent = tSec\('Paying…'\)/);
 });
 
 test('a fixed offer is not asked for an amount it already knows', () => {
@@ -244,7 +244,7 @@ test('a fixed offer is not asked for an amount it already knows', () => {
   assert.match(body, /offerPresets\.classList\.toggle\('hidden', !needsAmount\)/);
   assert.match(body, /offerAmount\.classList\.toggle\('hidden', !needsAmount\)/);
   // And the button says the number, so the confirm is a confirm rather than a leap.
-  assert.match(body, /'Pay ' \+ fmtSats\(offer\.price\) \+ ' sats'/);
+  assert.match(body, /tSec\('Pay \{\{amount\}\} sats', \{ amount: fmtSats\(offer\.price\) \}\)/);
 });
 
 test('THE PANEL SAYS NOTHING IT DOES NOT HAVE TO', () => {

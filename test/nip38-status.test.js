@@ -301,9 +301,9 @@ test('CLEAR IS FULL-WIDTH BELOW, NEVER INLINE BESIDE THE FIELD', () => {
   // CLAUDE.md: a confirm that has words takes its own row. A labelled action in a
   // side slot is what collapses these rows at 360px.
   const fn = lift('function openStatusEditor(');
-  const clear = fn.indexOf("textContent: 'Clear status'");
+  const clear = fn.indexOf("textContent: t('Clear status')");
   assert.ok(clear !== -1, 'no clear control');
-  assert.match(fn, /className: 'secondary hidden', textContent: 'Clear status'/, 'clear is not hidden by default');
+  assert.match(fn, /className: 'secondary hidden', textContent: t\('Clear status'\)/, 'clear is not hidden by default');
   // It is appended into the modal's own column, not into an .item-actions slot.
   assert.doesNotMatch(fn, /item-actions/, 'clear was put in the inline action slot');
 });
@@ -339,4 +339,13 @@ test('the button uses a speech bubble, and it is a real icon', () => {
     icons.includes("\n    'message-circle':") || icons.includes("\n    message-circle:"),
     'message-circle is not in ICONS'
   );
+});
+
+test('THE DURATION LABELS ARE READ WHEN THE EDITOR OPENS, NOT AT STARTUP', () => {
+  // STATUS_DURATIONS is built as the panel script starts, before the language file has
+  // loaded, so a label translated there would stay English in every language. Each one
+  // is a function the editor calls when it draws the select.
+  for (const d of STATUS_DURATIONS) assert.equal(typeof d.label, 'function', 'a duration label is a fixed string');
+  const fn = source.slice(source.indexOf('function openStatusEditor('), source.indexOf('function openStatusEditor(') + 1500);
+  assert.match(fn, /textContent: d\.label\(\)/, 'the editor no longer calls the label');
 });
