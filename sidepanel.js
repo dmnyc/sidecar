@@ -1295,6 +1295,13 @@
     applyResolvedTheme(settings);
     applyHideBalances();
     closeAcctMenu();
+    // HIDING A VIEW FORGETS ITS SCROLL. display: none drops an element's scroll offset,
+    // and this runs on every state change, several times while the panel opens, so the
+    // main view jumped back to the top each time: your place, and the active account
+    // revealActiveAccount had just scrolled into view. Kept here and put back below when
+    // the main view is shown again.
+    const mainScroller = $('view-main').querySelector('.content');
+    const mainScroll = !$('view-main').classList.contains('hidden') && mainScroller ? mainScroller.scrollTop : null;
     [$('view-onboarding'), $('view-lock'), $('view-main'), $('view-settings'), $('view-profile-edit'), $('view-approval')].forEach(hide);
     stopLockClock();
     if (!state.initialized) {
@@ -1370,6 +1377,7 @@
       show($('view-main'));
       dismissPostBanner(); // a note link is account-specific; clear on any state change
       renderMain();
+      if (mainScroll != null && mainScroller) mainScroller.scrollTop = mainScroll;
       initNotifSubs();
       maybeShowAutoLockNotice(settings);
       // Re-render the visible tab so account-scoped views (Activity/Profile) follow the switch.
@@ -3366,6 +3374,7 @@
             closeAcctMenu();
             await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
             await refresh();
+            revealActiveAccount(); // on Accounts, the new one in view; elsewhere a no-op
             toast('Switched to ' + displayName(a), 'success');
             if (!(await offerTabReload())) maybeShowSwitchTip();
           } else {
@@ -3545,7 +3554,7 @@
       // badges especially) are whatever renderMain() last drew. Without this a
       // wallet disconnected on the Wallet tab still read "Connected" here until
       // some unrelated action re-rendered the panel.
-      else if (name === 'accounts') renderMain();
+      else if (name === 'accounts') { renderMain(); revealActiveAccount(); }
       renderPinnedBalanceBar(); // show on non-wallet tabs, hide on Wallet
     });
   });
@@ -3966,9 +3975,17 @@
   // the profile screen's refresh button clears it alongside _profileCache — declared
   // here rather than beside its function so both caches sit together.
   const followCountCache = new Map(); // pubkey -> number|null
-  // Whether the collapsible stats drawer under the active account row is open.
-  // Defaults open so a single-account panel isn't sparse; the user can collapse it.
-  let accountStatsExpanded = true;
+  // Whether the collapsible stats drawer under the active account row is open, once
+  // the user has opened or closed it; null until then. Until they choose, it is open for
+  // up to three accounts, so a short list is not sparse, and closed past that: open, it
+  // is taller than three rows and pushed the accounts below it under the fold.
+  let accountStatsExpanded = null;
+  const ACCOUNT_STATS_OPEN_MAX = 3;
+  // Whether the panel has shown the active account once since it opened (revealActiveAccount).
+  let _activeRevealedOnOpen = false;
+  const accountStatsOpen = () => (accountStatsExpanded == null
+    ? ((state && state.accounts) || []).length <= ACCOUNT_STATS_OPEN_MAX
+    : accountStatsExpanded);
   // The overview's "the network is back, retry what failed", for the one overview on
   // screen. A single listener and a slot rather than a listener per render: the drawer is
   // rebuilt on every renderMain, and each rebuild adding its own would pile up closures
@@ -8214,6 +8231,9 @@
       }
     });
     makeSortable(list);
+    // Once per panel, when the panel opens on Accounts: marked done only once it
+    // actually ran, so a first render behind another tab does not use it up.
+    if (!_activeRevealedOnOpen) _activeRevealedOnOpen = revealActiveAccount();
 
     // Lazily pull name + picture from kind:0 for accounts that still lack a real
     // (kind:0-sourced) profile — placeholder cocktail names don't count. Runs on
@@ -8222,6 +8242,22 @@
     state.accounts.forEach((a) => {
       if (needsProfileBackfill(a)) maybeFetchProfile(a.pubkey);
     });
+  }
+
+  // ARRIVING ON ACCOUNTS SHOWS THE ACTIVE ONE. The list keeps the order you gave it, so
+  // an active account low in a long list could open below the fold or under the compose
+  // button. Scrolled only as far as needed ('nearest'), and only on arrival: a re-render
+  // of the tab you are on keeps your place. The row and its drawer header carry a bottom
+  // scroll margin (styles.css) that clears the compose button.
+  function revealActiveAccount() {
+    const list = $('account-list');
+    const row = list && list.querySelector('.item-active');
+    if (!row || !row.offsetParent) return false;
+    const drawer = row.nextElementSibling && row.nextElementSibling.classList.contains('account-stats')
+      ? row.nextElementSibling.querySelector('.account-stats-toggle') : null;
+    (drawer || row).scrollIntoView({ block: 'nearest' });
+    row.scrollIntoView({ block: 'nearest' }); // and never the row itself above the top
+    return true;
   }
 
   function makeSortable(listEl) {
@@ -8386,6 +8422,9 @@
         if (row.classList.contains('item-pending')) {
           await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
           await refresh();
+          // The account you just picked, clear of the compose button: refresh keeps your
+          // place, which for a row low in the list is under it.
+          revealActiveAccount();
           toast('Switched to ' + displayName(a), 'success');
           if (!(await offerTabReload())) maybeShowSwitchTip();
         } else {
@@ -8409,16 +8448,17 @@
   // room. Lazily loads on first expand; placeholder dots while in flight.
   function buildAccountStats(pubkey) {
     const drawer = document.createElement('div');
-    drawer.className = 'account-stats' + (accountStatsExpanded ? '' : ' collapsed');
+    const open = accountStatsOpen();
+    drawer.className = 'account-stats' + (open ? '' : ' collapsed');
 
     const header = document.createElement('button');
     header.className = 'account-stats-toggle';
     const chev = icon('chevron-down');
     chev.classList.add('account-stats-chevron');
-    if (!accountStatsExpanded) chev.style.transform = 'rotate(-90deg)';
+    if (!open) chev.style.transform = 'rotate(-90deg)';
     header.append(chev, document.createTextNode('Overview'));
     header.addEventListener('click', () => {
-      accountStatsExpanded = !accountStatsExpanded;
+      accountStatsExpanded = !accountStatsOpen();
       drawer.classList.toggle('collapsed', !accountStatsExpanded);
       chev.style.transform = accountStatsExpanded ? '' : 'rotate(-90deg)';
       if (accountStatsExpanded && !drawer.dataset.loaded) loadStats();
@@ -8674,7 +8714,7 @@
       });
     }
 
-    if (accountStatsExpanded) loadStats();
+    if (open) loadStats();
 
     return drawer;
   }

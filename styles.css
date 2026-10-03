@@ -1468,6 +1468,9 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .item.drag-over-top::before { top: -6px; }
 .item.drag-over-bottom::after { bottom: -6px; }
 .item { position: relative; }
+/* Room under the active account, and its overview header, when the panel scrolls it into
+   view (revealActiveAccount): the compose button floats 18px up and is 54px tall. */
+.item-active, .account-stats-toggle { scroll-margin-bottom: 84px; }
 .item-active {
   border-color: var(--gold-soft);
   box-shadow: var(--sheen), 0 0 0 1px var(--gold-soft), 0 8px 24px rgba(0, 0, 0, 0.4);
