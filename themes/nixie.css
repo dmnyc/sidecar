@@ -111,11 +111,10 @@
      clears them from either direction. Lifting the dark stop to #ec4a16 and the
      bright stop with it gives 6.68 / 5.13 across the run. */
   --accent-fill: linear-gradient(160deg, #ff6a30, #ec4a16);
-  /* The balloon's hover strikes from the pale tube to the flame — solid, because a
-     translucent fill let the night sky through and read as a hole, and brighter,
-     because a tube lights rather than dims. #ff6a30 is the accent-fill's bright stop,
-     where the chip-ink notes measure more for dark ink than the dark stop does. */
-  --balloon-bg-hover: #ff6a30;
+  /* The balloon's hover takes the theme's own gold — brighter than the pale tube, the
+     way a struck tube whitens toward its core. There is no override here on purpose:
+     the base rule's var(--gold) fallback IS the right color, and the drawn tail
+     follows it. */
   --glow: rgba(240, 48, 12, 0.26);
   /* ~15 rules paint accent washes with rgba(var(--accent-rgb), x) — the active
      account row, focus rings, the avatar halo. The :root default is Speakeasy's
