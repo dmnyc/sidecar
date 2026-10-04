@@ -381,6 +381,14 @@
   [data-theme="sleepy-hollow"] .lock-leaves { display: none; }
   [data-theme="sleepy-hollow"] .lock-ember { animation: none; }
 }
+/* The in-app toggle (Settings → Reduce motion) is the OS setting's sibling and does
+   the same: the moving copies hide, the still plates show (patterns.css scopes its
+   stand-down to motion-allowed), and the candle is a still halo. The class and the
+   data-theme sit on the same element, so they chain. */
+html.reduce-balance-motion[data-theme="sleepy-hollow"] #view-lock::before,
+html.reduce-balance-motion[data-theme="sleepy-hollow"] #view-lock::after,
+html.reduce-balance-motion[data-theme="sleepy-hollow"] .lock-leaves { display: none; }
+html.reduce-balance-motion[data-theme="sleepy-hollow"] .lock-ember { animation: none; }
 
 /* THE HORSEMAN rides the foot of the Accounts tab, directly behind the On-this-day
    box, and his pumpkin is the brightest thing in the frame — the box's quiet,
