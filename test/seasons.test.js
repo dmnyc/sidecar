@@ -33,12 +33,12 @@ const day = (iso) => new Date(iso + 'T12:00:00');
 
 // ---- the calendar ---------------------------------------------------------------------
 
-test('Sleepy Hollow is worn from October 1 through November 2, both days included', () => {
+test('Sleepy Hollow is worn from October 1 through November 8, both days included', () => {
   assert.equal(S.inSeason('sleepy-hollow', day('2026-09-30')), false);
   assert.equal(S.inSeason('sleepy-hollow', day('2026-10-01')), true);
   assert.equal(S.inSeason('sleepy-hollow', new Date('2026-10-01T00:00:00')), true, 'arrives at local midnight');
-  assert.equal(S.inSeason('sleepy-hollow', new Date('2026-11-02T23:59:59')), true, 'lasts the whole of its last day');
-  assert.equal(S.inSeason('sleepy-hollow', new Date('2026-11-03T00:00:00')), false);
+  assert.equal(S.inSeason('sleepy-hollow', new Date('2026-11-08T23:59:59')), true, 'lasts the whole of its last day');
+  assert.equal(S.inSeason('sleepy-hollow', new Date('2026-11-09T00:00:00')), false, 'expires at midnight as November 9 begins');
   assert.equal(S.inSeason('sleepy-hollow', day('2027-10-15')), true, 'it comes back every year');
 });
 
@@ -78,7 +78,7 @@ test('an edition resolves for the account wearing it, in season, and for no one 
   const settings = { theme: 'nixie', themeBy: { alice: 'bauhaus' }, seasonalBy: { alice: 'sleepy-hollow' } };
   assert.equal(S.resolve(settings, 'alice', day('2026-10-20')), 'sleepy-hollow');
   assert.equal(S.resolve(settings, 'bob', day('2026-10-20')), null, 'it dressed an account that never put it on');
-  assert.equal(S.resolve(settings, 'alice', day('2026-11-03')), null, 'the season ended and it is still on');
+  assert.equal(S.resolve(settings, 'alice', day('2026-11-09')), null, 'the season ended and it is still on');
   assert.equal(S.resolve(settings, '', day('2026-10-20')), null, 'the lock screen knows no account yet');
   assert.equal(S.resolve({ seasonalBy: { alice: 'speakeasy' } }, 'alice', day('2026-10-20')), null,
     'an ordinary theme stored as an edition resolved');
@@ -101,7 +101,7 @@ test('THE PANEL WEARS IT OVER THE ACCOUNT\'S OWN THEME, AND THE OWN THEME COMES 
   const r = panelResolver();
   const worn = { theme: 'nixie', themeBy: { alice: 'bauhaus' }, seasonalBy: { alice: 'sleepy-hollow' } };
   assert.equal(r({ ...worn, devDate: '2026-10-20' }, 'alice'), 'sleepy-hollow');
-  assert.equal(r({ ...worn, devDate: '2026-11-03' }, 'alice'), 'bauhaus', 'the account\'s own theme did not come back');
+  assert.equal(r({ ...worn, devDate: '2026-11-09' }, 'alice'), 'bauhaus', 'the account\'s own theme did not come back');
   assert.equal(r({ ...worn, devDate: '2026-10-20' }, 'bob'), 'nixie');
 });
 

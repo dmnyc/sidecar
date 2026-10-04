@@ -11,7 +11,7 @@ Update that section alongside this file as part of every release.
 
 ### Added
 - **Special editions: themes for a season.** A special edition is worn only while its season lasts. When one arrives, a card on the Accounts tab offers it once, with a preview. It goes on over the account's own theme rather than replacing it, so choosing any other theme, or **Back to** your own, takes it off, and the end of the season does too. While it is in season it has a place of its own at the top of the theme gallery, and it dresses the approval window and the pay card as well as the panel. Settings → Appearance → Special editions turns the card off.
-- **Sleepy Hollow, the first special edition (October 1 – November 2).** After Washington Irving's tale and the engravings that illustrated it: the Hollow at night in silhouette, a harvest moon behind the great tulip tree, and the Horseman on the ridge with his pumpkin alight. Its type is IM FELL English, and its balance lights up like a lantern.
+- **Sleepy Hollow, the first special edition (October 1 – November 8).** After Washington Irving's tale and the engravings that illustrated it: the Hollow at night in silhouette, a harvest moon behind the great tulip tree, and the Horseman on the ridge with his pumpkin alight. Its type is IM FELL English, and its balance lights up like a lantern.
 - **GIFs in both composers.** A GIF button beside Media searches nostr.build’s GIF index, with topic chips to start from and suggestions as you type. A GIF you pick is attached by its nostr.build link, so nothing is uploaded, and its title becomes its description, which you can edit. Like Media, it stands aside while a poll is open.
 
 ### Fixed

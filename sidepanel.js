@@ -3146,7 +3146,7 @@
   const SEASON_CARD_SEEN = 'seasonCardSeen';
   const SEASON_CARD_QUIET_DAYS = 3;
 
-  // "November 2", in the reader's language: the last day an edition is worn.
+  // "November 8", in the reader's language: the last day an edition is worn.
   function seasonUntil(key, now) {
     const w = SEASONS.windowFor(key, now);
     return w ? I18N.fmtDate(w.end, { month: 'long', day: 'numeric' }) : '';

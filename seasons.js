@@ -25,7 +25,7 @@
   // from and to are [month, day], both days included. mode is the gallery half the theme
   // would belong to, which is what decides its logo and its approval-window wordmark.
   const EDITIONS = [
-    { key: 'sleepy-hollow', name: 'Sleepy Hollow', mode: 'dark', from: [10, 1], to: [11, 2] },
+    { key: 'sleepy-hollow', name: 'Sleepy Hollow', mode: 'dark', from: [10, 1], to: [11, 8] },
   ];
 
   const byKey = (key) => EDITIONS.find((e) => e.key === key) || null;
