@@ -5,8 +5,10 @@
 Writes, in themes/:
 
   sleepy-hollow-sky.svg      the top of the panel: a harvest moon on its own plate.
-  sleepy-hollow-sky-dim*.svg the same moon at less than half strength, worn where dense
-                             text scrolls over the sky (Settings, Profile edit).
+  sleepy-hollow-sky-dim*.svg      the moon at less than half strength, and
+  sleepy-hollow-hollow-dim*.svg   the Horseman's lit pumpkin at the same 0.45 — worn on
+                             every internal view, where dense text scrolls over both.
+                             The lock screen swaps in the bright pair.
   sleepy-hollow-clouds.svg   the narrow clouds on their own transparent plate, the sky's
                              exact frame, so the lock screen can drift them (repeat-x,
                              drawn wrapped) without moving the moon.
@@ -245,17 +247,21 @@ PUMPKIN_AT = (151, -166)   # the halo's center, a little below the body's middle
 PUMPKIN_GLOW = 36
 
 
-def horseman(x, y, s, flip=False):
+def horseman(x, y, s, flip=False, dim=False):
+    # The lit cluster — halo, pumpkin, ribs — dims as one on the internal plates, at
+    # the same 0.45 the dim moon wears: dense text scrolls over the foot of these views,
+    # and the brightest thing in the frame recedes with the moon.
+    lit = ' opacity="0.45"' if dim else ''
     sx = -s if flip else s
     g = ['<g transform="translate(%s %s) scale(%s %s)">' % (f(x), f(y), f(sx), f(s)),
-         '<circle cx="%s" cy="%s" r="%s" fill="url(#ember)"/>'
-         % (f(PUMPKIN_AT[0]), f(PUMPKIN_AT[1]), f(PUMPKIN_GLOW)),
+         '<circle cx="%s" cy="%s" r="%s" fill="url(#ember)"%s/>'
+         % (f(PUMPKIN_AT[0]), f(PUMPKIN_AT[1]), f(PUMPKIN_GLOW), lit),
          '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (LEG_INK, INK),
          '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (HORSEMAN_INK, INK),
-         '<path d="%s" fill="%s"/>' % (PUMPKIN, EMBER)]
+         '<path d="%s" fill="%s"%s/>' % (PUMPKIN, EMBER, lit)]
     for rib in PUMPKIN_RIBS:
-        g.append('<path d="%s" fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round"/>'
-                 % (rib, INK))
+        g.append('<path d="%s" fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round"%s/>'
+                 % (rib, INK, lit))
     g.append('</g>')
     return ''.join(g)
 
@@ -537,7 +543,7 @@ def clouds_plate_wide():
     return svg(1920, 520, [clouds(rnd, 1920, 0.66 * 1920, 165, 55, 9, tmin=8, tmax=15)])
 
 
-def hollow(w, h, seed):
+def hollow(w, h, seed, dim=False):
     # The foot of the frame: the far ridge with its grove and the old Dutch church on its
     # churchyard knoll, mist over the brook, and the near ridge with the bridge, a
     # churchyard's worth of gravestones, and the Horseman. Pinned to the bottom. The
@@ -627,7 +633,7 @@ def hollow(w, h, seed):
         o.append(tree(random.Random(15), 0.58 * w, ridge_y(far_pts, 0.58 * w) + 2,
                       -math.pi / 2 + 0.12, 26, 4.2, 7, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
-    o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
+    o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs, dim=dim))
     return svg(w, h, o)
 
 
@@ -639,12 +645,14 @@ def main():
         'sleepy-hollow-clouds.svg': clouds_plate(360, 420, 1793),
         'sleepy-hollow-leaves.svg': leaves_plate(360, 420, 1794),
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
+        'sleepy-hollow-hollow-dim.svg': hollow(360, 170, 1820, dim=True),
         'sleepy-hollow-sky-wide.svg': sky(900, 520, 1790),
         'sleepy-hollow-sky-dim-wide.svg': sky(900, 520, 1790, dim=True),
         'sleepy-hollow-tree-wide.svg': tree_plate(900, 520, 1790),
         'sleepy-hollow-clouds-wide.svg': clouds_plate_wide(),
         'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 520, 1794),
         'sleepy-hollow-hollow-wide.svg': hollow(900, 210, 1820),
+        'sleepy-hollow-hollow-dim-wide.svg': hollow(900, 210, 1820, dim=True),
     }
     for name, body in files.items():
         with open(os.path.join(THEMES, name), 'w') as fh:
