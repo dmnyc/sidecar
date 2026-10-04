@@ -381,3 +381,16 @@
   [data-theme="sleepy-hollow"] .lock-leaves { display: none; }
   [data-theme="sleepy-hollow"] .lock-ember { animation: none; }
 }
+
+/* THE HORSEMAN rides the foot of the Accounts tab, directly behind the On-this-day
+   box, and his pumpkin is the brightest thing in the frame — the box's quiet,
+   fill-less design assumed a calm wall behind it. Here it takes a scrim of the night
+   instead: velvet fading to the ink, a hairline all round, and the scene ghosting
+   faintly through so he is still there, just not through the words. */
+[data-theme="sleepy-hollow"] .otd {
+  margin: 14px 0 2px;
+  padding: 12px 14px 10px;
+  background: linear-gradient(180deg, rgba(19, 17, 30, 0.86), rgba(11, 10, 20, 0.94));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
