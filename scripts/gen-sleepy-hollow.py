@@ -36,7 +36,6 @@ THEMES = os.path.join(ROOT, 'themes')
 
 INK = '#06050A'        # the trees, the hills, the rider: one silhouette black
 FAR = '#141127'        # the far ridge, a step lighter so it reads behind the near one
-MID = '#0B0A17'        # the churchyard's slope, between the two: nearer than the knoll
 GROVE = '#0C0A17'      # the trees on the far ridge, between the two
 MOON = '#F2DCA8'
 MOON_RIM = '#DDB06A'
@@ -483,18 +482,15 @@ def hollow(w, h, seed):
                       -math.pi / 2 + rnd.uniform(-0.15, 0.15), rnd.uniform(9, 16), 2.4, 5, 0.0)
                  .replace(INK, GROVE))
     ky = ridge_y(far_pts, cx)
-    # The church on its knoll, then the churchyard's own slope in front of it: a broad
-    # mound of MID whose crest runs just below the nave's floor, so the hillside masks
-    # the church's bottom and nothing floats. Its two stones stand on the crest.
+    # The church on its knoll: the same broad bump of the far ridge the theme has always
+    # had, tall enough that its crest runs an inch past the nave's floor, so the church
+    # sits in the hillside and nothing floats — and no nearer landform is needed, which
+    # read as a road running into the distance. Its two stones stand on the crest.
+    o.append('<path d="M%s %sQ%s %s %s %sZ" fill="%s"/>'
+             % (f(cx - 78), f(ky + 4), f(cx - 6), f(ky - 25), f(cx + 78), f(ky + 4), FAR))
     o.append(church(cx, ky - 9, 0.85 if narrow else 1.1, INK))
-    span = 150 if narrow else 240
-    o.append('<path d="M%s %sQ%s %s %s %sQ%s %s %s %sQ%s %s %s %sL%s %sL%s %sZ" fill="%s"/>'
-             % (f(cx - span), f(ky + span * 0.35), f(cx - span * 0.42), f(ky + 18),
-                   f(cx - 30), f(ky - 8), f(cx + 2), f(ky - 15), f(cx + 34), f(ky - 8.4),
-                   f(cx + span * 0.5), f(ky + 6), f(cx + span), f(ky + span * 0.38),
-                   f(cx + span), f(h), f(cx - span), f(h), MID))
-    o.append(gravestone(cx - 36, ky - 7.6, 0.95, 0.1))
-    o.append(gravestone(cx + 40, ky - 7.9, 0.8, -0.14, tall=True))
+    o.append(gravestone(cx - 36, ky - 8, 0.95, 0.1))
+    o.append(gravestone(cx + 40, ky - 6.1, 0.8, -0.14, tall=True))
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
     near, near_pts = hills(rnd, w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)

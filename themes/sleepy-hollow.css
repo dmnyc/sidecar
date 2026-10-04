@@ -190,15 +190,18 @@
    of that, translated one panel width and looped — a transform, which Chrome always
    paints, where a background-position animation on the body's fixed layers never
    repaints (measured, not guessed: the computed value ran while the pixels held still).
-   The drift is westward and slow, 100vw in 75 seconds.
+   The drift is left to right, the reading direction, and slow: 100vw in 75 seconds.
 
    THE LEAVES come loose. sidepanel.html carries a .lock-leaves of ten <i> leaves; each
-   falls the height of the screen and a little west — the same wind the clouds ride —
-   turning as it goes, faster as it falls (the keyframes' steps widen downward, which is
-   gravity), fading in as it enters and out as it leaves, so new leaves arrive while old
-   ones go. Durations, delays and starts are staggered per leaf below, and the loop
-   restarts each leaf on its own clock, so the fall never repeats as a row. Their still
-   plate stands down while they fall (patterns.css), as the cloud plate does.
+   crosses the screen riding the same left-to-right wind as the clouds, but hardly
+   weighs anything, so it doesn't sink so much as get blown — the keyframes swing it
+   back and forth around a slow rightward drift while it settles, a flutter rather than
+   a fall, and unhurried: a crossing takes 26 to 40 seconds, two to three times the
+   first cut. It turns as it goes, fades in as it enters and out as it leaves, so new
+   leaves arrive while old ones go. Durations, delays and starts are staggered per leaf
+   below, and the loop restarts each leaf on its own clock, so the drift never repeats
+   as a row. Their still plate stands down while they fly (patterns.css), as the cloud
+   plate does.
 
    THE PUMPKIN gets its candle: .lock-ember, a halo over the baked glow that breathes,
    wider and dimmer, the way a flame does when the air is still.
@@ -220,18 +223,19 @@
   background-image: url(sleepy-hollow-clouds.svg);
   background-size: 33.34% auto;
   background-repeat: repeat-x;
-  animation: sleepy-hollow-drift 75s linear infinite reverse;
+  animation: sleepy-hollow-drift 75s linear infinite;
   pointer-events: none;
   z-index: -1; /* over the night's own layers, under the lock form */
 }
 
 @keyframes sleepy-hollow-fall {
   0%   { transform: translate3d(0, -8vh, 0) rotate(0deg); opacity: 0; }
-  7%   { opacity: 0.9; }
-  30%  { transform: translate3d(-4vw, 20vh, 0) rotate(110deg); }
-  55%  { transform: translate3d(-7vw, 48vh, 0) rotate(215deg); }
-  80%  { transform: translate3d(-10vw, 80vh, 0) rotate(295deg); opacity: 0.65; }
-  100% { transform: translate3d(-12vw, 112vh, 0) rotate(380deg); opacity: 0; }
+  6%   { opacity: 0.8; }
+  22%  { transform: translate3d(2vw, 14vh, 0) rotate(35deg); }
+  42%  { transform: translate3d(-2vw, 36vh, 0) rotate(85deg); }
+  60%  { transform: translate3d(3vw, 58vh, 0) rotate(130deg); }
+  78%  { transform: translate3d(-1vw, 82vh, 0) rotate(170deg); opacity: 0.6; }
+  100% { transform: translate3d(4vw, 112vh, 0) rotate(215deg); opacity: 0; }
 }
 [data-theme="sleepy-hollow"] .lock-leaves {
   position: fixed;
@@ -252,19 +256,19 @@
 }
 [data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3n) { filter: brightness(0.8); }
 [data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5n) { filter: brightness(1.2) hue-rotate(-12deg); }
-/* Ten leaves, ten clocks: a start across the sky, a fall between 11 and 17 seconds, and
-   a delay already deep in the fall, so the screen is leaved the moment it locks and no
+/* Ten leaves, ten clocks: a start across the sky, a crossing of 26 to 40 seconds, and a
+   delay already deep in the drift, so the screen is leaved the moment it locks and no
    two leaves ever share a phase. */
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(1)  { --x: 4vw;  --t: 13s;   --d: -3s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(2)  { --x: 14vw; --t: 16s;   --d: -9s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3)  { --x: 27vw; --t: 12s;   --d: -6s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(4)  { --x: 38vw; --t: 15s;   --d: -1s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5)  { --x: 49vw; --t: 11s;   --d: -7.5s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(6)  { --x: 58vw; --t: 14s;   --d: -4.5s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(7)  { --x: 66vw; --t: 12.5s; --d: -11s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(8)  { --x: 76vw; --t: 16.5s; --d: -2.5s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(9)  { --x: 85vw; --t: 12s;   --d: -8s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(10) { --x: 93vw; --t: 15.5s; --d: -5.5s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(1)  { --x: 4vw;  --t: 30s; --d: -6s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(2)  { --x: 14vw; --t: 38s; --d: -19s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3)  { --x: 27vw; --t: 28s; --d: -12s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(4)  { --x: 38vw; --t: 34s; --d: -2s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5)  { --x: 49vw; --t: 26s; --d: -15s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(6)  { --x: 58vw; --t: 33s; --d: -8s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(7)  { --x: 66vw; --t: 29s; --d: -24s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(8)  { --x: 76vw; --t: 40s; --d: -5s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(9)  { --x: 85vw; --t: 28s; --d: -17s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(10) { --x: 93vw; --t: 36s; --d: -11s; }
 
 @keyframes sleepy-hollow-candle {
   from { opacity: 0.5; transform: scale(0.92); }
