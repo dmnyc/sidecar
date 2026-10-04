@@ -293,7 +293,7 @@ def moon_geo(w):
     # wholly inside the top band the gallery's card crops to (the first 175 units). The
     # wide frame keeps the same clearance at a composer's widths.
     narrow = w < 600
-    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (72 if narrow else 190)
+    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (80 if narrow else 190)
 
 
 def clouds(rnd, w, mx, my, mr, blur):

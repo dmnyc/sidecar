@@ -512,17 +512,20 @@ html:not([data-theme]) body {
    and never tiled — the clouds and leaves excepted, whose wrapped drawing makes the
    tiling seamless. Behind all, the sky, lifted toward the moon. */
 /* The narrow plates are drawn for a side panel, and a side panel is what they assume:
-   at a tab's width they would scale to cartoon size. Below 600px — the generator's own
-   threshold — the panel wears them; at 600px and up it wears the wide plates the
-   composer wears, which were drawn for a full tab. */
-@media (max-width: 599.98px) {
+   at a tab's width they would scale to cartoon size, while the wide plates at a panel's
+   width would shrink to a postage stamp. The crossover sits at 900px, past anything a
+   side panel reaches: below it the panel wears the narrow plates, at 900px and up it
+   wears the wide plates the composer wears. The jump between the two compositions is
+   real — a close-up and a panorama are different pictures — but it now happens where a
+   window is genuinely a tab, not where a panel ends. */
+@media (max-width: 899.98px) {
   [data-theme="sleepy-hollow"] body {
     background-image:
       url(sleepy-hollow-sky.svg),
       url(sleepy-hollow-clouds.svg),
       url(sleepy-hollow-leaves.svg),
       url(sleepy-hollow-hollow.svg),
-      radial-gradient(420px 320px at 77% 72px, rgba(120, 104, 168, 0.16), transparent 70%),
+      radial-gradient(420px 320px at 77% 80px, rgba(120, 104, 168, 0.16), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
     background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
@@ -532,7 +535,7 @@ html:not([data-theme]) body {
     background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
   }
 }
-@media (min-width: 600px) {
+@media (min-width: 900px) {
   [data-theme="sleepy-hollow"] body {
     background-image:
       url(sleepy-hollow-sky-wide.svg),
@@ -553,12 +556,12 @@ html:not([data-theme]) body {
    these layers — so their static plates stand down rather than double them. The moving
    copies draw exactly where the plates were, so locking and unlocking moves nothing.
    Under reduced motion nothing moves, so nothing stands down: the still plates stay. */
-@media (prefers-reduced-motion: no-preference) and (max-width: 599.98px) {
+@media (prefers-reduced-motion: no-preference) and (max-width: 899.98px) {
   [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       url(sleepy-hollow-sky.svg),
       url(sleepy-hollow-hollow.svg),
-      radial-gradient(420px 320px at 77% 72px, rgba(120, 104, 168, 0.16), transparent 70%),
+      radial-gradient(420px 320px at 77% 80px, rgba(120, 104, 168, 0.16), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, auto, auto;
     background-position: top center, bottom center, 0% 0%, 0% 0%;
@@ -566,7 +569,7 @@ html:not([data-theme]) body {
     background-attachment: fixed, fixed, fixed, fixed;
   }
 }
-@media (prefers-reduced-motion: no-preference) and (min-width: 600px) {
+@media (prefers-reduced-motion: no-preference) and (min-width: 900px) {
   [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       url(sleepy-hollow-sky-wide.svg),
