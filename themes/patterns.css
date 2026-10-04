@@ -512,13 +512,13 @@ html:not([data-theme]) body {
    and never tiled — the clouds and leaves excepted, whose wrapped drawing makes the
    tiling seamless. Behind all, the sky, lifted toward the moon. */
 /* The narrow plates are drawn for a side panel, and a side panel is what they assume:
-   at a tab's width they would scale to cartoon size, while the wide plates at a panel's
-   width would shrink to a postage stamp. The crossover sits at 900px, past anything a
-   side panel reaches: below it the panel wears the narrow plates, at 900px and up it
-   wears the wide plates the composer wears. The jump between the two compositions is
-   real — a close-up and a panorama are different pictures — but it now happens where a
-   window is genuinely a tab, not where a panel ends. */
-@media (max-width: 899.98px) {
+   held to a tab's width they inflate the Horseman to the size of the PIN field. The
+   crossover sits at 520px — the top of the side panel's range — below it the panel wears
+   the narrow plates, at 520px and up it wears the wide plates the composer wears, so the
+   Horseman never grows past his panel-size self. The jump between the two compositions
+   is real — a close-up and a panorama are different pictures — but it happens as soon as
+   the window stops being a panel, and never mid-panel. */
+@media (max-width: 519.98px) {
   [data-theme="sleepy-hollow"] body {
     background-image:
       url(sleepy-hollow-sky.svg),
@@ -535,7 +535,7 @@ html:not([data-theme]) body {
     background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
   }
 }
-@media (min-width: 900px) {
+@media (min-width: 520px) {
   [data-theme="sleepy-hollow"] body {
     background-image:
       url(sleepy-hollow-sky-wide.svg),
@@ -556,7 +556,7 @@ html:not([data-theme]) body {
    these layers — so their static plates stand down rather than double them. The moving
    copies draw exactly where the plates were, so locking and unlocking moves nothing.
    Under reduced motion nothing moves, so nothing stands down: the still plates stay. */
-@media (prefers-reduced-motion: no-preference) and (max-width: 899.98px) {
+@media (prefers-reduced-motion: no-preference) and (max-width: 519.98px) {
   [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       url(sleepy-hollow-sky.svg),
@@ -569,7 +569,7 @@ html:not([data-theme]) body {
     background-attachment: fixed, fixed, fixed, fixed;
   }
 }
-@media (prefers-reduced-motion: no-preference) and (min-width: 900px) {
+@media (prefers-reduced-motion: no-preference) and (min-width: 520px) {
   [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       url(sleepy-hollow-sky-wide.svg),

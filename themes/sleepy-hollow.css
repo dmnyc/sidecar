@@ -243,7 +243,7 @@
 }
 /* At a composer's width the strips ride the wide plates, whose frame is 760 tall in
    1920 — and each tile is still one panel width, so the pan lands where it always did. */
-@media (min-width: 900px) {
+@media (min-width: 520px) {
   [data-theme="sleepy-hollow"] #view-lock::before {
     height: 39.6vw;
     background-image: url(sleepy-hollow-clouds-wide.svg);
@@ -317,7 +317,7 @@
    (of the 1920-unit plate) and 11.1 units-of-width above the foot, glow 3 across — a
    5vw square centered on (82.3vw, bottom 11.1vw). Same rule as ever: if hx,
    PUMPKIN_AT or PUMPKIN_GLOW move, these move with them. */
-@media (min-width: 900px) {
+@media (min-width: 520px) {
   [data-theme="sleepy-hollow"] .lock-ember {
     left: 79.8vw;
     bottom: 8.6vw;
