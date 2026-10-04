@@ -92,9 +92,15 @@ def limb(o, rnd, x, y, ang, length, width, depth, droop=0.05):
              length * rnd.uniform(0.4, 0.5), width * 0.45, depth - 1, droop)
 
 
-def tree(rnd, x, y, ang, length, width, depth, droop=0.05):
+def tree(rnd, x, y, ang, length, width, depth, droop=0.05, flip=False):
+    # flip grows the same tree the other way: the recursion has a handedness (its first
+    # fork always turns the same side), so without it every tree gestured alike.
     o = ['<g fill="none" stroke="%s" stroke-linecap="round">' % INK]
+    if flip:
+        o.append('<g transform="translate(%s 0) scale(-1 1)">' % f(2 * x))
     limb(o, rnd, x, y, ang, length, width, depth, droop)
+    if flip:
+        o.append('</g>')
     o.append('</g>')
     return ''.join(o)
 
@@ -512,16 +518,19 @@ def hollow(w, h, seed):
         if not free(tx):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(far_pts, tx) + 2,
-                      -math.pi / 2 + rnd.uniform(-0.15, 0.15), rnd.uniform(9, 16), 2.4, 5, 0.0)
+                      -math.pi / 2 + rnd.uniform(-0.15, 0.15), rnd.uniform(9, 16), 2.4, 5, 0.0,
+                      flip=rnd.random() < 0.5)
                  .replace(INK, GROVE))
     ky = ridge_y(far_pts, cx)
     # The church on its knoll: the same broad bump of the far ridge the theme has always
     # had, tall enough that its crest runs an inch past the nave's floor, so the church
     # sits in the hillside and nothing floats — and no nearer landform is needed, which
     # read as a road running into the distance. Its two stones stand on the crest.
+    # The church is drawn before its knoll, so the hill's curved crest passes in front
+    # of the nave's floor: the base line is the hillside's curve, not a straight edge.
+    o.append(church(cx, ky - 7.5, 0.85 if narrow else 1.1, INK))
     o.append('<path d="M%s %sQ%s %s %s %sZ" fill="%s"/>'
              % (f(cx - 78), f(ky + 4), f(cx - 6), f(ky - 25), f(cx + 78), f(ky + 4), FAR))
-    o.append(church(cx, ky - 9, 0.85 if narrow else 1.1, INK))
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
     near, near_pts = hills(random.Random(seed + 22), w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)
@@ -541,7 +550,8 @@ def hollow(w, h, seed):
         if not free(tx):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(near_pts, tx) + 3,
-                      -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02))
+                      -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02,
+                      flip=rnd.random() < 0.5))
     # Gnarly trees set round the graveyard, deliberate rather than left to chance, and
     # big enough to read as trees: one leaning over it from each end, rising from behind
     # the stones (they are drawn first, so the stones sit in front of the trunk), and a
@@ -549,20 +559,20 @@ def hollow(w, h, seed):
     # reads as a stump — nothing leans in from an edge here.
     if narrow:
         o.append(tree(random.Random(11), bx + 30 * bs + 5, ridge_y(near_pts, bx + 30 * bs + 5) + 3,
-                      -math.pi / 2 + 0.12, 26, 4.2, 7, 0.02))
+                      -math.pi / 2 + 0.14, 26, 4.2, 7, 0.04, flip=True))
         o.append(tree(random.Random(15), 345, ridge_y(near_pts, 345) + 3,
-                      -math.pi / 2 - 0.1, 24, 4, 6, 0.02))
+                      -math.pi / 2 - 0.08, 24, 4, 6, 0.06))
         o.append(tree(random.Random(12), 336, ridge_y(far_pts, 336) + 2,
-                      -math.pi / 2 - 0.08, 17, 3, 6, 0.0).replace(INK, GROVE))
+                      -math.pi / 2 - 0.08, 17, 3, 6, 0.0, flip=True).replace(INK, GROVE))
     else:
         o.append(tree(random.Random(11), 1652, ridge_y(near_pts, 1652) + 3,
-                      -math.pi / 2 + 0.1, 28, 4.2, 7, 0.02))
+                      -math.pi / 2 + 0.16, 28, 4.2, 7, 0.05, flip=True))
         o.append(tree(random.Random(15), 1880, ridge_y(near_pts, 1880) + 3,
-                      -math.pi / 2 - 0.08, 30, 4.4, 7, 0.02))
+                      -math.pi / 2 - 0.06, 30, 4.4, 7, 0.03))
         o.append(tree(random.Random(13), 1690, ridge_y(far_pts, 1690) + 2,
                       -math.pi / 2 + 0.06, 20, 3.2, 6, 0.0).replace(INK, GROVE))
         o.append(tree(random.Random(14), 1805, ridge_y(far_pts, 1805) + 2,
-                      -math.pi / 2 - 0.1, 21, 3.2, 6, 0.0).replace(INK, GROVE))
+                      -math.pi / 2 - 0.1, 21, 3.2, 6, 0.0, flip=True).replace(INK, GROVE))
         o.append(tree(random.Random(15), 1755, ridge_y(far_pts, 1755) + 2,
                       -math.pi / 2 + 0.12, 19, 3.1, 6, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
