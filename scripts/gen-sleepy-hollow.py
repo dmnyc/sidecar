@@ -296,13 +296,17 @@ def clouds(rnd, w, mx, my, mr, blur):
     # tiles seamlessly when the lock screen pans it. The first two banks cross the moon's
     # disc. No bright under-strokes: the softness is the whole remark.
     narrow = w < 600
-    o = ['<filter id="cloudsoft" x="-60%" y="-500%" width="220%" height="1200%">'
+    # The blur runs in sRGB: linearRGB, the filter default, warms the soft edges.
+    # The ink is a slate with almost no violet in it, and thick enough that the moon's
+    # warm halo behind a wisp cannot tint it — near the disc and away from it, the same
+    # desaturated grey.
+    o = ['<filter id="cloudsoft" x="-60%" y="-500%" width="220%" height="1200%" color-interpolation-filters="sRGB">'
          '<feGaussianBlur stdDeviation="' + f(blur) + '"/></filter>',
          '<g filter="url(#cloudsoft)">']
 
     def lens(x, y, L, T, op):
         for dx in (-w, 0, w):
-            o.append('<path d="M%s %sQ%s %s %s %sQ%s %s %s %sZ" fill="#0D0B18" fill-opacity="%s"/>'
+            o.append('<path d="M%s %sQ%s %s %s %sQ%s %s %s %sZ" fill="#13151B" fill-opacity="%s"/>'
                      % (f(x - L + dx), f(y), f(x - L * 0.2 + dx), f(y - T * 2.4), f(x + L + dx), f(y),
                         f(x + L * 0.1 + dx), f(y + T * 0.8), f(x - L + dx), f(y), f(op)))
 
@@ -317,10 +321,10 @@ def clouds(rnd, w, mx, my, mr, blur):
             y = my + rnd.uniform(-mr * 0.8, mr * 1.1)
             L = rnd.uniform(w * 0.05, w * 0.11)
         T = rnd.uniform(4.5, 9)
-        lens(x, y, L, T, rnd.uniform(0.5, 0.68))
+        lens(x, y, L, T, rnd.uniform(0.72, 0.84))
         # a thinner wisp riding above, as clouds travel in banks
         lens(x + L * rnd.uniform(-0.4, 0.4), y - T * rnd.uniform(1.4, 2.0),
-             L * rnd.uniform(0.45, 0.65), T * 0.85, rnd.uniform(0.3, 0.45))
+             L * rnd.uniform(0.45, 0.65), T * 0.85, rnd.uniform(0.48, 0.6))
     o.append('</g>')
     return ''.join(o)
 
