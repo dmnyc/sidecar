@@ -13,8 +13,9 @@ Writes, in themes/:
                              Dutch church on its churchyard knoll, gravestones in the
                              foreground, and the Horseman riding the ridge with his
                              pumpkin alight.
-  sleepy-hollow-*-wide.svg   the same three in a wider frame for the expanded composer, so
-                             a full tab draws the scene at about the size the panel does.
+  sleepy-hollow-*-wide.svg   the same three in a wider frame for the expanded composer and
+                             any window past a side panel's width — 900 units, so its
+                             elements render larger than the panel's at the same width.
 
 Two layers rather than one plate, each laid once at the full width and pinned to its own
 edge: the moon then sits at the same place under the tab bar however tall the panel is,
@@ -294,7 +295,7 @@ def moon_geo(w):
     # gallery's card crops to (the first 175 units). The wide frame keeps its own
     # clearance at a composer's widths.
     narrow = w < 600
-    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (105 if narrow else 190)
+    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (105 if narrow else 155)
 
 
 def clouds(rnd, w, mx, my, mr, blur):
@@ -508,7 +509,7 @@ def hollow(w, h, seed):
     hs = 0.6 if narrow else 0.8
     # The foreground gravestones: one graveyard, clustered on the right of the near
     # ridge — stones gathered close, the way a burial ground reads, not scattered singly.
-    gy0, gy1 = (274, 352) if narrow else (1660, 1870)
+    gy0, gy1 = (274, 352) if narrow else (0.864 * w, 0.974 * w)
     gcount, gsep = (5, 15) if narrow else (7, 24)
     clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gy0 - 10, gy1 + 10)]
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
@@ -569,15 +570,15 @@ def hollow(w, h, seed):
         o.append(tree(random.Random(12), 336, ridge_y(far_pts, 336) + 2,
                       -math.pi / 2 - 0.08, 17, 3, 6, 0.0, flip=True).replace(INK, GROVE))
     else:
-        o.append(tree(random.Random(11), 1652, ridge_y(near_pts, 1652) + 3,
+        o.append(tree(random.Random(11), 0.86 * w, ridge_y(near_pts, 0.86 * w) + 3,
                       -math.pi / 2 + 0.16, 28, 4.2, 7, 0.05, flip=True))
-        o.append(tree(random.Random(15), 1880, ridge_y(near_pts, 1880) + 3,
+        o.append(tree(random.Random(15), 0.977 * w, ridge_y(near_pts, 0.977 * w) + 3,
                       -math.pi / 2 - 0.06, 30, 4.4, 7, 0.03))
-        o.append(tree(random.Random(13), 1690, ridge_y(far_pts, 1690) + 2,
+        o.append(tree(random.Random(13), 0.879 * w, ridge_y(far_pts, 0.879 * w) + 2,
                       -math.pi / 2 + 0.06, 20, 3.2, 6, 0.0).replace(INK, GROVE))
-        o.append(tree(random.Random(14), 1805, ridge_y(far_pts, 1805) + 2,
+        o.append(tree(random.Random(14), 0.947 * w, ridge_y(far_pts, 0.947 * w) + 2,
                       -math.pi / 2 - 0.1, 21, 3.2, 6, 0.0, flip=True).replace(INK, GROVE))
-        o.append(tree(random.Random(15), 1755, ridge_y(far_pts, 1755) + 2,
+        o.append(tree(random.Random(15), 0.914 * w, ridge_y(far_pts, 0.914 * w) + 2,
                       -math.pi / 2 + 0.12, 19, 3.1, 6, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
@@ -590,10 +591,10 @@ def main():
         'sleepy-hollow-clouds.svg': clouds_plate(360, 420, 1793),
         'sleepy-hollow-leaves.svg': leaves_plate(360, 420, 1794),
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
-        'sleepy-hollow-sky-wide.svg': sky(1920, 760, 1790),
-        'sleepy-hollow-clouds-wide.svg': clouds_plate(1920, 760, 1793),
-        'sleepy-hollow-leaves-wide.svg': leaves_plate(1920, 760, 1794),
-        'sleepy-hollow-hollow-wide.svg': hollow(1920, 300, 1820),
+        'sleepy-hollow-sky-wide.svg': sky(900, 356, 1790),
+        'sleepy-hollow-clouds-wide.svg': clouds_plate(900, 356, 1793),
+        'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 356, 1794),
+        'sleepy-hollow-hollow-wide.svg': hollow(900, 210, 1820),
     }
     for name, body in files.items():
         with open(os.path.join(THEMES, name), 'w') as fh:
