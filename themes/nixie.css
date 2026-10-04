@@ -111,7 +111,10 @@
      clears them from either direction. Lifting the dark stop to #ec4a16 and the
      bright stop with it gives 6.68 / 5.13 across the run. */
   --accent-fill: linear-gradient(160deg, #ff6a30, #ec4a16);
-  --balloon-bg-hover: rgba(240, 48, 12, 0.15);
+  /* The balloon's hover strikes from the pale tube to the deep ember — solid, because
+     a translucent fill let the night sky through and read as a hole. #ec4a16 is the
+     accent-fill's dark stop, where the chip-ink notes measure 5.13 against dark ink. */
+  --balloon-bg-hover: #ec4a16;
   --glow: rgba(240, 48, 12, 0.26);
   /* ~15 rules paint accent washes with rgba(var(--accent-rgb), x) — the active
      account row, focus rings, the avatar halo. The :root default is Speakeasy's
@@ -228,8 +231,10 @@
 
   /* interaction states — ambient light on metal, so cool. (The exception is
      --mention-bg: a mention is live, and reads as gas.) */
-  --hover-soft: rgba(176, 200, 222, 0.07);
-  --hover-medium: rgba(176, 200, 222, 0.12);
+  /* The row washes burn with the theme's ember, not the cool blue-gray they shipped
+     with — every other wash in this file (accent-rgb, card-wash, glow) is ember already. */
+  --hover-soft: rgba(240, 48, 12, 0.07);
+  --hover-medium: rgba(240, 48, 12, 0.12);
   --hover-faint: rgba(176, 200, 222, 0.045);
   --mention-bg: rgba(240, 48, 12, 0.17);
   --pending-sub: #a0aebc;

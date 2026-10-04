@@ -144,6 +144,9 @@
   --glow: #111111;
   --balloon-bg: #FFFFFF;
   --balloon-bg-hover: #FFFFFF; /* the tail is a white picture, so the balloon stays white */
+  /* The color cannot change on hover — the drawn tail shares this exact fill and would
+     detach — so the hover is a lift: the balloon rises on its shadow instead. */
+  --balloon-hover-lift: 0 7px 20px rgba(0, 0, 0, 0.55);
   --balloon-text: #111111;
   --fab-bg: #FFD400;
   --fab-icon: #111111;
@@ -1325,3 +1328,8 @@
   border-color: #111111;
   box-shadow: 0 0 0 2px #FFD400;
 }
+
+/* The balloon's hover lift (see --balloon-hover-lift above): white cannot darken
+   without orphaning the tail, so hover deepens the float shadow instead. */
+[data-theme="ben-day"] .first-post-balloon { transition: background 0.12s, opacity 0.15s, box-shadow 0.12s; }
+[data-theme="ben-day"] .first-post-balloon:hover { box-shadow: var(--balloon-hover-lift); }

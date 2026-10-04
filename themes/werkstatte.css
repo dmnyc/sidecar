@@ -192,7 +192,7 @@
   --glow: var(--amber);
 
   --balloon-bg: #1C1F26;
-  --balloon-bg-hover: #2C3038;
+  --balloon-bg-hover: #3A4050;
   --balloon-text: #FAFBFC;
 
   --fab-bg: #15171C;
@@ -331,7 +331,7 @@
 [data-theme="werkstatte"] .profile-avatar:not(.theme-card):not(.theme-card *),
 /* The same face on the peek sheet, for the same reason as .profile-avatar. */
 [data-theme="werkstatte"] .peek-avatar:not(.theme-card):not(.theme-card *),
-[data-theme="werkstatte"] .upload-preview:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .upload-preview:not(.banner):not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .chip-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .acct-row-av:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .ip-av:not(.theme-card):not(.theme-card *),
