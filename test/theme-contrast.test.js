@@ -405,6 +405,10 @@ const FLOORS = {
   // Turnstile: the enamel's near-black and two grays on white tile. The worst surface for
   // all three is the shaded tile; the green enamel is the accent ink.
   turnstile: { '--muted': 7.47, '--faint': 6.58, '--gold': 7.94 },
+  // Sleepy Hollow: parchment and two mist grays on the indigo night. The worst surface for
+  // all three is the lighter card; --gold is the moon's rim, the accent ink, and the
+  // pumpkin is a fill only.
+  'sleepy-hollow': { '--muted': 7.13, '--faint': 4.39, '--gold': 9.70 },
 };
 
 for (const theme of THEMES) {

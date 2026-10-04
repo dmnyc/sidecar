@@ -1,0 +1,396 @@
+/* ============================================================
+   Sidecar — Sleepy Hollow Theme (a special edition, October)
+   After Washington Irving's tale of 1820 and the engravings that
+   illustrated it: the Hollow at night in silhouette, a harvest
+   moon behind the great tulip tree, and the Horseman on the ridge
+   with his pumpkin alight. Worn only while it is in season; see
+   seasons.js. Groups with the dark themes.
+   ============================================================ */
+
+/* Measured before written down, like every theme here — test/theme-contrast.test.js
+   resolves these var() chains and checks the ratios.
+
+   THE SOURCE is the printed book, not the holiday: the Hollow as the nineteenth-century
+   illustrators drew it, everything the one near-black of the trees against a moonlit
+   sky, and only three things lit.
+
+       NIGHT    #0B0A14 the sky, #1A1726 the cards in it: a black with indigo in it
+       MOON     #EBB867 the accent ink, the moon at its rim
+       PUMPKIN  #F4A852 -> #E48A32 -> #B65F1F, the primary, a lantern held up
+       MIST     #CDC7E3 the second accent, moonlight on the mist over the brook
+
+   THE NEAREST NEIGHBORS are Constellation (gold on a night plate) and Jazz Age (a lit
+   accent on black). Constellation is engraving gold on brown-black with the stars as its
+   field; this is indigo night with a landscape, and its warm accents are two (the moon and
+   the pumpkin) where Constellation's is one. Jazz Age is crimson and ivory on a stage;
+   there is no red here. */
+
+[data-theme="sleepy-hollow"] {
+  color-scheme: dark;
+
+  /* IM FELL English SC, the Fell types cut in the seventeenth century and still the
+     look of an old printed book: the title page a copy of the tale would have had. Its
+     figures are old-style and it has no lining set, so a balance in it reads as a row of
+     small letters (Constellation's note on Cormorant says why that matters). The figures
+     therefore come from 'Hollow Figures', which is Cormorant Garamond limited to digits
+     and their punctuation by unicode-range (fonts.css), set lining below. Same family of
+     old book faces, figures a reader can read at a glance. */
+  --font-display: 'Hollow Figures', 'IM FELL English SC', 'Cormorant Garamond', Georgia, serif;
+  font-variant-numeric: lining-nums;
+  --display-ink-nudge: -0.01em;
+
+  /* surfaces — the night: not neutral, a black with indigo in it, the way the sky stays
+     blue at its darkest under a full moon. */
+  --bg: #0B0A14;
+  --bg-2: #100E1B;
+  --velvet-1: #1A1726;
+  --velvet-2: #13111E;
+  --velvet-1-rgb: 26, 23, 38;
+  --av-from: #242036;
+  --av-to: #13111E;
+  --banner-accent: #242036;
+  --border: rgba(235, 184, 103, 0.15);
+  --border-strong: rgba(235, 184, 103, 0.30);
+  --border-rgb: 235, 184, 103;
+  --well-rgb: 6, 5, 11;
+  /* The ember, for warnings: redder than the pumpkin so the two are not one signal. */
+  --warn: #E9875A;
+  --warn-rgb: 233, 135, 90;
+  /* Moss on the stones of the churchyard wall. */
+  --success: #93BA8C;
+  --success-rgb: 147, 186, 140;
+
+  /* brand — the moon is the accent ink, the pumpkin is the fill. */
+  --orange: #E48A32;
+  --badge-ink: #1A0E05;
+  --amber: #F4C98A;
+  --gold: #EBB867;
+  --gold-soft: rgba(235, 184, 103, 0.5);
+  --accent-rgb: 235, 184, 103;
+  /* The slot the other dark themes fill with purple takes the mist. */
+  --purple: #B9B3D6;
+  --lav: #CDC7E3;
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
+  --hover-soft: rgba(235, 184, 103, 0.07);
+  --hover-medium: rgba(235, 184, 103, 0.11);
+  --hover-faint: rgba(235, 184, 103, 0.05);
+  --mention-bg: rgba(235, 184, 103, 0.16);
+  --scroll-thumb: linear-gradient(180deg, #34304A, #25223A);
+  --scroll-thumb-hover: #433E5C;
+
+  /* primary button — the pumpkin, lit from inside: hot at the top, the rind darkening
+     toward the bottom. Near-black ink. */
+  --btn-primary-top: #F4A852;
+  --btn-primary-mid: #E48A32;
+  --btn-primary-bot: #B65F1F;
+  --btn-primary-text: #1A0E05;
+  --btn-shadow: rgba(228, 138, 50, 0.28);
+
+  /* "Trust this site" — the mist, so it cannot be mistaken for the pumpkin. */
+  --btn-lav-top: #E6E2F3;
+  --btn-lav-mid: #CDC7E3;
+  --btn-lav-bot: #A7A0C6;
+  --btn-lav-text: #120F1E;
+  --btn-lav-ring: rgba(205, 199, 227, 0.34);
+  --btn-lav-shadow: rgba(205, 199, 227, 0.18);
+
+  /* ink — the page of an old book by moonlight: warm, never a screen's white */
+  --text: #ECE5D3;
+  --text-2: #D3CBB8;
+  --muted: #A9A2B4;
+  --faint: #827C92;
+  --red: #E57867;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.5);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  --pattern-opacity: 1;
+
+  --input-bg: linear-gradient(180deg, rgba(5, 4, 10, 0.6), rgba(11, 10, 20, 0.6));
+  --focus-ring: rgba(235, 184, 103, 0.2);
+  --card-wash: rgba(235, 184, 103, 0.07);
+}
+
+/* The rules that set tabular figures of their own. Naming tabular-nums resets the figure
+   style, so each restates lining alongside it. */
+[data-theme="sleepy-hollow"] .pinned-balance-amt,
+[data-theme="sleepy-hollow"] .relax-status-time {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* One weight, 400. The panel asks its display face for 700 in a dozen places, and the
+   browser would smear a fake bold over the Fell letters, which are already heavy with
+   ink. The face is declared across 400 to 700 (fonts.css) so nothing is synthesized. */
+
+/* PROSE ON THE NIGHT IS HALOED with the sky, as Constellation does on its chart: the
+   moon and its halo are the brightest things on the plate, and a hint that happens to sit
+   over them keeps its contrast because nothing behind a glyph can be brighter than --bg. */
+[data-theme="sleepy-hollow"] .hint,
+[data-theme="sleepy-hollow"] .tabview h2,
+[data-theme="sleepy-hollow"] .tabview h3,
+[data-theme="sleepy-hollow"] #view-settings > .content > h2,
+[data-theme="sleepy-hollow"] .settings-section-title {
+  text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 6px var(--bg);
+}
+
+/* Outgoing transactions in the ember, off the same fire as --warn. */
+[data-theme="sleepy-hollow"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.13);
+}
+[data-theme="sleepy-hollow"] ::selection {
+  background: rgba(235, 184, 103, 0.26);
+  color: var(--text);
+}
+
+/* The gallery card names the theme in its own face, a size down: the Fell small caps run
+   wide, and SLEEPY HOLLOW at 20px is the longest name in the set. */
+.theme-card[data-theme="sleepy-hollow"] .theme-name {
+  font-family: 'IM FELL English SC', Georgia, serif;
+  font-weight: 400;
+  font-size: 18px;
+}
+
+/* The arrival card names the edition in its own face, whatever theme the panel is in. */
+.season-card-name[data-edition="sleepy-hollow"] {
+  font-family: 'IM FELL English SC', Georgia, serif;
+  font-size: 21px;
+}
+
+/* The moon's arc now rises behind the topbar as well, so the bar's wash deepens a
+   little to keep the icons over it readable — the same move the tab bar got. */
+[data-theme="sleepy-hollow"] .topbar {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.72), rgba(var(--velvet-1-rgb), 0.45));
+}
+
+/* The moon rises just under the tab bar and the tree's limbs cross behind it, so the
+   tabs get what the topbar already has: a wash of the theme's velvet behind the words,
+   strongest at the top where the moon is brightest, enough to read every one of them
+   while the sky still shows through. */
+[data-theme="sleepy-hollow"] .tabs {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.82), rgba(var(--velvet-1-rgb), 0.58));
+}
+
+/* ---- balance animation: the lantern is lit -------------------------------------------
+   Each figure catches like a candle in a carved pumpkin: it flares in the ember's orange,
+   gutters twice as the flame finds the air, and steadies into the moon's gold. Left to
+   right, the way a taper is carried along a row of lanterns, and quick: the whole figure
+   is lit in about a second. */
+@keyframes sleepy-hollow-kindle {
+  0%   { opacity: 0; color: #FFC57A; text-shadow: 0 0 0.5em rgba(240, 154, 62, 0.85); }
+  12%  { opacity: 1; }
+  24%  { opacity: 0.55; }
+  36%  { opacity: 1; text-shadow: 0 0 0.4em rgba(240, 154, 62, 0.6); }
+  48%  { opacity: 0.8; }
+  62%  { opacity: 1; color: #FFC57A; }
+  100% { opacity: 1; color: var(--balance-ink); text-shadow: none; }
+}
+[data-theme="sleepy-hollow"] .bal-glyph { display: inline-block; }
+[data-theme="sleepy-hollow"] .bal-glyph.bal-in {
+  animation: sleepy-hollow-kindle 900ms ease-out both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="sleepy-hollow"] .bal-glyph.bal-in { animation: none; }
+}
+
+/* ---- the lock screen: the sky is awake ------------------------------------------------
+   The lock screen is where the theme performs (Departures has its clock, Turnstile its
+   signs), so here — and only here — the night moves.
+
+   THE CLOUDS ride a strip: a fixed element three panels wide, its plate tiled at a third
+   of that, translated one panel width and looped — a transform, which Chrome always
+   paints, where a background-position animation on the body's fixed layers never
+   repaints (measured, not guessed: the computed value ran while the pixels held still).
+   The drift is left to right, the reading direction, and slow: 100vw in 75 seconds.
+
+   THE LEAVES come loose. sidepanel.html carries a .lock-leaves of ten <i> leaves; each
+   crosses the whole panel left to right on the same wind as the clouds, sinking at a
+   gentle angle as it goes — a shallow diagonal, not a fall — turning slowly, easing in
+   at the left edge and out at the right, so new leaves arrive while old ones leave. A
+   crossing takes 26 to 40 seconds. Heights, durations and delays are staggered per leaf
+   below, and the loop restarts each leaf on its own clock, so the stream never repeats
+   as a row. Their still plate stands down while they fly (patterns.css), as the cloud
+   plate does.
+
+   THE PUMPKIN gets its candle: .lock-ember, a halo over the baked glow that breathes,
+   wider and dimmer, the way a flame does when the air is still.
+
+   Under prefers-reduced-motion none of this runs: the strips and the falling leaves are
+   display:none, the body's own still clouds and leaves stay up (the stand-down in
+   patterns.css is scoped to motion-allowed), and the candle is a still halo. */
+@keyframes sleepy-hollow-drift {
+  from { transform: translateX(var(--drift, -100vw)); }
+  to   { transform: translateX(0); }
+}
+[data-theme="sleepy-hollow"] #view-lock::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300vw;
+  height: 116.7vw; /* the sky plates are 420 tall in a 360 frame */
+  background-image: url(sleepy-hollow-clouds.svg);
+  background-size: 33.34% auto;
+  background-repeat: repeat-x;
+  animation: sleepy-hollow-drift 75s linear infinite;
+  pointer-events: none;
+  z-index: -1; /* over the night's own layers, under the lock form */
+}
+/* THE TREE stands above the drifting clouds, as it does in the body's stack: ::after
+   paints after ::before, so this still copy of the tree plate covers any wisp that
+   passes. It does not move — the tree is rooted — and it draws exactly where the body's
+   tree plate sat, whose stand-down (patterns.css) makes this the only copy. */
+[data-theme="sleepy-hollow"] #view-lock::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 116.7vw;
+  background-image: url(sleepy-hollow-tree.svg);
+  background-size: 100% auto;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: -2; /* above the clouds' strip, under the falling leaves */
+}
+/* At a composer's width the strips ride the wide plates, whose frame is 520 tall in
+   900 — and each tile is still one panel width, so the pan lands where it always did. */
+@media (min-width: 520px) and (max-width: 899.98px) {
+  [data-theme="sleepy-hollow"] #view-lock::before {
+    /* The wide clouds are a fixed 1920px tile (they hold the fixed moon's company), so
+       the strip is a fixed height and pans exactly one tile period — the loop stays
+       seamless at every width. */
+    --drift: -1920px;
+    width: calc(100vw + 2400px);
+    height: 520px;
+    background-size: 1920px auto;
+    background-image: url(sleepy-hollow-clouds-wide.svg);
+  }
+  [data-theme="sleepy-hollow"] #view-lock::after {
+    width: 900px;
+    height: 520px;
+    background-size: 900px auto;
+    background-image: url(sleepy-hollow-tree-wide.svg);
+  }
+}
+@media (min-width: 900px) {
+  [data-theme="sleepy-hollow"] #view-lock::before {
+    --drift: -1920px;
+    width: calc(100vw + 2400px);
+    height: 520px;
+    background-size: 1920px auto;
+    background-image: url(sleepy-hollow-clouds-wide.svg);
+  }
+  [data-theme="sleepy-hollow"] #view-lock::after {
+    height: 57.8vw;
+    background-image: url(sleepy-hollow-tree-wide.svg);
+  }
+}
+
+@keyframes sleepy-hollow-fall {
+  0%   { transform: translate3d(-10vw, 0, 0) rotate(0deg); opacity: 0; }
+  8%   { opacity: 0.8; }
+  25%  { transform: translate3d(18vw, 7vh, 0) rotate(60deg); }
+  50%  { transform: translate3d(43vw, 12vh, 0) rotate(140deg); }
+  75%  { transform: translate3d(72vw, 19vh, 0) rotate(230deg); opacity: 0.6; }
+  100% { transform: translate3d(104vw, 27vh, 0) rotate(320deg); opacity: 0; }
+}
+[data-theme="sleepy-hollow"] .lock-leaves {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1; /* over the night's own layers, under the lock form */
+}
+[data-theme="sleepy-hollow"] .lock-leaves i {
+  position: absolute;
+  top: var(--y);
+  left: 0;
+  width: 12px;
+  height: 9px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-3 -4 6 8'%3E%3Cpath d='M0 -3.4C2.2 -1.6 2.2 1.6 0 3.4C-2.2 1.6 -2.2 -1.6 0 -3.4Z' fill='%23B5652E'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: sleepy-hollow-fall var(--t) linear infinite;
+  animation-delay: var(--d);
+  opacity: 0;
+}
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3n) { filter: brightness(0.8); }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5n) { filter: brightness(1.2) hue-rotate(-12deg); }
+/* Ten leaves, ten clocks: a height in the sky, a crossing of 26 to 40 seconds, and a
+   delay already deep in the crossing, so the screen is leaved the moment it locks and no
+   two leaves ever share a phase. */
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(1)  { --y: 6vh;  --t: 30s; --d: -6s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(2)  { --y: 14vh; --t: 38s; --d: -19s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3)  { --y: 22vh; --t: 28s; --d: -12s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(4)  { --y: 30vh; --t: 34s; --d: -2s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5)  { --y: 38vh; --t: 26s; --d: -15s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(6)  { --y: 44vh; --t: 33s; --d: -8s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(7)  { --y: 10vh; --t: 29s; --d: -24s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(8)  { --y: 26vh; --t: 40s; --d: -5s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(9)  { --y: 48vh; --t: 28s; --d: -17s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(10) { --y: 18vh; --t: 36s; --d: -11s; }
+
+@keyframes sleepy-hollow-candle {
+  from { opacity: 0.5; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1.08); }
+}
+/* The candle sits over the pumpkin, whose place comes from the generator: the Horseman is
+   planted at 8% of the width, his pumpkin 151 units in (of the 360-unit plate) and 35.5
+   units-of-width above the foot, glow 12 units-of-width across — so the halo is a 20vw
+   square centered on (33.2vw, bottom 35.5vw). If hx, PUMPKIN_AT or PUMPKIN_GLOW move in
+   gen-sleepy-hollow.py, these three lines move with them; the ridge lines themselves no
+   longer drift, drawing as they do from their own streams. */
+[data-theme="sleepy-hollow"] .lock-ember {
+  position: fixed;
+  left: 23.2vw;
+  bottom: 25.5vw;
+  width: 20vw;
+  height: 20vw;
+  background: radial-gradient(closest-side,
+              rgba(240, 154, 62, 0.38), rgba(240, 154, 62, 0.15) 46%, rgba(240, 154, 62, 0) 72%);
+  animation: sleepy-hollow-candle 3.4s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: -1; /* over the night's own layers, under the lock form */
+}
+/* On the wide plates the Horseman rides at 40% of the width, his pumpkin 151 units in
+   (of the 900-unit plate) and 18.2 units-of-width above the foot, glow 6.4 across — a
+   10.7vw square centered on (53.4vw, bottom 18.2vw). Same rule as ever: if hx,
+   PUMPKIN_AT or PUMPKIN_GLOW move, these move with them. */
+@media (min-width: 520px) and (max-width: 899.98px) {
+  [data-theme="sleepy-hollow"] .lock-ember {
+    left: 325px;
+    bottom: 119px;
+    width: 96px;
+    height: 96px;
+  }
+}
+@media (min-width: 900px) {
+  [data-theme="sleepy-hollow"] .lock-ember {
+    left: 36.1vw;
+    bottom: 13.2vw;
+    width: 10.7vw;
+    height: 10.7vw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="sleepy-hollow"] #view-lock::before,
+  [data-theme="sleepy-hollow"] #view-lock::after,
+  [data-theme="sleepy-hollow"] .lock-leaves { display: none; }
+  [data-theme="sleepy-hollow"] .lock-ember { animation: none; }
+}
+
+/* THE HORSEMAN rides the foot of the Accounts tab, directly behind the On-this-day
+   box, and his pumpkin is the brightest thing in the frame — the box's quiet,
+   fill-less design assumed a calm wall behind it. Here it takes a scrim of the night
+   instead: velvet fading to the ink, a hairline all round, and the scene ghosting
+   faintly through so he is still there, just not through the words. */
+[data-theme="sleepy-hollow"] .otd {
+  margin: 14px 0 2px;
+  padding: 12px 14px 10px;
+  background: linear-gradient(180deg, rgba(19, 17, 30, 0.86), rgba(11, 10, 20, 0.94));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}

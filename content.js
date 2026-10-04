@@ -721,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'sleepy-hollow']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -1217,6 +1217,30 @@
         CARD_WARN: 'color:#D89A6A',
         CARD_SUCCESS: 'color:#8FB894',
         CARD_PAY_SHADOW: 'rgba(201,170,108,0.24)'
+      },
+      /* Sleepy Hollow, the October special edition — indigo night, the moon's gold and the
+         pumpkin. Mirrors themes/sleepy-hollow.css. The pay button is the lit pumpkin with
+         near-black ink, and CARD_LAV is the mist over the brook. Only ever the card theme
+         while the bound account is wearing it in season: background.js resolves it. */
+      'sleepy-hollow': {
+        CARD_COLOR: 'color:#ECE5D3',
+        CARD_BORDER: 'rgba(235,184,103,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 80% 0%,rgba(120,104,168,0.18),transparent 60%),linear-gradient(165deg,#1A1726,#0B0A14)',
+        CARD_MUTED: 'color:#A9A2B4',
+        CARD_GOLD: 'color:#EBB867',
+        CARD_TEXT_2: 'color:#D3CBB8',
+        CARD_LAV: '#CDC7E3',
+        CARD_PAY_TEXT: 'color:#1A0E05',
+        CARD_PAY_BG: 'linear-gradient(180deg,#F4A852,#E48A32 52%,#B65F1F)',
+        CARD_CANCEL_BG: 'rgba(235,184,103,0.10)',
+        CARD_TEXT: '#ECE5D3',
+        CARD_BORDER_FAINT: 'rgba(235,184,103,0.15)',
+        CARD_TOGGLE_OFF: 'rgba(235,184,103,0.22)',
+        CARD_TRACK: '#E48A32',
+        CARD_THUMB_OFF: '#A9A2B4',
+        CARD_WARN: 'color:#E9875A',
+        CARD_SUCCESS: 'color:#93BA8C',
+        CARD_PAY_SHADOW: 'rgba(228,138,50,0.28)'
       },
       /* Mycelium — oat, moss, and the fly agaric. Mirrors themes/mycelium.css.
          CARD_GOLD is the amount slot and takes --balance-ink, the fly agaric's red,

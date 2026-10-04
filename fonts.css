@@ -35,6 +35,8 @@
      Turnstile   Pathway Gothic One condensed gothic              the enamel sign
                  + Archivo Expanded heavy expanded grotesque      the mosaic name tablet
                  + Crimson Pro      old-style serif               the red faience tablet
+     Sleepy Hollow IM FELL English SC 17th-c. book type, small caps  the title page of the tale
+                 + Cormorant figures lining old-style figures      the balance (unicode-range)
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -531,4 +533,32 @@
   font-weight: 600;
   font-display: swap;
   src: url('fonts/crimson-pro-600.woff2') format('woff2');
+}
+
+/* Sleepy Hollow, the October special edition (seasons.js). IM FELL English SC, Igino
+   Marini's revival of the Fell types (SIL OFL 1.1, Reserved Font Name "IM FELL English
+   SC" — see fonts/OFL-IMFellEnglishSC.txt); the unmodified TTF, kept whole because a
+   converted file would have to drop the reserved name. One weight, declared across 400 to
+   700 so the panel's bold display rules use it as it is rather than smearing a fake bold
+   over letters already heavy with ink.
+
+   'Hollow Figures' is Cormorant Garamond's file again, the one Constellation loads,
+   limited by unicode-range to the digits and the marks set between them. The Fell figures
+   are old-style with no lining set, so a balance in them reads as small letters; listed
+   first in the theme's stack, this face takes the figures and leaves every letter to
+   Fell. No second file is fetched: the browser already has this one. */
+@font-face {
+  font-family: 'IM FELL English SC';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/im-fell-english-sc.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Hollow Figures';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/cormorant-garamond-var.woff2') format('woff2-variations');
+  unicode-range: U+0030-0039, U+002C, U+002E, U+00A0, U+202F;
 }

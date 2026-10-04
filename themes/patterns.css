@@ -501,6 +501,145 @@ html:not([data-theme]) body {
   background-repeat: no-repeat, no-repeat, no-repeat;
 }
 
+/* Sleepy Hollow — the Hollow at night, in five layers from scripts/gen-sleepy-hollow.py,
+   painted in the order a night reads: the hollow (sleepy-hollow-hollow.svg) — the hills,
+   the church, the bridge and the Horseman — pinned to the bottom and nearest of all; the
+   late leaves (sleepy-hollow-leaves.svg) drifting in front of everything; the great tulip
+   tree (sleepy-hollow-tree.svg), whose limbs pass IN FRONT of the clouds; the clouds
+   (sleepy-hollow-clouds.svg), which cross the moon's disc; and the moon
+   (sleepy-hollow-sky.svg) behind them all, pinned to the top so it rises just under the
+   tab bar, where no label sits on it. The clouds and leaves are tiled repeat-x and drawn
+   wrapped, so the lock screen can set them drifting (sleepy-hollow.css); every other
+   plate is laid once at the full width and never tiled. Behind all, the sky, lifted
+   toward the moon. */
+/* The narrow plates are drawn for a side panel, and a side panel is what they assume:
+   held to a tab's width they inflate the Horseman to the size of the PIN field. The
+   crossover sits at 520px — the top of the side panel's range — below it the panel wears
+   the narrow plates, at 520px and up it wears the wide plates the composer wears, so the
+   Horseman never grows past his panel-size self. The jump between the two compositions
+   is real — a close-up and a panorama are different pictures — but it happens as soon as
+   the window stops being a panel, and never mid-panel. */
+/* The moon's plate travels under a variable so a view can trade it for its dim twin
+   in one line (see the Settings rule below). */
+[data-theme="sleepy-hollow"] body {
+  --sh-sky: url(sleepy-hollow-sky.svg);
+  --sh-sky-wide: url(sleepy-hollow-sky-wide.svg);
+}
+@media (max-width: 519.98px) {
+  [data-theme="sleepy-hollow"] body {
+    background-image:
+      url(sleepy-hollow-hollow.svg),
+      url(sleepy-hollow-leaves.svg),
+      url(sleepy-hollow-tree.svg),
+      url(sleepy-hollow-clouds.svg),
+      var(--sh-sky),
+      radial-gradient(420px 320px at 77% 105px, rgba(120, 104, 168, 0.16), transparent 70%),
+      linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+    background-size: 100% auto, 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
+    background-position: bottom center, top center, top center, top center, top center, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
+    /* Fixed to the viewport, so the Horseman stays on the bottom edge while a view
+       scrolls over him rather than riding up with the page. */
+    background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
+  }
+}
+/* WHERE TEXT GETS LOST: on the Settings and Profile-edit views, dense type scrolls
+   straight over the sky with no surface under it, so there the moon wears its dim plate
+   and the eye keeps the words. Any other view that grows text over the sky joins this
+   selector list. */
+[data-theme="sleepy-hollow"] body:has(#view-settings:not(.hidden)),
+[data-theme="sleepy-hollow"] body:has(#view-profile-edit:not(.hidden)) {
+  --sh-sky: url(sleepy-hollow-sky-dim.svg);
+  --sh-sky-wide: url(sleepy-hollow-sky-dim-wide.svg);
+}
+
+/* PAST 900px the panorama scales with the window. FROM 520 to 900 it holds its natural
+   900-pixel size instead — the window reveals more of it as it widens and scales nothing
+   — which is what makes the crossover gentle: the scene a 545-pixel window shows is the
+   scene a 900-pixel window shows, minus its right edge, at the same scale. At exactly
+   900 the fixed size and 100 percent are the same picture, so the handoff to scaling is
+   seamless. The moon's plate is fixed at 520px and the clouds' at 1920px — the moon is
+   far away: the foreground scales with the window past 900, the moon and its clouds do
+   not. Its glow holds the same 165px. */
+@media (min-width: 520px) and (max-width: 899.98px) {
+  [data-theme="sleepy-hollow"] body {
+    background-image:
+      url(sleepy-hollow-hollow-wide.svg),
+      url(sleepy-hollow-leaves-wide.svg),
+      url(sleepy-hollow-tree-wide.svg),
+      url(sleepy-hollow-clouds-wide.svg),
+      var(--sh-sky-wide),
+      radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
+      linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+    background-size: 900px auto, 100% auto, 900px auto, 1920px auto, 520px auto, auto, auto;
+    background-position: bottom left, top center, top left, 66% 0%, 66% 0%, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
+    background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
+  }
+}
+@media (min-width: 900px) {
+  [data-theme="sleepy-hollow"] body {
+    background-image:
+      url(sleepy-hollow-hollow-wide.svg),
+      url(sleepy-hollow-leaves-wide.svg),
+      url(sleepy-hollow-tree-wide.svg),
+      url(sleepy-hollow-clouds-wide.svg),
+      var(--sh-sky-wide),
+      radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
+      linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+    background-size: 100% auto, 100% auto, 100% auto, 1920px auto, 520px auto, auto, auto;
+    background-position: bottom center, top center, top center, 66% 0%, 66% 0%, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
+    background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
+  }
+}
+
+/* While the lock screen shows and motion is allowed, the clouds and the leaves ride
+   their own moving copies and the tree a static copy above the clouds' strip
+   (sleepy-hollow.css) — painted above these layers — so those three plates stand down
+   rather than double them. The copies draw exactly where the plates were, so locking
+   and unlocking moves nothing. Under reduced motion nothing moves, so nothing stands
+   down: the still plates stay. */
+@media (prefers-reduced-motion: no-preference) and (max-width: 519.98px) {
+  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+    background-image:
+      url(sleepy-hollow-hollow.svg),
+      url(sleepy-hollow-sky.svg),
+      radial-gradient(420px 320px at 77% 105px, rgba(120, 104, 168, 0.16), transparent 70%),
+      linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+    background-size: 100% auto, 100% auto, auto, auto;
+    background-position: bottom center, top center, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+    background-attachment: fixed, fixed, fixed, fixed;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (min-width: 520px) and (max-width: 899.98px) {
+  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+    background-image:
+      url(sleepy-hollow-hollow-wide.svg),
+      url(sleepy-hollow-sky-wide.svg),
+      radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
+      linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+    background-size: 900px auto, 520px auto, auto, auto;
+    background-position: bottom left, 66% 0%, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+    background-attachment: fixed, fixed, fixed, fixed;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (min-width: 900px) {
+  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+    background-image:
+      url(sleepy-hollow-hollow-wide.svg),
+      url(sleepy-hollow-sky-wide.svg),
+      radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
+      linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+    background-size: 100% auto, 520px auto, auto, auto;
+    background-position: bottom center, 66% 0%, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+    background-attachment: fixed, fixed, fixed, fixed;
+  }
+}
+
 /* Mycelium — a mycelial network in sepia over oat-colored loam, after a pen drawing:
    knots joined by uneven strands that fuse into cells, with hairline hyphae fraying off
    everything (themes/mycelium-hyphae.svg, from scripts/gen-constellation-mycelium.py).
@@ -657,6 +796,32 @@ html:not([data-theme]) body {
     var(--sky-plate-wide),
     radial-gradient(900px 600px at 50% 20%, rgba(201, 170, 108, 0.05), transparent 65%),
     linear-gradient(180deg, #13110D 0%, var(--bg) 60%);
+}
+
+/* Sleepy Hollow: the same layers in the wider frame, scaling with the window past
+   900px and holding its natural size below (see the body rules above). */
+[data-theme="sleepy-hollow"] body.compose-page {
+  background-image:
+    url(sleepy-hollow-hollow-wide.svg),
+    url(sleepy-hollow-leaves-wide.svg),
+    url(sleepy-hollow-tree-wide.svg),
+    url(sleepy-hollow-clouds-wide.svg),
+    var(--sh-sky-wide),
+    radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
+    linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
+  background-size: 100% auto, 100% auto, 100% auto, 1920px auto, 520px auto, auto, auto;
+  background-position: bottom center, top center, top center, 66% 0%, 66% 0%, 0% 0%, 0% 0%;
+  background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
+}
+
+/* The composer's window between a side panel and a full tab holds the scene at its
+   natural 900 pixels, as the panel's body does, and scales only past 900. */
+@media (min-width: 520px) and (max-width: 899.98px) {
+  [data-theme="sleepy-hollow"] body.compose-page {
+    background-size: 900px auto, 100% auto, 900px auto, 1920px auto, 520px auto, auto, auto;
+    background-position: bottom left, top center, top left, 66% 0%, 66% 0%, 0% 0%, 0% 0%;
+  }
 }
 
 /* Metropolis: the same fan in a wider frame (metropolis-rays-wide.svg), still at 100% of

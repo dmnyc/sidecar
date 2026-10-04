@@ -1,0 +1,79 @@
+// Sidecar — the special editions: themes that are only worn for part of the year.
+//
+// ONE LIST, read by every document that decides what a page wears: the panel, the
+// expanded composer and the background (which resolves the theme for the approval window
+// and the pay card). A seasonal theme is therefore registered here once, and the places
+// that validate a theme name take the keys from here rather than from a copy.
+//
+// AN OVERLAY, NOT A THEME CHOICE. Wearing one writes settings.seasonalBy[pubkey] and
+// leaves themeBy alone, so the account's own theme is still there underneath. When the
+// window closes the edition simply stops resolving and every account is back in what it
+// chose, with no write and no migration — the panel does not even have to be open on the
+// day. See resolve() below.
+//
+// THE DATE IS THE DEVICE'S OWN, read the way sky-plate.js reads it, and nothing is fetched:
+// every edition's artwork ships in the extension all year and the calendar is all that
+// decides whether it is offered. Windows are inclusive of both days and are in local time,
+// so an edition arrives at midnight wherever the user is.
+//
+// A window that crosses New Year (to is earlier in the year than from) is supported: the
+// year an edition belongs to is the year its window opened, which is what the "already
+// offered this season" record is keyed on.
+(function (root) {
+  'use strict';
+
+  // from and to are [month, day], both days included. mode is the gallery half the theme
+  // would belong to, which is what decides its logo and its approval-window wordmark.
+  const EDITIONS = [
+    { key: 'sleepy-hollow', name: 'Sleepy Hollow', mode: 'dark', from: [10, 1], to: [11, 8] },
+  ];
+
+  const byKey = (key) => EDITIONS.find((e) => e.key === key) || null;
+
+  // TODAY, or the day a developer has asked to pretend it is (Settings → Developer, which a
+  // store build never shows). Midday, so a timezone shift in either direction cannot move
+  // a pretend date across midnight.
+  function now(settings) {
+    const d = settings && settings.devDate;
+    const m = typeof d === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+    return new Date();
+  }
+
+  // The window an edition is open for that contains `date`, as { start, end }, or null.
+  function windowFor(key, date) {
+    const ed = byKey(key);
+    if (!ed) return null;
+    const at = date || new Date();
+    const y = at.getFullYear();
+    const wraps = ed.to[0] < ed.from[0] || (ed.to[0] === ed.from[0] && ed.to[1] < ed.from[1]);
+    // For a window that wraps, the one that could contain a January date opened last year.
+    const startYear = wraps && (at.getMonth() + 1 < ed.from[0]
+      || (at.getMonth() + 1 === ed.from[0] && at.getDate() < ed.from[1])) ? y - 1 : y;
+    const start = new Date(startYear, ed.from[0] - 1, ed.from[1]);
+    const end = new Date(wraps ? startYear + 1 : startYear, ed.to[0] - 1, ed.to[1], 23, 59, 59, 999);
+    return at >= start && at <= end ? { start, end } : null;
+  }
+
+  const inSeason = (key, date) => !!windowFor(key, date);
+  const isSeasonal = (key) => !!byKey(key);
+  const current = (date) => EDITIONS.filter((e) => inSeason(e.key, date));
+
+  // "sleepy-hollow:2026" — one season of one edition, which is what the arrival card is
+  // shown once for. Null out of season.
+  function seasonId(key, date) {
+    const w = windowFor(key, date);
+    return w ? key + ':' + w.start.getFullYear() : null;
+  }
+
+  // WHAT THIS ACCOUNT IS WEARING ON TOP OF ITS OWN THEME, or null. An edition worn last
+  // year resolves to nothing this year until it is put on again, which is why the stored
+  // value can be left behind after a window closes without changing anything.
+  function resolve(settings, pubkey, date) {
+    const by = (settings && settings.seasonalBy) || null;
+    const key = by && pubkey ? by[pubkey] : null;
+    return key && inSeason(key, date || now(settings)) ? key : null;
+  }
+
+  root.SidecarSeasons = { EDITIONS, KEYS: EDITIONS.map((e) => e.key), byKey, now, windowFor, inSeason, isSeasonal, current, seasonId, resolve };
+})(typeof self !== 'undefined' ? self : globalThis);

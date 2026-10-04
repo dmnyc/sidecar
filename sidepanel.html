@@ -26,10 +26,13 @@
   <link rel="stylesheet" href="themes/turnstile.css" />
   <link rel="stylesheet" href="themes/mycelium.css" />
   <link rel="stylesheet" href="themes/ben-day.css" />
+  <link rel="stylesheet" href="themes/sleepy-hollow.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
   <!-- Marks which Constellation plate this session shows; see sky-plate.js. In the head
        and synchronous, so the mark is set before the first paint. -->
   <script src="sky-plate.js"></script>
+  <!-- The special editions and their dates; read by the script that applies the theme. -->
+  <script src="seasons.js"></script>
 </head>
 <body>
   <!-- ===== Onboarding: create a PIN (no keystore yet) ===== -->
@@ -57,6 +60,13 @@
   <section id="view-lock" class="screen hidden">
     <!-- The Departures station clock and board, drawn and run by startLockClock; hidden in every other theme. -->
     <div class="lock-station" aria-hidden="true"><div id="lock-clock" class="lock-clock"></div><div id="lock-board" class="lock-board"></div></div>
+    <!-- Sleepy Hollow's candle: a halo over the Horseman's pumpkin that breathes on the
+         lock screen (themes/sleepy-hollow.css). Empty and invisible in every other theme. -->
+    <div class="lock-ember" aria-hidden="true"></div>
+    <!-- Sleepy Hollow's falling leaves: ten leaves that let go of the sky and drift down
+         while the lock screen shows, fading out as they land so new ones enter above
+         (themes/sleepy-hollow.css). Empty and invisible in every other theme. -->
+    <div class="lock-leaves" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <!-- Turnstile's station signs, one above the logo and one below the form; hidden in
          every other theme. Tilework, so never translated, like the composer's sign. -->
     <div class="lock-sign lock-sign-up" aria-hidden="true" translate="no"><span>Uptown</span></div>
@@ -382,6 +392,16 @@
                  split is not new — it is the dark-then-light order the list has always used, now
                  made into a control. data-mode on each card is the only place that split is
                  written down in markup; sidepanel.js reads LIGHT_THEMES for everything else. -->
+            <!-- SPECIAL EDITIONS: the seasonal themes (seasons.js), above the Dark/Light filter
+                 and outside it, shown only while one is in season and only to an account,
+                 since wearing one is per account. The cards are drawn from the list in
+                 seasons.js by sidepanel.js, so an edition is registered there once. -->
+            <div class="theme-special hidden" id="theme-special">
+              <div class="theme-special-head"><span data-i18n="Special edition">Special edition</span></div>
+              <p class="hint" data-i18n="Here for the season only. When it ends, this account goes back to its own theme.">Here for the season only. When it ends, this account goes back to its own theme.</p>
+              <div class="theme-special-cards" id="theme-special-cards"></div>
+              <button type="button" class="secondary theme-special-off hidden" id="theme-special-off"></button>
+            </div>
             <div class="theme-modes">
               <button type="button" class="theme-mode" data-mode="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg><span data-i18n="Dark">Dark</span></button>
               <button type="button" class="theme-mode" data-mode="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg><span data-i18n="Light">Light</span></button>
@@ -457,6 +477,12 @@
                   <span class="theme-preview"></span><span class="theme-name">Turnstile</span>
               </button>
             </div>
+          </div>
+
+          <div class="setting">
+            <h3 data-i18n="Special editions">Special editions</h3>
+            <p class="hint" data-i18n="Seasonal themes, here for a few weeks of the year. A card says when one arrives.">Seasonal themes, here for a few weeks of the year. A card says when one arrives.</p>
+            <label class="toggle-row"><input type="checkbox" id="seasonal-offers-toggle" /> <span data-i18n="Tell me when one arrives">Tell me when one arrives</span></label>
           </div>
 
           <div class="setting">
@@ -863,6 +889,10 @@
                  `node scripts/i18n-keys.mjs --test-locale`. Every string ⟦marked⟧; one that
                  is not was never extracted, or its file did not load. -->
             <label class="toggle-row"><input type="checkbox" id="test-locale-toggle" /> <span data-i18n="Test locale file (en-XB)">Test locale file (en-XB)</span></label>
+            <!-- The special editions are offered by the calendar, so this is how one is seen
+                 out of season: the panel, the composer and the background all read it
+                 (seasons.js). Changing it reloads the panel and offers the card again. -->
+            <label class="dev-date-row"><span data-i18n="Pretend today is">Pretend today is</span> <input type="date" id="dev-date" /></label>
           </div>
 
         </div>

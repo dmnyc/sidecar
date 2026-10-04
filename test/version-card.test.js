@@ -115,10 +115,11 @@ test('it runs at boot, and costs nothing when there is no update', () => {
 
 test('it reuses the switch tip rather than inventing a second banner', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  // Same metrics, same dismiss button, same place under the tabs. Two banners in one
-  // spot with two sets of numbers is two things to keep in step.
+  // Same metrics, same dismiss button, same place at the top of the tab — first child
+  // of the scroller, scrolling with the content. Two banners in one spot with two sets
+  // of numbers is two things to keep in step.
   assert.match(bare, /className: 'switch-tip version-card'/);
-  assert.match(bare, /nav\.tabs'\)\.insertAdjacentElement\('afterend', card\)/);
+  assert.match(bare, /#view-main \.content'\)\.insertAdjacentElement\('afterbegin', card\)/);
   // But a different colour, because the switch tip is a caution about posting from the
   // wrong account and this is news. Identical-looking banners in the same place train
   // people to dismiss both unread.

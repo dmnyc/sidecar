@@ -51,9 +51,18 @@ function lift(decl, src) {
   throw new Error('Unbalanced braces after ' + decl);
 }
 
+// The special editions' registry, loaded the way the pages load it, so the resolvers
+// below run against the real list and the real dates.
+const seasonsSrc = fs.readFileSync(path.join(ROOT, 'seasons.js'), 'utf8');
+function seasonsIn(ctx) {
+  vm.runInContext(seasonsSrc, ctx);
+  return ctx.SidecarSeasons;
+}
+
 function resolver() {
   const ctx = { console };
   vm.createContext(ctx);
+  ctx.SEASONS = seasonsIn(ctx);
   vm.runInContext(lift('function resolveTheme(') + '\nglobalThis.out = resolveTheme;', ctx);
   return ctx.out;
 }
@@ -65,10 +74,11 @@ function resolver() {
 // is what resolveSiteAccount returns: the bound account while it exists, else the active.
 function cardResolver() {
   const pick = bg.match(/const cardAccount = (bound \|\| payer);/);
-  const m = bg.match(/cardTheme: (\(cardAccount && by\[cardAccount\]\) \|\| st\.theme \|\| ''),?/);
+  const m = bg.match(/cardTheme: (SidecarSeasons\.resolve\(st, cardAccount\) \|\| \(cardAccount && by\[cardAccount\]\) \|\| st\.theme \|\| ''),?/);
   if (!pick || !m) throw new Error('the pay card theme expression moved — update this test');
   const ctx = { console };
   vm.createContext(ctx);
+  seasonsIn(ctx);
   vm.runInContext('globalThis.out = (st, bound, payer = bound) => { const by = st.themeBy || {}; const cardAccount = ' +
     pick[1] + '; return ' + m[1] + '; };', ctx);
   return ctx.out;
@@ -124,7 +134,9 @@ test('ON A BOUND SITE THE PAY CARD WEARS THE BOUND ACCOUNT\'S THEME, NEVER THE A
   // Bound first: resolveSiteAccount would give the bound account too, but the binding is
   // what decides, so a bound site's card can never follow the active account.
   assert.match(h, /const cardAccount = bound \|\| payer;/, 'the card no longer resolves per site');
-  assert.match(h, /cardTheme: \(cardAccount && by\[cardAccount\]\) \|\| st\.theme/, 'the card no longer resolves per site');
+  // A special edition the same account is wearing comes first, resolved for that
+  // account too (seasons.js), never for the active one.
+  assert.match(h, /cardTheme: SidecarSeasons\.resolve\(st, cardAccount\) \|\| \(cardAccount && by\[cardAccount\]\) \|\| st\.theme/, 'the card no longer resolves per site');
   assert.match(h, /new URL\((?:sender && sender\.url|\(sender && sender\.url\))/,
     'the host comes from the message body, which a page could influence');
   assert.doesNotMatch(h, /activePubkey/, 'the clamped read now hands a page the active identity');
@@ -213,7 +225,7 @@ test('ONBOARDING SETS THE DEFAULT, because there is no account yet', () => {
   // is also the default every new account inherits.
   const src = stripComments(source);
   const at = src.indexOf('const selectedTheme = card.dataset.theme;');
-  const h = src.slice(at, at + 1600);
+  const h = src.slice(at, at + 1400);
   assert.match(h, /if \(state\.activePubkey\)/, 'the pick does not branch on having an account');
   const ob = h.slice(h.indexOf('} else {'));
   assert.match(ob, /settings: \{ theme: selectedTheme \}/, 'onboarding sets no default');
