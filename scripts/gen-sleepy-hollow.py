@@ -489,13 +489,11 @@ def hollow(w, h, seed):
     cx = w * (0.7 if narrow else 0.24)
     hx = w * (0.08 if narrow else 0.76)
     hs = 0.6 if narrow else 0.8
-    # The foreground gravestones' stretches, on the near ridge: beside the churchyard on
-    # the wide plate, right of the bridge on the narrow one.
-    gx0, gx1 = (680, 880) if not narrow else (272, 344)
-    gx2, gx3 = (1130, 1260) if not narrow else (0, 0)
-    clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gx0 - 14, gx1 + 14)]
-    if not narrow:
-        clear.append((gx2 - 14, gx3 + 14))
+    # The foreground gravestones: one graveyard, clustered on the right of the near
+    # ridge — stones gathered close, the way a burial ground reads, not scattered singly.
+    gy0, gy1 = (274, 352) if narrow else (1660, 1870)
+    gcount, gsep = (5, 15) if narrow else (7, 24)
+    clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gy0 - 10, gy1 + 10)]
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
     far, far_pts = hills(rnd, w, h, h * 0.5, h * 0.12, FAR, 0.4)
     o.append(far)
@@ -514,8 +512,6 @@ def hollow(w, h, seed):
     o.append('<path d="M%s %sQ%s %s %s %sZ" fill="%s"/>'
              % (f(cx - 78), f(ky + 4), f(cx - 6), f(ky - 25), f(cx + 78), f(ky + 4), FAR))
     o.append(church(cx, ky - 9, 0.85 if narrow else 1.1, INK))
-    o.append(gravestone(cx - 36, ky - 8, 0.95, 0.1))
-    o.append(gravestone(cx + 40, ky - 6.1, 0.8, -0.14, tall=True))
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
     near, near_pts = hills(rnd, w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)
@@ -526,7 +522,7 @@ def hollow(w, h, seed):
     o.append(bridge(bx, ridge_y(near_pts, bx + 30) + 7, bs))
     fl0, fl1 = (bx - 30 * bs - 46, bx - 30 * bs - 2) if narrow else (bx - 30 * bs - 140, bx - 30 * bs - 2)
     fr0, fr1 = (0, 0) if narrow else (bx + 30 * bs + 2, bx + 30 * bs + 46)
-    clear.append((fl0 - 8, (fr1 or fl1) + 8))
+    clear.append((fl0 - 8, ((fr1 or fl1) if not narrow else bx + 30 * bs) + 8))
     o.append(fence(fl0, fl1, near_pts))
     if not narrow:
         o.append(fence(fr0, fr1, near_pts))
@@ -536,9 +532,24 @@ def hollow(w, h, seed):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(near_pts, tx) + 3,
                       -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02))
-    o.append(graves(rnd, gx0, gx1, near_pts, 2 if narrow else 3, 30 if narrow else 62))
-    if not narrow:
-        o.append(graves(rnd, gx2, gx3, near_pts, 2, 62))
+    # A few gnarly trees set round the graveyard, deliberate rather than left to chance:
+    # one leaning over it from the left, one in from the screen's edge, and a pair of the
+    # far grove's standing behind it on the ridge above.
+    if narrow:
+        o.append(tree(random.Random(11), bx + 30 * bs + 5, ridge_y(near_pts, bx + 30 * bs + 5) + 3,
+                      -math.pi / 2 + 0.12, 22, 3.6, 6, 0.02))
+        o.append(tree(random.Random(12), 336, ridge_y(far_pts, 336) + 2,
+                      -math.pi / 2 - 0.08, 13, 2.6, 5, 0.0).replace(INK, GROVE))
+    else:
+        o.append(tree(random.Random(11), 1652, ridge_y(near_pts, 1652) + 3,
+                      -math.pi / 2 + 0.1, 21, 3.5, 6, 0.02))
+        o.append(tree(random.Random(12), 1902, ridge_y(near_pts, 1902) + 3,
+                      -math.pi / 2 - 0.1, 24, 3.8, 6, 0.02))
+        o.append(tree(random.Random(13), 1690, ridge_y(far_pts, 1690) + 2,
+                      -math.pi / 2 + 0.06, 13, 2.6, 5, 0.0).replace(INK, GROVE))
+        o.append(tree(random.Random(14), 1805, ridge_y(far_pts, 1805) + 2,
+                      -math.pi / 2 - 0.1, 15, 2.7, 5, 0.0).replace(INK, GROVE))
+    o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
     return svg(w, h, o)
 
