@@ -369,8 +369,8 @@
 }
 @media (min-width: 900px) {
   [data-theme="sleepy-hollow"] .lock-ember {
-    left: 48.1vw;
-    bottom: 12.9vw;
+    left: 36.1vw;
+    bottom: 13.2vw;
     width: 10.7vw;
     height: 10.7vw;
   }
