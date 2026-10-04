@@ -5,9 +5,11 @@
 Writes, in themes/:
 
   sleepy-hollow-sky.svg      the top of the panel: a harvest moon on its own plate.
-  sleepy-hollow-clouds.svg   the clouds on their own transparent plate, the sky's exact
-                             frame, so the lock screen can drift them (repeat-x, drawn
-                             wrapped) without moving the moon.
+  sleepy-hollow-clouds.svg   the narrow clouds on their own transparent plate, the sky's
+                             exact frame, so the lock screen can drift them (repeat-x,
+                             drawn wrapped) without moving the moon.
+  sleepy-hollow-clouds-wide.svg  the wide clouds drawn one-to-one at 1920x520, sized to
+                             hold the fixed moon company at every width.
   sleepy-hollow-hollow.svg   the foot of the panel: the hills of the Hollow with the old
                              Dutch church on its churchyard knoll, gravestones in the
                              foreground, and the Horseman riding the ridge with his
@@ -310,7 +312,7 @@ def moon_geo(w):
     return (38 if narrow else 95), (w - 82 if narrow else 0.66 * w), (105 if narrow else 285)
 
 
-def clouds(rnd, w, mx, my, mr, blur):
+def clouds(rnd, w, mx, my, mr, blur, tmin=4.5, tmax=9):
     # Long, low wisps, stacked in banks: soft-edged (a gaussian blur, which is why the
     # plate carries a filter) and drawn three times each, at x, x-w and x+w, so the layer
     # tiles seamlessly when the lock screen pans it. The first two banks cross the moon's
@@ -509,13 +511,22 @@ def tree_plate(w, h, seed):
 
 
 def clouds_plate(w, h, seed):
-    # The clouds, on a transparent plate of the sky's exact frame, so they sit in the same
-    # place over the moon and can be panned by the lock screen without moving anything
-    # else. The layer is tiled repeat-x and the wisps are drawn wrapped, so the pan is
-    # seamless at any panel width.
+    # The narrow clouds, on a transparent plate of the sky's exact frame, drawn around
+    # the narrow moon and rendered at the panel's width like it.
     rnd = random.Random(seed)
     mr, mx, my = moon_geo(w)
-    return svg(w, h, [clouds(rnd, w, mx, my, mr, 2.2 if w < 600 else 4.5)])
+    return svg(w, h, [clouds(rnd, w, mx, my, mr, 2.2)])
+
+
+def clouds_plate_wide():
+    # The wide clouds, drawn one-to-one at their shipped size: the moon holds a fixed
+    # place on wide screens (66% across, 165px down, a hundred and ten pixels across —
+    # patterns.css), and the wisps hold theirs around it, so they keep it company at
+    # every width instead of growing past it. Drawn wrapped for the repeat-x tiling.
+    rnd = random.Random(1793)
+    # drawn one-to-one, so the wisps take their shipped thickness directly: twice the
+    # narrow plate's, which is what the old proportional plate rendered at 1920
+    return svg(1920, 520, [clouds(rnd, 1920, 0.66 * 1920, 165, 55, 9, tmin=8, tmax=15)])
 
 
 def hollow(w, h, seed):
@@ -621,7 +632,7 @@ def main():
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
         'sleepy-hollow-sky-wide.svg': sky(900, 520, 1790),
         'sleepy-hollow-tree-wide.svg': tree_plate(900, 520, 1790),
-        'sleepy-hollow-clouds-wide.svg': clouds_plate(900, 520, 1793),
+        'sleepy-hollow-clouds-wide.svg': clouds_plate_wide(),
         'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 520, 1794),
         'sleepy-hollow-hollow-wide.svg': hollow(900, 210, 1820),
     }

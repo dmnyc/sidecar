@@ -224,7 +224,7 @@
    display:none, the body's own still clouds and leaves stay up (the stand-down in
    patterns.css is scoped to motion-allowed), and the candle is a still halo. */
 @keyframes sleepy-hollow-drift {
-  from { transform: translateX(-100vw); }
+  from { transform: translateX(var(--drift, -100vw)); }
   to   { transform: translateX(0); }
 }
 [data-theme="sleepy-hollow"] #view-lock::before {
@@ -262,7 +262,13 @@
    900 — and each tile is still one panel width, so the pan lands where it always did. */
 @media (min-width: 520px) {
   [data-theme="sleepy-hollow"] #view-lock::before {
-    height: 57.8vw;
+    /* The wide clouds are a fixed 1920px tile (they hold the fixed moon's company), so
+       the strip is a fixed height and pans exactly one tile period — the loop stays
+       seamless at every width. */
+    --drift: -1920px;
+    width: calc(100vw + 2400px);
+    height: 520px;
+    background-size: 1920px auto;
     background-image: url(sleepy-hollow-clouds-wide.svg);
   }
   [data-theme="sleepy-hollow"] #view-lock::after {
