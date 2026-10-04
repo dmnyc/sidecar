@@ -384,6 +384,31 @@ def graves(rnd, x0, x1, pts, n, minsep):
     return ''.join(o)
 
 
+def fence(x0, x1, pts, step=17):
+    # A post-and-rail fence running along the ground line: the bridge's fencing carrying
+    # on along the road, so the span reads as a crossing and not a toy. Posts stand every
+    # `step`, a lightly sagging rail runs through their tops.
+    xs = []
+    x = x0
+    while x <= x1:
+        xs.append(x)
+        x += step
+    if not xs:
+        return ''
+    o = ['<g stroke="%s" fill="none" stroke-linecap="round">' % INK]
+    tops = []
+    for px in xs:
+        gy = ridge_y(pts, px)
+        o.append('<path d="M%s %sV%s" stroke-width="1.6"/>' % (f(px), f(gy - 6), f(gy + 1.5)))
+        tops.append((px, gy - 6))
+    d = 'M%s %s' % (f(tops[0][0]), f(tops[0][1]))
+    for (ax, ay), (bx_, by_) in zip(tops, tops[1:]):
+        d += 'Q%s %s %s %s' % (f((ax + bx_) / 2), f((ay + by_) / 2 + 0.9), f(bx_), f(by_))
+    o.append('<path d="%s" stroke-width="1.2"/>' % d)
+    o.append('</g>')
+    return ''.join(o)
+
+
 def bridge(x, y, s):
     # The bridge over the brook, where the Horseman's chase ended: a low wooden span on
     # posts, with a hand rail.
@@ -494,8 +519,17 @@ def hollow(w, h, seed):
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
     near, near_pts = hills(rnd, w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)
+    # The bridge, bigger so its posts read, and its fence carrying on along the road on
+    # either side where there is room. The fence's stretch is kept clear of the trees.
     bx = w * (0.64 if narrow else 0.3)
-    o.append(bridge(bx, ridge_y(near_pts, bx + 30) + 7, 0.9 if narrow else 1.2))
+    bs = 1.1 if narrow else 1.5
+    o.append(bridge(bx, ridge_y(near_pts, bx + 30) + 7, bs))
+    fl0, fl1 = (bx - 30 * bs - 46, bx - 30 * bs - 2) if narrow else (bx - 30 * bs - 140, bx - 30 * bs - 2)
+    fr0, fr1 = (0, 0) if narrow else (bx + 30 * bs + 2, bx + 30 * bs + 46)
+    clear.append((fl0 - 8, (fr1 or fl1) + 8))
+    o.append(fence(fl0, fl1, near_pts))
+    if not narrow:
+        o.append(fence(fr0, fr1, near_pts))
     for _ in range(5 if narrow else 9):
         tx = rnd.uniform(0, w)
         if not free(tx):
