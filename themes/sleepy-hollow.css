@@ -241,12 +241,33 @@
   pointer-events: none;
   z-index: -1; /* over the night's own layers, under the lock form */
 }
-/* At a composer's width the strips ride the wide plates, whose frame is 760 tall in
-   1920 — and each tile is still one panel width, so the pan lands where it always did. */
+/* THE TREE stands above the drifting clouds, as it does in the body's stack: ::after
+   paints after ::before, so this still copy of the tree plate covers any wisp that
+   passes. It does not move — the tree is rooted — and it draws exactly where the body's
+   tree plate sat, whose stand-down (patterns.css) makes this the only copy. */
+[data-theme="sleepy-hollow"] #view-lock::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 116.7vw;
+  background-image: url(sleepy-hollow-tree.svg);
+  background-size: 100% auto;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: -1;
+}
+/* At a composer's width the strips ride the wide plates, whose frame is 520 tall in
+   900 — and each tile is still one panel width, so the pan lands where it always did. */
 @media (min-width: 520px) {
   [data-theme="sleepy-hollow"] #view-lock::before {
     height: 57.8vw;
     background-image: url(sleepy-hollow-clouds-wide.svg);
+  }
+  [data-theme="sleepy-hollow"] #view-lock::after {
+    height: 57.8vw;
+    background-image: url(sleepy-hollow-tree-wide.svg);
   }
 }
 
@@ -327,6 +348,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="sleepy-hollow"] #view-lock::before,
+  [data-theme="sleepy-hollow"] #view-lock::after,
   [data-theme="sleepy-hollow"] .lock-leaves { display: none; }
   [data-theme="sleepy-hollow"] .lock-ember { animation: none; }
 }

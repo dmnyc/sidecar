@@ -4,8 +4,7 @@
 
 Writes, in themes/:
 
-  sleepy-hollow-sky.svg      the top of the panel: a harvest moon behind the bare limbs of
-                             the great tulip tree, and a few late leaves on the wind.
+  sleepy-hollow-sky.svg      the top of the panel: a harvest moon on its own plate.
   sleepy-hollow-clouds.svg   the clouds on their own transparent plate, the sky's exact
                              frame, so the lock screen can drift them (repeat-x, drawn
                              wrapped) without moving the moon.
@@ -13,7 +12,9 @@ Writes, in themes/:
                              Dutch church on its churchyard knoll, gravestones in the
                              foreground, and the Horseman riding the ridge with his
                              pumpkin alight.
-  sleepy-hollow-*-wide.svg   the same three in a wider frame for the expanded composer and
+  sleepy-hollow-tree.svg     the great tulip tree, its own plate, so it can sit above
+                             the clouds in every view.
+  sleepy-hollow-*-wide.svg   the same plates in a wider frame for the expanded composer and
                              any window past a side panel's width — 900 units, so its
                              elements render larger than the panel's at the same width.
 
@@ -471,19 +472,24 @@ def leaves_plate(w, h, seed):
 
 
 def sky(w, h, seed):
-    # The top of the frame: the moon and the great tulip tree leaning in with its limbs
-    # across the sky. In the tale it stood in the middle of the road and the country
-    # people would not pass it after dark. Pinned to the top of the panel, so the moon is
-    # always just under the tab bar, where no label sits on it, and rises behind whatever
-    # card comes first. The clouds are their own plate (clouds(), below), so the lock
-    # screen can drift them without moving the moon.
-    rnd = random.Random(seed)
-    narrow = w < 600
+    # The moon, on its own plate: the glow must be able to wash the whole sky without
+    # carrying the tree with it, and the tree must sit above the clouds (tree_plate), so
+    # the sky's contents travel separately. Pinned to the top of the panel, so the moon
+    # is always just under the tab bar, where no label sits on it.
     o = [defs()]
     mr, mx, my = moon_geo(w)
     o.append(moon(mx, my, mr, w, h))
+    return svg(w, h, o)
+
+
+def tree_plate(w, h, seed):
+    # The great tulip tree on its own transparent plate, the sky's exact frame, so it
+    # can be stacked above the clouds everywhere and above the lock screen's drifting
+    # strip. In the tale it stood in the middle of the road and the country people would
+    # not pass it after dark.
+    narrow = w < 600
     if narrow:
-        o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26, 22, 8, 0.04))
+        body = tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26, 22, 8, 0.04)
     else:
         # THE SAME TREE as the narrow plate — its very paths, placed with a transform.
         # Re-running the recursion with shorter numbers grows a different tree (the twig
@@ -492,9 +498,9 @@ def sky(w, h, seed):
         # fraction of the tree as the narrow frame clips them. If the narrow numbers
         # change, re-derive it: (base_y) / (0.925 · upward_reach), reach 281 for these.
         t = tree(random.Random(seed + 1), 0, 0, -1.05, 109, 22, 8, 0.04)
-        o.append('<g transform="translate(%s %s) scale(%s)">%s</g>'
-                 % (f(-0.039 * w), f(h * 0.64), f(1.28), t))
-    return svg(w, h, o)
+        body = '<g transform="translate(%s %s) scale(%s)">%s</g>' \
+               % (f(-0.039 * w), f(h * 0.64), f(1.28), t)
+    return svg(w, h, [body])
 
 
 def clouds_plate(w, h, seed):
@@ -604,10 +610,12 @@ def hollow(w, h, seed):
 def main():
     files = {
         'sleepy-hollow-sky.svg': sky(360, 420, 1790),
+        'sleepy-hollow-tree.svg': tree_plate(360, 420, 1790),
         'sleepy-hollow-clouds.svg': clouds_plate(360, 420, 1793),
         'sleepy-hollow-leaves.svg': leaves_plate(360, 420, 1794),
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
         'sleepy-hollow-sky-wide.svg': sky(900, 520, 1790),
+        'sleepy-hollow-tree-wide.svg': tree_plate(900, 520, 1790),
         'sleepy-hollow-clouds-wide.svg': clouds_plate(900, 520, 1793),
         'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 520, 1794),
         'sleepy-hollow-hollow-wide.svg': hollow(900, 210, 1820),

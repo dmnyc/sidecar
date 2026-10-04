@@ -501,16 +501,17 @@ html:not([data-theme]) body {
   background-repeat: no-repeat, no-repeat, no-repeat;
 }
 
-/* Sleepy Hollow — the Hollow at night, in four layers from scripts/gen-sleepy-hollow.py:
-   the sky (themes/sleepy-hollow-sky.svg), a harvest moon behind the tulip tree's limbs,
-   pinned to the top so the moon always rises just under the tab bar, where no label sits
-   on it; the clouds (sleepy-hollow-clouds.svg) and the late leaves
-   (sleepy-hollow-leaves.svg), each on their own transparent plate in the sky's exact
-   frame, tiled repeat-x and drawn wrapped, so the lock screen can set them drifting
-   (sleepy-hollow.css); and the hollow (sleepy-hollow-hollow.svg), the hills, the church,
-   the bridge and the Horseman, pinned to the bottom. Each is laid once at the full width
-   and never tiled — the clouds and leaves excepted, whose wrapped drawing makes the
-   tiling seamless. Behind all, the sky, lifted toward the moon. */
+/* Sleepy Hollow — the Hollow at night, in five layers from scripts/gen-sleepy-hollow.py,
+   painted in the order a night reads: the hollow (sleepy-hollow-hollow.svg) — the hills,
+   the church, the bridge and the Horseman — pinned to the bottom and nearest of all; the
+   late leaves (sleepy-hollow-leaves.svg) drifting in front of everything; the great tulip
+   tree (sleepy-hollow-tree.svg), whose limbs pass IN FRONT of the clouds; the clouds
+   (sleepy-hollow-clouds.svg), which cross the moon's disc; and the moon
+   (sleepy-hollow-sky.svg) behind them all, pinned to the top so it rises just under the
+   tab bar, where no label sits on it. The clouds and leaves are tiled repeat-x and drawn
+   wrapped, so the lock screen can set them drifting (sleepy-hollow.css); every other
+   plate is laid once at the full width and never tiled. Behind all, the sky, lifted
+   toward the moon. */
 /* The narrow plates are drawn for a side panel, and a side panel is what they assume:
    held to a tab's width they inflate the Horseman to the size of the PIN field. The
    crossover sits at 520px — the top of the side panel's range — below it the panel wears
@@ -521,50 +522,53 @@ html:not([data-theme]) body {
 @media (max-width: 519.98px) {
   [data-theme="sleepy-hollow"] body {
     background-image:
-      url(sleepy-hollow-sky.svg),
-      url(sleepy-hollow-clouds.svg),
-      url(sleepy-hollow-leaves.svg),
       url(sleepy-hollow-hollow.svg),
+      url(sleepy-hollow-leaves.svg),
+      url(sleepy-hollow-tree.svg),
+      url(sleepy-hollow-clouds.svg),
+      url(sleepy-hollow-sky.svg),
       radial-gradient(420px 320px at 77% 105px, rgba(120, 104, 168, 0.16), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-    background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
-    background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
-    background-repeat: no-repeat, repeat-x, repeat-x, no-repeat, no-repeat, no-repeat;
+    background-size: 100% auto, 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
+    background-position: bottom center, top center, top center, top center, top center, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
     /* Fixed to the viewport, so the Horseman stays on the bottom edge while a view
        scrolls over him rather than riding up with the page. */
-    background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
+    background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
   }
 }
 @media (min-width: 520px) {
   [data-theme="sleepy-hollow"] body {
     background-image:
-      url(sleepy-hollow-sky-wide.svg),
-      url(sleepy-hollow-clouds-wide.svg),
-      url(sleepy-hollow-leaves-wide.svg),
       url(sleepy-hollow-hollow-wide.svg),
+      url(sleepy-hollow-leaves-wide.svg),
+      url(sleepy-hollow-tree-wide.svg),
+      url(sleepy-hollow-clouds-wide.svg),
+      url(sleepy-hollow-sky-wide.svg),
       radial-gradient(1000px 640px at 66% 17.2vw, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-    background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
-    background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
-    background-repeat: no-repeat, repeat-x, repeat-x, no-repeat, no-repeat, no-repeat;
-    background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
+    background-size: 100% auto, 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
+    background-position: bottom center, top center, top center, top center, top center, 0% 0%, 0% 0%;
+    background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
+    background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
   }
 }
 
 /* While the lock screen shows and motion is allowed, the clouds and the leaves ride
-   their own moving copies (sleepy-hollow.css) — strips and falling leaves painted above
-   these layers — so their static plates stand down rather than double them. The moving
-   copies draw exactly where the plates were, so locking and unlocking moves nothing.
-   Under reduced motion nothing moves, so nothing stands down: the still plates stay. */
+   their own moving copies and the tree a static copy above the clouds' strip
+   (sleepy-hollow.css) — painted above these layers — so those three plates stand down
+   rather than double them. The copies draw exactly where the plates were, so locking
+   and unlocking moves nothing. Under reduced motion nothing moves, so nothing stands
+   down: the still plates stay. */
 @media (prefers-reduced-motion: no-preference) and (max-width: 519.98px) {
   [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
-      url(sleepy-hollow-sky.svg),
       url(sleepy-hollow-hollow.svg),
+      url(sleepy-hollow-sky.svg),
       radial-gradient(420px 320px at 77% 105px, rgba(120, 104, 168, 0.16), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, auto, auto;
-    background-position: top center, bottom center, 0% 0%, 0% 0%;
+    background-position: bottom center, top center, 0% 0%, 0% 0%;
     background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
     background-attachment: fixed, fixed, fixed, fixed;
   }
@@ -572,12 +576,12 @@ html:not([data-theme]) body {
 @media (prefers-reduced-motion: no-preference) and (min-width: 520px) {
   [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
-      url(sleepy-hollow-sky-wide.svg),
       url(sleepy-hollow-hollow-wide.svg),
+      url(sleepy-hollow-sky-wide.svg),
       radial-gradient(1000px 640px at 66% 17.2vw, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, auto, auto;
-    background-position: top center, bottom center, 0% 0%, 0% 0%;
+    background-position: bottom center, top center, 0% 0%, 0% 0%;
     background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
     background-attachment: fixed, fixed, fixed, fixed;
   }
@@ -745,16 +749,17 @@ html:not([data-theme]) body {
    right edge, so a full tab draws the scene at about the panel's scale. */
 [data-theme="sleepy-hollow"] body.compose-page {
   background-image:
-    url(sleepy-hollow-sky-wide.svg),
-    url(sleepy-hollow-clouds-wide.svg),
-    url(sleepy-hollow-leaves-wide.svg),
     url(sleepy-hollow-hollow-wide.svg),
+    url(sleepy-hollow-leaves-wide.svg),
+    url(sleepy-hollow-tree-wide.svg),
+    url(sleepy-hollow-clouds-wide.svg),
+    url(sleepy-hollow-sky-wide.svg),
     radial-gradient(1000px 640px at 66% 17.2vw, rgba(120, 104, 168, 0.14), transparent 70%),
     linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-  background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
-  background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
-  background-repeat: no-repeat, repeat-x, repeat-x, no-repeat, no-repeat, no-repeat;
-  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
+  background-size: 100% auto, 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
+  background-position: bottom center, top center, top center, top center, top center, 0% 0%, 0% 0%;
+  background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
 }
 
 /* Metropolis: the same fan in a wider frame (metropolis-rays-wide.svg), still at 100% of
