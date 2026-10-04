@@ -277,7 +277,7 @@
   /* The composer balloon — teal with a white label. The orange is spoken for by the
      compose button below, and the balloon sits near it. */
   --balloon-bg: #006774;
-  --balloon-bg-hover: #007C8B;
+  --balloon-bg-hover: #003E47;
   --balloon-text: #FFFFFF;
 
   /* The compose button is the pattern's orange, the same value as the primary, so the
