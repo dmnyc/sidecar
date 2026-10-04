@@ -543,12 +543,13 @@ html:not([data-theme]) body {
     background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
   }
 }
-/* WHERE TEXT GETS LOST: on the Settings and Profile-edit views, dense type scrolls
-   straight over the sky with no surface under it, so there the moon wears its dim plate
-   and the eye keeps the words. Any other view that grows text over the sky joins this
-   selector list. */
+/* WHERE TEXT GETS LOST: on the Profile tab and the Settings and Profile-edit views,
+   dense type scrolls straight over the sky with no surface under it, so there the moon
+   wears its dim plate and the eye keeps the words. Any other view that grows text over
+   the sky joins this selector list. */
 [data-theme="sleepy-hollow"] body:has(#view-settings:not(.hidden)),
-[data-theme="sleepy-hollow"] body:has(#view-profile-edit:not(.hidden)) {
+[data-theme="sleepy-hollow"] body:has(#view-profile-edit:not(.hidden)),
+[data-theme="sleepy-hollow"] body:has(#tab-profile:not(.hidden)) {
   --sh-sky: url(sleepy-hollow-sky-dim.svg);
   --sh-sky-wide: url(sleepy-hollow-sky-dim-wide.svg);
 }
