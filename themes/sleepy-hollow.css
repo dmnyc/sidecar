@@ -245,7 +245,7 @@
    1920 — and each tile is still one panel width, so the pan lands where it always did. */
 @media (min-width: 520px) {
   [data-theme="sleepy-hollow"] #view-lock::before {
-    height: 39.6vw;
+    height: 57.8vw;
     background-image: url(sleepy-hollow-clouds-wide.svg);
   }
 }

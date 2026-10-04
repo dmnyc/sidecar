@@ -260,10 +260,6 @@ def defs():
             '<radialGradient id="moon" cx="0.42" cy="0.4" r="0.62">'
             '<stop offset="0" stop-color="%s"/><stop offset="0.75" stop-color="%s"/>'
             '<stop offset="1" stop-color="%s"/></radialGradient>'
-            '<radialGradient id="halo">'
-            '<stop offset="0" stop-color="%s" stop-opacity="0.26"/>'
-            '<stop offset="0.35" stop-color="%s" stop-opacity="0.08"/>'
-            '<stop offset="1" stop-color="%s" stop-opacity="0"/></radialGradient>'
             '<radialGradient id="ember">'
             '<stop offset="0" stop-color="%s" stop-opacity="0.55"/>'
             '<stop offset="1" stop-color="%s" stop-opacity="0"/></radialGradient>'
@@ -271,11 +267,22 @@ def defs():
             '<stop offset="0" stop-color="#B9B3D6" stop-opacity="0"/>'
             '<stop offset="0.55" stop-color="#B9B3D6" stop-opacity="0.07"/>'
             '<stop offset="1" stop-color="#B9B3D6" stop-opacity="0"/></linearGradient>'
-            '</defs>' % (MOON, MOON, MOON_RIM, MOON, MOON, MOON, EMBER, EMBER))
+            '</defs>' % (MOON, MOON, MOON_RIM, EMBER, EMBER))
 
 
-def moon(cx, cy, r):
-    o = ['<circle cx="%s" cy="%s" r="%s" fill="url(#halo)"/>' % (f(cx), f(cy), f(r * 4.2)),
+def moon(cx, cy, r, w, h):
+    # The glow fades to nothing before it reaches any edge of its plate: a soft circle
+    # outgrows the frame it lives in and is cropped mid-fade, which read as a line
+    # across the sky on the wide lock screen. Anchored in user space at the moon, with
+    # its radius the distance to the nearest edge.
+    fit = min(cx, cy, w - cx, h - cy)
+    o = ['<defs><radialGradient id="halo" gradientUnits="userSpaceOnUse" '
+         'cx="%s" cy="%s" r="%s">'
+         '<stop offset="0" stop-color="%s" stop-opacity="0.26"/>'
+         '<stop offset="0.35" stop-color="%s" stop-opacity="0.08"/>'
+         '<stop offset="1" stop-color="%s" stop-opacity="0"/></radialGradient></defs>'
+         % (f(cx), f(cy), f(fit), MOON, MOON, MOON),
+         '<rect width="%s" height="%s" fill="url(#halo)"/>' % (f(w), f(h)),
          '<circle cx="%s" cy="%s" r="%s" fill="url(#moon)"/>' % (f(cx), f(cy), f(r))]
     # The seas, faint: enough that it is the moon and not a lamp.
     rnd = random.Random(1820)
@@ -474,20 +481,19 @@ def sky(w, h, seed):
     narrow = w < 600
     o = [defs()]
     mr, mx, my = moon_geo(w)
-    o.append(moon(mx, my, mr))
+    o.append(moon(mx, my, mr, w, h))
     if narrow:
         o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26, 22, 8, 0.04))
     else:
         # THE SAME TREE as the narrow plate — its very paths, placed with a transform.
         # Re-running the recursion with shorter numbers grows a different tree (the twig
         # claw fires by length, so the shape depends on the size), and the first cut of
-        # this frame did exactly that. The 0.88 clips the crown's top twigs by the same
-        # fraction of the tree as the narrow frame clips them — a letterbox sky simply
-        # holds less tree. If the narrow numbers change, re-derive the scale: it is
-        # (base_y − 0.075 · upward_reach) / upward_reach, reach 281 for these numbers.
+        # this frame did exactly that. The scale clips the crown's top twigs by the same
+        # fraction of the tree as the narrow frame clips them. If the narrow numbers
+        # change, re-derive it: (base_y) / (0.925 · upward_reach), reach 281 for these.
         t = tree(random.Random(seed + 1), 0, 0, -1.05, 109, 22, 8, 0.04)
         o.append('<g transform="translate(%s %s) scale(%s)">%s</g>'
-                 % (f(-0.039 * w), f(h * 0.64), f(0.88), t))
+                 % (f(-0.039 * w), f(h * 0.64), f(1.28), t))
     return svg(w, h, o)
 
 
@@ -601,9 +607,9 @@ def main():
         'sleepy-hollow-clouds.svg': clouds_plate(360, 420, 1793),
         'sleepy-hollow-leaves.svg': leaves_plate(360, 420, 1794),
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
-        'sleepy-hollow-sky-wide.svg': sky(900, 356, 1790),
-        'sleepy-hollow-clouds-wide.svg': clouds_plate(900, 356, 1793),
-        'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 356, 1794),
+        'sleepy-hollow-sky-wide.svg': sky(900, 520, 1790),
+        'sleepy-hollow-clouds-wide.svg': clouds_plate(900, 520, 1793),
+        'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 520, 1794),
         'sleepy-hollow-hollow-wide.svg': hollow(900, 210, 1820),
     }
     for name, body in files.items():
