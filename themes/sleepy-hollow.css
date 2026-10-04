@@ -256,15 +256,30 @@
   background-size: 100% auto;
   background-repeat: no-repeat;
   pointer-events: none;
-  z-index: -1;
+  z-index: -2; /* above the clouds' strip, under the falling leaves */
 }
 /* At a composer's width the strips ride the wide plates, whose frame is 520 tall in
    900 — and each tile is still one panel width, so the pan lands where it always did. */
-@media (min-width: 520px) {
+@media (min-width: 520px) and (max-width: 899.98px) {
   [data-theme="sleepy-hollow"] #view-lock::before {
     /* The wide clouds are a fixed 1920px tile (they hold the fixed moon's company), so
        the strip is a fixed height and pans exactly one tile period — the loop stays
        seamless at every width. */
+    --drift: -1920px;
+    width: calc(100vw + 2400px);
+    height: 520px;
+    background-size: 1920px auto;
+    background-image: url(sleepy-hollow-clouds-wide.svg);
+  }
+  [data-theme="sleepy-hollow"] #view-lock::after {
+    width: 900px;
+    height: 520px;
+    background-size: 900px auto;
+    background-image: url(sleepy-hollow-tree-wide.svg);
+  }
+}
+@media (min-width: 900px) {
+  [data-theme="sleepy-hollow"] #view-lock::before {
     --drift: -1920px;
     width: calc(100vw + 2400px);
     height: 520px;
@@ -344,7 +359,15 @@
    (of the 900-unit plate) and 18.2 units-of-width above the foot, glow 6.4 across — a
    10.7vw square centered on (53.4vw, bottom 18.2vw). Same rule as ever: if hx,
    PUMPKIN_AT or PUMPKIN_GLOW move, these move with them. */
-@media (min-width: 520px) {
+@media (min-width: 520px) and (max-width: 899.98px) {
+  [data-theme="sleepy-hollow"] .lock-ember {
+    left: 433px;
+    bottom: 115px;
+    width: 96px;
+    height: 96px;
+  }
+}
+@media (min-width: 900px) {
   [data-theme="sleepy-hollow"] .lock-ember {
     left: 48.1vw;
     bottom: 12.9vw;
