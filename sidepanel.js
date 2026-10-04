@@ -3123,15 +3123,16 @@
         link,
         x,
       ]);
-      document.querySelector('nav.tabs').insertAdjacentElement('afterend', card);
+      document.querySelector('#view-main .content').insertAdjacentElement('afterbegin', card);
     });
   }
 
   // ---- special editions: the seasonal themes ---------------------------------------
   //
   // seasons.js says which there are and when each is in season. Here is what the panel
-  // does with that: offers an edition once a season on a card under the tabs, lets the
-  // gallery put one on and take it off, and says so when the calendar has taken one off.
+  // does with that: offers an edition once a season on a card at the top of the tab,
+  // scrolling with its content, lets the gallery put one on and take it off, and says
+  // so when the calendar has taken one off.
   //
   // WORN PER ACCOUNT, like a theme from the gallery, and OVER the account's own theme
   // rather than instead of it (seasonalBy beside themeBy), so taking one off, or the
@@ -3170,6 +3171,10 @@
     const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
     paintThemePicker(applyResolvedTheme(s));
     paintSpecialEditions(s);
+    // Taking the edition off re-offers it on the scrolling card right away — the offer
+    // was only ever muted while it was being worn. Putting one on re-runs the same
+    // guards, which stay quiet while it is worn.
+    maybeShowSeasonCard(s);
     return s;
   }
 
@@ -3226,7 +3231,10 @@
         }),
         h('div', { className: 'season-card-actions' }, [wear, later]),
       ]);
-      document.querySelector('nav.tabs').insertAdjacentElement('afterend', card);
+      // It scrolls with the tab's content instead of hanging under the tabs: first
+      // child of the scroller, so answering it is part of reading the page, not a
+      // banner that outlives the scroll.
+      document.querySelector('#view-main .content').insertAdjacentElement('afterbegin', card);
       mountThemePreview(preview);
       scaleThemePreview(preview.querySelector('.theme-preview'));
     });

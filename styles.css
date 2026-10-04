@@ -1385,6 +1385,8 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    the default lavender in every theme, a purple frame on a gold one. The color is
    --news, which every theme declares: --lav in most, something else where --lav would
    not read as news (Populuxe's is the deep teal of its pattern). */
+.version-card,
+.season-card { margin: 2px 0 14px; }
 .version-card {
   border-color: color-mix(in srgb, var(--news) 35%, transparent);
   background: color-mix(in srgb, var(--news) 8%, transparent);
