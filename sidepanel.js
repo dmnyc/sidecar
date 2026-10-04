@@ -12125,6 +12125,9 @@
   // ---- About / zap-the-creator ----
   const GITHUB_URL = 'https://github.com/dmnyc/sidecar';
   const SIDECAR_SITE_URL = 'https://sidecar.top';
+  // The Bitcoin block current when Sidecar's first commit was made (2026-06-18 03:29 UTC),
+  // as mempool.space places it. Shown in About and the README; the website footer says the same.
+  const ESTABLISHED_BLOCK = 954179;
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
   const CREATOR_LN = 'daniel@sidecar.top';
 
@@ -21407,6 +21410,14 @@
           logo,
           h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
           h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
+          // The height is data, so it goes in as a parameter, ungrouped: a block height
+          // is an identifier people look up, written the way explorers write it.
+          h('a', {
+            className: 'about-established',
+            textContent: t('Established at block {{height}}', { height: String(ESTABLISHED_BLOCK) }),
+            href: 'https://mempool.space/block/' + ESTABLISHED_BLOCK,
+            target: '_blank', rel: 'noopener noreferrer',
+          }),
           versionChip('about-version', true) || document.createTextNode(''),
           canCheckUpdates ? updateBtn : document.createTextNode(''),
           canCheckUpdates ? updateStatus : document.createTextNode(''),

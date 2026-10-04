@@ -1212,6 +1212,10 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .about-creator-link, .about-link { color: var(--lav); font-weight: 600; text-decoration: none; }
 .about-creator-link:hover, .about-link:hover { text-decoration: underline; }
 .about-version { color: var(--faint); font-size: 11.5px; font-family: var(--font-mono); margin-top: 2px; }
+/* A footnote, not a link to chase: muted like the version, underlined only on hover.
+   --muted rather than --faint for the contrast reason given at .version-chip below. */
+.about-established { color: var(--muted); font-size: 12px; text-decoration: none; }
+.about-established:hover { color: var(--lav); text-decoration: underline; }
 /* The build string, on the two screens you see before you are in. Pinned to the bottom so
    it reads as a footnote rather than as part of the form above it.
    FIXED, not `margin-top: auto`: .screen is a centered flex column, and an auto margin on
