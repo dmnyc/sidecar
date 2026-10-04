@@ -12129,6 +12129,10 @@
   // as mempool.space places it. Shown in About and the README; the website footer says the same.
   const ESTABLISHED_BLOCK = 954179;
   const CREATOR_NPUB = 'npub1aeh2zw4elewy5682lxc6xnlqzjnxksq303gwu2npfaxd49vmde6qcq4nwx';
+  // The creator's name as it reads on Nostr, so the About card never falls back to an
+  // npub when relays are slow — the live lookup below still replaces it if the profile
+  // carries a display_name that differs.
+  const CREATOR_NAME = 'The Daniel';
   const CREATOR_LN = 'daniel@sidecar.top';
 
   // Web clients that can open a single note. Each maps a NIP-19 nevent → a URL.
@@ -21380,7 +21384,15 @@
       // Open the creator's profile in the user's preferred client; resolve their
       // current kind:0 name instead of a hardcoded handle.
       preferredClient().then((client) => { creator.href = client.profile(CREATOR_NPUB); }).catch(() => {});
-      fetchProfileName(CREATOR_NPUB).then((name) => { if (name) creator.textContent = '@' + name.replace(/^@/, ''); });
+      // The name resolves through profilesFor — the batch that asks purplepag.es
+      // alongside the configured relays. The configured four alone often don't answer
+      // a stranger's kind:0 inside the 5s race, and the npub that renders meanwhile is
+      // what made this line read as machine noise.
+      profilesFor([CREATOR_NPUB]).then((m) => {
+        const rec = m.get(CREATOR_NPUB);
+        const name = rec && rec.name ? rec.name : CREATOR_NAME;
+        creator.textContent = '@' + name.replace(/^@/, '');
+      }).catch(() => { creator.textContent = '@' + CREATOR_NAME; });
 
       const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
       const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });
