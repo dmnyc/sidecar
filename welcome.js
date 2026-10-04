@@ -132,7 +132,7 @@ function apps() {
     url: 'https://jumble.imwald.eu',
     domain: 'jumble.imwald.eu',
     cat: 'other',
-    icon: 'https://jumble.imwald.eu/apple-touch-icon.png',
+    icon: 'icons/apps/imwald.svg',
     flush: true,
     desc: t('A user-friendly client for relay feed browsing, publications, and relay discovery.'),
   },
