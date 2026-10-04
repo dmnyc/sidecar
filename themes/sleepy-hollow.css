@@ -313,14 +313,14 @@
   pointer-events: none;
   z-index: -1; /* over the night's own layers, under the lock form */
 }
-/* On the wide plates the Horseman rides at 76% of the width, his pumpkin 151 units in
-   (of the 900-unit plate) and 21.3 units-of-width above the foot, glow 6.4 across — a
-   10vw square centered on (89.4vw, bottom 21.3vw). Same rule as ever: if hx,
+/* On the wide plates the Horseman rides at 40% of the width, his pumpkin 151 units in
+   (of the 900-unit plate) and 18.2 units-of-width above the foot, glow 6.4 across — a
+   10.7vw square centered on (53.4vw, bottom 18.2vw). Same rule as ever: if hx,
    PUMPKIN_AT or PUMPKIN_GLOW move, these move with them. */
 @media (min-width: 520px) {
   [data-theme="sleepy-hollow"] .lock-ember {
-    left: 84.1vw;
-    bottom: 16vw;
+    left: 48.1vw;
+    bottom: 12.9vw;
     width: 10.7vw;
     height: 10.7vw;
   }

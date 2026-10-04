@@ -295,7 +295,7 @@ def moon_geo(w):
     # gallery's card crops to (the first 175 units). The wide frame keeps its own
     # clearance at a composer's widths.
     narrow = w < 600
-    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (105 if narrow else 155)
+    return (38 if narrow else 64), (w - 82 if narrow else 0.66 * w), (105 if narrow else 155)
 
 
 def clouds(rnd, w, mx, my, mr, blur):
@@ -476,8 +476,6 @@ def sky(w, h, seed):
     mr, mx, my = moon_geo(w)
     o.append(moon(mx, my, mr))
     o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26 if narrow else h * 0.22, 22, 8, 0.04))
-    if not narrow:
-        o.append(tree(random.Random(seed + 2), w + 10, h * 0.66, -2.05, h * 0.2, 20, 8, 0.04))
     return svg(w, h, o)
 
 
@@ -505,11 +503,11 @@ def hollow(w, h, seed):
     # gravestones beside it to seat it, and the Horseman riding the near ridge below on
     # the other side, clear of the compose button that sits over the bottom right corner.
     cx = w * (0.7 if narrow else 0.24)
-    hx = w * (0.08 if narrow else 0.76)
+    hx = w * (0.08 if narrow else 0.40)
     hs = 0.6 if narrow else 0.8
     # The foreground gravestones: one graveyard, clustered on the right of the near
     # ridge — stones gathered close, the way a burial ground reads, not scattered singly.
-    gy0, gy1 = (274, 352) if narrow else (0.864 * w, 0.974 * w)
+    gy0, gy1 = (274, 352) if narrow else (0.64 * w, 0.79 * w)
     gcount, gsep = (5, 15) if narrow else (7, 24)
     clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gy0 - 10, gy1 + 10)]
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
@@ -570,15 +568,15 @@ def hollow(w, h, seed):
         o.append(tree(random.Random(12), 336, ridge_y(far_pts, 336) + 2,
                       -math.pi / 2 - 0.08, 17, 3, 6, 0.0, flip=True).replace(INK, GROVE))
     else:
-        o.append(tree(random.Random(11), 0.86 * w, ridge_y(near_pts, 0.86 * w) + 3,
+        o.append(tree(random.Random(11), 0.845 * w, ridge_y(near_pts, 0.845 * w) + 3,
                       -math.pi / 2 + 0.16, 28, 4.2, 7, 0.05, flip=True))
-        o.append(tree(random.Random(15), 0.977 * w, ridge_y(near_pts, 0.977 * w) + 3,
+        o.append(tree(random.Random(15), 0.935 * w, ridge_y(near_pts, 0.935 * w) + 3,
                       -math.pi / 2 - 0.06, 30, 4.4, 7, 0.03))
-        o.append(tree(random.Random(13), 0.879 * w, ridge_y(far_pts, 0.879 * w) + 2,
+        o.append(tree(random.Random(13), 0.70 * w, ridge_y(far_pts, 0.70 * w) + 2,
                       -math.pi / 2 + 0.06, 20, 3.2, 6, 0.0).replace(INK, GROVE))
-        o.append(tree(random.Random(14), 0.947 * w, ridge_y(far_pts, 0.947 * w) + 2,
+        o.append(tree(random.Random(14), 0.75 * w, ridge_y(far_pts, 0.75 * w) + 2,
                       -math.pi / 2 - 0.1, 21, 3.2, 6, 0.0, flip=True).replace(INK, GROVE))
-        o.append(tree(random.Random(15), 0.914 * w, ridge_y(far_pts, 0.914 * w) + 2,
+        o.append(tree(random.Random(15), 0.80 * w, ridge_y(far_pts, 0.80 * w) + 2,
                       -math.pi / 2 + 0.12, 19, 3.1, 6, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
