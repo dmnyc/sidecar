@@ -302,8 +302,12 @@ def moon_geo(w):
     # kisses a bar edge at any panel width. It stays wholly inside the top band the
     # gallery's card crops to (the first 175 units). The wide frame keeps its own
     # clearance at a composer's widths.
+    # The wide moon renders at a fixed 520px plate (patterns.css), so its size here is
+    # its size on screen at every width past the crossover: a hundred and ten pixels,
+    # matching the narrow moon's at the crossover, because the moon is far away and does
+    # not grow with the foreground. my clears the composer's chrome by a whisker.
     narrow = w < 600
-    return (38 if narrow else 64), (w - 82 if narrow else 0.66 * w), (105 if narrow else 155)
+    return (38 if narrow else 95), (w - 82 if narrow else 0.66 * w), (105 if narrow else 285)
 
 
 def clouds(rnd, w, mx, my, mr, blur):
@@ -494,12 +498,13 @@ def tree_plate(w, h, seed):
         # THE SAME TREE as the narrow plate — its very paths, placed with a transform.
         # Re-running the recursion with shorter numbers grows a different tree (the twig
         # claw fires by length, so the shape depends on the size), and the first cut of
-        # this frame did exactly that. The scale clips the crown's top twigs by the same
-        # fraction of the tree as the narrow frame clips them. If the narrow numbers
-        # change, re-derive it: (base_y) / (0.925 · upward_reach), reach 281 for these.
+        # this frame did exactly that. 1.7 makes it a commanding presence from the
+        # crossover up: the crown's top quarter runs past the plate's top edge — limbs
+        # leaving the frame, as the narrow one's do — and on the widest screens the low
+        # branches pass behind the lock screen's logo, which stands above them.
         t = tree(random.Random(seed + 1), 0, 0, -1.05, 109, 22, 8, 0.04)
         body = '<g transform="translate(%s %s) scale(%s)">%s</g>' \
-               % (f(-0.039 * w), f(h * 0.64), f(1.28), t)
+               % (f(-0.039 * w), f(h * 0.68), f(1.7), t)
     return svg(w, h, [body])
 
 
