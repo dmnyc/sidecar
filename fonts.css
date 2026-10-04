@@ -217,7 +217,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/nixie-gothic.ttf') format('truetype');
+  src: url('fonts/nixie-gothic.woff2') format('woff2');
 }
 
 /* Rowdies (Jaikishan Patel, SIL OFL 1.1 — see fonts/OFL-Rowdies.txt). Populuxe's
@@ -239,7 +239,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/rowdies.ttf') format('truetype');
+  src: url('fonts/rowdies.woff2') format('woff2');
 }
 
 /* Impressed Metal (GemFonts / Typotheticals, 1998 freeware — see
@@ -253,7 +253,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/impressed-metal.ttf') format('truetype');
+  src: url('fonts/impressed-metal.woff2') format('woff2');
 }
 
 /* Varela Round (Joe Prince, SIL OFL 1.1 — see fonts/OFL-VarelaRound.txt). Cast Iron's
@@ -274,7 +274,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/varela-round.ttf') format('truetype');
+  src: url('fonts/varela-round.woff2') format('woff2');
 }
 
 /* Special Elite (Brian J. Bonislawsky / Astigmatic, Apache 2.0 — see
@@ -292,7 +292,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/special-elite.ttf') format('truetype');
+  src: url('fonts/special-elite.woff2') format('woff2');
 }
 
 /* Limelight (Eben Sorkin / Sorkin Type, SIL OFL 1.1 — see fonts/OFL-Limelight.txt).
@@ -326,7 +326,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/limelight.ttf') format('truetype');
+  src: url('fonts/limelight.woff2') format('woff2');
 }
 
 /* Syncopate (Astigmatic, Apache 2.0 — see fonts/LICENSE-Syncopate.txt). The SECOND
@@ -362,7 +362,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/syncopate-700.ttf') format('truetype');
+  src: url('fonts/syncopate-700.woff2') format('woff2');
 }
 
 /* The two Japanese faces. Both are Japanese families whose Latin was drawn to sit beside
@@ -440,7 +440,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/bangers.ttf') format('truetype');
+  src: url('fonts/bangers.woff2') format('woff2');
 }
 
 /* Comic Neue (Craig Rozynski and the Comic Neue Project Authors, SIL OFL 1.1 — see
@@ -455,14 +455,14 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('fonts/comic-neue-regular.ttf') format('truetype');
+  src: url('fonts/comic-neue-regular.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Comic Neue';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('fonts/comic-neue-bold.ttf') format('truetype');
+  src: url('fonts/comic-neue-bold.woff2') format('woff2');
 }
 
 /* Jazz Age's two faces, both SIL OFL 1.1 and shipped unmodified. Fascinate (Brian J.
@@ -475,14 +475,14 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/fascinate.ttf') format('truetype');
+  src: url('fonts/fascinate.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Federo';
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/federo.ttf') format('truetype');
+  src: url('fonts/federo.woff2') format('woff2');
 }
 
 /* Barlow Condensed (Jeremy Tribby, SIL OFL 1.1, no Reserved Font Name — see
@@ -518,7 +518,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/pathway-gothic-one.ttf') format('truetype');
+  src: url('fonts/pathway-gothic-one.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Archivo';
@@ -552,7 +552,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/im-fell-english-sc.ttf') format('truetype');
+  src: url('fonts/im-fell-english-sc.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Hollow Figures';
