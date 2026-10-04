@@ -593,7 +593,7 @@ def hollow(w, h, seed):
         if not free(tx):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(near_pts, tx) + 3,
-                      -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02,
+                      -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(22, 36), 4.6, 7, 0.02,
                       flip=rnd.random() < 0.5))
     # Gnarly trees set round the graveyard, deliberate rather than left to chance, and
     # big enough to read as trees: one leaning over it from each end, rising from behind
@@ -613,11 +613,11 @@ def hollow(w, h, seed):
         o.append(tree(random.Random(15), 0.72 * w, ridge_y(near_pts, 0.72 * w) + 3,
                       -math.pi / 2 - 0.06, 30, 4.4, 7, 0.03))
         o.append(tree(random.Random(13), 0.46 * w, ridge_y(far_pts, 0.46 * w) + 2,
-                      -math.pi / 2 + 0.06, 20, 3.2, 6, 0.0).replace(INK, GROVE))
+                      -math.pi / 2 + 0.06, 28, 4.4, 7, 0.0).replace(INK, GROVE))
         o.append(tree(random.Random(14), 0.52 * w, ridge_y(far_pts, 0.52 * w) + 2,
-                      -math.pi / 2 - 0.1, 21, 3.2, 6, 0.0, flip=True).replace(INK, GROVE))
+                      -math.pi / 2 - 0.1, 29, 4.4, 7, 0.0, flip=True).replace(INK, GROVE))
         o.append(tree(random.Random(15), 0.58 * w, ridge_y(far_pts, 0.58 * w) + 2,
-                      -math.pi / 2 + 0.12, 19, 3.1, 6, 0.0).replace(INK, GROVE))
+                      -math.pi / 2 + 0.12, 26, 4.2, 7, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
     return svg(w, h, o)
