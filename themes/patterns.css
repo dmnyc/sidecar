@@ -522,7 +522,7 @@ html:not([data-theme]) body {
       url(sleepy-hollow-clouds.svg),
       url(sleepy-hollow-leaves.svg),
       url(sleepy-hollow-hollow.svg),
-      radial-gradient(420px 320px at 77% 62px, rgba(120, 104, 168, 0.16), transparent 70%),
+      radial-gradient(420px 320px at 77% 72px, rgba(120, 104, 168, 0.16), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
     background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
@@ -539,7 +539,7 @@ html:not([data-theme]) body {
       url(sleepy-hollow-clouds-wide.svg),
       url(sleepy-hollow-leaves-wide.svg),
       url(sleepy-hollow-hollow-wide.svg),
-      radial-gradient(1000px 640px at 80% 210px, rgba(120, 104, 168, 0.14), transparent 70%),
+      radial-gradient(1000px 640px at 80% 190px, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
     background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;
@@ -558,7 +558,7 @@ html:not([data-theme]) body {
     background-image:
       url(sleepy-hollow-sky.svg),
       url(sleepy-hollow-hollow.svg),
-      radial-gradient(420px 320px at 77% 62px, rgba(120, 104, 168, 0.16), transparent 70%),
+      radial-gradient(420px 320px at 77% 72px, rgba(120, 104, 168, 0.16), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, auto, auto;
     background-position: top center, bottom center, 0% 0%, 0% 0%;
@@ -571,7 +571,7 @@ html:not([data-theme]) body {
     background-image:
       url(sleepy-hollow-sky-wide.svg),
       url(sleepy-hollow-hollow-wide.svg),
-      radial-gradient(1000px 640px at 80% 210px, rgba(120, 104, 168, 0.14), transparent 70%),
+      radial-gradient(1000px 640px at 80% 190px, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, auto, auto;
     background-position: top center, bottom center, 0% 0%, 0% 0%;
@@ -746,7 +746,7 @@ html:not([data-theme]) body {
     url(sleepy-hollow-clouds-wide.svg),
     url(sleepy-hollow-leaves-wide.svg),
     url(sleepy-hollow-hollow-wide.svg),
-    radial-gradient(1000px 640px at 80% 210px, rgba(120, 104, 168, 0.14), transparent 70%),
+    radial-gradient(1000px 640px at 80% 190px, rgba(120, 104, 168, 0.14), transparent 70%),
     linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
   background-size: 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
   background-position: top center, top center, top center, bottom center, 0% 0%, 0% 0%;

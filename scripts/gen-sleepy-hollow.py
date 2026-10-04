@@ -287,13 +287,13 @@ def moon(cx, cy, r):
 
 def moon_geo(w):
     # Where the moon sits, shared by the sky plate and the cloud plate so the wisps
-    # cross the same disc. The narrow frame keeps it high: the plate scales with the
-    # panel's width while the topbar and tab bar are fixed heights, so the moon's center
-    # sits at the tab bar's top edge — its arc breaks the bar line clearly at every panel
-    # width and rises behind the topbar's wash — and stays wholly inside the top band the
-    # gallery's card crops to (the first 175 units of the plate).
+    # cross the same disc. The narrow frame keeps it just high enough that its arc breaks
+    # the tab bar's top edge by a deliberate eight to eighteen pixels across the side
+    # panel's widths — clear of the bar, but not reaching up into the icon row — and
+    # wholly inside the top band the gallery's card crops to (the first 175 units). The
+    # wide frame keeps the same clearance at a composer's widths.
     narrow = w < 600
-    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (62 if narrow else 210)
+    return (38 if narrow else 64), (w - 82 if narrow else w * 0.8), (72 if narrow else 190)
 
 
 def clouds(rnd, w, mx, my, mr, blur):
