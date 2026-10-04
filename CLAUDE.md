@@ -9,10 +9,14 @@ named for what it changes, never for what wrote it.
 ## Commits, pull requests and merging
 
 Commits are authored and committed as the maintainer:
-`The Daniel <dmnyc@users.noreply.github.com>`. Commit messages, pull request
-descriptions and comments carry no tool attribution: no `Co-Authored-By`
-trailers, no session links, no "Generated with" footers. Check a pull request's
-description after creating it, since some tools append a footer on their own.
+`The Daniel <dmnyc@users.noreply.github.com>`, with no `Co-Authored-By`
+trailers, session links, or "Generated with" lines. A pull request
+description ends with one attribution line in the house style: a drink emoji, a
+past-tense drink verb, and the tool that did the work, linked. Work done with
+Claude Code reads `🍊 Twisted with [Claude Code](https://claude.com/claude-code)`;
+work done with GLM reads `🍸 Decanted with [GLM](https://z.ai)`. Check a pull
+request's description after creating it, since some tools append footers of
+their own — those are removed, not kept.
 
 Squash-merge pull requests. GitHub then creates and signs the commit on `main`,
 so it shows as Verified even when the branch's own commits were unsigned.
