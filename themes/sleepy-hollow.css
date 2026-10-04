@@ -159,6 +159,15 @@
   font-size: 21px;
 }
 
+/* The moon rises just under the tab bar and the tree's limbs cross behind it, so the
+   tabs get what the topbar already has: a wash of the theme's velvet behind the words,
+   strongest at the top where the moon is brightest, enough to read every one of them
+   while the sky still shows through. */
+[data-theme="sleepy-hollow"] .tabs {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.82), rgba(var(--velvet-1-rgb), 0.58));
+}
+
 /* ---- balance animation: the lantern is lit -------------------------------------------
    Each figure catches like a candle in a carved pumpkin: it flares in the ember's orange,
    gutters twice as the flame finds the air, and steadies into the moon's gold. Left to
