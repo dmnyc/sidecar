@@ -367,21 +367,23 @@ def church(x, y, s, color):
             '</g>') % (f(x), f(y), f(s), color)
 
 
-def gravestone(x, y, s, tilt=0.0, tall=False):
-    # A churchyard stone: a weathered slab, round-shouldered or tall and narrow,
-    # leaning a little. Deliberately nondescript — ground for the church, and company
-    # for the foreground, with nothing on any of them to name a faith.
+def gravestone(x, y, s, tilt=0.0, tall=False, sx=1.0):
+    # A churchyard stone: a weathered slab, round-shouldered or tall and narrow, leaning
+    # as the soil has shifted under it — tilt is radians here and degrees on the way into
+    # the transform, which is SVG's unit and was quietly flattening every lean. Deliberately
+    # nondescript — nothing on any of them names a faith.
     if tall:
         body = '<path d="M0.4 0V-7.6Q0.4 -10.4 2.2 -10.4Q4 -10.4 4 -7.6V0Z"/>'
     else:
         body = '<path d="M0 0V-6.4Q0 -9.2 2.5 -9.2Q5 -9.2 5 -6.4V0Z"/>'
-    return '<g transform="translate(%s %s) rotate(%s) scale(%s)" fill="%s">%s</g>' \
-        % (f(x), f(y), f(tilt), f(s), INK, body)
+    return ('<g transform="translate(%s %s) rotate(%s) scale(%s %s)" fill="%s">%s</g>'
+            % (f(x), f(y), f(math.degrees(tilt)), f(s * sx), f(s), INK, body))
 
 
 def graves(rnd, x0, x1, pts, n, minsep):
-    # A few stones along one stretch of a ridge, varied in size and lean, kept apart —
-    # a churchyard, not a cluster.
+    # A few stones along one stretch of a ridge: varied in height and breadth, leaning
+    # ten to eighteen degrees either way (one or two further, as stones go), sunk to
+    # different depths — kept apart, a churchyard and not a picket line.
     o = []
     taken = []
     tries = 0
@@ -391,9 +393,10 @@ def graves(rnd, x0, x1, pts, n, minsep):
         if any(abs(gx - t) < minsep for t in taken):
             continue
         taken.append(gx)
-        o.append(gravestone(gx, ridge_y(pts, gx) + 1.5, rnd.uniform(1.4, 2.3),
-                            rnd.uniform(-0.3, 0.3) if rnd.random() < 0.7 else rnd.uniform(-0.38, 0.38),
-                            tall=rnd.random() < 0.4))
+        lean = rnd.uniform(-0.28, 0.28) if rnd.random() < 0.7 else rnd.uniform(-0.38, 0.38)
+        o.append(gravestone(gx, ridge_y(pts, gx) + rnd.uniform(0.8, 2.4),
+                            rnd.uniform(1.2, 2.2), lean, tall=rnd.random() < 0.4,
+                            sx=rnd.uniform(0.8, 1.25)))
     return ''.join(o)
 
 
