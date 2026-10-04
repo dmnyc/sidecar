@@ -159,6 +159,13 @@
   font-size: 21px;
 }
 
+/* The moon's arc now rises behind the topbar as well, so the bar's wash deepens a
+   little to keep the icons over it readable — the same move the tab bar got. */
+[data-theme="sleepy-hollow"] .topbar {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.72), rgba(var(--velvet-1-rgb), 0.45));
+}
+
 /* The moon rises just under the tab bar and the tree's limbs cross behind it, so the
    tabs get what the topbar already has: a wash of the theme's velvet behind the words,
    strongest at the top where the moon is brightest, enough to read every one of them
