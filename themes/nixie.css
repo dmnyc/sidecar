@@ -111,10 +111,11 @@
      clears them from either direction. Lifting the dark stop to #ec4a16 and the
      bright stop with it gives 6.68 / 5.13 across the run. */
   --accent-fill: linear-gradient(160deg, #ff6a30, #ec4a16);
-  /* The balloon's hover strikes from the pale tube to the deep ember — solid, because
-     a translucent fill let the night sky through and read as a hole. #ec4a16 is the
-     accent-fill's dark stop, where the chip-ink notes measure 5.13 against dark ink. */
-  --balloon-bg-hover: #ec4a16;
+  /* The balloon's hover strikes from the pale tube to the flame — solid, because a
+     translucent fill let the night sky through and read as a hole, and brighter,
+     because a tube lights rather than dims. #ff6a30 is the accent-fill's bright stop,
+     where the chip-ink notes measure more for dark ink than the dark stop does. */
+  --balloon-bg-hover: #ff6a30;
   --glow: rgba(240, 48, 12, 0.26);
   /* ~15 rules paint accent washes with rgba(var(--accent-rgb), x) — the active
      account row, focus rings, the avatar halo. The :root default is Speakeasy's
@@ -231,10 +232,11 @@
 
   /* interaction states — ambient light on metal, so cool. (The exception is
      --mention-bg: a mention is live, and reads as gas.) */
-  /* The row washes burn with the theme's ember, not the cool blue-gray they shipped
-     with — every other wash in this file (accent-rgb, card-wash, glow) is ember already. */
-  --hover-soft: rgba(240, 48, 12, 0.07);
-  --hover-medium: rgba(240, 48, 12, 0.12);
+  /* The row washes glow with the tube's light, not the cool blue-gray they shipped
+     with — and they lift rather than darken, the way everything lit behaves here. The
+     source is the flame's bright stop, the balloon hover's own color. */
+  --hover-soft: rgba(255, 106, 48, 0.08);
+  --hover-medium: rgba(255, 106, 48, 0.14);
   --hover-faint: rgba(176, 200, 222, 0.045);
   --mention-bg: rgba(240, 48, 12, 0.17);
   --pending-sub: #a0aebc;
