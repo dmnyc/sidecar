@@ -545,10 +545,13 @@ html:not([data-theme]) body {
       url(sleepy-hollow-tree-wide.svg),
       url(sleepy-hollow-clouds-wide.svg),
       url(sleepy-hollow-sky-wide.svg),
-      radial-gradient(1000px 640px at 66% 17.2vw, rgba(120, 104, 168, 0.14), transparent 70%),
+      radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-    background-size: 100% auto, 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
-    background-position: bottom center, top center, top center, top center, top center, 0% 0%, 0% 0%;
+    /* The moon's plate alone is fixed at 520px — the size it renders at the crossover —
+       because the moon is far away: the foreground scales with the window, the moon
+       does not. Its glow holds the same 165px. */
+    background-size: 100% auto, 100% auto, 100% auto, 100% auto, 520px auto, auto, auto;
+    background-position: bottom center, top center, top center, top center, 66% 0%, 0% 0%, 0% 0%;
     background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
     background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
   }
@@ -578,10 +581,10 @@ html:not([data-theme]) body {
     background-image:
       url(sleepy-hollow-hollow-wide.svg),
       url(sleepy-hollow-sky-wide.svg),
-      radial-gradient(1000px 640px at 66% 17.2vw, rgba(120, 104, 168, 0.14), transparent 70%),
+      radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-    background-size: 100% auto, 100% auto, auto, auto;
-    background-position: bottom center, top center, 0% 0%, 0% 0%;
+    background-size: 100% auto, 520px auto, auto, auto;
+    background-position: bottom center, 66% 0%, 0% 0%, 0% 0%;
     background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
     background-attachment: fixed, fixed, fixed, fixed;
   }
@@ -754,10 +757,10 @@ html:not([data-theme]) body {
     url(sleepy-hollow-tree-wide.svg),
     url(sleepy-hollow-clouds-wide.svg),
     url(sleepy-hollow-sky-wide.svg),
-    radial-gradient(1000px 640px at 66% 17.2vw, rgba(120, 104, 168, 0.14), transparent 70%),
+    radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
     linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
-  background-size: 100% auto, 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
-  background-position: bottom center, top center, top center, top center, top center, 0% 0%, 0% 0%;
+  background-size: 100% auto, 100% auto, 100% auto, 100% auto, 520px auto, auto, auto;
+  background-position: bottom center, top center, top center, top center, 66% 0%, 0% 0%, 0% 0%;
   background-repeat: no-repeat, repeat-x, no-repeat, repeat-x, no-repeat, no-repeat, no-repeat;
   background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
 }
