@@ -601,7 +601,7 @@ html:not([data-theme]) body {
    and unlocking moves nothing. Under reduced motion nothing moves, so nothing stands
    down: the still plates stay. */
 @media (prefers-reduced-motion: no-preference) and (max-width: 519.98px) {
-  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       url(sleepy-hollow-hollow.svg),
       url(sleepy-hollow-sky.svg),
@@ -614,7 +614,7 @@ html:not([data-theme]) body {
   }
 }
 @media (prefers-reduced-motion: no-preference) and (min-width: 520px) and (max-width: 899.98px) {
-  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       url(sleepy-hollow-hollow-wide.svg),
       url(sleepy-hollow-sky-wide.svg),
@@ -627,7 +627,7 @@ html:not([data-theme]) body {
   }
 }
 @media (prefers-reduced-motion: no-preference) and (min-width: 900px) {
-  [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       url(sleepy-hollow-hollow-wide.svg),
       url(sleepy-hollow-sky-wide.svg),
