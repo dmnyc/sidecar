@@ -475,7 +475,19 @@ def sky(w, h, seed):
     o = [defs()]
     mr, mx, my = moon_geo(w)
     o.append(moon(mx, my, mr))
-    o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26 if narrow else h * 0.22, 22, 8, 0.04))
+    if narrow:
+        o.append(tree(random.Random(seed + 1), -14, h * 0.62, -1.05, h * 0.26, 22, 8, 0.04))
+    else:
+        # THE SAME TREE as the narrow plate — its very paths, placed with a transform.
+        # Re-running the recursion with shorter numbers grows a different tree (the twig
+        # claw fires by length, so the shape depends on the size), and the first cut of
+        # this frame did exactly that. The 0.88 clips the crown's top twigs by the same
+        # fraction of the tree as the narrow frame clips them — a letterbox sky simply
+        # holds less tree. If the narrow numbers change, re-derive the scale: it is
+        # (base_y − 0.075 · upward_reach) / upward_reach, reach 281 for these numbers.
+        t = tree(random.Random(seed + 1), 0, 0, -1.05, 109, 22, 8, 0.04)
+        o.append('<g transform="translate(%s %s) scale(%s)">%s</g>'
+                 % (f(-0.039 * w), f(h * 0.64), f(0.88), t))
     return svg(w, h, o)
 
 
