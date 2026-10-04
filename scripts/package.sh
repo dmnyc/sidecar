@@ -55,7 +55,7 @@ git archive "${TAG}" | tar -x -C "${STAGE}"
 # someone who had no reason to know this line existed. Nothing the extension runs
 # lives under a dot path, so the glob is safe and it covers whatever comes next.
 rm -rf "${STAGE}"/.[!.]* "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
-       "${STAGE}/docs"
+       "${STAGE}/docs" "${STAGE}/screenshots"
 # Every top-level .md, by glob rather than by name. The old explicit list failed
 # open: a doc added later shipped inside the extension until someone noticed, and
 # REVIEWERS.md — written FOR the store, describing how to reproduce this very zip
