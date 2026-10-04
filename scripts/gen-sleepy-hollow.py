@@ -380,7 +380,8 @@ def graves(rnd, x0, x1, pts, n, minsep):
             continue
         taken.append(gx)
         o.append(gravestone(gx, ridge_y(pts, gx) + 1.5, rnd.uniform(1.4, 2.3),
-                            rnd.uniform(-0.13, 0.13), tall=rnd.random() < 0.4))
+                            rnd.uniform(-0.3, 0.3) if rnd.random() < 0.7 else rnd.uniform(-0.38, 0.38),
+                            tall=rnd.random() < 0.4))
     return ''.join(o)
 
 
@@ -495,7 +496,10 @@ def hollow(w, h, seed):
     gcount, gsep = (5, 15) if narrow else (7, 24)
     clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gy0 - 10, gy1 + 10)]
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
-    far, far_pts = hills(rnd, w, h, h * 0.5, h * 0.12, FAR, 0.4)
+    # The ridges draw from their own streams, not the trees': a hill line must not move
+    # because a keep-clear interval changed which trees were placed on it — that is how
+    # the pumpkin wandered out from under its candle.
+    far, far_pts = hills(random.Random(seed + 21), w, h, h * 0.5, h * 0.12, FAR, 0.4)
     o.append(far)
     for _ in range(10 if narrow else 18):
         tx = rnd.uniform(0, w)
@@ -513,7 +517,7 @@ def hollow(w, h, seed):
              % (f(cx - 78), f(ky + 4), f(cx - 6), f(ky - 25), f(cx + 78), f(ky + 4), FAR))
     o.append(church(cx, ky - 9, 0.85 if narrow else 1.1, INK))
     o.append('<rect x="0" y="%s" width="%s" height="%s" fill="url(#mist)"/>' % (f(h * 0.38), f(w), f(h * 0.4)))
-    near, near_pts = hills(rnd, w, h, h * 0.8, h * 0.1, INK, 2.2)
+    near, near_pts = hills(random.Random(seed + 22), w, h, h * 0.8, h * 0.1, INK, 2.2)
     o.append(near)
     # The bridge, bigger so its posts read, and its fence carrying on along the road on
     # either side where there is room. The fence's stretch is kept clear of the trees.
@@ -540,6 +544,8 @@ def hollow(w, h, seed):
                       -math.pi / 2 + 0.12, 22, 3.6, 6, 0.02))
         o.append(tree(random.Random(12), 336, ridge_y(far_pts, 336) + 2,
                       -math.pi / 2 - 0.08, 13, 2.6, 5, 0.0).replace(INK, GROVE))
+        o.append(tree(random.Random(15), 354, ridge_y(near_pts, 354) + 3,
+                      -math.pi / 2 - 0.12, 20, 3.5, 6, 0.02))
     else:
         o.append(tree(random.Random(11), 1652, ridge_y(near_pts, 1652) + 3,
                       -math.pi / 2 + 0.1, 21, 3.5, 6, 0.02))
@@ -549,6 +555,8 @@ def hollow(w, h, seed):
                       -math.pi / 2 + 0.06, 13, 2.6, 5, 0.0).replace(INK, GROVE))
         o.append(tree(random.Random(14), 1805, ridge_y(far_pts, 1805) + 2,
                       -math.pi / 2 - 0.1, 15, 2.7, 5, 0.0).replace(INK, GROVE))
+        o.append(tree(random.Random(15), 1755, ridge_y(far_pts, 1755) + 2,
+                      -math.pi / 2 + 0.12, 14, 2.6, 5, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
     return svg(w, h, o)

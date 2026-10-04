@@ -272,14 +272,15 @@
   to   { opacity: 1; transform: scale(1.08); }
 }
 /* The candle sits over the pumpkin, whose place comes from the generator: the Horseman is
-   planted at 8% of the width, his pumpkin 151 units in (of the 360-unit plate) and 41.1
+   planted at 8% of the width, his pumpkin 151 units in (of the 360-unit plate) and 35.5
    units-of-width above the foot, glow 12 units-of-width across — so the halo is a 20vw
-   square centered on (33.2vw, bottom 41.1vw). If hx, PUMPKIN_AT or PUMPKIN_GLOW move in
-   gen-sleepy-hollow.py, these three lines move with them. */
+   square centered on (33.2vw, bottom 35.5vw). If hx, PUMPKIN_AT or PUMPKIN_GLOW move in
+   gen-sleepy-hollow.py, these three lines move with them; the ridge lines themselves no
+   longer drift, drawing as they do from their own streams. */
 [data-theme="sleepy-hollow"] .lock-ember {
   position: fixed;
   left: 23.2vw;
-  bottom: 31.1vw;
+  bottom: 25.5vw;
   width: 20vw;
   height: 20vw;
   background: radial-gradient(closest-side,
