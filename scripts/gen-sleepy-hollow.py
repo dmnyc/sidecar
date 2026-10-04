@@ -538,16 +538,16 @@ def hollow(w, h, seed):
     rnd = random.Random(seed)
     narrow = w < 600
     o = [defs()]
-    # The church stands on its own knoll of the far ridge, a quarter of the frame in from
-    # one side — small, high, and alone, the way the prints draw it — with two of its
-    # gravestones beside it to seat it, and the Horseman riding the near ridge below on
-    # the other side, clear of the compose button that sits over the bottom right corner.
+    # The church stands on its own knoll of the far ridge — small, high, and alone, the
+    # way the prints draw it — and the Horseman rides the near ridge below, center-left
+    # of the frame: the fixed band's window (520 to 900 pixels) shows the panorama's left
+    # 520 to 900 units, so everything that matters keeps left of 560.
     cx = w * (0.7 if narrow else 0.24)
-    hx = w * (0.08 if narrow else 0.40)
+    hx = w * (0.08 if narrow else 0.28)
     hs = 0.6 if narrow else 0.8
     # The foreground gravestones: one graveyard, clustered on the right of the near
     # ridge — stones gathered close, the way a burial ground reads, not scattered singly.
-    gy0, gy1 = (274, 352) if narrow else (0.64 * w, 0.79 * w)
+    gy0, gy1 = (274, 352) if narrow else (0.44 * w, 0.58 * w)
     gcount, gsep = (5, 15) if narrow else (7, 24)
     clear = [(cx - 70, cx + 70), (hx - 15, hx + 226 * hs), (gy0 - 10, gy1 + 10)]
     free = lambda x: all(not (a <= x <= b) for a, b in clear)
@@ -579,7 +579,7 @@ def hollow(w, h, seed):
     o.append(near)
     # The bridge, bigger so its posts read, and its fence carrying on along the road on
     # either side where there is room. The fence's stretch is kept clear of the trees.
-    bx = w * (0.64 if narrow else 0.3)
+    bx = w * (0.64 if narrow else 0.14)
     bs = 1.1 if narrow else 1.5
     o.append(bridge(bx, ridge_y(near_pts, bx + 30) + 7, bs))
     fl0, fl1 = (bx - 30 * bs - 46, bx - 30 * bs - 2) if narrow else (bx - 30 * bs - 140, bx - 30 * bs - 2)
@@ -608,15 +608,15 @@ def hollow(w, h, seed):
         o.append(tree(random.Random(12), 336, ridge_y(far_pts, 336) + 2,
                       -math.pi / 2 - 0.08, 17, 3, 6, 0.0, flip=True).replace(INK, GROVE))
     else:
-        o.append(tree(random.Random(11), 0.845 * w, ridge_y(near_pts, 0.845 * w) + 3,
+        o.append(tree(random.Random(11), 0.60 * w, ridge_y(near_pts, 0.60 * w) + 3,
                       -math.pi / 2 + 0.16, 28, 4.2, 7, 0.05, flip=True))
-        o.append(tree(random.Random(15), 0.935 * w, ridge_y(near_pts, 0.935 * w) + 3,
+        o.append(tree(random.Random(15), 0.72 * w, ridge_y(near_pts, 0.72 * w) + 3,
                       -math.pi / 2 - 0.06, 30, 4.4, 7, 0.03))
-        o.append(tree(random.Random(13), 0.70 * w, ridge_y(far_pts, 0.70 * w) + 2,
+        o.append(tree(random.Random(13), 0.46 * w, ridge_y(far_pts, 0.46 * w) + 2,
                       -math.pi / 2 + 0.06, 20, 3.2, 6, 0.0).replace(INK, GROVE))
-        o.append(tree(random.Random(14), 0.75 * w, ridge_y(far_pts, 0.75 * w) + 2,
+        o.append(tree(random.Random(14), 0.52 * w, ridge_y(far_pts, 0.52 * w) + 2,
                       -math.pi / 2 - 0.1, 21, 3.2, 6, 0.0, flip=True).replace(INK, GROVE))
-        o.append(tree(random.Random(15), 0.80 * w, ridge_y(far_pts, 0.80 * w) + 2,
+        o.append(tree(random.Random(15), 0.58 * w, ridge_y(far_pts, 0.58 * w) + 2,
                       -math.pi / 2 + 0.12, 19, 3.1, 6, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))

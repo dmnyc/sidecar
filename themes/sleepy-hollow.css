@@ -361,8 +361,8 @@
    PUMPKIN_AT or PUMPKIN_GLOW move, these move with them. */
 @media (min-width: 520px) and (max-width: 899.98px) {
   [data-theme="sleepy-hollow"] .lock-ember {
-    left: 433px;
-    bottom: 115px;
+    left: 325px;
+    bottom: 119px;
     width: 96px;
     height: 96px;
   }
