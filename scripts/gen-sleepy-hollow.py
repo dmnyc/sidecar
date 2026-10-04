@@ -536,27 +536,29 @@ def hollow(w, h, seed):
             continue
         o.append(tree(random.Random(rnd.randint(0, 10 ** 6)), tx, ridge_y(near_pts, tx) + 3,
                       -math.pi / 2 + rnd.uniform(-0.2, 0.2), rnd.uniform(16, 28), 3.6, 6, 0.02))
-    # A few gnarly trees set round the graveyard, deliberate rather than left to chance:
-    # one leaning over it from the left, one in from the screen's edge, and a pair of the
-    # far grove's standing behind it on the ridge above.
+    # Gnarly trees set round the graveyard, deliberate rather than left to chance, and
+    # big enough to read as trees: one leaning over it from each end, rising from behind
+    # the stones (they are drawn first, so the stones sit in front of the trunk), and a
+    # stand of the far grove behind it on the ridge above. A tree clipped by the frame
+    # reads as a stump — nothing leans in from an edge here.
     if narrow:
         o.append(tree(random.Random(11), bx + 30 * bs + 5, ridge_y(near_pts, bx + 30 * bs + 5) + 3,
-                      -math.pi / 2 + 0.12, 22, 3.6, 6, 0.02))
+                      -math.pi / 2 + 0.12, 26, 4.2, 7, 0.02))
+        o.append(tree(random.Random(15), 345, ridge_y(near_pts, 345) + 3,
+                      -math.pi / 2 - 0.1, 24, 4, 6, 0.02))
         o.append(tree(random.Random(12), 336, ridge_y(far_pts, 336) + 2,
-                      -math.pi / 2 - 0.08, 13, 2.6, 5, 0.0).replace(INK, GROVE))
-        o.append(tree(random.Random(15), 354, ridge_y(near_pts, 354) + 3,
-                      -math.pi / 2 - 0.12, 20, 3.5, 6, 0.02))
+                      -math.pi / 2 - 0.08, 17, 3, 6, 0.0).replace(INK, GROVE))
     else:
         o.append(tree(random.Random(11), 1652, ridge_y(near_pts, 1652) + 3,
-                      -math.pi / 2 + 0.1, 21, 3.5, 6, 0.02))
-        o.append(tree(random.Random(12), 1902, ridge_y(near_pts, 1902) + 3,
-                      -math.pi / 2 - 0.1, 24, 3.8, 6, 0.02))
+                      -math.pi / 2 + 0.1, 28, 4.2, 7, 0.02))
+        o.append(tree(random.Random(15), 1880, ridge_y(near_pts, 1880) + 3,
+                      -math.pi / 2 - 0.08, 30, 4.4, 7, 0.02))
         o.append(tree(random.Random(13), 1690, ridge_y(far_pts, 1690) + 2,
-                      -math.pi / 2 + 0.06, 13, 2.6, 5, 0.0).replace(INK, GROVE))
+                      -math.pi / 2 + 0.06, 20, 3.2, 6, 0.0).replace(INK, GROVE))
         o.append(tree(random.Random(14), 1805, ridge_y(far_pts, 1805) + 2,
-                      -math.pi / 2 - 0.1, 15, 2.7, 5, 0.0).replace(INK, GROVE))
+                      -math.pi / 2 - 0.1, 21, 3.2, 6, 0.0).replace(INK, GROVE))
         o.append(tree(random.Random(15), 1755, ridge_y(far_pts, 1755) + 2,
-                      -math.pi / 2 + 0.12, 14, 2.6, 5, 0.0).replace(INK, GROVE))
+                      -math.pi / 2 + 0.12, 19, 3.1, 6, 0.0).replace(INK, GROVE))
     o.append(graves(rnd, gy0, gy1, near_pts, gcount, gsep))
     o.append(horseman(hx, ridge_y(near_pts, hx + 110 * hs) - 4 * hs, hs))
     return svg(w, h, o)
