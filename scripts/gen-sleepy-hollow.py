@@ -5,6 +5,8 @@
 Writes, in themes/:
 
   sleepy-hollow-sky.svg      the top of the panel: a harvest moon on its own plate.
+  sleepy-hollow-sky-dim*.svg the same moon at less than half strength, worn where dense
+                             text scrolls over the sky (Settings, Profile edit).
   sleepy-hollow-clouds.svg   the narrow clouds on their own transparent plate, the sky's
                              exact frame, so the lock screen can drift them (repeat-x,
                              drawn wrapped) without moving the moon.
@@ -477,14 +479,20 @@ def leaves_plate(w, h, seed):
     return svg(w, h, [leaves(rnd, w, h, 8 if w < 600 else 30)])
 
 
-def sky(w, h, seed):
+def sky(w, h, seed, dim=False):
     # The moon, on its own plate: the glow must be able to wash the whole sky without
     # carrying the tree with it, and the tree must sit above the clouds (tree_plate), so
     # the sky's contents travel separately. Pinned to the top of the panel, so the moon
     # is always just under the tab bar, where no label sits on it.
     o = [defs()]
     mr, mx, my = moon_geo(w)
-    o.append(moon(mx, my, mr, w, h))
+    m = moon(mx, my, mr, w, h)
+    if dim:
+        # The dim moon for the text-heavy views: where dense text scrolls straight over
+        # the sky — Settings, Profile edit — the plate swaps to this one, the moon at
+        # less than half strength, so type never fights it for the eye.
+        m = '<g opacity="0.45">' + m + '</g>'
+    o.append(m)
     return svg(w, h, o)
 
 
@@ -626,11 +634,13 @@ def hollow(w, h, seed):
 def main():
     files = {
         'sleepy-hollow-sky.svg': sky(360, 420, 1790),
+        'sleepy-hollow-sky-dim.svg': sky(360, 420, 1790, dim=True),
         'sleepy-hollow-tree.svg': tree_plate(360, 420, 1790),
         'sleepy-hollow-clouds.svg': clouds_plate(360, 420, 1793),
         'sleepy-hollow-leaves.svg': leaves_plate(360, 420, 1794),
         'sleepy-hollow-hollow.svg': hollow(360, 170, 1820),
         'sleepy-hollow-sky-wide.svg': sky(900, 520, 1790),
+        'sleepy-hollow-sky-dim-wide.svg': sky(900, 520, 1790, dim=True),
         'sleepy-hollow-tree-wide.svg': tree_plate(900, 520, 1790),
         'sleepy-hollow-clouds-wide.svg': clouds_plate_wide(),
         'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 520, 1794),

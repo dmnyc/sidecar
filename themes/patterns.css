@@ -519,6 +519,12 @@ html:not([data-theme]) body {
    Horseman never grows past his panel-size self. The jump between the two compositions
    is real — a close-up and a panorama are different pictures — but it happens as soon as
    the window stops being a panel, and never mid-panel. */
+/* The moon's plate travels under a variable so a view can trade it for its dim twin
+   in one line (see the Settings rule below). */
+[data-theme="sleepy-hollow"] body {
+  --sh-sky: url(sleepy-hollow-sky.svg);
+  --sh-sky-wide: url(sleepy-hollow-sky-wide.svg);
+}
 @media (max-width: 519.98px) {
   [data-theme="sleepy-hollow"] body {
     background-image:
@@ -526,7 +532,7 @@ html:not([data-theme]) body {
       url(sleepy-hollow-leaves.svg),
       url(sleepy-hollow-tree.svg),
       url(sleepy-hollow-clouds.svg),
-      url(sleepy-hollow-sky.svg),
+      var(--sh-sky),
       radial-gradient(420px 320px at 77% 105px, rgba(120, 104, 168, 0.16), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, 100% auto, 100% auto, 100% auto, auto, auto;
@@ -537,6 +543,16 @@ html:not([data-theme]) body {
     background-attachment: fixed, fixed, fixed, fixed, fixed, fixed, fixed;
   }
 }
+/* WHERE TEXT GETS LOST: on the Settings and Profile-edit views, dense type scrolls
+   straight over the sky with no surface under it, so there the moon wears its dim plate
+   and the eye keeps the words. Any other view that grows text over the sky joins this
+   selector list. */
+[data-theme="sleepy-hollow"] body:has(#view-settings:not(.hidden)),
+[data-theme="sleepy-hollow"] body:has(#view-profile-edit:not(.hidden)) {
+  --sh-sky: url(sleepy-hollow-sky-dim.svg);
+  --sh-sky-wide: url(sleepy-hollow-sky-dim-wide.svg);
+}
+
 /* PAST 900px the panorama scales with the window. FROM 520 to 900 it holds its natural
    900-pixel size instead — the window reveals more of it as it widens and scales nothing
    — which is what makes the crossover gentle: the scene a 545-pixel window shows is the
@@ -552,7 +568,7 @@ html:not([data-theme]) body {
       url(sleepy-hollow-leaves-wide.svg),
       url(sleepy-hollow-tree-wide.svg),
       url(sleepy-hollow-clouds-wide.svg),
-      url(sleepy-hollow-sky-wide.svg),
+      var(--sh-sky-wide),
       radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 900px auto, 100% auto, 900px auto, 1920px auto, 520px auto, auto, auto;
@@ -568,7 +584,7 @@ html:not([data-theme]) body {
       url(sleepy-hollow-leaves-wide.svg),
       url(sleepy-hollow-tree-wide.svg),
       url(sleepy-hollow-clouds-wide.svg),
-      url(sleepy-hollow-sky-wide.svg),
+      var(--sh-sky-wide),
       radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
       linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
     background-size: 100% auto, 100% auto, 100% auto, 1920px auto, 520px auto, auto, auto;
@@ -790,7 +806,7 @@ html:not([data-theme]) body {
     url(sleepy-hollow-leaves-wide.svg),
     url(sleepy-hollow-tree-wide.svg),
     url(sleepy-hollow-clouds-wide.svg),
-    url(sleepy-hollow-sky-wide.svg),
+    var(--sh-sky-wide),
     radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
     linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
   background-size: 100% auto, 100% auto, 100% auto, 1920px auto, 520px auto, auto, auto;
