@@ -9,6 +9,8 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.15.6] — 2026-10-05
+
 ### Added
 - **Special editions: themes for a season.** A special edition is worn only while its season lasts. When one arrives, a card on the Accounts tab offers it once, with a preview. It goes on over the account's own theme rather than replacing it, so choosing any other theme, or **Back to** your own, takes it off, and the end of the season does too. While it is in season it has a place of its own at the top of the theme gallery, and it dresses the approval window and the pay card as well as the panel. Settings → Appearance → Special editions turns the card off.
 - **Sleepy Hollow, the first special edition (October 1 – November 8).** After Washington Irving's tale and the engravings that illustrated it: the Hollow at night in silhouette, a harvest moon behind the great tulip tree, and the Horseman on the ridge with his pumpkin alight. Its type is IM FELL English, and its balance lights up like a lantern.
@@ -16,9 +18,11 @@ Update that section alongside this file as part of every release.
 - **Highlight a passage from any web page (NIP-84).** Select text, right-click, and choose **Highlight with Sidecar**. A small window shows the passage, the page it came from and the paragraph around it, which is published with it unless you leave it out, and takes an optional comment. Post publishes it as the active account to its write relays, with line breaks kept and a passage too long to quote whole refused rather than cut.
 
 - **The signing card reads web-of-trust provider lists.** Turning on a web-of-trust service asks Sidecar to sign a NIP-85 provider list (kind 10040). The card used to call it an unrecognized kind; it now names it and shows which provider and relay the list points to, and which scores each provides. Turning a service off publishes an empty list, which also drops every other provider it named, so that case is spelled out, and once Sidecar has signed a list, emptying it gets the same erase warning as a blanked mute list.
+- **The About card notes when Sidecar was established.** The first commit landed at block 954179; the About card and the README say so, linking to the block on mempool.space.
 
 ### Fixed
 - **Sites that sign you in through a login library work with Sidecar.** Some libraries put their own layer between the page and your signer extension. Sidecar now lets them, as most signer extensions do, where before the library stopped and its login button did nothing. The same goes for wallet libraries and Lightning payments.
+- **Hover states read clearly in every theme.** Nixie's "Try the composer" hover was translucent and lit a color nothing else in the theme uses — it now brightens to Nixie's own gold. Werkstätte's profile editor drew the banner preview as an oval; it is a rectangle again. And seven themes' balloon hovers stepped too faintly to register — each now moves clearly, with its text kept at or above 4.5 to 1. Ben-Day's balloon, white so its drawn tail matches, lifts on its shadow instead.
 
 ## [1.15.5] — 2026-10-02
 
