@@ -9,20 +9,33 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
-## [1.15.6] — 2026-10-05
+## [1.15.6] — 2026-10-04
 
 ### Added
 - **Special editions: themes for a season.** A special edition is worn only while its season lasts. When one arrives, a card on the Accounts tab offers it once, with a preview. It goes on over the account's own theme rather than replacing it, so choosing any other theme, or **Back to** your own, takes it off, and the end of the season does too. While it is in season it has a place of its own at the top of the theme gallery, and it dresses the approval window and the pay card as well as the panel. Settings → Appearance → Special editions turns the card off.
-- **Sleepy Hollow, the first special edition (October 1 – November 8).** After Washington Irving's tale and the engravings that illustrated it: the Hollow at night in silhouette, a harvest moon behind the great tulip tree, and the Horseman on the ridge with his pumpkin alight. Its type is IM FELL English, and its balance lights up like a lantern.
+- **Sleepy Hollow, the first special edition (October 1 – November 8).** After Washington Irving's tale and the engravings that illustrated it: the Hollow at night in silhouette, a harvest moon behind the great tulip tree, and the Horseman on the ridge with his pumpkin alight. Its type is IM FELL English, and its balance lights up like a lantern. The lock screen drifts its clouds and drops its leaves, and keeps still under Settings → Reduce motion. Where text runs over the scene, the moon and the pumpkin dim.
 - **GIFs in both composers.** A GIF button beside Media searches nostr.build’s GIF index, with topic chips to start from and suggestions as you type. A GIF you pick is attached by its nostr.build link, so nothing is uploaded, and its title becomes its description, which you can edit. Like Media, it stands aside while a poll is open.
 - **Highlight a passage from any web page (NIP-84).** Select text, right-click, and choose **Highlight with Sidecar**. A small window shows the passage, the page it came from and the paragraph around it, which is published with it unless you leave it out, and takes an optional comment. Post publishes it as the active account to its write relays, with line breaks kept and a passage too long to quote whole refused rather than cut.
-
 - **The signing card reads web-of-trust provider lists.** Turning on a web-of-trust service asks Sidecar to sign a NIP-85 provider list (kind 10040). The card used to call it an unrecognized kind; it now names it and shows which provider and relay the list points to, and which scores each provides. Turning a service off publishes an empty list, which also drops every other provider it named, so that case is spelled out, and once Sidecar has signed a list, emptying it gets the same erase warning as a blanked mute list.
+- **Sidecar asks before posting the same note twice.** An identical note from the same account within fifteen minutes turns Post into **Post it again?**, which waits two seconds before it can be pressed. Any edit puts it back.
 - **The About card notes when Sidecar was established.** The first commit landed at block 954179; the About card and the README say so, linking to the block on mempool.space.
+
+### Changed
+- **Speakeasy is quilted.** Its wall is diamond-quilted velvet with lavender stitching, and the wallet card is lit by a lamp above it, with the balance set in gilt.
+- **Notifications stay current.** The bell asks the relays again once the panel has settled and whenever you open it, so it no longer sits days behind until you press refresh.
+- **The quick reaction row is kept per account,** so reacting as one account no longer reshuffles another’s, and a reaction counts as soon as you pick it.
+- **A long account list stays in reach.** Past three accounts the overview starts collapsed, and the active account scrolls into view, clear of the compose button.
+- **A smaller download.** The theme fonts ship as WOFF2 and the help guide’s pictures as WebP.
 
 ### Fixed
 - **Sites that sign you in through a login library work with Sidecar.** Some libraries put their own layer between the page and your signer extension. Sidecar now lets them, as most signer extensions do, where before the library stopped and its login button did nothing. The same goes for wallet libraries and Lightning payments.
-- **Hover states read clearly in every theme.** Nixie's "Try the composer" hover was translucent and lit a color nothing else in the theme uses — it now brightens to Nixie's own gold. Werkstätte's profile editor drew the banner preview as an oval; it is a rectangle again. And seven themes' balloon hovers stepped too faintly to register — each now moves clearly, with its text kept at or above 4.5 to 1. Ben-Day's balloon, white so its drawn tail matches, lifts on its shadow instead.
+- **Notifications name their senders.** Senders are looked up where their profiles actually are, so rows show names instead of npubs, including rows that arrive while the bell is open.
+- **A profile opened from search shows the person on the first try,** instead of a bare npub until a second search.
+- **A minimized post says when it goes out.** The mining bar reads **Found it. Posting…** with Stop disabled, then **Posted.**, where it used to offer to cancel a note that was already on its way.
+- **A kind 1 reply to one of your comments is labeled a reply to your comment,** not to your note.
+- **The About card shows its creator’s name** rather than an npub when relays are slow.
+- **Hover states read clearly in every theme.** Nixie's "Try the composer" hover was translucent and lit a color nothing else in the theme uses; it now brightens to Nixie's own gold. Werkstätte's profile editor drew the banner preview as an oval; it is a rectangle again. And five themes' balloon hovers stepped too faintly to register; each now moves clearly, with its text kept at or above 4.5 to 1.
+- **Imwald’s icon in the app catalog** loads again.
 
 ## [1.15.5] — 2026-10-02
 
