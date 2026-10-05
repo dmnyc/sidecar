@@ -1536,6 +1536,106 @@ window.SidecarCore = (function () {
     return { p: pTags.filter((t) => !already.has(t[1])), q: quotes.tags };
   }
 
+  // ---- dev-build composer fixtures, shared by both composers ------------------------
+  //
+  // Three tools for authoring test events from an unpacked build: an event kind other
+  // than the one a reply would take, p tags the text never mentions, and a reply to any
+  // event by id. Gated by the build in each composer, never here: these are pure, and the
+  // gate belongs to the page that knows what build it is. Moved here so the panel and the
+  // expanded tab produce the same events; two copies drift.
+
+  // Typed keys to p-tag silently: npub1… or 64 hex, separated by spaces or commas.
+  // Anything unreadable is DROPPED rather than guessed at, because a tag aimed at the
+  // wrong key is worse than no tag and nothing in the note would reveal it.
+  function parseSilentTags(text, NT) {
+    const out = [];
+    const seen = new Set();
+    String(text || '').split(/[\s,]+/).forEach((tok) => {
+      const t = tok.trim().replace(/^nostr:/i, '');
+      if (!t) return;
+      let hex = '';
+      if (/^[0-9a-f]{64}$/i.test(t)) hex = t.toLowerCase();
+      else if (/^npub1/i.test(t)) {
+        try {
+          const d = NT.nip19.decode(t);
+          if (d && d.type === 'npub' && typeof d.data === 'string') hex = d.data;
+        } catch (_) {}
+      }
+      if (hex && !seen.has(hex)) { seen.add(hex); out.push(hex); }
+    });
+    return out;
+  }
+
+  // An event reference: note1…, nevent1… (its relay hints and author come with it) or
+  // 64 hex characters, with or without nostr:. Anything else is null, never a guess.
+  function parseEventRef(text, NT) {
+    const raw = String(text || '').trim().replace(/^nostr:/, '');
+    if (/^[0-9a-f]{64}$/i.test(raw)) return { id: raw.toLowerCase(), relays: [], author: null };
+    try {
+      const d = NT.nip19.decode(raw);
+      if (d.type === 'note' && typeof d.data === 'string') return { id: d.data, relays: [], author: null };
+      if (d.type === 'nevent' && d.data && d.data.id) {
+        return { id: d.data.id, relays: d.data.relays || [], author: d.data.author || null };
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // The event, from its hints, the page's own read relays and its author's write relays
+  // when the reference names one. via: ownRelays() and outboxOf(pubkey) resolve to
+  // relay lists, get(relays, filter) to one event. Only an event whose id IS the one
+  // asked for is accepted: a relay is not obliged to honor the filter.
+  async function fetchEventRef(ref, via) {
+    const own = await Promise.resolve().then(via.ownRelays).catch(() => []);
+    let outbox = [];
+    if (ref.author) {
+      try { outbox = (await via.outboxOf(ref.author)) || []; } catch (_) {}
+    }
+    const relays = [...new Set([...(ref.relays || []), ...(own || []), ...outbox])];
+    if (!relays.length) return null;
+    const ev = await Promise.race([
+      Promise.resolve().then(() => via.get(relays, { ids: [ref.id] })).catch(() => null),
+      new Promise((res) => setTimeout(() => res(null), 8000)),
+    ]);
+    return ev && ev.id === ref.id ? ev : null;
+  }
+
+  // A reply's threading with its KIND chosen rather than inherited: kind 1 or kind 1111
+  // answering anything, so a reader's handling of mixed threads can be tested. 0 (or no
+  // choice) is the ordinary reply. authorOf(id) resolves to a note's author, for a
+  // comment whose thread root the target names but does not carry the author of.
+  async function devReplyTags(target, selectedKind, selfPubkey, authorOf) {
+    if (!selectedKind) return target ? replyTags(target, selfPubkey) : null;
+    if (!target) {
+      if (selectedKind === WEB_COMMENT_KIND) throw new Error('Reply to a note to create a kind 1111 comment.');
+      return null;
+    }
+    const normal = replyTags(target, selfPubkey);
+    if (selectedKind === normal.kind) return normal;
+    const people = normal.tags.filter((t) => t[0] === 'p');
+    if (selectedKind === WEB_COMMENT_KIND) {
+      const rootTag = (target.tags || []).find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
+      const rootId = rootTag ? rootTag[1] : target.id;
+      const rootAuthor = rootId === target.id ? target.pubkey
+        : rootTag[4] || (await authorOf(rootId));
+      if (!rootAuthor) throw new Error('Could not load the thread author. Try again before posting this comment.');
+      return { kind: WEB_COMMENT_KIND, tags: [
+        ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
+        ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,
+      ] };
+    }
+    // Intentionally nonstandard: useful for testing tolerant readers of mixed threads.
+    const root = (target.tags || []).find((t) => t[0] === 'E' && t[1]);
+    const rootId = root ? root[1] : target.id;
+    const rootAuthor = (target.tags || []).find((t) => t[0] === 'P' && t[1])?.[1] || root?.[3];
+    if (rootAuthor && rootAuthor !== selfPubkey && !people.some((t) => t[1] === rootAuthor)) {
+      people.push(['p', rootAuthor]);
+    }
+    const tags = [['e', rootId, root?.[2] || '', 'root']];
+    if (rootId !== target.id) tags.push(['e', target.id, '', 'reply']);
+    return { kind: 1, tags: [...tags, ...people] };
+  }
+
   // THE COVER A VIDEO WEARS INSTEAD OF A FRAME.
   //
   // A <video> in a 72px cell is a bad thumbnail three ways: it paints black until it has
@@ -3208,6 +3308,7 @@ window.SidecarCore = (function () {
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
