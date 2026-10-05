@@ -227,8 +227,6 @@ test('THE CARD IS OFFERED ONCE A SEASON, AND NOT IN THE LAST FEW DAYS', () => {
   assert.match(fn, /const id = SEASONS\.seasonId\(ed\.key, now\);/);
   assert.match(fn, /\(got\[SEASON_CARD_SEEN\] \|\| \[\]\)\.includes\(id\)\) return;/, 'an answered card comes back');
   assert.match(fn, /end - now > SEASON_CARD_QUIET_DAYS \* 86400000/);
-  // One card at a time, and the update card goes first.
-  assert.match(fn, /if \(got\.versionCard \|\| \$\('version-card'\)/);
   // The buttons have words, so they take their own row under the content (CLAUDE.md).
   assert.match(fn, /h\('div', \{ className: 'season-card-actions' \}, \[wear, later\]\)/);
   // Both answers are remembered, not just the yes.
@@ -251,4 +249,49 @@ test('new interface text goes through t()', () => {
     assert.ok(block.includes(s), s + ' is not translated');
   }
   assert.doesNotMatch(block, /innerHTML/);
+});
+
+// BESIDE THE UPDATE CARD, NOT BEHIND IT. Everybody meets a new edition through an update,
+// and the season card used to wait for the update card to be dismissed, which hid the offer
+// until the panel happened to redraw. Run against stub storage and a stub page.
+function seasonCardPage({ seen = [], updateCardUp = false } = {}) {
+  const src = read('sidepanel.js');
+  const fn = src.slice(src.indexOf('function maybeShowSeasonCard('), src.indexOf('const farewellSaid'));
+  const byId = new Map();
+  class El {
+    constructor(props = {}) { Object.assign(this, props); this.dataset = {}; this.parent = null; }
+    append() {} addEventListener() {} remove() {}
+    querySelector() { return new El(); }
+    insertAdjacentElement(where, el) {
+      if (where === 'afterbegin') { this.kids.unshift(el); el.parent = this; }
+      else { const kids = this.parent.kids; kids.splice(kids.indexOf(this) + 1, 0, el); el.parent = this.parent; }
+      if (el.id) byId.set(el.id, el);
+      return el;
+    }
+  }
+  const content = new El(); content.kids = [];
+  if (updateCardUp) content.insertAdjacentElement('afterbegin', new El({ id: 'version-card' }));
+  const store = { seasonCardSeen: seen, versionCard: updateCardUp ? { to: '1.15.6' } : undefined };
+  const ctx = {
+    S, state: { activePubkey: 'alice' }, SEASON_CARD_SEEN: 'seasonCardSeen', SEASON_CARD_QUIET_DAYS: 3,
+    $: (id) => byId.get(id) || null,
+    h: (tag, props) => new El(props), t: (x) => x, icon: () => new El(), toast: () => {},
+    seasonUntil: () => 'November 8', mountThemePreview: () => {}, scaleThemePreview: () => {},
+    wearEdition: async () => {},
+    document: { querySelector: () => content },
+    chrome: { storage: { local: {
+      get: (keys, cb) => cb({ ...store }),
+      set: () => {},
+    } } },
+  };
+  vm.createContext(ctx);
+  vm.runInContext('const SEASONS = S;\n' + fn + '\nmaybeShowSeasonCard({ devDate: "2026-10-10" });', ctx);
+  return content.kids.map((k) => k.id);
+}
+
+test('the season card stands under the update card instead of waiting behind it', () => {
+  assert.deepEqual(seasonCardPage({ updateCardUp: true }), ['version-card', 'season-card'],
+    'with the update card up, the season card was withheld or drawn above it');
+  assert.deepEqual(seasonCardPage(), ['season-card']);
+  assert.deepEqual(seasonCardPage({ seen: ['sleepy-hollow:2026'] }), [], 'an answered card came back');
 });
