@@ -268,6 +268,8 @@
     // runs on to a semicolon.
     { text: 'A tart temper never mellows with age, and a sharp tongue is the only edged tool that grows keener with constant use.', who: 'Washington Irving, 1819' },
     { text: 'Deep into that darkness peering, long I stood there wondering, fearing, doubting, dreaming dreams no mortal ever dared to dream before.', who: 'Edgar Allan Poe, 1845' },
+    // 1.15.7. Checked against the Project Gutenberg text of Dracula (1897), Van Helsing.
+    { text: 'We learn from failure, not from success!', who: 'Bram Stoker, 1897' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
