@@ -3179,8 +3179,12 @@
   // like the update card, and an answer to it ("Not now" as much as "Wear it") is
   // remembered by the season it was given for. Next year's season asks again. Not offered
   // in an edition's last few days, since putting on something that is about to vanish is a
-  // poor first impression of it, and never while the update card is waiting: one card at
-  // a time, and the update is the one that cannot wait for next year.
+  // poor first impression of it.
+  //
+  // BESIDE THE UPDATE CARD, NOT BEHIND IT. Everybody meets a new edition through an update,
+  // so the update card is always up when the season card first could be. Waiting for it to
+  // be dismissed hid the offer until the panel happened to redraw, and never showed it at
+  // all to anyone who left the update card standing. Both stand now, the update on top.
   const SEASON_CARD_SEEN = 'seasonCardSeen';
   const SEASON_CARD_QUIET_DAYS = 3;
 
@@ -3224,8 +3228,8 @@
       && SEASONS.windowFor(e.key, now).end - now > SEASON_CARD_QUIET_DAYS * 86400000);
     if (!ed) return;
     const id = SEASONS.seasonId(ed.key, now);
-    chrome.storage.local.get([SEASON_CARD_SEEN, 'versionCard'], (got) => {
-      if (got.versionCard || $('version-card') || $('season-card')) return;
+    chrome.storage.local.get(SEASON_CARD_SEEN, (got) => {
+      if ($('season-card')) return;
       if ((got[SEASON_CARD_SEEN] || []).includes(id)) return;
       // Answered, either way. Kept short: a season a year per edition is all it holds.
       const done = () => {
@@ -3270,8 +3274,11 @@
       ]);
       // It scrolls with the tab's content instead of hanging under the tabs: first
       // child of the scroller, so answering it is part of reading the page, not a
-      // banner that outlives the scroll.
-      document.querySelector('#view-main .content').insertAdjacentElement('afterbegin', card);
+      // banner that outlives the scroll. Under the update card when that is up, which
+      // goes in at the very top whichever of the two is drawn first.
+      const updateCard = $('version-card');
+      if (updateCard) updateCard.insertAdjacentElement('afterend', card);
+      else document.querySelector('#view-main .content').insertAdjacentElement('afterbegin', card);
       mountThemePreview(preview);
       scaleThemePreview(preview.querySelector('.theme-preview'));
     });
