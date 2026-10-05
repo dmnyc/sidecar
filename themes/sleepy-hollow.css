@@ -239,12 +239,15 @@
   background-repeat: repeat-x;
   animation: sleepy-hollow-drift 75s linear infinite;
   pointer-events: none;
-  z-index: -1; /* over the night's own layers, under the lock form */
+  z-index: -3; /* over the night's own layers, under the tree */
 }
-/* THE TREE stands above the drifting clouds, as it does in the body's stack: ::after
-   paints after ::before, so this still copy of the tree plate covers any wisp that
-   passes. It does not move — the tree is rooted — and it draws exactly where the body's
-   tree plate sat, whose stand-down (patterns.css) makes this the only copy. */
+/* THE TREE stands above the drifting clouds, as it does in the body's stack, so this
+   still copy of the tree plate covers any wisp that passes. The order is set by
+   z-index, not by ::after painting last: negative z-indexes stack low to high, so the
+   clouds sit at -3, the tree at -2, and the falling leaves and the candle at -1 above
+   both. (The tree once sat at -2 under clouds at -1, and the wisps crossed its limbs.)
+   It does not move — the tree is rooted — and it draws exactly where the body's tree
+   plate sat, whose stand-down (patterns.css) makes this the only copy. */
 [data-theme="sleepy-hollow"] #view-lock::after {
   content: "";
   position: fixed;
