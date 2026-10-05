@@ -1421,6 +1421,95 @@ window.SidecarCore = (function () {
     return { kind: 1, tags: [...tags, ...people] };
   }
 
+  // ---- what a note's text tags, shared by both composers ----------------------------
+  //
+  // MOVED HERE from sidepanel.js so the expanded tab tags a note's text the way the
+  // panel does. It never did: from the tab's first release a mention went out with no p
+  // tag and a quote with no q tag, so the people mentioned were never notified and a
+  // quote did not read as one, while the same note written in the panel did both. Two
+  // copies of a publish path is how that happens, so there is one now.
+
+  // `p` tags for every profile mentioned in the text, deduped and in order.
+  //
+  // This is what makes a mention reach the person mentioned: notification discovery is
+  // `{'#p': [pubkey]}`, so a mention with no p tag renders for every reader and is
+  // invisible to its target.
+  function mentionPTags(content, NT) {
+    const out = [];
+    const seen = new Set();
+    const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
+    let m;
+    while ((m = re.exec(String(content || ''))) !== null) {
+      try {
+        const d = NT.nip19.decode(m[1]);
+        const pk = d.type === 'npub' ? d.data : d.data.pubkey;
+        if (pk && !seen.has(pk)) { seen.add(pk); out.push(['p', pk]); }
+      } catch (_) { /* malformed mention — skip it, don't fail the post */ }
+    }
+    return out;
+  }
+
+  // NIP-18 `q` tags for the event references in a note's body, plus the pubkeys of the
+  // quoted authors (noteBodyTags p-tags them).
+  //
+  // A bech32 reference in the content is not, on its own, a quote: without the `q` tag
+  // the note goes out as plain text with a 210-character string in the middle of it.
+  // Clients key quote rendering off `q`, the quoted author is never notified, and
+  // Sidecar's own notification list tells "quoted your note" from a reply by it.
+  //
+  // note/nevent quote by event id; naddr quotes by "kind:pubkey:d" coordinate, since an
+  // addressable event's id changes with every edit.
+  const BODY_REF_RE = /nostr:(note1[0-9a-z]+|nevent1[0-9a-z]+|naddr1[0-9a-z]+)/g;
+  function quoteTags(content, NT) {
+    const tags = [];
+    const authors = [];
+    const seen = new Set();
+    let m;
+    BODY_REF_RE.lastIndex = 0;
+    while ((m = BODY_REF_RE.exec(String(content || ''))) !== null) {
+      let d = null;
+      try { d = NT.nip19.decode(m[1]); } catch (_) { continue; } // malformed ref — skip it, don't fail the post
+      let value = null;
+      let relay = '';
+      let author = '';
+      if (d.type === 'note') {
+        value = d.data;
+      } else if (d.type === 'nevent') {
+        value = d.data.id;
+        relay = (d.data.relays || [])[0] || '';
+        author = d.data.author || '';
+      } else if (d.type === 'naddr') {
+        value = d.data.kind + ':' + d.data.pubkey + ':' + d.data.identifier;
+        relay = (d.data.relays || [])[0] || '';
+        author = d.data.pubkey || '';
+      }
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      // Positional tag, so an author can only be given if the relay slot is filled —
+      // with an empty string when there's no hint, which is what other clients emit.
+      tags.push(author ? ['q', value, relay, author] : relay ? ['q', value, relay] : ['q', value]);
+      if (author) authors.push(author);
+    }
+    return { tags, authors };
+  }
+
+  // EVERYTHING A NOTE'S TEXT TAGS, in the order a note carries it: the people mentioned,
+  // then the authors it quotes that are not already among them, less anyone the reply's
+  // own threading tags already name (threadTags), and the q tags. Both composers place
+  // these after the threading and client tags: p tags, then q tags, then imeta.
+  function noteBodyTags(prose, NT, threadTags) {
+    const pTags = mentionPTags(prose, NT);
+    const quotes = quoteTags(prose, NT);
+    const seenP = new Set(pTags.map((t) => t[1]));
+    for (const pk of quotes.authors) {
+      if (seenP.has(pk)) continue;
+      seenP.add(pk);
+      pTags.push(['p', pk]);
+    }
+    const already = new Set((threadTags || []).filter((t) => t[0] === 'p').map((t) => t[1]));
+    return { p: pTags.filter((t) => !already.has(t[1])), q: quotes.tags };
+  }
+
   // THE COVER A VIDEO WEARS INSTEAD OF A FRAME.
   //
   // A <video> in a 72px cell is a bad thumbnail three ways: it paints black until it has
@@ -3092,7 +3181,8 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, WEB_COMMENT_KIND, renderTextWithCode, makeMediaExpandable, openMediaLightbox,
+    replyTags, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags,
+    renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,

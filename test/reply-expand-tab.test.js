@@ -101,10 +101,11 @@ test('WHAT THE TAB PUBLISHES PUTS THREADING BEFORE EVERYTHING ELSE', () => {
   const at = page.indexOf('tags: [', page.indexOf('let template = {'));
   const tmpl = page.slice(at, page.indexOf('content:', at));
   const reply = tmpl.indexOf('reply ? reply.tags');
-  const client = tmpl.indexOf("['client', 'Sidecar']");
+  const client = tmpl.indexOf('...clientTag');
+  const bodyP = tmpl.indexOf('...body.p');
   const imeta = tmpl.indexOf('imetaTagsForMedia');
   assert.ok(reply > -1, 'the tab no longer spreads the threading tags at all');
-  assert.ok(reply < client && client < imeta, 'threading has to lead the tag list');
+  assert.ok(reply < client && client < bodyP && bodyP < imeta, 'threading has to lead the tag list');
   // And the kind follows the target rather than being hardcoded to 1, or a reply to a
   // NIP-22 comment would publish as a kind 1 note nobody in that thread can see.
   assert.match(page, /kind: asPoll \? SC\.POLL_KIND : reply \? reply\.kind : 1,/);

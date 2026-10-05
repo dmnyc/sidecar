@@ -173,8 +173,13 @@ test('threading tags come first', () => {
 });
 
 test('a body mention does not duplicate a participant already tagged', () => {
+  // The dedupe lives in composer-core's noteBodyTags now, which the panel hands the
+  // reply's threading tags, and which the expanded tab uses too.
   const fn = lift('async function doPublish(');
-  assert.match(fn, /already\.has\(t\[1\]\)/);
+  assert.match(fn, /window\.SidecarCore\.noteBodyTags\(prose, NT, reply \? reply\.tags : \[\]\)/);
+  const core = fs.readFileSync(path.join(__dirname, '..', 'composer-core.js'), 'utf8');
+  const body = core.slice(core.indexOf('function noteBodyTags('));
+  assert.match(body.slice(0, 900), /return \{ p: pTags\.filter\(\(t\) => !already\.has\(t\[1\]\)\), q: quotes\.tags \};/);
 });
 
 // ---- where it is offered --------------------------------------------------------------

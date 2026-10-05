@@ -20,10 +20,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// quoteTags and mentionPTags live in composer-core now, shared by both composers.
+const source = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 function lift(pattern, label) {
   const m = source.match(pattern);
-  if (!m) throw new Error('Could not find ' + label + ' in sidepanel.js');
+  if (!m) throw new Error('Could not find ' + label + ' in composer-core.js');
   return m[0];
 }
 
@@ -37,13 +38,13 @@ const ctx = { NT };
 vm.createContext(ctx);
 vm.runInContext(
   lift(/const BODY_REF_RE = [^;]+;/, 'BODY_REF_RE') + '\n' +
-    lift(/function quoteTags\(content\) \{[\s\S]*?\n  \}/, 'quoteTags') + '\n' +
-    lift(/function mentionPTags\(content\) \{[\s\S]*?\n  \}/, 'mentionPTags') + '\n' +
-    'globalThis.quoteTags = quoteTags; globalThis.mentionPTags = mentionPTags;',
+    lift(/function quoteTags\(content, NT\) \{[\s\S]*?\n  \}/, 'quoteTags') + '\n' +
+    lift(/function mentionPTags\(content, NT\) \{[\s\S]*?\n  \}/, 'mentionPTags') + '\n' +
+    'globalThis.qt = (s) => quoteTags(s, NT); globalThis.mt = (s) => mentionPTags(s, NT);',
   ctx
 );
-const quoteTags = (s) => JSON.parse(JSON.stringify(ctx.quoteTags(s)));
-const mentionPTags = (s) => JSON.parse(JSON.stringify(ctx.mentionPTags(s)));
+const quoteTags = (s) => JSON.parse(JSON.stringify(ctx.qt(s)));
+const mentionPTags = (s) => JSON.parse(JSON.stringify(ctx.mt(s)));
 
 const ID_A = 'a'.repeat(64);
 const ID_B = 'b'.repeat(64);

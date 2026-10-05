@@ -827,6 +827,14 @@
       // first e marked root as the thread and NIP-22 scope is read positionally, so
       // these lead; the client tag and imeta follow.
       const reply = replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
+      // WHAT THE TEXT TAGS, the same as the panel: a p tag for everyone mentioned and
+      // every author quoted, and a q tag for every note quoted. This page went without
+      // them from its first release, so a mention written here never notified anyone
+      // and a quote did not read as one.
+      const body = SC.noteBodyTags(text, NT, reply ? reply.tags : []);
+      // The client tag is opt-out in Settings, which this page did not read either.
+      const settings = (await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => null)) || {};
+      const clientTag = settings.showClientTag === false ? [] : [['client', 'Sidecar']];
       // A POLL IS ITS OWN KIND, and never a reply: a 1068 answering a note is not a
       // shape anything threads, which is why the editor refuses to offer one there.
       const asPoll = draft.poll && !replyTo;
@@ -839,7 +847,9 @@
         // is byte-identical to what it published before alt text existed.
         tags: [
           ...(reply ? reply.tags : []),
-          ['client', 'Sidecar'],
+          ...clientTag,
+          ...body.p,
+          ...body.q,
           ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
           ...SC.imetaTagsForMedia(draft.media),
         ],

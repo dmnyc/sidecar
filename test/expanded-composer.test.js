@@ -139,7 +139,7 @@ test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
   // Threading leads, then the client tag, then the poll tags, then imeta. NIP-10 takes
   // the first e marked root and NIP-22 reads scope positionally, so the order is
   // load-bearing rather than tidy.
-  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\['client', 'Sidecar'\],/,
+  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\.\.\.clientTag,/,
     'threading must lead: NIP-10 takes the first e marked root, NIP-22 reads scope positionally');
 
   // A poll is still refused. It is a different kind with its own editor, and none of
