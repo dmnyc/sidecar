@@ -916,11 +916,18 @@ window.SidecarCore = (function () {
     // Only fetch pubkeys not already in the shared profile cache; batch the rest
     // in one query (efficient for many authors) and populate the shared cache so
     // these results are reused by profile previews and future mentions.
-    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !deps.cachedProfile(pk));
+    //
+    // ASKED OF purplepag.es TOO, and A MISS IS NOT CACHED. The configured relays alone
+    // rarely carry a stranger's kind:0, and a miss written to the cache as an empty profile
+    // read as "this person has no name" to everything after it: the full-size composer's
+    // preview showed the mention, and then the embedded note's author, as an npub.
+    const named = (pk) => { const r = deps.cachedProfile(pk); return !!(r && r.name); };
+    const need = [...new Set(mentions.map((x) => x.pubkey))].filter((pk) => !named(pk));
     if (need.length) {
       try {
+        const relays = [...new Set([...(await deps.relayUrls(false)), 'wss://purplepag.es'])];
         const events = await Promise.race([
-          deps.poolQuerySync(await deps.relayUrls(false), { kinds: [0], authors: need }),
+          deps.poolQuerySync(relays, { kinds: [0], authors: need }),
           new Promise((res) => setTimeout(() => res([]), 6000)),
         ]);
         const latest = {};
@@ -928,8 +935,9 @@ window.SidecarCore = (function () {
           if (!latest[ev.pubkey] || ev.created_at > latest[ev.pubkey].created_at) latest[ev.pubkey] = ev;
         });
         need.forEach((pk) => {
+          if (!latest[pk]) return;
           let content = {};
-          if (latest[pk]) { try { content = JSON.parse(latest[pk].content) || {}; } catch (_) {} }
+          try { content = JSON.parse(latest[pk].content) || {}; } catch (_) {}
           deps.cacheProfile(pk, content);
         });
       } catch (_) {}

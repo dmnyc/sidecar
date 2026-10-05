@@ -178,7 +178,14 @@
 
   // ---- what the shared editor needs from whichever page it is drawing into ----
   const profileCache = new Map();
-  function cachedProfile(pubkey) { return profileCache.get(pubkey) || null; }
+  // Your own accounts are known without asking anyone, as the panel knows them.
+  function cachedProfile(pubkey) {
+    const hit = profileCache.get(pubkey);
+    if (hit && hit.name) return hit;
+    const own = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
+    if (own && own.name) return { pubkey, name: own.name, picture: own.picture || null };
+    return hit || null;
+  }
   // The preview's mention resolver writes back what it looked up, so the second mention
   // of the same person costs nothing.
   function cacheProfile(pubkey, content) {
@@ -197,8 +204,9 @@
   // store, with no relay at all; then purplepag.es (the kind:0 aggregator) beside the
   // configured relays, capped; and only a name found is kept.
   async function fetchPreviewProfile(pubkey) {
+    // A cached entry counts only if it has a name: anything nameless is a miss, asked again.
     const hit = profileCache.get(pubkey);
-    if (hit) return hit;
+    if (hit && hit.name) return hit;
     const own = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
     if (own && own.name) {
       const p = { pubkey, name: own.name, picture: own.picture || null };
