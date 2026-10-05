@@ -248,20 +248,23 @@ PUMPKIN_GLOW = 36
 
 
 def horseman(x, y, s, flip=False, dim=False):
-    # The lit cluster — halo, pumpkin, ribs — dims as one on the internal plates, at
-    # the same 0.45 the dim moon wears: dense text scrolls over the foot of these views,
-    # and the brightest thing in the frame recedes with the moon.
-    lit = ' opacity="0.45"' if dim else ''
+    # The lit cluster dims as one on the internal plates. The halo is a light and may
+    # fade (0.45, the dim moon's level); the pumpkin may not — element opacity would
+    # blend it with the ink figure behind it and the hand would ghost through. Its fill
+    # goes SOLID to the same blend over the night ink instead: the same dimness, an
+    # opaque mask. The ribs keep full ink on the dimmer body, crisp as ever.
+    halo = ' opacity="0.45"' if dim else ''
+    body_fill = '#6F4821' if dim else EMBER
     sx = -s if flip else s
     g = ['<g transform="translate(%s %s) scale(%s %s)">' % (f(x), f(y), f(sx), f(s)),
          '<circle cx="%s" cy="%s" r="%s" fill="url(#ember)"%s/>'
-         % (f(PUMPKIN_AT[0]), f(PUMPKIN_AT[1]), f(PUMPKIN_GLOW), lit),
+         % (f(PUMPKIN_AT[0]), f(PUMPKIN_AT[1]), f(PUMPKIN_GLOW), halo),
          '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (LEG_INK, INK),
          '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (HORSEMAN_INK, INK),
-         '<path d="%s" fill="%s"%s/>' % (PUMPKIN, EMBER, lit)]
+         '<path d="%s" fill="%s"/>' % (PUMPKIN, body_fill)]
     for rib in PUMPKIN_RIBS:
-        g.append('<path d="%s" fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round"%s/>'
-                 % (rib, INK, lit))
+        g.append('<path d="%s" fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round"/>'
+                 % (rib, INK))
     g.append('</g>')
     return ''.join(g)
 
