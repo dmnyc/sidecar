@@ -19,6 +19,7 @@ const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const bare = panel.replace(/^\s*\/\/.*$/gm, '');
 
 // ---- the parser, lifted and run against real nostr-tools ----
@@ -33,7 +34,9 @@ const ctx = { String, Set, NT };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
 vm.runInContext(
-  panel.match(/function parseSilentTags\(text\)[\s\S]*?\n    \}/)[0] + ';globalThis.f = parseSilentTags;',
+  // The parser lives in composer-core now, shared with the expanded tab; the panel reaches
+  // it through devParseSilentTags, which hands it nostr-tools.
+  core.match(/function parseSilentTags\(text, NT\)[\s\S]*?\n  \}/)[0] + ';globalThis.f = (t) => parseSilentTags(t, NT);',
   ctx
 );
 // Spread back into THIS realm's Array. The function builds its result inside the vm
@@ -120,7 +123,8 @@ function assembleTags({ dev = true, enabled = true, setting = true, clientTag = 
   vm.createContext(c);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8'), c);
   c.NT = c.NostrTools;
-  vm.runInContext(panel.match(/function parseSilentTags\(text\)[\s\S]*?\n    \}/)[0], c);
+  vm.runInContext(core.match(/function parseSilentTags\(text, NT\)[\s\S]*?\n  \}/)[0]
+    + '\nconst devParseSilentTags = (text) => parseSilentTags(text, NT);', c);
   vm.runInContext('(function(){' + seg + '; globalThis.OUT = tags; })()', c);
   return JSON.parse(JSON.stringify(c.OUT));
 }
