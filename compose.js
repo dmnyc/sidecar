@@ -188,14 +188,34 @@
       picture: (content && content.picture) || null,
     });
   }
+  // A NAME FOR THE PREVIEW, for a mention or an embedded note's author.
+  //
+  // It used to ask the configured relays alone, which rarely carry a stranger's kind:0,
+  // and to remember a miss as null for the life of the tab, so one slow answer left
+  // somebody an npub until the tab was reopened. The panel had both bugs in its bell and
+  // its search card; this is the same fix. Your own accounts answer first, from the
+  // store, with no relay at all; then purplepag.es (the kind:0 aggregator) beside the
+  // configured relays, capped; and only a name found is kept.
   async function fetchPreviewProfile(pubkey) {
-    if (profileCache.has(pubkey)) return profileCache.get(pubkey);
-    try {
-      const relays = await relayUrls(false);
-      const ev = await pool().get(relays, { kinds: [0], authors: [pubkey] });
-      const meta = ev ? JSON.parse(ev.content) : null;
-      const p = meta ? { pubkey, name: meta.display_name || meta.name || null, picture: meta.picture || null } : null;
+    const hit = profileCache.get(pubkey);
+    if (hit) return hit;
+    const own = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
+    if (own && own.name) {
+      const p = { pubkey, name: own.name, picture: own.picture || null };
       profileCache.set(pubkey, p);
+      return p;
+    }
+    try {
+      const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+      const ev = await Promise.race([
+        pool().get(relays, { kinds: [0], authors: [pubkey] }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+      if (!ev || ev.pubkey !== pubkey) return null;
+      const meta = JSON.parse(ev.content) || {};
+      const name = meta.display_name || meta.name || null;
+      const p = { pubkey, name, picture: meta.picture || null };
+      if (name) profileCache.set(pubkey, p);
       return p;
     } catch (_) { return null; }
   }
