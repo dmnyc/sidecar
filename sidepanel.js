@@ -4605,6 +4605,22 @@
     r.status === 'rejected' ||
     (typeof r.value === 'string' && r.value.startsWith('connection failure:'));
 
+  // EVERY RELAY ANSWERS IN TIME, or counts as failed. The vendored pool can leave one
+  // relay's publish pending forever: a relay that answers an EVENT with "auth-required"
+  // gets an AUTH signed for it, and if that signing fails, nostr-tools logs a warning and
+  // never settles the promise (it also keeps the stuck attempt and hands it to the next
+  // AUTH on that relay). allSettled then never finished, and a note other relays had
+  // already taken left the composer on "Found it. Posting…" with nothing to press. A cap
+  // per relay, reported as a connection failure, so the partial-success branch below
+  // resets that relay and the stuck attempt goes with it.
+  const PUBLISH_RELAY_CAP_MS = 12000;
+  function capPublish(p) {
+    return Promise.race([
+      p,
+      new Promise((res) => setTimeout(() => res('connection failure: no answer within 12s'), PUBLISH_RELAY_CAP_MS)),
+    ]);
+  }
+
   async function publishToRelays(relays, signed) {
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     // Dedupe the way the pool will. A plain Set over the raw strings keeps
@@ -4615,7 +4631,7 @@
     const targets = [...new Set(relays.map((u) => {
       try { return NT.utils.normalizeURL(u); } catch (_) { return u; }
     }))];
-    let results = await Promise.allSettled(poolPublish(targets, signed));
+    let results = await Promise.allSettled(poolPublish(targets, signed).map(capPublish));
     let ok = results.filter((r) => !publishFailed(r)).length;
 
     // NOTHING LANDED — try once more against fresh sockets before believing it.
@@ -4630,7 +4646,7 @@
     // re-sent to the relays that already took it.
     if (!ok) {
       resetPoolRelays(targets);
-      results = await Promise.allSettled(poolPublish(targets, signed));
+      results = await Promise.allSettled(poolPublish(targets, signed).map(capPublish));
       ok = results.filter((r) => !publishFailed(r)).length;
     } else if (results.some(publishFailed)) {
       // Partial success: drop just the relays that failed, so a wedged one does not sit
@@ -9128,8 +9144,9 @@
     // that makes people retype things.
     if (_modalDismissGuard) {
       let hold = false;
-      try { hold = !!_modalDismissGuard(); } catch (_) { hold = false; }
-      if (hold) return toast('Use Cancel to close. Your draft is kept.', 'info');
+      try { hold = _modalDismissGuard(); } catch (_) { hold = false; }
+      // A guard can say why it holds; otherwise the composer's own Cancel is the way out.
+      if (hold) return toast(typeof hold === 'string' ? hold : t('Use Cancel to close. Your draft is kept.'), 'info');
     }
     closeModal();
   });
@@ -13036,6 +13053,7 @@
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
     let published = false;
+    let postingNow = false; // from Post until the relays have answered; read by the dismiss guard
     // HANDED TO THE TAB. Same meaning as `published` for the close handler below: this
     // draft is no longer this composer's to write. Without it, closing the modal at the
     // end of Expand ran persistDraft one last time, and for a reply with nothing typed
@@ -13135,7 +13153,16 @@
           // holds the pane's shape; this one is absolute and holds nothing.
           hide(mini);
           stop.disabled = true;
-          line.textContent = t('Found it. Posting…');
+          // Counting, so the wait for the relays is visibly alive. It is bounded now
+          // (publishToRelays caps each relay), but a still line read as frozen.
+          const postedFrom = Date.now();
+          const tick = () => {
+            if (!line.isConnected) { clearInterval(posting); return; }
+            const s = Math.round((Date.now() - postedFrom) / 1000);
+            line.textContent = s < 2 ? t('Found it. Posting…') : t('Found it. Posting… {{secs}}s', { secs: s });
+          };
+          const posting = setInterval(tick, 1000);
+          tick();
         },
       };
     }
@@ -14131,6 +14158,7 @@
       // the draft anyway, so this costs nothing it does not buy back.
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       persistDraft();
+      postingNow = true;
       try {
         const signed = await doPublish();
         // Before the banner, because the banner is the only other way back to this tally
@@ -14163,6 +14191,8 @@
         const wasMinimized = !!miningStatus;
         endMinimizedMine();
         if (!wasMinimized) showEditor();
+      } finally {
+        postingNow = false;
       }
     }
 
@@ -14328,7 +14358,10 @@
         // Something to lose = text or attached media. Drafts autosave here, so nothing is
         // truly destroyed by a stray click, but "it came back later" is not the same as
         // "it never went away".
-        _modalDismissGuard = () => !!(draft.text.trim() || (draft.media || []).length);
+        // While it is posting there is no Cancel to point at: the screen closes itself
+        // once the relays have answered.
+        _modalDismissGuard = () => (postingNow ? t('Posting. This closes as soon as the relays answer.')
+          : !!(draft.text.trim() || (draft.media || []).length));
         // Chosen from Saved drafts a moment ago, so it opens rather than asking again.
         if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
         else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
