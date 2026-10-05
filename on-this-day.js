@@ -1002,12 +1002,14 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-28': [
     { year: 1886, text: "The Statue of Liberty was dedicated in New York Harbor, a gift from the people of France." },
+    { year: 1636, text: "The Massachusetts Bay Colony voted to found the college that became Harvard." }, // Wikipedia, Harvard University
   ],
   '10-29': [
     { year: 1929, text: "The stock market collapsed on Black Tuesday, plunging the nation into the Great Depression." },
   ],
   '10-30': [
     { year: 1938, text: "Orson Welles broadcast The War of the Worlds as a series of news bulletins." },
+    { year: 1888, text: "John J. Loud received the first patent for a ballpoint pen." }, // Wikipedia, Ballpoint pen
   ],
   '10-31': [
     { year: 1517, text: "Martin Luther supposedly nailed his ninety-five theses to the door of the castle church in Wittenberg." },
@@ -1037,6 +1039,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-08': [
     { year: 1895, text: "Wilhelm Rontgen noticed a screen glowing across his darkened lab, and discovered X-rays." },
+    { year: 1889, text: "Montana was admitted to the Union as the forty-first state." },
   ],
   '11-09': [
     { year: 1906, text: "Theodore Roosevelt visited the Panama Canal, the first time a president traveled abroad in office." },
