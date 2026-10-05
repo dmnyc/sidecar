@@ -107,8 +107,14 @@ function assembleTags({ dev = true, enabled = true, setting = true, clientTag = 
     devSilentEnabled: enabled,
     settings: { devSilentTags: setting, showClientTag: clientTag },
     devSilentInput: built ? { value: field } : null,
-    reply, pTags, quotes: { tags: [] }, CLIENT_TAG: ['client', 'Sidecar'],
+    reply, prose: '', CLIENT_TAG: ['client', 'Sidecar'],
     Set, String, TextDecoder, TextEncoder, crypto,
+    // The text's own tags come from composer-core's noteBodyTags; pTags stands in for the
+    // mentions it would find, deduped against the threading as the real one does.
+    window: { SidecarCore: { noteBodyTags: (prose, NT, thread) => {
+      const already = new Set((thread || []).filter((t) => t[0] === 'p').map((t) => t[1]));
+      return { p: pTags.filter((t) => !already.has(t[1])), q: [] };
+    } } },
   };
   c.globalThis = c;
   vm.createContext(c);

@@ -178,7 +178,14 @@
 
   // ---- what the shared editor needs from whichever page it is drawing into ----
   const profileCache = new Map();
-  function cachedProfile(pubkey) { return profileCache.get(pubkey) || null; }
+  // Your own accounts are known without asking anyone, as the panel knows them.
+  function cachedProfile(pubkey) {
+    const hit = profileCache.get(pubkey);
+    if (hit && hit.name) return hit;
+    const own = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
+    if (own && own.name) return { pubkey, name: own.name, picture: own.picture || null };
+    return hit || null;
+  }
   // The preview's mention resolver writes back what it looked up, so the second mention
   // of the same person costs nothing.
   function cacheProfile(pubkey, content) {
@@ -188,14 +195,35 @@
       picture: (content && content.picture) || null,
     });
   }
+  // A NAME FOR THE PREVIEW, for a mention or an embedded note's author.
+  //
+  // It used to ask the configured relays alone, which rarely carry a stranger's kind:0,
+  // and to remember a miss as null for the life of the tab, so one slow answer left
+  // somebody an npub until the tab was reopened. The panel had both bugs in its bell and
+  // its search card; this is the same fix. Your own accounts answer first, from the
+  // store, with no relay at all; then purplepag.es (the kind:0 aggregator) beside the
+  // configured relays, capped; and only a name found is kept.
   async function fetchPreviewProfile(pubkey) {
-    if (profileCache.has(pubkey)) return profileCache.get(pubkey);
-    try {
-      const relays = await relayUrls(false);
-      const ev = await pool().get(relays, { kinds: [0], authors: [pubkey] });
-      const meta = ev ? JSON.parse(ev.content) : null;
-      const p = meta ? { pubkey, name: meta.display_name || meta.name || null, picture: meta.picture || null } : null;
+    // A cached entry counts only if it has a name: anything nameless is a miss, asked again.
+    const hit = profileCache.get(pubkey);
+    if (hit && hit.name) return hit;
+    const own = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
+    if (own && own.name) {
+      const p = { pubkey, name: own.name, picture: own.picture || null };
       profileCache.set(pubkey, p);
+      return p;
+    }
+    try {
+      const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+      const ev = await Promise.race([
+        pool().get(relays, { kinds: [0], authors: [pubkey] }),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+      if (!ev || ev.pubkey !== pubkey) return null;
+      const meta = JSON.parse(ev.content) || {};
+      const name = meta.display_name || meta.name || null;
+      const p = { pubkey, name, picture: meta.picture || null };
+      if (name) profileCache.set(pubkey, p);
       return p;
     } catch (_) { return null; }
   }
@@ -827,6 +855,14 @@
       // first e marked root as the thread and NIP-22 scope is read positionally, so
       // these lead; the client tag and imeta follow.
       const reply = replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
+      // WHAT THE TEXT TAGS, the same as the panel: a p tag for everyone mentioned and
+      // every author quoted, and a q tag for every note quoted. This page went without
+      // them from its first release, so a mention written here never notified anyone
+      // and a quote did not read as one.
+      const body = SC.noteBodyTags(text, NT, reply ? reply.tags : []);
+      // The client tag is opt-out in Settings, which this page did not read either.
+      const settings = (await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => null)) || {};
+      const clientTag = settings.showClientTag === false ? [] : [['client', 'Sidecar']];
       // A POLL IS ITS OWN KIND, and never a reply: a 1068 answering a note is not a
       // shape anything threads, which is why the editor refuses to offer one there.
       const asPoll = draft.poll && !replyTo;
@@ -839,7 +875,9 @@
         // is byte-identical to what it published before alt text existed.
         tags: [
           ...(reply ? reply.tags : []),
-          ['client', 'Sidecar'],
+          ...clientTag,
+          ...body.p,
+          ...body.q,
           ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
           ...SC.imetaTagsForMedia(draft.media),
         ],
