@@ -19,7 +19,7 @@ const promptInline = (fs.readFileSync(path.join(ROOT, 'prompt.html'), 'utf8')
   .match(/<style>([\s\S]*?)<\/style>/g) || []).join('\n');
 // Ben Day and Turnstile square their panels with the same blanket rule and the same
 // exceptions.
-const SQUARE_THEMES = ['werkstatte', 'ben-day', 'turnstile'];
+const SQUARE_THEMES = ['werkstatte']; // Ben Day and Turnstile join in 1.16
 
 // Not themed, or matched from a compound selector whose real target is covered.
 const IGNORE = new Set([

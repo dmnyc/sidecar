@@ -435,10 +435,10 @@
   const THEME_LABELS = [
     ['speakeasy', 'Speakeasy'], ['metropolis', 'Metropolis'], ['film-noir', 'Film Noir'],
     ['brownstone', 'Brownstone'], ['nixie', 'Nixie'], ['cast-iron', 'Cast Iron'],
-    ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'], ['jazz-age', 'Jazz Age'], ['departures', 'Departures'],
+    ['wabi-sabi', 'Wabi-sabi'], ['constellation', 'Constellation'],
     ['industria', 'Industria'], ['aegean', 'Aegean'], ['bauhaus', 'Bauhaus'],
     ['populuxe', 'Populuxe'], ['par-avion', 'Par Avion'], ['werkstatte', 'Werkstätte'],
-    ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'], ['ben-day', 'Ben Day'], ['turnstile', 'Turnstile'],
+    ['ukiyo-e', 'Ukiyo-e'], ['mycelium', 'Mycelium'],
   ];
 
   function applyTheme(themeName) {
@@ -448,7 +448,7 @@
     // The special editions come from seasons.js and are appended, not listed here: they
     // are not in THEME_LABELS (the account menu offers what can be worn all year) and
     // the gallery shows them in a slot of their own.
-    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'].concat(SEASONS.KEYS);
+    const validThemes = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium'].concat(SEASONS.KEYS);
     if (!validThemes.includes(themeName)) themeName = 'speakeasy'; // default
 
     document.documentElement.setAttribute('data-theme', themeName);

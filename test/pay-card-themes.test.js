@@ -107,16 +107,6 @@ test('CARD_EXTRA is appended to both templates and empty unless a theme sets it'
   }
 });
 
-test('the pay card carries the same dot wash the panel draws, and only as a data URI', () => {
-  // Inlined because the card is in someone else's page (see BEN_DAY_WASH in content.js),
-  // which means it is a copy, and a copy drifts. It must match the generated file.
-  const m = src.match(/const BEN_DAY_WASH = 'data:image\/svg\+xml,([^']+)';/);
-  assert.ok(m, 'BEN_DAY_WASH is not a data: URI');
-  const inline = decodeURIComponent(m[1]).trim();
-  const file = fs.readFileSync(path.join(ROOT, 'themes', 'ben-day-dots-wash.svg'), 'utf8').trim();
-  assert.equal(inline, file, 'BEN_DAY_WASH is out of step with themes/ben-day-dots-wash.svg; regenerate and re-inline it');
-});
-
 test('a lettered card reaches the page only while it is up, and never as a fetchable file', () => {
   // Ben Day letters the amount and the Pay button in Bangers. The card is in someone
   // else's page, so the face has to be registered with document.fonts, which the page
@@ -128,8 +118,6 @@ test('a lettered card reaches the page only while it is up, and never as a fetch
   assert.match(bg, /'SIDECAR_CARD_FONT',\n\s*\]\);/, 'content scripts can no longer ask for the card font');
   // The face comes from a fixed list keyed by theme, never a path the page could name.
   const font = bg.slice(bg.indexOf("case 'SIDECAR_CARD_FONT': {"));
-  assert.match(font.slice(0, 1800), /'ben-day': \{ lettering: 'fonts\/bangers\.woff2' \}/);
-  assert.match(font.slice(0, 1800), /turnstile: \{ lettering: 'fonts\/pathway-gothic-one\.woff2', figures: 'fonts\/archivo-expanded-800\.woff2' \}/);
   assert.match(font.slice(0, 1800), /if \(!own\(CARD_FONTS, theme\) \|\| !own\(CARD_FONTS\[theme\], face\)\) throw/);
   assert.match(font.slice(0, 1800), /fetch\(chrome\.runtime\.getURL\(CARD_FONTS\[theme\]\[face\]\)\)/);
   // 2. It is registered when a card opens, not at load.
@@ -139,16 +127,5 @@ test('a lettered card reaches the page only while it is up, and never as a fetch
   assert.match(rm.slice(0, rm.indexOf('\n  }\n')), /unmountCardFont\(\);/);
   // And a late answer does not register it behind a card that already closed.
   assert.match(src, /if \(cardHost && shownMode === 'card' && cardTheme === theme\) add\(\);/);
-});
-
-test('the page-side strike carries the same ZAP! the panel draws, as a data URI', () => {
-  const m = src.match(/const BEN_DAY_ZAP = 'data:image\/svg\+xml,([^']+)';/);
-  assert.ok(m, 'BEN_DAY_ZAP is not a data: URI');
-  const file = fs.readFileSync(path.join(ROOT, 'themes', 'ben-day-zap.svg'), 'utf8').trim();
-  assert.equal(decodeURIComponent(m[1]).trim(), file,
-    'BEN_DAY_ZAP is out of step with themes/ben-day-zap.svg; regenerate and re-inline it');
-  const strike = src.slice(src.indexOf('function pageLightningStrike()'));
-  assert.match(strike.slice(0, strike.indexOf('\n  function ')), /cardTheme === 'ben-day'[\s\S]*?BEN_DAY_ZAP/,
-    'the page strike no longer draws the burst for Ben Day');
 });
 

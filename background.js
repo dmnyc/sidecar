@@ -3501,10 +3501,8 @@ async function handleControl(message, sender, sendResponse) {
         // face's role, so a page can only ever receive one of these files, never a path it
         // names. A request with no theme or face is from a content script older than the
         // list, which only knew Ben Day's lettering.
-        const CARD_FONTS = {
-          'ben-day': { lettering: 'fonts/bangers.woff2' },
-          turnstile: { lettering: 'fonts/pathway-gothic-one.woff2', figures: 'fonts/archivo-expanded-800.woff2' },
-        };
+        // Empty in 1.15.x: the lettered themes (Ben Day, Turnstile) ship in 1.16.
+        const CARD_FONTS = {};
         const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
         const theme = message.theme === undefined ? 'ben-day' : message.theme;
         const face = message.face === undefined ? 'lettering' : message.face;

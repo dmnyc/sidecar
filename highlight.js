@@ -52,8 +52,8 @@
   }
 
   const THEME_ALIASES = { 'art-deco': 'industria' };
-  const VALID_THEMES = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures',
-    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
+  const VALID_THEMES = ['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation',
+    'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium'];
   function applyTheme(settings, pubkey) {
     const by = (settings && settings.themeBy) || null;
     let name = (by && pubkey && by[pubkey]) || (settings && settings.theme) || 'speakeasy';

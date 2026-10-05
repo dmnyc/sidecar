@@ -384,114 +384,15 @@ test('both Film Noir sheets use the same inks', () => {
 
 // Ben Day's dots are solid, and prose sits on them: the dot's color is the darkest pixel a
 // hint can land on anywhere in the field, so every body ink is measured against it.
-test('the Ben Day dots leave its body inks above AA', () => {
-  const css = fs.readFileSync(path.join(THEMES, 'ben-day.css'), 'utf8');
-  const token = (name) => {
-    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
-    assert.ok(m, 'could not read --' + name + ' from ben-day.css');
-    return m[1];
-  };
-  for (const file of ['ben-day-dots.svg', 'ben-day-dots-yellow.svg', 'ben-day-dots-wash.svg']) {
-    const svg = fs.readFileSync(path.join(THEMES, file), 'utf8');
-    assert.ok(!/opacity=/.test(svg), file + ': the dots have to be solid, or this measures the wrong color');
-    const fills = [...new Set([...svg.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]))];
-    assert.equal(fills.length, 1, file + ': expected the dots in one ink');
-    for (const name of ['text', 'text-2', 'muted', 'faint']) {
-      const r = ratio(token(name), fills[0]);
-      assert.ok(r >= 4.5, `${file}: --${name} measures ${r.toFixed(2)}:1 on a dot (${fills[0]}), under AA`);
-    }
-  }
-});
-
 // Jazz Age's panel is a velvet curtain with its lights multiplied onto it, and prose sits
 // on it. Measured at the worst point there could be: the brightest fold of the curtain
 // under the room's light and every beam at full strength, added together at one spot.
-test('the Jazz Age curtain leaves its body inks above AA', () => {
-  const light = fs.readFileSync(path.join(THEMES, 'jazz-age-stage.svg'), 'utf8');
-  const curtain = fs.readFileSync(path.join(THEMES, 'jazz-age-curtain.svg'), 'utf8');
-  const css = fs.readFileSync(path.join(THEMES, 'jazz-age.css'), 'utf8');
-  const token = (name) => {
-    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
-    assert.ok(m, 'could not read --' + name + ' from jazz-age.css');
-    return m[1];
-  };
-  const hex = (h) => [0, 2, 4].map((i) => parseInt(h.replace('#', '').substr(i, 2), 16));
-  const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  const folds = [...curtain.matchAll(/stop-color="(#[0-9A-Fa-f]{6})"/g)].map((m) => hex(m[1]));
-  assert.ok(folds.length >= 6, 'could not read the curtain folds');
-  const sheen = folds.reduce((a, b) => (lum(b) > lum(a) ? b : a));
-  const ambient = light.match(/<rect width="\d+" height="\d+" fill="rgb\((\d+),(\d+),(\d+)\)"\/>/);
-  assert.ok(ambient, 'the light map lost its room light');
-  const peaks = [...light.matchAll(/<linearGradient id="[^"]+"[^>]*><stop offset="0" stop-color="rgb\((\d+),(\d+),(\d+)\)" stop-opacity="([\d.]+)"/g)]
-    .map((m) => ({ rgb: [+m[1], +m[2], +m[3]], a: +m[4] }));
-  assert.ok(peaks.length >= 3, 'expected three beams, found ' + peaks.length);
-  let lit = [+ambient[1], +ambient[2], +ambient[3]];
-  for (const { rgb, a } of peaks) lit = lit.map((v, i) => Math.min(255, v + rgb[i] * a));
-  const shown = sheen.map((v, i) => Math.round((v * lit[i]) / 255));
-  const shownHex = '#' + shown.map((v) => v.toString(16).padStart(2, '0')).join('');
-  assert.match(fs.readFileSync(path.join(THEMES, 'patterns.css'), 'utf8'),
-    /\[data-theme="jazz-age"\] body \{[^}]*url\(jazz-age-stage\.svg\), url\(jazz-age-curtain\.svg\)[^}]*background-blend-mode: multiply, normal;/,
-    'the panel curtain is no longer lit by multiplying its light map');
-  for (const name of ['text', 'text-2', 'muted', 'faint', 'gold']) {
-    const r = ratio(token(name), shownHex);
-    assert.ok(r >= 4.5, `--${name} measures ${r.toFixed(2)}:1 on the brightest lit fold (${shownHex}), under AA`);
-  }
-});
-
 // The Jazz Age lock screen's lights are far brighter than the panel's, which is only
 // sound because nothing low on that screen is lettered on the open floor: each line over
 // the pool has a surface of its own. If one of these loses its background, the lights take its contrast.
-test('every line over the Jazz Age lock screen pool sits on a surface of its own', () => {
-  const css = fs.readFileSync(path.join(THEMES, 'jazz-age.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(css, /#view-lock \{\s*background:\s*url\(jazz-age-lamps\.svg\)[^;]*url\(jazz-age-lock\.svg\)[^;]*url\(jazz-age-curtain\.svg\)[^;]*;\s*background-blend-mode: normal, multiply, normal;/, 'the lock stage moved');
-  const surfaced = css.slice(css.indexOf('[data-theme="jazz-age"] #view-lock .unlock-forgot,'));
-  const rule = surfaced.slice(0, surfaced.indexOf('}'));
-  for (const sel of ['#view-lock .unlock-forgot', '.pre-version-row .version-chip']) {
-    assert.ok(rule.includes(sel), sel + ' has no surface under the lock screen lights');
-  }
-  assert.match(rule, /background: #[0-9A-Fa-f]{6};/, 'the lock screen text surfaces are not opaque');
-  assert.match(css, /#view-lock \.stack \{[^}]*background: rgba\(22, 16, 14, 0\.9\d\)/, 'the PIN form lost its card');
-});
-
 // Turnstile's wall shows behind hints, and its mosaic is the fill of real lettering on two
 // dark tablets. Every ink has to clear AA on every color the wall is drawn in, the grout
 // included, and every tessera on both tablets.
-test('Turnstile keeps its inks above AA on the tile and its mosaic on the tablets', () => {
-  const css = fs.readFileSync(path.join(THEMES, 'turnstile.css'), 'utf8');
-  const token = (name) => {
-    const m = css.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
-    assert.ok(m, 'could not read --' + name + ' from turnstile.css');
-    return m[1];
-  };
-  const fills = (file) => [...new Set([...fs.readFileSync(path.join(THEMES, file), 'utf8')
-    .matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1].toUpperCase()))];
-  const wall = fills('turnstile-wall.svg');
-  assert.ok(wall.length >= 3, 'could not read the wall tile');
-  for (const name of ['text', 'text-2', 'muted', 'faint', 'gold']) {
-    for (const f of wall) {
-      const r = ratio(token(name), f);
-      assert.ok(r >= 4.5, `--${name} measures ${r.toFixed(2)}:1 on the wall's ${f}, under AA`);
-    }
-  }
-  // Each tablet is a field of tesserae with lettering in cream tesserae clipped to it. The
-  // first fill in each tile is its joint, drawn under the pieces; every piece of the field
-  // against every piece of the lettering has to clear AA.
-  const pieces = (file) => fills(file).slice(1);
-  for (const way of ['slate', 'rust', 'cobalt', 'green', 'brown']) {
-    assert.ok(css.includes('turnstile-' + way + '-ink.svg'), way + ' is no longer a colorway in turnstile.css');
-    const field = pieces('turnstile-' + way + '-field.svg');
-    const ink = pieces('turnstile-' + way + '-ink.svg');
-    assert.ok(field.length >= 4 && ink.length >= 3, 'could not read the ' + way + ' tiles');
-    for (const f of field) {
-      for (const i of ink) {
-        const r = ratio(i, f);
-        assert.ok(r >= 4.5, `${way}: the lettering's ${i} measures ${r.toFixed(2)}:1 on the field's ${f}, under AA`);
-      }
-    }
-  }
-});
-
-
 // Speakeasy's quilting runs under every hint in Settings, the Mycelium case again on the
 // default theme. The stitches are one lavender under ONE group opacity, so two rows can
 // never stack into a brighter one; that opacity is the ceiling where a hint crosses a

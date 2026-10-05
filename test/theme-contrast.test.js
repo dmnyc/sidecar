@@ -392,19 +392,6 @@ const FLOORS = {
   // darker paper), the first green accent in the set; the chanterelle is --balance-ink
   // and is a `color:` only at display size.
   mycelium: { '--muted': 6.78, '--faint': 5.50, '--gold': 4.64 },
-  // Ben Day's accent is the black plate, so --gold is the body ink's own ratio; the grays
-  // are measured on --bg-2, the darker paper, and the dots are held separately in
-  // test/theme-svg-assets.test.js.
-  'ben-day': { '--muted': 8.94, '--faint': 6.95, '--gold': 16.28 },
-  // Jazz Age: ivory on the black stage. --gold is the rose accent ink (the crimson is a
-  // fill only, 4.47 on the stage); the worst surface for all three is the lighter card.
-  'jazz-age': { '--muted': 8.04, '--faint': 7.47, '--gold': 7.98 },
-  // Departures: the board's white and two grays on a black board. Every ink's worst
-  // surface is the board itself; the yellow is the accent ink.
-  departures: { '--muted': 7.63, '--faint': 6.85, '--gold': 11.21 },
-  // Turnstile: the enamel's near-black and two grays on white tile. The worst surface for
-  // all three is the shaded tile; the green enamel is the accent ink.
-  turnstile: { '--muted': 7.47, '--faint': 6.58, '--gold': 7.94 },
   // Sleepy Hollow: parchment and two mist grays on the indigo night. The worst surface for
   // all three is the lighter card; --gold is the moon's rim, the accent ink, and the
   // pumpkin is a fill only.

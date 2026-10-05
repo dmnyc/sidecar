@@ -327,12 +327,11 @@ window.SidecarCore = (function () {
   // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
   // prompt.js (the approval window's wordmark). Three documents, no module system between
   // them; a new light theme has to be registered in all three.
-  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
+  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
   // Light themes that draw a top bar dark, so a logo on that bar takes the light wordmark
-  // the dark themes use. Two lists, because the bars differ: Ben Day's composer bar is its
-  // black plate while its panel bars are white, and Turnstile's name tablet is on both.
-  const COMPOSE_DARK_BAR_THEMES = new Set(['ben-day', 'turnstile']);
-  const PANEL_DARK_BAR_THEMES = new Set(['turnstile']);
+  // the dark themes use. Empty in 1.15.x: the themes that fill them ship in 1.16.
+  const COMPOSE_DARK_BAR_THEMES = new Set([]);
+  const PANEL_DARK_BAR_THEMES = new Set([]);
   function logoSrcFor(themeName) {
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.

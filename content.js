@@ -721,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'sleepy-hollow']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'sleepy-hollow']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -785,10 +785,8 @@
   // gothic for the lettering and a heavy grotesque for the figures), each fetched once and
   // kept by theme and role, since a page can show cards for two accounts in different
   // themes. Only the open card's faces are ever registered.
-  const CARD_FONT_FACES = {
-    'ben-day': { lettering: 'Sidecar Card Lettering' },
-    turnstile: { lettering: 'Sidecar Card Lettering', figures: 'Sidecar Card Figures' },
-  };
+  // Empty in 1.15.x: the lettered themes (Ben Day, Turnstile) ship in 1.16.
+  const CARD_FONT_FACES = {};
   const cardFontBytes = {};
   const cardFontFaces = {};
   const cardFontAsked = {};
@@ -1268,151 +1266,6 @@
         CARD_SUCCESS: 'color:#2E6B4F',
         CARD_PAY_SHADOW: 'rgba(56,83,43,0.26)'
       },
-      /* Jazz Age — the bandstand. Mirrors themes/jazz-age.css: a black card with the warm
-         hairline, a crimson wash at its head, the amount in ivory, Pay the lit crimson with
-         its ivory label (6.34 on the mid stop), and the toggles in crimson. */
-      'jazz-age': {
-        CARD_COLOR: 'color:#F3E7CF',
-        CARD_BORDER: 'rgba(184,134,75,0.35)',
-        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(224,50,75,0.12),transparent 58%),linear-gradient(165deg,#1A1311,#0C0908)',
-        CARD_MUTED: 'color:#BBA78C',
-        CARD_GOLD: 'color:#F3E7CF',
-        CARD_TEXT_2: 'color:#E2D3B8',
-        CARD_LAV: '#F58A95',
-        CARD_PAY_TEXT: 'color:#FFF4E2',
-        CARD_PAY_BG: 'linear-gradient(180deg,#E0324B,#B3122E 55%,#8E0B22)',
-        CARD_CANCEL_BG: 'rgba(243,231,207,0.08)',
-        CARD_TEXT: '#F3E7CF',
-        CARD_BORDER_FAINT: 'rgba(184,134,75,0.22)',
-        CARD_TOGGLE_OFF: 'rgba(243,231,207,0.18)',
-        CARD_TRACK: '#E0324B',
-        CARD_THUMB_OFF: '#BBA78C',
-        CARD_WARN: 'color:#FF8A70',
-        CARD_SUCCESS: 'color:#8FD4A0',
-        CARD_PAY_SHADOW: 'rgba(200,20,40,0.45)',
-        CARD_EXTRA:
-          '.pay{text-shadow:0 0 8px rgba(255,190,170,0.7);' +
-          'box-shadow:inset 0 1px 0 rgba(255,200,190,0.45),0 0 0 1px rgba(255,90,100,0.5),0 0 12px rgba(230,40,60,0.75),0 0 30px rgba(230,40,60,0.45);}' +
-          '.tg-input:checked~.tg-track .tg-thumb{background:#FFF4E2;}'
-      },
-      /* Turnstile — the station. Mirrors themes/turnstile.css: a white enamel plate with
-         its inset line, square-cornered, with a course of square gold tile and the maroon
-         course along its head;
-         the amount in the enamel's near-black, Pay the green enamel sign with cream
-         lettering and its inset line, the quieter actions white enamel, and the toggles
-         in the green. The amount, the eyebrow and Pay are lettered in the enamel signs'
-         gothic, which reaches the page only while a card is up (see mountCardFont). */
-      turnstile: {
-        CARD_COLOR: 'color:#151A1E',
-        CARD_BORDER: '#151A1E',
-        CARD_BACKGROUND: '#FAF8F2',
-        CARD_MUTED: 'color:#42474B',
-        CARD_GOLD: 'color:#151A1E',
-        CARD_TEXT_2: 'color:#2A2F33',
-        CARD_LAV: '#1F4A3B',
-        CARD_PAY_TEXT: 'color:#EFE8D2',
-        CARD_PAY_BG: '#1F4A3B',
-        CARD_CANCEL_BG: 'rgba(21,26,30,0.07)',
-        CARD_TEXT: '#151A1E',
-        CARD_BORDER_FAINT: 'rgba(21,26,30,0.18)',
-        CARD_TOGGLE_OFF: 'rgba(21,26,30,0.18)',
-        CARD_TRACK: '#1F4A3B',
-        CARD_THUMB_OFF: '#FFFFFF',
-        CARD_WARN: 'color:#9C2A1C',
-        CARD_SUCCESS: 'color:#1F5A38',
-        CARD_PAY_SHADOW: 'rgba(21,26,30,0.25)',
-        CARD_EXTRA:
-          '.card{border-radius:0;border:none;padding-top:26px;' +
-          'background:repeating-linear-gradient(90deg,#D8C690 0 6px,#2A2621 6px 7px) 0 0/100% 7px no-repeat,' +
-          'linear-gradient(#7A1F33,#7A1F33) 0 7px/100% 5px no-repeat,#FAF8F2;' +
-          'box-shadow:inset 0 0 0 3px #FAF8F2,inset 0 0 0 4px #151A1E,0 20px 60px rgba(21,26,30,0.3);}' +
-          '.eyebrow{font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:17px;letter-spacing:.12em;color:#151A1E;}' +
-          '.amt .num{font-family:"Sidecar Card Figures",ui-sans-serif,system-ui,sans-serif;font-weight:800;font-size:46px;letter-spacing:0;}' +
-          '.amt .unit{font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.08em;}' +
-          '.pay{border-radius:0;box-shadow:inset 0 0 0 3px #1F4A3B,inset 0 0 0 4.5px #EFE8D2,0 1px 0 rgba(21,26,30,0.25);' +
-          'font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:21px;letter-spacing:.08em;text-transform:uppercase;}' +
-          '.cancel,.other{border-radius:0;background:#F6F3EA;box-shadow:inset 0 0 0 3px #F6F3EA,inset 0 0 0 4px #151A1E;color:#151A1E;}' +
-          '.tg-input:checked~.tg-track .tg-thumb{background:#EFE8D2;}' +
-          '.pill{border-radius:0;box-shadow:inset 0 0 0 1.5px #151A1E;}' +
-          '.x{border-radius:0;}'
-      },
-      /* Departures — the board. Mirrors themes/departures.css: a black strip with a hairline
-         edge, the amount in the board's white, Pay the yellow with black lettering, and the
-         toggles in the yellow with a black knob. */
-      departures: {
-        CARD_COLOR: 'color:#F2F1EA',
-        CARD_BORDER: 'rgba(242,241,234,0.22)',
-        CARD_BACKGROUND: 'linear-gradient(180deg,#141413,#0E0E0D)',
-        CARD_MUTED: 'color:#A9A79D',
-        CARD_GOLD: 'color:#F2F1EA',
-        CARD_TEXT_2: 'color:#DCDBD3',
-        CARD_LAV: '#F5C400',
-        CARD_PAY_TEXT: 'color:#0E0E0D',
-        CARD_PAY_BG: '#F5C400',
-        CARD_CANCEL_BG: 'rgba(242,241,234,0.08)',
-        CARD_TEXT: '#F2F1EA',
-        CARD_BORDER_FAINT: 'rgba(242,241,234,0.16)',
-        CARD_TOGGLE_OFF: 'rgba(242,241,234,0.18)',
-        CARD_TRACK: '#F5C400',
-        CARD_THUMB_OFF: '#A9A79D',
-        CARD_WARN: 'color:#FF8A70',
-        CARD_SUCCESS: 'color:#8FDBA4',
-        CARD_PAY_SHADOW: 'rgba(0,0,0,0.6)',
-        CARD_EXTRA:
-          '.pay{text-transform:uppercase;letter-spacing:.06em;}' +
-          '.tg-input:checked~.tg-track .tg-thumb{background:#0E0E0D;}'
-      },
-      /* Ben Day — the comic page. Mirrors themes/ben-day.css: a white panel with the black
-         keyline, the pay button flat red with white (5.88), and the toggles as the panel
-         draws its switches. CARD_EXTRA carries the shape. */
-      'ben-day': {
-        CARD_COLOR: 'color:#111111',
-        CARD_BORDER: '#111111',
-        CARD_BACKGROUND: '#FFFFFF',
-        CARD_MUTED: 'color:#4A4A4A',
-        CARD_GOLD: 'color:#111111',
-        CARD_TEXT_2: 'color:#2A2A2A',
-        CARD_LAV: '#111111',
-        CARD_PAY_TEXT: 'color:#FFFFFF',
-        CARD_PAY_BG: '#C8102E',
-        CARD_CANCEL_BG: 'rgba(17,17,17,0.08)',
-        CARD_TEXT: '#111111',
-        CARD_BORDER_FAINT: 'rgba(17,17,17,0.22)',
-        CARD_TOGGLE_OFF: '#FFFFFF',
-        CARD_TRACK: '#C8102E',
-        CARD_THUMB_OFF: '#111111',
-        CARD_WARN: 'color:#B00D26',
-        CARD_SUCCESS: 'color:#1F6B3F',
-        CARD_PAY_SHADOW: 'transparent',
-        // The comic page's shape, which the shared templates cannot express in color:
-        // the yellow dot wash across the head of the card over a paper that shades down
-        // into cream, square corners, the black keyline and a hard drop on the card, the pill and the
-        // Pay button; the two quieter actions as cream caption tags; the amount lettered
-        // like the panel's balance (white face, one outline round the whole figure, the
-        // red plate offset behind it), which needs no font of the theme's own; and the
-        // switches as the panel draws them, white with a black knob off, red with a white
-        // knob on. The amount and the Pay button are lettered in Bangers, which reaches the
-        // page only while a card is up (see mountCardFont); everything else keeps the
-        // system face.
-        CARD_EXTRA:
-          '.card{border-radius:0;border:3px solid #111111;box-shadow:8px 8px 0 #111111;' +
-          'background:url("' + BEN_DAY_WASH + '") repeat-x 0 0/36px 180px,linear-gradient(180deg,#FFFFFF 45%,#F6EFDC);}' +
-          '.eyebrow{color:#111111;font-weight:700;}' +
-          '.amt .num{color:#FFFFFF;letter-spacing:.03em;font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:48px;' +
-          'filter:drop-shadow(.06em 0 0 #111111) drop-shadow(-.06em 0 0 #111111) ' +
-          'drop-shadow(0 .06em 0 #111111) drop-shadow(0 -.06em 0 #111111) drop-shadow(.08em .08em 0 #C8102E);}' +
-          '.amt .unit{margin-left:5px;}' +
-          '.pay{border-radius:0;box-shadow:inset 0 0 0 2.5px #111111,4px 4px 0 #111111;' +
-          'font-family:"Sidecar Card Lettering",ui-sans-serif,system-ui,sans-serif;font-weight:400;font-size:20px;letter-spacing:.05em;}' +
-          '.pay:active{transform:translate(2px,2px);box-shadow:inset 0 0 0 2.5px #111111,2px 2px 0 #111111;}' +
-          '.cancel,.other{border-radius:0;background:#FFF4C2;box-shadow:inset 0 0 0 2px #111111;color:#111111;}' +
-          '.cancel:hover,.other:hover{background:#FFD400;color:#111111;}' +
-          '.tg{border-top:2px solid #111111;}' +
-          '.tg-track{box-shadow:inset 0 0 0 2px #111111;}' +
-          '.tg-input:checked~.tg-track .tg-thumb{background:#FFFFFF;}' +
-          '.pill{border-radius:0;border:2.5px solid #111111;box-shadow:4px 4px 0 #111111;}' +
-          '.x{border-radius:0;}'
-      }
     };
 
     // The theme is read once at load into `cardTheme` (chrome.storage.get is
@@ -1734,7 +1587,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

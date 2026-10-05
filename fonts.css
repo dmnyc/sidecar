@@ -28,13 +28,6 @@
      Ukiyo-e     Kaisei Decol       display mincho, dot ends     the print's title cartouche
      Constellation Cormorant Garamond humanist old-style display    the engraved atlas plate
      Mycelium    Fraunces (soft)    soft "wonky" old-style        something grown, not cut
-     Ben Day     Bangers            hand-lettered comic caps      the sound effect and cover line
-                 + Comic Neue       thin monoline hand lettering  the caption and the hint
-     Jazz Age    Federo + Fascinate deco sans, Broadway display   the staff's figures and the title card
-     Departures  Barlow Condensed   condensed grotesque           the characters printed on a flap
-     Turnstile   Pathway Gothic One condensed gothic              the enamel sign
-                 + Archivo Expanded heavy expanded grotesque      the mosaic name tablet
-                 + Crimson Pro      old-style serif               the red faience tablet
      Sleepy Hollow IM FELL English SC 17th-c. book type, small caps  the title page of the tale
                  + Cormorant figures lining old-style figures      the balance (unicode-range)
 
@@ -427,112 +420,6 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/fraunces-soft-var.woff2') format('woff2-variations');
-}
-
-/* Bangers (Vernon Adams, SIL OFL 1.1 — see fonts/OFL-Bangers.txt). Ben Day's display
-   face: the heavy, slanted capitals a letterer drew for a cover line or a sound effect.
-   Capitals only, so it sets titles, names and the balance and never body text.
-   Unmodified TTF, 91KB, for the Reserved Font Name reason given above Rowdies. One
-   weight; `400 700` points the whole range at it. It has no Cyrillic or Greek, and the
-   stack falls back to Impact and then Manrope for those. */
-@font-face {
-  font-family: 'Bangers';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('fonts/bangers.woff2') format('woff2');
-}
-
-/* Comic Neue (Craig Rozynski and the Comic Neue Project Authors, SIL OFL 1.1 — see
-   fonts/OFL-ComicNeue.txt). Ben Day's second hand: the thin monoline lettering a comic
-   sets its captions and balloons in, where Bangers is the heavy one for titles and
-   sound effects. The theme sets it in capitals, as a letterer would. The panel's only
-   second display face, and it is not a --font-display: Ben Day reads it from its own
-   --font-lettering. Regular and Bold ship unmodified, 57KB and 56KB. Latin-1 and the
-   ellipsis are covered; Cyrillic and Greek fall back to Manrope. */
-@font-face {
-  font-family: 'Comic Neue';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('fonts/comic-neue-regular.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Comic Neue';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('fonts/comic-neue-bold.woff2') format('woff2');
-}
-
-/* Jazz Age's two faces, both SIL OFL 1.1 and shipped unmodified. Fascinate (Brian J.
-   Bonislawsky, Astigmatic — see fonts/OFL-Fascinate.txt), drawn after Broadway (1928), the
-   lettering of Jazz Age posters and programs, sets the view titles and the picker name.
-   Federo (Cyreal — see fonts/OFL-Federo.txt), a deco sans, sets the balance and the
-   display type. Latin-1 is covered by both; Cyrillic and Greek fall back. */
-@font-face {
-  font-family: 'Fascinate';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('fonts/fascinate.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Federo';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('fonts/federo.woff2') format('woff2');
-}
-
-/* Barlow Condensed (Jeremy Tribby, SIL OFL 1.1, no Reserved Font Name — see
-   fonts/OFL-BarlowCondensed.txt), Departures' flap lettering: a condensed grotesque like
-   the characters printed on a departures board's flaps. Two static weights, 600 and 700,
-   recompressed from the upstream TTFs to WOFF2 with every glyph kept. Latin, Latin
-   Extended, Vietnamese and Greek are covered; Cyrillic falls back. */
-@font-face {
-  font-family: 'Barlow Condensed';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('fonts/barlow-condensed-600.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Barlow Condensed';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('fonts/barlow-condensed-700.woff2') format('woff2');
-}
-
-/* Turnstile's three faces, all SIL OFL 1.1. Pathway Gothic One (Eduardo Tunni, Reserved
-   Font Name "Pathway" — see fonts/OFL-PathwayGothicOne.txt), a condensed gothic, letters
-   the enamel signs; unmodified TTF, kept whole because a converted file would have to drop
-   the reserved name. Archivo (Omnibus-Type, no Reserved Font Name — fonts/OFL-Archivo.txt),
-   cut to one instance at its widest width and weight 800, sets the mosaic name tablets.
-   Crimson Pro (Jacques Le Bailly, no Reserved Font Name — fonts/OFL-CrimsonPro.txt), cut
-   to weight 600, sets the red tablet's figures. Latin, Latin Extended and Greek are
-   covered by the two cut faces, Latin and Latin Extended by Pathway; Cyrillic falls back. */
-@font-face {
-  font-family: 'Pathway Gothic One';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: url('fonts/pathway-gothic-one.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Archivo';
-  font-style: normal;
-  font-weight: 800;
-  font-display: swap;
-  src: url('fonts/archivo-expanded-800.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Crimson Pro';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('fonts/crimson-pro-600.woff2') format('woff2');
 }
 
 /* Sleepy Hollow, the October special edition (seasons.js). IM FELL English SC, Igino
