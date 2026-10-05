@@ -38,6 +38,10 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 >
 > — [Bfgreen](https://jumble.social/notes/nevent1qvzqqqqqqypzqry7tctlhh64tm6pmteu8gvkwjwgfruu0yvkduc04e0ycpyqapctqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqlejyv5h6x6dyhsea8hkf8mkp7rmgf3maav0uppm046mzwe6vp4p9tlkws), on Nostr
 
+> "Very elegantly designed signer and works seamlessly. Account switching is a great feature. This will be my go to signer from now!"
+>
+> — [Avi Burra](https://jumble.social/users/npub1hqaz3dlyuhfqhktqchawke39l92jj9nt30dsgh2zvd9z7dv3j3gqpkt56s), on Firefox Add-ons
+
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Generating a new key runs a quick guided setup (name, photo, bio). Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
