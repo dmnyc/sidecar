@@ -9,6 +9,12 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.15.7] — 2026-10-05
+
+### Fixed
+- **The special edition card appears after an update.** It waited for the "Updated to" card to be dismissed, and dismissing that card never brought it back until the panel happened to redraw, so most people updating to 1.15.6 were never offered Sleepy Hollow. Both cards stand together now, the update card on top.
+- **Sleepy Hollow's great tree stands in front of the drifting clouds** on the lock screen again, where the clouds had been crossing its branches.
+
 ## [1.15.6] — 2026-10-04
 
 ### Added
