@@ -977,6 +977,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-20': [
     { year: 1947, text: "The House Un-American Activities Committee began its hearings on communist influence in Hollywood." },
+    { year: 1803, text: "The Senate approved the Louisiana Purchase, 24 votes to 7." }, // Wikipedia, Louisiana Purchase
   ],
   '10-21': [
     { year: 1805, text: "Lord Nelson defeated the combined French and Spanish fleets at Trafalgar, but was killed in the battle." },
@@ -996,6 +997,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-26': [
     { year: 1825, text: "The Erie Canal opened, joining the Great Lakes to the Atlantic by way of the Hudson." },
+    { year: 1863, text: "Football clubs met at the Freemasons' Tavern in London and formed the Football Association." }, // Wikipedia, The Football Association
   ],
   '10-27': [
     { year: 1904, text: "The New York City subway opened, and carried over a hundred thousand people on its first evening." },

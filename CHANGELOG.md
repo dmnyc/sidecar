@@ -9,6 +9,15 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.15.8] — 2026-10-05
+
+### Fixed
+- **Mentions and quotes written in the full-size composer reach the people in them.** A mention went out with no tag to notify the person, and a quoted note with no tag to link it, from the full-size composer's first release; notes written in the panel always had both. The full-size composer also leaves off the client tag when Settings says to.
+- **A pasted npub or nevent counts as a mention or a quote.** It used to need a `nostr:` in front: without one, the preview showed a quote that went out as plain text. Sidecar adds it at Post, in both composers and in web comments.
+- **The full-size composer's preview shows people's names**, including your own other accounts, where it showed npubs.
+- **A post can no longer get stuck on "Found it. Posting…".** A relay that does not answer within 12 seconds is skipped, and the screen counts the seconds while it posts.
+- **The default avatar's orange slice sits in the middle of the circle** everywhere, where some views drew it clipped at the edge.
+
 ## [1.15.7] — 2026-10-05
 
 ### Fixed
