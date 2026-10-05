@@ -128,8 +128,8 @@ test('a lettered card reaches the page only while it is up, and never as a fetch
   assert.match(bg, /'SIDECAR_CARD_FONT',\n\s*\]\);/, 'content scripts can no longer ask for the card font');
   // The face comes from a fixed list keyed by theme, never a path the page could name.
   const font = bg.slice(bg.indexOf("case 'SIDECAR_CARD_FONT': {"));
-  assert.match(font.slice(0, 1800), /'ben-day': \{ lettering: 'fonts\/bangers\.ttf' \}/);
-  assert.match(font.slice(0, 1800), /turnstile: \{ lettering: 'fonts\/pathway-gothic-one\.ttf', figures: 'fonts\/archivo-expanded-800\.woff2' \}/);
+  assert.match(font.slice(0, 1800), /'ben-day': \{ lettering: 'fonts\/bangers\.woff2' \}/);
+  assert.match(font.slice(0, 1800), /turnstile: \{ lettering: 'fonts\/pathway-gothic-one\.woff2', figures: 'fonts\/archivo-expanded-800\.woff2' \}/);
   assert.match(font.slice(0, 1800), /if \(!own\(CARD_FONTS, theme\) \|\| !own\(CARD_FONTS\[theme\], face\)\) throw/);
   assert.match(font.slice(0, 1800), /fetch\(chrome\.runtime\.getURL\(CARD_FONTS\[theme\]\[face\]\)\)/);
   // 2. It is registered when a card opens, not at load.

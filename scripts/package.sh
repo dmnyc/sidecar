@@ -54,8 +54,11 @@ git archive "${TAG}" | tar -x -C "${STAGE}"
 # fails open, and the thing it fails open on is always something added later by
 # someone who had no reason to know this line existed. Nothing the extension runs
 # lives under a dot path, so the glob is safe and it covers whatever comes next.
+# screenshots/ STAYS: it holds the help guide's illustrations (help.html), not store
+# captures, and stripping it left every image in the packaged guide broken. They ship
+# as WebP to keep the package small.
 rm -rf "${STAGE}"/.[!.]* "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
-       "${STAGE}/docs" "${STAGE}/screenshots"
+       "${STAGE}/docs"
 # Every top-level .md, by glob rather than by name. The old explicit list failed
 # open: a doc added later shipped inside the extension until someone noticed, and
 # REVIEWERS.md — written FOR the store, describing how to reproduce this very zip

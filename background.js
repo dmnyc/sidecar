@@ -3496,14 +3496,14 @@ async function handleControl(message, sender, sendResponse) {
         // handed to the content script as bytes, only when such a card opens. The card
         // lives in the page and cannot use a font declared in its own shadow root, and
         // listing the file as web-accessible would let any site fetch it to detect
-        // Sidecar. The file is the unmodified original from fonts/, public in the repo.
+        // Sidecar. The file is the same one fonts.css loads, public in the repo.
         // A lettered theme's faces, chosen from this fixed list by the theme's name and the
         // face's role, so a page can only ever receive one of these files, never a path it
         // names. A request with no theme or face is from a content script older than the
         // list, which only knew Ben Day's lettering.
         const CARD_FONTS = {
-          'ben-day': { lettering: 'fonts/bangers.ttf' },
-          turnstile: { lettering: 'fonts/pathway-gothic-one.ttf', figures: 'fonts/archivo-expanded-800.woff2' },
+          'ben-day': { lettering: 'fonts/bangers.woff2' },
+          turnstile: { lettering: 'fonts/pathway-gothic-one.woff2', figures: 'fonts/archivo-expanded-800.woff2' },
         };
         const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
         const theme = message.theme === undefined ? 'ben-day' : message.theme;
@@ -3855,12 +3855,15 @@ async function handleControl(message, sender, sendResponse) {
       // A special edition worn over this account's own theme (seasons.js), or taken off
       // with an empty theme. Kept apart from themeBy so the account's own choice is still
       // there when the season ends, and validated against the list so nothing but an
-      // edition's key can be stored here.
+      // edition's key can be stored here. Stored as the season it was put on in
+      // ("sleepy-hollow:2026"), so it never comes back by itself next year.
       case 'SIDECAR_SET_SEASONAL_FOR': {
         if (message.theme && !SidecarSeasons.isSeasonal(message.theme)) throw new Error('Not a special edition');
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const season = message.theme ? SidecarSeasons.seasonId(message.theme, SidecarSeasons.now(prev)) : null;
+        if (message.theme && !season) throw new Error('That special edition is out of season');
         const map = { ...(prev.seasonalBy || {}) };
-        if (message.theme) map[message.pubkey] = message.theme;
+        if (message.theme) map[message.pubkey] = season;
         else delete map[message.pubkey];
         await sset({ sidecar_settings: { ...prev, seasonalBy: map } });
         result = { ok: true };

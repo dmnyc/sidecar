@@ -12,9 +12,10 @@ Commits are authored and committed as the maintainer:
 `The Daniel <dmnyc@users.noreply.github.com>`, with no `Co-Authored-By`
 trailers, session links, or "Generated with" lines. A pull request
 description ends with one attribution line in the house style: a drink emoji, a
-past-tense drink verb, and the tool that did the work, linked. Work done with
-Claude Code reads `🍊 Twisted with [Claude Code](https://claude.com/claude-code)`;
-work done with GLM reads `🍸 Decanted with [GLM](https://z.ai)`. Check a pull
+past-tense drink verb, and the tool that did the work, linked. The drink and the
+verb rotate from one pull request to the next, for every tool: work done with
+Claude Code might read `🍊 Twisted with [Claude Code](https://claude.com/claude-code)`,
+work done with GLM `🍸 Decanted with [GLM](https://z.ai)`. Check a pull
 request's description after creating it, since some tools append footers of
 their own — those are removed, not kept.
 
