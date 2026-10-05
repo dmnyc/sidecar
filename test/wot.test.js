@@ -390,11 +390,16 @@ test('IN FLIGHT IS NOT A CACHE ENTRY', () => {
   // One predicate, used by every caller, so they cannot disagree again.
   assert.ok((panel.match(/notifProfileNeeded/g) || []).length >= 4, 'every caller must share it');
   assert.doesNotMatch(panel, /_notifProfiles\.set\([^,]+, ''\)/, 'the map holds names and nothing else');
-  // A failed lookup leaves no entry, so the next render asks again.
+  // A failed lookup leaves no entry, so the next render asks again. The single fetch
+  // joins the batch, which writes a name only when there is one and always clears the mark.
   const fn = panel.slice(panel.indexOf('function prefetchNotifProfile(pubkey, relays)'));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
-  assert.match(body, /if \(name\) _notifProfiles\.set\(pubkey, name\);/);
-  assert.match(body, /finally\(\(\) => \{ _notifProfileInflight\.delete\(pubkey\); \}\)/);
+  assert.match(body, /if \(!notifProfileNeeded\(pubkey\)\) return Promise\.resolve\(\);/);
+  assert.match(body, /prefetchNotifProfiles\(\[\.\.\.q\.pubkeys\], relays\)/);
+  const batch = panel.slice(panel.indexOf('async function prefetchNotifProfiles('));
+  const batchBody = batch.slice(0, batch.indexOf('\n  }\n'));
+  assert.match(batchBody, /if \(rec && rec\.name\) _notifProfiles\.set\(pk, rec\.name\);/);
+  assert.match(batchBody, /finally \{\s*\n\s*need\.forEach\(\(pk\) => _notifProfileInflight\.delete\(pk\)\);/);
 });
 
 test('the build yields to what the user is looking at', () => {
@@ -429,11 +434,15 @@ test('the bell resolves names in ONE query, not one per row', () => {
   assert.doesNotMatch(panel, /uncached\.map\(\(pk\) => prefetchNotifProfile\(/, 'never one per row');
   const fn = panel.slice(panel.indexOf('async function prefetchNotifProfiles'));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
-  assert.match(body, /authors: need/, 'one filter, many authors');
-  // Replaceable: newest kind:0 per author wins, same rule as everywhere else.
-  assert.match(body, /ev\.created_at > cur\.created_at/);
-  // And the same fail-open caching rule as the single fetch.
-  // A name is written only when there is one; the in-flight marks are cleared either way.
-  assert.match(body, /if \(name\) _notifProfiles\.set\(pk, name\);/);
+  // Through profilesFor: one filter for many authors, asked of purplepag.es as well as
+  // the configured relays, newest kind:0 per author.
+  assert.match(body, /await profilesFor\(need\)/, 'the bell asks through profilesFor');
+  const pf = panel.slice(panel.indexOf('async function profilesFor('));
+  const pfBody = pf.slice(0, pf.indexOf('\n  }\n'));
+  assert.match(pfBody, /authors: need\.slice\(i, i \+ 100\)/, 'one filter, many authors');
+  assert.match(pfBody, /'wss:\/\/purplepag\.es'/);
+  assert.match(pfBody, /ev\.created_at > cur\.created_at/);
+  // And the same fail-open caching rule: a name only when there is one, marks cleared.
+  assert.match(body, /if \(rec && rec\.name\) _notifProfiles\.set\(pk, rec\.name\);/);
   assert.match(body, /finally \{\s*\n\s*need\.forEach\(\(pk\) => _notifProfileInflight\.delete\(pk\)\);/);
 });

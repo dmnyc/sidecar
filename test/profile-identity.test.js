@@ -115,7 +115,9 @@ test('the batch paths keep indexing by the author they got, not the one they wan
   // These were never exposed to this: they map results by ev.pubkey and then read the key
   // they asked for, so a stranger's event lands in the map and is never looked up. If one
   // is ever rewritten to zip two lists together instead, it grows the same bug.
-  for (const fnName of ['async function prefetchNotifProfiles(', 'async function resolveMentions(']) {
+  // The bell's prefetchNotifProfiles reads through profilesFor now, so profilesFor is the
+  // batch path that has to hold the rule.
+  for (const fnName of ['async function profilesFor(', 'async function resolveMentions(']) {
     const fn = lift(bare, fnName);
     assert.match(fn, /\[ev\.pubkey\]|\(ev\.pubkey\)|newest\.set\(ev\.pubkey/,
       fnName + ' no longer keys its results by the event author');

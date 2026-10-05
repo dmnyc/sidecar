@@ -99,7 +99,7 @@ test('IT SAYS SO WHEN NOTHING CAME BACK', () => {
   // the same reason the wallet's refresh strikes an unchanged balance.
   const fn = stripComments(lift('async function showNotifModal('));
   assert.match(fn, /No new notifications/, 'a refresh that finds nothing gives no feedback');
-  assert.match(fn, /if \(!added\) return toast/, 'the feedback is not conditional on anything arriving');
+  assert.match(fn, /if \(!added\) return auto \? undefined : toast\(/, 'the feedback is not conditional on anything arriving');
 });
 
 test('WHAT ARRIVED IS COUNTED, NOT MEASURED BY LENGTH', () => {

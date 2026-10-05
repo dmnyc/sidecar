@@ -2848,10 +2848,32 @@
 
       // Cache first so the sheet is never empty on open, then the network.
       if (cached && cached.content) paint(cached.content);
-      relayUrls(false).then((relays) => poolGetProfile(relays, pubkey)).then((ev) => {
-        if (!ev || !modal.isConnected) return;
-        try { const c = JSON.parse(ev.content) || {}; cacheProfile(pubkey, c); paint(c); } catch (_) {}
-      }).catch(() => {});
+
+      // THREE PLACES AT ONCE, newest answer wins. The sheet used to ask the configured
+      // relays alone, which rarely carry a stranger's kind:0: a profile opened from search
+      // drew as a bare npub, and only a second search showed it, once something else had
+      // filled the cache. Now purplepag.es (the kind:0 aggregator), the configured relays
+      // and the person's own write relays all ask, side by side, and each answer paints
+      // the moment it lands if it is newer than what is drawn. The aggregator is usually
+      // first; a slow relay can only improve on it, never hold it up.
+      //
+      // CACHED EVEN AFTER THE SHEET CLOSES. A late answer was dropped before it reached
+      // the cache, so closing a slow sheet threw away the very lookup it had waited on.
+      let drawnAt = 0;
+      const land = (ev) => {
+        if (!ev || ev.pubkey !== pubkey || ev.created_at <= drawnAt) return;
+        let c;
+        try { c = JSON.parse(ev.content) || {}; } catch (_) { return; }
+        drawnAt = ev.created_at;
+        cacheProfile(pubkey, c);
+        if (modal.isConnected) paint(c);
+      };
+      poolGetProfile(['wss://purplepag.es'], pubkey).then(land).catch(() => {});
+      relayUrls(false).then((relays) => poolGetProfile(relays, pubkey)).then(land).catch(() => {});
+      getNip65(pubkey).then((list) => {
+        const write = (list && list.write) || [];
+        return write.length ? poolGetProfile(write, pubkey) : null;
+      }).then(land).catch(() => {});
     });
   }
 
@@ -5866,67 +5888,69 @@
   const _notifProfileInflight = new Set();
   const notifProfileNeeded = (pk) => !!pk && !_notifProfiles.get(pk) && !_notifProfileInflight.has(pk);
 
+  // EVERY ROW SHOWING THIS SENDER, named as soon as the name is known. The bell's
+  // open-time pass patched its own rows, but a row added while the sheet was open (a live
+  // arrival, a page, the collapsed group) kept the short npub it was drawn with, because
+  // nothing looked at it again.
+  function patchNotifNames(pubkeys) {
+    for (const pk of pubkeys) {
+      const name = notifProfileName(pk);
+      if (!name) continue;
+      document.querySelectorAll('.notif-author[data-sender-pubkey="' + pk + '"]').forEach((el) => {
+        if (el.textContent !== name) el.textContent = name;
+      });
+    }
+  }
+
+  // ONE LOOKUP FOR A BURST. Live arrivals come in clusters (three reactions to one note
+  // inside a second), and a lookup each is the many-concurrent-REQs pattern the batch
+  // below exists to avoid. Arrivals inside a quarter second share one query; each caller
+  // still gets a promise that settles when its sender has been asked.
+  let _notifLiveQueue = null;
   function prefetchNotifProfile(pubkey, relays) {
     if (!notifProfileNeeded(pubkey)) return Promise.resolve();
-    _notifProfileInflight.add(pubkey);
-    return poolGetProfile(relays, pubkey).then((ev) => {
-      let name = '';
-      if (ev) {
-        try {
-          const m = JSON.parse(ev.content) || {};
-          name = m.display_name || m.displayName || m.name || '';
-          cacheProfile(pubkey, m); // the picture too — see prefetchNotifProfiles
-        } catch (_) {}
-      }
-      if (name) _notifProfiles.set(pubkey, name);
-    }).catch(() => {}).finally(() => { _notifProfileInflight.delete(pubkey); });
+    if (!_notifLiveQueue) {
+      const q = { pubkeys: new Set() };
+      q.done = new Promise((resolve) => setTimeout(() => {
+        _notifLiveQueue = null;
+        prefetchNotifProfiles([...q.pubkeys], relays).then(resolve, resolve);
+      }, 250));
+      _notifLiveQueue = q;
+    }
+    _notifLiveQueue.pubkeys.add(pubkey);
+    return _notifLiveQueue.done;
   }
 
   // ONE QUERY FOR THE WHOLE PAGE, not one per sender. The bell opens with ~25 rows and
   // used to fire a subscription for each of them at once, across every relay. That is
   // enough concurrent REQs that a good proportion fail, and the failures were then cached
   // as "this person has no name" — which is how every row came to show an npub.
-  // Relays take multiple authors in one filter; resolveMentions has done it this way for
-  // the @-mention list all along.
+  //
+  // THROUGH profilesFor, which asks purplepag.es (the kind:0 aggregator) alongside the
+  // configured relays and then asks it again, one author at a time, for any it crowded
+  // out. The bell used to ask the configured relays alone, and those rarely carry a
+  // stranger's profile: measured on one account's recent senders, the default relays
+  // named one in nine and purplepag.es named eight. `relays` is kept in the signature for
+  // the callers; profilesFor reads the same configured set itself.
   async function prefetchNotifProfiles(pubkeys, relays) {
     const need = [...new Set(pubkeys)].filter(notifProfileNeeded);
     if (!need.length) return;
     need.forEach((pk) => _notifProfileInflight.add(pk));
     try {
-      const evs = await Promise.race([
-        poolQuerySync(relays, { kinds: [0], authors: need }, { maxWait: 6000 }),
-        new Promise((r) => setTimeout(() => r([]), 6500)),
-      ]);
-      const newest = new Map();
-      (evs || []).forEach((ev) => {
-        const cur = newest.get(ev.pubkey);
-        if (!cur || ev.created_at > cur.created_at) newest.set(ev.pubkey, ev);
-      });
+      const found = await profilesFor(need);
       need.forEach((pk) => {
-        let name = '';
-        const ev = newest.get(pk);
-        if (ev) {
-          try {
-            const m = JSON.parse(ev.content) || {};
-            name = m.display_name || m.displayName || m.name || '';
-            // The SAME kind:0 also carries the picture, and this used to drop it on the
-            // floor — _notifProfiles is names only. Nothing else fetches profiles for
-            // notification senders, so anything wanting a face for one (the reply
-            // composer's context strip) found an empty cache every time and fell back
-            // to a placeholder forever. Free: already fetched, already parsed.
-            cacheProfile(pk, m);
-          } catch (_) {}
-        }
-        // Same rule as the single fetch: an unanswered lookup is not a result, so it is
-        // forgotten rather than remembered as nameless.
-        if (name) _notifProfiles.set(pk, name);
+        // Same rule as before: an unanswered lookup is not a result, so it is forgotten
+        // rather than remembered as nameless, and the next render asks again. The record
+        // also carries the picture, which the reply composer's context strip reads.
+        const rec = found.get(pk);
+        if (rec && rec.name) _notifProfiles.set(pk, rec.name);
       });
     } catch (_) {
-      // Nothing to undo: a failed lookup simply leaves no entry, so the next render asks
-      // again rather than remembering this person as nameless.
+      // Nothing to undo: a failed lookup leaves no entry.
     } finally {
       need.forEach((pk) => _notifProfileInflight.delete(pk));
     }
+    patchNotifNames(need);
   }
 
   const IMG_RE = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif)(?:\?\S*)?/gi;
@@ -6944,32 +6968,46 @@
       //
       // Re-reads the relay list instead of closing over the one above, since relays can
       // be added or removed while the panel stays open.
+      //
+      // ONE RUN AT A TIME. The settle pass below, the sheet opening and the button can all
+      // ask at once; a second run would reset refetchAdded under the first and its sheet
+      // would skip the rebuild. They share the run in flight instead. lastRefetchAt is
+      // when the last one finished, which is how the sheet knows its cache is fresh.
       cache.refetch = async () => {
-        const urls = await inboxRelays(a.pubkey);
-        if (!urls.length) return;
-        cache.replaceLive(urls);
-        const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
-        // Marks everything arriving from here as history rather than a live arrival, so
-        // addEvent above keeps filtering and caching it but stops inserting it into an
-        // open sheet at the top. Cleared in a finally, or one failed refresh would leave
-        // every later live notification invisible until the sheet was reopened.
-        cache.refetching = true;
-        cache.refetchAdded = 0;
+        if (cache.refetchRun) return cache.refetchRun;
+        let ran;
+        cache.refetchRun = new Promise((resolve) => { ran = resolve; });
         try {
-          await new Promise((resolve) => {
-            let settled = false;
-            const finish = () => { if (!settled) { settled = true; resolve(); } };
-            // Capped, because a relay that never sends EOSE would otherwise leave the
-            // button spinning for as long as the sheet stays open.
-            setTimeout(finish, 6000);
-            try {
-              poolSubscribeAllEose(urls, buildFilters(from, 50), { onevent: addEvent, onclose: finish });
-            } catch (_) {
-              finish();
-            }
-          });
+          const urls = await inboxRelays(a.pubkey);
+          if (!urls.length) return;
+          cache.replaceLive(urls);
+          const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
+          // Marks everything arriving from here as history rather than a live arrival, so
+          // addEvent above keeps filtering and caching it but stops inserting it into an
+          // open sheet at the top. Cleared in a finally, or one failed refresh would leave
+          // every later live notification invisible until the sheet was reopened.
+          cache.refetching = true;
+          cache.refetchAdded = 0;
+          try {
+            await new Promise((resolve) => {
+              let settled = false;
+              const finish = () => { if (!settled) { settled = true; resolve(); } };
+              // Capped, because a relay that never sends EOSE would otherwise leave the
+              // button spinning for as long as the sheet stays open.
+              setTimeout(finish, 6000);
+              try {
+                poolSubscribeAllEose(urls, buildFilters(from, 50), { onevent: addEvent, onclose: finish });
+              } catch (_) {
+                finish();
+              }
+            });
+          } finally {
+            cache.refetching = false;
+          }
         } finally {
-          cache.refetching = false;
+          cache.lastRefetchAt = Date.now();
+          cache.refetchRun = null;
+          ran();
         }
       };
 
@@ -6999,6 +7037,20 @@
           : null;
       };
       cache.replaceLive();
+
+      // THE STARTUP BACKFILL IS NOT ENOUGH ON ITS OWN. It goes out while the panel is
+      // loading everything else at once (mutes, own notes, relay lists, profiles, the
+      // web-of-trust build), and it closes as soon as every relay has sent EOSE or timed
+      // out, so a relay slowed by that crowd is cut off before it sends anything. The live
+      // subscription only covers what arrives after it starts, so nothing filled the gap:
+      // the bell sat days behind until the refresh button was pressed. That press is what
+      // this does, once, after the panel has settled.
+      // It does not rebuild an open sheet: a sheet opened before this runs asked on open
+      // (nothing had finished yet), shares this run, and rebuilds itself when it lands.
+      setTimeout(() => {
+        if (state?.activePubkey !== a.pubkey || cache.lastRefetchAt || !cache.refetch) return;
+        cache.refetch().catch(() => {});
+      }, 12000);
     }
   }
 
@@ -7736,7 +7788,9 @@
         title: t('Check for new notifications'),
       });
       refreshBtn.appendChild(icon('refresh'));
-      refreshBtn.addEventListener('click', async () => {
+      // auto: the sheet asking for itself on open. Same path as the button, without the
+      // "No new notifications" toast, which answers a press nobody made.
+      const runRefresh = async ({ auto = false } = {}) => {
         if (refreshBtn.disabled) return;
         refreshBtn.disabled = true;
         refreshBtn.classList.add('spinning');
@@ -7772,7 +7826,7 @@
         // not 'error' as a success, so 'info' would read in the source as a neutral toast
         // this app cannot draw.
         const added = (_notifCache.get(a.pubkey) || {}).refetchAdded || 0;
-        if (!added) return toast(t('No new notifications'), 'success');
+        if (!added) return auto ? undefined : toast(t('No new notifications'), 'success');
 
         // REBUILT FROM THE CACHE, not streamed in. The cache is sorted newest-first and
         // the sheet's paging is computed from it at open, so the honest way to show a
@@ -7783,9 +7837,17 @@
         // two-day-old notes above "just now" while leaving the page indices pointing at
         // the wrong slice of a list that had grown underneath them.
         if (refreshBtn.isConnected) showNotifModal(a);
-        toast(added === 1 ? '1 new notification' : added + ' new notifications', 'success');
-      });
+        toast(tn('{{count}} new notification', '{{count}} new notifications', added), 'success');
+      };
+      refreshBtn.addEventListener('click', () => runRefresh());
       modal.appendChild(refreshBtn);
+      // OPENING THE BELL ASKS, unless an ask finished in the last minute. The sheet opens
+      // from cache, and a cache the startup backfill left behind stayed behind until the
+      // button was pressed by hand.
+      {
+        const c = _notifCache.get(a.pubkey);
+        if (!c || !c.lastRefetchAt || Date.now() - c.lastRefetchAt > 60000) runRefresh({ auto: true });
+      }
 
       // WHOSE notifications — but only when that is a real question.
       //
