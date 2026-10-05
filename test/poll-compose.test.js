@@ -680,8 +680,12 @@ test('the picture costs no second query', () => {
   // through cacheProfile, which keeps the picture. Reading it back is free; fetching it
   // again would be one request per face.
   assert.match(bare, /avatarEl\(cachedProfile\(pubkey\) \|\| \{\}/);
+  // The bell's batch goes through profilesFor, which puts every kind:0 it reads through
+  // cacheProfile; the picture rides along with the name.
   const prefetch = fnBody('async function prefetchNotifProfiles(pubkeys, relays)');
-  assert.match(prefetch, /cacheProfile\(pk, m\);/, 'the batch has to keep the picture');
+  assert.match(prefetch, /await profilesFor\(need\)/, 'the batch has to go through profilesFor');
+  const batch = fnBody('async function profilesFor(pubkeys)');
+  assert.match(batch, /cacheProfile\(pk, JSON\.parse\(ev\.content\) \|\| \{\}\)/, 'the batch has to keep the picture');
   const cache = fnBody('function cacheProfile(pubkey, content)');
   assert.match(cache, /picture: c\.picture \|\| '',/);
 

@@ -362,10 +362,13 @@ test('THE NOTIFICATION FETCH KEEPS THE PICTURE IT ALREADY HAS', () => {
     const at = source.indexOf(decl);
     if (at === -1) continue; // the single-fetch helper may be named differently
     const fn = source.slice(at, at + 1600);
-    assert.match(fn, /cacheProfile\(/, decl + ' drops the picture');
+    // Either it caches the kind:0 itself or it reads through profilesFor, which does.
+    assert.match(fn, /cacheProfile\(|profilesFor\(/, decl + ' drops the picture');
   }
-  // At minimum the batch path, which is the one that runs on every bell open.
-  assert.match(lift('async function prefetchNotifProfiles('), /cacheProfile\(pk, m\)/);
+  // At minimum the batch path, which is the one that runs on every bell open: it reads
+  // through profilesFor, and profilesFor caches every kind:0 it gets, picture included.
+  assert.match(lift('async function prefetchNotifProfiles('), /await profilesFor\(need\)/);
+  assert.match(lift('async function profilesFor('), /cacheProfile\(pk, JSON\.parse\(ev\.content\) \|\| \{\}\)/);
 });
 
 test('a cache miss falls back to one fetch, not a placeholder forever', () => {

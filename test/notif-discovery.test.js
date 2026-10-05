@@ -178,3 +178,37 @@ test('every filter goes out in one request per relay set, not one per filter', a
   assert.doesNotMatch(bare, /for \(const f of buildFilters\(/, 'a loop over the filters is one request each');
   assert.doesNotMatch(bare, /buildFilters\([^)]*\)\.map\(/, 'so is a map over them');
 });
+
+// THE STARTUP BACKFILL GETS A SECOND ASK. It goes out while the panel loads everything
+// else at once and closes on EOSE or timeout, so a relay slowed by that crowd was cut off
+// and the bell sat days behind until the refresh button was pressed by hand.
+test('startup schedules one settle pass, which asks once and is skipped after any ask', async () => {
+  const h = harness();
+  const timers = [];
+  h.ctx.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return 0; };
+  await h.ctx.initNotifSubs();
+  const settle = timers.filter((t) => t.ms === 12000);
+  assert.equal(settle.length, 1, 'no settle pass was scheduled');
+  const cache = h.ctx._notifCache.get('me');
+  const before = h.reqs.filter((r) => !r.live).length;
+  settle[0].fn();
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(h.reqs.filter((r) => !r.live).length, before + 1, 'the settle pass did not ask the relays');
+  assert.ok(cache.lastRefetchAt > 0, 'the finished ask was not recorded');
+  settle[0].fn();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(h.reqs.filter((r) => !r.live).length, before + 1, 'a second settle asked again after a finished ask');
+});
+
+test('asks made at once share one run', async () => {
+  const h = harness();
+  await h.ctx.initNotifSubs();
+  const cache = h.ctx._notifCache.get('me');
+  const before = h.reqs.filter((r) => !r.live).length;
+  await Promise.all([cache.refetch(), cache.refetch(), cache.refetch()]);
+  assert.equal(h.reqs.filter((r) => !r.live).length, before + 1, 'each ask ran its own fetch');
+  assert.equal(cache.refetchRun, null, 'the shared run was never released');
+  await cache.refetch();
+  assert.equal(h.reqs.filter((r) => !r.live).length, before + 2, 'a later ask could not run');
+});
