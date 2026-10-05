@@ -1460,6 +1460,14 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .aa-avatar { width: 54px; height: 54px; box-shadow: 0 0 0 1px var(--gold-soft); }
 .avatar img, .aa-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .avatar-ph img { width: 64%; height: 64%; margin: 18%; object-fit: contain; opacity: 0.72; }
+/* The garnish placeholder sits inset, never edge to edge, or the circle clips the slice.
+   These avatars set their image to 100% LATER in this file, which beats the rule above
+   at equal specificity, so each needs its own. The test reads this file and fails on an
+   avatar that sets its image full size after the rule above with no override. */
+.bm-av.avatar-ph img, .site-bound-av.avatar-ph img, .ac-item-av.avatar-ph img,
+.embed-av.avatar-ph img, .peek-avatar.avatar-ph img, .poll-voter-av.avatar-ph img {
+  width: 60%; height: 60%; margin: 20%; object-fit: contain; opacity: 0.72;
+}
 
 /* lists */
 .filter-input { margin-bottom: 10px; font-size: 13.5px; padding: 9px 12px; }
