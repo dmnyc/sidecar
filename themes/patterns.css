@@ -522,23 +522,18 @@ html:not([data-theme]) body {
    Horseman's lit pumpkin recede to the same 0.45 together. The lock screen is the one
    place nothing needs shielding, and the rule below trades both plates for their bright
    twins there. */
-html:not([data-tile]) [data-theme="sleepy-hollow"] body {
-  /* Root-relative ON PURPOSE: a url() inside a custom property resolves against the
-     document, not the stylesheet that declared it — relative paths 404 here and one
-     invalid image voids the whole background-image list. Every page that wears these
-     lives at the extension root, so /themes/ resolves everywhere, the theme-tile
-     iframe included. */
-  --sh-sky: url(/themes/sleepy-hollow-sky-dim.svg);
-  --sh-sky-wide: url(/themes/sleepy-hollow-sky-dim-wide.svg);
-  --sh-hollow: url(/themes/sleepy-hollow-hollow-dim.svg);
-  --sh-hollow-wide: url(/themes/sleepy-hollow-hollow-dim-wide.svg);
+html:not([data-tile])[data-theme="sleepy-hollow"] body {
+  --sh-sky: url(sleepy-hollow-sky-dim.svg);
+  --sh-sky-wide: url(sleepy-hollow-sky-dim-wide.svg);
+  --sh-hollow: url(sleepy-hollow-hollow-dim.svg);
+  --sh-hollow-wide: url(sleepy-hollow-hollow-dim-wide.svg);
 }
 [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)),
 html[data-tile][data-theme="sleepy-hollow"] body {
-  --sh-sky: url(/themes/sleepy-hollow-sky.svg);
-  --sh-sky-wide: url(/themes/sleepy-hollow-sky-wide.svg);
-  --sh-hollow: url(/themes/sleepy-hollow-hollow.svg);
-  --sh-hollow-wide: url(/themes/sleepy-hollow-hollow-wide.svg);
+  --sh-sky: url(sleepy-hollow-sky.svg);
+  --sh-sky-wide: url(sleepy-hollow-sky-wide.svg);
+  --sh-hollow: url(sleepy-hollow-hollow.svg);
+  --sh-hollow-wide: url(sleepy-hollow-hollow-wide.svg);
 }
 @media (max-width: 519.98px) {
   [data-theme="sleepy-hollow"] body {
@@ -606,7 +601,7 @@ html[data-tile][data-theme="sleepy-hollow"] body {
    and unlocking moves nothing. Under reduced motion nothing moves, so nothing stands
    down: the still plates stay. */
 @media (prefers-reduced-motion: no-preference) and (max-width: 519.98px) {
-  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion)[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       var(--sh-hollow),
       var(--sh-sky),
@@ -619,7 +614,7 @@ html[data-tile][data-theme="sleepy-hollow"] body {
   }
 }
 @media (prefers-reduced-motion: no-preference) and (min-width: 520px) and (max-width: 899.98px) {
-  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion)[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       var(--sh-hollow-wide),
       var(--sh-sky-wide),
@@ -632,7 +627,7 @@ html[data-tile][data-theme="sleepy-hollow"] body {
   }
 }
 @media (prefers-reduced-motion: no-preference) and (min-width: 900px) {
-  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion)[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       var(--sh-hollow-wide),
       var(--sh-sky-wide),
