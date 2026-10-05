@@ -842,7 +842,8 @@
 
   async function doPost() {
     if (posting) return;
-    const text = (draft.text || '').trim();
+    // A bare reference becomes its nostr: form first, so it tags and renders (core).
+    const text = SC.linkBareRefs((draft.text || '').trim(), NT);
     // Media alone is a postable note: the URLs live in the media slot, not in the
     // text, so the prose being empty no longer means the note is.
     if (!text && !draft.media.length) return;

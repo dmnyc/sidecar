@@ -1846,7 +1846,7 @@
           const withClient = !(settings && settings.showClientTag === false);
           const signed = await call({
             type: 'SIDECAR_OWNER_SIGN',
-            event: buildWebComment(target, text, withClient),
+            event: buildWebComment(target, window.SidecarCore.linkBareRefs(text, NT), withClient),
           });
           await publishSigned(signed);
           // Only after it's actually out. Dropping the draft on a failed publish would
@@ -13302,7 +13302,8 @@
       // The prose as typed is what mentions and quotes are scanned in; the content
       // the note carries is that prose with the attachments appended at the end,
       // which is the same thing the preview showed.
-      const prose = draft.text.trim();
+      // A bare reference becomes its nostr: form first, so it tags and renders (core).
+      const prose = window.SidecarCore.linkBareRefs(draft.text.trim(), NT);
       const content = composeNoteContent(prose, draft.media);
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });

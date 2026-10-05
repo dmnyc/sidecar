@@ -432,10 +432,15 @@ test('an npub-shaped token that is not valid bech32 is skipped, not thrown on', 
   assert.equal(ev.kind, 1111, 'the comment still builds');
 });
 
-test('a bare npub with no nostr: prefix is NOT tagged', () => {
-  // Only the serializer's `nostr:` form counts. A pasted bare npub renders as text
-  // in every client, so tagging it would notify someone the reader never sees named.
+test('the builder tags only the nostr: form, and the post path links a bare npub first', () => {
+  // The builder still counts only `nostr:` mentions: a bare npub renders as text in most
+  // clients, and tagging it would notify someone the reader never sees named. But nobody
+  // should have to know that, so the comment's post path runs composer-core's
+  // linkBareRefs before building, which writes a bare reference as nostr: and makes it a
+  // mention the reader does see.
   assert.deepEqual(pTags(buildWebComment(CNN, 'ask ' + NPUB_A, false)), []);
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+  assert.match(panel, /buildWebComment\(target, window\.SidecarCore\.linkBareRefs\(text, NT\), withClient\)/);
 });
 
 // ---- the Jumble links ---------------------------------------------------------
