@@ -1501,6 +1501,24 @@ window.SidecarCore = (function () {
     return { tags, authors };
   }
 
+  // A BARE REFERENCE IS STILL A REFERENCE. Nobody should have to know that a pasted
+  // npub1…, note1…, nevent1… or naddr1… only counts as a mention or a quote in its
+  // nostr: form (NIP-27): the preview draws a bare one as a quote or a name, other clients
+  // mostly draw it as text, and the tags that notify and link came only from the nostr:
+  // form. So at Post a reference standing on its own is written as nostr:, and the note
+  // goes out as the preview showed it. Left alone: one already in nostr: form, one inside
+  // a link (njump.me/nevent1…), one inside code, and anything that does not decode.
+  const BARE_REF_RE = /(^|[\s(\[{"'\u201c\u2018<])((?:npub1|nprofile1|note1|nevent1|naddr1)[02-9ac-hj-np-z]+)/g;
+  function linkBareRefs(text, NT) {
+    return String(text || '')
+      .split(/(```[\s\S]*?```|`[^`\n]+`)/)
+      .map((part, i) => (i % 2 ? part : part.replace(BARE_REF_RE, (whole, lead, ref) => {
+        try { NT.nip19.decode(ref); } catch (_) { return whole; }
+        return lead + 'nostr:' + ref;
+      })))
+      .join('');
+  }
+
   // EVERYTHING A NOTE'S TEXT TAGS, in the order a note carries it: the people mentioned,
   // then the authors it quotes that are not already among them, less anyone the reply's
   // own threading tags already name (threadTags), and the q tags. Both composers place
@@ -3189,7 +3207,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags,
+    replyTags, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,

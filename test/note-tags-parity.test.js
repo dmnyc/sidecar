@@ -48,7 +48,8 @@ const nevent = NT.nip19.neventEncode({ id: QUOTED, author: BOB, relays: ['wss://
 
 // The panel's publish lines, from the prose to the event, run as they are.
 async function panelTags({ text, media = [], replyTo = null, showClientTag = true }) {
-  const at = panel.indexOf('      const prose = draft.text.trim();');
+  const at = panel.indexOf('      const prose = window.SidecarCore.linkBareRefs(draft.text.trim(), NT);');
+  assert.ok(at !== -1, 'the panel\'s publish no longer starts where this test reads it');
   const seg = panel.slice(at, panel.indexOf('      const event = {', at));
   const ctx = {
     draft: { text, media, poll: null }, replyTo, NT, Set, Math, Date,
@@ -71,7 +72,8 @@ async function tabTags({ text, media = [], replyTo = null, showClientTag = true 
   const end = page.indexOf('      // MINE FIRST, THEN SIGN.', at);
   const seg = page.slice(at, end);
   const ctx = {
-    SC, NT, Math, Date, text: text.trim(),
+    // doPost's own first line: a bare reference becomes its nostr: form.
+    SC, NT, Math, Date, text: SC.linkBareRefs(text.trim(), NT),
     draft: { text, media, poll: null }, replyTo,
     state: { activePubkey: ME },
     call: async () => ({ showClientTag }),
@@ -92,6 +94,8 @@ const CASES = [
   { name: 'a reply that also mentions the person it answers, and someone else',
     draft: { text: mention(BOB) + ' and ' + mention(ALICE),
       replyTo: { id: 'e'.repeat(64), pubkey: BOB, kind: 1, tags: [], content: 'parent' } } },
+  { name: 'a bare npub and a bare nevent, as people paste them',
+    draft: { text: 'GM ' + NT.nip19.npubEncode(ALICE) + '\n' + nevent } },
   { name: 'an image with a description',
     draft: { text: 'a picture', media: [{ url: 'https://x.example/a.jpg', alt: 'a cat', type: 'image' }] } },
 ];
@@ -116,4 +120,25 @@ test('the tab honors the client tag setting', async () => {
   assert.equal(off.tags.some((t) => t[0] === 'client'), false, 'the client tag ignored its switch');
   const on = await tabTags({ text: 'plain' });
   assert.deepEqual(on.tags.filter((t) => t[0] === 'client'), [['client', 'Sidecar']]);
+});
+
+test('a bare reference posts as a mention and a quote, from either composer', async () => {
+  const draft = { text: 'GM ' + NT.nip19.npubEncode(ALICE) + '\n' + nevent };
+  for (const out of [await panelTags(draft), await tabTags(draft)]) {
+    assert.ok(out.content.includes('nostr:' + nevent), 'the quote went out bare, as text');
+    assert.ok(out.content.includes('nostr:' + NT.nip19.npubEncode(ALICE)), 'the mention went out bare');
+    assert.ok(out.tags.some((t) => t[0] === 'q' && t[1] === QUOTED), 'no q tag for a pasted nevent');
+    assert.ok(out.tags.some((t) => t[0] === 'p' && t[1] === ALICE), 'no p tag for a pasted npub');
+  }
+});
+
+test('references already linked, inside a URL, inside code, or not real are left alone', () => {
+  const link = (s) => SC.linkBareRefs(s, NT);
+  const npub = NT.nip19.npubEncode(ALICE);
+  assert.equal(link('hi nostr:' + npub), 'hi nostr:' + npub);
+  assert.equal(link('see https://njump.me/' + nevent), 'see https://njump.me/' + nevent);
+  assert.equal(link('`' + npub + '`'), '`' + npub + '`');
+  assert.equal(link('```\n' + nevent + '\n```'), '```\n' + nevent + '\n```');
+  assert.equal(link('note1notarealref'), 'note1notarealref');
+  assert.equal(link('(' + npub + ')'), '(nostr:' + npub + ')');
 });
