@@ -35,6 +35,24 @@ def pstr(pts):
     return 'L'.join('%s %s' % (fi(x), fi(y)) for x, y in pts)
 
 
+def tapered_ws(pts, ws):
+    # A filled stroke whose width follows ws point by point, round at both ends
+    # (vrender.tapered_var). Used for the primaries, because the stem joins the midrib
+    # with a width of its own and a linear taper cannot say that.
+    if len(pts) < 2:
+        return ''
+    left, right = [], []
+    for k, p in enumerate(pts):
+        a = pts[max(0, k - 1)]
+        c = pts[min(len(pts) - 1, k + 1)]
+        t = unit((c[0] - a[0], c[1] - a[1]))
+        n = (-t[1], t[0])
+        h = ws[k] / 2
+        left.append((p[0] + n[0] * h, p[1] + n[1] * h))
+        right.append((p[0] - n[0] * h, p[1] - n[1] * h))
+    return 'M%sZ' % pstr(left + right[::-1])
+
+
 def march(inner, P, d, t_hint, step, max_len, bend, blocked=None):
     # A secondary runs nearly straight out from its parent and turns toward the tip only as
     # it nears the margin. The turn is applied in proportion to how close the next step is
@@ -176,8 +194,7 @@ def network(i, leaf, k, size, rnd):
 
     from shapely.prepared import prep
     laid = [LineString(p) for p, _, _, _ in primaries]
-    for path, w0, _, _ in primaries:
-        filled.append((path, w0, 0.35 * px))
+    prim = [(path, w0) for path, w0, _, _ in primaries]
     for path, w0, sides, start_f in primaries:
         blocked = prep(unary_union(laid))
         own = LineString(path)
@@ -257,6 +274,7 @@ def network(i, leaf, k, size, rnd):
 
     # the lace: inside every space the veins enclose
     vein_geom = unary_union(
+        [LineString(p).buffer((w0 + 0.35 * px) / 4 + 0.2 * px) for p, w0 in prim] +
         [LineString(p).buffer((w0 + w1) / 4 + 0.2 * px) for p, w0, w1 in filled] +
         [LineString(p).buffer(0.35 * px) for p, w in thin])
     spaces = inner.difference(vein_geom)
@@ -265,7 +283,25 @@ def network(i, leaf, k, size, rnd):
     for r in regions:
         if r.geom_type == 'Polygon' and r.area > (4 * px) ** 2:
             lace += areoles(r, 6.5 * px, rnd)
-    return filled, thin, lace, vein_geom
+    # THE STEM joins the spine as one shape, ported from vrender.py, where it fixed the
+    # "stem is disconnected from the spine" the maintainer saw: the stem's centreline is
+    # prepended to the widest primary (the midrib, or a maple's main lobe vein) and the
+    # whole run is drawn as one taper — the stem constant, a little heavier than the
+    # midrib is at its base, the midrib falling to its fine end. Done here, after the
+    # secondaries, which measure their positions along the bare primary.
+    prims = []
+    widest = max(range(len(prim)), key=lambda j: prim[j][1])
+    for j, (path, w0) in enumerate(prim):
+        w1 = 0.35 * px
+        pts = list(path)
+        ws = [w0 + (w1 - w0) * t / max(1, len(path) - 1) for t in range(len(path))]
+        if j == widest and leaf['stem']:
+            line, _ = leaf['stem']
+            s = line if math.hypot(line[0][0] - base[0], line[0][1] - base[1]) > math.hypot(line[-1][0] - base[0], line[-1][1] - base[1]) else line[::-1]
+            pts = list(s[:-1]) + pts
+            ws = [w0 * 1.08] * (len(s) - 1) + ws
+        prims.append((pts, ws))
+    return filled, prims, thin, lace, vein_geom
 
 
 def render(leaf, x, y, size, tip_deg, ink, tint, tint_alpha, seed, idx, flip=False, blend=True, shadow=False):
@@ -285,7 +321,7 @@ def render(leaf, x, y, size, tip_deg, ink, tint, tint_alpha, seed, idx, flip=Fal
     T.CLIP[0] += 1
     cid = 'sk%d' % T.CLIP[0]
     outline = 'M%sZ' % pstr(b.exterior.coords)
-    filled, thin, lace, vein_geom = network(idx, leaf, k, size, rnd)
+    filled, prims, thin, lace, vein_geom = network(idx, leaf, k, size, rnd)
     o = ['<g transform="%s"%s%s>' % (tr, ' style="mix-blend-mode:multiply"' if blend else '', ' filter="url(#lift)"' if shadow else ''),
          '<clipPath id="%s"><path d="%s"/></clipPath>' % (cid, outline),
          '<path d="%s" fill="%s" fill-opacity="%g"/>' % (outline, tint, tint_alpha),
@@ -304,8 +340,10 @@ def render(leaf, x, y, size, tip_deg, ink, tint, tint_alpha, seed, idx, flip=Fal
         if d:
             o.append('<path d="%s" fill="%s"/>' % (d, ink))
     o += ['</g>',
+          # The primaries are drawn outside the clip, for the stem's sake: stem and spine
+          # are one shape now, and the stem lies out past the margin.
+          ''.join('<path d="%s" fill="%s"/>' % (tapered_ws(pts, ws), ink) for pts, ws in prims if len(pts) > 1),
           # the marginal vein: fine, not an outline
           '<path d="%s" fill="none" stroke="%s" stroke-width="0.55" stroke-opacity="0.85" vector-effect="non-scaling-stroke"/>' % (outline, ink),
-          T.stem_path(leaf['stem'], k, size, ink),
           '</g>']
     return ''.join(o)

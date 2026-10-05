@@ -252,3 +252,65 @@ improvement), port the continuous stem from `vrender.py` (stem points + primary 
 before touching the panel.
 
 **Maintainer request on process:** keep this handoff updated after every turn.
+
+## 6. Sixth turn (2026-10-05): the recommended step, done — stem ported, curation applied
+
+Picked up from a fresh checkout (the branch had to be fetched: it existed only on
+origin). Toolchain set up on the maintainer's Mac: `pip3 install --user scipy shapely
+svgelements numpy`, and Playwright installed at `~/.zcode/shot-tools` with a `shot.js`
+that drives the cached Playwright Chromium (`~/Library/Caches/ms-playwright/
+chromium-1243/…`) — the repo's `proto/shot.js` still points at the cloud container's
+`/opt/node-tools`, so the local copy was used for every screenshot below.
+
+**The recommended step was taken in full:** `skeleton.py` keeps its structure — the one
+the maintainer called an improvement — and the continuous stem from `vrender.py` is
+ported in. Specifically:
+
+- `tapered_ws` (was `vrender.tapered_var`): a filled stroke whose width is given point
+  by point, so a stem of constant width can flow into a tapering midrib as one shape.
+- `network()` now returns the primaries as `(pts, ws)` pairs. After the secondaries are
+  laid (so their positions along the midrib are unchanged), the stem's centreline is
+  prepended to the widest primary — the midrib, or a maple's main lobe vein — with the
+  stem's width a little heavier than the midrib's base, exactly as `vrender.leaf_svg`
+  did. Secondaries and tertiaries are untouched.
+- In `render()`, the primaries are drawn **outside the clip** (the stem lies out past
+  the margin) and `T.stem_path` is gone from the leaf: no separate stroke, no join.
+
+**The curation is applied** in the new `proto/lab5.py` (the specimen sheet) and
+`proto/lab6.py` (closeups at 400 px): the curled drops (2, 4) are out; the hearts
+(0, 5, 9), the serrated oval (7) and the willow (6) are in; the maples (1, 12) are on
+trial. `panel2.py` still runs unchanged over all shapes, including the dropped ones —
+the panel is not being rebuilt yet.
+
+**Result:** in `stem-join-latest.png` (closeups at 2×) the stem meets the spine as one
+continuous taper on every stemmed shape — the discontinuity the maintainer saw in
+`leaf-detail-latest.png` is gone. In `curated-sheet-latest.png` the seven kept shapes
+stand together at 2×. `panel-latest.png` is re-rendered through the ported renderer;
+its stems (the rust maple's, at the foot) are continuous now too.
+
+**Not yet seen by the maintainer** — this sheet is what turn 5 recommended showing,
+and it is the gate for everything else.
+
+**Known issues, unchanged from turn 4's list:** plum heart 5's left lower lobe can end
+up lace without secondaries when its basal vein comes out short (seed-dependent; the
+sheet's seed gives it veins); the maples' outlines are still the source's cartoon-lumpy
+ones, which is why they are on trial; the panel layer is still ~1.24 MB — the size work
+starts only after the leaves are signed off.
+
+**Next step:** show `curated-sheet-latest.png` (and `stem-join-latest.png`) to the
+maintainer. If the leaves pass, the next session builds the theme per section 4,
+step 2 — and asks the two open questions there (scipy/shapely/svgelements as generator
+dependencies, and the source of `variety.svg` for NOTICE).
+
+**To run locally (Mac):**
+
+```
+pip3 install --user scipy shapely svgelements numpy
+cd docs/phantom-bouquet/proto
+mkdir -p lite
+python3 lab5.py && node ~/.zcode/shot-tools/shot.js file://$PWD/lab5.svg lab5.png 1500 780 2
+python3 lab6.py && node ~/.zcode/shot-tools/shot.js file://$PWD/lab6.svg lab6.png 1500 900 2
+python3 panel2.py && node ~/.zcode/shot-tools/shot.js file://$PWD/mock-lite.html panel.png 360 760 2
+```
+
+(The original container instructions are in section 3; only `shot.js` differs.)
