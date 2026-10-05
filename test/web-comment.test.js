@@ -61,8 +61,10 @@ vm.runInContext(
   lift(/function unwrapJumbleTarget\(raw\)\s*\{[\s\S]*?\n  \}/, 'unwrapJumbleTarget') + '\n' +
   lift(/function normalizeWebUrl\(raw\)\s*\{[\s\S]*?\n  \}/, 'normalizeWebUrl') + '\n' +
   lift(/const CLIENT_TAG = [^\n]+/, 'CLIENT_TAG') + '\n' +
-  // buildWebComment calls this to p-tag mentions, so it has to come along.
-  lift(/function mentionPTags\(content\)\s*\{[\s\S]*?\n  \}/, 'mentionPTags') + '\n' +
+  // buildWebComment calls this to p-tag mentions, so it has to come along: composer-core's
+  // function, under the one-argument wrapper the panel declares around it.
+  lift(/function mentionPTags\(content, NT\)\s*\{[\s\S]*?\n  \}/, 'mentionPTags').replace('function mentionPTags(', 'function coreMentionPTags(') + '\n' +
+  'function mentionPTags(content) { return coreMentionPTags(content, NT); }\n' +
   lift(/function buildWebComment\(url, content, includeClientTag\)\s*\{[\s\S]*?\n  \}/, 'buildWebComment') + '\n' +
   lift(/const jumbleThreadUrl = [^\n]+\n[^\n]+/, 'jumbleThreadUrl') + '\n' +
   lift(/const jumbleNoteUrl = [^\n]+/, 'jumbleNoteUrl') + '\n' +

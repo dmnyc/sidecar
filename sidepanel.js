@@ -5098,41 +5098,12 @@
     } catch (_) { return raw; }
   }
 
-  // `p` tags for every profile mentioned in the text, deduped and in order.
-  //
-  // This is what makes a mention reach the person mentioned: notification discovery
-  // is `{'#p': [pubkey]}` (see the bell's own filter), so a mention with no p tag
-  // renders for every reader and is invisible to its target. Shared by notes and
-  // comments — it was inline in the note composer, and duplicating it is how the two
-  // drifted apart in the first place.
-  function mentionPTags(content) {
-    const out = [];
-    const seen = new Set();
-    const re = /nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g;
-    let m;
-    while ((m = re.exec(String(content || ''))) !== null) {
-      try {
-        const d = NT.nip19.decode(m[1]);
-        const pk = d.type === 'npub' ? d.data : d.data.pubkey;
-        if (pk && !seen.has(pk)) { seen.add(pk); out.push(['p', pk]); }
-      } catch (_) { /* malformed mention — skip it, don't fail the post */ }
-    }
-    return out;
-  }
+  // `p` tags for every profile mentioned in the text. It and the note's quote tagging
+  // live in composer-core (mentionPTags, quoteTags, noteBodyTags), shared with the
+  // expanded tab, which went without them until they moved. Web comments call this; a
+  // note's Post goes through noteBodyTags.
+  function mentionPTags(content) { return window.SidecarCore.mentionPTags(content, NT); }
 
-  // NIP-18 `q` tags for the event references in a note's body, plus the pubkeys of the
-  // quoted authors (the caller p-tags them — see doPublish).
-  //
-  // A bech32 reference in the content is not, on its own, a quote: without the `q` tag
-  // the note goes out as plain text with a 210-character string in the middle of it.
-  // Clients key quote rendering off `q`, the quoted author is never notified, and
-  // Sidecar's OWN notification list does exactly that (notificationKind's hasQ, which
-  // is how "quoted your note" is told apart from a reply) — so a quote composed here
-  // didn't read as a quote even in Sidecar.
-  //
-  // note/nevent quote by event id; naddr quotes by "kind:pubkey:d" coordinate, since an
-  // addressable event's id changes with every edit.
-  const BODY_REF_RE = /nostr:(note1[0-9a-z]+|nevent1[0-9a-z]+|naddr1[0-9a-z]+)/g;
   // Tags that make a note a REPLY to `target`, and the kind the reply must be.
   //
   // Two protocols, because Nostr has two threading models and they are not
@@ -5186,39 +5157,6 @@
     const tags = [['e', rootId, root?.[2] || '', 'root']];
     if (rootId !== target.id) tags.push(['e', target.id, '', 'reply']);
     return { kind: 1, tags: [...tags, ...people] };
-  }
-
-  function quoteTags(content) {
-    const tags = [];
-    const authors = [];
-    const seen = new Set();
-    let m;
-    BODY_REF_RE.lastIndex = 0;
-    while ((m = BODY_REF_RE.exec(String(content || ''))) !== null) {
-      let d = null;
-      try { d = NT.nip19.decode(m[1]); } catch (_) { continue; } // malformed ref — skip it, don't fail the post
-      let value = null;
-      let relay = '';
-      let author = '';
-      if (d.type === 'note') {
-        value = d.data;
-      } else if (d.type === 'nevent') {
-        value = d.data.id;
-        relay = (d.data.relays || [])[0] || '';
-        author = d.data.author || '';
-      } else if (d.type === 'naddr') {
-        value = d.data.kind + ':' + d.data.pubkey + ':' + d.data.identifier;
-        relay = (d.data.relays || [])[0] || '';
-        author = d.data.pubkey || '';
-      }
-      if (!value || seen.has(value)) continue;
-      seen.add(value);
-      // Positional tag, so an author can only be given if the relay slot is filled —
-      // with an empty string when there's no hint, which is what other clients emit.
-      tags.push(author ? ['q', value, relay, author] : relay ? ['q', value, relay] : ['q', value]);
-      if (author) authors.push(author);
-    }
-    return { tags, authors };
   }
 
   // `includeClientTag` comes from the same Settings toggle that governs notes, so
@@ -13339,14 +13277,6 @@
       // which is the same thing the preview showed.
       const prose = draft.text.trim();
       const content = composeNoteContent(prose, draft.media);
-      const pTags = mentionPTags(prose);
-      const quotes = quoteTags(prose);
-      const seenP = new Set(pTags.map((t) => t[1]));
-      for (const pk of quotes.authors) {
-        if (seenP.has(pk)) continue;
-        seenP.add(pk);
-        pTags.push(['p', pk]);
-      }
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
       // A reply carries its threading tags FIRST: NIP-10 readers take the first `e`
@@ -13357,7 +13287,12 @@
         ? await devComposerReply(replyTo, devKind)
         : replyTo ? replyTags(replyTo) : null;
       const already = new Set((reply ? reply.tags : []).filter((t) => t[0] === 'p').map((t) => t[1]));
-      const bodyP = pTags.filter((t) => !already.has(t[1]));
+      // What the text tags: mentions, quoted authors, and the quotes themselves, deduped
+      // against the threading. composer-core's, so the expanded tab tags the same note
+      // the same way.
+      const body = window.SidecarCore.noteBodyTags(prose, NT, reply ? reply.tags : []);
+      const bodyP = body.p;
+      const quotes = { tags: body.q };
       // DEV ONLY, and gated three ways like the kind override beside it: the build, the
       // flag read at open, and the setting re-read here at publish. The last one matters
       // because the composer can be open for a long time and this is the control whose
