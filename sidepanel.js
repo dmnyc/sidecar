@@ -3257,7 +3257,7 @@
   const farewellSaid = new Set();
   function maybeSayFarewell(settings) {
     const pk = state.activePubkey;
-    const key = pk && settings && settings.seasonalBy && settings.seasonalBy[pk];
+    const key = SEASONS.keyOf(pk && settings && settings.seasonalBy && settings.seasonalBy[pk]);
     if (!key || !SEASONS.isSeasonal(key) || SEASONS.resolve(settings, pk)) return;
     if (farewellSaid.has(pk + key)) return;
     farewellSaid.add(pk + key);
@@ -21378,21 +21378,22 @@
 
       const logo = h('img', { className: 'about-logo', src: logoSrcFor(document.documentElement.dataset.theme), alt: 'Sidecar', draggable: 'false' });
       const creator = h('a', {
-        className: 'about-creator-link', textContent: shortNpub(CREATOR_NPUB),
+        className: 'about-creator-link', textContent: '@' + CREATOR_NAME,
         href: '#', target: '_blank', rel: 'noopener noreferrer',
       });
       // Open the creator's profile in the user's preferred client; resolve their
       // current kind:0 name instead of a hardcoded handle.
       preferredClient().then((client) => { creator.href = client.profile(CREATOR_NPUB); }).catch(() => {});
       // The name resolves through profilesFor — the batch that asks purplepag.es
-      // alongside the configured relays. The configured four alone often don't answer
-      // a stranger's kind:0 inside the 5s race, and the npub that renders meanwhile is
-      // what made this line read as machine noise.
-      profilesFor([CREATOR_NPUB]).then((m) => {
-        const rec = m.get(CREATOR_NPUB);
-        const name = rec && rec.name ? rec.name : CREATOR_NAME;
-        creator.textContent = '@' + name.replace(/^@/, '');
-      }).catch(() => { creator.textContent = '@' + CREATOR_NAME; });
+      // alongside the configured relays — which takes HEX pubkeys and drops anything
+      // else, so the npub is decoded first. CREATOR_NAME shows until it answers and
+      // stays if nothing does.
+      let creatorHex = '';
+      try { creatorHex = NT.nip19.decode(CREATOR_NPUB).data; } catch (_) {}
+      profilesFor([creatorHex]).then((m) => {
+        const rec = m.get(creatorHex);
+        if (rec && rec.name) creator.textContent = '@' + rec.name.replace(/^@/, '');
+      }).catch(() => {});
 
       const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
       const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });

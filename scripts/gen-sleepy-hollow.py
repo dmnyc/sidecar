@@ -23,6 +23,9 @@ Writes, in themes/:
   sleepy-hollow-*-wide.svg   the same plates in a wider frame for the expanded composer and
                              any window past a side panel's width — 900 units, so its
                              elements render larger than the panel's at the same width.
+  sleepy-hollow-hollow-compose.svg  the wide hollow with the Horseman at the left edge,
+                             for the expanded composer, whose centered card would
+                             otherwise cover him. Bright: the card shields the writing.
 
 Two layers rather than one plate, each laid once at the full width and pinned to its own
 edge: the moon then sits at the same place under the tab bar however tall the panel is,
@@ -248,20 +251,23 @@ PUMPKIN_GLOW = 36
 
 
 def horseman(x, y, s, flip=False, dim=False):
-    # The lit cluster — halo, pumpkin, ribs — dims as one on the internal plates, at
-    # the same 0.45 the dim moon wears: dense text scrolls over the foot of these views,
-    # and the brightest thing in the frame recedes with the moon.
-    lit = ' opacity="0.45"' if dim else ''
+    # The lit cluster dims as one on the internal plates. The halo is a light and may
+    # fade (0.45, the dim moon's level); the pumpkin may not — element opacity would
+    # blend it with the ink figure behind it and the hand would ghost through. Its fill
+    # goes SOLID to the same blend over the night ink instead: the same dimness, an
+    # opaque mask. The ribs keep full ink on the dimmer body, crisp as ever.
+    halo = ' opacity="0.45"' if dim else ''
+    body_fill = '#6F4821' if dim else EMBER
     sx = -s if flip else s
     g = ['<g transform="translate(%s %s) scale(%s %s)">' % (f(x), f(y), f(sx), f(s)),
          '<circle cx="%s" cy="%s" r="%s" fill="url(#ember)"%s/>'
-         % (f(PUMPKIN_AT[0]), f(PUMPKIN_AT[1]), f(PUMPKIN_GLOW), lit),
+         % (f(PUMPKIN_AT[0]), f(PUMPKIN_AT[1]), f(PUMPKIN_GLOW), halo),
          '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (LEG_INK, INK),
          '<path d="%s" fill="%s" fill-rule="evenodd"/>' % (HORSEMAN_INK, INK),
-         '<path d="%s" fill="%s"%s/>' % (PUMPKIN, EMBER, lit)]
+         '<path d="%s" fill="%s"/>' % (PUMPKIN, body_fill)]
     for rib in PUMPKIN_RIBS:
-        g.append('<path d="%s" fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round"%s/>'
-                 % (rib, INK, lit))
+        g.append('<path d="%s" fill="none" stroke="%s" stroke-width="1.5" stroke-linecap="round"/>'
+                 % (rib, INK))
     g.append('</g>')
     return ''.join(g)
 
@@ -462,27 +468,49 @@ def bridge(x, y, s):
     return ''.join(o)
 
 
-def leaves(rnd, w, h, n):
+def leaves(rnd, w, h, n, clear=None):
     # A few late leaves on the wind, rust and ochre, faint: they are weather, not
     # ornament. The plate is a still layer everywhere; on the lock screen the leaves
     # come loose and fall (sidepanel.html's .lock-leaves, sleepy-hollow.css).
+    # clear(x, y, r) drops a leaf after it is drawn from the stream, never before, so
+    # removing one leaves every other leaf exactly where it was.
     o = []
     for _ in range(n):
         x, y = rnd.uniform(0, w), rnd.uniform(h * 0.12, h * 0.8)
         a = rnd.uniform(0, 360)
         s = rnd.uniform(0.7, 1.3)
         c = rnd.choice(['#B5652E', '#9C5A2A', '#C2893E', '#8A4A26'])
+        opacity = rnd.uniform(0.28, 0.45)
+        if clear and not clear(x, y, 3.4 * s):
+            continue
         o.append('<path d="M0 -3.4C2.2 -1.6 2.2 1.6 0 3.4C-2.2 1.6 -2.2 -1.6 0 -3.4Z" fill="%s" fill-opacity="%s" '
                  'transform="translate(%s %s) rotate(%s) scale(%s)"/>'
-                 % (c, f(rnd.uniform(0.28, 0.45)), f(x), f(y), f(a), f(s)))
+                 % (c, f(opacity), f(x), f(y), f(a), f(s)))
     return ''.join(o)
+
+
+def off_the_wide_moon(x, y, r):
+    # The wide leaves plate scales with the window (100% wide) while the moon does not:
+    # it holds a fixed 520px sky plate at 66% across, so on screen it sits at 66% of the
+    # window, 165px down, 55px in radius, at every width. In the leaves' own units that
+    # is a disc that slides up and shrinks as the window widens. A leaf anywhere on that
+    # path covers the moon at some width, so it is not drawn. Checked from the crossover
+    # (520px) to a 4K window.
+    mr, mx, my = moon_geo(900)
+    px = 520 / 900
+    for W in range(520, 3841, 4):
+        k = W / 900
+        if math.hypot(x - mx, y - my * px / k) < (mr * px + 2) / k + r:
+            return False
+    return True
 
 
 def leaves_plate(w, h, seed):
     # The leaves on their own transparent plate, the sky's exact frame, so they can stand
     # down on the lock screen while the falling ones take over.
     rnd = random.Random(seed)
-    return svg(w, h, [leaves(rnd, w, h, 8 if w < 600 else 30)])
+    narrow = w < 600
+    return svg(w, h, [leaves(rnd, w, h, 8 if narrow else 30, None if narrow else off_the_wide_moon)])
 
 
 def sky(w, h, seed, dim=False):
@@ -543,7 +571,7 @@ def clouds_plate_wide():
     return svg(1920, 520, [clouds(rnd, 1920, 0.66 * 1920, 165, 55, 9, tmin=8, tmax=15)])
 
 
-def hollow(w, h, seed, dim=False):
+def hollow(w, h, seed, dim=False, rider=None):
     # The foot of the frame: the far ridge with its grove and the old Dutch church on its
     # churchyard knoll, mist over the brook, and the near ridge with the bridge, a
     # churchyard's worth of gravestones, and the Horseman. Pinned to the bottom. The
@@ -559,6 +587,12 @@ def hollow(w, h, seed, dim=False):
     cx = w * (0.7 if narrow else 0.24)
     hx = w * (0.08 if narrow else 0.28)
     hs = 0.6 if narrow else 0.8
+    # The expanded composer centers a card up to 720px wide over the scene, which hides
+    # a Horseman riding center-left at any window that tab is opened in. Its own plate
+    # (rider) puts him at the left edge, a little smaller, so the pumpkin clears the
+    # card from about 1,060px wide; narrower than that there is no room beside it.
+    if rider:
+        hx, hs = w * rider[0], rider[1]
     # The foreground gravestones: one graveyard, clustered on the right of the near
     # ridge — stones gathered close, the way a burial ground reads, not scattered singly.
     gy0, gy1 = (274, 352) if narrow else (0.44 * w, 0.58 * w)
@@ -653,6 +687,7 @@ def main():
         'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 520, 1794),
         'sleepy-hollow-hollow-wide.svg': hollow(900, 210, 1820),
         'sleepy-hollow-hollow-dim-wide.svg': hollow(900, 210, 1820, dim=True),
+        'sleepy-hollow-hollow-compose.svg': hollow(900, 210, 1820, rider=(0.01, 0.65)),
     }
     for name, body in files.items():
         with open(os.path.join(THEMES, name), 'w') as fh:

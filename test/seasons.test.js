@@ -85,6 +85,20 @@ test('an edition resolves for the account wearing it, in season, and for no one 
   assert.equal(S.resolve(null, 'alice'), null);
 });
 
+test('an edition is worn for the season it was put on in, and does not come back next year', () => {
+  // The farewell that clears the stored choice runs only for the account open in the
+  // panel, so a second account nobody opens between seasons still holds the value next
+  // October. Recording the season keeps it from dressing that account again by itself.
+  const worn = { seasonalBy: { alice: 'sleepy-hollow:2026' } };
+  assert.equal(S.resolve(worn, 'alice', day('2026-10-20')), 'sleepy-hollow');
+  assert.equal(S.resolve(worn, 'alice', day('2027-10-20')), null, 'last year\'s edition came back by itself');
+  assert.equal(S.resolve({ seasonalBy: { alice: 'sleepy-hollow:2027' } }, 'alice', day('2026-10-20')), null);
+  // A bare key, written before the season was recorded, still counts for the open season.
+  assert.equal(S.resolve({ seasonalBy: { alice: 'sleepy-hollow' } }, 'alice', day('2026-10-20')), 'sleepy-hollow');
+  assert.equal(S.keyOf('sleepy-hollow:2026'), 'sleepy-hollow');
+  assert.equal(S.keyOf(undefined), '');
+});
+
 function panelResolver() {
   const src = read('sidepanel.js');
   const at = src.indexOf('function resolveTheme(');
@@ -115,6 +129,28 @@ test('putting one on or taking it off never writes the account\'s own theme', ()
   // Only an edition's key can be stored here: an ordinary theme name in seasonalBy would
   // never resolve, and an arbitrary string should not be written at all.
   assert.match(h, /if \(message\.theme && !SidecarSeasons\.isSeasonal\(message\.theme\)\) throw/);
+});
+
+test('the background stores the season, and refuses an edition out of season', async () => {
+  const bg = read('background.js');
+  const at = bg.indexOf("case 'SIDECAR_SET_SEASONAL_FOR': {");
+  const body = bg.slice(bg.indexOf('{', at) + 1, bg.indexOf('break;', at));
+  const run = async (stored, message) => {
+    let saved = null;
+    const ctx = {
+      SidecarSeasons: S, message,
+      sget: async () => ({ sidecar_settings: structuredClone(stored) }),
+      sset: async (o) => { saved = structuredClone(o.sidecar_settings); },
+    };
+    vm.createContext(ctx);
+    await vm.runInContext('(async () => { let result;' + body + '})()', ctx);
+    return saved;
+  };
+  const inSeason = await run({ devDate: '2026-10-20' }, { pubkey: 'alice', theme: 'sleepy-hollow' });
+  assert.equal(inSeason.seasonalBy.alice, 'sleepy-hollow:2026');
+  await assert.rejects(run({ devDate: '2026-12-01' }, { pubkey: 'alice', theme: 'sleepy-hollow' }), /out of season/);
+  const off = await run({ seasonalBy: { alice: 'sleepy-hollow:2026', bob: 'sleepy-hollow:2026' } }, { pubkey: 'alice', theme: '' });
+  assert.deepEqual(off.seasonalBy, { bob: 'sleepy-hollow:2026' });
 });
 
 test('choosing a theme of your own takes an edition off, wherever it is chosen', () => {
@@ -202,6 +238,7 @@ test('THE CARD IS OFFERED ONCE A SEASON, AND NOT IN THE LAST FEW DAYS', () => {
 test('the farewell clears the stored choice once the calendar has taken it off', () => {
   const src = read('sidepanel.js');
   const fn = src.slice(src.indexOf('function maybeSayFarewell('), src.indexOf('function paintSpecialEditions('));
+  assert.match(fn, /const key = SEASONS\.keyOf\(/);
   assert.match(fn, /if \(!key \|\| !SEASONS\.isSeasonal\(key\) \|\| SEASONS\.resolve\(settings, pk\)\) return;/,
     'the farewell fires while the edition is still in season');
   assert.match(fn, /SIDECAR_SET_SEASONAL_FOR', pubkey: pk, theme: ''/);

@@ -6,10 +6,12 @@
 // that validate a theme name take the keys from here rather than from a copy.
 //
 // AN OVERLAY, NOT A THEME CHOICE. Wearing one writes settings.seasonalBy[pubkey] and
-// leaves themeBy alone, so the account's own theme is still there underneath. When the
-// window closes the edition simply stops resolving and every account is back in what it
-// chose, with no write and no migration — the panel does not even have to be open on the
-// day. See resolve() below.
+// leaves themeBy alone, so the account's own theme is still there underneath. What is
+// written is the season, not just the edition ("sleepy-hollow:2026"), so when the window
+// closes the edition stops resolving for good and every account is back in what it chose,
+// with no write and no migration — the panel does not even have to be open on the day,
+// and an account nobody opens until next year's window does not wake up wearing it again.
+// See resolve() below.
 //
 // THE DATE IS THE DEVICE'S OWN, read the way sky-plate.js reads it, and nothing is fetched:
 // every edition's artwork ships in the extension all year and the calendar is all that
@@ -66,14 +68,23 @@
     return w ? key + ':' + w.start.getFullYear() : null;
   }
 
-  // WHAT THIS ACCOUNT IS WEARING ON TOP OF ITS OWN THEME, or null. An edition worn last
-  // year resolves to nothing this year until it is put on again, which is why the stored
-  // value can be left behind after a window closes without changing anything.
+  // The edition a stored value names: "sleepy-hollow:2026" and a bare "sleepy-hollow"
+  // (written before the season was recorded) both name sleepy-hollow.
+  const keyOf = (worn) => (typeof worn === 'string' ? worn.split(':')[0] : '');
+
+  // WHAT THIS ACCOUNT IS WEARING ON TOP OF ITS OWN THEME, or null. Only for the season it
+  // was put on in: an edition worn last year resolves to nothing this year until it is put
+  // on again, which is why the stored value can be left behind after a window closes
+  // without changing anything. A bare key counts for whichever season is open.
   function resolve(settings, pubkey, date) {
     const by = (settings && settings.seasonalBy) || null;
-    const key = by && pubkey ? by[pubkey] : null;
-    return key && inSeason(key, date || now(settings)) ? key : null;
+    const worn = by && pubkey ? by[pubkey] : null;
+    const key = keyOf(worn);
+    if (!key) return null;
+    const at = date || now(settings);
+    const id = seasonId(key, at);
+    return id && (worn === key || worn === id) ? key : null;
   }
 
-  root.SidecarSeasons = { EDITIONS, KEYS: EDITIONS.map((e) => e.key), byKey, now, windowFor, inSeason, isSeasonal, current, seasonId, resolve };
+  root.SidecarSeasons = { EDITIONS, KEYS: EDITIONS.map((e) => e.key), byKey, now, windowFor, inSeason, isSeasonal, current, seasonId, keyOf, resolve };
 })(typeof self !== 'undefined' ? self : globalThis);

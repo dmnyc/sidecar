@@ -508,10 +508,7 @@ html:not([data-theme]) body {
    the clouds, which cross the moon's disc; and the moon behind them all, pinned to the
    top so it rises just under the tab bar, where no label sits on it. The hollow and sky
    travel under variables: internal views wear the dim pair, the lock screen the bright
-   one — see the swap rule below. */ The clouds and leaves are tiled repeat-x and drawn
-   wrapped, so the lock screen can set them drifting (sleepy-hollow.css); every other
-   plate is laid once at the full width and never tiled. Behind all, the sky, lifted
-   toward the moon. */
+   one — see the swap rule below. */
 /* The narrow plates are drawn for a side panel, and a side panel is what they assume:
    held to a tab's width they inflate the Horseman to the size of the PIN field. The
    crossover sits at 520px — the top of the side panel's range — below it the panel wears
@@ -521,17 +518,18 @@ html:not([data-theme]) body {
    the window stops being a panel, and never mid-panel. */
 /* The moon's plate and the hollow's plate travel under variables. The DEFAULTS are the
    dim pair — dense text scrolls straight over both on every internal view (Settings,
-   Profile edit, the Profile tab, the composer, the prompt), so the moon and the
+   Profile edit, the Profile tab, the prompt), so the moon and the
    Horseman's lit pumpkin recede to the same 0.45 together. The lock screen is the one
    place nothing needs shielding, and the rule below trades both plates for their bright
-   twins there. */
-[data-theme="sleepy-hollow"] body {
+   twins there. The expanded composer names its own plates (body.compose-page, below). */
+html:not([data-tile])[data-theme="sleepy-hollow"] body {
   --sh-sky: url(sleepy-hollow-sky-dim.svg);
   --sh-sky-wide: url(sleepy-hollow-sky-dim-wide.svg);
   --sh-hollow: url(sleepy-hollow-hollow-dim.svg);
   --sh-hollow-wide: url(sleepy-hollow-hollow-dim-wide.svg);
 }
-[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)),
+html[data-tile][data-theme="sleepy-hollow"] body {
   --sh-sky: url(sleepy-hollow-sky.svg);
   --sh-sky-wide: url(sleepy-hollow-sky-wide.svg);
   --sh-hollow: url(sleepy-hollow-hollow.svg);
@@ -603,7 +601,7 @@ html:not([data-theme]) body {
    and unlocking moves nothing. Under reduced motion nothing moves, so nothing stands
    down: the still plates stay. */
 @media (prefers-reduced-motion: no-preference) and (max-width: 519.98px) {
-  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion)[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       var(--sh-hollow),
       var(--sh-sky),
@@ -616,7 +614,7 @@ html:not([data-theme]) body {
   }
 }
 @media (prefers-reduced-motion: no-preference) and (min-width: 520px) and (max-width: 899.98px) {
-  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion)[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       var(--sh-hollow-wide),
       var(--sh-sky-wide),
@@ -629,7 +627,7 @@ html:not([data-theme]) body {
   }
 }
 @media (prefers-reduced-motion: no-preference) and (min-width: 900px) {
-  html:not(.reduce-balance-motion) [data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
+  html:not(.reduce-balance-motion)[data-theme="sleepy-hollow"] body:has(#view-lock:not(.hidden)) {
     background-image:
       var(--sh-hollow-wide),
       var(--sh-sky-wide),
@@ -801,14 +799,17 @@ html:not([data-theme]) body {
 }
 
 /* Sleepy Hollow: the same layers in the wider frame, scaling with the window past
-   900px and holding its natural size below (see the body rules above). */
+   900px and holding its natural size below (see the body rules above). The composer
+   wears the bright moon and its own hollow (sleepy-hollow-hollow-compose.svg), with the
+   Horseman at the left edge: the centered card shields the writing, and would hide him
+   anywhere nearer the middle. */
 [data-theme="sleepy-hollow"] body.compose-page {
   background-image:
-    var(--sh-hollow-wide),
+    url(sleepy-hollow-hollow-compose.svg),
     url(sleepy-hollow-leaves-wide.svg),
     url(sleepy-hollow-tree-wide.svg),
     url(sleepy-hollow-clouds-wide.svg),
-    var(--sh-sky-wide),
+    url(sleepy-hollow-sky-wide.svg),
     radial-gradient(1000px 640px at 66% 165px, rgba(120, 104, 168, 0.14), transparent 70%),
     linear-gradient(180deg, #1A1630 0%, #110F20 38%, var(--bg) 72%);
   background-size: 100% auto, 100% auto, 100% auto, 1920px auto, 520px auto, auto, auto;

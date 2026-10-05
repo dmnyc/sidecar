@@ -253,7 +253,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/impressed-metal.woff2') format('woff2');
+  src: url('fonts/impressed-metal.ttf') format('truetype');
 }
 
 /* Varela Round (Joe Prince, SIL OFL 1.1 — see fonts/OFL-VarelaRound.txt). Cast Iron's
@@ -292,7 +292,7 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('fonts/special-elite.woff2') format('woff2');
+  src: url('fonts/special-elite.ttf') format('truetype');
 }
 
 /* Limelight (Eben Sorkin / Sorkin Type, SIL OFL 1.1 — see fonts/OFL-Limelight.txt).
