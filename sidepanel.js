@@ -263,6 +263,11 @@
     { text: 'It was the best of times, it was the worst of times.', who: 'Charles Dickens, 1859' },
     { text: 'Beware, for I am fearless and therefore powerful.', who: 'Mary Shelley, 1818' },
     { text: 'Truth is stranger than fiction, but it is because Fiction is obliged to stick to possibilities; Truth isn’t.', who: 'Mark Twain, 1897' },
+    // 1.15.6, for the Sleepy Hollow season. Checked against the Project Gutenberg texts:
+    // "Rip Van Winkle" in The Sketch-Book (1819), and "The Raven" (1845), where the line
+    // runs on to a semicolon.
+    { text: 'A tart temper never mellows with age, and a sharp tongue is the only edged tool that grows keener with constant use.', who: 'Washington Irving, 1819' },
+    { text: 'Deep into that darkness peering, long I stood there wondering, fearing, doubting, dreaming dreams no mortal ever dared to dream before.', who: 'Edgar Allan Poe, 1845' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

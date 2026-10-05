@@ -932,6 +932,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-08': [
     { year: 1871, text: "A fire started in a barn on DeKoven Street and burned the center of Chicago." },
+    { year: 1945, text: "Raytheon filed a patent for Percy Spencer's way of cooking food with microwaves." }, // Wikipedia, Microwave oven
   ],
   '10-09': [
     { year: 1936, text: "Generators at Hoover Dam began transmitting electricity to Los Angeles." },
@@ -962,12 +963,14 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-16': [
     { year: 1846, text: "A Boston surgeon removed a tumor from a patient put under with ether, and anesthesia went public." }, // Massachusetts General, "Ether Day"
+    { year: 1923, text: "Walt and Roy Disney founded the Disney Brothers Cartoon Studio." }, // Wikipedia, The Walt Disney Company
   ],
   '10-17': [
     { year: 1931, text: "Al Capone was convicted of income tax evasion and sent to federal prison." },
   ],
   '10-18': [
     { year: 1867, text: "The United States formally took possession of Alaska after purchasing it from Russia." }, // Sitka
+    { year: 1922, text: "The British Broadcasting Company was formed, the forerunner of the BBC." }, // Wikipedia, British Broadcasting Company
   ],
   '10-19': [
     { year: 1781, text: "Lord Cornwallis surrendered at Yorktown, effectively ending the American Revolutionary War." },
@@ -1008,6 +1011,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-31': [
     { year: 1517, text: "Martin Luther supposedly nailed his ninety-five theses to the door of the castle church in Wittenberg." },
+    { year: 1926, text: "Harry Houdini died of peritonitis in Detroit, on Halloween." }, // Wikipedia, Harry Houdini
   ],
   '11-01': [
     { year: 1512, text: "The ceiling of the Sistine Chapel was opened to the public, painted by Michelangelo." }, // Vatican City
