@@ -468,27 +468,49 @@ def bridge(x, y, s):
     return ''.join(o)
 
 
-def leaves(rnd, w, h, n):
+def leaves(rnd, w, h, n, clear=None):
     # A few late leaves on the wind, rust and ochre, faint: they are weather, not
     # ornament. The plate is a still layer everywhere; on the lock screen the leaves
     # come loose and fall (sidepanel.html's .lock-leaves, sleepy-hollow.css).
+    # clear(x, y, r) drops a leaf after it is drawn from the stream, never before, so
+    # removing one leaves every other leaf exactly where it was.
     o = []
     for _ in range(n):
         x, y = rnd.uniform(0, w), rnd.uniform(h * 0.12, h * 0.8)
         a = rnd.uniform(0, 360)
         s = rnd.uniform(0.7, 1.3)
         c = rnd.choice(['#B5652E', '#9C5A2A', '#C2893E', '#8A4A26'])
+        opacity = rnd.uniform(0.28, 0.45)
+        if clear and not clear(x, y, 3.4 * s):
+            continue
         o.append('<path d="M0 -3.4C2.2 -1.6 2.2 1.6 0 3.4C-2.2 1.6 -2.2 -1.6 0 -3.4Z" fill="%s" fill-opacity="%s" '
                  'transform="translate(%s %s) rotate(%s) scale(%s)"/>'
-                 % (c, f(rnd.uniform(0.28, 0.45)), f(x), f(y), f(a), f(s)))
+                 % (c, f(opacity), f(x), f(y), f(a), f(s)))
     return ''.join(o)
+
+
+def off_the_wide_moon(x, y, r):
+    # The wide leaves plate scales with the window (100% wide) while the moon does not:
+    # it holds a fixed 520px sky plate at 66% across, so on screen it sits at 66% of the
+    # window, 165px down, 55px in radius, at every width. In the leaves' own units that
+    # is a disc that slides up and shrinks as the window widens. A leaf anywhere on that
+    # path covers the moon at some width, so it is not drawn. Checked from the crossover
+    # (520px) to a 4K window.
+    mr, mx, my = moon_geo(900)
+    px = 520 / 900
+    for W in range(520, 3841, 4):
+        k = W / 900
+        if math.hypot(x - mx, y - my * px / k) < (mr * px + 2) / k + r:
+            return False
+    return True
 
 
 def leaves_plate(w, h, seed):
     # The leaves on their own transparent plate, the sky's exact frame, so they can stand
     # down on the lock screen while the falling ones take over.
     rnd = random.Random(seed)
-    return svg(w, h, [leaves(rnd, w, h, 8 if w < 600 else 30)])
+    narrow = w < 600
+    return svg(w, h, [leaves(rnd, w, h, 8 if narrow else 30, None if narrow else off_the_wide_moon)])
 
 
 def sky(w, h, seed, dim=False):
