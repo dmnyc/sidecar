@@ -27,6 +27,31 @@ practice governs how a pull request merges, not when.
 Squash-merge pull requests. GitHub then creates and signs the commit on `main`,
 so it shows as Verified even when the branch's own commits were unsigned.
 
+## Working rules (the 1.15.6 lessons)
+
+Each of these was broken once, and each cost a release day.
+
+- **Ask first** before pushing to `main` (reverts and docs included), creating,
+  moving or deleting a tag, changing this file, or committing a handoff note.
+  `main` changes only through a reviewed pull request.
+- **Verify a cause before naming it.** Run the experiment that would prove it
+  wrong; for CSS, ask the browser for computed values and matched rules. If
+  working code already contradicts the theory, the theory is wrong.
+- **`data-theme`, `dir` and the motion classes sit on `<html>`.** Chain them onto
+  one compound (`html:not(.x)[data-theme="y"]`), never as a descendant.
+- **Before deleting or renaming anything, `git grep` its name across every file
+  type**, and before stripping a directory from the package, find what loads from
+  it. Read a font's license record before changing the file.
+- **Read the function you call.** Its contract is usually its first line.
+- **Check visual work where it is seen**: the panel width, the composer at laptop
+  and desktop widths with its card over the scene, and the lock screen.
+- **A pull request body describes the final diff**, every claim in it verified.
+  Write it to a file and pass `--body-file`, so no shell eats part of it.
+- **A release follows its plan and its checklist.** The changelog accounts for
+  every commit since the previous tag, and is dated the day it ships.
+- **A test that reads source text is not verification.** Prefer one that runs the
+  code, and check that it fails on the old code.
+
 ## UI rules
 
 ## Row controls in a narrow panel (the recurring remove-button mistake)
