@@ -23,6 +23,9 @@ Writes, in themes/:
   sleepy-hollow-*-wide.svg   the same plates in a wider frame for the expanded composer and
                              any window past a side panel's width — 900 units, so its
                              elements render larger than the panel's at the same width.
+  sleepy-hollow-hollow-compose.svg  the wide hollow with the Horseman at the left edge,
+                             for the expanded composer, whose centered card would
+                             otherwise cover him. Bright: the card shields the writing.
 
 Two layers rather than one plate, each laid once at the full width and pinned to its own
 edge: the moon then sits at the same place under the tab bar however tall the panel is,
@@ -546,7 +549,7 @@ def clouds_plate_wide():
     return svg(1920, 520, [clouds(rnd, 1920, 0.66 * 1920, 165, 55, 9, tmin=8, tmax=15)])
 
 
-def hollow(w, h, seed, dim=False):
+def hollow(w, h, seed, dim=False, rider=None):
     # The foot of the frame: the far ridge with its grove and the old Dutch church on its
     # churchyard knoll, mist over the brook, and the near ridge with the bridge, a
     # churchyard's worth of gravestones, and the Horseman. Pinned to the bottom. The
@@ -562,6 +565,12 @@ def hollow(w, h, seed, dim=False):
     cx = w * (0.7 if narrow else 0.24)
     hx = w * (0.08 if narrow else 0.28)
     hs = 0.6 if narrow else 0.8
+    # The expanded composer centers a card up to 720px wide over the scene, which hides
+    # a Horseman riding center-left at any window that tab is opened in. Its own plate
+    # (rider) puts him at the left edge, a little smaller, so the pumpkin clears the
+    # card from about 1,060px wide; narrower than that there is no room beside it.
+    if rider:
+        hx, hs = w * rider[0], rider[1]
     # The foreground gravestones: one graveyard, clustered on the right of the near
     # ridge — stones gathered close, the way a burial ground reads, not scattered singly.
     gy0, gy1 = (274, 352) if narrow else (0.44 * w, 0.58 * w)
@@ -656,6 +665,7 @@ def main():
         'sleepy-hollow-leaves-wide.svg': leaves_plate(900, 520, 1794),
         'sleepy-hollow-hollow-wide.svg': hollow(900, 210, 1820),
         'sleepy-hollow-hollow-dim-wide.svg': hollow(900, 210, 1820, dim=True),
+        'sleepy-hollow-hollow-compose.svg': hollow(900, 210, 1820, rider=(0.01, 0.65)),
     }
     for name, body in files.items():
         with open(os.path.join(THEMES, name), 'w') as fh:
