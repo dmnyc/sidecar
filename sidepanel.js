@@ -2228,11 +2228,11 @@
       copy.addEventListener('click', async () => {
         try {
           await copyPlain(value);
-          copy.textContent = 'Copied ✓';
+          copy.textContent = t('Copied ✓');
           setTimeout(() => (copy.textContent = value), 1200);
         } catch (_) {}
       });
-      out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Scan or copy to pay from any wallet.' }));
+      out.append(canvas, copy, h('p', { className: 'hint', textContent: tSec('Scan or copy to pay from any wallet.') }));
       modal.append(out);
     });
   }
@@ -2250,7 +2250,7 @@
   // `display` is for a value too long to sit on one line whole. It is the display only,
   // never what gets copied or encoded.
   function payLine(value, iconEl, label, display) {
-    const row = h('button', { className: 'profile-meta profile-pay-line', title: label + ': tap to copy' });
+    const row = h('button', { className: 'profile-meta profile-pay-line', title: t('{{label}}: tap to copy', { label }) });
     row.append(iconEl, h('span', { className: 'profile-pay-val', textContent: display || value }));
     row.addEventListener('click', async () => {
       try { await copyPlain(value); } catch (_) {}
@@ -2293,7 +2293,7 @@
       // you can press, and none of this is pressable.
       const rel = h('div', { className: 'profile-stats peek-rel' });
       const followNum = setWaiting(h('strong'), '…', true);
-      rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
+      rel.append(h('span', { className: 'profile-stat' }, I18N.fill(t('{{count}} following'), { count: followNum })));
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
       body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
@@ -2383,15 +2383,15 @@
         const copy = h('button', {
           className: 'secondary peek-zap-addr',
           textContent: label,
-          title: options.copyTitle || 'Copy lightning address',
+          title: options.copyTitle || t('Copy lightning address'),
         });
         copy.addEventListener('click', async () => {
           try {
             await copyPlain(value);
-            copy.textContent = 'Copied ✓';
+            copy.textContent = t('Copied ✓');
             setTimeout(() => { if (copy.isConnected) copy.textContent = label; }, 1200);
           } catch (_) {
-            toast('Could not copy', 'error');
+            toast(t('Could not copy'), 'error');
           }
         });
         // Goes where it points. The same borderless gold link the account card uses for
@@ -2399,7 +2399,7 @@
         // because a tab switched behind an open modal is a tab nobody sees happen.
         const connect = h('button', {
           className: 'account-stat-add-link zap-noconnect',
-          textContent: 'Connect a wallet to zap from here →',
+          textContent: t('Connect a wallet to zap from here →'),
         });
         connect.addEventListener('click', () => {
           closeModal();
@@ -2413,7 +2413,7 @@
           // no zap request is attached, so the provider publishes no receipt and it lands
           // as an anonymous payment. The link below is the one that can say zap, because
           // connecting a wallet is what puts a signed 9734 in front of the invoice.
-          h('p', { className: 'hint', textContent: options.hint || 'Scan or copy to pay from any wallet.' }),
+          h('p', { className: 'hint', textContent: options.hint || tSec('Scan or copy to pay from any wallet.') }),
           // Why there is no amount field here, on the one sheet where its absence is not
           // self-explanatory. Everywhere else the handoff block appears it is because no
           // wallet is connected, and the line below it already says so by offering to
@@ -2433,11 +2433,11 @@
         return zapPayBlock(raw, Object.assign({
           value: raw,
           label: raw.length > 28 ? raw.slice(0, 18) + '…' + raw.slice(-6) : raw,
-          copyTitle: 'Copy this CLINK offer',
+          copyTitle: t('Copy this CLINK offer'),
           // 240 rather than 200: an offer is a longer payload, so the same canvas would
           // pack more modules into the same square and a phone camera has to resolve them.
           qrSize: 240,
-          hint: 'Scan or copy to pay from any CLINK wallet.',
+          hint: tSec('Scan or copy to pay from any CLINK wallet.'),
         }, extra || {}));
       }
 
@@ -2477,8 +2477,8 @@
         // missing a wallet, and the hint is addressed to you rather than to a payer.
         const selfPay = {
           hideConnect: true,
-          hint: 'Scan or copy to show someone how to pay you.',
-          note: 'Sending is off on your own profile.',
+          hint: tSec('Scan or copy to show someone how to pay you.'),
+          note: t('Sending is off on your own profile.'),
         };
         zapPanel = (zapHasWallet && !isSelf)
           ? zapForm
@@ -2517,14 +2517,14 @@
       const offerErr = h('div', { className: 'error' });
       const offerAmount = satsInput('sats');
       const offerPresets = zapPresetRow(offerAmount);
-      const offerPay = h('button', { className: 'primary', textContent: 'Pay' });
+      const offerPay = h('button', { className: 'primary', textContent: tSec('Pay') });
       let offerData = null;
       const offerGate = largeSendGate(offerPay, {
         sats: () => (!offerData ? 0
           : window.SidecarCLINK.amountRequired(offerData) ? parseInt(offerAmount.value, 10) || 0
             : offerData.price || 0),
-        label: () => 'Pay',
-        confirmLabel: 'Confirm',
+        label: () => tSec('Pay'),
+        confirmLabel: tSec('Confirm'),
       });
       offerAmount.addEventListener('input', offerGate.paint);
       let offerHandoff = null; // the QR and copy block, built the first time it is wanted
@@ -2549,8 +2549,8 @@
           if (!offerHandoff) {
             offerHandoff = offerPayBlock(offer, isSelf ? {
               hideConnect: true,
-              hint: 'Scan or copy to show someone how to pay you.',
-              note: 'Sending is off on your own profile.',
+              hint: tSec('Scan or copy to show someone how to pay you.'),
+              note: t('Sending is off on your own profile.'),
             } : undefined);
             zapWrap.append(offerHandoff);
           }
@@ -2568,8 +2568,8 @@
         offerAmount.classList.toggle('hidden', !needsAmount);
         if (!needsAmount && offer.price) offerAmount.value = String(offer.price);
         offerPay.textContent = !needsAmount && offer.price
-          ? 'Pay ' + fmtSats(offer.price) + ' sats'
-          : 'Pay';
+          ? tSec('Pay {{amount}} sats', { amount: fmtSats(offer.price) })
+          : tSec('Pay');
         offerErr.textContent = '';
         // NOT through zapPanel, which is the Zap button's own reference to whichever
         // panel that button opens. Pointing it here made Zap toggle the offer instead of
@@ -2589,7 +2589,7 @@
         const needsAmount = window.SidecarCLINK.amountRequired(offerData);
         const sats = parseInt(offerAmount.value, 10);
         if (needsAmount && (!sats || sats < 1)) {
-          return (offerErr.textContent = 'Enter an amount in sats.');
+          return (offerErr.textContent = t('Enter an amount in sats.'));
         }
         offerErr.textContent = '';
         if (!offerGate.pass(needsAmount ? sats : offerData.price || 0)) return;
@@ -2599,30 +2599,30 @@
           // The wallet first, because there is no point asking a stranger's service for
           // an invoice we would then have nothing to pay it with.
           const client = await ensureNwc();
-          if (!client) throw new Error('Wallet unavailable. Reconnect in the Wallet tab.');
-          offerPay.textContent = 'Asking…';
+          if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
+          offerPay.textContent = t('Asking…');
           const { bolt11 } = await clink.requestInvoice(offerData, {
             amountSats: needsAmount ? sats : offerData.price,
           });
           const paying = sats || offerData.price || 0;
-          offerPay.textContent = 'Paying…';
-          flight = toast(paying ? 'Paying ' + fmtSats(paying) + ' sats' : 'Paying', 'progress');
+          offerPay.textContent = tSec('Paying…');
+          flight = toast(paying ? tSec('Paying {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paying'), 'progress');
           await client.payInvoice(bolt11);
           if (flight) flight.close();
-          toast(paying ? 'Paid ' + fmtSats(paying) + ' sats' : 'Paid', 'success');
+          toast(paying ? tSec('Paid {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paid'), 'success');
           lightningStrike();
           closeModal();
           return;
         } catch (e) {
           if (flight) flight.close();
-          offerErr.textContent = e.message || 'Could not pay that offer.';
+          offerErr.textContent = e.message || t('Could not pay that offer.');
         }
         offerPay.disabled = false;
         offerGate.paint();
       });
 
       // The same way out, for the same reason.
-      const offerQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: 'Show a QR to pay from another wallet' });
+      const offerQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: t('Show a QR to pay from another wallet') });
       offerQrBtn.append(icon('qr'));
       let offerFormHandoff = null;
       offerQrBtn.addEventListener('click', () => {
@@ -2643,9 +2643,9 @@
       const payRow = h('div', { className: 'peek-pay-row' });
       const zapErr = h('div', { className: 'error' });
       const zapBtn = h('button', { className: 'secondary peek-zap-open' });
-      zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
+      zapBtn.append(boltIcon(), h('span', { textContent: t('Zap') }));
       const offerBtn = h('button', { className: 'secondary peek-zap-open' });
-      offerBtn.append(icon('zap'), h('span', { textContent: 'Pay offer' }));
+      offerBtn.append(icon('zap'), h('span', { textContent: t('Pay offer') }));
       let offerShown = false;
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
       const amount = satsInput('sats');
@@ -2653,17 +2653,17 @@
       // and on a 358px panel a row of taps beats a numeric keyboard covering half
       // the sheet. The fourth of them is the one set in Settings.
       const presets = zapPresetRow(amount);
-      const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
-      const send = h('button', { className: 'primary', textContent: 'Send zap' });
+      const note = h('input', { type: 'text', className: 'status-input', placeholder: t('Message (optional)'), maxLength: 200 });
+      const send = h('button', { className: 'primary', textContent: tSec('Send zap') });
       const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm') });
       amount.addEventListener('input', zapGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
-        if (!sats || sats < 1) return (zapErr.textContent = 'Enter an amount in sats.');
+        if (!sats || sats < 1) return (zapErr.textContent = t('Enter an amount in sats.'));
         zapErr.textContent = '';
         if (!zapGate.pass(sats)) return;
         send.disabled = true;
-        send.textContent = 'Sending…';
+        send.textContent = tSec('Sending…');
         // The panel path people actually reach. This sheet is dismissible mid-zap, so a
         // disabled button inside it was never an in-flight indicator: close the sheet and
         // there was nothing at all until the toast. Same progress toast the Send modal
@@ -2678,7 +2678,7 @@
             comment: note.value.trim(),
             recipientPubkey: pubkey,
           });
-          flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
+          flight = toast(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }), 'progress');
           const res = await client.payInvoice(invoice);
           // NWC history keeps the amount and nothing else, so an outgoing zap
           // rendered as a bare "Sent" with no counterparty. Both the other payment
@@ -2731,7 +2731,7 @@
       // the wallet, and before this the QR existed only for people who had connected
       // nothing. Icon only, beside the field, because the row has a value in it and the
       // panel's rule is that a control sharing a row with content carries no words.
-      const zapQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: 'Show a QR to pay from another wallet' });
+      const zapQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: t('Show a QR to pay from another wallet') });
       zapQrBtn.append(icon('qr'));
       let zapHandoff = null;
       zapQrBtn.addEventListener('click', () => {
@@ -2761,18 +2761,18 @@
       // Secondary, not primary. Once the zap form is open there would otherwise be
       // two filled buttons competing, and the hand-off is the way OUT of the sheet
       // rather than the thing it is for.
-      const open = h('button', { className: 'secondary', textContent: 'View in client' });
+      const open = h('button', { className: 'secondary', textContent: t('View in client') });
       open.addEventListener('click', async () => {
         const client = await preferredClient();
         openInClient(client.profile(npub));
         closeModal();
       });
-      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      const close = h('button', { className: 'ghost', textContent: t('Close') });
       close.addEventListener('click', closeModal);
       actions.append(open, close);
       modal.append(actions);
 
-      preferredClient().then((c) => { open.textContent = 'View in ' + c.label; });
+      preferredClient().then((c) => { open.textContent = t('View in {{client}}', { client: c.label }); });
 
       function paint(c) {
         if (!c) return;
@@ -2823,11 +2823,11 @@
           lud.innerHTML = '';
           lud.append(boltIcon(), h('span', { textContent: c.lud16 }));
           lud.classList.remove('hidden');
-          lud.title = 'Copy lightning address';
+          lud.title = t('Copy lightning address');
           lud.onclick = () => {
             navigator.clipboard.writeText(c.lud16).then(
-              () => toast('Lightning address copied', 'success'),
-              () => toast('Could not copy', 'error')
+              () => toast(t('Lightning address copied'), 'success'),
+              () => toast(t('Could not copy'), 'error')
             );
           };
           zapAddr = c.lud16;
@@ -5305,11 +5305,14 @@
   // deletion. A kind:5 would ask relays to forget the event, which is a request
   // they may ignore and which leaves readers holding the old text either way.
   // Publishing empty replaces it everywhere the addressable event already is.
+  //
+  // Labels are functions: this runs before the language file loads, so a string
+  // translated here would stay English.
   const STATUS_DURATIONS = [
-    { label: 'No expiry', seconds: 0 },
-    { label: '1 hour', seconds: 3600 },
-    { label: '4 hours', seconds: 4 * 3600 },
-    { label: '1 day', seconds: 24 * 3600 },
+    { label: () => t('No expiry'), seconds: 0 },
+    { label: () => tn('{{count}} hour', '{{count}} hours', 1), seconds: 3600 },
+    { label: () => tn('{{count}} hour', '{{count}} hours', 4), seconds: 4 * 3600 },
+    { label: () => tn('{{count}} day', '{{count}} days', 1), seconds: 24 * 3600 },
   ];
 
   // Pure, so the tag shape can be tested without a relay or a key.
@@ -9678,7 +9681,7 @@
     openModal((modal) => {
       const canvas = document.createElement('canvas');
       canvas.className = 'npub-qr';
-      const value = h('button', { className: 'secondary npub-qr-value', title: 'Copy' });
+      const value = h('button', { className: 'secondary npub-qr-value', title: t('Copy') });
       const valueText = h('span');
       value.append(valueText);
 
@@ -9716,8 +9719,9 @@
         try {
           await copyPlain(encoded());
           const prev = valueText.textContent;
-          valueText.textContent = 'Copied ✓';
-          setTimeout(() => { if (valueText.textContent === 'Copied ✓') valueText.textContent = prev; }, 1200);
+          const copied = t('Copied ✓');
+          valueText.textContent = copied;
+          setTimeout(() => { if (valueText.textContent === copied) valueText.textContent = prev; }, 1200);
         } catch (_) {}
       });
 
@@ -9740,7 +9744,7 @@
       }
 
       modal.append(
-        h('h3', { textContent: displayName(a) || 'Your npub' }),
+        h('h3', { textContent: displayName(a) || t('Your npub') }),
         h('div', { className: 'npub-qr-wrap' }, [stack, chips, value]),
         h('div', { className: 'actions' }, [done])
       );
@@ -11400,17 +11404,17 @@
   // one; not having reached the host is neutral and shaped differently, so it cannot be
   // mistaken for a finding about the identifier.
   const NIP05_BADGE = {
-    ok:          { cls: 'nip05-ok',      glyph: 'check', title: 'Verified' },
-    mismatch:    { cls: 'nip05-alarm',   glyph: 'alert', title: 'This address points to a different key' },
-    absent:      { cls: 'nip05-bad',     glyph: 'alert', title: 'This domain doesn’t list this name' },
-    http:        { cls: 'nip05-unknown', glyph: 'help',  title: 'The domain didn’t serve its nostr.json' },
-    malformed:   { cls: 'nip05-unknown', glyph: 'help',  title: 'The domain’s nostr.json isn’t valid' },
-    unreachable: { cls: 'nip05-unknown', glyph: 'help',  title: 'Couldn’t reach the domain to check' },
+    ok:          { cls: 'nip05-ok',      glyph: 'check', title: () => t('Verified') },
+    mismatch:    { cls: 'nip05-alarm',   glyph: 'alert', title: () => t('This address points to a different key') },
+    absent:      { cls: 'nip05-bad',     glyph: 'alert', title: () => t('This domain doesn’t list this name') },
+    http:        { cls: 'nip05-unknown', glyph: 'help',  title: () => t('The domain didn’t serve its nostr.json') },
+    malformed:   { cls: 'nip05-unknown', glyph: 'help',  title: () => t('The domain’s nostr.json isn’t valid') },
+    unreachable: { cls: 'nip05-unknown', glyph: 'help',  title: () => t('Couldn’t reach the domain to check') },
   };
   function paintNip05Badge(badge, res, recheck) {
     const b = NIP05_BADGE[res && res.status] || NIP05_BADGE.unreachable;
     badge.classList.add(b.cls);
-    badge.title = b.title + (recheck ? ' Tap to check again.' : '');
+    badge.title = recheck ? t('{{verdict}} Tap to check again.', { verdict: b.title() }) : b.title();
     badge.append(icon(b.glyph));
     // The badge is the refresh: a check is only as fresh as its last network trip,
     // and the verdict a user is staring at may be days stale for reasons (a host's
@@ -11528,7 +11532,7 @@
     // remark, not a field, and giving it a labelled section made the profile read
     // like a settings screen. Empty status = no balloon at all, so the profile of
     // someone who never sets one is exactly what it was before this shipped.
-    const balloon = h('button', { className: 'status-balloon hidden', title: 'Edit status' });
+    const balloon = h('button', { className: 'status-balloon hidden', title: t('Edit status') });
     const balloonText = h('span', { className: 'status-balloon-text' });
     balloon.append(balloonText);
     balloon.addEventListener('click', () => openStatusEditor(active, paintStatus));
@@ -11565,7 +11569,7 @@
     // The chip copies; the button beside it shows the code. Two affordances rather than
     // one that does both, because the chip's whole behavior is copy-on-tap and adding a
     // second meaning to the same tap would make neither obvious.
-    const qrBtn = iconButton('Show npub QR', 'qr', () => npubQrModal(active));
+    const qrBtn = iconButton(t('Show npub QR'), 'qr', () => npubQrModal(active));
     qrBtn.classList.add('profile-npub-qr');
     body.append(h('div', { className: 'profile-npub-row' }, [npubChip(active.npub), qrBtn]));
 
@@ -11579,7 +11583,7 @@
     // Profile data is cached for PROFILE_TTL (5 min) and the follow count is cached for
     // the whole session, so an edit made elsewhere can look stuck. This drops both for
     // the active account and refetches.
-    const refreshBtn = h('button', { className: 'profile-backup-jump', title: 'Refresh profile, follow and mute counts' });
+    const refreshBtn = h('button', { className: 'profile-backup-jump', title: t('Refresh profile, follow and mute counts') });
     // Clockwise, near-closed circle with a short arrow at the top right — the
     // conventional "reload" glyph. The old mark was counter-clockwise and filled,
     // which reads more like "undo" than "refresh". Stroked so it inherits the same
@@ -11604,9 +11608,9 @@
         profileFetchState.delete(active.pubkey); // clear tries + settled so it refetches
         await fetchAndStoreProfile(active.pubkey);
         renderProfile();
-        toast('Profile refreshed', 'success');
+        toast(t('Profile refreshed'), 'success');
       } catch (_) {
-        toast("Couldn't reach your relays", 'error');
+        toast(t('Couldn’t reach your relays'), 'error');
       } finally {
         // renderProfile() may have replaced this button; guard against a detached node.
         refreshBtn.disabled = false;
@@ -11614,9 +11618,9 @@
       }
     });
     const muteNum = setWaiting(h('strong'), '…', true);
-    const muteStat = h('span', { className: 'profile-stat' }, [muteNum, document.createTextNode(' muted')]);
+    const muteStat = h('span', { className: 'profile-stat' }, I18N.fill(t('{{count}} muted'), { count: muteNum }));
     const followStat = h('div', { className: 'profile-stats' }, [
-      h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
+      h('span', { className: 'profile-stat' }, I18N.fill(t('{{count}} following'), { count: followNum })),
       muteStat,
       refreshBtn,
     ]);
@@ -11627,14 +11631,14 @@
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
     const editBtn = h('button', { className: 'secondary profile-edit-cta' });
-    editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
+    editBtn.append(icon('edit'), h('span', { textContent: t('Edit profile') }));
     editBtn.addEventListener('click', () => openProfileEdit(content));
 
     // Always present, whether or not a status exists. The balloon is also a way in,
     // but it is small, sits on the banner, and is easy to miss as a control; a
     // fixed button beside Edit profile is the one you can always find.
     const statusBtn = h('button', { className: 'secondary profile-status-cta' });
-    statusBtn.append(icon('message-circle'), h('span', { textContent: 'Set status' }));
+    statusBtn.append(icon('message-circle'), h('span', { textContent: t('Set status') }));
     statusBtn.addEventListener('click', () => openStatusEditor(active, paintStatus));
 
     body.append(h('div', { className: 'profile-cta-row' }, [editBtn, statusBtn]));
@@ -11659,14 +11663,14 @@
     // splitting them is what hid the offer. The offer reads through profileOffer, so a
     // field that does not decode shows nothing rather than a broken line, exactly as it
     // behaves on somebody else's sheet.
-    if (content.lud16) body.append(payLine(content.lud16, boltIcon(), 'Lightning address'));
+    if (content.lud16) body.append(payLine(content.lud16, boltIcon(), t('Lightning address')));
     const ownOffer = profileOffer(content);
     // Cut in the middle, at the same 18/6 the handoff button uses, so an offer reads the
     // same wherever it is shown. An offer is around a hundred characters of bech32 and
     // trailing off after the first forty says nothing the first twenty had not: the head
     // is what identifies it at a glance, and the tail is what you check a paste against.
     if (ownOffer) {
-      body.append(payLine(ownOffer.raw, boltIcon(), 'CLINK offer', truncMid(ownOffer.raw, 18, 6)));
+      body.append(payLine(ownOffer.raw, boltIcon(), t('CLINK offer'), truncMid(ownOffer.raw, 18, 6)));
     }
     if (content.website) {
       const w = h('div', { className: 'profile-meta' });
@@ -11714,27 +11718,27 @@
 
     const title = h('div', { className: 'lud16-sync-title' }, [
       boltIcon('lud16-sync-bolt'),
-      h('span', { textContent: 'Lightning address' }),
+      h('span', { textContent: t('Lightning address') }),
     ]);
     const msg = h('p', {
       className: 'lud16-sync-msg',
       textContent: profileAddr
-        ? "Your profile's lightning address differs from your connected wallet's."
-        : "Add your wallet's lightning address to your profile so people can zap you.",
+        ? t('Your profile’s lightning address differs from your connected wallet’s.')
+        : t('Add your wallet’s lightning address to your profile so people can zap you.'),
     });
     const addr = h('div', { className: 'lud16-sync-addr', textContent: walletAddr });
-    const useBtn = h('button', { className: 'primary', textContent: profileAddr ? 'Use wallet address' : 'Add to profile' });
-    const dismiss = h('button', { className: 'ghost', textContent: 'Not now' });
+    const useBtn = h('button', { className: 'primary', textContent: profileAddr ? t('Use wallet address') : t('Add to profile') });
+    const dismiss = h('button', { className: 'ghost', textContent: t('Not now') });
     useBtn.addEventListener('click', async () => {
       useBtn.disabled = true;
-      useBtn.textContent = 'Updating…';
+      useBtn.textContent = t('Updating…');
       try {
         await publishProfile({ lud16: walletAddr }, null); // unlocked → no step-up PIN; additive
-        toast('Lightning address updated', 'success');
+        toast(t('Lightning address updated'), 'success');
         renderProfile(); // re-render: the address now matches, so the notice won't reappear
       } catch (e) {
         useBtn.disabled = false;
-        useBtn.textContent = profileAddr ? 'Use wallet address' : 'Add to profile';
+        useBtn.textContent = profileAddr ? t('Use wallet address') : t('Add to profile');
         toast(e.message, 'error');
       }
     });
@@ -12148,8 +12152,8 @@
 
   // ---- image upload (Blossom → nostr.build via NIP-98) ----
   async function uploadImage(file, kind, forPubkey) {
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
-    if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    if (!file.type.startsWith('image/')) throw new Error(t('Choose an image file'));
+    if (file.size > 10 * 1024 * 1024) throw new Error(t('Image too large (max {{max}} MB)', { max: I18N.fmtNum(10) }));
     const forPk = forPubkey || state.activePubkey;
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -12165,10 +12169,10 @@
     const form = new FormData();
     form.append('file', file);
     const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
-    if (!resp.ok) throw new Error('Upload failed (' + resp.status + ')');
+    if (!resp.ok) throw new Error(t('Upload failed ({{status}})', { status: resp.status }));
     const json = await resp.json().catch(() => null);
     const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
-    if (!u) throw new Error('Upload returned no URL');
+    if (!u) throw new Error(t('Upload returned no URL'));
     return u;
   }
 
@@ -14407,7 +14411,7 @@
     const urlInputs = {};
     const setPreviewFns = {};
 
-    const makeUpload = (label, kind, field, isBanner) => {
+    const makeUpload = (label, kind, field, isBanner, changeLabel, uploadLabel) => {
       const prev = h('div', { className: 'upload-preview' + (isBanner ? ' banner' : '') });
       const overlay = h('span', { className: 'upload-overlay' });
       overlay.append(icon('camera'));
@@ -14421,7 +14425,7 @@
           prev.append(im);
         }
         prev.append(overlay);
-        if (capLabel) capLabel.textContent = url ? 'Change ' + label.toLowerCase() : 'Upload ' + label.toLowerCase();
+        if (capLabel) capLabel.textContent = url ? changeLabel : uploadLabel;
       }
 
       const input = document.createElement('input');
@@ -14429,7 +14433,7 @@
       input.accept = 'image/*';
       input.style.display = 'none';
       const capLabel = h('span', { className: 'upload-cap-label' });
-      const capHint = h('span', { className: 'upload-cap-hint', textContent: 'JPG, PNG or GIF' });
+      const capHint = h('span', { className: 'upload-cap-hint', textContent: t('JPG, PNG or GIF') });
       const caption = h('div', { className: 'upload-caption' }, [capLabel, capHint]);
 
       setPreviewFns[field] = setPreview;
@@ -14445,7 +14449,7 @@
         err.textContent = '';
         prev.classList.add('uploading');
         const before = capLabel.textContent;
-        capLabel.textContent = 'Uploading…';
+        capLabel.textContent = t('Uploading…');
         try {
           const u = await uploadImage(file, kind);
           draft[field] = u;
@@ -14465,16 +14469,16 @@
       );
     };
 
-    makeUpload('Avatar', 'profile', 'picture', false);
-    makeUpload('Banner', 'files', 'banner', true);
+    makeUpload(t('Avatar'), 'profile', 'picture', false, t('Change avatar'), t('Upload avatar'));
+    makeUpload(t('Banner'), 'files', 'banner', true, t('Change banner'), t('Upload banner'));
 
     const fieldDefs = [
-      ['display_name', 'Display name', 'text'],
-      ['name', 'Username', 'text'],
-      ['about', 'About', 'textarea'],
-      ['nip05', 'NIP-05 identifier', 'text'],
-      ['lud16', 'Lightning address', 'text'],
-      ['website', 'Website', 'text'],
+      ['display_name', t('Display name'), 'text'],
+      ['name', t('Username'), 'text'],
+      ['about', t('About'), 'textarea'],
+      ['nip05', t('NIP-05 identifier'), 'text'],
+      ['lud16', t('Lightning address'), 'text'],
+      ['website', t('Website'), 'text'],
     ];
     const inputs = {};
     fieldDefs.forEach(([key, label, type]) => {
@@ -14491,9 +14495,9 @@
     const adv = document.createElement('details');
     adv.className = 'advanced';
     const sum = document.createElement('summary');
-    sum.textContent = 'Advanced';
+    sum.textContent = t('Advanced');
     adv.append(sum);
-    [['picture', 'Avatar URL'], ['banner', 'Banner URL']].forEach(([field, label]) => {
+    [['picture', t('Avatar URL')], ['banner', t('Banner URL')]].forEach(([field, label]) => {
       adv.append(h('label', { className: 'field-label', textContent: label }));
       const inp = document.createElement('input');
       inp.type = 'text';
@@ -14511,7 +14515,7 @@
     // Lightning address a CLINK wallet can pay without any custodian in the
     // middle. Cleared as easily as set: an empty field removes it from the
     // profile entirely.
-    adv.append(h('label', { className: 'field-label', textContent: 'CLINK offer' }));
+    adv.append(h('label', { className: 'field-label', textContent: t('CLINK offer') }));
     const nofferInp = document.createElement('input');
     nofferInp.type = 'text';
     nofferInp.placeholder = 'noffer1…';
@@ -14522,20 +14526,20 @@
     adv.append(nofferInp);
     adv.append(h('p', {
       className: 'hint',
-      textContent: 'A CLINK static offer for self-custodial Lightning payments. Generate one with Zeus, ShockWallet or Lightning.Pub.',
+      textContent: t('A CLINK static offer for self-custodial Lightning payments. Generate one with Zeus, ShockWallet or Lightning.Pub.'),
     }));
     body.append(adv);
 
-    body.append(h('label', { className: 'field-label', textContent: 'PIN (required to publish)' }));
+    body.append(h('label', { className: 'field-label', textContent: tSec('PIN (required to publish)') }));
     const pin = h('input', { type: 'password', maxLength: 32 });
     body.append(pin, err);
 
-    const publish = h('button', { className: 'primary', textContent: 'Publish profile' });
+    const publish = h('button', { className: 'primary', textContent: t('Publish profile') });
     publish.addEventListener('click', async () => {
       err.textContent = '';
-      if (!pin.value) return (err.textContent = 'Enter your PIN to publish.');
+      if (!pin.value) return (err.textContent = tSec('Enter your PIN to publish.'));
       publish.disabled = true;
-      publish.textContent = 'Publishing…';
+      publish.textContent = t('Publishing…');
       try {
         const fields = { picture: draft.picture || '', banner: draft.banner || '' };
         fieldDefs.forEach(([k]) => (fields[k] = inputs[k].value));
@@ -14551,7 +14555,7 @@
         // compared the panel's source against the same wrong literal, so it agreed with
         // the bug instead. One function, no charset here to get wrong.
         if (draft.noffer && !window.SidecarCLINK.isNofferString(draft.noffer)) {
-          return (err.textContent = 'That does not look like a CLINK offer. It starts with noffer1.');
+          return (err.textContent = t('That does not look like a CLINK offer. It starts with noffer1.'));
         }
         fields.noffer = draft.noffer;
         // Whichever alternate key the value was read from, publishing consolidates
@@ -14564,11 +14568,11 @@
         show($('view-main'));
         renderProfile();
         renderMain();
-        toast('Profile published', 'success');
+        toast(t('Profile published'), 'success');
       } catch (e) {
         err.textContent = e.message;
         publish.disabled = false;
-        publish.textContent = 'Publish profile';
+        publish.textContent = t('Publish profile');
         toast(e.message, 'error');
       }
     });
@@ -14616,10 +14620,10 @@
       // for — never risk overwriting a different account's profile.
       const targetOk = !newPubkey || state.activePubkey === newPubkey;
       if (hasContent && !targetOk) {
-        toast('Profile setup skipped — active account changed.', 'error');
+        toast(t('Profile setup skipped — active account changed.'), 'error');
       } else if (hasContent) {
         const primaryBtn = $('modal').querySelector('button.primary');
-        if (primaryBtn) { primaryBtn.disabled = true; primaryBtn.textContent = 'Saving…'; }
+        if (primaryBtn) { primaryBtn.disabled = true; primaryBtn.textContent = t('Saving…'); }
         // Publish and wait for the store to update BEFORE navigating/closing, so
         // the Profile tab renders the chosen name, not the interim cocktail name.
         try {
@@ -14632,7 +14636,7 @@
       if (tab) tab.click();
       renderMain();
       closeModal();
-      if (hasContent && targetOk) toast('Profile saved', 'success');
+      if (hasContent && targetOk) toast(t('Profile saved'), 'success');
       // Deferred a tick for the same reason nsecModal defers: closeModal clears
       // #modal right after this returns, and onDone opens another modal.
       if (onDone) setTimeout(onDone, 0);
@@ -14640,7 +14644,7 @@
 
     openModal(
       (modal) => {
-        const xBtn = h('button', { className: 'modal-x', title: 'Skip' });
+        const xBtn = h('button', { className: 'modal-x', title: t('Skip') });
         xBtn.appendChild(icon('x'));
         xBtn.addEventListener('click', commit);
         const body = h('div', { className: 'setup-modal' });
@@ -14648,7 +14652,7 @@
 
         const head = (title, sub) => {
           const parts = [
-            h('div', { className: 'setup-progress', textContent: 'Step ' + step + ' of ' + STEPS }),
+            h('div', { className: 'setup-progress', textContent: t('Step {{step}} of {{total}}', { step: I18N.fmtNum(step), total: I18N.fmtNum(STEPS) }) }),
             h('h3', { textContent: title }),
           ];
           if (sub) parts.push(h('p', { className: 'hint', textContent: sub }));
@@ -14658,14 +14662,14 @@
         const footer = (primaryLabel, onPrimary) => {
           const row = h('div', { className: 'actions setup-actions' });
           if (step > 1) {
-            const back = h('button', { className: 'ghost', textContent: 'Back' });
+            const back = h('button', { className: 'ghost', textContent: t('Back') });
             back.addEventListener('click', () => { step -= 1; render(); });
             row.append(back);
           }
           const primary = h('button', { className: 'primary', textContent: primaryLabel });
           primary.addEventListener('click', onPrimary);
           row.append(primary);
-          const later = h('button', { className: 'setup-skip', textContent: "I'll do this later" });
+          const later = h('button', { className: 'setup-skip', textContent: t('I’ll do this later') });
           later.addEventListener('click', commit);
           return h('div', {}, [row, later]);
         };
@@ -14678,14 +14682,14 @@
         }
 
         function renderName() {
-          const input = h('input', { type: 'text', placeholder: 'e.g. Gatsby' });
+          const input = h('input', { type: 'text', placeholder: t('e.g. Gatsby') });
           input.value = draft.display_name;
           input.addEventListener('input', () => { draft.display_name = input.value; });
           body.append(
-            ...head('What should people call you?', 'Your display name — you can change it any time.'),
-            h('label', { className: 'field-label', textContent: 'Display name' }),
+            ...head(t('What should people call you?'), t('Your display name — you can change it any time.')),
+            h('label', { className: 'field-label', textContent: t('Display name') }),
             input,
-            footer('Continue', () => { step = 2; render(); })
+            footer(t('Continue'), () => { step = 2; render(); })
           );
           setTimeout(() => input.focus(), 30);
         }
@@ -14699,7 +14703,7 @@
           fileInput.accept = 'image/*';
           fileInput.style.display = 'none';
           const capLabel = h('span', { className: 'upload-cap-label' });
-          const capHint = h('span', { className: 'upload-cap-hint', textContent: 'JPG, PNG or GIF' });
+          const capHint = h('span', { className: 'upload-cap-hint', textContent: t('JPG, PNG or GIF') });
           const setPreview = (url) => {
             prev.innerHTML = '';
             prev.classList.toggle('empty', !url);
@@ -14710,7 +14714,7 @@
               prev.append(im);
             }
             prev.append(overlay);
-            capLabel.textContent = url ? 'Change photo' : 'Upload a photo';
+            capLabel.textContent = url ? t('Change photo') : t('Upload a photo');
           };
           setPreview(draft.picture);
           const trigger = () => fileInput.click();
@@ -14722,7 +14726,7 @@
             if (!file) return;
             prev.classList.add('uploading');
             const before = capLabel.textContent;
-            capLabel.textContent = 'Uploading…';
+            capLabel.textContent = t('Uploading…');
             try {
               const u = await uploadImage(file, 'profile');
               draft.picture = u;
@@ -14735,22 +14739,22 @@
             fileInput.value = '';
           });
           body.append(
-            ...head('Add a photo', 'Optional — a picture helps people recognize you.'),
+            ...head(t('Add a photo'), t('Optional — a picture helps people recognize you.')),
             h('div', { className: 'upload-row', role: 'button' }, [prev, caption, fileInput]),
-            footer('Continue', () => { step = 3; render(); })
+            footer(t('Continue'), () => { step = 3; render(); })
           );
         }
 
         function renderBio() {
           const ta = document.createElement('textarea');
           ta.value = draft.about;
-          ta.placeholder = 'A sentence or two about you.';
+          ta.placeholder = t('A sentence or two about you.');
           ta.addEventListener('input', () => { draft.about = ta.value; });
           body.append(
-            ...head('Write a short bio', 'Optional — you can flesh out your profile next.'),
+            ...head(t('Write a short bio'), t('Optional — you can flesh out your profile next.')),
             h('label', { className: 'field-label', textContent: 'About' }),
             ta,
-            footer('Finish', commit)
+            footer(t('Finish'), commit)
           );
           autosizeTextarea(ta); // after append — see the helper
         }
@@ -16387,26 +16391,26 @@
   // like a settings screen (see the balloon in renderProfile).
   function openStatusEditor(active, onDone) {
     openModal((modal) => {
-      modal.append(h('h3', { textContent: 'Status' }));
+      modal.append(h('h3', { textContent: t('Status') }));
       modal.append(h('p', {
         className: 'hint',
-        textContent: 'A short line about what you are doing. Anyone can see it.',
+        textContent: t('A short line about what you are doing. Anyone can see it.'),
       }));
 
-      const text = h('input', { type: 'text', className: 'status-input', placeholder: 'Working, hiking, out of office…' });
+      const text = h('input', { type: 'text', className: 'status-input', placeholder: t('Working, hiking, out of office…') });
       text.maxLength = 140;
-      const link = h('input', { type: 'text', className: 'status-input', placeholder: 'Optional link' });
+      const link = h('input', { type: 'text', className: 'status-input', placeholder: t('Optional link') });
       const expiry = h('select', { className: 'status-input' });
       STATUS_DURATIONS.forEach((d, i) => {
-        expiry.append(h('option', { value: String(d.seconds), textContent: d.label, selected: i === 0 }));
+        expiry.append(h('option', { value: String(d.seconds), textContent: d.label(), selected: i === 0 }));
       });
 
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Set status' });
+      const save = h('button', { className: 'primary', textContent: t('Set status') });
       // Full width beneath the content, never inline beside it (CLAUDE.md): a
       // labelled destructive action in a side slot is what collapses these rows.
-      const clear = h('button', { className: 'secondary hidden', textContent: 'Clear status' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const clear = h('button', { className: 'secondary hidden', textContent: t('Clear status') });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
 
       async function publish(fields, btn, busy) {
         err.textContent = '';
@@ -16416,7 +16420,7 @@
         try {
           const st = await publishStatus(fields);
           if (onDone) onDone(st);
-          toast(st ? 'Status set' : 'Status cleared', 'success');
+          toast(st ? t('Status set') : t('Status cleared'), 'success');
           closeModal();
         } catch (e) {
           err.textContent = e.message;
@@ -16427,11 +16431,11 @@
 
       save.addEventListener('click', () => {
         const value = text.value.trim();
-        if (!value) { err.textContent = 'Write something, or clear the status.'; return; }
-        publish({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, save, 'Publishing…');
+        if (!value) { err.textContent = t('Write something, or clear the status.'); return; }
+        publish({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, save, t('Publishing…'));
       });
       // Empty content IS the clear — see statusEvent. Not a deletion request.
-      clear.addEventListener('click', () => publish({ text: '' }, clear, 'Clearing…'));
+      clear.addEventListener('click', () => publish({ text: '' }, clear, t('Clearing…')));
       cancel.addEventListener('click', closeModal);
 
       modal.append(text, link, expiry, err, save, clear, cancel);
