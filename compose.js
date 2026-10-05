@@ -504,6 +504,9 @@
   // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
   // is a face, a name and the text, all of which this file already knows how to get.
   function paintReplyTarget() {
+    // The dev controls depend on whether this is a reply, and every path that changes
+    // that comes through here.
+    paintDevControls();
     const box = document.getElementById('compose-reply-target');
     if (!box) return;
     box.innerHTML = '';
@@ -563,6 +566,165 @@
       }
       if (p && p.picture) applyAvatar(av, p);
     }).catch(() => {});
+  }
+
+  // ---- the dev-build composer fixtures, as the panel has them ----
+  //
+  // Dev tools in the panel switches on three authoring aids: an event kind other than
+  // the one a reply would take, p tags the text never mentions, and a reply to any event
+  // by id. This tab has the same three, under the same switches, from the same
+  // composer-core functions, so an event authored here is the event the panel would
+  // have made. Dev builds only: a store build never draws them, whatever a setting says.
+  let devBuild = false;
+  const devBuildReady = (async () => {
+    try {
+      if (typeof browser !== 'undefined' && browser.management) {
+        devBuild = (await browser.management.getSelf()).installType === 'development';
+      } else {
+        devBuild = !chrome.runtime.getManifest().update_url;
+      }
+    } catch (_) { devBuild = false; }
+  })();
+  const devOn = { kind: false, silent: false, reply: false }; // the switches, read at boot
+  let devKind = 0;          // 0 is Automatic: the kind a reply would take anyway
+  let devSilentText = '';   // kept across repaints, which rebuild the field
+  let devReplyField = null; // the reply-by-id field, so Post can see an id left in it
+
+  async function initDevControls(settings) {
+    await devBuildReady;
+    if (!devBuild) return;
+    devOn.kind = settings?.devComposerKinds === true;
+    devOn.silent = settings?.devSilentTags === true;
+    devOn.reply = settings?.devReplyById === true;
+    paintDevControls();
+  }
+
+  function paintDevControls() {
+    const box = document.getElementById('compose-dev');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!devBuild) { box.classList.add('hidden'); return; }
+    // A comment needs something to comment on, so 1111 goes back to Automatic when the
+    // reply does.
+    if (!replyTo && devKind === SC.WEB_COMMENT_KIND) devKind = 0;
+    const parts = [];
+    if (devOn.kind) parts.push(buildDevKindSelector());
+    if (devOn.silent) parts.push(buildDevSilentTags());
+    if (devOn.reply && !replyTo) parts.push(buildDevReplyTo());
+    box.append(...parts);
+    box.classList.toggle('hidden', !parts.length);
+  }
+
+  function buildDevKindSelector() {
+    const select = h('select', { id: 'compose-dev-kind' });
+    select.append(
+      h('option', { value: '0', textContent: t('Automatic') }),
+      h('option', { value: '1', textContent: t('Kind 1 — note') }),
+      h('option', { value: '1111', textContent: t('Kind 1111 — comment'), disabled: !replyTo }),
+    );
+    select.value = String(devKind);
+    select.disabled = !!draft.poll;
+    const hint = h('p', { className: 'hint' });
+    const paint = () => {
+      hint.textContent = draft.poll ? t('Polls use their own event kind.')
+        : !replyTo ? t('Start with a note, then choose either kind when replying.')
+        : devKind === 1 && replyTo.kind === SC.WEB_COMMENT_KIND
+        ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
+        : t('Dev build only. Automatic preserves the kind of the event you answer.');
+    };
+    select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+    paint();
+    return h('div', { className: 'compose-dev-kind' }, [
+      h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
+    ]);
+  }
+
+  function buildDevSilentTags() {
+    const field = h('input', {
+      type: 'text', id: 'compose-dev-silent', className: 'status-input',
+      placeholder: t('npub1… or hex, space separated'), value: devSilentText,
+    });
+    const hint = h('p', { className: 'hint' });
+    const paint = () => {
+      const n = SC.parseSilentTags(field.value, NT).length;
+      hint.textContent = !field.value.trim()
+        ? t('Dev build only. Adds a p tag with no mention in the text.')
+        : n === 0 ? t('Nothing readable here yet. npub1… or 64 hex characters.')
+        : tn('{{count}} key will be tagged, invisibly.', '{{count}} keys will be tagged, invisibly.', n);
+    };
+    field.addEventListener('input', () => { devSilentText = field.value; paint(); });
+    paint();
+    return h('div', { className: 'compose-dev-kind' }, [
+      h('label', { htmlFor: 'compose-dev-silent', textContent: t('Silent p tags') }), field, hint,
+    ]);
+  }
+
+  // A pubkey's write relays from its kind 10002, for an nevent that names its author.
+  async function devOutboxOf(pubkey) {
+    const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+    const ev = await pool().get(relays, { kinds: [10002], authors: [pubkey] }).catch(() => null);
+    if (!ev || ev.pubkey !== pubkey) return [];
+    return ev.tags.filter((tg) => tg[0] === 'r' && tg[1] && (!tg[2] || tg[2] === 'write')).map((tg) => tg[1]);
+  }
+  async function devAuthorOf(id) {
+    const ev = await pool().get(await relayUrls(false), { ids: [id] }).catch(() => null);
+    return ev && ev.id === id ? ev.pubkey : null;
+  }
+
+  // REPLY TO ANY EVENT. The event goes into that reply's own draft slot, with the text
+  // already typed, and the tab switches to it the way it switches to any draft, so the
+  // target, the slot and Post are the ordinary reply's. The note draft is emptied, so the
+  // words live in one draft, not two.
+  function buildDevReplyTo() {
+    const field = h('input', {
+      type: 'text', id: 'compose-dev-reply', className: 'status-input',
+      placeholder: t('note1…, nevent1… or hex'),
+    });
+    // Rule 2 of the narrow-panel rules: a button with words takes its own row.
+    const go = h('button', { type: 'button', className: 'secondary', textContent: t('Reply to this event') });
+    const hint = h('p', { className: 'hint', textContent: t('Dev build only. Paste an ID, or type one and press Enter.') });
+    devReplyField = field;
+    const load = async () => {
+      if (busy() || go.disabled) return;
+      const ref = SC.parseEventRef(field.value, NT);
+      if (!ref) { hint.textContent = t('Not an event ID. Use note1…, nevent1… or 64 hex characters.'); return; }
+      if ((draft.media || []).length || draft.poll) {
+        hint.textContent = t('Load the event before adding media or a poll.');
+        return;
+      }
+      go.disabled = true;
+      hint.textContent = t('Looking for the event…');
+      const ev = await SC.fetchEventRef(ref, {
+        ownRelays: () => relayUrls(false),
+        outboxOf: devOutboxOf,
+        get: (relays, filter) => pool().get(relays, filter),
+      });
+      if (!ev) {
+        go.disabled = false;
+        hint.textContent = t('No relay returned that event.');
+        return;
+      }
+      const text = draft.text || '';
+      draft.text = '';
+      await flushDraft(); // an empty note draft is deleted, so the text is only in the reply
+      const target = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content };
+      const key = state.activePubkey + '|r:' + ev.id; // slotFor's shape for a reply
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+      const prior = all[key];
+      // A reply to this event already being written keeps its own words; this one's are
+      // added after them rather than written over them.
+      const kept = (prior && prior.text && prior.text.trim()) ? prior.text + (text.trim() ? '\n\n' + text : '') : text;
+      all[key] = { ...(prior || {}), text: kept, media: (prior && prior.media) || [], replyTo: target, savedAt: Date.now() };
+      await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+      await switchToDraft(ev.id);
+    };
+    go.addEventListener('click', load);
+    // A paste or Enter loads the id; Post refuses while an unloaded one is in the field.
+    field.addEventListener('paste', () => setTimeout(() => { if (SC.parseEventRef(field.value, NT)) load(); }, 0));
+    field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); load(); } });
+    return h('div', { className: 'compose-dev-kind compose-dev-reply' }, [
+      h('label', { htmlFor: 'compose-dev-reply', textContent: t('Reply to an event') }), field, go, hint,
+    ]);
   }
 
   // ---- the other drafts, one tap away ----
@@ -855,15 +1017,28 @@
       // THREADING FIRST, from the same builder the panel uses. NIP-10 readers take the
       // first e marked root as the thread and NIP-22 scope is read positionally, so
       // these lead; the client tag and imeta follow.
-      const reply = replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
+      // The client tag is opt-out in Settings, which this page did not read either, and
+      // the dev switches are read here too: the build, the switch read at boot, and the
+      // switch read again now, because the tab can be open for a long time and a silent
+      // tag is invisible in the note.
+      const settings = (await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => null)) || {};
+      const kindOverride = devBuild && devOn.kind && settings.devComposerKinds === true && devKind && !draft.poll;
+      const reply = kindOverride
+        ? await SC.devReplyTags(replyTo, devKind, state.activePubkey, devAuthorOf)
+        : replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
       // WHAT THE TEXT TAGS, the same as the panel: a p tag for everyone mentioned and
       // every author quoted, and a q tag for every note quoted. This page went without
       // them from its first release, so a mention written here never notified anyone
       // and a quote did not read as one.
       const body = SC.noteBodyTags(text, NT, reply ? reply.tags : []);
-      // The client tag is opt-out in Settings, which this page did not read either.
-      const settings = (await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => null)) || {};
       const clientTag = settings.showClientTag === false ? [] : [['client', 'Sidecar']];
+      // DEV ONLY: silent p tags, deduped against the threading and the text's own.
+      const replyP = new Set((reply ? reply.tags : []).filter((tg) => tg[0] === 'p').map((tg) => tg[1]));
+      const silentP = devBuild && devOn.silent && settings.devSilentTags === true
+        ? SC.parseSilentTags(devSilentText, NT)
+            .filter((hex) => !replyP.has(hex) && !body.p.some((tg) => tg[1] === hex))
+            .map((hex) => ['p', hex])
+        : [];
       // A POLL IS ITS OWN KIND, and never a reply: a 1068 answering a note is not a
       // shape anything threads, which is why the editor refuses to offer one there.
       const asPoll = draft.poll && !replyTo;
@@ -878,6 +1053,7 @@
           ...(reply ? reply.tags : []),
           ...clientTag,
           ...body.p,
+          ...silentP,
           ...body.q,
           ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
           ...SC.imetaTagsForMedia(draft.media),
@@ -1560,6 +1736,7 @@
     // reply is visible, a reply silently published as a note is not.
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
     paintReplyTarget();
+    initDevControls(settings);
     paintSavedDrafts();
     // A reply started in the panel while this tab sat in the background shows up when
     // you come back to it.
@@ -1635,6 +1812,12 @@
     $('compose-post').addEventListener('click', () => {
       if (mining) return composer.powCancel();
       if (countdown) return; // the review window owns the screen while it runs
+      // Dev builds: an event ID typed for reply-by-id but never loaded would otherwise go
+      // out as a plain note. The field exists only in a dev build.
+      if (devReplyField && devReplyField.isConnected && devReplyField.value.trim() && !replyTo) {
+        $('compose-err').textContent = t('Press Reply to this event first, or clear the field.');
+        return;
+      }
       reviewThenPost();
     });
 

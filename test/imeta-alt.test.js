@@ -226,7 +226,7 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   assert.match(pageBare, /\.\.\.SC\.imetaTagsForMedia\(draft\.media\),\s*\n\s*\],/);
   // The client tag is the Settings-governed clientTag now, and the text's own p and q
   // tags follow it, as in the panel.
-  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\.\.\.clientTag,\s*\n\s*\.\.\.body\.p,\s*\n\s*\.\.\.body\.q,/);
+  assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\.\.\.clientTag,\s*\n\s*\.\.\.body\.p,\s*\n\s*\.\.\.silentP,\s*\n\s*\.\.\.body\.q,/);
 });
 
 test('THE STRIP REORDERS BY MORE THAN DRAG', () => {

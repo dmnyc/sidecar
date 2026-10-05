@@ -68,7 +68,8 @@ async function panelTags({ text, media = [], replyTo = null, showClientTag = tru
 
 // The tab's publish lines, from the reply to the template, run as they are.
 async function tabTags({ text, media = [], replyTo = null, showClientTag = true }) {
-  const at = page.indexOf('      const reply = replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;');
+  const at = page.indexOf("      const settings = (await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => null)) || {};");
+  assert.ok(at !== -1, 'the tab\'s publish no longer starts where this test reads it');
   const end = page.indexOf('      // MINE FIRST, THEN SIGN.', at);
   const seg = page.slice(at, end);
   const ctx = {
@@ -78,6 +79,8 @@ async function tabTags({ text, media = [], replyTo = null, showClientTag = true 
     state: { activePubkey: ME },
     call: async () => ({ showClientTag }),
     targetRelays: async () => [],
+    // A store build: the dev aids are off.
+    devBuild: false, devOn: {}, devKind: 0, devSilentText: '', devAuthorOf: async () => null,
   };
   vm.createContext(ctx);
   await vm.runInContext('(async () => {' + seg + '; globalThis.OUT = { tags: template.tags, content: template.content }; })()', ctx);

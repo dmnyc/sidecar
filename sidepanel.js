@@ -4740,6 +4740,15 @@
   // commenting on the same page land in the same thread. Getting it wrong doesn't
   // error — it silently splits the conversation.
   const { replyTags: SC_replyTags, WEB_COMMENT_KIND, renderTextWithCode, makeMediaExpandable } = window.SidecarCore;
+  // The dev-build composer fixtures live in composer-core, so the expanded tab has them too.
+  // Wrapped under their own names: the panel supplies nostr-tools and its own relays.
+  const devParseSilentTags = (text) => window.SidecarCore.parseSilentTags(text, NT);
+  const devParseEventRef = (text) => window.SidecarCore.parseEventRef(text, NT);
+  const devFetchEventRef = (ref) => window.SidecarCore.fetchEventRef(ref, {
+    ownRelays: () => relayUrls(false),
+    outboxOf: async (pk) => ((await getNip65(pk)) || {}).write || [],
+    get: (relays, filter) => poolGet(relays, filter),
+  });
 
   // ---- Polls (NIP-88) ----
   //
@@ -5142,37 +5151,12 @@
   // active account is the panel's to know: the core must not reach for a global.
   const replyTags = (target) => SC_replyTags(target, state.activePubkey);
 
-  // Unpacked-build fixture authoring only. Production replies always use replyTags.
+  // Unpacked-build fixture authoring only. Production replies always use replyTags. The
+  // tags themselves are composer-core's devReplyTags, shared with the expanded tab.
   async function devComposerReply(target, selectedKind) {
     if (!isDevBuild() || !selectedKind) return target ? replyTags(target) : null;
-    if (!target) {
-      if (selectedKind === WEB_COMMENT_KIND) throw new Error('Reply to a note to create a kind 1111 comment.');
-      return null;
-    }
-    const normal = replyTags(target);
-    if (selectedKind === normal.kind) return normal;
-    const people = normal.tags.filter((t) => t[0] === 'p');
-    if (selectedKind === WEB_COMMENT_KIND) {
-      const rootTag = (target.tags || []).find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
-      const rootId = rootTag ? rootTag[1] : target.id;
-      const rootAuthor = rootId === target.id ? target.pubkey
-        : rootTag[4] || (await fetchNoteById(rootId))?.pubkey;
-      if (!rootAuthor) throw new Error('Could not load the thread author. Try again before posting this comment.');
-      return { kind: WEB_COMMENT_KIND, tags: [
-        ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
-        ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,
-      ] };
-    }
-    // Intentionally nonstandard: useful for testing tolerant readers of mixed threads.
-    const root = (target.tags || []).find((t) => t[0] === 'E' && t[1]);
-    const rootId = root ? root[1] : target.id;
-    const rootAuthor = (target.tags || []).find((t) => t[0] === 'P' && t[1])?.[1] || root?.[3];
-    if (rootAuthor && rootAuthor !== state.activePubkey && !people.some((t) => t[1] === rootAuthor)) {
-      people.push(['p', rootAuthor]);
-    }
-    const tags = [['e', rootId, root?.[2] || '', 'root']];
-    if (rootId !== target.id) tags.push(['e', target.id, '', 'reply']);
-    return { kind: 1, tags: [...tags, ...people] };
+    return window.SidecarCore.devReplyTags(target, selectedKind, state.activePubkey,
+      async (id) => (await fetchNoteById(id))?.pubkey);
   }
 
   // `includeClientTag` comes from the same Settings toggle that governs notes, so
@@ -12964,17 +12948,20 @@
     await devBuildReady;
     let devKindEnabled = false;
     let devSilentEnabled = false;
+    let devReplyEnabled = false;
     if (isDevBuild()) {
       try {
         const ds = await call({ type: 'SIDECAR_GET_SETTINGS' });
         devKindEnabled = ds?.devComposerKinds === true;
         devSilentEnabled = ds?.devSilentTags === true;
+        devReplyEnabled = ds?.devReplyById === true;
       }
       catch (_) {} // Missing/unavailable settings leave demo controls off.
     }
     // Deliberately not saved in drafts: a demo override belongs to this opening only.
     let devKind = 0;
     let devSilentInput = null;   // the field, so publish can read it without a lookup
+    let devReplyField = null;    // the reply-by-id field, so Post can see an id left in it
     // `let`, not const: a saved draft can carry its own reply target, and resuming one
     // has to put the composer back into reply mode.
     let replyTo = (opts && opts.replyTo) || null;
@@ -13330,7 +13317,7 @@
       // tagged for a reason stays tagged once and keeps its position. A silent tag is
       // additive or it is nothing.
       const silentP = isDevBuild() && devSilentEnabled && settings?.devSilentTags === true
-        ? parseSilentTags(devSilentInput ? devSilentInput.value : '')
+        ? devParseSilentTags(devSilentInput ? devSilentInput.value : '')
             .filter((hex) => !already.has(hex) && !bodyP.some((t) => t[1] === hex))
             .map((hex) => ['p', hex])
         : [];
@@ -13412,23 +13399,65 @@
     // Pure, so the decoding can be tested without a composer: takes whatever was typed,
     // gives back deduped hex pubkeys, and silently drops anything it cannot read rather
     // than guessing. A malformed npub must not become a tag pointing at somebody else.
-    function parseSilentTags(text) {
-      const out = [];
-      const seen = new Set();
-      String(text || '').split(/[\s,]+/).forEach((tok) => {
-        const t = tok.trim().replace(/^nostr:/i, '');
-        if (!t) return;
-        let hex = '';
-        if (/^[0-9a-f]{64}$/i.test(t)) hex = t.toLowerCase();
-        else if (/^npub1/i.test(t)) {
-          try {
-            const d = NT.nip19.decode(t);
-            if (d && d.type === 'npub' && typeof d.data === 'string') hex = d.data;
-          } catch (_) {}
-        }
-        if (hex && !seen.has(hex)) { seen.add(hex); out.push(hex); }
+
+    // REPLY TO ANY EVENT, by id. A dev-build fixture tool like the two controls beside
+    // it: replying to a particular event (a kind no client here can open, an event only a
+    // test relay holds) otherwise means finding it in a client that hands it to Sidecar.
+    //
+    // It does not build a reply of its own. It finds the event and reopens this
+    // composer as a reply to it, so the threading tags, the quoted parent, the kind a
+    // reply takes and the tab handoff are the same code every other reply runs through.
+    // The text already typed goes with it and the note draft is emptied, so the words
+    // live in one draft, not two.
+    //
+    // note1…, nevent1… (its relay hints and author are used) or 64 hex characters.
+    // Anything else is refused rather than guessed at.
+    function buildDevReplyTo() {
+      if (!isDevBuild() || !devReplyEnabled || replyTo) return null;
+      const field = h('input', {
+        type: 'text', id: 'compose-dev-reply', className: 'status-input',
+        placeholder: t('note1…, nevent1… or hex'),
       });
-      return out;
+      // Rule 2 of the narrow-panel rules in CLAUDE.md: a button with words takes its own
+      // full-width row under the field, never a slot beside it.
+      const go = h('button', { type: 'button', className: 'secondary', textContent: t('Reply to this event') });
+      const hint = h('p', { className: 'hint', textContent: t('Dev build only. Paste an ID, or type one and press Enter.') });
+      devReplyField = field;
+      const load = async () => {
+        if (go.disabled) return;
+        const ref = devParseEventRef(field.value);
+        if (!ref) { hint.textContent = t('Not an event ID. Use note1…, nevent1… or 64 hex characters.'); return; }
+        if ((draft.media || []).length || draft.poll) {
+          hint.textContent = t('Load the event before adding media or a poll.');
+          return;
+        }
+        go.disabled = true;
+        hint.textContent = t('Looking for the event…');
+        const ev = await devFetchEventRef(ref);
+        if (!modal.isConnected) return;
+        if (!ev) {
+          go.disabled = false;
+          hint.textContent = t('No relay returned that event.');
+          return;
+        }
+        const text = draft.text || '';
+        // Emptied and saved, which deletes the note slot (saveComposeDraft keeps nothing
+        // for an empty draft), so the text now lives only in the reply.
+        draft.text = '';
+        await flushDraftNow();
+        switchingDraft = true;
+        closeModal();
+        openComposer(text, { replyTo: { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content } });
+      };
+      go.addEventListener('click', load);
+      // AN ID IN THE FIELD IS AN ID TO LOAD. Typing one and pressing Post published a plain
+      // note, because only the button turned the composer into a reply. A paste or Enter
+      // loads it now, and Post refuses while an unloaded one is still there (below).
+      field.addEventListener('paste', () => setTimeout(() => { if (devParseEventRef(field.value)) load(); }, 0));
+      field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); load(); } });
+      return h('div', { className: 'compose-dev-kind compose-dev-reply' }, [
+        h('label', { htmlFor: 'compose-dev-reply', textContent: t('Reply to an event') }), field, go, hint,
+      ]);
     }
 
     function buildDevSilentTags() {
@@ -13440,7 +13469,7 @@
       devSilentInput = field;
       const hint = h('p', { className: 'hint' });
       const paint = () => {
-        const n = parseSilentTags(field.value).length;
+        const n = devParseSilentTags(field.value).length;
         const typed = field.value.trim();
         hint.textContent = !typed
           ? t('Dev build only. Adds a p tag with no mention in the text.')
@@ -13973,6 +14002,12 @@
       // puts it back to Post. (repeatAsked lives with the composer, above.)
       post.addEventListener('click', async () => {
         if (post.disabled) return;
+        // Dev builds: an event ID typed for reply-by-id but never loaded would otherwise
+        // go out as a plain note. The field exists only in a dev build.
+        if (devReplyField && devReplyField.isConnected && devReplyField.value.trim() && !replyTo) {
+          err.textContent = t('Press Reply to this event first, or clear the field.');
+          return;
+        }
         closeAltEditor(); // the description commits before the note is snapshotted
         const fp = await postFingerprint(pubkey, draft, replyTo);
         const at = repeatAsked === fp ? 0 : await recentlyPostedAt(fp);
@@ -14067,6 +14102,7 @@
         ...(replyTo ? [buildReplyBlock()] : []),
         ...(isDevBuild() && devKindEnabled ? [buildDevKindSelector()] : []),
         ...(isDevBuild() && devSilentEnabled ? [buildDevSilentTags()] : []),
+        ...(isDevBuild() && devReplyEnabled && !replyTo ? [buildDevReplyTo()] : []),
         tabBar,
         editorWrap,
         previewPane,
@@ -14146,7 +14182,7 @@
       // and that the note will not mention them. A control whose whole effect is hidden
       // needs somewhere the author can check it before pressing Post.
       if (isDevBuild() && devSilentEnabled) {
-        const n = parseSilentTags(devSilentInput ? devSilentInput.value : '').length;
+        const n = devParseSilentTags(devSilentInput ? devSilentInput.value : '').length;
         if (n) {
           previewScroll.append(h('p', {
             className: 'hint',
@@ -23519,6 +23555,23 @@
         }
       });
 
+      // Reply to an event by its id, from the main composer. Same switch shape again.
+      const replyToggle = h('input', {
+        type: 'checkbox', checked: devSettings.devReplyById === true,
+      });
+      replyToggle.addEventListener('change', async () => {
+        const enabled = replyToggle.checked;
+        replyToggle.disabled = true;
+        try {
+          await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devReplyById: enabled } });
+        } catch (_) {
+          replyToggle.checked = !enabled;
+          toast('Could not save the demo setting', 'error');
+        } finally {
+          replyToggle.disabled = false;
+        }
+      });
+
       // SEEING THE UPDATE CARD WITHOUT UPDATING. It is armed by chrome.runtime.onInstalled,
       // which is exactly the event you cannot fire at yourself on an unpacked build, so
       // without this there is no way to look at it on a local build. It writes the same
@@ -23546,6 +23599,10 @@
           silentToggle, h('span', { textContent: 'Silent p tags' }),
         ]),
         h('p', { className: 'hint', textContent: 'Tag keys in the composer that the note itself never mentions. Applies when you next open the composer.' }),
+        h('label', { className: 'toggle-row' }, [
+          replyToggle, h('span', { textContent: 'Reply to any event' }),
+        ]),
+        h('p', { className: 'hint', textContent: 'Enter an event ID in the main composer to reply to it. Applies when you next open the composer.' }),
         cardBtn,
       ]));
 

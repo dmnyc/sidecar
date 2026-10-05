@@ -6093,6 +6093,10 @@ button.poll-bar-head {
 /* The hint carries no bottom margin, so a button after it needs its own gap. */
 .dev-controls-section .hint + button { margin-top: 12px; }
 .dev-log-section { display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 12px; }
+/* The log borrows the bell's scroller, which bleeds to the sheet's bottom edge with a
+   negative bottom margin because there it is the last thing in the sheet. Here Clear and
+   Copy follow it, and that margin pulled them up over the last log row. */
+.dev-log-section .notif-scroll { margin-bottom: 0; padding-bottom: 0; }
 
 /* THE GIF PICKER, under the composer's toolbar. A card like the poll editor, with every
    row full width: the credit line above, the search field, the chips, then the grid. The

@@ -24,6 +24,10 @@ function setup(dev = true) {
   vm.createContext(ctx);
   vm.runInContext(
     lift('function replyTags(', core) + '\n' +
+    // The kind override's tags are composer-core's devReplyTags now, reached by the panel
+    // through window.SidecarCore; both run here from the real files.
+    lift('async function devReplyTags(', core) + '\n' +
+    'var window = { SidecarCore: { devReplyTags } };\n' +
     // The shim the panel now holds, so devComposerReply's own calls still resolve and
     // still leave the active account out of the p tags.
     'const SC_replyTags = replyTags;\n' +
