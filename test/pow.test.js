@@ -367,7 +367,8 @@ test('the pane stops claiming to mine once it has', () => {
   const fn = bare.slice(bare.indexOf('function showMiningPane('));
   const body = fn.slice(0, fn.indexOf('\n    }'));
   assert.match(body, /stop\.disabled = true;/);
-  assert.match(body, /line\.textContent = t\('Found it\. Posting…'\);/);
+  // And says so, counting, so the wait for the relays is visibly alive.
+  assert.match(body, /line\.textContent = s < 2 \? t\('Found it\. Posting…'\) : t\('Found it\. Posting… \{\{secs\}\}s', \{ secs: s \}\);/);
 });
 
 test('THE MINING GLYPH IS SIZED ON ITSELF, NOT AS A DESCENDANT', () => {

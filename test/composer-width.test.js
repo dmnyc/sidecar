@@ -99,7 +99,8 @@ test('an explicit Cancel still closes', () => {
 test('both composers arm it, on what each can actually lose', () => {
   // The post composer autosaves drafts, so a stray click is recoverable there; the
   // comment composer has NO draft store, which makes it the surface this exists for.
-  assert.match(panel, /_modalDismissGuard = \(\) => !!\(draft\.text\.trim\(\) \|\| \(draft\.media \|\| \[\]\)\.length\)/);
+  // (While it is posting, it holds with its own message instead: there is no Cancel then.)
+  assert.match(panel, /_modalDismissGuard = \(\) => \(postingNow \? t\('Posting\. This closes as soon as the relays answer\.'\)\s*\n\s*: !!\(draft\.text\.trim\(\) \|\| \(draft\.media \|\| \[\]\)\.length\)\);/);
   assert.match(panel, /_modalDismissGuard = \(\) => !!commentEditor\.getText\(\)\.trim\(\)/);
 });
 
