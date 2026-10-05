@@ -18,6 +18,11 @@ work done with GLM reads `🍸 Decanted with [GLM](https://z.ai)`. Check a pull
 request's description after creating it, since some tools append footers of
 their own — those are removed, not kept.
 
+A pull request is opened and then it waits: the maintainer tests the branch
+before it merges. Do not merge a pull request — including one you opened —
+without the maintainer's explicit approval of that change. The squash-merge
+practice governs how a pull request merges, not when.
+
 Squash-merge pull requests. GitHub then creates and signs the commit on `main`,
 so it shows as Verified even when the branch's own commits were unsigned.
 
