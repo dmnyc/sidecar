@@ -239,58 +239,79 @@ def weave():
 
 # ---- the compositions ------------------------------------------------------------------
 #
-# (leaf, height, angle, x, y, dye, flip). Heights and positions are CSS px in the plate's
-# own frame. The panel frame is 360 wide: the topbar is 0-56, the tabs 56-106, and the
-# heading row (the tab's title, beside nothing) runs from there to about 262, where the
-# first card starts.
+# ONE SCALE FOR EVERY LEAF. The bouquet lies on one plane, so a leaf's size on screen is
+# its real size times one figure, PX_PER_CM, everywhere: on the head and floor plates, in
+# the wide frames, and in the lock screen's sprites. A maple is a maple's size wherever it
+# lies, and an oak beside it is an oak's. LENGTH_CM is each leaf's real length, petiole
+# included, for a typical leaf of its kind (sugar maple, white oak, redbud, birch, a
+# smooth ovate leaf, willow); each placement then names a size factor, kept within a few
+# percent of 1, for the natural difference between one leaf and the next.
+#
+# (leaf, size, angle, x, y, dye, flip). Positions are CSS px in the plate's own frame.
+# The panel frame is 360 wide: the topbar is 0-56, the tabs 56-106, and the heading row
+# (the tab's title, beside nothing) runs from there to about 262, where the first card
+# starts.
+
+PX_PER_CM = 13
+LENGTH_CM = {'maple': 17, 'oak': 16, 'cordate': 10.5, 'serrate': 9, 'ovate': 10, 'lanceolate': 12}
+
+
+def sized(placements):
+    """Placements with their size factor turned into a height in CSS px."""
+    return [(p[0], LENGTH_CM[p[0]] * PX_PER_CM * p[1]) + tuple(p[2:]) for p in placements]
+
 
 TOP = (360, 300, [
     # The one whole dyed leaf in the heading row, right of the title, below the tab
-    # labels: madder, the cordate leaf, its drip tip pointing up and out.
-    ('cordate', 66, 22, 306, 222, 'madder'),
+    # labels: madder, the serrate leaf, the smallest of the six, tip up and out.
+    ('serrate', 0.95, 18, 300, 194, 'madder'),
 ])
 
 FLOOR = (360, 560, [
     # Underneath: the ivory oak, cropped by the left edge, and the maple by the right.
-    ('oak', 300, -34, 18, 380),
-    ('maple', 320, 26, 338, 318, None, True),
-    ('lanceolate', 230, 62, 196, 526),
+    ('oak', 1.0, -30, 34, 404),
+    ('maple', 1.05, 24, 318, 336, None, True),
+    ('cordate', 0.95, -18, 196, 312),
+    ('lanceolate', 1.0, 64, 190, 522),
     # Dyed leaves lying over the pale ones.
-    ('serrate', 118, -14, 70, 330, 'ochre'),
-    ('ovate', 104, 38, 268, 462, 'plum'),
-    ('lanceolate', 128, -58, 74, 520, 'rust'),
+    ('serrate', 1.0, -14, 74, 252, 'ochre'),
+    ('ovate', 0.95, 36, 262, 474, 'plum'),
+    ('lanceolate', 0.92, -58, 70, 530, 'rust'),
 ])
 
 TOP_WIDE = (900, 340, [
-    ('serrate', 250, 152, 70, 26),
-    ('ovate', 230, -146, 862, 40, None, True),
-    ('cordate', 92, -18, 772, 222, 'madder'),
+    ('serrate', 1.05, 152, 60, 28),
+    ('ovate', 1.05, -146, 860, 40, None, True),
+    ('cordate', 0.95, -18, 772, 226, 'madder'),
 ])
 
 FLOOR_WIDE = (900, 520, [
-    ('oak', 360, -30, 70, 360),
-    ('maple', 380, 22, 834, 330, None, True),
-    ('cordate', 250, 68, 330, 492),
-    ('lanceolate', 300, -54, 612, 470),
-    ('lanceolate', 150, 30, 196, 236, 'olive'),
-    ('maple', 124, -16, 700, 246, 'rust'),
-    ('serrate', 130, 12, 468, 420, 'ochre'),
-    ('ovate', 112, -40, 902 - 140, 482, 'plum'),
+    ('oak', 1.05, -30, 84, 384),
+    ('maple', 1.08, 22, 828, 352, None, True),
+    ('cordate', 1.0, 68, 330, 480),
+    ('lanceolate', 1.05, -54, 612, 468),
+    ('lanceolate', 0.92, 30, 200, 252, 'olive'),
+    ('maple', 0.9, -16, 700, 258, 'rust'),
+    ('serrate', 1.0, 12, 468, 420, 'ochre'),
+    ('ovate', 0.95, -40, 762, 482, 'plum'),
 ])
 
-# The lock screen's drifting leaves: each its own sprite, untilted and unshadowed, so the
-# stylesheet can turn it in the plane and the container's one drop-shadow falls the same
-# way for all of them as they turn (phantom-bouquet.css). Sized as the leaves on the floor
-# plate are, so a leaf that drifts across the floor is the same size as the ones lying
-# there: one plane, one scale.
+# The lock screen's leaves on the wind: each its own sprite, untilted and unshadowed, so
+# the stylesheet can turn it in the plane and the container's one drop-shadow falls the
+# same way for all of them as they turn (phantom-bouquet.css). On the same scale as every
+# other leaf; while the wind blows these are the only leaves on the lock screen, and the
+# floor plate stands down for them. (leaf, size, dye, flip)
 DRIFT = [
-    ('maple', 190, None, False),
-    ('cordate', 84, 'madder', False),
-    ('oak', 180, None, True),
-    ('serrate', 104, 'ochre', False),
-    ('lanceolate', 150, None, False),
-    ('ovate', 96, 'plum', True),
-    ('maple', 110, 'rust', True),
+    ('maple', 1.0, None, False),
+    ('cordate', 0.95, 'madder', False),
+    ('oak', 1.0, None, True),
+    ('serrate', 1.0, 'ochre', False),
+    ('lanceolate', 1.0, None, False),
+    ('ovate', 0.95, 'plum', True),
+    ('maple', 0.92, 'rust', True),
+    ('cordate', 1.05, None, True),
+    ('serrate', 1.05, None, False),
+    ('lanceolate', 0.94, 'olive', False),
 ]
 
 
@@ -299,9 +320,9 @@ def main():
         cut()
     weave()
     for name, (w, h, pl) in (('top', TOP), ('floor', FLOOR), ('top-wide', TOP_WIDE), ('floor-wide', FLOOR_WIDE)):
-        save(plate(w, h, pl), 'phantom-bouquet-%s.webp' % name)
-    for i, (name, height, dye, flip) in enumerate(DRIFT, 1):
-        img = leaf(name, height, 0, dye, flip, shadow=False)
+        save(plate(w, h, sized(pl)), 'phantom-bouquet-%s.webp' % name)
+    for i, (name, size, dye, flip) in enumerate(DRIFT, 1):
+        img = leaf(name, LENGTH_CM[name] * PX_PER_CM * size, 0, dye, flip, shadow=False)
         save(img.crop(img.getbbox()), 'phantom-bouquet-drift-%d.webp' % i)
 
 

@@ -200,89 +200,118 @@
 }
 html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { animation: none; }
 
-/* ---- the lock screen: leaves on the air -----------------------------------------------
-   The lock screen is the cloth with nothing on it but the leaves, and while motion is
-   allowed a few more of them drift across it: one at a time they blow in from an edge,
-   glide slowly over the cloth turning a little, and blow out again past another edge.
-   Every leaf stays in the plane of the cloth and at the scale of the leaves lying on it
-   (the sprites are cut at the floor plate's sizes, phantom-bouquet-drift-*.webp): they
-   slide, they never lift, tilt or hang. Most cross the top of the screen, the open cloth
-   above the logo; two cross low, over the leaves already lying at the foot. A crossing
-   takes a minute or more, the leaves keep their own clocks, and they fade at either end
-   so none pops in or out.
+/* ---- the lock screen: the wind --------------------------------------------------------
+   While motion is allowed the lock screen is the cloth with a wind across it, and the
+   wind takes every leaf. Three motions, layered:
 
-   sidepanel.html's .lock-leaves carries ten <i>; this edition uses seven. One
-   drop-shadow on the container rather than one per leaf, so the light stays where it is
-   while each leaf turns under it. Under prefers-reduced-motion, or Settings → Reduce
-   motion, none of this runs and the leaves lying on the floor plate are the whole scene. */
-@keyframes phantom-bouquet-drift {
-  0%   { transform: translate(var(--x0), var(--y0)) rotate(var(--r0)); opacity: 0; }
-  14%  { opacity: 1; }
-  50%  { transform: translate(var(--xm), var(--ym)) rotate(var(--rm)); }
-  86%  { opacity: 1; }
-  100% { transform: translate(var(--x1), var(--y1)) rotate(var(--r1)); opacity: 0; }
+   THE WIND is one wind for all of them, and it blows one way: left to right, the reading
+   direction. Each leaf crosses on its own steady carry (.lock-leaves i, 56 to 74 seconds,
+   the larger and heavier leaves a little slower), and over that the whole flight rides a
+   shared gust cycle on the container: the wind rises, surges every leaf forward and a
+   little up, and falls off into a lull in which they slow almost to a stop, then rises
+   again, harder the second time. Forty seconds, two gusts of different strength, so the
+   rhythm does not read as a loop. Because the gusts move the container, they move every
+   leaf at once: no leaf is ever blown while another stands still.
+
+   PLAY is each leaf's own (i::before): a skeleton leaf is all holes and stiff veins, and
+   it catches the air unevenly, so each rocks and bobs on its own clock as it goes, the
+   small and stiff ones quickly, the broad ones slowly. Three of them, the lanceolate
+   leaves and the small madder heart, tumble right round now and then.
+
+   ONE PLANE, ONE SCALE: the sprites are cut at the floor plate's sizes
+   (phantom-bouquet-drift-*.webp) and only slide and turn in the plane of the cloth, never
+   lift or tilt. The floor plate's still leaves stand down while the wind blows
+   (patterns.css), so everything on screen is moving. One drop-shadow on the container,
+   so the light stays put while each leaf turns under it.
+
+   Under prefers-reduced-motion, or Settings → Reduce motion, there is no wind: these are
+   hidden and the floor plate's leaves lie still, as on every other view. */
+@keyframes phantom-bouquet-carry {
+  from { transform: translate(calc(-100% - 16vw), var(--y)) rotate(var(--r)); }
+  to   { transform: translate(104vw, calc(var(--y) + 7vh)) rotate(calc(var(--r) + var(--turn))); }
+}
+@keyframes phantom-bouquet-gusts {
+  0%   { transform: translate(0, 0); }
+  12%  { transform: translate(1vw, 0); }
+  22%  { transform: translate(8vw, -1vh); }
+  40%  { transform: translate(5vw, -0.4vh); }
+  55%  { transform: translate(3vw, 0); }
+  63%  { transform: translate(4.5vw, 0); }
+  71%  { transform: translate(12vw, -1.6vh); }
+  82%  { transform: translate(7vw, -0.5vh); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes phantom-bouquet-flutter {
+  0%   { transform: rotate(0) translateY(0); }
+  25%  { transform: rotate(var(--wob)) translateY(var(--bob)); }
+  50%  { transform: rotate(calc(var(--wob) * -0.4)) translateY(calc(var(--bob) * -0.6)); }
+  75%  { transform: rotate(calc(var(--wob) * -1)) translateY(calc(var(--bob) * 0.4)); }
+  100% { transform: rotate(0) translateY(0); }
+}
+@keyframes phantom-bouquet-tumble {
+  0%   { transform: rotate(0) translateY(0); }
+  20%  { transform: rotate(var(--wob)) translateY(var(--bob)); }
+  40%  { transform: rotate(calc(var(--wob) * -0.8)) translateY(calc(var(--bob) * -0.5)); }
+  55%  { transform: rotate(calc(var(--wob) * 0.5)) translateY(0); }
+  75%  { transform: rotate(calc(var(--wob) * 0.5 + 360deg)) translateY(calc(var(--bob) * -1)); }
+  100% { transform: rotate(360deg) translateY(0); }
 }
 [data-theme="phantom-bouquet"] .lock-leaves {
   position: fixed;
   inset: 0;
-  overflow: hidden;
   pointer-events: none;
   filter: drop-shadow(1.5px 3px 3px rgba(74, 58, 40, 0.16));
-  z-index: -1; /* over the cloth and the leaves lying on it, under the lock form */
+  animation: phantom-bouquet-gusts 40s ease-in-out infinite;
+  z-index: -1; /* over the cloth, under the lock form */
 }
 [data-theme="phantom-bouquet"] .lock-leaves i {
   position: absolute;
   top: 0;
   left: 0;
-  background: center / contain no-repeat;
-  opacity: 0;
-  animation-name: phantom-bouquet-drift;
-  animation-timing-function: ease-in-out;
+  animation-name: phantom-bouquet-carry;
+  animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(n+8) { display: none; }
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(1) {
-  width: 173.5px; height: 189px;
-  background-image: url(phantom-bouquet-drift-1.webp);
-  --x0: -60vw; --y0: 2vh; --r0: -8deg; --xm: 22vw; --ym: -2vh; --rm: 6deg; --x1: 110vw; --y1: 4vh; --r1: 18deg;
-  animation-duration: 86s; animation-delay: -12s;
+[data-theme="phantom-bouquet"] .lock-leaves i::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--leaf) center / contain no-repeat;
+  animation: var(--play) var(--fl) ease-in-out var(--fl-at) infinite;
 }
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(2) {
-  width: 70.5px; height: 84px;
-  background-image: url(phantom-bouquet-drift-2.webp);
-  --x0: 105vw; --y0: 14vh; --r0: 20deg; --xm: 58vw; --ym: 19vh; --rm: -4deg; --x1: -30vw; --y1: 15vh; --r1: -24deg;
-  animation-duration: 62s; animation-delay: -31s;
-}
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(3) {
-  width: 139.5px; height: 180px;
-  background-image: url(phantom-bouquet-drift-3.webp);
-  --x0: -55vw; --y0: 74vh; --r0: 30deg; --xm: 14vw; --ym: 70vh; --rm: 18deg; --x1: 100vw; --y1: 80vh; --r1: 4deg;
-  animation-duration: 92s; animation-delay: -52s;
-}
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(4) {
-  width: 66px; height: 103px;
-  background-image: url(phantom-bouquet-drift-4.webp);
-  --x0: 110vw; --y0: 2vh; --r0: -10deg; --xm: 54vw; --ym: 8vh; --rm: 8deg; --x1: -30vw; --y1: 4vh; --r1: 22deg;
-  animation-duration: 70s; animation-delay: -6s;
-}
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(5) {
-  width: 79px; height: 147px;
-  background-image: url(phantom-bouquet-drift-5.webp);
-  --x0: -35vw; --y0: 12vh; --r0: 70deg; --xm: 30vw; --ym: 18vh; --rm: 56deg; --x1: 115vw; --y1: 10vh; --r1: 40deg;
-  animation-duration: 80s; animation-delay: -63s;
-}
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(6) {
-  width: 56.5px; height: 95px;
-  background-image: url(phantom-bouquet-drift-6.webp);
-  --x0: 115vw; --y0: 13vh; --r0: -30deg; --xm: 60vw; --ym: 9vh; --rm: -10deg; --x1: -25vw; --y1: 14vh; --r1: 10deg;
-  animation-duration: 66s; animation-delay: -24s;
-}
-[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(7) {
-  width: 101px; height: 109.5px;
-  background-image: url(phantom-bouquet-drift-7.webp);
-  --x0: 115vw; --y0: 86vh; --r0: 10deg; --xm: 66vw; --ym: 82vh; --rm: -6deg; --x1: -35vw; --y1: 88vh; --r1: -20deg;
-  animation-duration: 78s; animation-delay: -43s;
-}
+/* Ten leaves: a height to cross at, a starting turn and how far the carry turns it, a
+   crossing time with a delay already partway through it (so the screen is full the moment
+   it locks), and the leaf's own play. */
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(1) { width: 201px; height: 219.5px; --leaf: url(phantom-bouquet-drift-1.webp);
+  --y: 52vh; --r: -12deg; --turn: 48deg; animation-duration: 74s; animation-delay: -7s;
+  --play: phantom-bouquet-flutter; --wob: 9deg; --bob: 3px; --fl: 6.4s; --fl-at: -1.0s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(2) { width: 106.5px; height: 127.5px; --leaf: url(phantom-bouquet-drift-2.webp);
+  --y: 6vh; --r: 18deg; --turn: 64deg; animation-duration: 58s; animation-delay: -32s;
+  --play: phantom-bouquet-tumble; --wob: 16deg; --bob: 5px; --fl: 7.0s; --fl-at: -2.6s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(3) { width: 160.5px; height: 207px; --leaf: url(phantom-bouquet-drift-3.webp);
+  --y: 70vh; --r: 24deg; --turn: 46deg; animation-duration: 72s; animation-delay: -45s;
+  --play: phantom-bouquet-flutter; --wob: 7deg; --bob: 3px; --fl: 7.2s; --fl-at: -4.1s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(4) { width: 74.5px; height: 116px; --leaf: url(phantom-bouquet-drift-4.webp);
+  --y: 24vh; --r: -20deg; --turn: 60deg; animation-duration: 60s; animation-delay: -18s;
+  --play: phantom-bouquet-flutter; --wob: 18deg; --bob: 6px; --fl: 3.8s; --fl-at: -0.7s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(5) { width: 82px; height: 153px; --leaf: url(phantom-bouquet-drift-5.webp);
+  --y: 84vh; --r: 58deg; --turn: 40deg; animation-duration: 66s; animation-delay: -13s;
+  --play: phantom-bouquet-tumble; --wob: 12deg; --bob: 4px; --fl: 8.6s; --fl-at: -5.3s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(6) { width: 72px; height: 121.5px; --leaf: url(phantom-bouquet-drift-6.webp);
+  --y: 14vh; --r: -34deg; --turn: 66deg; animation-duration: 56s; animation-delay: -48s;
+  --play: phantom-bouquet-flutter; --wob: 22deg; --bob: 7px; --fl: 3.2s; --fl-at: -1.9s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(7) { width: 185.5px; height: 202.5px; --leaf: url(phantom-bouquet-drift-7.webp);
+  --y: 40vh; --r: 8deg; --turn: 56deg; animation-duration: 62s; animation-delay: -46s;
+  --play: phantom-bouquet-flutter; --wob: 14deg; --bob: 4px; --fl: 4.6s; --fl-at: -3.3s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(8) { width: 118px; height: 141.5px; --leaf: url(phantom-bouquet-drift-8.webp);
+  --y: 1vh; --r: -6deg; --turn: 52deg; animation-duration: 64s; animation-delay: -3s;
+  --play: phantom-bouquet-flutter; --wob: 11deg; --bob: 4px; --fl: 5.4s; --fl-at: -2.2s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(9) { width: 77.5px; height: 121.5px; --leaf: url(phantom-bouquet-drift-9.webp);
+  --y: 62vh; --r: 14deg; --turn: 50deg; animation-duration: 62s; animation-delay: -25s;
+  --play: phantom-bouquet-flutter; --wob: 15deg; --bob: 5px; --fl: 4.2s; --fl-at: -0.4s; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(10) { width: 77.5px; height: 143.5px; --leaf: url(phantom-bouquet-drift-10.webp);
+  --y: 30vh; --r: 40deg; --turn: 44deg; animation-duration: 60s; animation-delay: -57s;
+  --play: phantom-bouquet-tumble; --wob: 14deg; --bob: 5px; --fl: 6.2s; --fl-at: -3.8s; }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="phantom-bouquet"] .lock-leaves { display: none; }
 }

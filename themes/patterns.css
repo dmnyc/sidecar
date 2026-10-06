@@ -680,6 +680,10 @@ html[data-tile][data-theme="sleepy-hollow"] body {
     background-position: top center, bottom center, 0 0, 0 0;
   }
 }
+/* The lock screen drops the heading leaf, which would sit beside the logo. While motion
+   is allowed it drops the floor's leaves too: the wind is blowing there
+   (phantom-bouquet.css), and a leaf lying still while the rest are blown past it would
+   make no sense. Under reduced motion there is no wind, and the floor's leaves stay. */
 [data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
   background-image:
     none,
@@ -692,6 +696,15 @@ html[data-tile][data-theme="sleepy-hollow"] body {
     background-image:
       none,
       url(phantom-bouquet-floor-wide.webp),
+      url(phantom-bouquet-weave.webp),
+      linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.reduce-balance-motion)[data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
+    background-image:
+      none,
+      none,
       url(phantom-bouquet-weave.webp),
       linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
   }
