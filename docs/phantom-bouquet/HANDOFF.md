@@ -372,3 +372,66 @@ the source of `variety.svg` (still unrecorded, see section 2) may have better sh
 or the outlines could be redrawn by hand against the photo references.
 
 **Not yet seen by the maintainer.**
+
+## 8. Eighth turn (2026-10-05): the outlines are now generated, not traced
+
+The seventh turn's sheet came back with the strongest verdict yet — "incredibly
+sloppy, they don't follow the basic geometry of real leaf shapes" — and then three
+more reference images: a line-art sheet of six skeletons (serrate ovates,
+lanceolates, a lobed mulberry-like form), and two maples. Reading them together
+settled what the complaint was: not the venation, which the seventh turn fixed, but
+the silhouettes themselves. The clip-art outlines from `variety.svg` are hand-drawn
+cartoons: no width law, no proper base, no acuminate progression. Dressing them
+better was never going to close the gap.
+
+So `proto/genleaf.py` is new: outlines built from the law real leaves follow,
+replacing `variety.svg` as the source of every shape.
+
+- **Two-arc width profile.** Each side is convex from the base to the widest point
+  (`peak`, 26–52% of the axis) and concave from there into an acuminate point. A
+  `notch` factor drops both sides steeply into the petiole's sinus — without it the
+  base closes as a flat shelf, which no leaf has (that exact bug cost one iteration).
+- **Cordate bases**: the sides dip below the sinus as broad lobes around the petiole,
+  reaching about halfway out the blade — not the narrow collar the first attempt
+  gave.
+- **Serration**: regular teeth spaced in arc length, graded to the local blade width,
+  each leaning tipward (long baseward slope, sharp drop — peak at g≈0.85). Teeth
+  displace along the polygon-orientation outward normal, which fixed the old
+  reference-point test that broke on the maple's radial ring.
+- **Asymmetry**: a few percent of low-frequency difference between the sides, plus
+  jittered peak positions — no leaf is a mirror of itself.
+- **`palmate()`** for the maple: lobe tips fan from the base with per-lobe radii
+  (central longest), rounded sinus floors between them, everything jittered a few
+  percent so it is not a star symmetry. The existing palmate venation branch picks
+  the lobe tips up automatically and fans a primary to each.
+
+The vein pipeline is untouched and adapts on its own: generated leaves are returned
+in the same `{'blade', 'stem'}` shape `traced.load()` produced, so `skeleton.py`
+cannot tell the difference. Type sets are re-pointed in `lab7.py`
+(`T.PALMATE = {7}`, `T.BROAD`, `SK.TOOTHED`). The maple is form 7; the sheet is now
+eight forms — two hearts, a serrated cordate, a round serrated cordate, an
+ovate-lanceolate, a lanceolate, the willow, and the maple.
+
+`panel2.py` still renders the old traced shapes — the panel is rebuilt only after
+the maintainer signs off on the sheet, per the rule that has governed every turn.
+
+**Where this now stands** (`curated-sheet-latest.png` at 2×, `stem-join-latest.png`
+closeups at 2×): every outline obeys the geometry law; serration reads as cut; the
+maple's structure matches the white reference — fan of primaries, ladders in lobes,
+deep rounded sinuses. Weak spots, named honestly: the hearts' basal lobes are
+slightly horned where the dip meets the rising profile; the maple's lobes are a
+little uniform and could carry one more secondary each; and leaf-to-leaf the family
+is still tidier than a real 1864 bouquet, which had torn and damaged leaves.
+
+**Next step:** show the maintainer. If the shapes pass, the theme build (section 4,
+step 2) follows on this branch — and the generator dependency question there grows
+one more answer: `genleaf.py` itself needs only numpy.
+
+**To run the new sheets:**
+
+```
+python3 lab7.py && node ~/.zcode/shot-tools/shot.js file://$PWD/lab7.svg lab7.png 1500 780 2
+python3 lab8.py && node ~/.zcode/shot-tools/shot.js file://$PWD/lab8.svg lab8.png 1500 900 2
+```
+
+**Not yet seen by the maintainer.**
