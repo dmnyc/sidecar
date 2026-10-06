@@ -36,14 +36,14 @@ test('the gate strips exactly the editions out of season on the tag date', () =>
   const stage = makeStage();
   writeStage(stage, [
     'themes/sleepy-hollow-hollow.svg', 'themes/sleepy-hollow-tree-wide.svg', 'themes/sleepy-hollow.css',
-    'themes/phantom-bouquet-floor.webp', 'themes/phantom-bouquet-drift-1.webp', 'themes/phantom-bouquet.css',
+    'themes/phantom-bouquet-floor.avif', 'themes/phantom-bouquet-drift-1.avif', 'themes/phantom-bouquet.css',
     'themes/patterns.css',
   ]);
 
   // A release tagged in October carries Sleepy Hollow and no Phantom Bouquet — the
   // branch carrying the new edition cannot leak it into an out-of-season hotfix.
   let removed = gate.stripOutOfSeasonArt(stage, '2026-10-06');
-  assert.deepEqual(removed.sort(), ['themes/phantom-bouquet-drift-1.webp', 'themes/phantom-bouquet-floor.webp']);
+  assert.deepEqual(removed.sort(), ['themes/phantom-bouquet-drift-1.avif', 'themes/phantom-bouquet-floor.avif']);
   assert.deepEqual(list(stage, 'themes').sort(),
     ['patterns.css', 'phantom-bouquet.css', 'sleepy-hollow-hollow.svg', 'sleepy-hollow-tree-wide.svg', 'sleepy-hollow.css']);
 
@@ -51,26 +51,26 @@ test('the gate strips exactly the editions out of season on the tag date', () =>
   const stage2 = makeStage();
   writeStage(stage2, [
     'themes/sleepy-hollow-hollow.svg', 'themes/sleepy-hollow.css',
-    'themes/phantom-bouquet-floor.webp', 'themes/phantom-bouquet.css',
+    'themes/phantom-bouquet-floor.avif', 'themes/phantom-bouquet.css',
   ]);
   removed = gate.stripOutOfSeasonArt(stage2, '2026-11-09');
   assert.deepEqual(removed, ['themes/sleepy-hollow-hollow.svg']);
-  assert.deepEqual(list(stage2, 'themes').sort(), ['phantom-bouquet-floor.webp', 'phantom-bouquet.css', 'sleepy-hollow.css']);
+  assert.deepEqual(list(stage2, 'themes').sort(), ['phantom-bouquet-floor.avif', 'phantom-bouquet.css', 'sleepy-hollow.css']);
 
   // After both windows close, neither ships.
   const stage3 = makeStage();
-  writeStage(stage3, ['themes/sleepy-hollow-hollow.svg', 'themes/phantom-bouquet-floor.webp']);
+  writeStage(stage3, ['themes/sleepy-hollow-hollow.svg', 'themes/phantom-bouquet-floor.avif']);
   removed = gate.stripOutOfSeasonArt(stage3, '2026-12-07');
-  assert.deepEqual(removed.sort(), ['themes/phantom-bouquet-floor.webp', 'themes/sleepy-hollow-hollow.svg']);
+  assert.deepEqual(removed.sort(), ['themes/phantom-bouquet-floor.avif', 'themes/sleepy-hollow-hollow.svg']);
 });
 
 test('the gate is idempotent — a second run removes nothing', () => {
   const stage = makeStage();
-  writeStage(stage, ['themes/phantom-bouquet-floor.webp']);
+  writeStage(stage, ['themes/phantom-bouquet-floor.avif']);
   assert.equal(gate.stripOutOfSeasonArt(stage, '2026-10-06').length, 1);
   assert.deepEqual(gate.stripOutOfSeasonArt(stage, '2026-10-06'), []);
   assert.deepEqual(list(stage, 'themes'), []);
-  assert.ok(!fs.existsSync(path.join(stage, 'themes', 'phantom-bouquet-floor.webp')));
+  assert.ok(!fs.existsSync(path.join(stage, 'themes', 'phantom-bouquet-floor.avif')));
 });
 
 test('the art glob matches art and only art, for every edition on the books', () => {
@@ -119,7 +119,7 @@ test('a stage built from this very tree loses the right edition on each tag date
   assert.ok(stripped.length > 0, 'nothing was stripped — the gate went inert');
   assert.ok(sleepyLeft.length > 0, 'Sleepy Hollow art survives a November 9 release');
   assert.ok(fs.existsSync(path.join(november, 'themes', 'sleepy-hollow.css')), 'the stylesheet must ship even when its art does not');
-  assert.ok(fs.existsSync(path.join(november, 'themes', 'phantom-bouquet-floor.webp')), 'Phantom Bouquet art must ship in its own window');
+  assert.ok(gate.artFiles(november, 'phantom-bouquet').length > 0, 'Phantom Bouquet art must ship in its own window');
   const kb = Math.round(sleepyArt / 1024);
   console.log(`    a November 9 release strips ${stripped.length} files (${kb} KB): ${stripped.join(', ')}`);
 

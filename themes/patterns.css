@@ -662,12 +662,12 @@ html[data-tile][data-theme="sleepy-hollow"] body {
    tile, where nothing needs shielding, go without the wash. */
 [data-theme="phantom-bouquet"] body {
   --pb-wash: linear-gradient(180deg, rgba(241, 235, 223, 0.3) 0%, rgba(236, 229, 214, 0.3) 45%, rgba(231, 223, 207, 0.3) 100%);
-  --pb-top: url(phantom-bouquet-top.webp);
-  --pb-floor: url(phantom-bouquet-floor.webp);
-  --pb-white: url(phantom-bouquet-white.webp);
+  --pb-top: url(phantom-bouquet-top.avif);
+  --pb-floor: url(phantom-bouquet-floor.avif);
+  --pb-white: url(phantom-bouquet-white.avif);
   background-color: var(--bg);
   background-image:
-    url(phantom-bouquet-weave.webp),
+    url(phantom-bouquet-weave.avif),
     var(--pb-top),
     var(--pb-wash),
     var(--pb-floor),
@@ -680,9 +680,9 @@ html[data-tile][data-theme="sleepy-hollow"] body {
 }
 @media (min-width: 520px) {
   [data-theme="phantom-bouquet"] body {
-    --pb-top: url(phantom-bouquet-top-wide.webp);
-    --pb-floor: url(phantom-bouquet-floor-wide.webp);
-    --pb-white: url(phantom-bouquet-white-wide.webp);
+    --pb-top: url(phantom-bouquet-top-wide.avif);
+    --pb-floor: url(phantom-bouquet-floor-wide.avif);
+    --pb-white: url(phantom-bouquet-white-wide.avif);
     background-size: 160px 160px, 900px auto, auto, 900px auto, 900px auto, auto;
     background-position: 0 0, top left, 0 0, bottom left, top left, 0 0;
   }
@@ -711,8 +711,8 @@ html[data-tile][data-theme="sleepy-hollow"] body {
 /* The gallery tile shows the floor's largest leaves in the band it crops to, unwashed. */
 html[data-tile][data-theme="phantom-bouquet"] body {
   background-image:
-    url(phantom-bouquet-floor.webp),
-    url(phantom-bouquet-weave.webp),
+    url(phantom-bouquet-floor.avif),
+    url(phantom-bouquet-weave.avif),
     linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
   background-size: 100% auto, 160px 160px, auto;
   background-position: 0 -170px, 0 0, 0 0;
@@ -912,9 +912,9 @@ html[data-tile][data-theme="phantom-bouquet"] body {
    the white leaves lie under it as they lie under the panel's cards. The stack itself
    is the panel's (above). */
 [data-theme="phantom-bouquet"] body.compose-page {
-  --pb-top: url(phantom-bouquet-top-wide.webp);
-  --pb-floor: url(phantom-bouquet-floor-wide.webp);
-  --pb-white: url(phantom-bouquet-white-wide.webp);
+  --pb-top: url(phantom-bouquet-top-wide.avif);
+  --pb-floor: url(phantom-bouquet-floor-wide.avif);
+  --pb-white: url(phantom-bouquet-white-wide.avif);
   background-size: 160px 160px, 100% auto, auto, 100% auto, 100% auto, auto;
   background-position: 0 0, top center, 0 0, bottom center, top center, 0 0;
 }

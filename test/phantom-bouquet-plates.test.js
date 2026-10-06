@@ -35,7 +35,7 @@ root = sys.argv[1]
 spec = importlib.util.spec_from_file_location('g', os.path.join(root, 'scripts', 'gen-phantom-bouquet.py'))
 g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
 drawn = {}
-g.save = lambda img, name: drawn.__setitem__(name, img)
+g.save = lambda img, name, **kw: drawn.__setitem__(name, img)
 import builtins; builtins.print = lambda *a, **k: None
 g.main()
 report = {}
@@ -68,7 +68,7 @@ test('the head plate keeps clear of the topbar and tabs, and holds one whole lea
 import json, os, sys
 import numpy as np
 from PIL import Image
-a = np.asarray(Image.open(os.path.join(sys.argv[1], 'themes', 'phantom-bouquet-top.webp')).getchannel('A'))
+a = np.asarray(Image.open(os.path.join(sys.argv[1], 'themes', 'phantom-bouquet-top.avif')).getchannel('A'))
 scale = a.shape[1] // 360
 ys, xs = np.nonzero(a > 8)
 sys.stdout.write(json.dumps({'top': int(ys.min()) / scale, 'edges': [int(xs.min()), int(xs.max()), int(ys.max())], 'w': a.shape[1], 'h': a.shape[0]}))
@@ -87,7 +87,7 @@ from PIL import Image
 linen = np.array([0xEC, 0xE5, 0xD6], np.float32)
 report = {}
 for name, frame in (('white', 360), ('white-wide', 900)):
-    im = np.asarray(Image.open(os.path.join(sys.argv[1], 'themes', 'phantom-bouquet-%s.webp' % name)).convert('RGBA')).astype(np.float32)
+    im = np.asarray(Image.open(os.path.join(sys.argv[1], 'themes', 'phantom-bouquet-%s.avif' % name)).convert('RGBA')).astype(np.float32)
     scale = im.shape[1] / frame
     a = im[..., 3:] / 255
     # Laid on the linen, the way the panel lays it, over the topbar and the tabs.
@@ -101,13 +101,13 @@ sys.stdout.write(json.dumps(report))
 `);
   if (!out) return;
   for (const [name, r] of Object.entries(out)) {
-    assert.ok(r.underBars > 0, `phantom-bouquet-${name}.webp has no leaf coming in from the top edge`);
+    assert.ok(r.underBars > 0, `phantom-bouquet-${name}.avif has no leaf coming in from the top edge`);
     // The lace under an icon or a label is lighter than the cloth, never darker. A few
     // levels is the lossy encoder's grain at a leaf's soft edge; a sepia-veined leaf
     // laid there darkens it by about 75.
-    assert.ok(r.darkest >= -8, `phantom-bouquet-${name}.webp darkens the linen under the topbar or tabs by ${-r.darkest} levels`);
+    assert.ok(r.darkest >= -8, `phantom-bouquet-${name}.avif darkens the linen under the topbar or tabs by ${-r.darkest} levels`);
     // A leaf the plate's own bottom edge cuts off ends in a straight line mid-panel.
-    assert.ok(r.bottom <= 8, `a leaf runs off the bottom of phantom-bouquet-${name}.webp`);
+    assert.ok(r.bottom <= 8, `a leaf runs off the bottom of phantom-bouquet-${name}.avif`);
   }
 });
 
@@ -120,8 +120,8 @@ test('the drifting leaves stand down under either reduce-motion setting', () => 
 
 test('every drifting leaf has its sprite, and no sprite is left without a leaf', () => {
   const css = fs.readFileSync(path.join(ROOT, 'themes', 'phantom-bouquet.css'), 'utf8');
-  const named = [...css.matchAll(/url\((phantom-bouquet-drift-\d+\.webp)\)/g)].map((m) => m[1]).sort();
-  const shipped = fs.readdirSync(path.join(ROOT, 'themes')).filter((f) => /^phantom-bouquet-drift-\d+\.webp$/.test(f)).sort();
+  const named = [...css.matchAll(/url\((phantom-bouquet-drift-\d+\.avif)\)/g)].map((m) => m[1]).sort();
+  const shipped = fs.readdirSync(path.join(ROOT, 'themes')).filter((f) => /^phantom-bouquet-drift-\d+\.avif$/.test(f)).sort();
   assert.ok(named.length >= 5, 'the lock screen lost its leaves');
   assert.deepEqual(named, shipped);
   // sidepanel.html carries the elements the leaves ride on.

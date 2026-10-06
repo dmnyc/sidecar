@@ -15,26 +15,28 @@ leaves are the production masters the plates below are made from.
 
 Writes, in themes/:
 
-  phantom-bouquet-weave.webp       the linen's plain weave, a small tile.
-  phantom-bouquet-top.webp         the head of the panel: one whole madder-dyed leaf
+  phantom-bouquet-weave.avif       the linen's plain weave, a small tile.
+  phantom-bouquet-top.avif         the head of the panel: one whole madder-dyed leaf
                                    in the heading row between the tabs and the first
                                    card, clear of the tab labels and the topbar.
-  phantom-bouquet-floor.webp       the foot of the panel: large ivory skeleton leaves
+  phantom-bouquet-floor.avif       the foot of the panel: large ivory skeleton leaves
                                    cropped by the panel's edges, with a few dyed ones
                                    lying over and under them.
-  phantom-bouquet-white.webp       behind everything: leaves bleached white, lighter
+  phantom-bouquet-white.avif       behind everything: leaves bleached white, lighter
                                    than the linen, a few coming in from the top edge
                                    behind the topbar and tabs, larger ones under the
                                    cards.
-  phantom-bouquet-drift-<n>.webp   the lock screen: single leaves, one per file, that
+  phantom-bouquet-drift-<n>.avif   the lock screen: single leaves, one per file, that
                                    drift slowly in and out over the cloth.
-  phantom-bouquet-*-wide.webp      the head, floor and white plates in a 900-unit frame for the
+  phantom-bouquet-*-wide.avif      the head, floor and white plates in a 900-unit frame for the
                                    expanded composer and any window past a side panel's width.
 
 Rasters, not SVG, because the leaves are rasters: a skeleton leaf's lace is thousands of
 connected hairlines, and the study is the source of truth for them. Every plate is drawn
-at twice its CSS size so the lace holds on a 2x display, and saved as lossy WebP with
-alpha, which keeps the hairlines and costs a fraction of PNG. The white plates are the
+at twice its CSS size so the lace holds on a 2x display, and saved as lossy AVIF with
+alpha, which keeps the hairlines and costs a fraction of PNG — and roughly a third of
+the lossy WebP it replaced, which matters in a package users download whole (both
+browsers the extension ships to decode AVIF). The white plates are the
 exception, brought down to their CSS size when saved: their lace is faint and the
 deepest on the cloth, a little softness reads as distance, and at 1x they cost a
 quarter as much.
@@ -214,9 +216,9 @@ def plate(w, h, placements):
     return canvas
 
 
-def save(img, name):
+def save(img, name, quality=60):
     path = os.path.join(THEMES, name)
-    img.save(path, 'WEBP', quality=86, alpha_quality=90, method=6, exact=False)
+    img.save(path, 'AVIF', quality=quality, speed=6)
     print('wrote', name, img.width, 'x', img.height, os.path.getsize(path) // 1024, 'KB')
 
 
@@ -249,7 +251,7 @@ def weave():
     rgba = np.zeros((n, n, 4), np.uint8)
     rgba[..., 0], rgba[..., 1], rgba[..., 2] = 0x5A, 0x48, 0x30
     rgba[..., 3] = (alpha * 255).round().astype(np.uint8)
-    save(Image.fromarray(rgba, 'RGBA'), 'phantom-bouquet-weave.webp')
+    save(Image.fromarray(rgba, 'RGBA'), 'phantom-bouquet-weave.avif')
 
 
 # ---- the compositions ------------------------------------------------------------------
@@ -368,13 +370,18 @@ def main():
         cut()
     weave()
     for name, (w, h, pl) in (('top', TOP), ('floor', FLOOR), ('top-wide', TOP_WIDE), ('floor-wide', FLOOR_WIDE)):
-        save(plate(w, h, sized(pl)), 'phantom-bouquet-%s.webp' % name)
+        save(plate(w, h, sized(pl)), 'phantom-bouquet-%s.avif' % name)
     for name, (w, h, pl) in (('white', WHITE_PLATE), ('white-wide', WHITE_WIDE)):
         img = plate(w, h, sized(pl))
-        save(img.resize((w, h), Image.LANCZOS), 'phantom-bouquet-%s.webp' % name)
+        # The white plates encode far finer than the rest: their one job under the
+        # topbar and tabs is to lighten, and at the shared quality the encoder's
+        # reconstruction of the faint 1x lace darkens the linen past the plates test's
+        # lighten-only guard. At 85 it lands inside the guard at roughly half the
+        # lossy WebP these plates replaced.
+        save(img.resize((w, h), Image.LANCZOS), 'phantom-bouquet-%s.avif' % name, quality=85)
     for i, (name, size, dye, flip) in enumerate(DRIFT, 1):
         img = leaf(name, LENGTH_CM[name] * PX_PER_CM * size, 0, dye, flip, shadow=False)
-        save(img.crop(img.getbbox()), 'phantom-bouquet-drift-%d.webp' % i)
+        save(img.crop(img.getbbox()), 'phantom-bouquet-drift-%d.avif' % i)
 
 
 if __name__ == '__main__':
