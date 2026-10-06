@@ -64,6 +64,47 @@ test('the gate strips exactly the editions out of season on the tag date', () =>
   assert.deepEqual(removed.sort(), ['themes/phantom-bouquet-floor.avif', 'themes/sleepy-hollow-hollow.svg']);
 });
 
+test('the handoff ships one edition per build, never both — a day missed beats an overlap', () => {
+  const both = ['themes/sleepy-hollow-hollow.svg', 'themes/sleepy-hollow.css',
+    'themes/phantom-bouquet-floor.avif', 'themes/phantom-bouquet.css'];
+
+  // Sleepy Hollow's LAST day. A build tagged November 8 is still Sleepy Hollow's, and
+  // carries no Phantom Bouquet art — the new edition misses this build entirely rather
+  // than riding beside the one it replaces. The maintainer's rule (2026-10-06): rather
+  // miss a day than have both special editions ship in the same build.
+  const lastDay = makeStage();
+  writeStage(lastDay, both);
+  let removed = gate.stripOutOfSeasonArt(lastDay, '2026-11-08');
+  assert.deepEqual(removed, ['themes/phantom-bouquet-floor.avif']);
+  assert.ok(fs.existsSync(path.join(lastDay, 'themes', 'sleepy-hollow-hollow.svg')), 'Sleepy Hollow art must survive its own last day');
+
+  // Phantom Bouquet's first. The swap is total: what one day ships whole, the next
+  // ships not at all.
+  const firstDay = makeStage();
+  writeStage(firstDay, both);
+  removed = gate.stripOutOfSeasonArt(firstDay, '2026-11-09');
+  assert.deepEqual(removed, ['themes/sleepy-hollow-hollow.svg']);
+  assert.ok(fs.existsSync(path.join(firstDay, 'themes', 'phantom-bouquet-floor.avif')), 'Phantom Bouquet art must ride its own first day');
+});
+
+test('no tag date in any year can leave two editions\u2019 art in one build', () => {
+  // The gate keys on one date and the windows are disjoint, so both-editions-in-one-
+  // build cannot happen by construction. This is that construction, swept over two
+  // full years of tag dates — the same claim seasons.test.js makes for wearing, made
+  // here for shipping.
+  const stage = makeStage();
+  const seasons = gate.loadSeasons(stage);
+  for (let y = 2026; y <= 2027; y++) {
+    for (let m = 0; m < 12; m++) {
+      for (let d = 1, days = new Date(y, m + 1, 0).getDate(); d <= days; d++) {
+        const date = new Date(y, m, d, 12);
+        const open = seasons.EDITIONS.filter((e) => seasons.inSeason(e.key, date)).map((e) => e.key);
+        assert.ok(open.length <= 1, y + '-' + (m + 1) + '-' + d + ' has ' + open.join(' and '));
+      }
+    }
+  }
+});
+
 test('the gate is idempotent — a second run removes nothing', () => {
   const stage = makeStage();
   writeStage(stage, ['themes/phantom-bouquet-floor.avif']);
