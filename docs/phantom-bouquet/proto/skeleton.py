@@ -22,7 +22,7 @@ import random
 import numpy as np
 from scipy.spatial import Voronoi
 from shapely.geometry import Polygon, LineString, Point, MultiPolygon, MultiLineString
-from shapely.ops import unary_union, nearest_points, substring
+from shapely.ops import unary_union, nearest_points
 
 import traced as T
 
@@ -54,16 +54,17 @@ def tapered_ws(pts, ws):
 
 
 def march(inner, P, d, t_hint, step, max_len, bend, blocked=None):
-    # A secondary runs nearly straight out from its parent and turns toward the tip only as
-    # it nears the margin. The turn is applied in proportion to how close the next step is
-    # to the edge, not at a constant rate, which bent the long ones round until they ran
-    # parallel to the midrib.
+    # A secondary arcs toward the tip along its whole length, the way a real one does;
+    # the turn steepens as it nears the margin, where it swings round to run with the
+    # edge and meet its neighbour. (A constant-rate turn ran it parallel to the midrib;
+    # an end-only turn read as a kink.)
     pts = [P]
     length = 0.0
     edge = inner.exterior
     while length < max_len:
         near = max(0.0, 1.0 - edge.distance(Point(pts[-1])) / (14 * step))
-        d = unit((d[0] + bend * (0.25 + 3.0 * near) * t_hint[0], d[1] + bend * (0.25 + 3.0 * near) * t_hint[1]))
+        bb = bend * (0.3 + 3.2 * near)
+        d = unit((d[0] + bb * t_hint[0], d[1] + bb * t_hint[1]))
         nxt = (pts[-1][0] + d[0] * step, pts[-1][1] + d[1] * step)
         if not inner.contains(Point(nxt)):
             break
@@ -94,7 +95,12 @@ class _Others:
 
 
 def areoles(region, cell, rnd):
-    """Voronoi cells grown inside one space between veins; lines clipped to it."""
+    """Voronoi cells grown inside one space between veins; lines clipped to it.
+
+    Seeded partly along the region's own boundary, so the lace comes out finer against
+    the veins and the margin and coarser in the middle of each space, as on a real leaf.
+    The spaces are slivers between veins, so their cells come out elongated along the
+    flow without any extra machinery."""
     area = region.area
     n = int(area / (cell * cell))
     if n < 2:
@@ -109,6 +115,18 @@ def areoles(region, cell, rnd):
             pts.append(p)
     if len(pts) < 2:
         return []
+    # boundary seeds: a little over a third as many again, spread along every ring
+    rings = [region.exterior] + list(region.interiors)
+    total = sum(r_.length for r_ in rings)
+    m = max(2, int(len(pts) * 0.35))
+    for _ in range(m):
+        d = rnd.uniform(0, total)
+        for r_ in rings:
+            if d <= r_.length:
+                p = r_.interpolate(d)
+                pts.append((p.x, p.y))
+                break
+            d -= r_.length
     pts = np.array(pts)
     far = [[minx - 9999, miny - 9999], [maxx + 9999, miny - 9999], [minx - 9999, maxy + 9999], [maxx + 9999, maxy + 9999]]
     vor = Voronoi(np.vstack([pts, far]))
@@ -143,10 +161,6 @@ def network(i, leaf, k, size, rnd):
     px = 1.0 / k
     grow = (size / 200.0) ** 0.5
     inner = b.buffer(-2.5 * px)
-    margin_track = b.buffer(-4.5 * px)
-    if margin_track.geom_type != 'Polygon':
-        margin_track = max(margin_track.geoms, key=lambda g: g.area)
-    track = margin_track.exterior
     toothed = i in TOOTHED
     filled = []          # (polyline, w0, w1)
     thin = []            # (polyline, width)
@@ -190,11 +204,14 @@ def network(i, leaf, k, size, rnd):
                 d = rot(t0, side * rnd.uniform(100, 112))
                 bp = [P0] + march(inner, P0, d, t0, 2 * px, LineString(mid).length * 0.7, 0.02)[1:]
                 if len(bp) > 8:
-                    primaries.append((bp, w0 * 0.62, (1, -1), 0.06))
+                    # secondaries on the outer side only: the inner side would crowd
+                    # the midrib's own lower secondaries
+                    primaries.append((bp, w0 * 0.62, 'outer', 0.06))
 
     from shapely.prepared import prep
     laid = [LineString(p) for p, _, _, _ in primaries]
     prim = [(path, w0) for path, w0, _, _ in primaries]
+    bands = []
     for path, w0, sides, start_f in primaries:
         blocked = prep(unary_union(laid))
         own = LineString(path)
@@ -220,57 +237,85 @@ def network(i, leaf, k, size, rnd):
                     ang = (96 if f < 0.1 else 70) - 30 * f
                 else:
                     ang = (88 if f < 0.08 else 64) - 26 * f
-                ang += rnd.uniform(-7, 7)
+                ang += rnd.uniform(-8, 8)
                 d = rot(t, ang * side)
-                bend = (0.012 if (palm or broad) else 0.028) * rnd.uniform(0.7, 1.3)
+                bend = (0.013 if (palm or broad) else 0.027) * rnd.uniform(0.7, 1.3)
                 pts = march(inner, P, d, t, 2 * px, L * (0.42 if palm else 0.9), bend,
                             blocked=_Others(blocked, own, P, 6 * px))
                 if len(pts) >= 5:
                     laid.append(LineString(pts))
-                    wl = (w0 + (0.35 * px - w0) * f) * 0.62
-                    filled.append((pts, wl, 0.32 * px))
+                    wl = (w0 + (0.35 * px - w0) * f) * 0.52
+                    filled.append((pts, wl, 0.3 * px))
                     sec.append((f, pts, wl))
                     # a fork near the end, toward the margin, now and then
-                    if len(pts) > 14 and rnd.random() < 0.35:
+                    if len(pts) > 14 and rnd.random() < 0.15:
                         j = int(len(pts) * rnd.uniform(0.62, 0.78))
                         q0, q1 = pts[j - 1], pts[j]
                         dd = unit((q1[0] - q0[0], q1[1] - q0[1]))
                         fork = march(inner, q1, rot(dd, side * rnd.uniform(18, 30)), dd, 2 * px, L * 0.3, 0.0)
                         if len(fork) >= 4:
-                            thin.append((fork, 0.7))
-                f += (spacing / L) * rnd.uniform(0.78, 1.25)
-            # smooth edge: each secondary loops into the next one up, along the inside of
-            # the margin
-            if not toothed:
-                for (fa, a, _), (fb, c, _) in zip(sec, sec[1:]):
-                    da = track.project(Point(a[-1]))
-                    db = track.project(Point(c[-1]))
-                    lo, hi = sorted((da, db))
-                    seg = substring(track, lo, hi)
-                    if seg.length > track.length / 2:
-                        continue
-                    if seg.length < 60 * px:
-                        thin.append((list(seg.coords), 0.75))
-            # tertiaries: rungs between neighbouring secondaries
-            for (_, a, _), (_, c, _) in zip(sec, sec[1:]):
-                A, C = LineString(a), LineString(c)
-                u = 0.12
-                while True:
-                    u += (9 * px / max(A.length, 1e-6)) * rnd.uniform(0.7, 1.45)
-                    if u > 0.9:
+                            thin.append((fork, 0.6))
+                f += (spacing / L) * rnd.uniform(0.62, 1.5)
+            bands.append((path, sec))
+        # The arches and ladders wait until every primary's secondaries exist, so a rung
+        # can see — and refuse to cross — veins laid after its own band.
+    laid_geom = unary_union(laid)
+    laid_prep = prep(laid_geom)
+    for path, sec in bands:
+        # smooth edge: each secondary loops into the next one up, arching just inside
+        # the margin (brochidodromous). The arch is a shallow quadratic — bulging
+        # away from the parent vein — sampled to a polyline.
+        if not toothed:
+            for (fa, a, _), (fb, c, _) in zip(sec, sec[1:]):
+                ae, ce = a[-1], c[-1]
+                span = math.hypot(ae[0] - ce[0], ae[1] - ce[1])
+                if span > 90 * px or span < 14 * px:
+                    continue
+                _, pm = T.along(path, (fa + fb) / 2)
+                mx, my = (ae[0] + ce[0]) / 2, (ae[1] + ce[1]) / 2
+                ox, oy = unit((mx - pm[0], my - pm[1]))
+                cr = 0.32 * span
+                ctrl = (mx + ox * cr, my + oy * cr)
+                arch = []
+                for s_ in range(7):
+                    u = s_ / 6.0
+                    arch.append(((1 - u) ** 2 * ae[0] + 2 * (1 - u) * u * ctrl[0] + u * u * ce[0],
+                                 (1 - u) ** 2 * ae[1] + 2 * (1 - u) * u * ctrl[1] + u * u * ce[1]))
+                thin.append((arch, 0.6))
+        # the ladders: rungs between neighbouring secondaries, the dominant texture
+        # of a real skeleton leaf. Stations match by arc fraction — the two veins of
+        # a band run roughly parallel, so same-fraction points face each other and
+        # the rungs come out orderly, fanning like the real ones — with a touch of
+        # slide and bow so they are not ruled with a straightedge. The outer fifth
+        # of the band is left for the lace, and a rung whose middle would cross a
+        # vein is dropped.
+        for (_, a, _), (_, c, _) in zip(sec, sec[1:]):
+            A, C = LineString(a), LineString(c)
+            n_st = max(3, int(A.length / (9.5 * px)))
+            for j in range(n_st):
+                if rnd.random() < 0.12:
+                    continue
+                f_ = 0.08 + 0.72 * (j + 0.5) / n_st
+                p = A.interpolate(min(1.0, f_ + rnd.uniform(-0.015, 0.015)), normalized=True)
+                q = C.interpolate(min(1.0, f_ + rnd.uniform(-0.015, 0.015)), normalized=True)
+                gap = p.distance(q)
+                if gap > 34 * px or gap < 2.5 * px:
+                    continue
+                mx, my = (p.x + q.x) / 2, (p.y + q.y) / 2
+                nx, ny = -(q.y - p.y), (q.x - p.x)
+                wv = rnd.uniform(-0.12, 0.12) * gap
+                cx, cy = mx + nx * wv, my + ny * wv
+                crossed = False
+                for tt in (0.25, 0.5, 0.75):
+                    u = tt
+                    vx = (1 - u) ** 2 * p.x + 2 * (1 - u) * u * cx + u * u * q.x
+                    vy = (1 - u) ** 2 * p.y + 2 * (1 - u) * u * cy + u * u * q.y
+                    if laid_prep.covers(Point(vx, vy)):
+                        crossed = True
                         break
-                    if rnd.random() < 0.25:
-                        continue
-                    p = A.interpolate(u, normalized=True)
-                    q = nearest_points(p, C)[1]
-                    if p.distance(q) > 34 * px or p.distance(q) < 3 * px:
-                        continue
-                    mx, my = (p.x + q.x) / 2, (p.y + q.y) / 2
-                    nx, ny = -(q.y - p.y), (q.x - p.x)
-                    w = rnd.uniform(-0.22, 0.22)
-                    rung = [(p.x, p.y), (mx + nx * w, my + ny * w), (q.x, q.y)]
-                    if b.contains(LineString(rung)):
-                        thin.append((rung, 0.5))
+                if crossed or not b.contains(LineString([(p.x, p.y), (cx, cy), (q.x, q.y)])):
+                    continue
+                thin.append(([(p.x, p.y), (cx, cy), (q.x, q.y)], 0.4))
 
     # the lace: inside every space the veins enclose
     vein_geom = unary_union(
@@ -282,7 +327,7 @@ def network(i, leaf, k, size, rnd):
     lace = []
     for r in regions:
         if r.geom_type == 'Polygon' and r.area > (4 * px) ** 2:
-            lace += areoles(r, 6.5 * px, rnd)
+            lace += areoles(r, 7.5 * px, rnd)
     # THE STEM joins the spine as one shape, ported from vrender.py, where it fixed the
     # "stem is disconnected from the spine" the maintainer saw: the stem's centreline is
     # prepended to the widest primary (the midrib, or a maple's main lobe vein) and the
@@ -332,7 +377,7 @@ def render(leaf, x, y, size, tip_deg, ink, tint, tint_alpha, seed, idx, flip=Fal
     o.append('<path d="%s" fill="%s" fill-opacity="%g" fill-rule="evenodd"/>' % (
         ''.join('M%sZ' % pstr(g.exterior.coords) + ''.join('M%sZ' % pstr(h.coords) for h in g.interiors) for g in hp if g.geom_type == 'Polygon'),
         tint, tint_alpha * 0.8))
-    o.append('<path d="%s" fill="none" stroke="%s" stroke-width="0.35" stroke-opacity="0.7" vector-effect="non-scaling-stroke"/>' % (''.join(lace), ink))
+    o.append('<path d="%s" fill="none" stroke="%s" stroke-width="0.35" stroke-opacity="0.55" vector-effect="non-scaling-stroke"/>' % (''.join(lace), ink))
     for pts, w in thin:
         o.append('<path d="M%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' % (pstr(pts), ink, w))
     for pts, w0, w1 in filled:

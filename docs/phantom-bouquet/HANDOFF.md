@@ -314,3 +314,61 @@ python3 panel2.py && node ~/.zcode/shot-tools/shot.js file://$PWD/mock-lite.html
 ```
 
 (The original container instructions are in section 3; only `shot.js` differs.)
+
+## 7. Seventh turn (2026-10-05): the believability pass
+
+The maintainer answered the sixth turn's sheet with five photographs of real skeleton
+leaves: still not convinced, "a large believability gap". Studying the photos against
+the render named what was missing, and all of it was interior structure — the outlines
+were not the problem this time:
+
+1. **Ladder rungs are the dominant texture.** Between neighbouring secondaries a real
+   skeleton carries a dense, orderly ladder of slightly oblique rungs, a few px apart
+   at panel scale. The old render had sparse, wandering rungs, so the inter-vein bands
+   read as empty.
+2. **Secondaries arc continuously** toward the tip and loop into their neighbour just
+   inside the margin — a visible series of arches. The old ones ran straight and bent
+   only at the end: a kink, not an arc.
+3. **The lace is organised**: cells elongated along the vein direction, finer against
+   the margins and veins, coarser mid-band. Isotropic same-size Voronoi everywhere was
+   the "burnt paper" look.
+4. **Four visible weights**: midrib, secondary, rung, hairline lace. The old render
+   collapsed the middle two.
+
+What changed in `skeleton.py`:
+
+- `march()` arcs a secondary toward the tip along its whole length, turning harder as
+  it nears the margin (a factor of about ten between mid-run and the edge).
+- Secondaries come thinner (0.52 of the parent's width there), spacing jitter is wider
+  (0.62–1.5), forks rarer.
+- **Arches**: each consecutive pair of secondary ends is joined by a shallow quadratic
+  bulging away from the parent vein — the brochidodromous loop, no longer dependent on
+  the old margin-track walk (which the wider spacing jitter was breaking).
+- **Ladders**: rungs connect same-fraction stations on neighbouring secondaries (the
+  band's veins run roughly parallel, so same-fraction points face each other and the
+  fan comes out orderly), with a touch of slide and bow. They are laid in a deferred
+  pass, after **every** primary's secondaries exist, and a rung whose interior would
+  land on any vein is dropped — this fixed the plum heart, whose midrib-band rungs
+  used to run straight across the basal veins' secondaries laid after them.
+- The hearts' basal veins now carry secondaries on their **outer side only** (the
+  `sides == 'outer'` machinery existed but had never been used); inner ones crowded
+  the midrib's lower secondaries into a tangle.
+- **Lace**: `areoles()` adds boundary seeds along the region's rings (a third as many
+  again), so cells finish finer against veins and margin; the sliver shape of the
+  spaces elongates the cells along the flow for free. Cells a little larger (7.5 px)
+  and the stroke lighter (0.55 opacity): airy, not grey.
+
+**Result** (`stem-join-latest.png` at 2×, `curated-sheet-latest.png` at 2×,
+`panel-latest.png`): the interiors now sit in the references' family — dominant midrib,
+arcing secondaries with margin arches, orderly ladders, gradient lace. The willow, the
+serrated oval and the madder heart are the convincing ones; the panel reads calm at
+1×, and its layer dropped from 1.24 MB to 1.08 MB with the lighter lace.
+
+**Where the remaining gap is:** the outlines. The clip-art silhouettes are symmetric
+and slightly paunchy (the hearts), or lumpy (the maples); every photo the maintainer
+supplied has an asymmetric, gracefully curved outline. `skeleton.py` can only dress
+the outline it is given. Next lever, maintainer's call: better source silhouettes —
+the source of `variety.svg` (still unrecorded, see section 2) may have better shapes,
+or the outlines could be redrawn by hand against the photo references.
+
+**Not yet seen by the maintainer.**
