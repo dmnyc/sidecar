@@ -435,3 +435,134 @@ python3 lab8.py && node ~/.zcode/shot-tools/shot.js file://$PWD/lab8.svg lab8.pn
 ```
 
 **Not yet seen by the maintainer.**
+
+## 9. Ninth turn (2026-10-05): contour and vein geometry corrections
+
+Continued on `feat/phantom-bouquet`. No commits, pushes, or theme integration.
+The two current PNGs are refreshed: `curated-sheet-latest.png` (280px specimens,
+2× capture) and `stem-join-latest.png` (460px closeups, 2× capture).
+
+Corrections in this pass:
+
+- `genleaf.py` uses cubic contours with a real cordate sinus at (0, 0), rounded
+  lobes below it, and an acuminate upper contour. The previous generated contour
+  closed below the intended petiole attachment; the test specimen's margin was
+  9.34 source units away from that attachment. Generated specimens now carry
+  explicit base/tip landmarks, honored by `traced.base_and_tips()`.
+- The trial maple has shorter lower lobes, a narrower fan, and pointed lobe ends
+  instead of cosine-rounded ends. It remains an art trial, not an identified species.
+- Rung normals are normalized. Previously displacement grew with gap squared;
+  one regression specimen had a bend 42% of its span. Rungs now follow sampled
+  quadratic curves, with maximum bow below 6.1% of their span.
+- Rung collision checks use the actual connecting geometry instead of three
+  isolated point tests against zero-width lines.
+- Secondary and fork growth now sees previously laid veins and stops at the exact
+  intersection rather than one integration step beyond it. Secondaries grow from
+  the apex downward, with narrower spacing variation and more continuous curvature.
+- The marginal arch code was using a tangent as a position (`T.along` returns
+  position, tangent); that is corrected. Arches outside the blade are rejected.
+- Cross-vein spacing is denser and the allowed inter-secondary gap is wider.
+
+Validation: `cd docs/phantom-bouquet/proto && python3 -m unittest test_geometry`
+passes all three behavioral checks (petiole attachment, exact collision endpoint,
+and bounded/noncrossing rungs). All three fail against the previous HEAD's modules.
+`git diff --check` passes. Both specimen sheets were generated and visually inspected.
+The Browser plugin could not initialize because of a local native-module code-signing
+error; the handoff's local Playwright screenshot helper worked outside the sandbox.
+
+Reference consulted for the distinction between venation patterns:
+[Manual of Leaf Architecture](https://repository.si.edu/server/api/core/bitstreams/9b5627fb-50bf-4c68-b887-d291c5be6bc0/content).
+No reference image was traced or bundled.
+
+Assessment: the tangled/angular cross-veins and buried petiole problem are improved.
+Some broad patches still rely mostly on fine lace, and the maple remains stylized.
+Do not call the art approved or botanically exact. The panel mock is still the older
+arrangement; composer and lock-screen work has not begun. Get visual feedback on
+these specimens before integrating the theme, as already agreed in the handoff.
+
+## 10. Tenth turn (2026-10-05): outward branching is the actual target
+
+The maintainer rejected the ninth-turn specimens as missing the desired qualities,
+and supplied four additional maple skeleton references. The explicit direction:
+veins must visibly emanate from the stem and spine outward, with natural, organic
+geometry. This is not solved by correcting rung intersections alone. The prior
+ladder/Voronoi construction still read as strong lines over a separate mesh.
+
+A separate experiment, `proto/outward.py`, now renders **one maple only**. It does
+not replace the previous sheets or integrate anything into the theme. Run it from
+the prototype directory with `python3 outward.py`; output is `lab-outward.svg`.
+The saved review image is `outward-maple-latest.png`.
+
+- Original asymmetric five-lobed contour with broader lobes and unequal teeth;
+  no supplied image was traced or bundled.
+- Five primaries start at the petiole, with curved, oblique secondaries leaving
+  those primaries. Secondary paths stop at existing framework intersections.
+- Minor branches grow from that framework toward progressively finer source
+  points, using small fixed steps and directional inertia. No Voronoi fill or
+  independent ladder bands. Every growth node has a parent leading to the root.
+- Terminal branches join nearby, unrelated branches in their forward direction.
+  These joins close the fine network. Junctions are smoothed together in the graph,
+  rather than moving individual strokes apart at attachment points.
+- Width comes from downstream branch flow. Interior geometry is clipped to the
+  blade; the exact petiole section of the rooted stroke is repeated outside it.
+
+Three iterations were inspected: the first had many short spurs and framework
+crossings; the second closed more of the net but was too angular; the third smooths
+shared junctions and regularizes the margin sampling. The final graph has 26,076
+nodes; a runtime check confirmed a single root and an earlier parent for every
+other node. Raw geometry had a few short excursions at the margin (maximum 2.8px
+on an edge), hence the explicit blade clip. The existing three `test_geometry`
+checks still pass; those cover the older renderer, not the whole new experiment.
+
+Assessment: the new specimen better expresses a continuous stem-to-edge hierarchy,
+but the minor cells and some branch departures still look more regular than the
+references. It is **not approved**. Show the new maple close-up and use the
+maintainer's visual feedback before adapting other leaf shapes. File size remains
+prototype-scale (~954 KB SVG); optimization and theme integration come later.
+No commits or pushes.
+
+## 11. Eleventh turn (2026-10-05): start fresh; establish the anatomy first
+
+The maintainer rejected `outward-maple-latest.png` and explicitly authorized
+starting fresh if the generator is not working. Do not keep refining that failed
+specimen or treat any previous art as accepted.
+
+Started over with the built-in image generation tool, producing a **raster botanical
+structure study**, `maple-structure-study.png`. It shows a broad five-lobed maple,
+pointed subsidiary teeth, deep rounded sinuses, a curved petiole, and tapering
+primary/secondary veins. It intentionally omits the fine skeleton lace so the
+silhouette and branching can be judged first. The prompt is saved in
+`maple-structure-study-prompt.txt`. This is an art-direction study, not a finished
+transparent theme asset or a new procedural generator. No supplied reference image
+was traced. The old experiments are preserved, but are not the basis of this study.
+
+The generated result is visibly more recognizable as a maple than the procedural
+attempts. It still requires the maintainer's judgment; do not assume approval.
+Next: get feedback on this structure before adding fine lace or implementing a
+production asset. No commits, pushes, or theme integration.
+
+## 12. Twelfth turn (2026-10-05): approved structure, first lace study
+
+The maintainer explicitly approved `maple-structure-study.png` ("yes") and then
+approved continuing to the fine lace ("ok"). **That structure is now the approved
+foundation.** Preserve its silhouette, petiole, and main vein layout.
+
+Used the built-in image generation tool to edit that exact saved image, adding
+fine interconnected venation. Saved the result separately as `maple-lace-study.png`
+and its exact prompt as `maple-lace-study-prompt.txt`. The approved structure image
+is preserved. The result visually retains the outline and major branching, with
+fine lace throughout the blade. This remains an ivory-background raster study,
+not a transparent production asset. Fine-lace appearance has not yet been approved.
+No theme integration, commits, or pushes.
+
+## 13. Thirteenth turn (2026-10-06): lace approved; expand the set
+
+The maintainer called `maple-lace-study.png` "absolutely perfect", authorized
+committing the approved work, and requested a variety of companion leaf shapes.
+**Both the maple structure and lace are approved.** Use the approved lace study as
+the visual standard for all new leaves. The provided
+`/Users/daniel/Downloads/Variety-Of-Leaves.svg` is inspiration for outer shapes.
+
+The approved maple studies, exact prompts, and this handoff are being committed.
+Failed procedural experiments described above remain uncommitted in the working
+tree and are not approved production assets. No push was requested.
