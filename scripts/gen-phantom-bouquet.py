@@ -22,8 +22,9 @@ Writes, in themes/:
   phantom-bouquet-floor.webp       the foot of the panel: large ivory skeleton leaves
                                    cropped by the panel's edges, with a few dyed ones
                                    lying over and under them.
-  phantom-bouquet-garland.webp     the lock screen: the leaves on a length of twine.
-  phantom-bouquet-*-wide.webp      the same plates in a 900-unit frame for the expanded
+  phantom-bouquet-drift-<n>.webp   the lock screen: single leaves, one per file, that
+                                   drift slowly in and out over the cloth.
+  phantom-bouquet-*-wide.webp      the head and floor plates in a 900-unit frame for the expanded
                                    composer and any window past a side panel's width.
 
 Rasters, not SVG, because the leaves are rasters: a skeleton leaf's lace is thousands of
@@ -37,7 +38,6 @@ The ivory leaves are sepia-veined; the dyed ones take one of the five autumn dye
 both body and veins. Every placement is listed below, so a run draws the same bouquet.
 """
 
-import math
 import os
 import sys
 
@@ -129,28 +129,22 @@ def master(name):
         ImageDraw.floodfill(pad, (0, 0), 128)
         body = pad.crop((2, 2, pad.width - 2, pad.height - 2)).point(lambda v: 0 if v == 128 else 255)
         body = body.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.5))
-        # The petiole's tip: the lowest solid ink, which is where a hanging leaf is tied.
-        arr = np.asarray(lace)
-        ys, xs = np.nonzero(arr > 128)
-        tip = (float(xs[ys.argmax()]), float(ys.max()))
-        _masters[name] = (lace, body, tip)
+        _masters[name] = (lace, body)
     return _masters[name]
 
 
-def leaf(name, height, angle, dye=None, flip=False):
+def leaf(name, height, angle, dye=None, flip=False, shadow=True):
     """One leaf laid on cloth, `height` CSS px tall before turning, turned `angle` degrees
-    clockwise. Returns the RGBA image at plate scale, and where the petiole's tip lands in
-    it (the hanging point) and where the leaf's centre lands."""
-    lace, body, tip = master(name)
+    clockwise. Returns the RGBA image at plate scale, centred on the leaf. Without its
+    shadow when `shadow` is false, for a sprite whose shadow the stylesheet casts."""
+    lace, body = master(name)
     s = height * SCALE / lace.height
     size = (max(1, round(lace.width * s)), max(1, round(lace.height * s)))
     lace = lace.resize(size, Image.LANCZOS)
     body = body.resize(size, Image.LANCZOS)
-    tip = (tip[0] * s, tip[1] * s)
     if flip:
         lace = lace.transpose(Image.FLIP_LEFT_RIGHT)
         body = body.transpose(Image.FLIP_LEFT_RIGHT)
-        tip = (size[0] - tip[0], tip[1])
 
     if dye:
         d = DYES[dye]
@@ -181,38 +175,26 @@ def leaf(name, height, angle, dye=None, flip=False):
     shadow_a = body.point(lambda v: int(v / max(body_a, 1e-3) * 0.10))
     shadow_a = ImageChops.offset(shadow_a, int(1.5 * SCALE), int(3 * SCALE)).filter(ImageFilter.GaussianBlur(3 * SCALE))
     out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
-    out.alpha_composite(Image.merge('RGBA', [*Image.new('RGB', (w, h), (0x4A, 0x3A, 0x28)).split(), shadow_a]))
+    if shadow:
+        out.alpha_composite(Image.merge('RGBA', [*Image.new('RGB', (w, h), (0x4A, 0x3A, 0x28)).split(), shadow_a]))
     out.alpha_composite(Image.merge('RGBA', [*Image.new('RGB', (w, h), body_rgb).split(), body]))
     out.alpha_composite(Image.merge('RGBA', [*Image.new('RGB', (w, h), vein_rgb).split(), lace]))
 
-    cx, cy = w / 2, h / 2
-    turned = out.rotate(-angle, resample=Image.BICUBIC, expand=True)
-    # Where the tip and the centre went: rotate about the image centre, then shift by the
-    # growth `expand` added.
-    rad = math.radians(angle)
-    tx, ty = tip[0] + m - cx, tip[1] + m - cy
-    rx = tx * math.cos(rad) - ty * math.sin(rad)
-    ry = tx * math.sin(rad) + ty * math.cos(rad)
-    ncx, ncy = turned.width / 2, turned.height / 2
-    return turned, (ncx + rx, ncy + ry), (ncx, ncy)
+    return out.rotate(-angle, resample=Image.BICUBIC, expand=True)
 
 
-def plate(w, h, placements, twine=None):
+def plate(w, h, placements):
     """A transparent plate `w` x `h` CSS px. Each placement is
-    (leaf, height, angle, x, y, dye, flip, anchor): (x, y) in CSS px is where the leaf's
-    centre goes, or its petiole tip when anchor is 'tip'. Later placements lie on top."""
+    (leaf, height, angle, x, y, dye, flip): (x, y) in CSS px is where the leaf's centre
+    goes. Later placements lie on top."""
     canvas = Image.new('RGBA', (w * SCALE, h * SCALE), (0, 0, 0, 0))
-    if twine:
-        canvas.alpha_composite(twine)
     for p in placements:
         name, height, angle, x, y = p[:5]
         dye = p[5] if len(p) > 5 else None
         flip = p[6] if len(p) > 6 else False
-        anchor = p[7] if len(p) > 7 else 'centre'
-        img, tip, centre = leaf(name, height, angle, dye, flip)
-        ax, ay = tip if anchor == 'tip' else centre
+        img = leaf(name, height, angle, dye, flip)
         layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
-        layer.paste(img, (round(x * SCALE - ax), round(y * SCALE - ay)))
+        layer.paste(img, (round(x * SCALE - img.width / 2), round(y * SCALE - img.height / 2)))
         canvas = Image.alpha_composite(canvas, layer)
     return canvas
 
@@ -221,70 +203,6 @@ def save(img, name):
     path = os.path.join(THEMES, name)
     img.save(path, 'WEBP', quality=86, alpha_quality=90, method=6, exact=False)
     print('wrote', name, img.width, 'x', img.height, os.path.getsize(path) // 1024, 'KB')
-
-
-# ---- the garland -----------------------------------------------------------------------
-
-def sag(x0, y0, x1, y1, depth, t):
-    """A point on a length of twine hung between two nails: a shallow catenary, close
-    enough to a parabola at this sag."""
-    x = x0 + (x1 - x0) * t
-    y = y0 + (y1 - y0) * t + depth * 4 * t * (1 - t)
-    return x, y
-
-
-def twine(w, h, spans):
-    """The twine itself: two plies of warm jute twisted together, drawn at four times
-    the plate's resolution and brought down, so the cord is smooth and its twist reads
-    as cord rather than as a rule."""
-    k = 4 * SCALE
-    img = Image.new('RGBA', (w * k, h * k), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    for (x0, y0, x1, y1, depth) in spans:
-        pts = [sag(x0, y0, x1, y1, depth, i / 400) for i in range(401)]
-        d.line([(x * k, y * k) for x, y in pts], fill=(0x8E, 0x72, 0x4F, 240), width=int(1.8 * k), joint='curve')
-        # The twist: short dark strokes across the cord, slanted, every 2.4 CSS px.
-        run = 0.0
-        for i in range(400):
-            (xa, ya), (xb, yb) = pts[i], pts[i + 1]
-            run += math.hypot(xb - xa, yb - ya)
-            if run < 2.4:
-                continue
-            run = 0.0
-            dx, dy = xb - xa, yb - ya
-            n = math.hypot(dx, dy) or 1
-            ux, uy = dx / n, dy / n
-            px, py = -uy, ux
-            a = (xa + 0.55 * ux - 0.8 * px, ya + 0.55 * uy - 0.8 * py)
-            b = (xa - 0.55 * ux + 0.8 * px, ya - 0.55 * uy + 0.8 * py)
-            d.line([(a[0] * k, a[1] * k), (b[0] * k, b[1] * k)], fill=(0x5E, 0x47, 0x2E, 170), width=int(0.5 * k))
-        # A highlight along the upper ply.
-        d.line([(x * k, (y - 0.45) * k) for x, y in pts], fill=(0xC8, 0xAE, 0x84, 120), width=int(0.5 * k), joint='curve')
-    return img.resize((w * SCALE, h * SCALE), Image.LANCZOS)
-
-
-def knot(img, x, y):
-    d = ImageDraw.Draw(img)
-    r = 1.9 * SCALE
-    d.ellipse([x * SCALE - r, y * SCALE - r, x * SCALE + r, y * SCALE + r], fill=(0x7A, 0x5E, 0x3E, 240))
-
-
-def garland(w, h, spans, hung):
-    """Leaves tied along the twine. `hung` is (span index, t along it, leaf, height,
-    swing in degrees from straight down, dye, flip)."""
-    cord = twine(w, h, spans)
-    placements = []
-    ties = []
-    for (si, t, name, height, swing, dye, flip) in hung:
-        x, y = sag(*spans[si], t)
-        # A hanging leaf is turned upside down, petiole up at the knot, and swings a
-        # little off plumb.
-        placements.append((name, height, 180 + swing, x, y + 1.5, dye, flip, 'tip'))
-        ties.append((x, y))
-    img = plate(w, h, placements, twine=cord)
-    for x, y in ties:
-        knot(img, x, y)
-    return img
 
 
 # ---- the linen -------------------------------------------------------------------------
@@ -360,33 +278,20 @@ FLOOR_WIDE = (900, 520, [
     ('ovate', 112, -40, 902 - 140, 482, 'plum'),
 ])
 
-# The lock screen's garland: twine hung across the top of the panel, leaves tied along it.
-GARLAND = (360, 230, [(-12, 24, 372, 34, 64)], [
-    (0, 0.10, 'oak', 62, 8, None, False),
-    (0, 0.23, 'cordate', 54, -6, 'madder', False),
-    (0, 0.36, 'maple', 70, 4, None, True),
-    (0, 0.50, 'lanceolate', 66, -3, 'olive', False),
-    (0, 0.63, 'serrate', 60, 6, None, False),
-    (0, 0.76, 'ovate', 56, -5, 'ochre', True),
-    (0, 0.89, 'maple', 58, 7, 'plum', False),
-])
-
-GARLAND_WIDE = (900, 260, [(-20, 26, 452, 30, 74), (448, 30, 920, 22, 70)], [
-    (0, 0.12, 'serrate', 66, 6, None, False),
-    (0, 0.25, 'maple', 74, -4, 'rust', True),
-    (0, 0.38, 'oak', 70, 5, None, False),
-    (0, 0.51, 'cordate', 58, -7, 'madder', False),
-    (0, 0.64, 'lanceolate', 72, 3, None, False),
-    (0, 0.77, 'ovate', 60, -4, 'ochre', False),
-    (0, 0.90, 'maple', 66, 6, None, False),
-    (1, 0.12, 'cordate', 60, -5, None, True),
-    (1, 0.25, 'oak', 68, 4, 'olive', True),
-    (1, 0.38, 'lanceolate', 70, -6, None, False),
-    (1, 0.51, 'serrate', 62, 6, 'plum', False),
-    (1, 0.64, 'maple', 72, -3, None, False),
-    (1, 0.77, 'ovate', 58, 5, 'madder', True),
-    (1, 0.90, 'oak', 64, -6, None, False),
-])
+# The lock screen's drifting leaves: each its own sprite, untilted and unshadowed, so the
+# stylesheet can turn it in the plane and the container's one drop-shadow falls the same
+# way for all of them as they turn (phantom-bouquet.css). Sized as the leaves on the floor
+# plate are, so a leaf that drifts across the floor is the same size as the ones lying
+# there: one plane, one scale.
+DRIFT = [
+    ('maple', 190, None, False),
+    ('cordate', 84, 'madder', False),
+    ('oak', 180, None, True),
+    ('serrate', 104, 'ochre', False),
+    ('lanceolate', 150, None, False),
+    ('ovate', 96, 'plum', True),
+    ('maple', 110, 'rust', True),
+]
 
 
 def main():
@@ -395,8 +300,9 @@ def main():
     weave()
     for name, (w, h, pl) in (('top', TOP), ('floor', FLOOR), ('top-wide', TOP_WIDE), ('floor-wide', FLOOR_WIDE)):
         save(plate(w, h, pl), 'phantom-bouquet-%s.webp' % name)
-    for name, (w, h, spans, hung) in (('garland', GARLAND), ('garland-wide', GARLAND_WIDE)):
-        save(garland(w, h, spans, hung), 'phantom-bouquet-%s.webp' % name)
+    for i, (name, height, dye, flip) in enumerate(DRIFT, 1):
+        img = leaf(name, height, 0, dye, flip, shadow=False)
+        save(img.crop(img.getbbox()), 'phantom-bouquet-drift-%d.webp' % i)
 
 
 if __name__ == '__main__':

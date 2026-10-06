@@ -79,9 +79,21 @@ sys.stdout.write(json.dumps({'top': int(ys.min()) / scale, 'edges': [int(xs.min(
   assert.ok(x0 > 0 && x1 < out.w - 1 && y1 < out.h - 1, 'the heading leaf is cropped by the plate edge');
 });
 
-test('the garland is still under either reduce-motion setting', () => {
+test('the drifting leaves stand down under either reduce-motion setting', () => {
   const css = fs.readFileSync(path.join(ROOT, 'themes', 'phantom-bouquet.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\[data-theme="phantom-bouquet"\] #view-lock::before \{ animation: none; \}/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\[data-theme="phantom-bouquet"\] \.lock-leaves \{ display: none; \}/);
   // The in-app toggle sits on <html> with data-theme, so the two chain (CLAUDE.md).
-  assert.match(css, /html\.reduce-balance-motion\[data-theme="phantom-bouquet"\] #view-lock::before \{ animation: none; \}/);
+  assert.match(css, /html\.reduce-balance-motion\[data-theme="phantom-bouquet"\] \.lock-leaves \{ display: none; \}/);
+});
+
+test('every drifting leaf has its sprite, and no sprite is left without a leaf', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'themes', 'phantom-bouquet.css'), 'utf8');
+  const named = [...css.matchAll(/url\((phantom-bouquet-drift-\d+\.webp)\)/g)].map((m) => m[1]).sort();
+  const shipped = fs.readdirSync(path.join(ROOT, 'themes')).filter((f) => /^phantom-bouquet-drift-\d+\.webp$/.test(f)).sort();
+  assert.ok(named.length >= 5, 'the lock screen lost its leaves');
+  assert.deepEqual(named, shipped);
+  // sidepanel.html carries the elements the leaves ride on.
+  const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  const slots = (html.match(/<div class="lock-leaves"[^>]*>(.*?)<\/div>/) || [, ''])[1].match(/<i><\/i>/g) || [];
+  assert.ok(slots.length >= named.length, 'fewer .lock-leaves slots than drifting leaves');
 });
