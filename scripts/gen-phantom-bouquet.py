@@ -303,15 +303,13 @@ FLOOR_WIDE = (900, 520, [
 # floor plate stands down for them. (leaf, size, dye, flip)
 DRIFT = [
     ('maple', 1.0, None, False),
-    ('cordate', 0.95, 'madder', False),
+    ('cordate', 1.0, 'madder', False),
     ('oak', 1.0, None, True),
     ('serrate', 1.0, 'ochre', False),
     ('lanceolate', 1.0, None, False),
-    ('ovate', 0.95, 'plum', True),
-    ('maple', 0.92, 'rust', True),
-    ('cordate', 1.05, None, True),
-    ('serrate', 1.05, None, False),
-    ('lanceolate', 0.94, 'olive', False),
+    ('ovate', 1.0, 'plum', True),
+    ('maple', 1.0, 'rust', True),
+    ('cordate', 1.0, None, True),
 ]
 
 

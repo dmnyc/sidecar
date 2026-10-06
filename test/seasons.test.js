@@ -33,11 +33,12 @@ const day = (iso) => new Date(iso + 'T12:00:00');
 
 // ---- the calendar ---------------------------------------------------------------------
 
-test('Phantom Bouquet is worn from November 9 through November 30, both days included', () => {
+test('Phantom Bouquet is worn from November 9 through December 6, both days included', () => {
   assert.equal(S.inSeason('phantom-bouquet', new Date('2026-11-08T23:59:59')), false);
   assert.equal(S.inSeason('phantom-bouquet', new Date('2026-11-09T00:00:00')), true, 'arrives as Sleepy Hollow leaves');
-  assert.equal(S.inSeason('phantom-bouquet', new Date('2026-11-30T23:59:59')), true, 'lasts the whole of its last day');
-  assert.equal(S.inSeason('phantom-bouquet', new Date('2026-12-01T00:00:00')), false);
+  assert.equal(S.inSeason('phantom-bouquet', new Date('2026-11-30T23:59:59')), true, 'runs on into December');
+  assert.equal(S.inSeason('phantom-bouquet', new Date('2026-12-06T23:59:59')), true, 'lasts the whole of its last day');
+  assert.equal(S.inSeason('phantom-bouquet', new Date('2026-12-07T00:00:00')), false);
   assert.equal(S.seasonId('phantom-bouquet', day('2027-11-20')), 'phantom-bouquet:2027');
 });
 
