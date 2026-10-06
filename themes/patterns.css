@@ -641,74 +641,74 @@ html[data-tile][data-theme="sleepy-hollow"] body {
 }
 
 /* Phantom Bouquet — skeleton leaves laid on linen, from scripts/gen-phantom-bouquet.py.
-   Four layers: the head of the panel (one whole madder leaf in the heading row, below
-   the tab labels), pinned to the top; the foot (the large ivory leaves, cropped by the
-   panel's edges, with dyed ones over and under them), pinned to the bottom; the linen's
-   plain weave; and a faint grade of light across the cloth. Fixed to the viewport, so
-   the leaves stay where they lie while a view scrolls over them. Below 520px the panel
-   wears the 360-unit plates; at 520 and up the 900-unit ones, held at their natural size
-   until the window passes 900 and then scaled with it, as Sleepy Hollow's are. The lock
-   screen drops the heading leaf, which would sit beside the logo, and lets its leaves
-   fall instead (phantom-bouquet.css); the gallery tile shows the floor's largest leaves
-   in the band it crops to. */
+   Six layers, top to bottom: the linen's plain weave; the head of the panel (one whole
+   madder leaf lying across the heading row, below the tab labels), pinned to the top; a
+   wash of the cloth's own light (below); the foot (the large ivory leaves, cropped by
+   the panel's edges, with dyed ones over and under them), pinned to the bottom; the
+   white leaves, the deepest, pinned to the top, a few coming in from the top edge behind
+   the topbar and the tabs and larger ones under the cards; and a faint grade of light
+   across the cloth. Fixed to the viewport, so the leaves stay where they lie while a
+   view scrolls over them. Below 520px the panel wears the 360-unit plates; at 520 and up
+   the 900-unit ones, held at their natural size until the window passes 900 and then
+   scaled with it, as Sleepy Hollow's are. The plates travel under variables, so the lock
+   screen and the composer swap plates without restating the stack.
+
+   THE WASH is the cloth's grade itself at 30 percent, over the floor's leaves and the
+   white ones. Over bare cloth it is the color already there and changes nothing; over a
+   leaf it is the same as laying the leaf at 70 percent, so on every inner view, where
+   text scrolls straight over the lace, those leaves recede without a second set of
+   plates. The head leaf lies over the wash at full strength: it sits beside a title, in
+   the row above the first card, rather than under text. The lock screen and the gallery
+   tile, where nothing needs shielding, go without the wash. */
 [data-theme="phantom-bouquet"] body {
+  --pb-wash: linear-gradient(180deg, rgba(241, 235, 223, 0.3) 0%, rgba(236, 229, 214, 0.3) 45%, rgba(231, 223, 207, 0.3) 100%);
+  --pb-top: url(phantom-bouquet-top.webp);
+  --pb-floor: url(phantom-bouquet-floor.webp);
+  --pb-white: url(phantom-bouquet-white.webp);
   background-color: var(--bg);
   background-image:
-    url(phantom-bouquet-top.webp),
-    url(phantom-bouquet-floor.webp),
     url(phantom-bouquet-weave.webp),
+    var(--pb-top),
+    var(--pb-wash),
+    var(--pb-floor),
+    var(--pb-white),
     linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
-  background-size: 100% auto, 100% auto, 160px 160px, auto;
-  background-position: top center, bottom center, 0 0, 0 0;
-  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
-  background-attachment: fixed, fixed, fixed, fixed;
+  background-size: 160px 160px, 100% auto, auto, 100% auto, 100% auto, auto;
+  background-position: 0 0, top center, 0 0, bottom center, top center, 0 0;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
 }
 @media (min-width: 520px) {
   [data-theme="phantom-bouquet"] body {
-    background-image:
-      url(phantom-bouquet-top-wide.webp),
-      url(phantom-bouquet-floor-wide.webp),
-      url(phantom-bouquet-weave.webp),
-      linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
-    background-size: 900px auto, 900px auto, 160px 160px, auto;
-    background-position: top left, bottom left, 0 0, 0 0;
+    --pb-top: url(phantom-bouquet-top-wide.webp);
+    --pb-floor: url(phantom-bouquet-floor-wide.webp);
+    --pb-white: url(phantom-bouquet-white-wide.webp);
+    background-size: 160px 160px, 900px auto, auto, 900px auto, 900px auto, auto;
+    background-position: 0 0, top left, 0 0, bottom left, top left, 0 0;
   }
 }
 @media (min-width: 900px) {
   [data-theme="phantom-bouquet"] body {
-    background-size: 100% auto, 100% auto, 160px 160px, auto;
-    background-position: top center, bottom center, 0 0, 0 0;
+    background-size: 160px 160px, 100% auto, auto, 100% auto, 100% auto, auto;
+    background-position: 0 0, top center, 0 0, bottom center, top center, 0 0;
   }
 }
-/* The lock screen drops the heading leaf, which would sit beside the logo. While motion
-   is allowed it drops the floor's leaves too: leaves are falling there
-   (phantom-bouquet.css), and a leaf lying still while the rest fall past it would make
-   no sense. Under reduced motion nothing falls, and the floor's leaves stay. */
+/* The lock screen drops the wash, the heading leaf, which would sit beside the logo, and
+   the white leaves. While motion is allowed it drops the floor's leaves too: leaves are
+   falling there (phantom-bouquet.css), and a leaf lying still while the rest fall past
+   it would make no sense. Under reduced motion nothing falls, and the floor's leaves
+   stay. */
 [data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
-  background-image:
-    none,
-    url(phantom-bouquet-floor.webp),
-    url(phantom-bouquet-weave.webp),
-    linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
-}
-@media (min-width: 520px) {
-  [data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
-    background-image:
-      none,
-      url(phantom-bouquet-floor-wide.webp),
-      url(phantom-bouquet-weave.webp),
-      linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
-  }
+  --pb-wash: none;
+  --pb-top: none;
+  --pb-white: none;
 }
 @media (prefers-reduced-motion: no-preference) {
   html:not(.reduce-balance-motion)[data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
-    background-image:
-      none,
-      none,
-      url(phantom-bouquet-weave.webp),
-      linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+    --pb-floor: none;
   }
 }
+/* The gallery tile shows the floor's largest leaves in the band it crops to, unwashed. */
 html[data-tile][data-theme="phantom-bouquet"] body {
   background-image:
     url(phantom-bouquet-floor.webp),
@@ -908,20 +908,20 @@ html[data-tile][data-theme="phantom-bouquet"] body {
 }
 
 /* Phantom Bouquet: the composer always wears the wide plates, which keep their leaves
-   to the edges, so the centered card covers the cloth between them rather than a leaf. */
+   to the edges, so the centered card covers the cloth between them rather than a leaf;
+   the white leaves lie under it as they lie under the panel's cards. The stack itself
+   is the panel's (above). */
 [data-theme="phantom-bouquet"] body.compose-page {
-  background-image:
-    url(phantom-bouquet-top-wide.webp),
-    url(phantom-bouquet-floor-wide.webp),
-    url(phantom-bouquet-weave.webp),
-    linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
-  background-size: 100% auto, 100% auto, 160px 160px, auto;
-  background-position: top center, bottom center, 0 0, 0 0;
+  --pb-top: url(phantom-bouquet-top-wide.webp);
+  --pb-floor: url(phantom-bouquet-floor-wide.webp);
+  --pb-white: url(phantom-bouquet-white-wide.webp);
+  background-size: 160px 160px, 100% auto, auto, 100% auto, 100% auto, auto;
+  background-position: 0 0, top center, 0 0, bottom center, top center, 0 0;
 }
 @media (max-width: 899.98px) {
   [data-theme="phantom-bouquet"] body.compose-page {
-    background-size: 900px auto, 900px auto, 160px 160px, auto;
-    background-position: top left, bottom left, 0 0, 0 0;
+    background-size: 160px 160px, 900px auto, auto, 900px auto, 900px auto, auto;
+    background-position: 0 0, top left, 0 0, bottom left, top left, 0 0;
   }
 }
 

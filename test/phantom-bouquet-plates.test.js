@@ -79,6 +79,38 @@ sys.stdout.write(json.dumps({'top': int(ys.min()) / scale, 'edges': [int(xs.min(
   assert.ok(x0 > 0 && x1 < out.w - 1 && y1 < out.h - 1, 'the heading leaf is cropped by the plate edge');
 });
 
+test('the white leaves only lighten what lies under the topbar and tabs, and end inside their plates', (t) => {
+  const out = python(t, `
+import json, os, sys
+import numpy as np
+from PIL import Image
+linen = np.array([0xEC, 0xE5, 0xD6], np.float32)
+report = {}
+for name, frame in (('white', 360), ('white-wide', 900)):
+    im = np.asarray(Image.open(os.path.join(sys.argv[1], 'themes', 'phantom-bouquet-%s.webp' % name)).convert('RGBA')).astype(np.float32)
+    scale = im.shape[1] / frame
+    a = im[..., 3:] / 255
+    # Laid on the linen, the way the panel lays it, over the topbar and the tabs.
+    bars = (im[..., :3] * a + linen * (1 - a))[:round(106 * scale)]
+    report[name] = {
+        'underBars': int((im[:round(106 * scale), :, 3] > 8).sum()),
+        'darkest': float((bars - linen).min()),
+        'bottom': int(im[-2:, :, 3].max()),
+    }
+sys.stdout.write(json.dumps(report))
+`);
+  if (!out) return;
+  for (const [name, r] of Object.entries(out)) {
+    assert.ok(r.underBars > 0, `phantom-bouquet-${name}.webp has no leaf coming in from the top edge`);
+    // The lace under an icon or a label is lighter than the cloth, never darker. A few
+    // levels is the lossy encoder's grain at a leaf's soft edge; a sepia-veined leaf
+    // laid there darkens it by about 75.
+    assert.ok(r.darkest >= -8, `phantom-bouquet-${name}.webp darkens the linen under the topbar or tabs by ${-r.darkest} levels`);
+    // A leaf the plate's own bottom edge cuts off ends in a straight line mid-panel.
+    assert.ok(r.bottom <= 8, `a leaf runs off the bottom of phantom-bouquet-${name}.webp`);
+  }
+});
+
 test('the drifting leaves stand down under either reduce-motion setting', () => {
   const css = fs.readFileSync(path.join(ROOT, 'themes', 'phantom-bouquet.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\[data-theme="phantom-bouquet"\] \.lock-leaves \{ display: none; \}/);

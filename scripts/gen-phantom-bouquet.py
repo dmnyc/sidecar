@@ -22,20 +22,28 @@ Writes, in themes/:
   phantom-bouquet-floor.webp       the foot of the panel: large ivory skeleton leaves
                                    cropped by the panel's edges, with a few dyed ones
                                    lying over and under them.
+  phantom-bouquet-white.webp       behind everything: leaves bleached white, lighter
+                                   than the linen, a few coming in from the top edge
+                                   behind the topbar and tabs, larger ones under the
+                                   cards.
   phantom-bouquet-drift-<n>.webp   the lock screen: single leaves, one per file, that
                                    drift slowly in and out over the cloth.
-  phantom-bouquet-*-wide.webp      the head and floor plates in a 900-unit frame for the expanded
-                                   composer and any window past a side panel's width.
+  phantom-bouquet-*-wide.webp      the head, floor and white plates in a 900-unit frame for the
+                                   expanded composer and any window past a side panel's width.
 
 Rasters, not SVG, because the leaves are rasters: a skeleton leaf's lace is thousands of
 connected hairlines, and the study is the source of truth for them. Every plate is drawn
 at twice its CSS size so the lace holds on a 2x display, and saved as lossy WebP with
-alpha, which keeps the hairlines and costs a fraction of PNG.
+alpha, which keeps the hairlines and costs a fraction of PNG. The white plates are the
+exception, brought down to their CSS size when saved: their lace is faint and the
+deepest on the cloth, a little softness reads as distance, and at 1x they cost a
+quarter as much.
 
 Each leaf is laid as a pressed skeleton leaf lies on cloth: a faint ivory body (the
 translucent leaf itself), its lace and veins in ink over that, and a soft shadow under it.
 The ivory leaves are sepia-veined; the dyed ones take one of the five autumn dyes for
-both body and veins. Every placement is listed below, so a run draws the same bouquet.
+both body and veins; the white ones are lace bleached past ivory, with no shadow. Every
+placement is listed below, so a run draws the same bouquet.
 """
 
 import os
@@ -56,6 +64,7 @@ SCALE = 2
 
 LINEN = (0xEC, 0xE5, 0xD6)
 IVORY = (0xFB, 0xF7, 0xEC)
+WHITE = (0xFF, 0xFD, 0xF6)
 SEPIA = (0x6E, 0x52, 0x37)
 DYES = {
     'madder': (0xA3, 0x44, 0x3A),
@@ -146,7 +155,13 @@ def leaf(name, height, angle, dye=None, flip=False, shadow=True):
         lace = lace.transpose(Image.FLIP_LEFT_RIGHT)
         body = body.transpose(Image.FLIP_LEFT_RIGHT)
 
-    if dye:
+    if dye == 'white':
+        # Bleached past ivory: lace lighter than the linen it lies on, so it reads as
+        # white thread rather than ink, over the faintest body. These lie deepest, under
+        # every other leaf, and cast no shadow.
+        vein_rgb, vein_a, body_rgb, body_a = WHITE, 1.0, IVORY, 0.32
+        shadow = False
+    elif dye:
         d = DYES[dye]
         vein_rgb = tuple(int(c * 0.78) for c in d)
         vein_a, body_rgb, body_a = 0.92, d, 0.20
@@ -245,7 +260,8 @@ def weave():
 # lies, and an oak beside it is an oak's. LENGTH_CM is each leaf's real length, petiole
 # included, for a typical leaf of its kind (sugar maple, white oak, redbud, birch, a
 # smooth ovate leaf, willow); each placement then names a size factor, kept within a few
-# percent of 1, for the natural difference between one leaf and the next.
+# percent of 1, for the natural difference between one leaf and the next. Two exceptions,
+# each marked where it is laid: the ochre leaf the gallery tile shows, and the white leaves.
 #
 # (leaf, size, angle, x, y, dye, flip). Positions are CSS px in the plate's own frame.
 # The panel frame is 360 wide: the topbar is 0-56, the tabs 56-106, and the heading row
@@ -263,8 +279,10 @@ def sized(placements):
 
 TOP = (360, 300, [
     # The one whole dyed leaf in the heading row, right of the title, below the tab
-    # labels: madder, the serrate leaf, the smallest of the six, tip up and out.
-    ('serrate', 0.95, 18, 300, 194, 'madder'),
+    # labels: madder, the serrate leaf, the smallest of the six, lying on its side with
+    # its tip toward the title. On its side it fits whole in the row between the tabs and
+    # the first card, about 70 px on the Accounts tab; stood up, the card hid most of it.
+    ('serrate', 0.9, -84, 286, 140, 'madder'),
 ])
 
 FLOOR = (360, 560, [
@@ -273,8 +291,10 @@ FLOOR = (360, 560, [
     ('maple', 1.05, 24, 318, 336, None, True),
     ('cordate', 0.95, -18, 196, 312),
     ('lanceolate', 1.0, 64, 190, 522),
-    # Dyed leaves lying over the pale ones.
-    ('serrate', 1.0, -14, 74, 252, 'ochre'),
+    # Dyed leaves lying over the pale ones. The ochre leaf is the one the gallery tile
+    # and the arrival card show beside the wallet card (the band they crop to starts 170
+    # px down this plate), so it is laid larger than one scale allows, and turned.
+    ('serrate', 1.3, -38, 74, 252, 'ochre'),
     ('ovate', 0.95, 36, 262, 474, 'plum'),
     ('lanceolate', 0.92, -58, 70, 530, 'rust'),
 ])
@@ -294,6 +314,36 @@ FLOOR_WIDE = (900, 520, [
     ('maple', 0.9, -16, 700, 258, 'rust'),
     ('serrate', 1.0, 12, 468, 420, 'ochre'),
     ('ovate', 0.95, -40, 762, 482, 'plum'),
+])
+
+# THE WHITE LEAVES lie under the whole bouquet, the deepest layer, so they are the one
+# exception to one scale: at twice it and more they read as the lace of the cloth's own
+# depth rather than as more leaves on it, and they fill the top of the panel, which the
+# head and floor plates leave bare. Saved at 1x, so a leaf may be drawn as tall as its
+# cut is: the companions to about 620 px, maple and oak to about 1200. Pinned to the top
+# like the head plate, and tall enough that every leaf ends inside it: what crops them is
+# the panel's edge, never the plate's.
+#
+# THE ONLY LEAVES UNDER THE TOPBAR AND THE TABS. The first few in each frame come in from
+# the top edge, tips down, behind both bars and out below them. They can lie there
+# because they are lighter than the linen: white lace under an icon or a label only ever
+# lifts the ground behind it, never darkens it (test/phantom-bouquet-plates.test.js).
+WHITE_PLATE = (360, 860, [
+    ('ovate', 1.7, 198, 54, 62, 'white'),
+    ('lanceolate', 1.7, 164, 172, 56, 'white', True),
+    ('serrate', 1.7, 192, 326, 66, 'white'),
+    ('cordate', 2.0, -28, 26, 214, 'white'),
+    ('maple', 2.0, 16, 286, 306, 'white', True),
+    ('oak', 2.1, -26, 36, 600, 'white'),
+])
+
+WHITE_WIDE = (900, 800, [
+    ('lanceolate', 1.7, 196, 300, 58, 'white'),
+    ('cordate', 1.7, 168, 470, 60, 'white', True),
+    ('serrate', 1.7, 204, 640, 64, 'white'),
+    ('oak', 2.1, -22, 150, 330, 'white'),
+    ('maple', 2.0, 18, 730, 300, 'white', True),
+    ('maple', 1.8, -8, 450, 540, 'white'),
 ])
 
 # The lock screen's falling leaves: each its own sprite, untilted and unshadowed, so
@@ -319,6 +369,9 @@ def main():
     weave()
     for name, (w, h, pl) in (('top', TOP), ('floor', FLOOR), ('top-wide', TOP_WIDE), ('floor-wide', FLOOR_WIDE)):
         save(plate(w, h, sized(pl)), 'phantom-bouquet-%s.webp' % name)
+    for name, (w, h, pl) in (('white', WHITE_PLATE), ('white-wide', WHITE_WIDE)):
+        img = plate(w, h, sized(pl))
+        save(img.resize((w, h), Image.LANCZOS), 'phantom-bouquet-%s.webp' % name)
     for i, (name, size, dye, flip) in enumerate(DRIFT, 1):
         img = leaf(name, LENGTH_CM[name] * PX_PER_CM * size, 0, dye, flip, shadow=False)
         save(img.crop(img.getbbox()), 'phantom-bouquet-drift-%d.webp' % i)

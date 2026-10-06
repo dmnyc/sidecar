@@ -10,7 +10,7 @@ Update that section alongside this file as part of every release.
 ## [Unreleased]
 
 ### Added
-- **Phantom Bouquet, the second special edition (November 9 – December 6).** After the Victorian skeleton-leaf bouquet: ivory skeleton leaves of maple, oak and four companions lying on linen, a few dyed madder, ochre, rust, olive and plum, set in Sorts Mill Goudy. On the lock screen a few leaves fall slowly down the cloth, each turning at its own steady pace, and stay still under Reduce motion.
+- **Phantom Bouquet, the second special edition (November 9 – December 6).** After the Victorian skeleton-leaf bouquet: ivory skeleton leaves of maple, oak and four companions lying on linen over larger ones bleached white, a few dyed madder, ochre, rust, olive and plum, set in Sorts Mill Goudy. The balance drifts down into place a figure at a time. On the lock screen a few leaves fall slowly down the cloth, each turning at its own steady pace, and stay still under Reduce motion.
 
 ## [1.15.8] — 2026-10-05
 

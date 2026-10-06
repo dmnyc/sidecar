@@ -182,18 +182,55 @@
               rgba(var(--velvet-1-rgb), 0.70), rgba(var(--velvet-1-rgb), 0.40));
 }
 
-/* ---- balance animation: the leaf is dyed ---------------------------------------------
-   Each figure takes the dye the way a bleached leaf does in the bath: it surfaces pale,
-   blooms in madder, and settles into the plum it keeps. Left to right, quick. */
+/* ---- balance animation: the figures drift down, and take the dye ---------------------
+   Each figure comes down from above the way a leaf does, swaying off one side and back
+   as it falls, and settles on the line. On the way down it takes the dye the way a
+   bleached leaf does in the bath: it surfaces pale, blooms in madder, and settles into
+   the plum it keeps. Left to right.
+
+   THREE ANIMATIONS, ONE PER MOTION, so none of them stalls. A timing function applies to
+   each keyframe interval on its own, so a fall written as stops slows to a halt at every
+   stop and sets off again. The fall is one interval (`translate`), easing out once all
+   the way down; the sway (`transform`) eases in and out at its turns, the only places a
+   pendulum stops, and dies away; the dye (opacity and color) runs on its own clock.
+
+   EACH FIGURE FALLS IN ITS OWN TIME, as each lock-screen leaf does. Two values in -1..1
+   are drawn from the figure's position, a sine and a cosine stepped by unrelated angles
+   so neighbors never match: --pb-j moves its start and how widely it sways, --pb-k how
+   long it falls and from how high (a longer fall starts higher, so no figure is
+   conspicuously slower than the rest). Every second figure (.bal-alt) swings off the
+   other side first. The same balance falls the same way every time it is shown. */
+@keyframes phantom-bouquet-fall-in {
+  from { translate: 0 calc(-0.8em * (1 + 0.15 * var(--pb-k))); }
+  to   { translate: 0 0; }
+}
+@keyframes phantom-bouquet-sway {
+  0%   { transform: translateX(calc(-0.10em * var(--pb-sway))) rotate(calc(-9deg * var(--pb-sway))); }
+  38%  { transform: translateX(calc(0.07em * var(--pb-sway))) rotate(calc(5deg * var(--pb-sway))); }
+  70%  { transform: translateX(calc(-0.025em * var(--pb-sway))) rotate(calc(-1.5deg * var(--pb-sway))); }
+  100% { transform: none; }
+}
 @keyframes phantom-bouquet-dye {
   0%   { opacity: 0; color: #D9B9A6; }
-  30%  { opacity: 1; color: #A3443A; }
+  25%  { opacity: 1; }
+  45%  { color: #A3443A; }
   100% { opacity: 1; color: var(--balance-ink); }
 }
 [data-theme="phantom-bouquet"] .bal-glyph { display: inline-block; }
 [data-theme="phantom-bouquet"] .bal-glyph.bal-in {
-  animation: phantom-bouquet-dye 800ms ease-out both;
-  animation-delay: calc(var(--i) * 60ms);
+  --pb-j: sin(calc(var(--i, 0) * 137.5deg + 40deg));
+  --pb-k: cos(calc(var(--i, 0) * 97deg + 10deg));
+  --pb-sway: calc(0.8 + 0.25 * var(--pb-j));
+  animation:
+    phantom-bouquet-fall-in 1450ms cubic-bezier(0.22, 0.61, 0.36, 1) both,
+    phantom-bouquet-sway 1450ms ease-in-out both,
+    phantom-bouquet-dye 1450ms linear both;
+  /* 1150 to 1750ms, and a start 0 to 160ms off the left-to-right beat. */
+  animation-duration: calc(1450ms + 300ms * var(--pb-k));
+  animation-delay: calc(var(--i, 0) * 60ms + 80ms + 80ms * var(--pb-j));
+}
+[data-theme="phantom-bouquet"] .bal-glyph.bal-in.bal-alt {
+  --pb-sway: calc(-0.8 - 0.25 * var(--pb-j));
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="phantom-bouquet"] .bal-glyph.bal-in { animation: none; }
