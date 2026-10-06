@@ -146,7 +146,8 @@
 [data-theme="phantom-bouquet"] .tabview h3,
 [data-theme="phantom-bouquet"] #view-settings > .content > h2,
 [data-theme="phantom-bouquet"] .settings-section-title,
-[data-theme="phantom-bouquet"] #view-lock .lede {
+[data-theme="phantom-bouquet"] #view-lock .lede,
+[data-theme="phantom-bouquet"] #view-lock label {
   text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 6px var(--bg);
 }
 
@@ -199,49 +200,93 @@
 }
 html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { animation: none; }
 
-/* ---- the lock screen: the garland ----------------------------------------------------
-   A garland of skeleton leaves tied along a length of twine, hung across the top of the
-   lock screen (phantom-bouquet-garland*.webp), above the logo and clear of it. While
-   motion is allowed it stirs, barely: the whole garland sways a fraction of a degree
-   from its nails, as a draught moves something hung by a window, on a slow twelve-second
-   breath. Under prefers-reduced-motion, or Settings → Reduce motion, it hangs still. */
-@keyframes phantom-bouquet-sway {
-  from { transform: rotate(-0.5deg); }
-  to   { transform: rotate(0.5deg); }
+/* ---- the lock screen: leaves on the air -----------------------------------------------
+   The lock screen is the cloth with nothing on it but the leaves, and while motion is
+   allowed a few more of them drift across it: one at a time they blow in from an edge,
+   glide slowly over the cloth turning a little, and blow out again past another edge.
+   Every leaf stays in the plane of the cloth and at the scale of the leaves lying on it
+   (the sprites are cut at the floor plate's sizes, phantom-bouquet-drift-*.webp): they
+   slide, they never lift, tilt or hang. Most cross the top of the screen, the open cloth
+   above the logo; two cross low, over the leaves already lying at the foot. A crossing
+   takes a minute or more, the leaves keep their own clocks, and they fade at either end
+   so none pops in or out.
+
+   sidepanel.html's .lock-leaves carries ten <i>; this edition uses seven. One
+   drop-shadow on the container rather than one per leaf, so the light stays where it is
+   while each leaf turns under it. Under prefers-reduced-motion, or Settings → Reduce
+   motion, none of this runs and the leaves lying on the floor plate are the whole scene. */
+@keyframes phantom-bouquet-drift {
+  0%   { transform: translate(var(--x0), var(--y0)) rotate(var(--r0)); opacity: 0; }
+  14%  { opacity: 1; }
+  50%  { transform: translate(var(--xm), var(--ym)) rotate(var(--rm)); }
+  86%  { opacity: 1; }
+  100% { transform: translate(var(--x1), var(--y1)) rotate(var(--r1)); opacity: 0; }
 }
-[data-theme="phantom-bouquet"] #view-lock::before {
-  content: "";
+[data-theme="phantom-bouquet"] .lock-leaves {
   position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  filter: drop-shadow(1.5px 3px 3px rgba(74, 58, 40, 0.16));
+  z-index: -1; /* over the cloth and the leaves lying on it, under the lock form */
+}
+[data-theme="phantom-bouquet"] .lock-leaves i {
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 63.9vw; /* the garland plate is 230 tall in a 360 frame */
-  background: url(phantom-bouquet-garland.webp) top center / 100% auto no-repeat;
-  transform-origin: 50% 0;
-  animation: phantom-bouquet-sway 6s ease-in-out infinite alternate;
-  pointer-events: none;
-  z-index: -1; /* over the linen, under the lock form */
+  background: center / contain no-repeat;
+  opacity: 0;
+  animation-name: phantom-bouquet-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
-/* Wider windows hang the wide garland, two swags, at its natural 900px until the window
-   is wider than that, then at the window's width. */
-@media (min-width: 520px) {
-  [data-theme="phantom-bouquet"] #view-lock::before {
-    width: 100%;
-    height: 260px;
-    background-image: url(phantom-bouquet-garland-wide.webp);
-    background-size: 900px auto;
-  }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(n+8) { display: none; }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(1) {
+  width: 173.5px; height: 189px;
+  background-image: url(phantom-bouquet-drift-1.webp);
+  --x0: -60vw; --y0: 2vh; --r0: -8deg; --xm: 22vw; --ym: -2vh; --rm: 6deg; --x1: 110vw; --y1: 4vh; --r1: 18deg;
+  animation-duration: 86s; animation-delay: -12s;
 }
-@media (min-width: 900px) {
-  [data-theme="phantom-bouquet"] #view-lock::before {
-    height: 28.9vw;
-    background-size: 100% auto;
-  }
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(2) {
+  width: 70.5px; height: 84px;
+  background-image: url(phantom-bouquet-drift-2.webp);
+  --x0: 105vw; --y0: 14vh; --r0: 20deg; --xm: 58vw; --ym: 19vh; --rm: -4deg; --x1: -30vw; --y1: 15vh; --r1: -24deg;
+  animation-duration: 62s; animation-delay: -31s;
+}
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(3) {
+  width: 139.5px; height: 180px;
+  background-image: url(phantom-bouquet-drift-3.webp);
+  --x0: -55vw; --y0: 74vh; --r0: 30deg; --xm: 14vw; --ym: 70vh; --rm: 18deg; --x1: 100vw; --y1: 80vh; --r1: 4deg;
+  animation-duration: 92s; animation-delay: -52s;
+}
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(4) {
+  width: 66px; height: 103px;
+  background-image: url(phantom-bouquet-drift-4.webp);
+  --x0: 110vw; --y0: 2vh; --r0: -10deg; --xm: 54vw; --ym: 8vh; --rm: 8deg; --x1: -30vw; --y1: 4vh; --r1: 22deg;
+  animation-duration: 70s; animation-delay: -6s;
+}
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(5) {
+  width: 79px; height: 147px;
+  background-image: url(phantom-bouquet-drift-5.webp);
+  --x0: -35vw; --y0: 12vh; --r0: 70deg; --xm: 30vw; --ym: 18vh; --rm: 56deg; --x1: 115vw; --y1: 10vh; --r1: 40deg;
+  animation-duration: 80s; animation-delay: -63s;
+}
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(6) {
+  width: 56.5px; height: 95px;
+  background-image: url(phantom-bouquet-drift-6.webp);
+  --x0: 115vw; --y0: 13vh; --r0: -30deg; --xm: 60vw; --ym: 9vh; --rm: -10deg; --x1: -25vw; --y1: 14vh; --r1: 10deg;
+  animation-duration: 66s; animation-delay: -24s;
+}
+[data-theme="phantom-bouquet"] .lock-leaves i:nth-child(7) {
+  width: 101px; height: 109.5px;
+  background-image: url(phantom-bouquet-drift-7.webp);
+  --x0: 115vw; --y0: 86vh; --r0: 10deg; --xm: 66vw; --ym: 82vh; --rm: -6deg; --x1: -35vw; --y1: 88vh; --r1: -20deg;
+  animation-duration: 78s; animation-delay: -43s;
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-theme="phantom-bouquet"] #view-lock::before { animation: none; }
+  [data-theme="phantom-bouquet"] .lock-leaves { display: none; }
 }
-html.reduce-balance-motion[data-theme="phantom-bouquet"] #view-lock::before { animation: none; }
+html.reduce-balance-motion[data-theme="phantom-bouquet"] .lock-leaves { display: none; }
 
 /* The On-this-day box sits at the foot of the Accounts tab, where the largest leaves lie;
    it takes an ivory card of its own so its lines are on cloth, not on lace. */

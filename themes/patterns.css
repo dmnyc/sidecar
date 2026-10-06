@@ -648,8 +648,9 @@ html[data-tile][data-theme="sleepy-hollow"] body {
    the leaves stay where they lie while a view scrolls over them. Below 520px the panel
    wears the 360-unit plates; at 520 and up the 900-unit ones, held at their natural size
    until the window passes 900 and then scaled with it, as Sleepy Hollow's are. The lock
-   screen drops the heading leaf for its garland (phantom-bouquet.css), and the gallery
-   tile shows the garland, the edition's signature, in the band it crops to. */
+   screen drops the heading leaf, which would sit beside the logo, and lets its leaves
+   drift instead (phantom-bouquet.css); the gallery tile shows the floor's largest leaves
+   in the band it crops to. */
 [data-theme="phantom-bouquet"] body {
   background-color: var(--bg);
   background-image:
@@ -697,11 +698,11 @@ html[data-tile][data-theme="sleepy-hollow"] body {
 }
 html[data-tile][data-theme="phantom-bouquet"] body {
   background-image:
-    url(phantom-bouquet-garland.webp),
+    url(phantom-bouquet-floor.webp),
     url(phantom-bouquet-weave.webp),
     linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
   background-size: 100% auto, 160px 160px, auto;
-  background-position: 0 -12px, 0 0, 0 0;
+  background-position: 0 -170px, 0 0, 0 0;
   background-repeat: no-repeat, repeat, no-repeat;
   background-attachment: scroll, scroll, scroll;
 }
