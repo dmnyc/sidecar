@@ -202,22 +202,15 @@ html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { ani
 
 /* ---- the lock screen: leaves falling -----------------------------------------------------
    A lock screen is somewhere to rest the eyes, so the motion here is slow and quiet:
-   while motion is allowed a few leaves fall down the cloth, a handful in sight at a time
-   and each taking three minutes or so to fall the height of the panel.
+   while motion is allowed a few leaves fall down the cloth, a handful in sight at a time,
+   each taking about two minutes to fall the height of the panel.
 
-   ONE WAY DOWN. Every leaf falls at its own steady pace (i: `translate`, linear). Nothing
-   rides a belt, because three slower motions are laid over that fall on the sprite, each
-   a separate property with its own clock, so they never fall into step:
-   - wander (`translate`, 40 to 70 seconds): the leaf sways a little to either side and
-     eases a little faster and slower. The up and down part is always slower than the
-     fall, so a leaf lingers but never rises.
-   - tumble (`rotate`, 25 to 55 seconds a turn): it turns clockwise, a little over a third
-     of the way round, rocks back a few degrees as it catches the air, then turns on round.
-   - play (`transform`, 7 to 15 seconds): a skeleton leaf is all holes and stiff veins and
-     catches the air unevenly, so it rocks a couple of degrees on its own.
-   Over all of them the air itself sways on a slow shared swell (the container, ninety
-   seconds), easing every leaf a little to one side together and back. For the first part
-   of its cycle each leaf waits out of sight above, so they arrive now and then.
+   Nothing steers them. Each leaf is given its speed and its spin when it starts and keeps
+   both all the way down: it falls straight at one steady pace (i: `translate`, linear)
+   and turns at one steady rate (i::before: `rotate`, linear), a full turn every 25 to 60
+   seconds. Leaves differ from one another in both, and most turn clockwise. For the
+   first quarter of its cycle each leaf waits out of sight above, so they arrive now and
+   then.
 
    ONE PLANE, ONE SCALE: the sprites are cut at the same px-per-cm as every leaf in the
    edition (phantom-bouquet-drift-*.webp), one size per species, and only slide and turn in
@@ -231,34 +224,15 @@ html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { ani
   0%, 25% { translate: var(--x) calc(-100% - 12vh); }
   100% { translate: var(--x) 112vh; }
 }
-@keyframes phantom-bouquet-wander {
-  0%, 100% { translate: 0 0; }
-  25%  { translate: var(--wx1) var(--wy1); }
-  50%  { translate: var(--wx2) var(--wy2); }
-  75%  { translate: var(--wx3) var(--wy3); }
-}
-@keyframes phantom-bouquet-tumble {
-  0%   { rotate: var(--r); }
-  40%  { rotate: calc(var(--r) + 150deg); }
-  52%  { rotate: calc(var(--r) + 138deg); }
-  100% { rotate: calc(var(--r) + 360deg); }
-}
-@keyframes phantom-bouquet-play {
-  0%, 100% { transform: rotate(0); }
-  35%  { transform: rotate(var(--wob)); }
-  70%  { transform: rotate(calc(var(--wob) * -0.6)); }
-}
-@keyframes phantom-bouquet-swell {
-  0%, 100% { translate: 0 0; }
-  40%  { translate: 2vw 0; }
-  70%  { translate: -1vw 0; }
+@keyframes phantom-bouquet-spin {
+  from { rotate: var(--r); }
+  to { rotate: calc(var(--r) + var(--spin)); }
 }
 [data-theme="phantom-bouquet"] .lock-leaves {
   position: fixed;
   inset: 0;
   pointer-events: none;
   filter: drop-shadow(1.5px 3px 3px rgba(74, 58, 40, 0.16));
-  animation: phantom-bouquet-swell 90s ease-in-out infinite;
   z-index: -1; /* over the cloth, under the lock form */
 }
 [data-theme="phantom-bouquet"] .lock-leaves i {
@@ -274,47 +248,27 @@ html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { ani
   position: absolute;
   inset: 0;
   background: var(--leaf) center / contain no-repeat;
-  animation:
-    phantom-bouquet-wander var(--wt) ease-in-out infinite,
-    phantom-bouquet-tumble var(--tt) ease-in-out infinite,
-    phantom-bouquet-play var(--fl) ease-in-out infinite;
+  animation: phantom-bouquet-spin var(--tt) linear infinite;
 }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(n+9) { display: none; }
-/* Eight leaves: a column and a starting turn, a cycle of 220 to 280 seconds with a delay
-   partway into it (so the screen has leaves the moment it locks), and its own wander,
-   tumble and play, each on a period shared with no other leaf. */
+/* Eight leaves: a column, a starting turn, a cycle of 220 to 280 seconds with a delay
+   partway into it (so the screen has leaves the moment it locks), and a spin. */
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(1) { width: 201px; height: 219.5px; --leaf: url(phantom-bouquet-drift-1.webp);
-  --x: 4vw; animation-duration: 260s; animation-delay: -135s;
-  --r: -12deg; --tt: 46s; --wt: 61s; --fl: 13.0s; --wob: 3deg;
-  --wx1: 3vw; --wy1: -1vh; --wx2: -2vw; --wy2: 1vh; --wx3: 4vw; --wy3: -1vh; }
+  --x: 4vw; animation-duration: 260s; animation-delay: -135s; --r: -12deg; --spin: 360deg; --tt: 46s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(2) { width: 112.5px; height: 134.5px; --leaf: url(phantom-bouquet-drift-2.webp);
-  --x: 70vw; animation-duration: 220s; animation-delay: -176s;
-  --r: 18deg; --tt: 31s; --wt: 47s; --fl: 9.4s; --wob: 5deg;
-  --wx1: -3vw; --wy1: 1vh; --wx2: 2vw; --wy2: 2vh; --wx3: -2vw; --wy3: 0vh; }
+  --x: 70vw; animation-duration: 220s; animation-delay: -176s; --r: 18deg; --spin: 360deg; --tt: 31s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(3) { width: 160.5px; height: 207px; --leaf: url(phantom-bouquet-drift-3.webp);
-  --x: 40vw; animation-duration: 280s; animation-delay: -260s;
-  --r: 24deg; --tt: 52s; --wt: 71s; --fl: 14.6s; --wob: 2deg;
-  --wx1: 2vw; --wy1: -1vh; --wx2: 4vw; --wy2: -2vh; --wx3: -1vw; --wy3: 1vh; }
+  --x: 40vw; animation-duration: 280s; animation-delay: -260s; --r: 24deg; --spin: 360deg; --tt: 52s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(4) { width: 74.5px; height: 116px; --leaf: url(phantom-bouquet-drift-4.webp);
-  --x: 58vw; animation-duration: 230s; animation-delay: -92s;
-  --r: -20deg; --tt: 28s; --wt: 43s; --fl: 8.2s; --wob: 6deg;
-  --wx1: 4vw; --wy1: 1vh; --wx2: -1vw; --wy2: 0vh; --wx3: 3vw; --wy3: 2vh; }
+  --x: 58vw; animation-duration: 230s; animation-delay: -92s; --r: -20deg; --spin: 360deg; --tt: 28s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(5) { width: 82px; height: 153px; --leaf: url(phantom-bouquet-drift-5.webp);
-  --x: 18vw; animation-duration: 270s; animation-delay: -81s;
-  --r: 58deg; --tt: 38s; --wt: 57s; --fl: 11.8s; --wob: 4deg;
-  --wx1: -2vw; --wy1: -1vh; --wx2: 3vw; --wy2: 0vh; --wx3: 1vw; --wy3: -2vh; }
+  --x: 18vw; animation-duration: 270s; animation-delay: -81s; --r: 58deg; --spin: -360deg; --tt: 60s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(6) { width: 76px; height: 128px; --leaf: url(phantom-bouquet-drift-6.webp);
-  --x: 84vw; animation-duration: 225s; animation-delay: -148s;
-  --r: -34deg; --tt: 26s; --wt: 39s; --fl: 7.6s; --wob: 6deg;
-  --wx1: -3vw; --wy1: -1vh; --wx2: -4vw; --wy2: 1vh; --wx3: -1vw; --wy3: 0vh; }
+  --x: 84vw; animation-duration: 225s; animation-delay: -148s; --r: -34deg; --spin: 360deg; --tt: 26s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(7) { width: 201px; height: 219.5px; --leaf: url(phantom-bouquet-drift-7.webp);
-  --x: 52vw; animation-duration: 265s; animation-delay: -37s;
-  --r: 8deg; --tt: 49s; --wt: 67s; --fl: 12.2s; --wob: 3deg;
-  --wx1: -2vw; --wy1: 1vh; --wx2: 3vw; --wy2: -1vh; --wx3: 2vw; --wy3: 1vh; }
+  --x: 52vw; animation-duration: 265s; animation-delay: -37s; --r: 8deg; --spin: 360deg; --tt: 49s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(8) { width: 112.5px; height: 134.5px; --leaf: url(phantom-bouquet-drift-8.webp);
-  --x: 26vw; animation-duration: 245s; animation-delay: -243s;
-  --r: -6deg; --tt: 35s; --wt: 51s; --fl: 10.4s; --wob: 4deg;
-  --wx1: 3vw; --wy1: 2vh; --wx2: -2vw; --wy2: 1vh; --wx3: 2vw; --wy3: 1vh; }
+  --x: 26vw; animation-duration: 245s; animation-delay: -243s; --r: -6deg; --spin: 360deg; --tt: 35s; }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="phantom-bouquet"] .lock-leaves { display: none; }
 }
