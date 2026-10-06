@@ -721,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'sleepy-hollow']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'sleepy-hollow', 'phantom-bouquet']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -1242,6 +1242,31 @@
         CARD_SUCCESS: 'color:#93BA8C',
         CARD_PAY_SHADOW: 'rgba(228,138,50,0.28)'
       },
+      /* Phantom Bouquet, the November special edition — ivory and linen, sepia ink, the
+         madder dye. Mirrors themes/phantom-bouquet.css. The pay button is the madder
+         primary with ivory ink; CARD_GOLD is the amount slot and takes --balance-ink,
+         the plum, as the other light themes do. CARD_LAV is the olive. Only ever the card
+         theme while the bound account is wearing it in season: background.js resolves it. */
+      'phantom-bouquet': {
+        CARD_COLOR: 'color:#2B2219',
+        CARD_BORDER: 'rgba(78,60,40,0.28)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 50% 0%,rgba(163,68,58,0.06),transparent 58%),linear-gradient(165deg,#FBF8F0,#F4EEE2)',
+        CARD_MUTED: 'color:#574838',
+        CARD_GOLD: 'color:#6B3B5A',
+        CARD_TEXT_2: 'color:#463828',
+        CARD_LAV: '#56622F',
+        CARD_PAY_TEXT: 'color:#FFF9F0',
+        CARD_PAY_BG: 'linear-gradient(180deg,#B5554A,#A3443A 52%,#84352D)',
+        CARD_CANCEL_BG: 'rgba(78,60,40,0.07)',
+        CARD_TEXT: '#2B2219',
+        CARD_BORDER_FAINT: 'rgba(78,60,40,0.15)',
+        CARD_TOGGLE_OFF: 'rgba(78,60,40,0.22)',
+        CARD_TRACK: '#C9877C',
+        CARD_THUMB_OFF: '#8C7B66',
+        CARD_WARN: 'color:#9A4A22',
+        CARD_SUCCESS: 'color:#366647',
+        CARD_PAY_SHADOW: 'rgba(132,53,45,0.24)'
+      },
       /* Mycelium — oat, moss, and the fly agaric. Mirrors themes/mycelium.css.
          CARD_GOLD is the amount slot and takes --balance-ink, the fly agaric's red,
          like the bauhaus, par-avion and ukiyo-e entries; 42px/800 is large text and it
@@ -1734,7 +1759,7 @@
     // eggshell and plaster alike.
     // Sibling copies live in sidepanel.js (LIGHT_THEMES) and prompt.js (the approval
     // window's wordmark). A new light theme has to be registered in all three.
-    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'phantom-bouquet']);
     const lightCard = LIGHT_CARD_THEMES.has(cardTheme);
     const logoSvg = lightCard ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =

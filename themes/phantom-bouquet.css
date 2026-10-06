@@ -1,0 +1,254 @@
+/* ============================================================
+   Sidecar — Phantom Bouquet Theme (a special edition, November)
+   After the Victorian skeleton-leaf bouquet: leaves macerated
+   until only their lace was left, bleached ivory, a few dyed in
+   autumn colors, and arranged under glass on linen. Follows
+   Sleepy Hollow in the calendar. Worn only while it is in
+   season; see seasons.js. Groups with the light themes.
+   ============================================================ */
+
+/* Measured before written down, like every theme here — test/theme-contrast.test.js
+   resolves these var() chains and checks the ratios.
+
+   THE SOURCE is the parlour, not the woods: skeleton leaves were a craft of the 1860s,
+   soaked for weeks, brushed back to their veins, bleached and sometimes dyed, then
+   arranged as "phantom bouquets" under a glass shade. The leaves themselves are
+   Astra's approved studies (docs/phantom-bouquet/), cut from their paper and laid out by
+   scripts/gen-phantom-bouquet.py.
+
+       LINEN   #ECE5D6 the ground, with a faint plain weave; #FBF8F0 the cards on it
+       SEPIA   #2B2219 the ink, the brown of the veins themselves
+       MADDER  #A3443A -> #8F3A31, the primary and the accent ink: the commonest dye
+       PLUM    #6B3B5A the balance
+       OLIVE   #56622F the second accent; OCHRE #B7832A and RUST #9E4F27 the warm ones
+
+   THE NEAREST NEIGHBOR is Mycelium (a sepia drawing on oat-colored ground). Mycelium is
+   green-led, its accent moss and its field a web drawn edge to edge; this is red-led,
+   its field plain linen with the leaves laid on it as objects, cropped by the panel's
+   edges, and the dyes are five where Mycelium's colors are three. */
+
+[data-theme="phantom-bouquet"] {
+  color-scheme: light;
+
+  /* Sorts Mill Goudy, Barry Schwartz's revival of Frederic Goudy's Goudy Oldstyle of
+     1915 (SIL OFL 1.1; fonts/OFL-SortsMillGoudy.txt): the type of a late-Victorian and
+     Edwardian book of pressed flowers, and soft enough not to fight the lace. One
+     weight; declared across 400 to 700 so nothing is synthesized (fonts.css). */
+  --font-display: 'Sorts Mill Goudy', 'Iowan Old Style', Georgia, serif;
+  --display-ink-nudge: 0.02em;
+
+  /* surfaces — linen, and ivory cards laid on it */
+  --bg: #ECE5D6;
+  --bg-2: #E4DCCA;
+  --velvet-1: #FBF8F0;
+  --velvet-2: #F4EEE2;
+  --velvet-1-rgb: 251, 248, 240;
+  --av-from: #FBF8F0;
+  --av-to: #E4DCCA;
+  --banner-accent: #E4DCCA;
+  --border: rgba(78, 60, 40, 0.15);
+  --border-strong: rgba(78, 60, 40, 0.28);
+  --border-rgb: 78, 60, 40;
+  --well-rgb: 228, 220, 202;
+  /* Rust, for warnings: the browner of the two reds, so it is never the madder. */
+  --warn: #9A4A22;
+  --warn-rgb: 154, 74, 34;
+  /* A fern green, bluer than the olive accent so success is not read as an accent. */
+  --success: #366647;
+  --success-ink: #fff;
+  --select-caret: var(--select-caret-on-light);
+  --success-rgb: 54, 102, 71;
+
+  /* brand — madder is the accent ink and the fill. */
+  --orange: #8F3A31;
+  --amber: #B7832A;
+  --gold: #8F3A31;
+  --gold-soft: rgba(143, 58, 49, 0.30);
+  --accent-rgb: 143, 58, 49;
+  /* The balance in plum, the darkest of the dyes. */
+  --balance-ink: #6B3B5A;
+  --fiat-sym-opacity: 1;
+  /* The slot the dark themes fill with purple takes the olive. */
+  --purple: #4A5528;
+  --lav: #56622F;
+  --news: #A3443A;
+  --news-ink: #8F3A31;
+  --add-badge-ink: var(--velvet-1);
+  --badge-bg: #A3443A;
+  --badge-ink: #FFFFFF;
+  --relax-dot-ok: #366647;
+  --relax-dot-low: var(--balance-ink);
+  --hover-soft: rgba(78, 60, 40, 0.05);
+  --hover-medium: rgba(78, 60, 40, 0.09);
+  --hover-faint: rgba(78, 60, 40, 0.035);
+  --mention-bg: rgba(163, 68, 58, 0.12);
+  --scroll-thumb: linear-gradient(180deg, #C2B39A, #A6957A);
+  --scroll-thumb-hover: #8C7B60;
+
+  /* primary button — madder, deepening toward the bottom, with ivory ink */
+  --btn-primary-top: #B5554A;
+  --btn-primary-mid: #A3443A;
+  --btn-primary-bot: #84352D;
+  --btn-primary-text: #FFF9F0;
+  --btn-shadow: rgba(132, 53, 45, 0.24);
+
+  /* "Trust this site" — a pale olive wash, clearly the lesser button */
+  --btn-lav-top: #EEEEDF;
+  --btn-lav-mid: #DFE1CA;
+  --btn-lav-bot: #CBD0AF;
+  --btn-lav-text: #2B2219;
+  --btn-lav-ring: rgba(74, 85, 40, 0.26);
+  --btn-lav-shadow: rgba(74, 85, 40, 0.14);
+
+  --btn-secondary-top: #FBF8F0;
+  --btn-secondary-bot: #F0E9DB;
+  --pending-text: #3B4420;
+  --btn-accent-top: #B5554A;
+  --btn-accent-mid: #A3443A;
+  --btn-accent-bot: #84352D;
+  --btn-accent-text: #FFF9F0;
+
+  /* ink — the sepia of the veins */
+  --text: #2B2219;
+  --text-2: #463828;
+  --muted: #574838;
+  --faint: #64554A;
+  --red: #95322A;
+
+  --shadow: 0 10px 30px rgba(70, 52, 30, 0.11);
+  --shadow-sm: 0 6px 18px rgba(70, 52, 30, 0.08);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+
+  --pattern-opacity: 1;
+
+  --input-bg: var(--velvet-1);
+  --focus-ring: rgba(143, 58, 49, 0.20);
+  --card-wash: rgba(163, 68, 58, 0.05);
+  --accent-fill: var(--lav);
+  --chip-ink: #FFFFFF;
+  --glow: var(--lav);
+  --balloon-bg: #4A5528;
+  --balloon-bg-hover: #5E6B35;
+  --balloon-text: #FBF8F0;
+  /* The compose button is an ochre-dyed leaf with a sepia quill. */
+  --fab-bg: #C9973F;
+  --fab-icon: #2B2219;
+  --float-shadow: rgba(70, 52, 30, 0.18);
+  --float-shadow-strong: rgba(70, 52, 30, 0.26);
+}
+
+/* PROSE ON THE LINEN IS HALOED with the linen, as Sleepy Hollow does on its night: the
+   leaves' veins are the darkest thing on the field, and a hint or a heading that happens
+   to sit over one keeps its contrast because the halo lifts the vein out from behind
+   each glyph. */
+[data-theme="phantom-bouquet"] .hint,
+[data-theme="phantom-bouquet"] .tabview h2,
+[data-theme="phantom-bouquet"] .tabview h3,
+[data-theme="phantom-bouquet"] #view-settings > .content > h2,
+[data-theme="phantom-bouquet"] .settings-section-title,
+[data-theme="phantom-bouquet"] #view-lock .lede {
+  text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 6px var(--bg);
+}
+
+[data-theme="phantom-bouquet"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.11);
+}
+[data-theme="phantom-bouquet"] ::selection {
+  background: rgba(163, 68, 58, 0.20);
+  color: var(--text);
+}
+
+/* The gallery card and the arrival card name the edition in its own face. */
+.theme-card[data-theme="phantom-bouquet"] .theme-name {
+  font-family: 'Sorts Mill Goudy', Georgia, serif;
+  font-weight: 400;
+  font-size: 19px;
+}
+.season-card-name[data-edition="phantom-bouquet"] {
+  font-family: 'Sorts Mill Goudy', Georgia, serif;
+  font-size: 22px;
+}
+
+/* The topbar and the tabs take a wash of the cards' ivory, so their icons and labels sit
+   on cloth rather than on whatever leaf the panel has scrolled them over. */
+[data-theme="phantom-bouquet"] .topbar {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.80), rgba(var(--velvet-1-rgb), 0.55));
+}
+[data-theme="phantom-bouquet"] .tabs {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.70), rgba(var(--velvet-1-rgb), 0.40));
+}
+
+/* ---- balance animation: the leaf is dyed ---------------------------------------------
+   Each figure takes the dye the way a bleached leaf does in the bath: it surfaces pale,
+   blooms in madder, and settles into the plum it keeps. Left to right, quick. */
+@keyframes phantom-bouquet-dye {
+  0%   { opacity: 0; color: #D9B9A6; }
+  30%  { opacity: 1; color: #A3443A; }
+  100% { opacity: 1; color: var(--balance-ink); }
+}
+[data-theme="phantom-bouquet"] .bal-glyph { display: inline-block; }
+[data-theme="phantom-bouquet"] .bal-glyph.bal-in {
+  animation: phantom-bouquet-dye 800ms ease-out both;
+  animation-delay: calc(var(--i) * 60ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="phantom-bouquet"] .bal-glyph.bal-in { animation: none; }
+}
+html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { animation: none; }
+
+/* ---- the lock screen: the garland ----------------------------------------------------
+   A garland of skeleton leaves tied along a length of twine, hung across the top of the
+   lock screen (phantom-bouquet-garland*.webp), above the logo and clear of it. While
+   motion is allowed it stirs, barely: the whole garland sways a fraction of a degree
+   from its nails, as a draught moves something hung by a window, on a slow twelve-second
+   breath. Under prefers-reduced-motion, or Settings → Reduce motion, it hangs still. */
+@keyframes phantom-bouquet-sway {
+  from { transform: rotate(-0.5deg); }
+  to   { transform: rotate(0.5deg); }
+}
+[data-theme="phantom-bouquet"] #view-lock::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 63.9vw; /* the garland plate is 230 tall in a 360 frame */
+  background: url(phantom-bouquet-garland.webp) top center / 100% auto no-repeat;
+  transform-origin: 50% 0;
+  animation: phantom-bouquet-sway 6s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: -1; /* over the linen, under the lock form */
+}
+/* Wider windows hang the wide garland, two swags, at its natural 900px until the window
+   is wider than that, then at the window's width. */
+@media (min-width: 520px) {
+  [data-theme="phantom-bouquet"] #view-lock::before {
+    width: 100%;
+    height: 260px;
+    background-image: url(phantom-bouquet-garland-wide.webp);
+    background-size: 900px auto;
+  }
+}
+@media (min-width: 900px) {
+  [data-theme="phantom-bouquet"] #view-lock::before {
+    height: 28.9vw;
+    background-size: 100% auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="phantom-bouquet"] #view-lock::before { animation: none; }
+}
+html.reduce-balance-motion[data-theme="phantom-bouquet"] #view-lock::before { animation: none; }
+
+/* The On-this-day box sits at the foot of the Accounts tab, where the largest leaves lie;
+   it takes an ivory card of its own so its lines are on cloth, not on lace. */
+[data-theme="phantom-bouquet"] .otd {
+  margin: 14px 0 2px;
+  padding: 12px 14px 10px;
+  background: rgba(var(--velvet-1-rgb), 0.92);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}

@@ -640,6 +640,72 @@ html[data-tile][data-theme="sleepy-hollow"] body {
   }
 }
 
+/* Phantom Bouquet — skeleton leaves laid on linen, from scripts/gen-phantom-bouquet.py.
+   Four layers: the head of the panel (one whole madder leaf in the heading row, below
+   the tab labels), pinned to the top; the foot (the large ivory leaves, cropped by the
+   panel's edges, with dyed ones over and under them), pinned to the bottom; the linen's
+   plain weave; and a faint grade of light across the cloth. Fixed to the viewport, so
+   the leaves stay where they lie while a view scrolls over them. Below 520px the panel
+   wears the 360-unit plates; at 520 and up the 900-unit ones, held at their natural size
+   until the window passes 900 and then scaled with it, as Sleepy Hollow's are. The lock
+   screen drops the heading leaf for its garland (phantom-bouquet.css), and the gallery
+   tile shows the garland, the edition's signature, in the band it crops to. */
+[data-theme="phantom-bouquet"] body {
+  background-color: var(--bg);
+  background-image:
+    url(phantom-bouquet-top.webp),
+    url(phantom-bouquet-floor.webp),
+    url(phantom-bouquet-weave.webp),
+    linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+  background-size: 100% auto, 100% auto, 160px 160px, auto;
+  background-position: top center, bottom center, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed, fixed;
+}
+@media (min-width: 520px) {
+  [data-theme="phantom-bouquet"] body {
+    background-image:
+      url(phantom-bouquet-top-wide.webp),
+      url(phantom-bouquet-floor-wide.webp),
+      url(phantom-bouquet-weave.webp),
+      linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+    background-size: 900px auto, 900px auto, 160px 160px, auto;
+    background-position: top left, bottom left, 0 0, 0 0;
+  }
+}
+@media (min-width: 900px) {
+  [data-theme="phantom-bouquet"] body {
+    background-size: 100% auto, 100% auto, 160px 160px, auto;
+    background-position: top center, bottom center, 0 0, 0 0;
+  }
+}
+[data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
+  background-image:
+    none,
+    url(phantom-bouquet-floor.webp),
+    url(phantom-bouquet-weave.webp),
+    linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+}
+@media (min-width: 520px) {
+  [data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
+    background-image:
+      none,
+      url(phantom-bouquet-floor-wide.webp),
+      url(phantom-bouquet-weave.webp),
+      linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+  }
+}
+html[data-tile][data-theme="phantom-bouquet"] body {
+  background-image:
+    url(phantom-bouquet-garland.webp),
+    url(phantom-bouquet-weave.webp),
+    linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+  background-size: 100% auto, 160px 160px, auto;
+  background-position: 0 -12px, 0 0, 0 0;
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-attachment: scroll, scroll, scroll;
+}
+
 /* Mycelium — a mycelial network in sepia over oat-colored loam, after a pen drawing:
    knots joined by uneven strands that fuse into cells, with hairline hyphae fraying off
    everything (themes/mycelium-hyphae.svg, from scripts/gen-constellation-mycelium.py).
@@ -824,6 +890,24 @@ html[data-tile][data-theme="sleepy-hollow"] body {
   [data-theme="sleepy-hollow"] body.compose-page {
     background-size: 900px auto, 100% auto, 900px auto, 1920px auto, 520px auto, auto, auto;
     background-position: bottom left, top center, top left, 66% 0%, 66% 0%, 0% 0%, 0% 0%;
+  }
+}
+
+/* Phantom Bouquet: the composer always wears the wide plates, which keep their leaves
+   to the edges, so the centered card covers the cloth between them rather than a leaf. */
+[data-theme="phantom-bouquet"] body.compose-page {
+  background-image:
+    url(phantom-bouquet-top-wide.webp),
+    url(phantom-bouquet-floor-wide.webp),
+    url(phantom-bouquet-weave.webp),
+    linear-gradient(180deg, #F1EBDF 0%, var(--bg) 45%, #E7DFCF 100%);
+  background-size: 100% auto, 100% auto, 160px 160px, auto;
+  background-position: top center, bottom center, 0 0, 0 0;
+}
+@media (max-width: 899.98px) {
+  [data-theme="phantom-bouquet"] body.compose-page {
+    background-size: 900px auto, 900px auto, 160px 160px, auto;
+    background-position: top left, bottom left, 0 0, 0 0;
   }
 }
 
