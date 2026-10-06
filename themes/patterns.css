@@ -649,7 +649,7 @@ html[data-tile][data-theme="sleepy-hollow"] body {
    wears the 360-unit plates; at 520 and up the 900-unit ones, held at their natural size
    until the window passes 900 and then scaled with it, as Sleepy Hollow's are. The lock
    screen drops the heading leaf, which would sit beside the logo, and lets its leaves
-   drift instead (phantom-bouquet.css); the gallery tile shows the floor's largest leaves
+   fall instead (phantom-bouquet.css); the gallery tile shows the floor's largest leaves
    in the band it crops to. */
 [data-theme="phantom-bouquet"] body {
   background-color: var(--bg);
@@ -681,9 +681,9 @@ html[data-tile][data-theme="sleepy-hollow"] body {
   }
 }
 /* The lock screen drops the heading leaf, which would sit beside the logo. While motion
-   is allowed it drops the floor's leaves too: the wind is blowing there
-   (phantom-bouquet.css), and a leaf lying still while the rest are blown past it would
-   make no sense. Under reduced motion there is no wind, and the floor's leaves stay. */
+   is allowed it drops the floor's leaves too: leaves are falling there
+   (phantom-bouquet.css), and a leaf lying still while the rest fall past it would make
+   no sense. Under reduced motion nothing falls, and the floor's leaves stay. */
 [data-theme="phantom-bouquet"] body:has(#view-lock:not(.hidden)) {
   background-image:
     none,

@@ -296,10 +296,10 @@ FLOOR_WIDE = (900, 520, [
     ('ovate', 0.95, -40, 762, 482, 'plum'),
 ])
 
-# The lock screen's leaves on the wind: each its own sprite, untilted and unshadowed, so
+# The lock screen's falling leaves: each its own sprite, untilted and unshadowed, so
 # the stylesheet can turn it in the plane and the container's one drop-shadow falls the
 # same way for all of them as they turn (phantom-bouquet.css). On the same scale as every
-# other leaf; while the wind blows these are the only leaves on the lock screen, and the
+# other leaf; while they fall these are the only leaves on the lock screen, and the
 # floor plate stands down for them. (leaf, size, dye, flip)
 DRIFT = [
     ('maple', 1.0, None, False),
