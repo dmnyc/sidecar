@@ -321,9 +321,12 @@ test('the quote is shown whole in the tab, which is the room the panel lacks', (
 
 test('SAVED DRAFTS IS THE FOLDER IN THE CORNER, AS IN THE PANEL', () => {
   const tabHtml = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
-  // Beside the close box, not on the Write / Preview row: those are two views of this
+  // In the card's corner, not on the Write / Preview row: those are two views of this
   // draft, and the list leaves it. And not above the tabs, where it read as the subject.
-  assert.match(tabHtml, /id="compose-x"[^>]*><\/button>\s*(<!--[\s\S]*?-->\s*)?<button[^>]*class="modal-x compose-drafts-btn hidden" id="compose-drafts-btn"/);
+  // The corner is the folder's alone, since the close box is on the page's bar.
+  assert.match(tabHtml, /<main class="compose-sheet">\s*(<!--[\s\S]*?-->\s*)?<button[^>]*class="modal-x compose-drafts-btn hidden" id="compose-drafts-btn"/);
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.compose-sheet \.compose-drafts-btn \{ top: 14px; right: 14px; \}/);
   const row = tabHtml.slice(tabHtml.indexOf('id="compose-tabs"'));
   assert.ok(!/Saved drafts/.test(row.slice(0, row.indexOf('</div>'))), 'the tab row is back to Write and Preview');
   // The list is composer-core's, shared with the panel; behavior is pinned in

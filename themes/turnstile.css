@@ -301,13 +301,16 @@
 [data-theme="turnstile"] .topbar .icon-btn:hover,
 [data-theme="turnstile"] .compose-topbar .icon-btn:hover { color: #FFFFFF; background: rgba(241, 235, 218, 0.14); }
 /* Settings' close box is a small white enamel sign with its ink X, at rest and hovered:
-   cream on its white field, it vanished until hovered. */
-[data-theme="turnstile"] .topbar .icon-btn.settings-close {
+   cream on its white field, it vanished until hovered. The composer tab closes with the
+   same box, on its own bar. */
+[data-theme="turnstile"] .topbar .icon-btn.settings-close,
+[data-theme="turnstile"] .compose-topbar .icon-btn.settings-close {
   color: #151A1E;
   background: #F6F3EA;
   border: 1.5px solid #151A1E;
 }
-[data-theme="turnstile"] .topbar .icon-btn.settings-close:hover { color: #151A1E; background: #FFFFFF; }
+[data-theme="turnstile"] .topbar .icon-btn.settings-close:hover,
+[data-theme="turnstile"] .compose-topbar .icon-btn.settings-close:hover { color: #151A1E; background: #FFFFFF; }
 
 /* ---- TITLES: MOSAIC ON A TABLET ----------------------------------------------------------
    The view title is a station's name: heavy expanded capitals set in cream tesserae on a
