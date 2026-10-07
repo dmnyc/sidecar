@@ -22993,8 +22993,8 @@
       const unlockLabel = $('approval-unlock').querySelector('label');
       if (unlockLabel) {
         unlockLabel.textContent = data.autoLockNever
-          ? t('Enter your PIN: first unlock since your browser started')
-          : t('Enter your PIN to unlock');
+          ? t('Enter your PIN or passphrase: first unlock since your browser started')
+          : t('Enter your PIN or passphrase');
       }
       setTimeout(() => pin.focus(), 50);
     } else {
