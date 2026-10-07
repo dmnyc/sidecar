@@ -236,6 +236,12 @@
   video.addEventListener('playing', () => message(''));
   video.addEventListener('waiting', () => { if (selected) message(t('Buffering…')); });
   video.addEventListener('error', () => { if (selected) message(t('Stream unavailable. Choose another stream or try again.')); });
+  function updatePlayingProfile(host, record, picture) {
+    if (selectedHost !== host) return;
+    if (record.name) document.getElementById('stream-host-name').textContent=record.name;
+    const avatar=document.getElementById('stream-host-image');
+    if (picture && avatar.getAttribute('src') !== picture) avatar.src=picture;
+  }
   function profileImage(host, hints = []) {
     const cached = profileImages.get(host);
     if (cached && cached.expiresAt > Date.now()) return cached.promise;
@@ -256,6 +262,7 @@
       let picture = null;
       try { const content = JSON.parse(event?.content || '{}'); picture = SidecarStreams.httpsUrl(content.picture); record.banner = SidecarStreams.httpsUrl(content.banner); record.name = content.display_name || content.displayName || content.name || ''; } catch (_) {}
       record.expiresAt = Date.now() + (picture ? 300000 : 30000);
+      updatePlayingProfile(host, record, picture);
       return picture;
     }).catch(() => {
       if (profileImages.get(host) === record) profileImages.delete(host);
@@ -363,7 +370,12 @@
     document.getElementById('stream-more-toggle').hidden = !untitledCount;
     more.hidden = !untitledCount || !moreOpen;
   }
-  function disconnect() { discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
+  let directoryPaintTimer=null;
+  function queueDirectoryPaint() {
+    if(directoryPaintTimer!==null)return;
+    directoryPaintTimer=setTimeout(()=>{directoryPaintTimer=null;paint();},100);
+  }
+  function disconnect() { clearTimeout(directoryPaintTimer);directoryPaintTimer=null;discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
   function discover() {
     if (!enabled || isLocked()) return;
     disconnect(); lookingForStreams = true; paint();
@@ -372,7 +384,7 @@
     pool = new NostrTools.SimplePool();
     subscription = pool.subscribeMany(relays,
       { kinds:[30311], since:Math.floor(Date.now()/1000)-3600, limit:100 },
-      { abort:discoveryAbort.signal, onevent:event=>{if(run===discoveryGeneration && model.accept(event))paint();}, oneose:()=>{if(run===discoveryGeneration){lookingForStreams=false;paint();}} });
+      { abort:discoveryAbort.signal, onevent:event=>{if(run===discoveryGeneration && model.accept(event))queueDirectoryPaint();}, oneose:()=>{if(run===discoveryGeneration){lookingForStreams=false;paint();}} });
     timer=setInterval(paint,30000);
   }
   let feedCloseTimer;
