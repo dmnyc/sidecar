@@ -301,8 +301,14 @@ test('the in-panel unlock label resets when auto-lock is NOT Never', () => {
   // Never path without an else would leave the wrong text behind after the user
   // switches to a timed lock.
   const panelSrc = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
-  assert.match(panelSrc, /: t\('Enter your PIN to unlock'\);/,
-    'the non-Never branch must restore the default label');
+  const start = panelSrc.indexOf('unlockLabel.textContent = data.autoLockNever');
+  const statement = panelSrc.slice(start, panelSrc.indexOf(';', start) + 1);
+  const context = { unlockLabel: { textContent: '' }, data: { autoLockNever: true }, t: text => text };
+  vm.runInNewContext(statement, context);
+  assert.equal(context.unlockLabel.textContent, 'Enter your PIN or passphrase: first unlock since your browser started');
+  context.data.autoLockNever = false;
+  vm.runInNewContext(statement, context);
+  assert.equal(context.unlockLabel.textContent, 'Enter your PIN or passphrase');
 });
 
 test('the payload derives autoLockNever through resolveSettings', () => {

@@ -411,3 +411,8 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
 @media (prefers-reduced-motion:reduce) {
   #stream-zap.is-shining::after { animation:none; }
 }
+
+html.reduce-balance-motion #stream-zap.is-shining::after,
+html.reduce-motion #stream-zap.is-shining::after,
+html.reduce-balance-motion #stream-zap-total .t-digit,
+html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }

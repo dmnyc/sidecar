@@ -26,7 +26,7 @@ HLS.js 1.7.3 full build is copied unminified from the verified official npm tarb
 - Real HLS playback tested in Chrome and the in-app browser.
 - Preview approval, expand/collapse and lock transitions preserved the video source and playback progress.
 - Runtime tests cover ended/stale events, unsafe URLs, address deduplication, playback continuity through approval/expansion, and stop cleanup.
-- Full suite: 2,532 passing tests before the final small playback/discovery adjustments; targeted tests rerun afterward.
+- Full suite: 2,554 tests pass after the draft PR checks; all vendored hashes and JavaScript syntax checks pass. Installed-extension checks below remain required.
 - Still required before release: actual Chrome and Firefox extension signing/auto-lock smoke tests, Firefox HLS playback, multiple windows, very short sidebars, and final privacy/store disclosures for public relay discovery and media hosts.
 
 ### Disable live video
