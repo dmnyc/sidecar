@@ -1,0 +1,322 @@
+/* ============================================================
+   Sidecar — Aurora Borealis Theme (a special edition, December–January)
+   The polar night: an aurora folding over snowy mountains, drawn
+   by scripts/gen-borealis.py and worn from December 7 through
+   January 17, across New Year; see seasons.js. Groups with the
+   dark themes.
+   ============================================================ */
+
+/* Measured before written down, like every theme here — test/theme-contrast.test.js
+   resolves these var() chains and checks the ratios.
+
+   THE SOURCE is the photograph of the aurora over winter mountains, drawn rather than
+   printed: the sky is a black with indigo and teal in it, the aurora the one bright
+   thing, the snow holding the light the sky throws on it.
+
+       NIGHT    #0A1420 the sky, #121F33 the cards in it: a black with indigo and a
+                breath of teal, the color the sky keeps at its darkest
+       AURORA   #6FE8A8 the accent ink, a curtain's glow; the primary button is the
+                curtain itself, #8FFFC4 -> #45D98E -> #1E9A63, lit from its hem
+       FROST    #BFE8F2 the second accent, snow under aurora light
+       ICE      #7CD5FF the brand slot, glacier ice in shadow
+
+   THE NEAREST NEIGHBORS are Constellation (gold ink on a night plate) and Sleepy
+   Hollow (indigo night with a landscape). Constellation's field is engraved stars
+   only; this one has a landscape and a sky that lights it, and where Constellation's
+   one warm accent is gold, Aurora Borealis's is green — the aurora is the whole palette's
+   light source, so the other inks are its neighbors: frost, ice, and the violet of
+   the high curtain. */
+
+[data-theme="borealis"] {
+  color-scheme: dark;
+
+  /* Josefin Sans, the 1920s geometric sans Art Deco wears: the one bundled face whose
+     letters look drawn with a draftsman's straightedge — glacial, the way an aurora's
+     arc is a drawn thing rather than a cloud. Its 400–700 are one variable file the
+     panel already ships (fonts.css). */
+  --font-display: 'Josefin Sans', 'Century Gothic', var(--font-ui);
+
+  /* surfaces — the polar night: not neutral, a black with indigo and teal in it, the
+     way the sky stays colored under an active sky. */
+  --bg: #0A1420;
+  --bg-2: #0C1728;
+  --velvet-1: #121F33;
+  --velvet-2: #0D1828;
+  --velvet-1-rgb: 18, 31, 51;
+  --av-from: #1B2C44;
+  --av-to: #0D1828;
+  --banner-accent: #1B2C44;
+  --border: rgba(140, 220, 190, 0.14);
+  --border-strong: rgba(140, 220, 190, 0.30);
+  --border-rgb: 140, 220, 190;
+  --well-rgb: 3, 8, 16;
+  /* Embers on the snow: warmer than the aurora, so the two are never one signal. */
+  --warn: #E8837A;
+  --warn-rgb: 232, 131, 122;
+  /* Sea-foam on the tidewater ice — a green gone gray enough to keep its distance
+     from the primary's vivid mint. */
+  --success: #86C7A6;
+  --success-rgb: 134, 199, 166;
+
+  /* brand — glacier ice in shadow; the aurora is the fill. */
+  --orange: #7CD5FF;
+  --badge-ink: #071523;
+  --amber: #A5EFC9;
+  --gold: #6FE8A8;
+  --gold-soft: rgba(111, 232, 168, 0.5);
+  --accent-rgb: 111, 232, 168;
+  /* The slot the other dark themes fill with purple takes the high curtain itself. */
+  --purple: #9B7FE8;
+  --lav: #BFE8F2;
+  --news: var(--lav);
+  --news-ink: color-mix(in srgb, var(--lav) 75%, var(--text));
+  --hover-soft: rgba(111, 232, 168, 0.07);
+  --hover-medium: rgba(111, 232, 168, 0.11);
+  --hover-faint: rgba(111, 232, 168, 0.05);
+  --mention-bg: rgba(111, 232, 168, 0.15);
+  --scroll-thumb: linear-gradient(180deg, #1C2D46, #132135);
+  --scroll-thumb-hover: #263B5C;
+
+  /* primary button — the curtain, lit from its hem: bright mint at the top, deepening
+     to the green the aurora keeps after midnight. Near-black ink. */
+  --btn-primary-top: #8FFFC4;
+  --btn-primary-mid: #45D98E;
+  --btn-primary-bot: #1E9A63;
+  --btn-primary-text: #04140C;
+  --btn-shadow: rgba(69, 217, 142, 0.28);
+
+  /* "Trust this site" — the frost, so it cannot be mistaken for the curtain. */
+  --btn-lav-top: #EAF8FF;
+  --btn-lav-mid: #C9E9F5;
+  --btn-lav-bot: #9CCFE4;
+  --btn-lav-text: #0A1826;
+  --btn-lav-ring: rgba(201, 233, 245, 0.35);
+  --btn-lav-shadow: rgba(201, 233, 245, 0.18);
+
+  /* ink — snow by aurora light: cold, never a screen's white */
+  --text: #DCE8F2;
+  --text-2: #C3D3E2;
+  --muted: #ADBDCF;
+  --faint: #94A8BE;
+  --red: #E57A8A;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.55);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --pattern-opacity: 1;
+
+  --input-bg: linear-gradient(180deg, rgba(3, 8, 16, 0.6), rgba(8, 16, 30, 0.6));
+  --focus-ring: rgba(111, 232, 168, 0.22);
+  --card-wash: rgba(111, 232, 168, 0.07);
+}
+
+/* PROSE ON THE NIGHT IS HALOED with the sky, as the dark themes do where their field
+   is brightest: the aurora is the brightest thing on the plate, and a hint that
+   happens to sit over it keeps its contrast because nothing behind a glyph can be
+   brighter than --bg. */
+[data-theme="borealis"] .hint,
+[data-theme="borealis"] .tabview h2,
+[data-theme="borealis"] .tabview h3,
+[data-theme="borealis"] #view-settings > .content > h2,
+[data-theme="borealis"] .settings-section-title {
+  text-shadow: 0 0 2px var(--bg), 0 0 3px var(--bg), 0 0 6px var(--bg);
+}
+
+/* Outgoing transactions in the ember's rose, off the same fire as --warn. */
+[data-theme="borealis"] .tx-icon.out {
+  color: var(--warn);
+  background: rgba(var(--warn-rgb), 0.13);
+}
+[data-theme="borealis"] ::selection {
+  background: rgba(111, 232, 168, 0.26);
+  color: var(--text);
+}
+
+/* The gallery card names the theme in its own face. Josefin runs long at the panel's
+   usual name size; a nudge of tracking keeps AURORA BOREALIS from reading as a wordmark. */
+.theme-card[data-theme="borealis"] .theme-name {
+  font-family: 'Josefin Sans', 'Century Gothic', var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* The arrival card names the edition in its own face, whatever theme the panel is in. */
+.season-card-name[data-edition="borealis"] {
+  font-family: 'Josefin Sans', 'Century Gothic', var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* The aurora rises behind the topbar as well, so the bar's wash deepens a little to
+   keep the icons over it readable — the same move Sleepy Hollow's moon got. */
+[data-theme="borealis"] .topbar {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.72), rgba(var(--velvet-1-rgb), 0.45));
+}
+
+/* The curtains hang just under the tab bar, so the tabs get what the topbar already
+   has: a wash of the theme's velvet behind the words, strongest at the top where the
+   aurora is brightest, enough to read every one of them while the sky still shows
+   through. */
+[data-theme="borealis"] .tabs {
+  background: linear-gradient(180deg,
+              rgba(var(--velvet-1-rgb), 0.82), rgba(var(--velvet-1-rgb), 0.58));
+}
+
+/* ---- balance animation: the sky is active -------------------------------------------
+   Each figure catches the aurora the way snow does: it flashes in the curtain's mint,
+   dims as the cloud-band over it passes, and steadies into the theme's ink. Left to
+   right, the way the light travels along a curtain, and quick: the whole figure is
+   lit in about a second. */
+@keyframes borealis-glimmer {
+  0%   { opacity: 0; color: #CFF9E4; text-shadow: 0 0 0.5em rgba(111, 232, 168, 0.75); }
+  30%  { opacity: 1; }
+  55%  { opacity: 0.7; }
+  75%  { opacity: 1; color: #CFF9E4; }
+  100% { opacity: 1; color: var(--balance-ink); text-shadow: none; }
+}
+[data-theme="borealis"] .bal-glyph { display: inline-block; }
+[data-theme="borealis"] .bal-glyph.bal-in {
+  animation: borealis-glimmer 900ms ease-out both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="borealis"] .bal-glyph.bal-in { animation: none; }
+}
+
+/* The waterline sits beneath the large balance only. Pseudo-elements have empty
+   alternative text, so reflections never duplicate the spoken/copied amount. */
+html[data-theme="borealis"] .wallet-balance .bal-glyph,
+html[data-theme="borealis"] .pinned-balance-amt .bal-glyph {
+  position: relative;
+  background: linear-gradient(180deg, #8FF0C4 5%, #83DCCF 26%, #A17BDC 59%, #8453CF 88%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+html[data-theme="borealis"] .wallet-card:not(.compact) .wallet-balance:not(.btc-joke) {
+  /* Center the numeral ink, independently of the absolute reflection below it.
+     Transfer space from below the number to above without enlarging the card. */
+  margin: 24px 0 9px;
+}
+html[data-theme="borealis"] .wallet-card:not(.compact) .wallet-unit { transform: translateY(8px); }
+html[data-tile][data-theme="borealis"] .wallet-card {
+  width: 144px;
+  height: 145px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+html[data-tile][data-theme="borealis"] .wallet-card .wallet-balance:not(.btc-joke) {
+  margin: 0;
+  transform: translateY(0.09em);
+}
+html[data-theme="borealis"] .wallet-card:not(.compact) .wallet-balance:not(.btc-joke) .bal-glyph::after,
+html[data-theme="borealis"] .pinned-balance-amt .bal-glyph::after {
+  content: attr(data-glyph) / "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: inherit;
+  background-clip: text;
+  transform-origin: center bottom;
+  transform: translateY(-0.30em) scaleY(calc(-0.85 * var(--bo-water-depth, 1)));
+  opacity: 0.75;
+  /* Anisotropic noise bends light sideways and breaks its brightness unevenly.
+     The fade remains continuous; no periodic stripes cut through the digits. */
+  filter: url(#borealis-reflection-water);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, .9) 8%, rgba(0, 0, 0, .5) 35%, rgba(0, 0, 0, .16) 62%, transparent 84%);
+}
+/* Follow the existing balance-change trigger. Denomination changes and idle
+   gallery tiles retain a still reflection; a fresh balance settles in 3.2s. */
+html[data-theme="borealis"] .wallet-card:not(.compact) .wallet-balance:not(.btc-joke) .bal-glyph.bal-in::after,
+html[data-theme="borealis"] .pinned-balance-amt .bal-glyph.bal-in::after {
+  animation: borealis-number-water 3.2s ease-out 1;
+}
+@keyframes borealis-number-water {
+  0% { opacity: .64; transform: translateY(-0.30em) scaleY(calc(-0.85 * var(--bo-water-depth, 1))); }
+  20% { opacity: .88; transform: translateY(-0.28em) scaleY(calc(-0.89 * var(--bo-water-depth, 1))); }
+  42% { opacity: .70; transform: translateY(-0.31em) scaleY(calc(-0.83 * var(--bo-water-depth, 1))); }
+  65% { opacity: .79; transform: translateY(-0.295em) scaleY(calc(-0.86 * var(--bo-water-depth, 1))); }
+  85% { opacity: .755; transform: translateY(-0.3005em) scaleY(calc(-0.848 * var(--bo-water-depth, 1))); }
+  100% { opacity: .75; transform: translateY(-0.30em) scaleY(calc(-0.85 * var(--bo-water-depth, 1))); }
+}
+/* Explicitly suppress the decorative copy when balances are concealed. */
+html[data-theme="borealis"] .balances-hidden .wallet-balance .bal-glyph::after { display: none; }
+
+/* Emission masks generated from the very same curtains keep light off the
+   mountains. Only the light fields move; the masks and scene stay fixed.
+   A negative layer places the effect behind the form without intercepting input. */
+html[data-theme="borealis"] #view-lock:not(.hidden)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 15%, rgba(96, 250, 183, .9) 31%,
+    transparent 46%, rgba(169, 113, 244, .85) 61%, transparent 77%);
+  background-size: 230% 100%;
+  mask: url(borealis-shimmer.png) center / cover no-repeat luminance;
+  animation: borealis-curtain-light 7s ease-in-out infinite alternate;
+}
+@keyframes borealis-curtain-light {
+  0% { background-position: 0% 50%; opacity: .25; }
+  45% { opacity: .90; }
+  100% { background-position: 100% 50%; opacity: .40; }
+}
+/* Reflected light follows the sky's 7-second sweep, with horizontal ripples
+   passing through it. The water mask excludes the shore and mountain reflections. */
+html[data-theme="borealis"] #view-lock:not(.hidden)::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(70deg, transparent 15%, rgba(109, 244, 195, .75) 31%,
+      transparent 46%, rgba(155, 103, 225, .7) 61%, transparent 77%),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(128, 211, 187, .18) 4px, transparent 6px 11px);
+  background-size: 230% 100%, 100% 44px;
+  mask: url(borealis-water.png) center / cover no-repeat luminance;
+  animation: borealis-water-light 7s ease-in-out infinite alternate;
+}
+@keyframes borealis-water-light {
+  0% { background-position: 0% 50%, 0 0; opacity: .22; }
+  25% { background-position: 16% 50%, 0 22px; opacity: .56; }
+  45% { opacity: .72; }
+  70% { background-position: 81% 50%, 0 66px; opacity: .50; }
+  100% { background-position: 100% 50%, 0 88px; opacity: .34; }
+}
+@media (min-width: 520px) {
+  html[data-theme="borealis"] #view-lock:not(.hidden)::before { mask-image: url(borealis-shimmer-wide.png); }
+  html[data-theme="borealis"] #view-lock:not(.hidden)::after { mask-image: url(borealis-water-wide.png); }
+}
+html[data-theme="borealis"] .lock-leaves { display: none; }
+html.reduce-balance-motion[data-theme="borealis"] .bal-glyph.bal-in { animation: none; }
+html.reduce-balance-motion[data-theme="borealis"] .wallet-card:not(.compact) .wallet-balance:not(.btc-joke) .bal-glyph::after { animation: none !important; animation-play-state: paused !important; }
+html.reduce-balance-motion[data-theme="borealis"] #view-lock::before,
+html.reduce-balance-motion[data-theme="borealis"] #view-lock::after { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="borealis"] .wallet-card:not(.compact) .wallet-balance:not(.btc-joke) .bal-glyph::after { animation: none !important; animation-play-state: paused !important; }
+  html[data-theme="borealis"] #view-lock::before,
+  html[data-theme="borealis"] #view-lock::after { display: none; }
+}
+
+/* The lock form crosses the bright curtain: keep its text on a night-colored
+   backing rather than dimming the whole aurora to accommodate the form. */
+html[data-theme="borealis"] #view-lock .lede,
+html[data-theme="borealis"] #view-lock label,
+html[data-theme="borealis"] #unlock-forgot {
+  color: var(--text-2);
+  text-shadow: 0 1px 3px #040914, 0 0 8px #040914;
+}
+
+/* The pinned bar uses a separate amount class. Center Josefin's numeral ink,
+   leaving its absolute reflection out of the flex layout. */
+html[data-theme="borealis"] .pinned-balance-amt { transform: translateY(0.10em); --bo-water-depth: 0.7; }
+html[data-theme="borealis"] .balances-hidden .pinned-balance-amt .bal-glyph::after { display: none; }
+html.reduce-balance-motion[data-theme="borealis"] .pinned-balance-amt .bal-glyph::after { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="borealis"] .pinned-balance-amt .bal-glyph::after { animation: none !important; }
+}

@@ -41,6 +41,8 @@ VERSION_NO_V="${TAG#v}"
 # UTC so it does not depend on the packager's timezone. `touch -t` format, which
 # both BSD and GNU touch accept — BSD's -d rejects git's ISO offset.
 SOURCE_DATE=$(TZ=UTC git log -1 --format=%cd --date=format-local:'%Y%m%d%H%M.%S' "${TAG}^{commit}")
+# The same clock, date-only, for the seasonal gate below.
+TAG_DATE=$(TZ=UTC git log -1 --format=%cd --date=format-local:'%Y-%m-%d' "${TAG}^{commit}")
 
 STAGE="$(mktemp -d)/sidecar"
 mkdir -p "${STAGE}"
@@ -66,6 +68,12 @@ rm -rf "${STAGE}"/.[!.]* "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
 # (help.html's changelog and privacy links point at GitHub), so the glob is safe.
 # NOTICE has no extension and stays: it's the vendored licenses.
 rm -f "${STAGE}"/*.md "${STAGE}/.gitignore" "${STAGE}/package.json"
+
+# Ship only the edition in season on the tag's UTC commit date. Keep stylesheets
+# so document links remain valid; remove inactive artwork to reduce downloads.
+# Seasonal releases must deliver the next edition when its window opens.
+echo "Seasonal editions (tag date ${TAG_DATE}):"
+node "${ROOT}/scripts/seasonal-packaging.cjs" "${STAGE}" "${TAG_DATE}"
 
 # version.js is gitignored and not in the archive — regenerate it, stamped to the tag.
 cat > "${STAGE}/version.js" <<EOF

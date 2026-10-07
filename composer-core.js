@@ -3089,13 +3089,16 @@ window.SidecarCore = (function () {
     // glyph itself, because re-rendering the same balance should land differently.
     glyphs.forEach((ch, i) => {
       const { delay, duration } = glyphBeat(i, glyphs.length);
-      el.append(h('span', {
+      const glyph = h('span', {
         className: 'bal-glyph' + (/[0-9]/.test(ch) ? '' : ' bal-sep')
           + (i % 2 ? ' bal-alt' : '') + (strike(i) ? ' bal-in' : ''),
         textContent: ch,
         style: `--i:${i};--n:${glyphs.length};--strike-delay:${delay}ms;--strike-dur:${duration}ms`
           + ';' + ironDiceStyle(),
-      }));
+      });
+      // Decorative reflections read this without adding duplicate spoken text.
+      glyph.setAttribute('data-glyph', ch);
+      el.append(glyph);
     });
   }
 

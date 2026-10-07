@@ -409,6 +409,10 @@ const FLOORS = {
   // all three is the lighter card; --gold is the moon's rim, the accent ink, and the
   // pumpkin is a fill only.
   'sleepy-hollow': { '--muted': 7.13, '--faint': 4.39, '--gold': 9.70 },
+  // Aurora Borealis: the frost grays and the aurora's mint on the polar night. The worst surface
+  // for all three is --velvet-1, the lighter card; --gold is the curtain's glow, the
+  // accent ink, and the curtain gradient is a fill only.
+  borealis: { '--muted': 6.78, '--faint': 4.27, '--gold': 10.86 },
 };
 
 for (const theme of THEMES) {

@@ -721,7 +721,7 @@
   // theme nobody remembered to add here, and the card then rendered in the wrong palette
   // with no error anywhere — see the THEME_VARS table below, which it must stay in step
   // with.
-  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'sleepy-hollow']);
+  const CARD_THEMES = new Set(['speakeasy', 'metropolis', 'film-noir', 'brownstone', 'nixie', 'cast-iron', 'wabi-sabi', 'constellation', 'jazz-age', 'departures', 'industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'sleepy-hollow', 'borealis']);
   // Renamed themes, mapped on read — see the note beside THEME_ALIASES in sidepanel.js
   // for why the stored value is not rewritten.
   const THEME_ALIASES = { 'art-deco': 'industria' };
@@ -1241,6 +1241,31 @@
         CARD_WARN: 'color:#E9875A',
         CARD_SUCCESS: 'color:#93BA8C',
         CARD_PAY_SHADOW: 'rgba(228,138,50,0.28)'
+      },
+      /* Aurora Borealis, the December–January special edition — the polar night, the aurora's
+         mint and the frost. Mirrors themes/borealis.css. The pay button is the curtain
+         itself, lit from its hem, with near-black ink, and CARD_LAV is the snow under
+         aurora light. Only ever the card theme while the bound account is wearing it in
+         season: background.js resolves it. */
+      'borealis': {
+        CARD_COLOR: 'color:#DCE8F2',
+        CARD_BORDER: 'rgba(140,220,190,0.30)',
+        CARD_BACKGROUND: 'radial-gradient(120% 90% at 80% 0%,rgba(63,227,154,0.10),transparent 60%),linear-gradient(165deg,#121F33,#0A1420)',
+        CARD_MUTED: 'color:#ADBDCF',
+        CARD_GOLD: 'color:#6FE8A8',
+        CARD_TEXT_2: 'color:#C3D3E2',
+        CARD_LAV: '#BFE8F2',
+        CARD_PAY_TEXT: 'color:#04140C',
+        CARD_PAY_BG: 'linear-gradient(180deg,#8FFFC4,#45D98E 52%,#1E9A63)',
+        CARD_CANCEL_BG: 'rgba(140,220,190,0.10)',
+        CARD_TEXT: '#DCE8F2',
+        CARD_BORDER_FAINT: 'rgba(140,220,190,0.15)',
+        CARD_TOGGLE_OFF: 'rgba(140,220,190,0.22)',
+        CARD_TRACK: '#45D98E',
+        CARD_THUMB_OFF: '#94A8BE',
+        CARD_WARN: 'color:#E8837A',
+        CARD_SUCCESS: 'color:#86C7A6',
+        CARD_PAY_SHADOW: 'rgba(69,217,142,0.28)'
       },
       /* Mycelium — oat, moss, and the fly agaric. Mirrors themes/mycelium.css.
          CARD_GOLD is the amount slot and takes --balance-ink, the fly agaric's red,

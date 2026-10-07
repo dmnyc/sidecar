@@ -33,6 +33,28 @@ const day = (iso) => new Date(iso + 'T12:00:00');
 
 // ---- the calendar ---------------------------------------------------------------------
 
+test('no two editions are ever in season on the same day', () => {
+  for (let d = new Date(2026, 0, 1, 12); d.getFullYear() === 2026; d.setDate(d.getDate() + 1)) {
+    const open = S.current(d).map((e) => e.key);
+    assert.ok(open.length <= 1, d.toDateString() + ' has ' + open.join(' and '));
+  }
+});
+
+test('Aurora Borealis is worn from December 7 through January 17, across New Year', () => {
+  assert.equal(S.inSeason('borealis', day('2026-12-06')), false, 'not offered before December 7');
+  assert.equal(S.inSeason('borealis', day('2026-12-07')), true);
+  assert.equal(S.inSeason('borealis', new Date('2026-12-07T00:00:00')), true, 'arrives at local midnight');
+  assert.equal(S.inSeason('borealis', new Date('2026-12-31T23:59:59')), true, 'wears on New Year\u2019s Eve');
+  assert.equal(S.inSeason('borealis', new Date('2027-01-01T00:00:00')), true, 'and still wears past midnight');
+  assert.equal(S.inSeason('borealis', new Date('2027-01-17T23:59:59')), true, 'lasts the whole of its last day');
+  assert.equal(S.inSeason('borealis', new Date('2027-01-18T00:00:00')), false, 'expires at midnight as January 18 begins');
+  // The year an edition belongs to is the year its window OPENED, wrap and all: a
+  // January wearing is the December window's season, keyed to 2026.
+  assert.equal(S.seasonId('borealis', day('2026-12-20')), 'borealis:2026');
+  assert.equal(S.seasonId('borealis', day('2027-01-10')), 'borealis:2026');
+  assert.equal(S.seasonId('borealis', day('2027-12-20')), 'borealis:2027', 'and next winter is its own season');
+});
+
 test('Sleepy Hollow is worn from October 1 through November 8, both days included', () => {
   assert.equal(S.inSeason('sleepy-hollow', day('2026-09-30')), false);
   assert.equal(S.inSeason('sleepy-hollow', day('2026-10-01')), true);

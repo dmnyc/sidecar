@@ -98,6 +98,23 @@
   </style>
 </head>
 <body>
+  <!-- Shared by the wallet and gallery: irregular lake refraction, not striped cuts. -->
+  <svg aria-hidden="true" focusable="false" width="0" height="0" style="position:absolute;pointer-events:none">
+    <defs>
+      <filter id="borealis-reflection-water" x="-35%" y="-15%" width="170%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.035 0.22" numOctaves="2" seed="17" result="surface" />
+        <feColorMatrix in="surface" type="matrix" values="1 0 0 0 0  0 0.16 0 0 0.42  0 0 1 0 0  0 0 0 1 0" result="refraction" />
+        <feDisplacementMap in="SourceGraphic" in2="refraction" scale="13" xChannelSelector="R" yChannelSelector="G" result="reflected" />
+        <!-- A separate, horizontally stretched wave field opens real transparent
+             troughs between the reflected highlights, with no repeating stripe grid. -->
+        <feTurbulence type="fractalNoise" baseFrequency="0.022 0.26" numOctaves="1" seed="8" result="troughs" />
+        <feColorMatrix in="troughs" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  7 0 0 0 -3.1" result="glints" />
+        <feComposite in="reflected" in2="glints" operator="in" />
+        <feGaussianBlur stdDeviation="0.65 0.4" />
+      </filter>
+    </defs>
+  </svg>
+
   <div class="preview-stage">
     <div class="wallet-card">
       <div class="wallet-balance" id="bal"></div>

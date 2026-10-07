@@ -14,8 +14,9 @@
 // See resolve() below.
 //
 // THE DATE IS THE DEVICE'S OWN, read the way sky-plate.js reads it, and nothing is fetched:
-// every edition's artwork ships in the extension all year and the calendar is all that
-// decides whether it is offered. Windows are inclusive of both days and are in local time,
+// release packaging includes only the artwork in season on the tag's commit date.
+// A new release supplies each edition when its window opens. The calendar decides
+// whether an edition is offered. Windows are inclusive of both days and are in local time,
 // so an edition arrives at midnight wherever the user is.
 //
 // A window that crosses New Year (to is earlier in the year than from) is supported: the
@@ -26,8 +27,10 @@
 
   // from and to are [month, day], both days included. mode is the gallery half the theme
   // would belong to, which is what decides its logo and its approval-window wordmark.
+  // Windows do not overlap. Aurora Borealis crosses New Year until January 17.
   const EDITIONS = [
     { key: 'sleepy-hollow', name: 'Sleepy Hollow', mode: 'dark', from: [10, 1], to: [11, 8] },
+    { key: 'borealis', name: 'Aurora Borealis', mode: 'dark', from: [12, 7], to: [1, 17] },
   ];
 
   const byKey = (key) => EDITIONS.find((e) => e.key === key) || null;
