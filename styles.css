@@ -3357,7 +3357,8 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
    the corner is the folder's alone, and the head's 34px reserve already clears it. It
    stays reserved while the folder is hidden, so a draft arriving does not move the
    name's ellipsis. */
-.compose-sheet .compose-drafts-btn { top: 14px; right: 14px; }
+/* Match the card's 24px content inset, including the count badge's 2px overhang. */
+.compose-sheet .compose-drafts-btn { top: 24px; right: 26px; }
 .compose-drafts-title { margin: 0 0 12px; }
 .compose-drafts-back { align-self: center; margin-top: 12px; }
 .compose-drafts-pane {
