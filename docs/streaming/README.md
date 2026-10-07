@@ -4,7 +4,7 @@ Local branch: `feat/streaming-video`, based on main. No version bump or release 
 
 ## Try it
 
-Reload the unpacked extension from the usual Sidecar checkout. Choose **LIVE** in the new top dock and select a stream. A direct HTTPS HLS or MP4/WebM URL also works. Expand changes the existing video element's size. Stop releases the player and its source.
+Reload the unpacked extension from the usual Sidecar checkout. Choose the **radio-tower icon** in the toolbar and select a stream. A direct HTTPS HLS or MP4/WebM URL also works. Expand changes the existing video element's size. Stop releases the player and its source.
 
 For an isolated preview, serve the repository and open `/docs/streaming/preview.html`. Its signing and lock buttons simulate view transitions, not real signing or keystore locking. No account is connected in this preview.
 
@@ -14,11 +14,11 @@ The dock is a sibling of all account views. The existing lock, wallet teardown, 
 
 NIP-53 kind 30311 discovery queries three public relays (damus.io, nos.lol, relay.primal.net) only while the directory is open. Events are signature-verified by the existing nostr-tools pool. Latest addressable updates supersede older events, including ended announcements; live listings expire after one hour without updates. Discovery closes when selecting a stream, closing the list, or receiving an approval. Media traffic continues for the selected stream.
 
-This prototype is read-only. No chat, zaps, NIP-71 recordings, follow-list filtering, host-profile resolution, custom relay settings, detached player, or cross-window playback coordination is included. Closing/reloading the extension document stops playback. Failed streams show an error and can be selected again. Browsers and stream hosts vary in codec/CORS support.
+Profile links and event-linked zaps use the existing profile and wallet flows. No chat, NIP-71 recordings, follow-list filtering, custom relay settings, or cross-window playback coordination is included. Viewer counts currently reflect selection time. Observed zap totals are limited to 1,000 receipts per relay, without explicit reconnect/backfill. Closing/reloading the extension document stops playback. Failed streams show an error and can be selected again. Browsers and stream hosts vary in codec/CORS support.
 
 ## Dependency and size
 
-HLS.js 1.7.3 light build is copied unminified from the verified official npm tarball. It is 1,071,835 bytes raw and approximately 240 KB deflated. No application minification or new manifest permissions. Provenance, reproduction and licensing are in VENDOR.md, REVIEWERS.md, NOTICE and scripts/update-vendor.sh. The player uses MediaSource where supported, with native HLS fallback.
+HLS.js 1.7.3 full build is copied unminified from the verified official npm tarball. It is 1,688,873 bytes raw. No application minification or new manifest permissions. Provenance, reproduction and licensing are in VENDOR.md, REVIEWERS.md, NOTICE and scripts/update-vendor.sh. The player uses MediaSource where supported, with native HLS fallback.
 
 ## Verification
 
@@ -35,11 +35,11 @@ Settings → Appearance → Live video contains **Enable live video**. The proto
 starts enabled. Turning it off saves `liveVideoEnabled: false` in Sidecar settings,
 hides the entire dock, restores its reserved space, stops playback, and disconnects
 stream discovery. Other open panels follow storage changes. Re-enabling shows the
-LIVE entry without resuming playback or discovery. The standalone review page
+toolbar entry without resuming playback or discovery. The standalone review page
 exercises the toggle for its current session; persistence uses extension storage
 and is covered by the player runtime tests.
 
 The full unminified HLS build supports separate audio renditions. The player links
 to the declared host's Primal profile (falling back to the announcement author);
 that link hides while locked. Broken advertised thumbnails try the host's public
-profile picture, then retain the neutral placeholder if artwork is unavailable.
+profile picture, then retain the radio-tower placeholder if artwork is unavailable.

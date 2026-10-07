@@ -9,23 +9,38 @@
   const status = document.getElementById('stream-status');
   const title = document.getElementById('stream-title');
   const browse = document.getElementById('stream-browse');
+  const entry = document.getElementById('stream-entry');
+  const feedToggle = document.getElementById('stream-feed-toggle');
+  function setFeedExpanded(on) {
+    browse.setAttribute('aria-expanded', String(on));
+    feedToggle.setAttribute('aria-expanded', String(on));
+    entry?.setAttribute('aria-expanded', String(on));
+  }
   const expand = document.getElementById('stream-expand');
   const relays = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
   const profileImages = new Map();
   const model = new SidecarStreams.Directory();
   let hls = null, pool = null, subscription = null, timer = null, selected = false, generation = 0, discoveryGeneration = 0, discoveryAbort = null;
   let enabled = false;
-  let selectedHost = null;
+  let selectedHost = null, selectedEvent = null, zapPool = null, zapAbort = null;
   const lockView = document.getElementById('view-lock');
   const isLocked = () => lockView && !lockView.classList.contains('hidden');
   function syncVisibility() {
-    root.hidden = !enabled || (isLocked() && !selected);
+    root.hidden = !enabled || !selected;
+    root.classList.toggle('stream-idle', !selected);
+    if (entry) { entry.hidden = !enabled; entry.disabled = !!isLocked() || root.classList.contains('stream-approving'); }
     document.getElementById('stream-zap').disabled = !!isLocked() || root.classList.contains('stream-approving');
     browse.disabled = !!isLocked() || root.classList.contains('stream-approving');
+    feedToggle.hidden = !enabled || !selected || !!isLocked() || root.classList.contains('stream-approving');
     layout();
   }
 
   function layout() {
+    const wide = root.getBoundingClientRect().width >= 480;
+    expand.hidden = !selected || !wide;
+    if (!wide && root.classList.contains('stream-expanded')) {
+      root.classList.remove('stream-expanded'); setExpanded(false);
+    }
     document.documentElement.style.setProperty('--stream-height', `${enabled && !root.hidden ? root.getBoundingClientRect().height : 0}px`);
   }
   new ResizeObserver(layout).observe(root);
@@ -49,7 +64,11 @@
     expand.setAttribute('data-i18n-title',label);
   }
   function stop() {
-    selectedHost = null; document.getElementById('stream-info').hidden = true;
+    selectedHost = null; selectedEvent = null;
+    document.getElementById('stream-zap').classList.remove('is-shining');
+    zapAbort?.abort(); zapAbort = null; zapPool?.destroy(); zapPool = null;
+    document.getElementById('stream-zap-total').hidden = true;
+    document.getElementById('stream-info').hidden = true;
     root.classList.remove('stream-pip');
     generation++;
     if (hls) { hls.destroy(); hls = null; }
@@ -59,23 +78,100 @@
     selected = false; root.classList.remove('stream-playing', 'stream-expanded');
     title.textContent = ''; title.removeAttribute('title'); expand.hidden = true; message(''); syncVisibility();
   }
+  function setZapDigits(output, text, animate) {
+    output.classList.add('t-digit-group');
+    output.classList.remove('is-animating');
+    output.replaceChildren();
+    const chars = Array.from(text);
+    chars.forEach((ch, i) => {
+      const digit = document.createElement('span');
+      digit.className = 't-digit';
+      digit.textContent = ch;
+      digit.setAttribute('aria-hidden', 'true');
+      if (i === chars.length - 2) digit.dataset.stagger = '1';
+      else if (i === chars.length - 1) digit.dataset.stagger = '2';
+      output.appendChild(digit);
+    });
+    if (animate) {
+      void output.offsetHeight;
+      output.classList.add('is-animating');
+    }
+  }
+  function shineZap() {
+    const bolt = document.getElementById('stream-zap');
+    bolt.classList.remove('is-shining');
+    void bolt.offsetHeight;
+    bolt.classList.add('is-shining');
+  }
+  document.getElementById('stream-zap').addEventListener('animationend', () => {
+    document.getElementById('stream-zap').classList.remove('is-shining');
+  });
+  async function watchZaps(item, run) {
+    const output = document.getElementById('stream-zap-total');
+    output.hidden = true; output.replaceChildren();
+    output.removeAttribute('title');
+    output.removeAttribute('aria-label');
+    const controller = zapAbort = new AbortController();
+    const active = zapPool = new NostrTools.SimplePool();
+    const sources = [...new Set([...item.relays || [], ...relays, 'wss://purplepag.es'])];
+    try {
+      const [profile, relayList] = await Promise.all([
+        active.get(sources, { kinds:[0], authors:[item.host] }, { abort:controller.signal, maxWait:5000 }),
+        active.get(sources, { kinds:[10002], authors:[item.host] }, { abort:controller.signal, maxWait:5000 })
+      ]);
+      for (const tag of (relayList?.tags || []).filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://')).slice(0,6)) { if (!sources.includes(tag[1])) sources.push(tag[1]); }
+      if (run !== generation || controller.signal.aborted) return;
+      const address = JSON.parse(profile?.content || '{}').lud16;
+      const parts = typeof address === 'string' && address.split('@');
+      if (!parts || parts.length !== 2 || !parts[0] || !/^[a-z0-9.-]+$/i.test(parts[1])) return;
+      const response = await fetch('https://' + parts[1] + '/.well-known/lnurlp/' + encodeURIComponent(parts[0]), { signal:controller.signal, credentials:'omit', referrerPolicy:'no-referrer' });
+      if (!response.ok) return;
+      const meta = await response.json();
+      if (run !== generation || controller.signal.aborted || !meta.allowsNostr || !/^[a-f0-9]{64}$/.test(meta.nostrPubkey)) return;
+      const totals = new SidecarStreams.ZapTotals();
+      const subscribedAt = Math.floor(Date.now() / 1000);
+      let historyLoaded = false;
+      const paintTotals = (animate) => {
+        if (run !== generation || controller.signal.aborted) return;
+        output.hidden = false;
+        if (animate) shineZap();
+        setZapDigits(output, SidecarI18n.fmtNum(totals.msats/1000, {notation:'compact', maximumFractionDigits:1}), animate);
+        output.title = t('{{sats}} sats · {{count}} zaps observed for this event', {sats:SidecarI18n.fmtNum(totals.msats/1000),count:SidecarI18n.fmtNum(totals.count)});
+        output.setAttribute('aria-label', output.title);
+      };
+      active.subscribeMany(sources, {kinds:[9735], '#a':[item.key], '#p':[item.host], limit:1000}, {
+        abort:controller.signal,
+        oneose: () => { historyLoaded = true; },
+        onevent: async receipt => {
+          const animate = historyLoaded && receipt.created_at >= subscribedAt;
+          const accepted = await totals.accept(receipt, {address:item.key, recipient:item.host, provider:meta.nostrPubkey,
+            verify:NostrTools.verifyEvent,
+            digest: async text => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))), b=>b.toString(16).padStart(2,'0')).join('') });
+          if (accepted) paintTotals(animate);
+        }
+      });
+    } catch (_) { /* Unavailable receipts are not a zero total. */ }
+  }
   function play(url, label, host, item) {
     if (!enabled || isLocked()) return;
     url = SidecarStreams.httpsUrl(url);
     if (!url) { message(t('Enter an HTTPS stream URL.')); return; }
-    stop(); const run = generation;
-    selectedHost = host || null;
+    clearTimeout(feedCloseTimer); directory.classList.remove('is-open','is-closing');
+    stop(); root.append(directory); directory.classList.remove('stream-idle-directory'); const run = generation;
+    selectedHost = host || null; selectedEvent = item || null;
+    if (item && host) watchZaps(item, run);
     if (host) {
       const npub = NostrTools.nip19.npubEncode(host);
+      const fallbackName = label && label !== 'Untitled livestream' && label !== t('Untitled livestream') ? label : npub.slice(0,12) + '…';
       document.getElementById('stream-info').hidden = false;
       document.getElementById('stream-host').href = 'https://primal.net/p/' + npub;
-      document.getElementById('stream-host-name').textContent = profileImages.get(host)?.name || npub.slice(0,12) + '…';
+      document.getElementById('stream-host-name').textContent = profileImages.get(host)?.name || fallbackName;
       const avatar = document.getElementById('stream-host-image'); avatar.hidden = true;
       avatar.onload = () => { if (run === generation) avatar.hidden = false; };
       avatar.onerror = () => { avatar.hidden = true; };
-      profileImage(host).then(picture => {
+      profileImage(host, item?.relays).then(picture => {
         if (run !== generation) return;
-        document.getElementById('stream-host-name').textContent = profileImages.get(host)?.name || npub.slice(0,12) + '…';
+        document.getElementById('stream-host-name').textContent = profileImages.get(host)?.name || fallbackName;
         if (picture || item?.image) avatar.src = picture || item.image;
       });
       const viewers = document.getElementById('stream-viewers');
@@ -88,7 +184,8 @@
     }
 
     selected = true; document.getElementById('stream-stop').hidden = false; video.hidden = false; root.classList.add('stream-playing'); expand.hidden = false;
-    title.textContent = label || t('Untitled livestream'); title.setAttribute('title',title.textContent); measureTitle(); message(t('Connecting…')); directory.hidden = true; browse.setAttribute('aria-expanded','false'); disconnect();
+    title.textContent = label || t('Untitled livestream'); title.setAttribute('title',title.textContent); measureTitle(); message(t('Connecting…')); directory.hidden = true; setFeedExpanded(false); disconnect();
+    syncVisibility();
     const begin = () => { if (run !== generation || !enabled) return; return video.play().catch(() => { if (run === generation) message(t('Press Play to start watching.')); }); };
     const isHls = !/\.(mp4|webm|ogv)(?:[?#]|$)/i.test(url);
     if (isHls && Hls.isSupported()) {
@@ -110,22 +207,31 @@
   video.addEventListener('playing', () => message(''));
   video.addEventListener('waiting', () => { if (selected) message(t('Buffering…')); });
   video.addEventListener('error', () => { if (selected) message(t('Stream unavailable. Choose another stream or try again.')); });
-  function profileImage(host) {
+  function profileImage(host, hints = []) {
     const cached = profileImages.get(host);
     if (cached && cached.expiresAt > Date.now()) return cached.promise;
-    if (!pool || !enabled || isLocked()) return Promise.resolve(null);
-    const signal = discoveryAbort?.signal;
+    if (!enabled || isLocked()) return Promise.resolve(null);
+    // Selecting a stream closes discovery; profile resolution must finish independently.
+    const profilePool = new NostrTools.SimplePool();
     const record = { expiresAt: Infinity, promise: null };
-    record.promise = pool.get([...relays, 'wss://purplepag.es'], {kinds:[0], authors:[host]}, {abort:signal, maxWait:4000}).then(event => {
+    const sources = [...new Set([...relays, 'wss://purplepag.es', ...hints.filter(url => typeof url === 'string' && url.startsWith('wss://')).slice(0,6)])];
+    record.promise = (async () => {
+      let event = await profilePool.get(sources, {kinds:[0], authors:[host]}, {maxWait:4000});
+      if (!event) {
+        const relayList = await profilePool.get(sources, {kinds:[10002], authors:[host]}, {maxWait:4000});
+        const declared = [...new Set((relayList?.tags || []).filter(tag => tag[0] === 'r' && typeof tag[1] === 'string' && tag[1].startsWith('wss://')).map(tag => tag[1]))].filter(url => !sources.includes(url)).slice(0,6);
+        if (declared.length) event = await profilePool.get(declared, {kinds:[0], authors:[host]}, {maxWait:4000});
+      }
+      return event;
+    })().then(event => {
       let picture = null;
       try { const content = JSON.parse(event?.content || '{}'); picture = SidecarStreams.httpsUrl(content.picture); record.name = content.display_name || content.displayName || content.name || ''; } catch (_) {}
       record.expiresAt = Date.now() + (picture ? 300000 : 30000);
-      if (signal?.aborted && profileImages.get(host) === record) profileImages.delete(host);
       return picture;
     }).catch(() => {
       if (profileImages.get(host) === record) profileImages.delete(host);
       return null;
-    });
+    }).finally(() => profilePool.destroy());
     profileImages.set(host, record);
     return record.promise;
   }
@@ -155,12 +261,13 @@
     return { page, items: items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) };
   }
   let moreOpen = false;
+  let lookingForStreams = false;
   function paint() {
     document.getElementById('stream-page-controls').replaceChildren();
     list.replaceChildren();
     const more = document.getElementById('stream-more-list'); more.replaceChildren();
     const items = model.live();
-    if (!items.length) { const p=document.createElement('p');p.textContent=t('No live streams found. Try refreshing.');list.append(p); }
+    if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=lookingForStreams ? t('Looking for streams…') : t('No live streams found. Try refreshing.');list.append(p); }
     const named = items.filter(item => item.title !== 'Untitled livestream');
     const untitled = items.filter(item => item.title === 'Untitled livestream');
     const mainPage = paginate(list, named, streamPage, page => { streamPage = page; });
@@ -171,18 +278,22 @@
       const row=document.createElement('div');row.className='stream-row';
       const button=document.createElement('button');button.type='button';button.className='stream-result';
       const thumb = document.createElement('span'); thumb.className = 'stream-thumbnail'; thumb.setAttribute('aria-hidden', 'true');
-      const placeholder = document.createElement('span'); placeholder.className = 'stream-thumbnail-play'; thumb.append(placeholder);
-      if(item.image) {
-        const img=document.createElement('img');img.alt='';img.loading='lazy';img.referrerPolicy='no-referrer';
-        img.addEventListener('error', async () => {
-          img.hidden=true;
-          const activePool=pool, run=discoveryGeneration;
-          if (!activePool || !enabled || isLocked()) return;
-          const fallback=await profileImage(item.host);
-          if(run!==discoveryGeneration || !fallback || fallback===img.src) return;
-          img.src=fallback;img.hidden=false;
-        });img.src=item.image;thumb.append(img);
-      }
+      const placeholder = document.createElement('span'); placeholder.className = 'stream-thumbnail-play';
+      const streamIcon = entry?.querySelector('svg');
+      if (streamIcon) placeholder.append(streamIcon.cloneNode(true));
+      thumb.append(placeholder);
+      // Hidden-until-loaded artwork must load eagerly; lazy loading waits for visibility.
+      const artwork=document.createElement('img');artwork.alt='';artwork.loading='eager';artwork.referrerPolicy='no-referrer';artwork.hidden=true;
+      thumb.append(artwork);
+      const profileArtwork=document.createElement('img');profileArtwork.alt='';profileArtwork.hidden=true;
+      profileArtwork.referrerPolicy='no-referrer';
+      profileArtwork.style.filter='brightness(.5)';
+      thumb.insertBefore(profileArtwork,artwork);
+      profileArtwork.addEventListener('load',()=>{profileArtwork.hidden=false;});
+      profileArtwork.addEventListener('error',()=>{profileArtwork.hidden=true;});
+      artwork.addEventListener('load',()=>{artwork.hidden=false;});
+      artwork.addEventListener('error',()=>{artwork.hidden=true;});
+      if(item.image)artwork.src=item.image;
       button.append(thumb);
       const label=document.createElement('span'); label.textContent=item.title === 'Untitled livestream' ? t('Untitled livestream') : item.title;label.dir='auto';label.className='stream-result-title';button.title=label.textContent;button.append(label);
       button.addEventListener('click',()=>play(item.url,label.textContent,item.host,item));
@@ -197,9 +308,11 @@
       });
       profile.append(avatar);row.append(button,profile);
       const run=discoveryGeneration;
-      profileImage(item.host).then(url=>{
+      profileImage(item.host, item.relays).then(url=>{
         const picture = url || item.image; // Stream artwork is preferable to an empty avatar when no profile is published.
-        if(picture && run===discoveryGeneration)avatar.src=picture;
+        if(run!==discoveryGeneration)return;
+        if(picture)avatar.src=picture;
+        if(url)profileArtwork.src=url;
       });
       if (item.title === 'Untitled livestream') { more.append(row); }
       else list.append(row);
@@ -210,16 +323,43 @@
   function disconnect() { discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
   function discover() {
     if (!enabled || isLocked()) return;
-    disconnect(); paint();
+    disconnect(); lookingForStreams = true; paint();
     const run=discoveryGeneration; discoveryAbort=new AbortController();
     // Public, read-only discovery; never authenticate or keep the keystore awake.
     pool = new NostrTools.SimplePool();
     subscription = pool.subscribeMany(relays,
       { kinds:[30311], since:Math.floor(Date.now()/1000)-3600, limit:100 },
-      { abort:discoveryAbort.signal, onevent:event=>{if(run===discoveryGeneration && model.accept(event))paint();}, oneose:()=>{if(run===discoveryGeneration)paint();} });
+      { abort:discoveryAbort.signal, onevent:event=>{if(run===discoveryGeneration && model.accept(event))paint();}, oneose:()=>{if(run===discoveryGeneration){lookingForStreams=false;paint();}} });
     timer=setInterval(paint,30000);
   }
-  browse.addEventListener('click',()=>{ if (!enabled || isLocked() || browse.disabled) return; directory.hidden=!directory.hidden;browse.setAttribute('aria-expanded',String(!directory.hidden));if(directory.hidden)disconnect();else discover(); });
+  let feedCloseTimer;
+  function closeFeed() {
+    disconnect(); setFeedExpanded(false);
+    directory.classList.remove('is-open'); directory.classList.add('is-closing');
+    clearTimeout(feedCloseTimer);
+    feedCloseTimer=setTimeout(()=>{directory.hidden=true;directory.classList.remove('is-closing');},parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150);
+  }
+  function toggleFeed() {
+    if (!enabled || isLocked() || browse.disabled) return;
+    if (!directory.hidden && directory.classList.contains('is-open')) { closeFeed(); return; }
+    clearTimeout(feedCloseTimer);
+    window.dispatchEvent(new CustomEvent('sidecar-open-streams'));
+    // Anchor below the toolbar so the account switcher remains reachable during playback.
+    document.body.append(directory); directory.classList.add('stream-idle-directory','t-dropdown');
+    directory.setAttribute('data-origin','top-center');
+    directory.style.top=((entry?.getBoundingClientRect().bottom || 56)+8)+'px';
+    directory.style.maxHeight='calc(100dvh - '+directory.style.top+' - 12px)';
+    directory.hidden=false;directory.classList.remove('is-closing');
+    void directory.offsetHeight;directory.classList.add('is-open');setFeedExpanded(true);discover();
+  }
+  browse.addEventListener('click', toggleFeed);
+  feedToggle.addEventListener('click', toggleFeed);
+  entry?.addEventListener('click', toggleFeed);
+  document.getElementById('acct-btn')?.addEventListener('click',()=>{if(!directory.hidden)closeFeed();});
+  document.addEventListener?.('click',event=>{
+    if(!directory.hidden && !directory.contains(event.target) && !entry?.contains(event.target) && !browse.contains(event.target) && !feedToggle.contains(event.target))closeFeed();
+  });
+  document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
   document.getElementById('stream-refresh').addEventListener('click',discover);
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.
@@ -238,22 +378,22 @@
     document.getElementById('stream-url-toggle').setAttribute('aria-expanded', String(!advanced.hidden));
     if (!advanced.hidden) revealContent(advanced);
   });
-  document.getElementById('stream-stop').addEventListener('click',()=>{stop();disconnect();directory.hidden=true;browse.setAttribute('aria-expanded','false');});
-  expand.addEventListener('click',()=>{ const on=root.classList.toggle('stream-expanded');setExpanded(on); });
+  document.getElementById('stream-stop').addEventListener('click',()=>{stop();disconnect();directory.hidden=true;setFeedExpanded(false);});
+  expand.addEventListener('click',()=>{ if (expand.hidden) return; const on=root.classList.toggle('stream-expanded');setExpanded(on); });
   document.getElementById('stream-form').addEventListener('submit',e=>{ e.preventDefault();play(document.getElementById('stream-url').value,t('Live stream')); });
   // Keep approval space usable even when the user was watching expanded video.
   const approval=document.getElementById('view-approval');
   new MutationObserver(()=>{
     const active=!approval.classList.contains('hidden');root.classList.toggle('stream-approving',active);syncVisibility();
     if(active){
-      directory.hidden=true;disconnect();browse.setAttribute('aria-expanded','false');
+      directory.hidden=true;disconnect();setFeedExpanded(false);
       if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
     }
   }).observe(approval,{attributes:true,attributeFilter:['class']});
   if (lockView) new MutationObserver(() => {
     if (isLocked()) {
       directory.hidden = true; disconnect();
-      browse.setAttribute('aria-expanded', 'false');
+      setFeedExpanded(false);
       const advanced = document.getElementById('stream-advanced');
       if (advanced) advanced.hidden = true;
       document.getElementById('stream-url-toggle').setAttribute('aria-expanded', 'false');
@@ -263,14 +403,39 @@
   window.addEventListener('pagehide',()=>{stop();disconnect();});
   document.getElementById('stream-zap').addEventListener('click', () => {
     if (!selectedHost || isLocked() || root.classList.contains('stream-approving')) return;
-    window.dispatchEvent(new CustomEvent('sidecar-stream-zap', { detail: { pubkey: selectedHost } }));
+    window.dispatchEvent(new CustomEvent('sidecar-stream-zap', { detail: { pubkey: selectedHost, event: selectedEvent && { id:selectedEvent.id, address:selectedEvent.key } } }));
   });
+  const fab = document.getElementById('compose-fab');
+  const composeMenu = document.getElementById('compose-menu');
+  if (fab && composeMenu && document.addEventListener) {
+    let closeTimer;
+    function closeComposeMenu() {
+      fab.setAttribute('aria-expanded','false');
+      composeMenu.classList.remove('is-open'); composeMenu.classList.add('is-closing');
+      clearTimeout(closeTimer);
+      const duration=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150;
+      closeTimer=setTimeout(()=>{composeMenu.hidden=true;composeMenu.classList.remove('is-closing');},duration);
+    }
+    fab.addEventListener('click',()=>{
+      if(fab.disabled)return;
+      if(!composeMenu.hidden && composeMenu.classList.contains('is-open')) {closeComposeMenu();return;}
+      clearTimeout(closeTimer);
+      composeMenu.hidden=false;composeMenu.classList.remove('is-closing');
+      composeMenu.style.bottom=(window.innerHeight-fab.getBoundingClientRect().top+8)+'px';
+      void composeMenu.offsetHeight;composeMenu.classList.add('is-open');fab.setAttribute('aria-expanded','true');
+      document.getElementById('compose-note-btn').focus();
+    });
+    composeMenu.addEventListener('click',closeComposeMenu);
+    document.addEventListener('click',event=>{if(!composeMenu.hidden&&!composeMenu.contains(event.target)&&!fab.contains(event.target))closeComposeMenu();});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!composeMenu.hidden){closeComposeMenu();fab.focus();}});
+    new MutationObserver(()=>{if(isLocked() || fab.disabled || document.getElementById('view-main').classList.contains('hidden') || !document.getElementById('view-approval').classList.contains('hidden'))closeComposeMenu();}).observe(document.getElementById('view-main'),{attributes:true,attributeFilter:['class']});
+  }
   const toggle = document.getElementById('livevideo-toggle');
   function setEnabled(on) {
     enabled = on;
     if (!on) {
       stop(); disconnect(); directory.hidden = true;
-      list.replaceChildren(); browse.setAttribute('aria-expanded', 'false');
+      list.replaceChildren(); setFeedExpanded(false);
     }
     syncVisibility();
     if (toggle) toggle.checked = on;

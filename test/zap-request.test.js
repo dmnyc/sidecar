@@ -138,3 +138,17 @@ test('the zap control only appears for an address that can be zapped', () => {
   const sheet = stripComments(lift('async function openProfileSheet('));
   assert.match(sheet, /p\.zappable/, 'the sheet offers Zap without checking the provider');
 });
+
+
+test('stream zap keeps the host recipient and includes stable event linkage', async () => {
+  let signed;
+  const run = new Function('lnAddressParams','readRelayUrls','NT','call','state','fetch','URL', zapFn + '; return zapInvoice;')(
+    async()=>({meta:{allowsNostr:true,nostrPubkey:'b'.repeat(64),minSendable:1,maxSendable:1000000,callback:'https://example.com/pay'}}),
+    async()=>['wss://example.com'],
+    {nip57:{makeZapRequest:({pubkey})=>({kind:9734,tags:[['p',pubkey]]})}},
+    async message=>{signed=message.event;return message.event;},
+    {activePubkey:'c'.repeat(64)}, async()=>({json:async()=>({pr:'invoice'})}), URL);
+  const host='a'.repeat(64), address='30311:'+'d'.repeat(64)+':broadcast';
+  await run({addr:'host@example.com',msats:21000,recipientPubkey:host,streamEvent:{address,id:'e'.repeat(64)}});
+  assert.deepEqual(signed.tags,[['p',host],['a',address],['e','e'.repeat(64)],['k','30311']]);
+});

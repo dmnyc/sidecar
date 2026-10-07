@@ -1620,7 +1620,8 @@
     toast(t('Locked'), 'success');
   });
 
-  $('compose-fab').addEventListener('click', () => {
+  $('compose-note-btn').addEventListener('click', () => {
+    if ($('compose-fab').disabled) return;
     const balloon = $('first-post-balloon');
     const isFirstTime = balloon && !balloon.classList.contains('hidden') && state?.activePubkey;
     if (isFirstTime) {
@@ -2267,13 +2268,14 @@
   window.addEventListener('sidecar-stream-zap', (event) => {
     if (!$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return;
     const pubkey = event.detail?.pubkey;
-    if (/^[a-f0-9]{64}$/.test(pubkey || '')) openProfileSheet(pubkey, { zap: true });
+    if (/^[a-f0-9]{64}$/.test(pubkey || '')) openProfileSheet(pubkey, { zap: true, streamEvent: event.detail?.event });
   });
 
   async function openProfileSheet(pubkey, options) {
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
     openModal((modal) => {
+      if (options?.zap) modal.classList.add('stream-zap-modal');
       // NOT modal-sheet. That class exists for the notifications list, which fills
       // the panel and scrolls an inner element; it sets overflow:hidden and
       // height:100%, so a sheet without its own scroller simply loses anything past
@@ -2689,6 +2691,7 @@
             msats: sats * 1000,
             comment: note.value.trim(),
             recipientPubkey: pubkey,
+            streamEvent: options?.streamEvent,
           });
           flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
           const res = await client.payInvoice(invoice);
@@ -3052,7 +3055,7 @@
     }
   });
 
-  $('comment-btn').addEventListener('click', webCommentModal);
+  $('comment-btn').addEventListener('click', () => { if (!$('compose-fab').disabled) webCommentModal(); });
 
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
@@ -3626,6 +3629,7 @@
     });
     menu.append(foot);
   }
+  window.addEventListener('sidecar-open-streams', closeAcctMenu);
   function openAcctMenu() {
     buildAcctMenu();
     const menu = $('acct-menu');
@@ -9007,7 +9011,7 @@
     modal.innerHTML = '';
     // Both per-modal variants reset here, or the last one to open leaks into the next:
     // a composer would leave every later dialog 620px wide.
-    modal.classList.remove('modal-sheet', 'compose-modal', 'has-drafts-btn'); // opt back in per modal
+    modal.classList.remove('modal-sheet', 'compose-modal', 'has-drafts-btn', 'stream-zap-modal'); // opt back in per modal
     // And the dismiss guard, for the same reason a class is: a stale one would make an
     // unrelated dialog refuse to close.
     _modalDismissGuard = null;
@@ -12786,7 +12790,7 @@
     const fab = $('compose-fab');
     if (fab) {
       fab.disabled = locked;
-      fab.title = locked ? 'Mining a post. Stop it first.' : 'Post a note';
+      fab.title = locked ? t('Mining a post. Stop it first.') : t('Compose');
     }
     const acct = $('acct-btn');
     if (acct) {
@@ -21308,7 +21312,7 @@
   // NOTE (which is how a client shows it under the note, and how the recipient can tell
   // what was zapped). Without it the zap is of the person, which is what the profile
   // sheet sends.
-  async function zapInvoice({ addr, msats, comment, recipientPubkey, event }) {
+  async function zapInvoice({ addr, msats, comment, recipientPubkey, event, streamEvent }) {
     const { meta } = await lnAddressParams(addr);
     if (!(meta.allowsNostr && meta.nostrPubkey)) {
       throw new Error(t('That lightning address cannot receive zaps, only payments.'));
@@ -21325,6 +21329,11 @@
     const template = event
       ? NT.nip57.makeZapRequest({ event, amount: msats, relays, comment: comment || '' })
       : NT.nip57.makeZapRequest({ pubkey: recipientPubkey, amount: msats, relays, comment: comment || '' });
+
+    // Keep the payment recipient as the host, even when a provider published the stream.
+    if (streamEvent && /^30311:[a-f0-9]{64}:/.test(streamEvent.address || '') && /^[a-f0-9]{64}$/.test(streamEvent.id || '')) {
+      template.tags.push(['a', streamEvent.address], ['e', streamEvent.id], ['k', '30311']);
+    }
 
     // PUBLIC ONLY, for now. Anonymous (an ephemeral signing key) and private (the
     // sender encrypted into an `anon` tag) both worked out to be worse than sending

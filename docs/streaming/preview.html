@@ -1,4 +1,4 @@
-<!doctype html><html lang="en" data-theme="speakeasy"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sidecar streaming prototype</title><link rel="stylesheet" href="../../fonts.css"><link rel="stylesheet" href="../../styles.css"><link rel="stylesheet" href="../../themes/speakeasy.css"><link rel="stylesheet" href="../../streams.css"></head><body>  <section id="stream-dock" aria-label="Live video" data-i18n-aria-label="Live video">
+<!doctype html><html lang="en" data-theme="speakeasy"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sidecar streaming prototype</title><link rel="stylesheet" href="../../fonts.css"><link rel="stylesheet" href="../../styles.css"><link rel="stylesheet" href="../../themes/speakeasy.css"><link rel="stylesheet" href="../../streams.css"></head><body><button id="stream-entry" type="button" aria-label="Live streams" data-i18n="Live streams" aria-controls="stream-directory" aria-expanded="false">Live streams</button>  <section id="stream-dock" aria-label="Live video" data-i18n-aria-label="Live video">
     <div class="stream-toolbar">
       <button id="stream-browse" aria-expanded="false" aria-label="Live streams" title="Live streams" data-i18n-aria-label="Live streams" data-i18n-title="Live streams"><span class="stream-live-cue"><span class="stream-pilot" aria-hidden="true"></span><span class="stream-live-label" data-i18n="Live">Live</span></span><span id="stream-title-window"><strong id="stream-title" dir="auto"></strong></span></button>
       <div class="stream-controls">
@@ -8,11 +8,14 @@
     </div>
     <video id="stream-video" controls controlslist="nofullscreen" playsinline hidden></video>
     <div id="stream-info" hidden>
+      <button id="stream-feed-toggle" type="button" aria-label="Live streams" title="Live streams" data-i18n-aria-label="Live streams" data-i18n-title="Live streams" aria-expanded="false" aria-controls="stream-directory" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
       <a id="stream-host" target="_blank" rel="noopener noreferrer"><span class="stream-host-avatar"><img id="stream-host-image" alt="" referrerpolicy="no-referrer" hidden /></span><span id="stream-host-name" dir="auto"></span></a>
       <span id="stream-viewers" hidden></span>
+      <span id="stream-zap-total" hidden></span>
       <button id="stream-zap" class="icon-btn" aria-label="Zap streamer" title="Zap streamer" data-i18n-aria-label="Zap streamer" data-i18n-title="Zap streamer"><svg viewBox="0 0 55 94" fill="currentColor" aria-hidden="true"><path d="M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z"></path></svg></button>
     </div>
     <p id="stream-status" role="status"></p>
+
     <div id="stream-directory" hidden>
       <div id="stream-list"></div>
       <div class="stream-directory-actions">
