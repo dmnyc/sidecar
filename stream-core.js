@@ -63,6 +63,32 @@
       return meta;
     } finally {clearTimeout(timeout);signal.removeEventListener('abort',cancel);}
   }
+  // Scan relays independently: one relay's recent page must not truncate another's history.
+  async function zapHistory({sources, query, accept, filter, signal, pageSize=250, maxPages=80}) {
+    const results=await Promise.all(sources.map(async relay=>{
+      let until=filter.until ?? Math.floor(Date.now()/1000), pages=0;
+      try {
+        while(!signal.aborted && pages++<maxPages) {
+          const events=await query(relay,{...filter,until,limit:pageSize});
+          if(signal.aborted)return false;
+          if(!events.length)return true;
+          const valid=events.filter(e=>Number.isSafeInteger(e.created_at) && e.created_at<=until && e.created_at>=0);
+          if(!valid.length)return false;
+          for(const event of valid)await accept(event);
+          const oldest=Math.min(...valid.map(e=>e.created_at));
+          // Drain the boundary second before advancing, including ties across pages.
+          const boundary=await query(relay,{...filter,since:oldest,until:oldest,limit:1000});
+          if(signal.aborted)return false;
+          for(const event of boundary)await accept(event);
+          if(boundary.length>=1000)return false; // Cannot prove this second was exhausted.
+          if(oldest===0 || (filter.since!=null && oldest<=filter.since))return true;
+          until=oldest-1;
+        }
+      } catch (_) { return false; }
+      return false;
+    }));
+    return {complete:!signal.aborted && results.every(Boolean), answered:results.filter(Boolean).length};
+  }
   // A provider-signed receipt is counted only after its signed request and invoice agree.
   function invoiceDetails(raw) {
     if (typeof raw !== 'string' || raw.length > 20000 || (raw !== raw.toLowerCase() && raw !== raw.toUpperCase())) return null;
@@ -117,7 +143,7 @@
       } catch (_) { return false; }
     }
   }
-  const api = { httpsUrl, parse, bookmark, zapProvider, Directory, invoiceDetails, ZapTotals };
+  const api = { httpsUrl, parse, bookmark, zapProvider, zapHistory, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);

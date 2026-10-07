@@ -53,7 +53,7 @@
   const model = new SidecarStreams.Directory();
   let hls = null, pool = null, subscription = null, timer = null, selected = false, generation = 0, discoveryGeneration = 0, discoveryAbort = null;
   let enabled = false;
-  let selectedHost = null, selectedEvent = null, zapPool = null, zapAbort = null, zapRetryTimer = null;
+  let selectedHost = null, selectedEvent = null, zapPool = null, zapAbort = null, zapRetryTimer = null, zapHistoryTimer = null;
   const lockView = document.getElementById('view-lock');
   const isLocked = () => lockView && !lockView.classList.contains('hidden');
   function syncVisibility() {
@@ -98,6 +98,7 @@
     selectedHost = null; selectedEvent = null;
     document.getElementById('stream-zap').classList.remove('is-shining');
     clearTimeout(zapRetryTimer); zapRetryTimer=null;
+    clearTimeout(zapHistoryTimer);zapHistoryTimer=null;
     zapAbort?.abort(); zapAbort = null; zapPool?.destroy(); zapPool = null;
     document.getElementById('stream-zap-total').hidden = true;
     document.getElementById('stream-info').hidden = true;
@@ -138,47 +139,69 @@
   document.getElementById('stream-zap').addEventListener('animationend', () => {
     document.getElementById('stream-zap').classList.remove('is-shining');
   });
+  const zapSessions=new Map();
   async function watchZaps(item, run, attempt = 0) {
-    const output = document.getElementById('stream-zap-total');
-    output.hidden = true; output.replaceChildren();
-    output.removeAttribute('title');
-    output.removeAttribute('aria-label');
-    const controller = zapAbort = new AbortController();
-    const active = zapPool = new NostrTools.SimplePool();
-    const sources = [...new Set([...item.relays || [], ...relays, 'wss://purplepag.es'])];
+    const output=document.getElementById('stream-zap-total');
+    const cacheKey=item.key+':'+item.host;
+    let session=zapSessions.get(cacheKey);
+    if(!session){session={totals:new SidecarStreams.ZapTotals(),provider:null};zapSessions.set(cacheKey,session);}
+    if(zapSessions.size>20)zapSessions.delete(zapSessions.keys().next().value);
+    const controller=zapAbort=new AbortController();
+    const active=zapPool=new NostrTools.SimplePool();
+    const current=()=>run===generation && !controller.signal.aborted;
+    let loading=true, partial=true;
+    const paint=(animate=false)=>{
+      if(!current())return;
+      output.hidden=false;
+      const value=SidecarI18n.fmtNum(session.totals.msats/1000,{notation:'compact',maximumFractionDigits:1});
+      setZapDigits(output,session.totals.count ? value+(loading?'…':'+') : (loading?'…':'—'),animate);
+      if(animate)shineZap();
+      output.title=loading ? t('Loading verified zap history…') : partial ? t('Zap history incomplete; retrying available relays.') : t('Verified zaps observed on available relays; other receipts may exist.');
+      if(session.totals.count)output.title+=' '+t('{{sats}} sats · {{count}} zaps observed for this event',{sats:SidecarI18n.fmtNum(session.totals.msats/1000),count:SidecarI18n.fmtNum(session.totals.count)});
+      output.setAttribute('aria-label',output.title);
+    };
+    paint();
+    // Receipt archives are separate from the small live-discovery relay set.
+    const sources=[...new Set([...item.relays || [],...relays,'wss://purplepag.es','wss://nostr.wine','wss://relay.snort.social'])];
     try {
-      const meta = await SidecarStreams.zapProvider(active, sources, item.host, controller.signal, fetch);
-      if (run !== generation || controller.signal.aborted) return;
-      const totals = new SidecarStreams.ZapTotals();
-      const subscribedAt = Math.floor(Date.now() / 1000);
-      let historyLoaded = false;
-      const paintTotals = (animate) => {
-        if (run !== generation || controller.signal.aborted) return;
-        output.hidden = false;
-        if (animate) shineZap();
-        setZapDigits(output, SidecarI18n.fmtNum(totals.msats/1000, {notation:'compact', maximumFractionDigits:1}), animate);
-        output.title = t('{{sats}} sats · {{count}} zaps observed for this event', {sats:SidecarI18n.fmtNum(totals.msats/1000),count:SidecarI18n.fmtNum(totals.count)});
-        output.setAttribute('aria-label', output.title);
+      const meta=await SidecarStreams.zapProvider(active,sources,item.host,controller.signal,fetch);
+      if(!current())return;
+      if(session.provider && session.provider!==meta.nostrPubkey)session.totals=new SidecarStreams.ZapTotals();
+      session.provider=meta.nostrPubkey;
+      const started=Math.floor(Date.now()/1000);
+      const accept=async(receipt,animate=false)=>{
+        if(!current())return;
+        const accepted=await session.totals.accept(receipt,{address:item.key,recipient:item.host,provider:meta.nostrPubkey,verify:NostrTools.verifyEvent,
+          digest:async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('')});
+        if(accepted)paint(animate);
       };
-      active.subscribeMany(sources, {kinds:[9735], '#a':[item.key], '#p':[item.host], limit:1000}, {
-        abort:controller.signal,
-        oneose: () => { historyLoaded = true; },
-        onevent: async receipt => {
-          const animate = historyLoaded && receipt.created_at >= subscribedAt;
-          const accepted = await totals.accept(receipt, {address:item.key, recipient:item.host, provider:meta.nostrPubkey,
-            verify:NostrTools.verifyEvent,
-            digest: async text => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))), b=>b.toString(16).padStart(2,'0')).join('') });
-          if (accepted) paintTotals(animate);
-        }
+      const filter={kinds:[9735],'#a':[item.key],'#p':[item.host]};
+      const query=(relay,request)=>new Promise((resolve,reject)=>{
+        let sub,done=false;const events=[];
+        const finish=(error)=>{if(done)return;done=true;clearTimeout(deadline);controller.signal.removeEventListener('abort',abort);sub?.close();error?reject(error):resolve(events);};
+        const abort=()=>finish(new Error('Aborted'));
+        const deadline=setTimeout(()=>finish(new Error('Relay timeout')),6500);
+        controller.signal.addEventListener('abort',abort,{once:true});
+        sub=active.subscribeMany([relay],request,{maxWait:7000,abort:controller.signal,
+          onevent:event=>{if(event.kind===9735 && event.tags.some(t=>t[0]==='a'&&t[1]===item.key) && event.tags.some(t=>t[0]==='p'&&t[1]===item.host) && event.created_at<=(request.until??Infinity) && event.created_at>=(request.since??0))events.push(event);},
+          oneose:()=>finish(),onclose:()=>finish(new Error('Relay disconnected'))});
+        if(done)sub.close();
       });
+      const subscribe=()=>active.subscribeMany(sources,{...filter,since:started},{abort:controller.signal,onevent:receipt=>{accept(receipt,!loading&&receipt.created_at>=started).catch(()=>{});}});
+      let live=subscribe();
+      let watermark=started;
+      const recover=async()=>{
+        const before=Math.floor(Date.now()/1000);
+        const result=await SidecarStreams.zapHistory({sources,query,accept,filter:partial?filter:{...filter,since:Math.max(0,watermark-2)},signal:controller.signal});
+        if(!current())return;
+        loading=false;partial=!result.complete;if(!partial)watermark=before;paint();
+        zapHistoryTimer=setTimeout(()=>{if(!current())return;live.close();live=subscribe();recover().catch(()=>{});},60000);
+      };
+      await recover();
     } catch (_) {
-      active.destroy();
-      if (run !== generation || controller.signal.aborted) return;
-      // Retry transient profile/provider failures, never invent a zero total.
-      if (attempt < 2) zapRetryTimer=setTimeout(()=>{
-        zapRetryTimer=null;
-        if(run===generation && !controller.signal.aborted)watchZaps(item,run,attempt+1);
-      }, [2000,5000][attempt]);
+      active.destroy();if(!current())return;
+      loading=false;partial=true;paint();
+      if(attempt<2)zapRetryTimer=setTimeout(()=>{zapRetryTimer=null;if(current())watchZaps(item,run,attempt+1);},[2000,5000][attempt]);
     }
   }
   function play(url, label, host, item) {

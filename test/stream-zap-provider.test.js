@@ -28,12 +28,13 @@ const vm=require('node:vm'),fs=require('node:fs');
 test('zap bootstrap retries twice and ignores a retry after switching streams',async()=>{
  const src=fs.readFileSync(require('node:path').join(__dirname,'../streams.js'),'utf8');
  const fn=src.slice(src.indexOf('  async function watchZaps('),src.indexOf('  function play('));
- let attempts=0;const scheduled=[];const out={replaceChildren(){},removeAttribute(){}};
- const context={document:{getElementById:()=>out},AbortController,fetch:()=>{},relays:[],generation:1,zapAbort:null,zapPool:null,zapRetryTimer:null,NostrTools:{SimplePool:class{destroy(){}}},SidecarStreams:{zapProvider:async()=>{attempts++;throw Error('offline');}},setTimeout:(fn,ms)=>{scheduled.push({fn,ms});return scheduled.length;}};
+ let attempts=0;const scheduled=[];const out={replaceChildren(){},removeAttribute(){},setAttribute(){}};
+ const context={zapSessions:new Map(),setZapDigits(){},SidecarI18n:{fmtNum:String},t:x=>x,document:{getElementById:()=>out},AbortController,fetch:()=>{},relays:[],generation:1,zapAbort:null,zapPool:null,zapRetryTimer:null,NostrTools:{SimplePool:class{destroy(){}}},SidecarStreams:{ZapTotals:class{constructor(){this.count=0;this.msats=0;}},zapProvider:async()=>{attempts++;throw Error('offline');}},setTimeout:(fn,ms)=>{scheduled.push({fn,ms});return scheduled.length;}};
  vm.createContext(context);vm.runInContext(fn,context);
  await context.watchZaps({host,relays:[]},1);
  assert.equal(scheduled[0].ms,2000);scheduled.shift().fn();await new Promise(setImmediate);
  assert.equal(scheduled[0].ms,5000);scheduled.shift().fn();await new Promise(setImmediate);
  assert.equal(attempts,3);assert.equal(scheduled.length,0);
- await context.watchZaps({host,relays:[]},1);context.generation=2;scheduled.shift().fn();await new Promise(setImmediate);assert.equal(attempts,4);
+ const cached=[...context.zapSessions.values()][0];cached.totals.msats=223474000;cached.totals.count=865;
+ await context.watchZaps({host,relays:[]},1);assert.equal([...context.zapSessions.values()][0],cached);assert.equal(cached.totals.msats,223474000);context.generation=2;scheduled.shift().fn();await new Promise(setImmediate);assert.equal(attempts,4);
 });

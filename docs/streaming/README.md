@@ -14,7 +14,7 @@ The dock is a sibling of all account views. The existing lock, wallet teardown, 
 
 NIP-53 kind 30311 discovery queries three public relays (damus.io, nos.lol, relay.primal.net) only while the directory is open. Events are signature-verified by the existing nostr-tools pool. Latest addressable updates supersede older events, including ended announcements; live listings expire after one hour without updates. Discovery closes when selecting a stream, closing the list, or receiving an approval. Media traffic continues for the selected stream.
 
-Profile links and event-linked zaps use the existing profile and wallet flows. No chat, NIP-71 recordings, follow-list filtering, custom relay settings, or cross-window playback coordination is included. Viewer counts currently reflect selection time. Observed zap totals are limited to 1,000 receipts per relay, without explicit reconnect/backfill. Closing/reloading the extension document stops playback. Failed streams show an error and can be selected again. Browsers and stream hosts vary in codec/CORS support.
+Profile links and event-linked zaps use the existing profile and wallet flows. No chat, NIP-71 recordings, follow-list filtering, custom relay settings, or cross-window playback coordination is included. Viewer counts currently reflect selection time. Zap history is scanned per relay in 250-receipt pages, with boundary-second draining (up to 1,000 receipts) and an 80-page per-relay safety bound. Saturated boundaries, timeouts, or exhausted scan budgets are marked incomplete. Receipt scans additionally query nostr.wine and relay.snort.social. Live subscriptions are renewed and gaps are scanned every minute; verified totals are retained in memory across recovery and stream revisits. The display uses an ellipsis while loading and a plus sign for observed totals, with exact amounts and coverage status in the tooltip. Closing/reloading the extension document stops playback. Failed streams show an error and can be selected again. Browsers and stream hosts vary in codec/CORS support.
 
 ## Dependency and size
 
@@ -56,3 +56,5 @@ saved media URL. If it is ended or unreachable, the directory reports that state
 The URL form supports an optional name and Save stream checkbox for direct HTTPS
 media URLs. Removing a bookmark does not stop current playback. The standalone
 preview uses localStorage; the extension uses chrome.storage.local.
+
+Zap-history fix verification: NoGood Radio resolved to 223,474 sats across 865 validated receipts in the local browser, matching the independent relay audit on October 7, 2026. This does not assert equality with another client’s validation policy or complete global history.
