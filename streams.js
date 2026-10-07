@@ -53,7 +53,7 @@
   const model = new SidecarStreams.Directory();
   let hls = null, pool = null, subscription = null, timer = null, selected = false, generation = 0, discoveryGeneration = 0, discoveryAbort = null;
   let enabled = false;
-  let selectedHost = null, selectedEvent = null, zapPool = null, zapAbort = null;
+  let selectedHost = null, selectedEvent = null, zapPool = null, zapAbort = null, zapRetryTimer = null;
   const lockView = document.getElementById('view-lock');
   const isLocked = () => lockView && !lockView.classList.contains('hidden');
   function syncVisibility() {
@@ -97,6 +97,7 @@
   function stop() {
     selectedHost = null; selectedEvent = null;
     document.getElementById('stream-zap').classList.remove('is-shining');
+    clearTimeout(zapRetryTimer); zapRetryTimer=null;
     zapAbort?.abort(); zapAbort = null; zapPool?.destroy(); zapPool = null;
     document.getElementById('stream-zap-total').hidden = true;
     document.getElementById('stream-info').hidden = true;
@@ -137,7 +138,7 @@
   document.getElementById('stream-zap').addEventListener('animationend', () => {
     document.getElementById('stream-zap').classList.remove('is-shining');
   });
-  async function watchZaps(item, run) {
+  async function watchZaps(item, run, attempt = 0) {
     const output = document.getElementById('stream-zap-total');
     output.hidden = true; output.replaceChildren();
     output.removeAttribute('title');
@@ -146,19 +147,8 @@
     const active = zapPool = new NostrTools.SimplePool();
     const sources = [...new Set([...item.relays || [], ...relays, 'wss://purplepag.es'])];
     try {
-      const [profile, relayList] = await Promise.all([
-        active.get(sources, { kinds:[0], authors:[item.host] }, { abort:controller.signal, maxWait:5000 }),
-        active.get(sources, { kinds:[10002], authors:[item.host] }, { abort:controller.signal, maxWait:5000 })
-      ]);
-      for (const tag of (relayList?.tags || []).filter(t => t[0] === 'r' && typeof t[1] === 'string' && t[1].startsWith('wss://')).slice(0,6)) { if (!sources.includes(tag[1])) sources.push(tag[1]); }
+      const meta = await SidecarStreams.zapProvider(active, sources, item.host, controller.signal, fetch);
       if (run !== generation || controller.signal.aborted) return;
-      const address = JSON.parse(profile?.content || '{}').lud16;
-      const parts = typeof address === 'string' && address.split('@');
-      if (!parts || parts.length !== 2 || !parts[0] || !/^[a-z0-9.-]+$/i.test(parts[1])) return;
-      const response = await fetch('https://' + parts[1] + '/.well-known/lnurlp/' + encodeURIComponent(parts[0]), { signal:controller.signal, credentials:'omit', referrerPolicy:'no-referrer' });
-      if (!response.ok) return;
-      const meta = await response.json();
-      if (run !== generation || controller.signal.aborted || !meta.allowsNostr || !/^[a-f0-9]{64}$/.test(meta.nostrPubkey)) return;
       const totals = new SidecarStreams.ZapTotals();
       const subscribedAt = Math.floor(Date.now() / 1000);
       let historyLoaded = false;
@@ -181,7 +171,15 @@
           if (accepted) paintTotals(animate);
         }
       });
-    } catch (_) { /* Unavailable receipts are not a zero total. */ }
+    } catch (_) {
+      active.destroy();
+      if (run !== generation || controller.signal.aborted) return;
+      // Retry transient profile/provider failures, never invent a zero total.
+      if (attempt < 2) zapRetryTimer=setTimeout(()=>{
+        zapRetryTimer=null;
+        if(run===generation && !controller.signal.aborted)watchZaps(item,run,attempt+1);
+      }, [2000,5000][attempt]);
+    }
   }
   function play(url, label, host, item) {
     if (!enabled || isLocked()) return;

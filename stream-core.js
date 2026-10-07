@@ -37,6 +37,32 @@
       image:httpsUrl(item.image), host:/^[a-f0-9]{64}$/.test(item.host || '') ? item.host : null,
       relays:(Array.isArray(item.relays) ? item.relays : []).filter(u => typeof u === 'string' && u.startsWith('wss://')).slice(0,6) };
   }
+  async function zapProvider(pool, sources, host, signal, request = fetch) {
+    const newest = async (kind, urls) => {
+      const events = await pool.querySync(urls, {kinds:[kind], authors:[host]}, {abort:signal,maxWait:5000});
+      return events.filter(e=>e.kind===kind && e.pubkey===host).sort((a,b)=>b.created_at-a.created_at || String(a.id).localeCompare(String(b.id)))[0];
+    };
+    let [profile, relayList] = await Promise.all([newest(0,sources),newest(10002,sources)]);
+    if (signal.aborted) throw new Error('Aborted');
+    const declared=(relayList?.tags || []).filter(t=>t[0]==='r' && typeof t[1]==='string' && t[1].startsWith('wss://')).map(t=>t[1]).slice(0,6);
+    for(const url of declared)if(!sources.includes(url))sources.push(url);
+    if (!profile && declared.length) profile=await newest(0,declared);
+    if (signal.aborted) throw new Error('Aborted');
+    const content=JSON.parse(profile?.content || '{}');
+    const parts=typeof content.lud16==='string' && content.lud16.split('@');
+    if(!parts || parts.length!==2 || !parts[0] || !/^[a-z0-9.-]+$/i.test(parts[1]))throw new Error('No zap provider');
+    const fetchAbort=new AbortController();
+    const cancel=()=>fetchAbort.abort();
+    signal.addEventListener('abort',cancel,{once:true});
+    const timeout=setTimeout(cancel,8000);
+    try {
+      const response=await request('https://'+parts[1]+'/.well-known/lnurlp/'+encodeURIComponent(parts[0]),{signal:fetchAbort.signal,credentials:'omit',referrerPolicy:'no-referrer'});
+      if(!response.ok)throw new Error('Provider unavailable');
+      const meta=await response.json();
+      if(!meta.allowsNostr || !/^[a-f0-9]{64}$/.test(meta.nostrPubkey))throw new Error('Invalid zap provider');
+      return meta;
+    } finally {clearTimeout(timeout);signal.removeEventListener('abort',cancel);}
+  }
   // A provider-signed receipt is counted only after its signed request and invoice agree.
   function invoiceDetails(raw) {
     if (typeof raw !== 'string' || raw.length > 20000 || (raw !== raw.toLowerCase() && raw !== raw.toUpperCase())) return null;
@@ -91,7 +117,7 @@
       } catch (_) { return false; }
     }
   }
-  const api = { httpsUrl, parse, bookmark, Directory, invoiceDetails, ZapTotals };
+  const api = { httpsUrl, parse, bookmark, zapProvider, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);
