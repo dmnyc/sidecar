@@ -206,7 +206,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 #stream-viewers { font-size:12px; color:var(--muted); white-space:nowrap; }
 #stream-viewers::after { content:''; display:inline-block; width:14px; height:14px; vertical-align:-2px; margin-left:5px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
 #stream-zap { width:32px; height:32px; flex-shrink:0; padding:7px; }
-#stream-zap svg { width:13px; height:22px; fill:currentColor; stroke:none; }
+#stream-zap svg { width:11px; height:18px; fill:currentColor; stroke:none; }
 #stream-zap { display:flex; align-items:center; justify-content:center; padding:5px; }
 #stream-zap:disabled { opacity:.4; cursor:default; }
 
@@ -394,7 +394,7 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
 /* transitions.dev shimmer adapted to a single sweep clipped to the bolt. */
 #stream-zap { position:relative; --zap-shine-duration:1000ms; }
 #stream-zap::after {
-  content:''; position:absolute; left:50%; top:50%; width:13px; height:22px;
+  content:''; position:absolute; left:50%; top:50%; width:11px; height:18px;
   transform:translate(-50%,-50%); pointer-events:none; opacity:0;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 55 94'%3E%3Cpath d='M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z'/%3E%3C/svg%3E") center / contain no-repeat;
   background:linear-gradient(110deg, transparent 35%, var(--gold) 44%, white 50%, var(--gold) 56%, transparent 65%) 100% 0 / 400% 100% no-repeat;
