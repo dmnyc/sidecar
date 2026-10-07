@@ -61,7 +61,8 @@ function run(pubkey) {
     Array,
     Math,
     String,
-    h: (tag, props) => Object.assign({ tag, textContent: '', className: '', style: '' }, props),
+    h: (tag, props) => Object.assign({ tag, textContent: '', className: '', style: '', attributes: {},
+      setAttribute(name, value) { this.attributes[name] = value; } }, props),
   };
   vm.createContext(ctx);
   vm.runInContext(

@@ -640,6 +640,48 @@ html[data-tile][data-theme="sleepy-hollow"] body {
   }
 }
 
+/* Aurora Borealis: an opaque, procedurally rendered night over a snowy fjord.
+   The reading veil darkens the completed scene, never the terrain's opacity:
+   stars remain behind the mountains at every strength. Two AVIFs replace ten
+   separate SVG plates. Portrait and wide compositions share the same renderer. */
+html[data-theme="borealis"] body {
+  --bo-scene: url(borealis-night.avif);
+  --bo-veil: 0.68;
+  --bo-focus: linear-gradient(transparent, transparent);
+  background-image:
+    var(--bo-focus),
+    linear-gradient(rgba(4, 9, 20, var(--bo-veil)), rgba(4, 9, 20, var(--bo-veil))),
+    var(--bo-scene);
+  background-color: #07131C;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+/* The composer keeps all prose on its opaque sheet, so its surrounding landscape
+   can retain more light than the panel's directly overlaid headings and hints. */
+html[data-theme="borealis"] body.compose-page { --bo-veil: 0.30; }
+html[data-theme="borealis"] body:has(#view-lock:not(.hidden)),
+html[data-tile][data-theme="borealis"] body {
+  --bo-veil: 0.08;
+}
+html[data-theme="borealis"] body:has(#view-lock:not(.hidden)) {
+  --bo-focus: radial-gradient(ellipse 85% 32% at 50% 48%,
+    rgba(4, 9, 20, 0.65) 0%, rgba(4, 9, 20, 0.42) 65%, transparent 100%);
+}
+html[data-tile][data-theme="borealis"] body { --bo-scene: url(borealis-night-wide.avif); }
+/* The gallery crops a 700px iframe to this 175px band. Frame the sky and
+   mountaintops within the band, keeping the lake outside the crop. */
+html[data-tile][data-theme="borealis"] .preview-stage {
+  background-image: linear-gradient(rgba(4, 9, 20, .08), rgba(4, 9, 20, .08)), var(--bo-scene);
+  /* Frame only sky and ridge tops; the numeral reflection supplies the water. */
+  background-size: cover, auto 135%;
+  background-position: center, center top;
+}
+@media (min-width: 520px) {
+  html[data-theme="borealis"] body { --bo-scene: url(borealis-night-wide.avif); }
+}
+
 /* Mycelium — a mycelial network in sepia over oat-colored loam, after a pen drawing:
    knots joined by uneven strands that fuse into cells, with hairline hyphae fraying off
    everything (themes/mycelium-hyphae.svg, from scripts/gen-constellation-mycelium.py).

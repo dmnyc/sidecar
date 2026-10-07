@@ -9,6 +9,12 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+### Added
+- **Aurora Borealis, a special edition (December 7 – January 17).** Diffuse green and violet aurora curtains above a snowy mountain range and a reflective fjord, rendered procedurally into portrait and wide AVIF scenes and set in Josefin Sans. The lock screen shimmers through the aurora curtains with reflected light rippling across the water while mountains stay fixed; reading views darken the complete still scene so stars cannot show through the terrain. Mint-to-violet balance digits carry a tall, fading vertical reflection beneath them. Both system and app reduced-motion settings stop the shimmer and digit arrival animation. The edition spans New Year and remains subject to the seasonal packaging window.
+
+### Changed
+- **Release packages include at most one special edition’s artwork.** The tag’s commit date selects the active edition from its seasonal window; out-of-season artwork is excluded to reduce downloads. Edition stylesheets stay bundled. A new seasonal release is needed when the next edition’s window opens.
+
 ## [1.15.8] — 2026-10-05
 
 ### Fixed

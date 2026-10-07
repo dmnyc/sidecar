@@ -52,6 +52,7 @@
       s.style.setProperty('--i', i);
       s.style.setProperty('--n', FIG.length);
       s.textContent = FIG.charAt(i);
+      s.setAttribute('data-glyph', FIG.charAt(i));
       bal.appendChild(s);
     }
   }

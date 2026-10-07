@@ -66,7 +66,8 @@ function run() {
     Array,
     Math,
     String,
-    h: (tag, props) => Object.assign({ tag, textContent: '', className: '', style: '' }, props),
+    h: (tag, props) => Object.assign({ tag, textContent: '', className: '', style: '', attributes: {},
+      setAttribute(name, value) { this.attributes[name] = value; } }, props),
   };
   vm.createContext(ctx);
   vm.runInContext(
@@ -84,6 +85,17 @@ function run() {
 }
 
 const glyphs = (el) => el.children.filter((c) => (c.className || '').includes('bal-glyph'));
+
+test('reflections follow repaints without duplicating the actual balance text', () => {
+  const ctx = run();
+  const el = makeEl();
+  for (const text of ['111,059', '0.00111059', '123.45']) {
+    ctx.splitGlyphs(el, text, () => false);
+    assert.equal(el.textContent, text);
+    assert.equal(glyphs(el).map((g) => g.attributes['data-glyph']).join(''), text);
+    assert.equal(glyphs(el).length, Array.from(text).length);
+  }
+});
 
 test('the fiat currency symbol survives the paint that builds the figure', () => {
   const ctx = run();
