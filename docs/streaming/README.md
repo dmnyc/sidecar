@@ -41,5 +41,18 @@ and is covered by the player runtime tests.
 
 The full unminified HLS build supports separate audio renditions. The player links
 to the declared host's Primal profile (falling back to the announcement author);
-that link hides while locked. Broken advertised thumbnails try the host's public
-profile picture, then retain the radio-tower placeholder if artwork is unavailable.
+that link hides while locked. Thumbnail priority is stream artwork, the host's banner, an undimmed profile
+picture, then the radio-tower icon. Independently loaded layers let lower-priority
+images appear while a preferred host is slow; failed layers remain hidden.
+
+### Saved streams
+
+Bookmark icons on directory rows save streams locally in `sidecar_saved_streams`.
+The Saved button filters the directory to those entries, still paginated at six.
+Bookmarks are shared by accounts in this browser profile, not published to Nostr.
+Nostr entries retain the addressable event key and relay hints; selecting one
+queries for its latest live announcement before playback rather than trusting a
+saved media URL. If it is ended or unreachable, the directory reports that state.
+The URL form supports an optional name and Save stream checkbox for direct HTTPS
+media URLs. Removing a bookmark does not stop current playback. The standalone
+preview uses localStorage; the extension uses chrome.storage.local.

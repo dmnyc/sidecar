@@ -33,7 +33,7 @@
   
   <!-- The special editions and their dates; read by the script that applies the theme. -->
   
-  <link rel="stylesheet" href="streams.css?v=zap-shine" />
+  <link rel="stylesheet" href="streams.css?v=bookmark-top" />
 </head>
 <body>
   <section id="stream-dock" aria-label="Live video" data-i18n-aria-label="Live video">
@@ -59,6 +59,7 @@
       <div class="stream-directory-actions">
         <span id="stream-page-controls"></span>
         <button class="icon-btn" id="stream-refresh" aria-label="Refresh streams" title="Refresh streams" data-i18n-aria-label="Refresh streams" data-i18n-title="Refresh streams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
+        <button id="stream-saved-toggle" class="icon-btn" aria-pressed="false" aria-label="Saved streams" title="Saved streams" data-i18n-aria-label="Saved streams" data-i18n-title="Saved streams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg></button>
         <button id="stream-more-toggle" class="ghost" aria-expanded="false" aria-controls="stream-more-list" data-i18n="More" hidden>More</button>
         <button id="stream-url-toggle" class="ghost" aria-expanded="false" aria-controls="stream-advanced" aria-label="Open stream URL" data-i18n-aria-label="Open stream URL" data-i18n="URL">URL</button>
       </div>
@@ -67,6 +68,9 @@
       <form id="stream-form" class="stack">
         <label for="stream-url" data-i18n="Stream URL">Stream URL</label>
         <input id="stream-url" type="url" placeholder="https://…/live.m3u8" required />
+        <label for="stream-url-name" data-i18n="Name (optional)">Name (optional)</label>
+        <input id="stream-url-name" type="text" maxlength="240" />
+        <label><input id="stream-url-save" type="checkbox" /> <span data-i18n="Save stream">Save stream</span></label>
         <button type="submit" class="primary" data-i18n="Watch">Watch</button>
       </form>
       </div>
@@ -1136,5 +1140,5 @@
   
   
   
-<script src="i18n.js"></script><script src="nostr-tools.js"></script><script src="hls.js"></script><script src="stream-core.js?v=stream-zaps"></script><script src="streams.js?v=zap-shine"></script><script src="docs/streaming/layout.js?v=feed-transition"></script></body>
+<script src="i18n.js"></script><script src="nostr-tools.js"></script><script src="hls.js"></script><script src="stream-core.js?v=bookmark-top"></script><script src="streams.js?v=bookmark-top"></script><script src="docs/streaming/layout.js?v=feed-transition"></script></body>
 </html>

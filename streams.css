@@ -387,12 +387,9 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
 #compose-menu button { display:flex; align-items:center; gap:12px; }
 #compose-menu button svg { width:20px; height:20px; flex:0 0 20px; color:var(--gold); }
 
-.stream-result .stream-thumbnail-profile img { filter:brightness(.5); transform:scale(1.12); }
-.stream-thumbnail-profile .stream-thumbnail-play { display:none; }
 
 .stream-thumbnail-play { display:grid; place-items:center; width:24px; height:24px; border:0; margin:0; color:var(--muted); opacity:.7; }
 .stream-thumbnail-play svg { width:24px; height:24px; }
-.stream-thumbnail-profile .stream-thumbnail-play { display:none; }
 
 /* transitions.dev shimmer adapted to a single sweep clipped to the bolt. */
 #stream-zap { position:relative; --zap-shine-duration:1000ms; }
@@ -416,3 +413,11 @@ html.reduce-balance-motion #stream-zap.is-shining::after,
 html.reduce-motion #stream-zap.is-shining::after,
 html.reduce-balance-motion #stream-zap-total .t-digit,
 html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
+
+.stream-row .stream-result { padding-right:38px; }
+.stream-bookmark { position:absolute; right:4px; top:2px; width:32px; height:32px; padding:7px; z-index:1; }
+.stream-bookmark svg { width:18px; height:18px; }
+.stream-bookmark[aria-pressed="true"], #stream-saved-toggle[aria-pressed="true"] { color:var(--gold); }
+
+.stream-directory-actions #stream-saved-toggle { width:36px; flex:0 0 36px; padding:9px; }
+#stream-saved-toggle[aria-pressed="true"] svg { fill:currentColor; }

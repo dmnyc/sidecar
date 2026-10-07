@@ -29,6 +29,14 @@
     }
     live(now = Date.now()/1000) { return [...this.events.values()].filter(e => e.live && e.url && now-e.updated < 3600).sort((a,b)=>b.updated-a.updated); }
   }
+  function bookmark(item) {
+    const url = httpsUrl(item?.url);
+    if (!url) return null;
+    const key = /^30311:[a-f0-9]{64}:/.test(item.key || '') ? item.key : 'url:' + url;
+    return { key, url, title:String(item.title || new URL(url).hostname).slice(0,240),
+      image:httpsUrl(item.image), host:/^[a-f0-9]{64}$/.test(item.host || '') ? item.host : null,
+      relays:(Array.isArray(item.relays) ? item.relays : []).filter(u => typeof u === 'string' && u.startsWith('wss://')).slice(0,6) };
+  }
   // A provider-signed receipt is counted only after its signed request and invoice agree.
   function invoiceDetails(raw) {
     if (typeof raw !== 'string' || raw.length > 20000 || (raw !== raw.toLowerCase() && raw !== raw.toUpperCase())) return null;
@@ -83,7 +91,7 @@
       } catch (_) { return false; }
     }
   }
-  const api = { httpsUrl, parse, Directory, invoiceDetails, ZapTotals };
+  const api = { httpsUrl, parse, bookmark, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);

@@ -19,6 +19,37 @@
   const expand = document.getElementById('stream-expand');
   const relays = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
   const profileImages = new Map();
+  let savedStreams = [], savedOnly = false, savedRevision = 0;
+  const savedStorage = typeof chrome !== 'undefined' && chrome.storage?.local;
+  async function saveBookmarks(next) {
+    try {
+      if (savedStorage) await savedStorage.set({sidecar_saved_streams:next});
+      else localStorage.setItem('sidecar_saved_streams', JSON.stringify(next));
+      savedStreams=next; savedRevision++; paint();
+      return true;
+    } catch (_) { directoryError(t('Could not save streams. Try again.')); return false; }
+  }
+  function directoryError(text) {
+    let error = document.getElementById('stream-save-error');
+    if (!error) { error=document.createElement('p');error.id='stream-save-error';error.setAttribute('role','status');directory.append(error); }
+    error.textContent=text;
+  }
+  async function openSaved(item) {
+    if (!item.key.startsWith('30311:')) { play(item.url,item.title);return; }
+    const run=discoveryGeneration;
+    const lookup=new NostrTools.SimplePool();
+    try {
+      const [,author,...identifier]=item.key.split(':');
+      const events=await lookup.querySync([...new Set([...relays,...item.relays])],{kinds:[30311],authors:[author],'#d':[identifier.join(':')]},{maxWait:5000});
+      const latest=new SidecarStreams.Directory();
+      for(const event of events) { const parsed=SidecarStreams.parse(event);if(parsed?.key===item.key)latest.accept(event); }
+      if(run!==discoveryGeneration || isLocked() || !enabled)return;
+      const current=latest.live().find(e=>e.key===item.key);
+      if(current)play(current.url,current.title,current.host,current);
+      else directoryError(t('This saved stream is not live or could not be reached.'));
+    } catch (_) { if(run===discoveryGeneration)directoryError(t('Could not load the saved stream. Try again.')); }
+    finally { lookup.destroy(); }
+  }
   const model = new SidecarStreams.Directory();
   let hls = null, pool = null, subscription = null, timer = null, selected = false, generation = 0, discoveryGeneration = 0, discoveryAbort = null;
   let enabled = false;
@@ -225,7 +256,7 @@
       return event;
     })().then(event => {
       let picture = null;
-      try { const content = JSON.parse(event?.content || '{}'); picture = SidecarStreams.httpsUrl(content.picture); record.name = content.display_name || content.displayName || content.name || ''; } catch (_) {}
+      try { const content = JSON.parse(event?.content || '{}'); picture = SidecarStreams.httpsUrl(content.picture); record.banner = SidecarStreams.httpsUrl(content.banner); record.name = content.display_name || content.displayName || content.name || ''; } catch (_) {}
       record.expiresAt = Date.now() + (picture ? 300000 : 30000);
       return picture;
     }).catch(() => {
@@ -266,8 +297,8 @@
     document.getElementById('stream-page-controls').replaceChildren();
     list.replaceChildren();
     const more = document.getElementById('stream-more-list'); more.replaceChildren();
-    const items = model.live();
-    if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=lookingForStreams ? t('Looking for streams…') : t('No live streams found. Try refreshing.');list.append(p); }
+    const items = savedOnly ? savedStreams : model.live();
+    if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=savedOnly ? t('No saved streams yet.') : lookingForStreams ? t('Looking for streams…') : t('No live streams found. Try refreshing.');list.append(p); }
     const named = items.filter(item => item.title !== 'Untitled livestream');
     const untitled = items.filter(item => item.title === 'Untitled livestream');
     const mainPage = paginate(list, named, streamPage, page => { streamPage = page; });
@@ -287,8 +318,13 @@
       thumb.append(artwork);
       const profileArtwork=document.createElement('img');profileArtwork.alt='';profileArtwork.hidden=true;
       profileArtwork.referrerPolicy='no-referrer';
-      profileArtwork.style.filter='brightness(.5)';
       thumb.insertBefore(profileArtwork,artwork);
+      // Loaded layers cover lower-priority fallbacks without waiting on a slow host.
+      const bannerArtwork=document.createElement('img');bannerArtwork.alt='';bannerArtwork.hidden=true;
+      bannerArtwork.referrerPolicy='no-referrer';
+      thumb.insertBefore(bannerArtwork,artwork);
+      bannerArtwork.addEventListener('load',()=>{bannerArtwork.hidden=false;});
+      bannerArtwork.addEventListener('error',()=>{bannerArtwork.hidden=true;});
       profileArtwork.addEventListener('load',()=>{profileArtwork.hidden=false;});
       profileArtwork.addEventListener('error',()=>{profileArtwork.hidden=true;});
       artwork.addEventListener('load',()=>{artwork.hidden=false;});
@@ -296,9 +332,16 @@
       if(item.image)artwork.src=item.image;
       button.append(thumb);
       const label=document.createElement('span'); label.textContent=item.title === 'Untitled livestream' ? t('Untitled livestream') : item.title;label.dir='auto';label.className='stream-result-title';button.title=label.textContent;button.append(label);
-      button.addEventListener('click',()=>play(item.url,label.textContent,item.host,item));
+      button.addEventListener('click',()=>savedOnly ? openSaved(item) : play(item.url,label.textContent,item.host,item));
+      const save=document.createElement('button');save.type='button';save.className='stream-bookmark icon-btn';
+      const isSaved=savedStreams.some(e=>e.key===item.key);
+      save.setAttribute('aria-pressed',String(isSaved));save.title=t(isSaved?'Remove saved stream':'Save stream');save.setAttribute('aria-label',save.title);
+      const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('fill',isSaved?'currentColor':'none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','2');icon.setAttribute('aria-hidden','true');
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M6 3h12v18l-6-4-6 4V3z');icon.append(path);save.append(icon);
+      save.addEventListener('click',event=>{event.stopPropagation();const entry=SidecarStreams.bookmark(item);if(entry)saveBookmarks(isSaved?savedStreams.filter(e=>e.key!==item.key):[...savedStreams,entry]);});row.append(save);
       const profile=document.createElement('a');profile.className='stream-avatar';
-      profile.href='https://primal.net/p/'+NostrTools.nip19.npubEncode(item.host);
+      profile.hidden=!item.host;
+      if(item.host)profile.href='https://primal.net/p/'+NostrTools.nip19.npubEncode(item.host);
       profile.target='_blank';profile.rel='noopener noreferrer';
       profile.setAttribute('aria-label',t('Streamer profile'));profile.title=t('Streamer profile');
       const avatar=document.createElement('img');avatar.alt='';avatar.hidden=true;avatar.referrerPolicy='no-referrer';
@@ -308,11 +351,13 @@
       });
       profile.append(avatar);row.append(button,profile);
       const run=discoveryGeneration;
-      profileImage(item.host, item.relays).then(url=>{
+      if(item.host)profileImage(item.host, item.relays).then(url=>{
         const picture = url || item.image; // Stream artwork is preferable to an empty avatar when no profile is published.
         if(run!==discoveryGeneration)return;
         if(picture)avatar.src=picture;
         if(url)profileArtwork.src=url;
+        const banner=profileImages.get(item.host)?.banner;
+        if(banner)bannerArtwork.src=banner;
       });
       if (item.title === 'Untitled livestream') { more.append(row); }
       else list.append(row);
@@ -357,9 +402,13 @@
   entry?.addEventListener('click', toggleFeed);
   document.getElementById('acct-btn')?.addEventListener('click',()=>{if(!directory.hidden)closeFeed();});
   document.addEventListener?.('click',event=>{
-    if(!directory.hidden && !directory.contains(event.target) && !entry?.contains(event.target) && !browse.contains(event.target) && !feedToggle.contains(event.target))closeFeed();
+    // Repainting pagination detaches the clicked button before this listener runs.
+    // Use the original event path so an inside click stays inside after repaint.
+    const path = event.composedPath();
+    if(!directory.hidden && ![directory, entry, browse, feedToggle].some(node => node && path.includes(node)))closeFeed();
   });
   document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
+  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;streamPage=0;moreOpen=false;document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
   document.getElementById('stream-refresh').addEventListener('click',discover);
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.
@@ -380,7 +429,7 @@
   });
   document.getElementById('stream-stop').addEventListener('click',()=>{stop();disconnect();directory.hidden=true;setFeedExpanded(false);});
   expand.addEventListener('click',()=>{ if (expand.hidden) return; const on=root.classList.toggle('stream-expanded');setExpanded(on); });
-  document.getElementById('stream-form').addEventListener('submit',e=>{ e.preventDefault();play(document.getElementById('stream-url').value,t('Live stream')); });
+  document.getElementById('stream-form').addEventListener('submit',async e=>{ e.preventDefault();const url=SidecarStreams.httpsUrl(document.getElementById('stream-url').value);if(!url)return;const name=document.getElementById('stream-url-name').value.trim() || new URL(url).hostname;const item=SidecarStreams.bookmark({url,title:name});if(document.getElementById('stream-url-save').checked && !await saveBookmarks([...savedStreams.filter(e=>e.key!==item.key),item]))return;play(url,name); });
   // Keep approval space usable even when the user was watching expanded video.
   const approval=document.getElementById('view-approval');
   new MutationObserver(()=>{
@@ -447,6 +496,7 @@
   setEnabled(false);
   if (typeof chrome !== 'undefined' && chrome.storage?.local) {
     chrome.storage.onChanged.addListener((changes, area) => {
+      if(area==='local' && changes.sidecar_saved_streams){savedRevision++;savedStreams=(Array.isArray(changes.sidecar_saved_streams.newValue)?changes.sidecar_saved_streams.newValue:[]).map(SidecarStreams.bookmark).filter(Boolean);paint();}
       if (area === 'local' && changes.sidecar_settings) {
         preferenceRevision++;
         setEnabled(changes.sidecar_settings.newValue?.liveVideoEnabled !== false);
@@ -457,4 +507,10 @@
       if (revision === preferenceRevision) setEnabled(data.sidecar_settings?.liveVideoEnabled !== false);
     }).catch(() => { /* Keep the feature off if its saved preference cannot be read. */ });
   } else setEnabled(true); // Standalone review fixture, without extension storage.
+  const readRevision=savedRevision;
+  const restoreSaved=value=>{if(readRevision!==savedRevision)return;savedStreams=(Array.isArray(value)?value:[]).map(SidecarStreams.bookmark).filter(Boolean);paint();};
+  if(savedStorage) {
+    savedStorage.get('sidecar_saved_streams').then(data=>restoreSaved(data.sidecar_saved_streams)).catch(()=>{});
+  } else if(typeof localStorage!=='undefined') {try {restoreSaved(JSON.parse(localStorage.getItem('sidecar_saved_streams')||'[]'));}catch(_) {}}
+
 })();
