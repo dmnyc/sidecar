@@ -43,16 +43,20 @@
     <span class="compose-brand">
       <img id="compose-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
     </span>
+    <!-- The way out of the page, at the bar's far end, and the box Settings closes with:
+         the same classes and the same glyph, so a full-screen Sidecar view is left the
+         same way wherever you are in it. It closes the tab, not the note, so it sits on
+         the page's bar rather than in the card's corner. -->
+    <button type="button" class="icon-btn settings-close compose-x" id="compose-x" title="Close" data-i18n-title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
   </header>
 
   <div class="compose-body">
     <main class="compose-sheet">
-      <!-- The card's own corner, the same slot every sheet in the panel puts its close box
-           in. The page bar above belongs to Sidecar; this one belongs to the note. -->
-      <button type="button" class="modal-x compose-x" id="compose-x" title="Close" data-i18n-title="Close"></button>
-      <!-- This account's other drafts, beside the close box as in the panel's composer:
-           both leave the draft on screen, which the Write / Preview row never does.
-           Hidden while there is nothing else saved. -->
+      <!-- This account's other drafts, in the card's corner, where the panel's composer
+           keeps them beside its close box: both leave the draft on screen, which the
+           Write / Preview row never does. Hidden while there is nothing else saved. -->
       <button type="button" class="modal-x compose-drafts-btn hidden" id="compose-drafts-btn" title="Saved drafts" data-i18n-title="Saved drafts"><span class="compose-drafts-count" id="compose-drafts-count" aria-hidden="true"></span></button>
 
       <header class="compose-head">

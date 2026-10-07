@@ -3755,6 +3755,11 @@ async function handleControl(message, sender, sendResponse) {
       case 'SIDECAR_GET_RELAYS':
         result = await getConfiguredRelays();
         break;
+      // Extension-only discovery, using the same per-account policy as NIP-07.
+      // Include both halves: an account publishes its Blossom list to write relays.
+      case 'SIDECAR_GET_ACCOUNT_RELAYS':
+        result = await relaysForAccount(message.pubkey || await KS.getActivePubkey());
+        break;
       // The highlight popup's passage, and where the active account writes. Extension
       // pages only, like everything outside CONTENT_OK: a page that could read this
       // would learn what you selected on another site.

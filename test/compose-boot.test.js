@@ -48,7 +48,8 @@ test('loaded in the head, after the stylesheets, and lifted by boot on every exi
   const head = html.slice(0, html.indexOf('</head>'));
   assert.match(head, /<script src="compose-boot\.js"><\/script>/);
   const css = read('styles.css');
-  assert.match(css, /html\.compose-booting \.compose-sheet,\s*html\.compose-booting \.compose-brand \{ visibility: hidden; \}/);
+  // The bar's close box too: it is painted in the theme's colors and wired by boot.
+  assert.match(css, /html\.compose-booting \.compose-sheet,\s*html\.compose-booting \.compose-brand,\s*html\.compose-booting \.compose-topbar \.compose-x \{ visibility: hidden; \}/);
   const page = read('compose.js');
   assert.match(page, /localStorage\.setItem\('sidecar_compose_theme', name\)/);
   assert.match(page, /boot\(\)\.then\(shown, \(e\) => \{\s*shown\(\);/);

@@ -1062,7 +1062,13 @@ window.SidecarCore = (function () {
     if (cached && cached.expiresAt > Date.now()) return cached.servers;
     let servers = [];
     try {
-      const relays = await deps.relayUrls(false);
+      // Server lists are published to the account's write relays. Settings'
+      // bootstrap set alone can miss them even when another client finds them.
+      // Use the shared account policy in both composers, including write-only
+      // relays and honoring the account's choice to exclude bootstrap relays.
+      const map = await deps.call({ type: 'SIDECAR_GET_ACCOUNT_RELAYS', pubkey });
+      const relays = Object.keys(map || {}).filter((url) => map[url].read || map[url].write);
+      if (!relays.length) return [];
       const ev = await deps.poolGet(relays, { kinds: [BLOSSOM_SERVER_LIST_KIND], authors: [pubkey] });
       if (ev) {
         servers = ev.tags
@@ -1076,7 +1082,14 @@ window.SidecarCore = (function () {
       // in both composers, with nothing said anywhere.
       console.warn('[Upload] could not read the Blossom server list:', e);
     }
-    _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
+    // A relay failure or a missing event is not proof that this account has no
+    // Blossom servers. Cache only usable lists, so the next upload can recover
+    // immediately instead of silently using nostr.build for another five minutes.
+    if (servers.length) {
+      _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
+    } else {
+      _blossomServerCache.delete(pubkey);
+    }
     return servers;
   }
 
@@ -1125,7 +1138,10 @@ window.SidecarCore = (function () {
     if (!pk) return null;
     try {
       const servers = await fetchBlossomServers(pk);
-      if (!servers.length) return null;
+      if (!servers.length) {
+        console.warn('[Upload] no usable Blossom servers found; falling back to nostr.build. Discovery will retry on the next upload.');
+        return null;
+      }
       return await uploadToBlossom(file, servers, pk);
     } catch (e) {
       console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);

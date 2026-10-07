@@ -9,6 +9,18 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.15.9] — 2026-10-07
+
+### Fixed
+- **Uploads find your own Blossom servers in both composers.** Server discovery now includes the account’s declared relays, including write-only relays, while honoring the bootstrap setting. A failed or empty lookup is retried on the next upload instead of sending uploads to nostr.build for another five minutes. The shared discovery fix also applies to profile images.
+- **The full-size composer’s toolbar holds still.** Uploading media keeps the Media label and shows its progress shimmer; cycling PoW no longer shifts the other buttons.
+
+### Changed
+- **Close sits in the full-size composer’s top bar,** using the same control as Settings and staying available during mining. Saved drafts take the card’s corner, aligned with its content padding.
+
+### Documentation
+- **Recorded the theme and font size audit.** The measurements, licensing considerations and optimization options are documented; the font-conversion experiment remains unshipped. No fonts, theme artwork, permissions or application-code minification change in this release.
+
 ## [1.15.8] — 2026-10-05
 
 ### Fixed

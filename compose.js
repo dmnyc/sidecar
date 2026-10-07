@@ -771,7 +771,6 @@
     // Not while the list is up: the list is what it opens, and "Back to your draft" is
     // the way out of it, as in the panel.
     btn.classList.toggle('hidden', !others.length || listing);
-    document.querySelector('.compose-sheet').classList.toggle('has-drafts-btn', !!others.length && !listing);
     $('compose-drafts-count').textContent = I18N.fmtNum(others.length);
     // Said in words, because the count is the button's only text and would otherwise be
     // its whole name to a screen reader: "2".
@@ -1563,8 +1562,12 @@
       err.textContent = '';
       addBtn.disabled = true;
       const lbl = addBtn.querySelector('span');
-      const prev = lbl.textContent;
-      lbl.textContent = t('Uploading…');
+      // THE LABEL STAYS "Media" AND SHIMMERS, as it does in the panel. Swapping in
+      // "Uploading…" made this button 23px wider and took 8px each off GIF, Poll and
+      // PoW, so the whole row moved the moment an upload started. The stripes say it is
+      // busy; the word does not need to change to say it too.
+      lbl.dataset.text = lbl.textContent;
+      lbl.classList.add('t-shimmer');
       addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
       try {
         for (const file of files) {
@@ -1584,12 +1587,13 @@
       }
       addBtn.disabled = false;
       addBtn.classList.remove('is-uploading');
-      lbl.textContent = prev;
+      lbl.classList.remove('t-shimmer');
+      delete lbl.dataset.text;
     };
 
     // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same labels as the
-    // panel. "PoW 18" and "PoW off" are the same width, so cycling never makes the row
-    // opposite it jump.
+    // panel. The labels are not quite the same width, so the row's cells are equal rather
+    // than sized to them (styles.css), and cycling moves nothing.
     const powBtn = h('button', { className: 'mini compose-add', type: 'button' });
     const powLabel = h('span');
     powBtn.append(icon('pickaxe'), powLabel);
@@ -1852,12 +1856,11 @@
         flushDraft();
       }
     });
-    // Two ways out, the same way out. The corner box is where every sheet in the panel
-    // puts one; the word in the footer is for anyone reading the row rather than the
-    // corner. Both keep the draft, because neither is a decision to throw it away.
+    // Two ways out, the same way out. The box at the end of the page's bar is the one
+    // Settings closes with; the word in the footer is for anyone reading the row rather
+    // than the bar. Both keep the draft, because neither is a decision to throw it away.
     const leave = () => { flushDraft().then(() => window.close()); };
     const x = $('compose-x');
-    x.append(icon('x'));
     x.addEventListener('click', leave);
     $('compose-close').addEventListener('click', leave);
 
