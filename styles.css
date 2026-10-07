@@ -3228,6 +3228,14 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 }
 .compose-brand { display: flex; align-items: center; flex-shrink: 0; }
 .compose-brand img { height: 22px; width: auto; }
+/* THE WAY OUT, AT THE BAR'S FAR END: Settings' own close box (.icon-btn.settings-close),
+   so it is the same size and the same glyph, and every theme that dresses that box dresses
+   this one. It is 33px (35px where a theme thickens its border) in a bar built around a
+   22px wordmark, so it overhangs the bar's padding rather than growing it: the bar keeps
+   the guide's height, which the card below subtracts. The margins are equal, so the box
+   stays centered on the wordmark's line, and larger than any overhang, so no theme's
+   border can push the bar taller. */
+.compose-topbar .compose-x { margin: -12px 0 -12px auto; flex-shrink: 0; }
 .compose-body {
   display: flex; justify-content: center;
   min-height: calc(100vh - var(--compose-topbar-h));
@@ -3253,14 +3261,19 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
   border-radius: 18px;
   box-shadow: var(--sheen), 0 18px 50px rgba(0, 0, 0, 0.35);
 }
-/* The close box wants a corner to be absolute against, and the card is it. */
+/* The card's corner wants something to be absolute against, and the card is it: the
+   saved-drafts folder here, and the highlight window's close box, which stays in its
+   card. */
 .compose-sheet { position: relative; }
 .compose-x { top: 14px; right: 14px; }
 /* Held back until boot has a theme and a draft to show (compose-boot.js): the card would
    otherwise paint empty, and the wordmark in the wrong cut, for as long as the worker
-   takes to answer. Visibility, not display, so the page's layout is already settled. */
+   takes to answer. The close box in the bar goes with them: it is painted in the theme's
+   colors too, and it is not wired until boot is done. Visibility, not display, so the
+   page's layout is already settled. */
 html.compose-booting .compose-sheet,
-html.compose-booting .compose-brand { visibility: hidden; }
+html.compose-booting .compose-brand,
+html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
 .compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .compose-av { width: 40px; height: 40px; flex-shrink: 0; }
@@ -3326,12 +3339,26 @@ html.compose-booting .compose-brand { visibility: hidden; }
 .compose-sheet .compose-tabs,
 .compose-sheet .compose-media-note,
 .compose-sheet .compose-alt-row { margin: 0; }
+/* EQUAL CELLS, WHATEVER THE LABELS SAY. The shared rule's `flex: 1 0 auto` starts each
+   button at its own label's width and shares out what is left, so a label that changes
+   moves the row: PoW 16 is 2px narrower than PoW off, and every button shifted as it
+   cycled. A zero basis shares the whole row, so three buttons are thirds and four are
+   quarters, and nothing a button says changes its width or its neighbors'.
+
+   min-width: max-content is the panel's no-squash rule, written out. A flex item's
+   automatic minimum is its content only while it does not clip, and .is-uploading clips
+   for its stripes, which would let the busy button be squeezed below its label. A row
+   that cannot hold every label still wraps, as before. */
+.compose-sheet .compose-actions .compose-add { flex: 1 1 0; min-width: max-content; }
 .compose-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .compose-status { font-size: 12px; color: var(--muted); }
-/* SAVED DRAFTS in the expanded composer: the folder beside the card's close box, as in
-   the panel, and the head gives up the width it covers. */
-.compose-sheet .compose-drafts-btn { top: 14px; right: 50px; }
-.compose-sheet.has-drafts-btn .compose-head { padding-right: 72px; }
+/* SAVED DRAFTS in the expanded composer: the folder in the card's corner, the slot the
+   panel's sheets keep for their close box. The close box is on the page's bar here, so
+   the corner is the folder's alone, and the head's 34px reserve already clears it. It
+   stays reserved while the folder is hidden, so a draft arriving does not move the
+   name's ellipsis. */
+/* Match the card's 24px content inset, including the count badge's 2px overhang. */
+.compose-sheet .compose-drafts-btn { top: 24px; right: 26px; }
 .compose-drafts-title { margin: 0 0 12px; }
 .compose-drafts-back { align-self: center; margin-top: 12px; }
 .compose-drafts-pane {
@@ -3405,10 +3432,10 @@ html.compose-booting .compose-brand { visibility: hidden; }
 
    HIDDEN RATHER THAN REPLACED. The receipt empties the sheet because it never returns; a
    mine can be stopped and can fail, so the editor has to come back with the draft and the
-   caret untouched. The close box is the one thing that stays: leaving is always allowed,
-   and it takes the worker with the page. */
+   caret untouched. The close box is on the page's bar, outside the card, so it stays:
+   leaving is always allowed, and it takes the worker with the page. */
 .compose-sheet.is-mining { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
-.compose-sheet.is-mining > :not(.compose-mining):not(.compose-x) { display: none; }
+.compose-sheet.is-mining > :not(.compose-mining) { display: none; }
 /* The panel's own .mining-body sits inside this, bringing its glyph, its line, its pulse
    and its copy, so the two screens are one design rather than two that resemble each
    other. All this adds is the card's column; the padding comes off because .mining-body

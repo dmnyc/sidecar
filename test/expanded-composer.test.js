@@ -530,9 +530,12 @@ test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   assert.ok(bare.includes('setMining(false);\n    posting = false;'),
     'the tail of doPost no longer restores the card');
 
-  // LEAVING IS ALWAYS ALLOWED, and it takes the worker with the page.
-  assert.match(css, /\.compose-sheet\.is-mining > :not\(\.compose-mining\):not\(\.compose-x\) \{ display: none; \}/,
-    'either the card is not hidden, or the close box went with it');
+  // LEAVING IS ALWAYS ALLOWED, and it takes the worker with the page. The close box is on
+  // the page's bar, outside the card, so hiding every child of the card leaves it up.
+  assert.match(css, /\.compose-sheet\.is-mining > :not\(\.compose-mining\) \{ display: none; \}/,
+    'the card is not hidden while it mines');
+  const bar = pageHtml.slice(pageHtml.indexOf('<header class="compose-topbar">'), pageHtml.indexOf('</header>'));
+  assert.match(bar, /id="compose-x"/, 'the close box went into the card, and mining hides it');
   // Same container as the receipt, which is the point: one padding, one alignment.
   assert.match(css, /\.compose-sheet\.is-mining \{ align-items: center; text-align: center; gap: 10px; padding: 48px 24px; \}/);
 
@@ -676,11 +679,30 @@ test('media is content on its own', () => {
   assert.ok(!bare.includes('appendMediaUrl'), 'uploads must not write URLs into the editor');
 });
 
-test('THE WAY OUT IS A CORNER BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER', () => {
-  // The corner is where every sheet in the panel puts its close box. The word in the
-  // footer is for anyone reading the row rather than the corner. Both keep the draft,
-  // because neither is a decision to throw it away.
-  assert.match(pageHtml, /class="modal-x compose-x" id="compose-x"/);
+test('THE TOOLBAR\'S CELLS ARE EQUAL, SO NOTHING A BUTTON SAYS MOVES THE ROW', () => {
+  // The shared rule starts each button at its own label's width (flex: 1 0 auto), so a
+  // label that changed moved every button beside it: an upload's "Uploading…", and PoW 16
+  // against PoW off. A zero basis shares the whole row, thirds or quarters.
+  assert.match(css, /\.compose-sheet \.compose-actions \.compose-add \{ flex: 1 1 0; min-width: max-content; \}/);
+  // And the floor is written out, because .is-uploading clips for its stripes, and a
+  // clipping flex item's automatic minimum is zero: without it the busy button could be
+  // squeezed below its own label, the one thing the panel's row rule forbids.
+  assert.match(css, /\.compose-add\.is-uploading \{[^}]*overflow: hidden/);
+});
+
+test('THE WAY OUT IS SETTINGS\' CLOSE BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER', () => {
+  // The box is on the page's bar, at its far end, and it is the box Settings closes with:
+  // the same classes, so the same size and every theme's dressing, and the same glyph. The
+  // word in the footer is for anyone reading the row rather than the bar. Both keep the
+  // draft, because neither is a decision to throw it away.
+  const bar = pageHtml.slice(pageHtml.indexOf('<header class="compose-topbar">'), pageHtml.indexOf('</header>'));
+  assert.match(bar, /class="icon-btn settings-close compose-x" id="compose-x"/);
+  const sidepanelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  const glyph = (html, id) => html.slice(html.indexOf('id="' + id + '"')).match(/<svg[\s\S]*?<\/svg>/)[0];
+  assert.equal(glyph(pageHtml, 'compose-x'), glyph(sidepanelHtml, 'settings-close'), 'not the same glyph as Settings');
+  // It overhangs the bar's padding rather than growing it: the card subtracts the bar's
+  // height, and the bar matches the guide's.
+  assert.match(css, /\.compose-topbar \.compose-x \{ margin: -12px 0 -12px auto; flex-shrink: 0; \}/);
   assert.match(bare, /x\.addEventListener\('click', leave\)/);
   assert.match(bare, /\$\('compose-close'\)\.addEventListener\('click', leave\)/);
   assert.match(bare, /const leave = \(\) => \{ flushDraft\(\)\.then\(\(\) => window\.close\(\)\); \};/);

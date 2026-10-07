@@ -219,3 +219,25 @@ test('the bell subscribes on the inbox, not on the bootstrap set alone', () => {
   assert.match(initBody, /let liveRelays = inbox;/);
   assert.match(initBody, /const urls = await inboxRelays\(a\.pubkey\);/, 'the refresh button reads the inbox too');
 });
+
+test('the uploader message uses the requested account and preserves its relay policy', async () => {
+  const start = bg.indexOf("      case 'SIDECAR_GET_ACCOUNT_RELAYS':");
+  assert.ok(start >= 0);
+  const end = bg.indexOf('        break;', start) + '        break;'.length;
+  const dispatch = new Function('message', 'relaysForAccount', 'KS', `return (async () => {
+    let result;
+    switch (message.type) { ${bg.slice(start, end)} }
+    return result;
+  })();`);
+  const store = {
+    sidecar_relays: CONFIGURED,
+    sidecar_settings: { nip65OnlyBy: { [PK]: true } },
+    sidecar_nip65: { [PK]: { ...LIST, at: 1 } },
+  };
+  const b = background(store);
+  const KS = { getActivePubkey: async () => OTHER };
+  const result = await dispatch({ type: 'SIDECAR_GET_ACCOUNT_RELAYS', pubkey: PK }, b.relaysForAccount, KS);
+  assert.deepEqual(Object.keys(result), ['wss://mine-read', 'wss://mine-both', 'wss://mine-write']);
+  assert.equal(result['wss://mine-write'].write, true);
+  assert.deepEqual(plain(await dispatch({ type: 'SIDECAR_GET_ACCOUNT_RELAYS' }, b.relaysForAccount, KS)), CONFIGURED);
+});
