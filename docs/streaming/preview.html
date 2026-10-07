@@ -1,0 +1,37 @@
+<!doctype html><html lang="en" data-theme="speakeasy"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sidecar streaming prototype</title><link rel="stylesheet" href="../../fonts.css"><link rel="stylesheet" href="../../styles.css"><link rel="stylesheet" href="../../themes/speakeasy.css"><link rel="stylesheet" href="../../streams.css"></head><body>  <section id="stream-dock" aria-label="Live video" data-i18n-aria-label="Live video">
+    <div class="stream-toolbar">
+      <button id="stream-browse" aria-expanded="false" aria-label="Live streams" title="Live streams" data-i18n-aria-label="Live streams" data-i18n-title="Live streams"><span class="stream-live-cue"><span class="stream-pilot" aria-hidden="true"></span><span class="stream-live-label" data-i18n="Live">Live</span></span><span id="stream-title-window"><strong id="stream-title" dir="auto"></strong></span></button>
+      <div class="stream-controls">
+      <button id="stream-expand" aria-expanded="false" aria-label="Expand video" title="Expand video" data-i18n-aria-label="Expand video" data-i18n-title="Expand video" hidden><svg class="stream-expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><svg class="stream-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/></svg></button>
+      <button id="stream-stop" hidden title="Stop playback" data-i18n-title="Stop playback" aria-label="Stop playback" data-i18n-aria-label="Stop playback"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1.5"/><rect x="8" y="8" width="8" height="8" rx=".5" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+    </div>
+    <video id="stream-video" controls controlslist="nofullscreen" playsinline hidden></video>
+    <div id="stream-info" hidden>
+      <a id="stream-host" target="_blank" rel="noopener noreferrer"><span class="stream-host-avatar"><img id="stream-host-image" alt="" referrerpolicy="no-referrer" hidden /></span><span id="stream-host-name" dir="auto"></span></a>
+      <span id="stream-viewers" hidden></span>
+      <button id="stream-zap" class="icon-btn" aria-label="Zap streamer" title="Zap streamer" data-i18n-aria-label="Zap streamer" data-i18n-title="Zap streamer"><svg viewBox="0 0 55 94" fill="currentColor" aria-hidden="true"><path d="M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z"></path></svg></button>
+    </div>
+    <p id="stream-status" role="status"></p>
+    <div id="stream-directory" hidden>
+      <div id="stream-list"></div>
+      <div class="stream-directory-actions">
+        <span id="stream-page-controls"></span>
+        <button class="icon-btn" id="stream-refresh" aria-label="Refresh streams" title="Refresh streams" data-i18n-aria-label="Refresh streams" data-i18n-title="Refresh streams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
+        <button id="stream-more-toggle" class="ghost" aria-expanded="false" aria-controls="stream-more-list" data-i18n="More" hidden>More</button>
+        <button id="stream-url-toggle" class="ghost" aria-expanded="false" aria-controls="stream-advanced" aria-label="Open stream URL" data-i18n-aria-label="Open stream URL" data-i18n="URL">URL</button>
+      </div>
+      <div id="stream-more-list" hidden></div>
+      <div id="stream-advanced" hidden>
+      <form id="stream-form" class="stack">
+        <label for="stream-url" data-i18n="Stream URL">Stream URL</label>
+        <input id="stream-url" type="url" placeholder="https://…/live.m3u8" required />
+        <button type="submit" class="primary" data-i18n="Watch">Watch</button>
+      </form>
+      </div>
+    </div>
+  </section>
+<main id="view-main" style="padding:20px;gap:16px"><h2>Streaming prototype</h2><p>Choose LIVE to discover public streams, or paste an HTTPS HLS URL. This preview uses the actual player module.</p><button id="demo-sign">Simulate signing request</button><button id="demo-lock">Simulate auto-lock</button><button id="demo-pseudo">Pseudo-locale</button><p>These controls simulate the account views only. They never sign events or access a wallet.</p><output id="demo-stats"></output></main>
+<section id="view-lock" class="hidden" style="padding:24px"><h2>Sidecar locked</h2><p>The public player continues independently.</p><button id="demo-unlock">Return to app</button></section>
+<div id="view-approval" class="approval-overlay hidden"><div class="approval-card"><div class="approval-scroll"><h2>Example app</h2><p>Wants to sign a note</p><p>This is a simulated approval. No signature will be created.</p></div><div class="approval-footer"><button id="demo-allow">Allow once</button><button id="demo-reject">Reject</button></div></div></div>
+<script src="../../i18n.js"></script><script src="../../nostr-tools.js"></script><script src="../../hls.js"></script><script src="../../stream-core.js"></script><script src="../../streams.js"></script><script src="preview.js"></script></body></html>

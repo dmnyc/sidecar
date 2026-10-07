@@ -2264,7 +2264,13 @@
     return row;
   }
 
-  async function openProfileSheet(pubkey) {
+  window.addEventListener('sidecar-stream-zap', (event) => {
+    if (!$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return;
+    const pubkey = event.detail?.pubkey;
+    if (/^[a-f0-9]{64}$/.test(pubkey || '')) openProfileSheet(pubkey, { zap: true });
+  });
+
+  async function openProfileSheet(pubkey, options) {
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
     openModal((modal) => {
@@ -2490,6 +2496,7 @@
           : zapPayBlock(zapAddr, isSelf ? selfPay : undefined);
         payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
         zapWrap.append(zapPanel);
+        if (options?.zap) zapPanel.classList.remove('hidden');
         paintPayState();
         zapWrap.classList.remove('hidden');
       }
@@ -4290,10 +4297,10 @@
     });
   }
 
-  async function getProfile(pubkey) {
+  async function getProfile(pubkey, options) {
     if (!pubkey) return null;
     const hit = cachedProfile(pubkey);
-    if (hit) return hit;
+    if (hit && !options?.refresh) return hit;
     if (_profileInflight.has(pubkey)) return _profileInflight.get(pubkey);
     const p = (async () => {
       try {
@@ -4301,11 +4308,11 @@
         // plus purplepag.es and the configured set). A profile edited in another client
         // often lives only there, and the account overview showed "Not set" for a
         // NIP-05 and lightning address that were intact. Everyone else keeps the
-        // configured set: this is also the path for bookmark authors, reply targets and
+        // configured set plus the existing profile aggregator: this is also the path for bookmark authors, reply targets and
         // zap recipients, and widening those would mean a kind:10002 lookup (and a disk
         // write) per stranger, and connecting to relays other people chose.
         const own = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
-        const relays = own ? await readRelayUrls(pubkey) : await relayUrls(false);
+        const relays = own ? await readRelayUrls(pubkey) : [...new Set([...(await relayUrls(false)), 'wss://purplepag.es'])];
         if (!relays.length) return null;
         const res = await Promise.race([
           poolGetProfileInfo(relays, pubkey, { maxWait: PROFILE_MAX_WAIT }),
@@ -10541,6 +10548,7 @@
       toast(t('The multi-account note will show again'), 'success');
     });
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
+    $('livevideo-toggle').checked = settings.liveVideoEnabled !== false;
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     $('hidebalance-toggle').checked = settings.hideBalances === true; // default off
     $('balancepeek-toggle').checked = settings.autoHideBalances === true; // default off
@@ -13217,9 +13225,8 @@
       const block = h('div', { className: 'reply-target' });
       // The picture has to come from _profileCache: _notifProfiles is NAME ONLY (see its
       // declaration), so passing a bare pubkey gave avatarEl nothing to render and every
-      // reply showed a placeholder. Cached only — no fetch. This is a context strip, and
-      // a face arriving late is not worth a relay round trip on a screen the user is
-      // already typing into.
+      // reply showed a placeholder. Draw cached metadata immediately, then refresh a
+      // missing picture without blocking the composer.
       const prof = cachedProfile(replyTo.pubkey) || {};
       const av = avatarEl({ pubkey: replyTo.pubkey, picture: prof.picture, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av');
       // Cache first, then fetch if it misses. _profileCache has a 5-minute TTL, so a
@@ -13228,7 +13235,7 @@
       // only when there is no picture already, and it paints in when it lands rather
       // than holding up a composer the user is about to type into.
       if (!prof.picture) {
-        getProfile(replyTo.pubkey)
+        getProfile(replyTo.pubkey, { refresh: true })
           .then((p) => { if (p && p.picture && av.isConnected) applyAvatar(av, p); })
           .catch(() => {});
       }
@@ -21746,6 +21753,10 @@
       _balancePeekTimer = null;
     }
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoHideBalances: e.target.checked } });
+  });
+
+  $('livevideo-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { liveVideoEnabled: e.target.checked } });
   });
 
   $('pinbalance-toggle').addEventListener('change', async (e) => {
