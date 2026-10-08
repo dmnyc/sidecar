@@ -2,18 +2,23 @@
 (() => {
   'use strict';
   function mount({dock,title,trigger,allowed,onOpen,onClose}) {
-    const {t,fmtNum,fmtDate}=SidecarI18n;
+    const {t,tn,fmtNum,fmtDate}=SidecarI18n;
     const el=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls || '';if(text)n.textContent=text;return n;};
     const swap=el('span','t-text-swap');title.replaceWith(swap);swap.append(title);
     const panel=el('section','stream-about');panel.hidden=true;panel.id='stream-about';panel.setAttribute('aria-label',t('About stream'));
     const heading=el('h2'),description=el('p','stream-about-description'),started=el('p','stream-about-started'),categories=el('p','stream-about-categories');
     heading.dir=description.dir=categories.dir='auto';
-    const back=el('button','ghost',t('Back'));back.type='button';panel.append(back,heading,description,started,categories);document.body.append(panel);
+    const header=el('div','stream-about-header');
+    const back=el('button','stream-about-back');back.type='button';back.title=t('Back');back.setAttribute('aria-label',t('Back'));
+    back.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg>';
+    header.append(back,heading);panel.append(header,description,started,categories);document.body.append(panel);
     let item=null,timer=null,transition=null,showRuntime=false;
     function duration(){
       const value=SidecarStreams.runtime(item?.starts);if(!value)return '';
       const values={days:fmtNum(value.days),hours:fmtNum(value.hours),minutes:fmtNum(value.minutes)};
-      return value.days?t('Live for {{days}}d {{hours}}h',values):t('Live for {{hours}}h {{minutes}}m',values);
+      if(value.days)return tn('Live for {{count}} day','Live for {{count}} days',value.days);
+      if(!value.hours)return value.minutes?tn('Live for {{count}} minute','Live for {{count}} minutes',value.minutes):t('Live for less than a minute');
+      return value.minutes?t('Live for {{hours}}h {{minutes}}m',values):tn('Live for {{count}} hour','Live for {{count}} hours',value.hours);
     }
     function reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.matches('.reduce-motion,.reduce-balance-motion');}
     function schedule(){clearTimeout(timer);if(item?.starts)timer=setTimeout(rotate,showRuntime?4000:12000);}

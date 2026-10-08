@@ -38,3 +38,10 @@ test('top zappers accumulate verified payment totals without duplicate receipt i
  total.authors.set('other',42000);assert.equal(topZappers(total)[0].pubkey,'other');
  assert.equal(topZappers(total,1).length,1);
 });
+
+test('zapper strip shows the top ten without changing the full totals',()=>{
+ const {topZappers}=require('../stream-core');const total=new ZapTotals();
+ for(let i=1;i<=12;i++){total.authors.set('person'+i,i*1000);total.msats+=i*1000;total.count++;}
+ const rows=topZappers(total);assert.equal(rows.length,10);assert.equal(rows[0].pubkey,'person12');assert.equal(rows.at(-1).pubkey,'person3');
+ assert.equal(total.msats,78000);assert.equal(total.count,12);assert.equal(total.authors.size,12);
+});

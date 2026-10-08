@@ -2279,11 +2279,29 @@
     },
     muted(event) { return isMutedNotif(_muteLists.get(state?.activePubkey), event); },
     createMentionEditor(options) { return createMentionEditor(options); },
-    profiles(pubkeys) { return this.identity() ? profilesFor(pubkeys) : Promise.resolve(new Map()); },
+    cachedProfiles(pubkeys) { return new Map(pubkeys.map(key=>[key,cachedProfile(key)]).filter(([,p])=>p)); },
+    profiles: async function(pubkeys,onProfile,signal) {
+      if(!this.identity() || signal?.aborted)return new Map();
+      const sources=[...new Set(['wss://purplepag.es',...await relayUrls(false).catch(()=>[])])];
+      if(!this.identity() || signal?.aborted)return new Map();
+      return window.SidecarStreams.profileBatch({pool:getPool(),sources,keys:pubkeys,signal,verify:NT.verifyEvent,onProfile:(key,p)=>{
+        if(signal?.aborted)return;cacheProfile(key,p.content);onProfile?.(key,p);
+      }});
+    },
     profile(pubkey) { if (this.identity()) openProfileSheet(pubkey); },
     zapRecipient(pubkey) { if (this.identity() && /^[a-f0-9]{64}$/.test(pubkey)) openProfileSheet(pubkey, {zap:true}); },
     zap(event) {
       if (this.identity() && event.kind === 1311 && NT.verifyEvent(event)) openProfileSheet(event.pubkey, {zap:true, chatEvent:event});
+    },
+    pickReaction(host,onPick) { return emojiPickerOver(host,onPick); },
+    react: async function(target,content,hints,expectedPubkey) {
+      const check=()=>{if(this.identity()?.pubkey!==expectedPubkey)throw new Error('Account changed');};
+      check();if(!NT.verifyEvent(target))throw new Error('Invalid chat message');
+      const event=window.SidecarStreamChat.reactionTemplate(target,content);
+      const targets=[...new Set([...(await postRelays()),...hints.filter(url=>typeof url==='string' && url.startsWith('wss://')).slice(0,6)])];
+      check();const signed=await call({type:'SIDECAR_OWNER_SIGN',event,expectedPubkey});check();
+      if(signed.pubkey!==expectedPubkey)throw new Error('Account changed');
+      await publishToRelays(targets,signed);return signed;
     },
     send: async function (event, hints, expectedPubkey) {
       if (this.identity()?.pubkey !== expectedPubkey || event.kind !== 1311) throw new Error('Account changed');
@@ -2372,6 +2390,7 @@
       const lud = h('div', { className: 'peek-meta hidden' });
       body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
       modal.append(body);
+      if(options?.chatEvent)modal.append(window.SidecarStreamChat.commentZapContext(options.chatEvent,key=>cachedProfile(key)?.name || window.SidecarStreams.cocktailName(key)));
 
       getFollowCount(pubkey).then((n) => {
         if (modal.isConnected) setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
@@ -2556,7 +2575,7 @@
         };
         zapPanel = (zapHasWallet && !isSelf)
           ? zapForm
-          : zapPayBlock(zapAddr, isSelf ? selfPay : undefined);
+          : zapPayBlock(zapAddr, isSelf ? selfPay : options?.chatEvent ? {note:t('Scan or copy sends a payment to the author, not a zap on this comment. Connect a wallet to zap the comment.')} : undefined);
         payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
         zapWrap.append(zapPanel);
         if (options?.zap) zapPanel.classList.remove('hidden');
@@ -2718,7 +2737,7 @@
       const payRow = h('div', { className: 'peek-pay-row' });
       const zapErr = h('div', { className: 'error' });
       const zapBtn = h('button', { className: 'secondary peek-zap-open' });
-      zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
+      zapBtn.append(boltIcon(), h('span', { textContent: options?.chatEvent ? t('Zap comment') : t('Zap') }));
       const offerBtn = h('button', { className: 'secondary peek-zap-open' });
       offerBtn.append(icon('zap'), h('span', { textContent: 'Pay offer' }));
       let offerShown = false;
@@ -2816,6 +2835,7 @@
           // hideConnect: there is a wallet, so the line offering to connect one would be
           // answering a question nobody asked.
           zapHandoff = zapPayBlock(zapAddr, { hideConnect: true });
+          if(options?.chatEvent)zapHandoff.append(h('p',{className:'hint zap-pay-note',textContent:t('Scan or copy sends a payment to the author, not a zap on this comment.')}));
           zapForm.append(zapHandoff);
         }
         zapHandoff.classList.toggle('hidden');

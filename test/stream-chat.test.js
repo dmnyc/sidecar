@@ -104,3 +104,50 @@ test('failed send preserves the draft and shows temporary composer feedback',asy
  const s=sendView(true);await s.form.onsubmit({preventDefault(){}});
  assert.equal(s.draft,'hello');assert.equal(s.atBottom,false);assert.equal(s.model.rows().length,0);assert.equal(s.status.duration,7000);
 });
+
+
+test('chat paste inserts only plain text and blocks browser rich-text insertion',()=>{
+ const {pastePlainText}=require('../stream-chat');const inserted=[],requested=[];let prevented=false,stopped=false;
+ pastePlainText({preventDefault(){prevented=true;},stopPropagation(){stopped=true;},clipboardData:{getData(type){requested.push(type);return type==='text/plain'?'Hello\n@friend':'<b style="background:white">Hello</b><img src="file:///image.png">';}}},text=>inserted.push(text));
+ assert.equal(prevented,true);assert.equal(stopped,true);assert.deepEqual(requested,['text/plain']);assert.deepEqual(inserted,['Hello\n@friend']);
+});
+test('image-only, HTML-only, and unavailable clipboards insert nothing',()=>{
+ const {pastePlainText}=require('../stream-chat');
+ for(const clipboardData of [undefined,{files:[{type:'image/png'}],getData:()=>''},{getData:type=>type==='text/html'?'<img src="https://example.com/image.png">':''}]){
+   let prevented=false;pastePlainText({clipboardData,preventDefault(){prevented=true;},stopPropagation(){}},()=>assert.fail('non-text paste inserted'));
+   assert.equal(prevented,true);
+ }
+});
+
+test('reactions use kind 7 and reference the chat message and its author',()=>{
+ const {reactionTemplate}=require('../stream-chat'),target={kind:1311,id:'b'.repeat(64),pubkey:'c'.repeat(64)};
+ const ev=reactionTemplate(target,'🔥');assert.equal(ev.kind,7);assert.equal(ev.content,'🔥');
+ assert.deepEqual(ev.tags,[['e',target.id],['p',target.pubkey],['k','1311']]);
+ assert.throws(()=>reactionTemplate({...target,kind:9735},'❤️'));assert.throws(()=>reactionTemplate(target,' '.repeat(2)));
+});
+test('reaction counts verify targets and signatures, deduplicate authors, and follow active account',()=>{
+ const {Reactions,reactionTemplate}=require('../stream-chat'),model=new Reactions(),target={kind:1311,id:'b'.repeat(64),pubkey:'c'.repeat(64)},messages=new Map([[target.id,target]]);
+ const first={...reactionTemplate(target,'+'),id:'1',pubkey:'d'};
+ assert.equal(model.accept(first,messages,()=>false),false);assert.equal(model.accept(first,messages,()=>true),true);assert.equal(model.accept(first,messages,()=>true),false);
+ model.accept({...first,id:'2',content:''},messages,()=>true);model.accept({...first,id:'3',pubkey:'e',content:'❤️'},messages,()=>true);
+ assert.deepEqual(model.groups(target.id,'d'),[{content:'❤️',count:2,mine:true}]);assert.equal(model.groups(target.id,'f')[0].mine,false);
+ assert.equal(model.groups(target.id,'d',e=>e.pubkey==='e')[0].count,1);
+ assert.equal(model.accept({...first,id:'wrong',tags:[['e','foreign']]},messages,()=>true),false);
+ assert.equal(model.accept({...first,id:'wrong-author',tags:[['e',target.id],['p','foreign']]},messages,()=>true),false);
+ assert.equal(model.accept({...first,id:'wrong-last',tags:[['e',target.id],['e','foreign']]},messages,()=>true),false);
+ assert.equal(model.accept({...first,id:'future',created_at:Math.floor(Date.now()/1000)+1000},messages,()=>true),false);
+});
+test('chat reactions pin the signer before and after asynchronous preparation',async()=>{
+ const s=accountBridge(),target={kind:1311,id:'b'.repeat(64),pubkey:'c'.repeat(64)};
+ await s.bridge.react(target,'🔥',[],'a');assert.equal(s.signed[0].event.kind,7);assert.equal(s.signed[0].expectedPubkey,'a');assert.equal(s.published.length,1);
+ s.context.postRelays=async()=>{s.context.state.activePubkey='b';return [];};await assert.rejects(s.bridge.react(target,'❤️',[],'a'),/Account changed/);assert.equal(s.signed.length,1);
+ s.context.state.activePubkey='a';s.context.postRelays=async()=>[];s.context.call=async m=>{s.context.state.activePubkey='b';return {...m.event,pubkey:'a'};};await assert.rejects(s.bridge.react(target,'❤️',[],'a'),/Account changed/);assert.equal(s.published.length,1);
+});
+
+test('comment zap preview resolves mentions, keeps untrusted markup as text, and retains the full tooltip',()=>{
+ const context={document:{createElement:tag=>({tag,children:[],append(...nodes){this.children.push(...nodes);}})},SidecarI18n:{t:x=>x},NostrTools:{nip19:{decode:()=>({type:'npub',data:'a'.repeat(64)})}}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../stream-chat'),'utf8'),context);
+ const content='<img src=x> hello nostr:npub1qqqqqqqq';
+ const node=context.SidecarStreamChat.commentZapContext({content},()=> 'Sidecar');
+ assert.equal(node.children[0].textContent,'Zap comment');assert.equal(node.children[1].textContent,'<img src=x> hello @Sidecar');assert.equal(node.children[1].title,content);assert.equal(node.children[1].dir,'auto');assert.equal(node.children[1].children.length,0);
+});

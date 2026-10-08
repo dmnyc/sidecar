@@ -17,7 +17,19 @@
    createMentionEditor:options=>SidecarCore.installComposer({NT:NostrTools,cachedFollowList:()=>[],getFollowList:async()=>[],naAvailable:()=>false,noteActivity:()=>{},cachedProfile:()=>null,applyAvatar:(el,p)=>{if(p.picture){const img=document.createElement('img');img.src=p.picture;img.alt='';el.append(img);}}}).createMentionEditor(options),
    profile:pubkey=>window.open('https://primal.net/p/'+NostrTools.nip19.npubEncode(pubkey),'_blank','noopener'),
    zapRecipient:()=>window.dispatchEvent(new CustomEvent('sidecar-stream-zap')),
-   zap:()=>window.dispatchEvent(new CustomEvent('sidecar-stream-zap')),
+   zap(event){
+     const dialog=document.createElement('dialog');dialog.className='stream-chat-preview-zap';
+     const close=document.createElement('button');close.type='button';close.textContent=SidecarI18n.t('Close');close.onclick=()=>dialog.close();
+     const hint=document.createElement('p');hint.textContent=SidecarI18n.t('Preview cannot pay.');
+     dialog.append(SidecarStreamChat.commentZapContext(event),hint,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+   },
+   pickReaction(host,onPick){
+     const picker=document.createElement('div');picker.className='stream-chat-preview-picker';
+     const close=document.createElement('button');close.type='button';close.textContent=SidecarI18n.t('Close');close.onclick=()=>picker.remove();picker.append(close);
+     for(const content of ['❤️','😂','🔥','👏','🤙','🍸']){const button=document.createElement('button');button.type='button';button.textContent=content;button.onclick=()=>{picker.remove();onPick(content);};picker.append(button);}
+     host.append(picker);close.focus();return picker;
+   },
+   react:async()=>{throw new Error('Preview cannot publish');},
    send:async()=>{throw new Error('Preview cannot publish');}
  };
  // In-memory backup preview: exercises the controls without signing or publishing.

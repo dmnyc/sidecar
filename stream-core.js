@@ -220,7 +220,7 @@
     if(data.streams.some(item=>!bookmark(item)))throw new Error('Invalid stream bookmark');
     return mergeBookmarks(data.streams,[]);
   }
-  function topZappers(totals,limit=3) {
+  function topZappers(totals,limit=10) {
     return [...(totals?.authors || [])].map(([pubkey,msats])=>({pubkey,sats:msats/1000}))
       .sort((a,b)=>b.sats-a.sats || a.pubkey.localeCompare(b.pubkey)).slice(0,limit);
   }
