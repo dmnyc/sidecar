@@ -88,7 +88,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 }
 #view-lock {
   height:calc(100dvh - var(--stream-height)); min-height:0;
-  overflow-y:auto; overscroll-behavior:contain; justify-content:safe center;
+  overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; justify-content:safe center;
 }
 #stream-dock:has(#stream-directory:not([hidden])) ~ #view-lock {
   overflow:hidden;
