@@ -194,6 +194,10 @@
         const link=el('a','stream-chat-link');link.target='_blank';link.rel='noopener noreferrer';
         link.href=part.href || (part.hashtag?'https://primal.net/search/'+encodeURIComponent('#'+part.hashtag):'https://njump.me/'+part.entity);
         link.textContent=part.pubkey?'@'+displayName(part.pubkey):part.entity?(part.type==='naddr'?t('Linked event'):t('Linked note')):part.text;
+        if(part.hashtag && bridge()?.openHashtag){
+          bridge().hashtagUrl(part.hashtag).then(url=>{link.href=url;}).catch(()=>{});
+          link.onclick=e=>{if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)return;e.preventDefault();bridge().openHashtag(part.hashtag).catch(()=>{});};
+        }
         if(part.pubkey){link.dataset.pubkey=part.pubkey;link.onclick=e=>{e.preventDefault();bridge()?.profile(part.pubkey);};}
         node.append(link);
       }

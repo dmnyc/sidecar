@@ -2288,6 +2288,11 @@
         if(signal?.aborted)return;cacheProfile(key,p.content);onProfile?.(key,p);
       }});
     },
+    hashtagUrl: async function(tag) {
+      const client=await preferredClient();
+      return (client.hashtag || VIEW_CLIENTS.primal.hashtag)(tag);
+    },
+    openHashtag: async function(tag) { await openInClient(await this.hashtagUrl(tag)); },
     profile(pubkey) { if (this.identity()) openProfileSheet(pubkey); },
     zapRecipient(pubkey) { if (this.identity() && /^[a-f0-9]{64}$/.test(pubkey)) openProfileSheet(pubkey, {zap:true}); },
     zap(event) {
