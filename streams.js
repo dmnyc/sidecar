@@ -31,7 +31,7 @@
   }
   function directoryError(text) {
     let error = document.getElementById('stream-save-error');
-    if (!error) { error=document.createElement('p');error.id='stream-save-error';error.setAttribute('role','status');directory.append(error); }
+    if (!error) { error=document.createElement('p');error.id='stream-save-error';error.setAttribute('role','status');(directory.querySelector('.stream-directory-content') || directory).append(error); }
     error.textContent=text;
   }
   async function openSaved(item) {
@@ -431,9 +431,11 @@
     timer=setInterval(paint,30000);
   }
   function positionDirectory() {
-    if(directory.hidden || !directory.classList.contains('stream-idle-directory'))return;
+    // Closing panels remain visible during their animation, but no longer take over the app.
+    const open=!directory.hidden && feedToggle.getAttribute('aria-expanded')==='true';
     const playing=!root.hidden;
-    document.documentElement.classList.toggle('stream-directory-active',playing);
+    document.documentElement.classList.toggle('stream-directory-active',open && playing);
+    if(!open || !directory.classList.contains('stream-idle-directory'))return;
     directory.classList.toggle('stream-playing-directory',playing);
     const top=playing?root.getBoundingClientRect().bottom:(entry?.closest('.topbar')?.getBoundingClientRect().bottom || 56);
     let bottom=window.innerHeight;
@@ -474,6 +476,8 @@
   }
   saveRemote.onclick=()=>transferBookmarks(false);loadRemote.onclick=()=>transferBookmarks(true);
   window.addEventListener('sidecar-chat-account',()=>{backupStatus.textContent='';updateBackup();});
+  const directoryContent=document.createElement('div');directoryContent.className='stream-directory-content';
+  directoryContent.append(...directory.childNodes);directory.append(directoryContent);
   const hideDirectory=document.createElement('button');
   hideDirectory.type='button';hideDirectory.className='stream-directory-hide ghost';hideDirectory.textContent=t('Hide streams');
   hideDirectory.addEventListener('click',()=>{closeFeed();(root.hidden?entry:feedToggle)?.focus();});directory.append(hideDirectory);
@@ -514,7 +518,7 @@
   document.getElementById('stream-refresh').addEventListener('click',discover);
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.
-    directory.scrollTop += element.getBoundingClientRect().top - directory.getBoundingClientRect().top - 12;
+    directoryContent.scrollTop += element.getBoundingClientRect().top - directoryContent.getBoundingClientRect().top - 12;
   }
   document.getElementById('stream-more-toggle').addEventListener('click', () => {
     moreOpen = !moreOpen;
