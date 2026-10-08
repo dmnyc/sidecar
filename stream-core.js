@@ -81,23 +81,65 @@
       return meta;
     } finally {clearTimeout(timeout);signal.removeEventListener('abort',cancel);}
   }
+  // Pool-level oneose also runs on connection failure/CLOSED. Use the relay directly,
+  // and expire our deadline before the library's synthetic EOSE timeout can fire.
+  function relayPage(pool,url,filter,signal,timeout=6500,onEvent){
+    return new Promise(resolve=>{
+      const events=[];let sub,done=false;
+      const finish=complete=>{if(done)return;done=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);sub?.close();resolve({events,complete});};
+      const abort=()=>finish(false),timer=setTimeout(abort,timeout);
+      if(signal?.aborted){abort();return;}
+      signal?.addEventListener('abort',abort,{once:true});
+      pool.ensureRelay(url,{connectionTimeout:timeout}).then(relay=>{
+        if(done)return;
+        sub=relay.subscribe([filter],{eoseTimeout:timeout+1000,onevent:event=>{if(done)return;events.push(event);onEvent?.(event);},oneose:()=>finish(true),onclose:()=>finish(false)});
+        if(done)sub.close();
+      }).catch(abort);
+    });
+  }
+  async function profileBatch({pool,sources,keys,signal,verify,onProfile,timeout=4000}){
+    const wanted=new Set(keys),found=new Map();
+    const accept=event=>{
+      if(signal?.aborted || event?.kind!==0 || !wanted.has(event.pubkey) || !Number.isSafeInteger(event.created_at) || event.created_at<0 || event.created_at>Date.now()/1000+60 || !verify(event))return;
+      const previous=found.get(event.pubkey);
+      if(previous && (previous.created_at>event.created_at || (previous.created_at===event.created_at && previous.id>=event.id)))return;
+      try{
+        const data=JSON.parse(event.content);
+        if(!data || typeof data!=='object')return;
+        const profile={name:[data.display_name,data.displayName,data.name].find(x=>typeof x==='string' && x.trim()) || '',picture:httpsUrl(data.picture) || '',created_at:event.created_at,id:event.id,content:data};
+        found.set(event.pubkey,profile);onProfile?.(event.pubkey,profile);
+      }catch(_){}
+    };
+    await Promise.all([...new Set(sources)].map(url=>relayPage(pool,url,{kinds:[0],authors:[...wanted],limit:Math.max(100,wanted.size)},signal,timeout,accept)));
+    // Some relays let old versions of one profile crowd out other authors.
+    // Two fallback reads at a time, and paint every result as soon as it arrives.
+    const missing=[...wanted].filter(key=>!found.has(key));let next=0;
+    await Promise.all(Array.from({length:Math.min(2,missing.length)},async()=>{
+      while(next<missing.length && !signal?.aborted){const key=missing[next++];await relayPage(pool,'wss://purplepag.es',{kinds:[0],authors:[key],limit:1},signal,2500,accept);}
+    }));
+    return found;
+  }
   // Scan relays independently: one relay's recent page must not truncate another's history.
   async function zapHistory({sources, query, accept, filter, signal, pageSize=250, maxPages=80}) {
     const results=await Promise.all(sources.map(async relay=>{
       let until=filter.until ?? Math.floor(Date.now()/1000), pages=0;
       try {
         while(!signal.aborted && pages++<maxPages) {
-          const events=await query(relay,{...filter,until,limit:pageSize});
+          const page=await query(relay,{...filter,until,limit:pageSize});
+          const events=Array.isArray(page)?page:page.events;
           if(signal.aborted)return false;
-          if(!events.length)return true;
+          if(!events.length)return Array.isArray(page) || page.complete;
           const valid=events.filter(e=>Number.isSafeInteger(e.created_at) && e.created_at<=until && e.created_at>=0);
           if(!valid.length)return false;
           for(const event of valid)await accept(event);
+          if(!Array.isArray(page) && !page.complete)return false;
           const oldest=Math.min(...valid.map(e=>e.created_at));
           // Drain the boundary second before advancing, including ties across pages.
-          const boundary=await query(relay,{...filter,since:oldest,until:oldest,limit:1000});
+          const boundaryPage=await query(relay,{...filter,since:oldest,until:oldest,limit:1000});
+          const boundary=Array.isArray(boundaryPage)?boundaryPage:boundaryPage.events;
           if(signal.aborted)return false;
           for(const event of boundary)await accept(event);
+          if(!Array.isArray(boundaryPage) && !boundaryPage.complete)return false;
           if(boundary.length>=1000)return false; // Cannot prove this second was exhausted.
           if(oldest===0 || (filter.since!=null && oldest<=filter.since))return true;
           until=oldest-1;
@@ -187,7 +229,7 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, zapHistory, Directory, invoiceDetails, ZapTotals };
+  const api = { mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);

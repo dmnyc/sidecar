@@ -163,16 +163,26 @@
     const controller=zapAbort=new AbortController();
     const active=zapPool=new NostrTools.SimplePool();
     const current=()=>run===generation && !controller.signal.aborted;
-    let loading=true, partial=true;
+    let loading=true, partial=true, receiptPaintTimer=null, receiptAnimate=false;
+    controller.signal.addEventListener('abort',()=>clearTimeout(receiptPaintTimer),{once:true});
     const paint=(animate=false)=>{
       if(!current())return;
       output.hidden=false;
       const value=SidecarI18n.fmtNum(session.totals.msats/1000,{notation:'compact',maximumFractionDigits:1});
-      setZapDigits(output,session.totals.count ? value+(loading?'…':'+') : (loading?'…':'—'),animate);
+      setZapDigits(output,session.totals.count ? value+(loading || partial?'…':'+') : (loading?'…':'—'),animate);
       if(animate)shineZap();
       output.title=loading ? t('Loading verified zap history…') : partial ? t('Zap history incomplete; retrying available relays.') : t('Verified zaps observed on available relays; other receipts may exist.');
       if(session.totals.count)output.title+=' '+t('{{sats}} sats · {{count}} zaps observed for this event',{sats:SidecarI18n.fmtNum(session.totals.msats/1000),count:SidecarI18n.fmtNum(session.totals.count)});
       output.setAttribute('aria-label',output.title);
+    };
+    const scheduleReceiptPaint=animate=>{
+      receiptAnimate ||= animate;
+      if(receiptPaintTimer!==null)return;
+      receiptPaintTimer=setTimeout(()=>{
+        receiptPaintTimer=null;if(!current())return;
+        window.dispatchEvent(new CustomEvent('sidecar-stream-zaps'));
+        paint(receiptAnimate);receiptAnimate=false;
+      },100);
     };
     paint();
     // Receipt archives are separate from the small live-discovery relay set.
@@ -192,22 +202,11 @@
           const invoice=SidecarStreams.invoiceDetails(receipt.tags.find(t=>t[0]==='bolt11')[1]);
           session.rows.set(receipt.id,{id:receipt.id,kind:9735,pubkey:request.pubkey,content:request.content || '',created_at:receipt.created_at,tags:receipt.tags,sats:invoice.msats/1000});
           if(session.rows.size>1000){const oldest=[...session.rows.values()].sort((a,b)=>a.created_at-b.created_at || a.id.localeCompare(b.id))[0];session.rows.delete(oldest.id);}
-          window.dispatchEvent(new CustomEvent('sidecar-stream-zaps'));
-          paint(animate);
+          if(current())scheduleReceiptPaint(animate);
         }
       };
       const filter={kinds:[9735],'#a':[item.key],'#p':[item.host]};
-      const query=(relay,request)=>new Promise((resolve,reject)=>{
-        let sub,done=false;const events=[];
-        const finish=(error)=>{if(done)return;done=true;clearTimeout(deadline);controller.signal.removeEventListener('abort',abort);sub?.close();error?reject(error):resolve(events);};
-        const abort=()=>finish(new Error('Aborted'));
-        const deadline=setTimeout(()=>finish(new Error('Relay timeout')),6500);
-        controller.signal.addEventListener('abort',abort,{once:true});
-        sub=active.subscribeMany([relay],request,{maxWait:7000,abort:controller.signal,
-          onevent:event=>{if(event.kind===9735 && event.tags.some(t=>t[0]==='a'&&t[1]===item.key) && event.tags.some(t=>t[0]==='p'&&t[1]===item.host) && event.created_at<=(request.until??Infinity) && event.created_at>=(request.since??0))events.push(event);},
-          oneose:()=>finish(),onclose:()=>finish(new Error('Relay disconnected'))});
-        if(done)sub.close();
-      });
+      const query=(relay,request)=>SidecarStreams.relayPage(active,relay,request,controller.signal);
       const subscribe=()=>active.subscribeMany(sources,{...filter,since:started},{abort:controller.signal,onevent:receipt=>{accept(receipt,!loading&&receipt.created_at>=started).catch(()=>{});}});
       let live=subscribe();
       let watermark=started;

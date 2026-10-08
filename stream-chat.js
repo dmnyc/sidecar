@@ -21,14 +21,8 @@
   }
   // Unlike querySync, preserve the distinction between an empty EOSE and failure.
   async function readPage(pool, sources, filter, signal, timeout=6500) {
-    const results=await Promise.all(sources.map(relay=>new Promise(resolve=>{
-      const events=[];let sub,done=false;
-      const finish=complete=>{if(done)return;done=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);sub?.close();resolve({events,complete});};
-      const abort=()=>finish(false),timer=setTimeout(abort,timeout);
-      if(signal?.aborted){finish(false);return;}
-      signal?.addEventListener('abort',abort,{once:true});
-      try{sub=pool.subscribeMany([relay],filter,{maxWait:timeout+500,onevent:event=>events.push(event),oneose:()=>finish(true),onclose:()=>finish(false)});if(done)sub.close();}catch(_){finish(false);}
-    })));
+    const core=root.SidecarStreams || (typeof require==='function'?require('./stream-core'):null);
+    const results=await Promise.all(sources.map(relay=>core.relayPage(pool,relay,filter,signal,timeout)));
     return {events:[...new Map(results.flatMap(r=>r.events).map(e=>[e.id,e])).values()],complete:results.every(r=>r.complete),answered:results.filter(r=>r.complete).length};
   }
   // Tokenize without interpreting user content as markup.

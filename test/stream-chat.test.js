@@ -33,18 +33,18 @@ test('chat zaps target the verified message author and event, not the host',()=>
 });
 test('history distinguishes offline relays from a genuinely empty response',async()=>{
  const {readPage}=require('../stream-chat');
- const pool={subscribeMany([relay],filter,handlers){queueMicrotask(()=>relay==='offline'?handlers.onclose():handlers.oneose());return {close(){}};}};
+ const pool={async ensureRelay(relay){return {subscribe(filters,handlers){queueMicrotask(()=>relay==='offline'?handlers.onclose():handlers.oneose());return {close(){}};}};}};
  const empty=await readPage(pool,['empty'],{},null,50);assert.equal(empty.complete,true);assert.equal(empty.events.length,0);
  const partial=await readPage(pool,['empty','offline'],{},null,50);assert.equal(partial.complete,false);assert.equal(partial.answered,1);
 });
 test('history retains events on failure and deduplicates across archive relays',async()=>{
  const {readPage}=require('../stream-chat');
- const pool={subscribeMany([relay],filter,h){queueMicrotask(()=>{h.onevent({id:'shared'});if(relay==='archive')h.onevent({id:'archive-only'});relay==='offline'?h.onclose():h.oneose();});return {close(){}};}};
+ const pool={async ensureRelay(relay){return {subscribe(filters,h){queueMicrotask(()=>{h.onevent({id:'shared'});if(relay==='archive')h.onevent({id:'archive-only'});relay==='offline'?h.onclose():h.oneose();});return {close(){}};}};}};
  const page=await readPage(pool,['archive','offline'],{},null,50);assert.equal(page.complete,false);assert.deepEqual(page.events.map(e=>e.id),['shared','archive-only']);
 });
 test('history abort closes its subscription and reports incomplete',async()=>{
  const {readPage}=require('../stream-chat');let closed=0;const c=new AbortController();
- const pool={subscribeMany(){queueMicrotask(()=>c.abort());return {close(){closed++;}};}};
+ const pool={async ensureRelay(){return {subscribe(){queueMicrotask(()=>c.abort());return {close(){closed++;}};}};}};
  const page=await readPage(pool,['relay'],{},c.signal,50);assert.equal(page.complete,false);assert.equal(closed,1);
 });
 
