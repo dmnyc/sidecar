@@ -1,6 +1,21 @@
 /* Public NIP-53 discovery. No account, signing, or wallet state belongs here. */
 (function (root) {
   'use strict';
+  // Same cocktail vocabulary as new accounts; stable per public key so a
+  // participant does not change aliases when history or profile data reloads.
+  const COCKTAILS = ['Negroni', 'Martini', 'Manhattan', 'Boulevardier', 'Sidecar', 'Daiquiri',
+    'Margarita', 'Sazerac', 'Aviation', 'Gimlet', 'Cosmopolitan', 'Vesper', 'Bellini', 'Mojito',
+    'Paloma', 'Spritz', 'Mule', 'Sour', 'Highball', 'Collins', 'Julep', 'Cobbler', 'Americano',
+    'Bramble', 'Gibson', 'Stinger', 'Hurricane', 'Gascogne', 'Martinez', 'Bijou'];
+  const ADJECTIVES = ['Velvet', 'Smoky', 'Golden', 'Midnight', 'Gilded', 'Bitter', 'Spiced',
+    'Twilight', 'Crimson', 'Amber', 'Dry', 'Vintage', 'Frosted', 'Burnt', 'Silken', 'Oaked',
+    'Sparkling', 'Top-Shelf', 'Neat', 'Mahogany', 'Botanical', 'Barrel-Aged', 'Hush', 'Last-Call'];
+  function cocktailName(pubkey) {
+    let hash=2166136261;
+    for(const char of String(pubkey || ''))hash=Math.imul(hash ^ char.charCodeAt(0),16777619)>>>0;
+    return ADJECTIVES[hash % ADJECTIVES.length]+' '+COCKTAILS[Math.floor(hash/ADJECTIVES.length) % COCKTAILS.length];
+  }
+
   function httpsUrl(value) {
     try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : null; } catch (_) { return null; }
   }
@@ -12,6 +27,9 @@
     return { key: `30311:${event.pubkey}:${d}`, id: event.id, updated: event.created_at,
       title: String(tag('title') || 'Untitled livestream').slice(0, 240),
       url: httpsUrl(tag('streaming')), image: httpsUrl(tag('image')),
+      summary: String(tag('summary') || '').slice(0,12000),
+      starts: /^\d+$/.test(tag('starts') || '') && Number.isSafeInteger(Number(tag('starts'))) && Number(tag('starts'))>0 && Number(tag('starts'))<=now ? Number(tag('starts')) : null,
+      categories: event.tags.filter(t=>Array.isArray(t) && t[0]==='t' && typeof t[1]==='string').slice(0,12).map(t=>t[1].slice(0,80)),
       live: tag('status') === 'live' && now - event.created_at < 3600,
       viewers: /^\d+$/.test(tag('current_participants') || '') && Number.isSafeInteger(Number(tag('current_participants'))) ? Number(tag('current_participants')) : null,
       relays: event.tags.filter(t => Array.isArray(t) && t[0] === 'relays').flatMap(t => t.slice(1)).filter(u => typeof u === 'string' && u.startsWith('wss://')).slice(0,6),
@@ -125,7 +143,7 @@
     return hashes[1] && hashes[23] ? {msats:Number(amount), paymentHash:hashes[1], descriptionHash:hashes[23]} : null;
   }
   class ZapTotals {
-    constructor() { this.payments=new Set(); this.msats=0; this.count=0; }
+    constructor() { this.payments=new Set(); this.msats=0; this.count=0; this.authors=new Map(); }
     async accept(receipt, {address, recipient, provider, verify, digest}) {
       try {
         const one=(event,key)=>{const tags=event.tags.filter(t=>Array.isArray(t)&&t[0]===key);return tags.length===1?tags[0][1]:null;};
@@ -139,11 +157,37 @@
         if(requested!=null && (!/^\d+$/.test(requested) || BigInt(requested)!==BigInt(invoice.msats)))return false;
         if(await digest(description)!==invoice.descriptionHash)return false;
         if(this.payments.has(invoice.paymentHash) || !Number.isSafeInteger(this.msats+invoice.msats))return false;
-        this.payments.add(invoice.paymentHash);this.msats+=invoice.msats;this.count++;return true;
+        this.payments.add(invoice.paymentHash);this.msats+=invoice.msats;this.count++;
+        this.authors.set(request.pubkey,(this.authors.get(request.pubkey) || 0)+invoice.msats);return true;
       } catch (_) { return false; }
     }
   }
-  const api = { httpsUrl, parse, bookmark, zapProvider, zapHistory, Directory, invoiceDetails, ZapTotals };
+  function mergeBookmarks(local,remote) {
+    return [...new Map([...remote,...local].map(bookmark).filter(Boolean).map(item=>[item.key,item])).values()];
+  }
+  function encodeBookmarks(items) {
+    const clean=mergeBookmarks(items,[]);
+    const result=JSON.stringify({version:1,streams:clean});
+    if(clean.length>200 || result.length>40000)throw new Error('Too many stream bookmarks');
+    return result;
+  }
+  function decodeBookmarks(text) {
+    if(typeof text!=='string' || text.length>40000)throw new Error('Invalid stream backup');
+    const data=JSON.parse(text);
+    if(data.version!==1 || !Array.isArray(data.streams) || data.streams.length>200)throw new Error('Invalid stream backup');
+    if(data.streams.some(item=>!bookmark(item)))throw new Error('Invalid stream bookmark');
+    return mergeBookmarks(data.streams,[]);
+  }
+  function topZappers(totals,limit=3) {
+    return [...(totals?.authors || [])].map(([pubkey,msats])=>({pubkey,sats:msats/1000}))
+      .sort((a,b)=>b.sats-a.sats || a.pubkey.localeCompare(b.pubkey)).slice(0,limit);
+  }
+  function runtime(starts,now=Date.now()/1000) {
+    if(!Number.isSafeInteger(starts) || starts<=0 || starts>now)return null;
+    const minutes=Math.floor((now-starts)/60);
+    return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
+  }
+  const api = { mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, zapHistory, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);

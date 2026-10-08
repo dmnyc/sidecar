@@ -4,7 +4,7 @@ Local branch: `feat/streaming-video`, based on main. No version bump or release 
 
 ## Try it
 
-Reload the unpacked extension from the usual Sidecar checkout. Choose the **radio-tower icon** in the toolbar and select a stream. A direct HTTPS HLS or MP4/WebM URL also works. Expand changes the existing video element's size. Stop releases the player and its source.
+Reload the unpacked extension from the usual Sidecar checkout. Choose the **radio-tower icon** in the toolbar and select a stream. A direct HTTPS HLS or MP4/WebM URL also works. Expand changes the existing video element's size. The X closes the player and releases its source.
 
 For an isolated preview, serve the repository and open `/docs/streaming/preview.html`. Its signing and lock buttons simulate view transitions, not real signing or keystore locking. No account is connected in this preview.
 
@@ -14,7 +14,7 @@ The dock is a sibling of all account views. The existing lock, wallet teardown, 
 
 NIP-53 kind 30311 discovery queries three public relays (damus.io, nos.lol, relay.primal.net) only while the directory is open. Events are signature-verified by the existing nostr-tools pool. Latest addressable updates supersede older events, including ended announcements; live listings expire after one hour without updates. Discovery closes when selecting a stream, closing the list, or receiving an approval. Media traffic continues for the selected stream.
 
-Profile links and event-linked zaps use the existing profile and wallet flows. No chat, NIP-71 recordings, follow-list filtering, custom relay settings, or cross-window playback coordination is included. Viewer counts currently reflect selection time. Zap history is scanned per relay in 250-receipt pages, with boundary-second draining (up to 1,000 receipts) and an 80-page per-relay safety bound. Saturated boundaries, timeouts, or exhausted scan budgets are marked incomplete. Receipt scans additionally query nostr.wine and relay.snort.social. Live subscriptions are renewed and gaps are scanned every minute; verified totals are retained in memory across recovery and stream revisits. The display uses an ellipsis while loading and a plus sign for observed totals, with exact amounts and coverage status in the tooltip. Closing/reloading the extension document stops playback. Failed streams show an error and can be selected again. Browsers and stream hosts vary in codec/CORS support.
+Profile links and event-linked zaps use the existing profile and wallet flows. No NIP-71 recordings, follow-list filtering, custom relay settings, or cross-window playback coordination is included. Viewer counts currently reflect selection time. Zap history is scanned per relay in 250-receipt pages, with boundary-second draining (up to 1,000 receipts) and an 80-page per-relay safety bound. Saturated boundaries, timeouts, or exhausted scan budgets are marked incomplete. Receipt scans additionally query nostr.wine and relay.snort.social. Live subscriptions are renewed and gaps are scanned every minute; verified totals are retained in memory across recovery and stream revisits. The display uses an ellipsis while loading and a plus sign for observed totals, with exact amounts and coverage status in the tooltip. Closing/reloading the extension document stops playback. Failed streams show an error and can be selected again. Browsers and stream hosts vary in codec/CORS support.
 
 ## Dependency and size
 
@@ -23,11 +23,11 @@ HLS.js 1.7.3 full build is copied unminified from the verified official npm tarb
 ## Verification
 
 - Live relay discovery returned current streams.
-- Real HLS playback tested in Chrome and the in-app browser.
+- Real HLS playback tested in Chrome, Firefox, and the in-app browser.
 - Preview approval, expand/collapse and lock transitions preserved the video source and playback progress.
 - Runtime tests cover ended/stale events, unsafe URLs, address deduplication, playback continuity through approval/expansion, and stop cleanup.
 - Full suite: 2,554 tests pass after the draft PR checks; all vendored hashes and JavaScript syntax checks pass. Installed-extension checks below remain required.
-- Still required before release: actual Chrome and Firefox extension signing/auto-lock smoke tests, Firefox HLS playback, multiple windows, very short sidebars, and final privacy/store disclosures for public relay discovery and media hosts.
+- Still required before release: actual Chrome and Firefox extension signing/auto-lock smoke tests, multiple windows, very short sidebars, and final privacy/store disclosures for public relay discovery and media hosts.
 
 ### Disable live video
 
@@ -49,7 +49,7 @@ images appear while a preferred host is slow; failed layers remain hidden.
 
 Bookmark icons on directory rows save streams locally in `sidecar_saved_streams`.
 The Saved button filters the directory to those entries, still paginated at six.
-Bookmarks are shared by accounts in this browser profile, not published to Nostr.
+Bookmarks are shared by accounts in this browser profile. In the Saved view, **Save to account** explicitly publishes a NIP-44 encrypted-to-self NIP-78 record (`30078`, `d=sidecar:stream-bookmarks`) to the active account's write relays. **Restore from account** verifies and decrypts that account's record, then merges it with local saves. Saving is explicit, not automatic background sync; removals reach the relay backup on the next save. Preview backups are in memory only and never publish.
 Nostr entries retain the addressable event key and relay hints; selecting one
 queries for its latest live announcement before playback rather than trusting a
 saved media URL. If it is ended or unreachable, the directory reports that state.
@@ -58,3 +58,61 @@ media URLs. Removing a bookmark does not stop current playback. The standalone
 preview uses localStorage; the extension uses chrome.storage.local.
 
 Zap-history fix verification: NoGood Radio resolved to 223,474 sats across 865 validated receipts in the local browser, matching the independent relay audit on October 7, 2026. This does not assert equality with another client’s validation policy or complete global history.
+
+
+### Stream chat (draft)
+
+While a Nostr stream is playing, press the chat bubble beside the zap controls. Chat replaces navigation and account content below the player, reserving room for active auto-sign and mining status
+bars. The composer stays at the bottom; only messages scroll. Press the bubble again or Escape to restore the app. Direct media URLs do not have a Nostr chat address.
+
+Messages use NIP-53 kind 1311, the stream's `a` address, and an `e` parent for
+replies. Reads use the stream's declared relays plus discovery relays. Older
+messages load in pages with timestamp-boundary draining, capped at 1,000 messages
+in memory. Signatures and stream scope are checked. Messages are rendered as text.
+Chat is available only with an unlocked active account and closes on lock,
+approval, stop, or opening the account menu. Account changes clear the draft and
+switch the displayed posting identity and existing mute filters. Sends pin the
+expected account through the existing owner-signing API. A participant's bolt
+opens the existing zap flow for that author and their kind 1311 message, separate
+from stream-host zaps.
+
+The layout preview reads real public chat with fictional posting identities;
+it cannot publish or pay. Use its account menu and Toggle timer control to review
+identity and available-height behavior. Real-account send/receive, signer support,
+and wallet payment smoke tests remain manual checks before shipping.
+
+Chat verification: 2,573 tests passed. Browser review covered real incoming chat, preview account switching, lock cleanup, and timer clearance at 360 × 800 and 360 × 600. No chat messages or payments were sent during verification.
+
+
+Chat and zap feed recovery: chat history also queries nostr.wine and relay.snort.social,
+retains messages across reopening, and distinguishes failed subscriptions from
+empty end-of-history responses. Partial loads retry with backoff up to one minute.
+Verified stream zaps share the existing receipt validation/cache with the total;
+the timeline shows sender, sats, and the signed zap-request comment. Invalid or
+duplicate payments are not promoted to activity. Up to 1,000 recent zap rows are
+retained per cached stream, separately from the complete observed total.
+
+
+### Stream details and top zappers
+
+The title spends 12 seconds showing the stream name, then 4 seconds showing
+elapsed runtime from the announcement's `starts` tag. Long durations use days.
+The transitions.dev text swap moves upward without changing toolbar height.
+Hover/focus pauses rotation; reduced-motion settings keep the title static.
+Unknown or future starts omit runtime. Click the title to open About stream below
+the player, showing the full title, description, start date, and categories. Back
+returns to chat when that was open. Lock and approval close About; active timers
+retain their space at the bottom.
+
+Chat has a compact top-three zapper strip with profile pictures and amounts.
+Exact amounts and names appear in tooltips; selecting one opens the profile.
+Rankings use the full validated payment accumulator, not the 1,000-row timeline
+cache. No receipts means no strip. Totals reflect available verified receipts,
+not a guarantee of global completeness.
+
+Latest verification: 2,588 automated tests passed, followed by 62 focused stream tests after the final layout refinements (including three additional title-lifecycle tests). Coverage includes metadata/runtime,
+verified zapper aggregation, encrypted bookmark payloads, account-switch guards,
+and local chat-send rendering. The 360px leaderboard was checked across all 21
+themes. Firefox's localhost review played the real HLS stream with progressing
+time and showed chat, top zappers, and About. This is browser verification, not a
+claim that the installed Firefox extension's signer/payment flows were tested.

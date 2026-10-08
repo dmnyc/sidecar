@@ -12,9 +12,9 @@
   const entry = document.getElementById('stream-entry');
   const feedToggle = document.getElementById('stream-feed-toggle');
   function setFeedExpanded(on) {
-    browse.setAttribute('aria-expanded', String(on));
     feedToggle.setAttribute('aria-expanded', String(on));
     entry?.setAttribute('aria-expanded', String(on));
+    document.documentElement.classList.toggle('stream-directory-active',on && !root.hidden);
   }
   const expand = document.getElementById('stream-expand');
   const relays = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
@@ -56,7 +56,14 @@
   let selectedHost = null, selectedEvent = null, zapPool = null, zapAbort = null, zapRetryTimer = null, zapHistoryTimer = null;
   const lockView = document.getElementById('view-lock');
   const isLocked = () => lockView && !lockView.classList.contains('hidden');
+  let chat = null,returnToChat=false;
+  const details=window.SidecarStreamDetails?.mount({dock:root,title,trigger:browse,
+    allowed:()=>enabled && !isLocked() && !root.classList.contains('stream-approving'),
+    onOpen:()=>{returnToChat=document.documentElement.classList.contains('stream-chat-active');chat?.close();clearTimeout(feedCloseTimer);disconnect();directory.hidden=true;setFeedExpanded(false);},
+    onClose:()=>{if(returnToChat)chat?.open();returnToChat=false;}});
   function syncVisibility() {
+    chat?.sync();
+    if(isLocked() || root.classList.contains('stream-approving'))details?.close();
     root.hidden = !enabled || !selected;
     root.classList.toggle('stream-idle', !selected);
     if (entry) { entry.hidden = !enabled; entry.disabled = !!isLocked() || root.classList.contains('stream-approving'); }
@@ -73,8 +80,13 @@
       root.classList.remove('stream-expanded'); setExpanded(false);
     }
     document.documentElement.style.setProperty('--stream-height', `${enabled && !root.hidden ? root.getBoundingClientRect().height : 0}px`);
+    positionDirectory();
   }
   new ResizeObserver(layout).observe(root);
+  const controls = document.querySelector?.('.stream-controls');
+  if (controls) new ResizeObserver(() => {
+    root.style.setProperty('--stream-control-space', Math.max(72, Math.ceil(controls.getBoundingClientRect().width) + 4) + 'px');
+  }).observe(controls);
   const titleWindow = document.getElementById('stream-title-window');
   function measureTitle() {
     const overflow = Math.max(0, title.scrollWidth - titleWindow.clientWidth + 16);
@@ -95,6 +107,7 @@
     expand.setAttribute('data-i18n-title',label);
   }
   function stop() {
+    chat?.close();details?.set(null);
     selectedHost = null; selectedEvent = null;
     document.getElementById('stream-zap').classList.remove('is-shining');
     clearTimeout(zapRetryTimer); zapRetryTimer=null;
@@ -102,6 +115,7 @@
     zapAbort?.abort(); zapAbort = null; zapPool?.destroy(); zapPool = null;
     document.getElementById('stream-zap-total').hidden = true;
     document.getElementById('stream-info').hidden = true;
+    document.getElementById('stream-viewers').hidden = true;
     root.classList.remove('stream-pip');
     generation++;
     if (hls) { hls.destroy(); hls = null; }
@@ -144,7 +158,7 @@
     const output=document.getElementById('stream-zap-total');
     const cacheKey=item.key+':'+item.host;
     let session=zapSessions.get(cacheKey);
-    if(!session){session={totals:new SidecarStreams.ZapTotals(),provider:null};zapSessions.set(cacheKey,session);}
+    if(!session){session={totals:new SidecarStreams.ZapTotals(),provider:null,rows:new Map()};zapSessions.set(cacheKey,session);}
     if(zapSessions.size>20)zapSessions.delete(zapSessions.keys().next().value);
     const controller=zapAbort=new AbortController();
     const active=zapPool=new NostrTools.SimplePool();
@@ -166,14 +180,21 @@
     try {
       const meta=await SidecarStreams.zapProvider(active,sources,item.host,controller.signal,fetch);
       if(!current())return;
-      if(session.provider && session.provider!==meta.nostrPubkey)session.totals=new SidecarStreams.ZapTotals();
+      if(session.provider && session.provider!==meta.nostrPubkey){session.totals=new SidecarStreams.ZapTotals();session.rows=new Map();}
       session.provider=meta.nostrPubkey;
       const started=Math.floor(Date.now()/1000);
       const accept=async(receipt,animate=false)=>{
         if(!current())return;
         const accepted=await session.totals.accept(receipt,{address:item.key,recipient:item.host,provider:meta.nostrPubkey,verify:NostrTools.verifyEvent,
           digest:async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('')});
-        if(accepted)paint(animate);
+        if(accepted){
+          const request=JSON.parse(receipt.tags.find(t=>t[0]==='description')[1]);
+          const invoice=SidecarStreams.invoiceDetails(receipt.tags.find(t=>t[0]==='bolt11')[1]);
+          session.rows.set(receipt.id,{id:receipt.id,kind:9735,pubkey:request.pubkey,content:request.content || '',created_at:receipt.created_at,tags:receipt.tags,sats:invoice.msats/1000});
+          if(session.rows.size>1000){const oldest=[...session.rows.values()].sort((a,b)=>a.created_at-b.created_at || a.id.localeCompare(b.id))[0];session.rows.delete(oldest.id);}
+          window.dispatchEvent(new CustomEvent('sidecar-stream-zaps'));
+          paint(animate);
+        }
       };
       const filter={kinds:[9735],'#a':[item.key],'#p':[item.host]};
       const query=(relay,request)=>new Promise((resolve,reject)=>{
@@ -214,7 +235,7 @@
     if (item && host) watchZaps(item, run);
     if (host) {
       const npub = NostrTools.nip19.npubEncode(host);
-      const fallbackName = label && label !== 'Untitled livestream' && label !== t('Untitled livestream') ? label : npub.slice(0,12) + '…';
+      const fallbackName = SidecarStreams.cocktailName(host);
       document.getElementById('stream-info').hidden = false;
       document.getElementById('stream-host').href = 'https://primal.net/p/' + npub;
       document.getElementById('stream-host-name').textContent = profileImages.get(host)?.name || fallbackName;
@@ -236,7 +257,7 @@
     }
 
     selected = true; document.getElementById('stream-stop').hidden = false; video.hidden = false; root.classList.add('stream-playing'); expand.hidden = false;
-    title.textContent = label || t('Untitled livestream'); title.setAttribute('title',title.textContent); measureTitle(); message(t('Connecting…')); directory.hidden = true; setFeedExpanded(false); disconnect();
+    title.textContent = label || t('Untitled livestream'); title.setAttribute('title',title.textContent); details?.set({...item,title:title.textContent}); measureTitle(); message(t('Connecting…')); directory.hidden = true; setFeedExpanded(false); disconnect();
     syncVisibility();
     const begin = () => { if (run !== generation || !enabled) return; return video.play().catch(() => { if (run === generation) message(t('Press Play to start watching.')); }); };
     const isHls = !/\.(mp4|webm|ogv)(?:[?#]|$)/i.test(url);
@@ -398,7 +419,7 @@
     if(directoryPaintTimer!==null)return;
     directoryPaintTimer=setTimeout(()=>{directoryPaintTimer=null;paint();},100);
   }
-  function disconnect() { clearTimeout(directoryPaintTimer);directoryPaintTimer=null;discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
+  function disconnect() { chat?.close(); clearTimeout(directoryPaintTimer);directoryPaintTimer=null;discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
   function discover() {
     if (!enabled || isLocked()) return;
     disconnect(); lookingForStreams = true; paint();
@@ -410,6 +431,53 @@
       { abort:discoveryAbort.signal, onevent:event=>{if(run===discoveryGeneration && model.accept(event))queueDirectoryPaint();}, oneose:()=>{if(run===discoveryGeneration){lookingForStreams=false;paint();}} });
     timer=setInterval(paint,30000);
   }
+  function positionDirectory() {
+    if(directory.hidden || !directory.classList.contains('stream-idle-directory'))return;
+    const playing=!root.hidden;
+    document.documentElement.classList.toggle('stream-directory-active',playing);
+    directory.classList.toggle('stream-playing-directory',playing);
+    const top=playing?root.getBoundingClientRect().bottom:(entry?.closest('.topbar')?.getBoundingClientRect().bottom || 56);
+    let bottom=window.innerHeight;
+    for(const id of ['relax-status','mining-status']){
+      const bar=document.getElementById(id);
+      if(bar && bar.getClientRects().length && !bar.classList.contains('hidden'))bottom=Math.min(bottom,bar.getBoundingClientRect().top);
+    }
+    directory.style.top=top+'px';directory.style.height=Math.max(0,bottom-top)+'px';directory.style.maxHeight=directory.style.height;
+  }
+  window.addEventListener('resize',positionDirectory);
+  for(const id of ['relax-status','mining-status']){
+    const bar=document.getElementById(id);
+    if(bar){new ResizeObserver(positionDirectory).observe(bar);new MutationObserver(positionDirectory).observe(bar,{attributes:true,attributeFilter:['class','hidden']});}
+  }
+  const backup=document.createElement('div');backup.className='stream-bookmark-backup';backup.hidden=true;
+  const backupLabel=document.createElement('p'),backupStatus=document.createElement('p');backupStatus.setAttribute('role','status');
+  const saveRemote=document.createElement('button'),loadRemote=document.createElement('button');
+  for(const button of [saveRemote,loadRemote]){button.type='button';button.className='ghost';}
+  saveRemote.textContent=t('Save to account');loadRemote.textContent=t('Restore from account');
+  backup.append(backupLabel,saveRemote,loadRemote,backupStatus);directory.append(backup);
+  let backupBusy=false,backupNoticeTimer;
+  function updateBackup(){
+    const who=window.SidecarStreamBookmarks?.identity();backup.hidden=!savedOnly || !who;
+    backupLabel.textContent=who?t('Encrypted bookmarks for {{name}}',{name:who.name}):'';
+    saveRemote.disabled=loadRemote.disabled=backupBusy || !who;
+  }
+  async function transferBookmarks(restore){
+    const bridge=window.SidecarStreamBookmarks,who=bridge?.identity();if(!who || backupBusy)return;
+    backupBusy=true;clearTimeout(backupNoticeTimer);updateBackup();backupStatus.textContent=t(restore?'Restoring…':'Saving…');
+    try{
+      if(restore){const items=await bridge.restore(who.pubkey);if(bridge.identity()?.pubkey!==who.pubkey)throw new Error('Account changed');
+        if(items===null){backupStatus.textContent=t('No saved streams found for this account.');return;}
+        if(!await saveBookmarks(SidecarStreams.mergeBookmarks(savedStreams,items)))throw new Error('Storage failed');
+      }else await bridge.save(savedStreams,who.pubkey);
+      if(bridge.identity()?.pubkey===who.pubkey)backupStatus.textContent=t(restore?'Streams restored.':'Streams saved to your account.');
+    }catch(_){if(bridge.identity()?.pubkey===who.pubkey)backupStatus.textContent=t('Could not sync streams. Check your connection and try again.');}
+    finally{backupBusy=false;updateBackup();backupNoticeTimer=setTimeout(()=>{backupStatus.textContent='';},7000);}
+  }
+  saveRemote.onclick=()=>transferBookmarks(false);loadRemote.onclick=()=>transferBookmarks(true);
+  window.addEventListener('sidecar-chat-account',()=>{backupStatus.textContent='';updateBackup();});
+  const hideDirectory=document.createElement('button');
+  hideDirectory.type='button';hideDirectory.className='stream-directory-hide ghost';hideDirectory.textContent=t('Hide streams');
+  hideDirectory.addEventListener('click',()=>{closeFeed();(root.hidden?entry:feedToggle)?.focus();});directory.append(hideDirectory);
   let feedCloseTimer;
   function closeFeed() {
     disconnect(); setFeedExpanded(false);
@@ -421,16 +489,18 @@
     if (!enabled || isLocked() || browse.disabled) return;
     if (!directory.hidden && directory.classList.contains('is-open')) { closeFeed(); return; }
     clearTimeout(feedCloseTimer);
+    details?.close();updateBackup();
     window.dispatchEvent(new CustomEvent('sidecar-open-streams'));
-    // Anchor below the toolbar so the account switcher remains reachable during playback.
+    // The guide takes over the app area directly below the persistent player.
     document.body.append(directory); directory.classList.add('stream-idle-directory','t-dropdown');
     directory.setAttribute('data-origin','top-center');
-    directory.style.top=((entry?.getBoundingClientRect().bottom || 56)+8)+'px';
-    directory.style.maxHeight='calc(100dvh - '+directory.style.top+' - 12px)';
+
     directory.hidden=false;directory.classList.remove('is-closing');
-    void directory.offsetHeight;directory.classList.add('is-open');setFeedExpanded(true);discover();
+    void directory.offsetHeight;directory.classList.add('is-open');setFeedExpanded(true);positionDirectory();discover();chat?.sync();
   }
-  browse.addEventListener('click', toggleFeed);
+  chat = window.SidecarStreamChat?.mount(directory, () => selectedEvent, () => enabled && !isLocked() && !root.classList.contains('stream-approving'), () => {details?.close();disconnect();directory.hidden=true;setFeedExpanded(false);}, () => [...(zapSessions.get(selectedEvent?.key+':'+selectedEvent?.host)?.rows?.values() || [])], () => SidecarStreams.topZappers(zapSessions.get(selectedEvent?.key+':'+selectedEvent?.host)?.totals));
+  chat?.sync();
+  browse.addEventListener('click', ()=>details?details.toggle():toggleFeed());
   feedToggle.addEventListener('click', toggleFeed);
   entry?.addEventListener('click', toggleFeed);
   document.getElementById('acct-btn')?.addEventListener('click',()=>{if(!directory.hidden)closeFeed();});
@@ -441,7 +511,7 @@
     if(!directory.hidden && ![directory, entry, browse, feedToggle].some(node => node && path.includes(node)))closeFeed();
   });
   document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
-  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;streamPage=0;moreOpen=false;document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
+  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;updateBackup();streamPage=0;moreOpen=false;document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
   document.getElementById('stream-refresh').addEventListener('click',discover);
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.

@@ -12,3 +12,23 @@ test('profile destination uses declared host rather than announcement publisher'
 test('capitalized Host participant identifies the streamer',()=>{const e=event();e.tags.push(['p','b'.repeat(64),'','Host']);assert.equal(parse(e,1000).host,'b'.repeat(64));});
 
 test('viewer counts distinguish missing data from a reported zero',()=>{assert.equal(parse(event(),1000).viewers,null);for(const [value,expected] of [['0',0],['123',123],['-1',null],['unknown',null],['9007199254740992',null]]){const e=event();e.tags.push(['current_participants',value]);assert.equal(parse(e,1000).viewers,expected);}});
+
+test('unnamed stream participants get stable cocktail aliases rather than public keys',()=>{
+ const {cocktailName}=require('../stream-core');
+ const key='a'.repeat(64),name=cocktailName(key);
+ assert.equal(name,cocktailName(key));
+ assert.match(name,/^[A-Za-z-]+ [A-Za-z]+$/);
+ assert.ok(!name.includes('npub'));
+ const names=new Set(Array.from({length:100},(_,i)=>cocktailName(i.toString(16).padStart(64,'0'))));
+ assert.ok(names.size>70);
+});
+
+test('stream metadata retains description, categories, and a valid actual start',()=>{
+ const e=event();e.tags.push(['summary','A station\nwith music'],['starts','100'],['t','music']);
+ const item=parse(e,1000);assert.equal(item.starts,100);assert.equal(item.summary,'A station\nwith music');assert.deepEqual(item.categories,['music']);
+ for(const start of ['','-1','1001','not a date','9007199254740992']){e.tags=e.tags.filter(t=>t[0]!=='starts');e.tags.push(['starts',start]);assert.equal(parse(e,1000).starts,null);}
+});
+test('runtime uses days for long-running streams and omits unknown starts',()=>{
+ const {runtime}=require('../stream-core');assert.equal(runtime(null),null);assert.equal(runtime(200,100),null);
+ assert.deepEqual(runtime(1,1+367*86400+2*3600+14*60),{days:367,hours:2,minutes:14});
+});

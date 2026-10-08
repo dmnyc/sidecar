@@ -9,9 +9,27 @@
  $('profile-view').innerHTML='<div class="active-account"><span class="aa-avatar"><img src="icons/icon48.png" alt=""></span><div class="aa-info"><div class="aa-label">Alex Morgan</div><div class="aa-npub">Demo profile</div></div></div><p>Photography, music, and open networks.</p><p class="hint">Fictional data for the layout preview.</p>';
  $('wallet-view').innerHTML='<div class="wallet-card"><div class="wallet-label">Balance</div><div class="wallet-balance">111,059</div><div class="wallet-unit">sats</div></div><div class="add-actions"><button class="secondary">Send</button><button class="secondary">Receive</button></div><h2>Recent activity</h2><div class="item"><div class="item-main"><div class="item-title">Coffee</div><div class="item-sub">Sample payment · 2,100 sats</div></div></div><p class="hint">Sample wallet. No payments are enabled.</p>';
  for(const button of document.querySelectorAll('.tabs .tab'))button.onclick=()=>{for(const other of document.querySelectorAll('.tabs .tab'))other.classList.toggle('active',other===button);for(const pane of document.querySelectorAll('.tabview'))pane.classList.toggle('hidden',pane.id!=='tab-'+button.dataset.tab);};
+ // Preview identity only: never signs or pays.
+ let chatPreviewName='Alex Morgan';
+ window.SidecarStreamChatAccount={
+   identity:()=>!$('view-lock').classList.contains('hidden')?null:{pubkey:chatPreviewName,name:chatPreviewName+' · preview'},
+   prepare:async()=>{},muted:()=>false,
+   createMentionEditor:options=>SidecarCore.installComposer({NT:NostrTools,cachedFollowList:()=>[],getFollowList:async()=>[],naAvailable:()=>false,noteActivity:()=>{},cachedProfile:()=>null,applyAvatar:(el,p)=>{if(p.picture){const img=document.createElement('img');img.src=p.picture;img.alt='';el.append(img);}}}).createMentionEditor(options),
+   profile:pubkey=>window.open('https://primal.net/p/'+NostrTools.nip19.npubEncode(pubkey),'_blank','noopener'),
+   zapRecipient:()=>window.dispatchEvent(new CustomEvent('sidecar-stream-zap')),
+   zap:()=>window.dispatchEvent(new CustomEvent('sidecar-stream-zap')),
+   send:async()=>{throw new Error('Preview cannot publish');}
+ };
+ // In-memory backup preview: exercises the controls without signing or publishing.
+ const previewBackups=new Map();
+ window.SidecarStreamBookmarks={
+   identity:()=>window.SidecarStreamChatAccount.identity(),
+   async save(items,key){previewBackups.set(key,SidecarStreams.encodeBookmarks(items));},
+   async restore(key){return previewBackups.has(key)?SidecarStreams.decodeBookmarks(previewBackups.get(key)):null;}
+ };
  const accountMenu=$('acct-menu');
  accountMenu.replaceChildren();
- for(const name of ['Alex Morgan','Studio account','Reading account']){const row=document.createElement('button');row.textContent=name;row.className='secondary';row.style.display='block';row.style.width='100%';accountMenu.append(row);}
+ for(const name of ['Alex Morgan','Studio account','Reading account']){const row=document.createElement('button');row.textContent=name;row.className='secondary';row.style.display='block';row.style.width='100%';row.onclick=()=>{chatPreviewName=name;window.dispatchEvent(new CustomEvent('sidecar-chat-account'));closeAccounts();};accountMenu.append(row);}
  function closeAccounts(){accountMenu.classList.remove('is-open');accountMenu.classList.add('hidden');}
  $('acct-btn').onclick=()=>{const opening=accountMenu.classList.contains('hidden');accountMenu.classList.toggle('hidden',!opening);accountMenu.classList.toggle('is-open',opening);};
  window.addEventListener('sidecar-open-streams',closeAccounts);
@@ -26,5 +44,5 @@
  $('approval-preview').classList.remove('hidden');$('approval-preview').textContent='This is a simulated signing request. No signature will be created.';
  $('compose-note-btn').onclick=()=>{ $('approval-preview').textContent='Preview controls are outside the sidebar. No note will be published.'; };
  window.addEventListener('sidecar-stream-zap',()=>{const dialog=document.createElement('dialog');const text=document.createElement('p');text.textContent='Payment preview only. In Sidecar, this opens the streamer’s profile with the existing zap form expanded. No payment will be sent here.';const close=document.createElement('button');close.textContent='Close';close.onclick=()=>dialog.close();dialog.append(text,close);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();});
- window.addEventListener('message',e=>{if(e.source!==parent||e.origin!==location.origin)return;switch(e.data?.preview){case 'lock':reveal('view-lock');break;case 'unlock':reveal('view-main');break;case 'approval':$('view-approval').classList.remove('hidden');break;case 'theme':document.documentElement.dataset.theme=(["speakeasy", "metropolis", "film-noir", "brownstone", "nixie", "cast-iron", "wabi-sabi", "constellation", "jazz-age", "departures", "industria", "aegean", "bauhaus", "populuxe", "par-avion", "werkstatte", "ukiyo-e", "mycelium", "ben-day", "turnstile", "sleepy-hollow"]).includes(e.data.theme)?e.data.theme:"speakeasy";break;}});
+ window.addEventListener('message',e=>{if(e.source!==parent||e.origin!==location.origin)return;switch(e.data?.preview){case 'timer':$('relax-status').classList.toggle('hidden');$('relax-status-name').textContent=chatPreviewName;$('relax-status-host').textContent='Preview timer';$('relax-status-time').textContent='4:32';break;case 'lock':reveal('view-lock');break;case 'unlock':reveal('view-main');break;case 'approval':$('view-approval').classList.remove('hidden');break;case 'theme':document.documentElement.dataset.theme=(["speakeasy", "metropolis", "film-noir", "brownstone", "nixie", "cast-iron", "wabi-sabi", "constellation", "jazz-age", "departures", "industria", "aegean", "bauhaus", "populuxe", "par-avion", "werkstatte", "ukiyo-e", "mycelium", "ben-day", "turnstile", "sleepy-hollow"]).includes(e.data.theme)?e.data.theme:"speakeasy";break;}});
 })();

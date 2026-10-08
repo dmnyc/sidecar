@@ -1268,6 +1268,7 @@
       return;
     }
     state = await call({ type: 'SIDECAR_GET_STATE' });
+    window.dispatchEvent(new CustomEvent('sidecar-chat-account'));
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     // Re-init means a lock, an unlock or a reload, and a peek does not survive any of
     // them: the timer is dropped and the live state goes back to the preference.
@@ -2265,6 +2266,66 @@
     return row;
   }
 
+  // Chat keeps no signing keys; every send pins the account reviewed in its composer.
+  window.SidecarStreamChatAccount = {
+    identity() {
+      if (!state?.activePubkey || !$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return null;
+      const account = state.accounts.find(a => a.pubkey === state.activePubkey);
+      return { pubkey: state.activePubkey, name: cachedProfile(state.activePubkey)?.name || account?.name || window.SidecarStreams.cocktailName(state.activePubkey) };
+    },
+    prepare: async function () {
+      const pubkey = this.identity()?.pubkey;
+      if (pubkey) await loadMuteList(pubkey, await relayUrls(false));
+    },
+    muted(event) { return isMutedNotif(_muteLists.get(state?.activePubkey), event); },
+    createMentionEditor(options) { return createMentionEditor(options); },
+    profiles(pubkeys) { return this.identity() ? profilesFor(pubkeys) : Promise.resolve(new Map()); },
+    profile(pubkey) { if (this.identity()) openProfileSheet(pubkey); },
+    zapRecipient(pubkey) { if (this.identity() && /^[a-f0-9]{64}$/.test(pubkey)) openProfileSheet(pubkey, {zap:true}); },
+    zap(event) {
+      if (this.identity() && event.kind === 1311 && NT.verifyEvent(event)) openProfileSheet(event.pubkey, {zap:true, chatEvent:event});
+    },
+    send: async function (event, hints, expectedPubkey) {
+      if (this.identity()?.pubkey !== expectedPubkey || event.kind !== 1311) throw new Error('Account changed');
+      const address = event.tags.find(tag => tag[0] === 'a')?.[1];
+      // Rebuild rather than forwarding arbitrary kinds or tags to the signer.
+      const replyId = event.tags.find(tag => tag[0] === 'e')?.[1];
+      const replyAuthor = event.tags.find(tag => tag[0] === 'p')?.[1];
+      const message = window.SidecarStreamChat.template(address, event.content, replyId ? {id:replyId,pubkey:replyAuthor} : null);
+      const targets = [...new Set([...(await postRelays()), ...hints.filter(url => typeof url === 'string' && url.startsWith('wss://')).slice(0,6)])];
+      if (this.identity()?.pubkey !== expectedPubkey) throw new Error('Account changed');
+      const signed = await call({type:'SIDECAR_OWNER_SIGN', event:message, expectedPubkey});
+      await publishToRelays(targets, signed);
+      return signed;
+    },
+  };
+
+  // Explicit encrypted NIP-78 save/restore, scoped to the account captured on click.
+  window.SidecarStreamBookmarks = {
+    identity: () => window.SidecarStreamChatAccount.identity(),
+    async save(items, pubkey) {
+      const check=()=>{if(this.identity()?.pubkey!==pubkey)throw new Error('Account changed');};
+      check();const targets=await postRelays();check();
+      const plaintext=window.SidecarStreams.encodeBookmarks(items);
+      const content=await call({type:'SIDECAR_OWNER_ENCRYPT',nip:44,peer:pubkey,expectedPubkey:pubkey,plaintext});check();
+      const event={kind:30078,created_at:Math.floor(Date.now()/1000),tags:[['d','sidecar:stream-bookmarks'],['encryption','nip44']],content};
+      const signed=await call({type:'SIDECAR_OWNER_SIGN',event,expectedPubkey:pubkey});check();
+      if(signed.pubkey!==pubkey)throw new Error('Account changed');
+      await publishToRelays(targets,signed);check();
+    },
+    async restore(pubkey) {
+      const check=()=>{if(this.identity()?.pubkey!==pubkey)throw new Error('Account changed');};
+      check();const targets=await backupReadRelays();check();
+      const event=await poolGet(targets,{kinds:[30078],authors:[pubkey],'#d':['sidecar:stream-bookmarks']});check();
+      if(!event)return null;
+      if(event.kind!==30078 || event.pubkey!==pubkey || !NT.verifyEvent(event) || event.created_at>Math.floor(Date.now()/1000)+60 ||
+        event.tags.filter(x=>x[0]==='d').length!==1 || !event.tags.some(x=>x[0]==='d' && x[1]==='sidecar:stream-bookmarks') ||
+        !event.tags.some(x=>x[0]==='encryption' && x[1]==='nip44') || event.content.length>100000)throw new Error('Invalid stream backup');
+      const plaintext=await call({type:'SIDECAR_OWNER_DECRYPT',nip:44,peer:pubkey,expectedPubkey:pubkey,ciphertext:event.content});check();
+      return window.SidecarStreams.decodeBookmarks(plaintext);
+    },
+  };
+
   window.addEventListener('sidecar-stream-zap', (event) => {
     if (!$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return;
     const pubkey = event.detail?.pubkey;
@@ -2692,6 +2753,7 @@
             comment: note.value.trim(),
             recipientPubkey: pubkey,
             streamEvent: options?.streamEvent,
+            event: options?.chatEvent,
           });
           flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
           const res = await client.payInvoice(invoice);

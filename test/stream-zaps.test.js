@@ -29,3 +29,12 @@ test('deduplicates across relays and distinct receipts for the same invoice',asy
 test('rejects wrong provider, event, recipient and mismatched amounts',async()=>{for(const override of [{provider:'b'.repeat(64)},{address:address+'other'},{recipient:'b'.repeat(64)}])assert.equal(await new ZapTotals().accept(receipt(),{...opts,...override}),false);assert.equal(await new ZapTotals().accept(receipt([['amount','22000']]),opts),false);});
 test('rejects duplicate linkage tags and altered invoice checksums',async()=>{assert.equal(await new ZapTotals().accept(receipt([], [['a',address]]),opts),false);const inv=invoice('test');assert.equal(invoiceDetails(inv).msats,21000);assert.equal(invoiceDetails(inv.slice(0,-1)+(inv.endsWith('q')?'p':'q')),null);});
 test('rejects signed receipt with invoice bound to a different request',async()=>{const e=receipt();e.tags=e.tags.map(t=>t[0]==='bolt11'?['bolt11',invoice('different')]:t);const signed=NT.finalizeEvent({kind:e.kind,created_at:e.created_at,content:e.content,tags:e.tags},server);assert.equal(await new ZapTotals().accept(signed,opts),false);});
+
+test('top zappers accumulate verified payment totals without duplicate receipt inflation',async()=>{
+ const {topZappers}=require('../stream-core'),total=new ZapTotals();
+ await total.accept(receipt(),opts);await total.accept(receipt([],[],2),opts);
+ assert.deepEqual(topZappers(total),[{pubkey:NT.getPublicKey(sender),sats:21}]);
+ await total.accept(receipt([['amount','999']]),opts);assert.equal(topZappers(total)[0].sats,21);
+ total.authors.set('other',42000);assert.equal(topZappers(total)[0].pubkey,'other');
+ assert.equal(topZappers(total,1).length,1);
+});

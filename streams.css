@@ -59,7 +59,7 @@ body { padding-top: var(--stream-height); }
 .stream-toolbar #stream-stop { display:inline-flex; align-items:center; justify-content:center; }
 .stream-toolbar #stream-stop[hidden] { display:none; }
 /* Equal outer columns keep the title centered in the panel, independent of controls. */
-.stream-toolbar { display:grid; grid-template-columns:72px minmax(0,1fr) 72px; gap:4px; }
+.stream-toolbar { display:grid; grid-template-columns:var(--stream-control-space,72px) minmax(0,1fr) var(--stream-control-space,72px); gap:4px; }
 .stream-toolbar #stream-browse { justify-self:start; padding-inline:6px; }
 .stream-controls { display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; }
 #stream-title-window { min-width:0; overflow:hidden; text-align:center; padding:0 8px; mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); }
@@ -97,7 +97,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 /* One full-width disclosure target; the independent playback controls sit above it. */
 .stream-toolbar { position:relative; display:block; padding:0; }
 .stream-toolbar #stream-browse {
-  display:grid; grid-template-columns:72px minmax(0,1fr) 72px;
+  display:grid; grid-template-columns:var(--stream-control-space,72px) minmax(0,1fr) var(--stream-control-space,72px);
   gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
 }
 .stream-live-cue { display:inline-flex; align-items:center; gap:8px; padding-inline:6px; }
@@ -211,7 +211,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 #stream-zap:disabled { opacity:.4; cursor:default; }
 
 #stream-stop svg { width:16px; height:16px; display:block; }
-.stream-toolbar #stream-stop:hover { background:var(--hover-soft); border-color:var(--border); }
+
 
 /* Stream payments stay below the player; profile biography cannot enlarge them. */
 #modal-overlay:has(.stream-zap-modal) {
@@ -381,7 +381,8 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
 #compose-menu[hidden] { display:none; }
 #compose-menu button { display:block; width:100%; text-align:start; padding:12px 16px; border:0; background:transparent; color:var(--text); font:inherit; }
 #compose-menu button:hover, #compose-menu button:focus-visible { background:var(--hover-soft); }
-#stream-directory.stream-idle-directory { position:fixed; inset:64px 8px auto; z-index:96; max-height:calc(100dvh - 80px); border:1px solid var(--border); border-radius:12px; }
+#stream-directory.stream-idle-directory { position:fixed; inset:0 0 auto; z-index:96; box-sizing:border-box; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
+#stream-directory.stream-playing-directory { inset-inline:0; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
 #stream-directory[hidden] { display:none; }
 
 #compose-menu button { display:flex; align-items:center; gap:12px; }
@@ -421,3 +422,149 @@ html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 
 .stream-directory-actions #stream-saved-toggle { width:36px; flex:0 0 36px; padding:9px; }
 #stream-saved-toggle[aria-pressed="true"] svg { fill:currentColor; }
+
+/* Chat takes over the app below the player, retaining active bottom status bars. */
+#stream-chat-panel { position:fixed; inset-inline:0; z-index:94; box-sizing:border-box; padding:0 0 8px; background:var(--velvet-1); color:var(--text); display:flex; flex-direction:column; min-height:0; }
+#stream-chat-panel[hidden] { display:none; }
+html.stream-chat-active #view-main > :not(#relax-status):not(#mining-status) { display:none; }
+html.stream-chat-active #view-main { justify-content:flex-end; }
+#stream-chat-toggle[aria-expanded="true"] { color:var(--gold); }
+.stream-chat-log { padding-inline:10px 4px; overflow:auto; overscroll-behavior:contain; min-height:0; flex:1; }
+/* Chat prose owns the width; secondary actions appear over the trailing edge. */
+.stream-chat-message { position:relative; padding:7px 0; border:0; min-width:0; }
+.stream-chat-head { display:flex; align-items:center; gap:6px; min-width:0; min-height:28px; }
+.stream-chat-author { display:flex; align-items:center; gap:6px; min-width:0; max-width:65%; padding:0; background:none; border:0; color:var(--text); text-align:start; }
+.stream-chat-author > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stream-chat-author img { width:22px; height:22px; flex-shrink:0; border-radius:50% !important; object-fit:cover; }
+.stream-chat-time { margin-inline-start:auto; flex-shrink:0; font-size:10px; color:var(--muted); white-space:nowrap; }
+.stream-chat-actions { position:absolute; inset-inline-end:0; top:4px; display:flex; background:var(--velvet-1); opacity:0; pointer-events:none; }
+.stream-chat-actions .icon-btn { flex-shrink:0; width:32px; height:32px; display:grid; place-items:center; padding:0; }
+.stream-chat-actions .icon-btn svg { display:block; width:18px; height:18px; }
+.stream-chat-actions .stream-chat-zap-action svg { width:11px; height:18px; fill:currentColor; stroke:none; }
+.stream-chat-message:hover .stream-chat-actions,.stream-chat-message:focus-within .stream-chat-actions { opacity:1; pointer-events:auto; }
+.stream-chat-body { margin:2px 0 0; font-size:13px; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4; overflow:hidden; }
+.stream-chat-message.is-expanded .stream-chat-body { display:block; white-space:pre-wrap; overflow:visible; }
+.stream-chat-link { color:var(--gold); text-decoration:none; }
+.stream-chat-link:hover { text-decoration:underline; }
+.stream-chat-more { border:0; background:none; color:var(--muted); padding:4px 0; font-size:12px; }
+.stream-chat-more[hidden] { display:none; }
+.stream-chat-day:first-child { margin-top:4px; }
+.stream-chat-day { text-align:center; color:var(--muted); font-size:11px; margin:14px 0 6px; }
+.stream-chat-parent { display:block; color:var(--muted); font-size:12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; border-inline-start:2px solid var(--border); padding-inline-start:6px; margin-block:3px; text-decoration:none; }
+@media (hover:none) { .stream-chat-actions { position:static; opacity:1; pointer-events:auto; justify-content:flex-end; background:none; } }
+.stream-chat-form { margin-inline:10px; flex-shrink:0; display:grid; gap:8px; padding-top:8px; border-top:1px solid var(--border); }
+.stream-chat-form textarea { width:100%; box-sizing:border-box; resize:none; height:64px; min-height:64px; margin:0; }
+.stream-chat-identity,.stream-chat-status { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+.stream-chat-status { margin-inline:10px; }
+.stream-chat-status:empty { display:none; }
+.stream-chat-form { grid-template-columns:minmax(0,1fr) 44px; align-items:stretch; column-gap:0; }
+.stream-chat-identity,.stream-chat-form > .ghost { grid-column:1 / -1; }
+.stream-chat-form > .primary { width:44px; height:64px; margin:0; padding:0; display:grid; place-items:center; }
+@media (max-height:700px) {
+  html.stream-chat-active #stream-video { height:min(110px,20vh); }
+}
+html.stream-chat-active #compose-fab,
+html.stream-chat-active #compose-menu { display:none; }
+.stream-chat-log > .ghost { width:100%; }
+
+#stream-chat-toggle { display:flex; align-items:center; justify-content:center; width:32px; height:32px; flex:0 0 32px; padding:6px; }
+#stream-chat-toggle svg { width:18px; height:18px; }
+#stream-chat-toggle[hidden] { display:none; }
+
+/* Preserve theme corner sizes on the outside of the connected composer. */
+#stream-chat-panel .stream-chat-form textarea { border-start-end-radius:0; border-end-end-radius:0; border-inline-end:0; }
+#stream-chat-panel .stream-chat-form > .primary { border-start-start-radius:0; border-end-start-radius:0; }
+
+.stream-chat-reply { grid-column:1 / -1; display:flex; align-items:center; gap:8px; padding-inline-start:10px; border-inline-start:2px solid var(--gold); background:var(--velvet-2); }
+.stream-chat-reply[hidden] { display:none; }
+.stream-chat-reply > span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:var(--muted); }
+.stream-chat-reply > .icon-btn { flex:0 0 44px; width:44px; height:44px; display:grid; place-items:center; }
+
+/* Adjacent action targets touch; the rest of the info row keeps its spacing. */
+#stream-zap + #stream-chat-toggle { margin-inline-start:-8px; }
+
+.stream-controls #stream-viewers { padding-inline:4px 0; margin-inline-end:-4px; flex-shrink:0; }
+
+/* Player actions highlight their glyphs, preserving keyboard focus outlines. */
+#stream-dock :is(#stream-zap, #stream-chat-toggle, #stream-stop):hover {
+  background:transparent; border-color:transparent; box-shadow:none;
+}
+#stream-dock :is(#stream-zap, #stream-chat-toggle, #stream-stop):not(:disabled):hover {
+  color:var(--gold);
+}
+#stream-stop:hover svg > rect:first-child { stroke:currentColor; stroke-opacity:1; }
+
+.stream-chat-zap { border:0; border-radius:0; margin:0; padding:4px 0; }
+.stream-chat-zap .stream-chat-author { max-width:55%; font-size:12px; }
+.stream-chat-zap .stream-chat-body { min-width:0; margin:2px 0 0; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; }
+.stream-chat-zap-amount { color:var(--gold); white-space:nowrap; font-size:12px; }
+
+/* Reuse the note composer's mention pills, keeping the chat input joined to Send. */
+.stream-chat-editor { min-width:0; position:relative; }
+#stream-chat-panel .stream-chat-editor .compose-editor { box-sizing:border-box; height:64px; min-height:64px; max-height:64px; overflow:auto; margin:0; padding:12px; font-size:14px; border:1px solid var(--border); border-radius:10px; background:var(--input-bg,linear-gradient(180deg,rgba(8,2,20,.6),rgba(20,4,40,.6))); color:var(--text); border-start-end-radius:0; border-end-end-radius:0; border-inline-end:0; }
+#stream-chat-panel .stream-chat-editor .ac-dropdown { top:auto !important; bottom:calc(100% + 4px); max-height:min(200px,35vh); inset-inline:0; width:auto; z-index:2; }
+
+#stream-chat-panel .stream-chat-editor .compose-editor:focus { border-color:var(--gold-soft); box-shadow:0 0 0 3px var(--focus-ring,rgba(203,161,78,.16)); }
+
+.stream-chat-identity-row { grid-column:1 / -1; display:flex; align-items:center; gap:8px; min-width:0; }
+.stream-chat-identity-row .stream-chat-identity { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.stream-chat-hide { flex-shrink:0; border:0; background:none; box-shadow:none; padding:4px 0; color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
+.stream-chat-hide:hover { color:var(--gold); background:none; text-decoration:underline; }
+
+html.stream-directory-active #view-main > :not(#relax-status):not(#mining-status) { display:none; }
+html.stream-directory-active #view-main { justify-content:flex-end; }
+html.stream-directory-active :is(#compose-fab,#compose-menu) { display:none; }
+.stream-directory-hide { align-self:flex-end; margin-top:8px; }
+
+.stream-chat-form .stream-chat-status { grid-column:1 / -1; margin:0; font-size:12px; }
+
+/* transitions.dev text-state swap; the title keeps its separate marquee transform. */
+:root {
+  --text-swap-dur: 150ms;
+  --text-swap-translate-y: 4px;
+  --text-swap-blur: 2px;
+  --text-swap-ease: ease-in-out;
+}
+.t-text-swap {
+  display: inline-block;
+  transform: translateY(0);
+  filter: blur(0);
+  opacity: 1;
+  transition:
+    transform var(--text-swap-dur) var(--text-swap-ease),
+    filter    var(--text-swap-dur) var(--text-swap-ease),
+    opacity   var(--text-swap-dur) var(--text-swap-ease);
+  will-change: transform, filter, opacity;
+}
+.t-text-swap.is-exit {
+  transform: translateY(calc(var(--text-swap-translate-y) * -1));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+}
+.t-text-swap.is-enter-start {
+  transform: translateY(var(--text-swap-translate-y));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-text-swap { transition: none !important; }
+}
+html.reduce-motion .t-text-swap,html.reduce-balance-motion .t-text-swap { transition:none !important; }
+#stream-title-window .t-text-swap { width:100%; overflow:hidden; vertical-align:middle; }
+.stream-about { position:fixed; inset-inline:0; box-sizing:border-box; z-index:96; padding:10px 12px; overflow:auto; overscroll-behavior:contain; background:var(--velvet-1); color:var(--text); }
+.stream-about[hidden] { display:none; }
+.stream-about h2 { font-size:16px; overflow-wrap:anywhere; }
+.stream-about-description { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.5; }
+.stream-about-started,.stream-about-categories { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+html.stream-about-active #view-main > :not(#relax-status):not(#mining-status),html.stream-about-active #compose-fab { display:none !important; }
+html.stream-about-active #view-main { justify-content:flex-end; }
+.stream-top-zappers { display:flex; flex-shrink:0; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); }
+.stream-top-zappers[hidden] { display:none; }
+.stream-top-zapper { display:flex; align-items:center; justify-content:center; gap:4px; flex:1; min-width:0; padding:5px 2px; background:transparent; border:0; color:var(--gold); font-size:12px; }
+.stream-top-zapper:hover,.stream-top-zapper:focus-visible { color:var(--text); }
+.stream-top-zapper img,.stream-top-initial { width:22px; height:22px; border-radius:50% !important; object-fit:cover; flex-shrink:0; }
+.stream-top-initial { display:grid; place-items:center; background:var(--velvet-2); color:var(--text); }
+.stream-bookmark-backup { margin-block:12px; display:grid; gap:8px; }
+.stream-bookmark-backup[hidden] { display:none; }
+.stream-bookmark-backup p { margin:0; font-size:12px; color:var(--muted); }

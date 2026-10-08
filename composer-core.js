@@ -687,8 +687,8 @@ window.SidecarCore = (function () {
       const q = ctx.query.toLowerCase();
       const willSearchGlobal = ctx.query.length >= 2 && deps.naAvailable();
 
-      const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
-      let followMatches = [];
+      const matchFollows = (list) => [...new Map([...(opts?.candidates?.() || []),...list].map(c=>[c.pubkey,c])).values()].filter((c) => c.name && c.name.toLowerCase().includes(q));
+      let followMatches = matchFollows([]);
       let globals = [];
       let globalPending = false;
       let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
@@ -899,6 +899,7 @@ window.SidecarCore = (function () {
       },
       focus: () => editor.focus(),
       close: closeAcDropdown,
+      refreshSuggestions: updateAcDropdown,
     };
   }
 
