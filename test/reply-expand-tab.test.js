@@ -276,7 +276,7 @@ test('CLOSING THE MODAL DOES NOT DELETE THE SLOT IT JUST HANDED OVER', () => {
   // saves the draft one more time. For a reply with nothing typed yet, that save deletes
   // the slot, taking the target the handoff had just written. The tab then opened on a
   // slot that was not there and drew a blank note.
-  assert.match(panel, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) persistDraft\(\);/,
+  assert.match(panel, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) \{\s*persistDraft\(\)/,
     'the close handler writes over the draft the tab now owns');
   // Set BEFORE the close, or it is set too late to matter.
   const handler = panel.slice(panel.indexOf("expand.addEventListener('click'"));

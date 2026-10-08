@@ -157,5 +157,5 @@ test('cancel really does keep the draft, which is what makes that copy true', ()
     // `!handedToTab` joined it when Expand learned to hand a reply to the tab: this
   // save runs on the close at the end of that handoff and, for a reply with nothing
   // typed, deletes the very slot just written.
-  assert.match(fn, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) persistDraft\(\)/, 'closing no longer saves the draft');
+  assert.match(fn, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) \{\s*persistDraft\(\)/, 'closing no longer saves the draft');
 });

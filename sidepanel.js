@@ -9030,8 +9030,8 @@
       primary.click();
     }
   });
-  function closeModal() {
-    if (modalCleanup) { try { modalCleanup(); } catch (_) {} modalCleanup = null; }
+  function closeModal(reason) {
+    if (modalCleanup) { try { modalCleanup(reason); } catch (_) {} modalCleanup = null; }
     const modal = $('modal');
     const gen = modalGeneration;
     modal.classList.remove('is-open');
@@ -12602,6 +12602,7 @@
       }
       else delete all[key];
       await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+      return hasContent;
     })().catch(() => {
       // Swallowed on purpose: the one realistic failure is Sidecar locking
       // between keystrokes — every pre-lock keystroke was already saved, and the
@@ -14346,7 +14347,7 @@
         // which is guarded and does nothing, so without it the guard would read as a
         // stuck dialog. It discards like Cancel does; the draft is already saved.
       },
-      () => {
+      function closeComposer(reason) {
         stopCountdown();
         // AND STOP MINING. A mine outlives the pane it is drawn in: the worker keeps
         // hashing after the modal closes, and doPublish resumes on the other side of that
@@ -14362,7 +14363,11 @@
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
         // Persist on close only once the user has actually edited — closing the
         // chooser without choosing must not overwrite the saved draft.
-        if (!published && !handedToTab && !switchingDraft && enteredEditor) persistDraft();
+        if (!published && !handedToTab && !switchingDraft && enteredEditor) {
+          persistDraft().then((saved) => {
+            if (reason === 'approval' && saved) toast(t('Draft saved'), 'success');
+          });
+        }
         // WHERE THIS CAME FROM. A reply started in the bell sheet had to give the
         // composer the whole panel, and dropping the user out onto the main view
         // afterwards loses their place in a list they were working through. Runs whether
@@ -14370,7 +14375,7 @@
         //
         // Last, and guarded: it reopens a modal, and it must not be able to stop the
         // draft above from being saved.
-        if (!switchingDraft && opts && typeof opts.returnTo === 'function') {
+        if (reason !== 'approval' && !switchingDraft && opts && typeof opts.returnTo === 'function') {
           try { opts.returnTo(); } catch (_) {}
         }
       }
@@ -22943,7 +22948,7 @@
     // uncovered between the two calls, which lets a deferred renderMain() (see
     // panelIsCovered) fire in the gap and delays the approval by a frame.
     show($('view-approval'));
-    if (document.documentElement.classList.contains('modal-open')) closeModal();
+    if (document.documentElement.classList.contains('modal-open')) closeModal('approval');
 
     const payment = isPaymentApproval(data);
     $('approval-host').textContent = data.host;
@@ -23269,7 +23274,8 @@
       const group = head.groupIds && head.groupIds.length ? head.groupIds : [head.id];
       if (!pendingApproval || pendingApproval.id !== head.id) {
         pendingApproval = { id: head.id, data: head.data, groupIds: group, members: head.members || [], chosenPubkey: null };
-        closeModal();
+        // showApproval owns modal dismissal, including the interrupted draft's
+        // save confirmation. Closing here first consumes that cleanup without a reason.
         showApproval();
       } else if (!pendingApproval.groupIds || pendingApproval.groupIds.length !== group.length) {
         // Same head, but more same-kind requests arrived (or drained) — re-render
