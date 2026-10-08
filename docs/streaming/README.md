@@ -104,15 +104,60 @@ the player, showing the full title, description, start date, and categories. Bac
 returns to chat when that was open. Lock and approval close About; active timers
 retain their space at the bottom.
 
-Chat has a compact top-three zapper strip with profile pictures and amounts.
+Chat has a compact horizontally scrollable strip showing the top 10 zappers with profile pictures and amounts, ranked from highest to lowest. The stream total still includes every verified zap. Touch/trackpad scrolling reveals more participants; keyboard users can focus the strip and use the arrow keys. Profile lookups are limited to visible entries.
 Exact amounts and names appear in tooltips; selecting one opens the profile.
 Rankings use the full validated payment accumulator, not the 1,000-row timeline
 cache. No receipts means no strip. Totals reflect available verified receipts,
 not a guarantee of global completeness.
 
-Latest verification: 2,588 automated tests passed, followed by 62 focused stream tests after the final layout refinements (including three additional title-lifecycle tests). Coverage includes metadata/runtime,
+Latest verification: all 2,611 automated tests passed on October 7, 2026. Each implementation commit also passed its focused stream and client-preference checks independently. Coverage includes metadata/runtime,
 verified zapper aggregation, encrypted bookmark payloads, account-switch guards,
 and local chat-send rendering. The 360px leaderboard was checked across all 21
 themes. Firefox's localhost review played the real HLS stream with progressing
 time and showed chat, top zappers, and About. This is browser verification, not a
 claim that the installed Firefox extension's signer/payment flows were tested.
+
+Chat reactions use NIP-25 kind 7 with the comment's event ID, author, and kind
+1311. The existing emoji picker opens over chat. Visible comments subscribe to
+reaction history and live updates; counts deduplicate the same author's repeated
+reaction, honor mute filters, and highlight the active account's reactions.
+Reaction publishing pins the account before and after signing. The preview can
+show the controls and read public reactions but cannot publish them.
+
+Comment zap actions are labeled “Zap comment” and the payment sheet includes a
+three-line comment excerpt with the full text in its tooltip. Connected-wallet
+zaps retain the comment event reference; the QR handoff explicitly explains that
+an external-wallet address payment is not a comment zap.
+
+The title's runtime uses whole days for day-long streams, hours and minutes for
+shorter streams, and a readable minute count below one hour. The exact start
+remains in About. Backup tests exercise real NIP-44 encryption and signatures
+with disposable local keys; the final installed-extension account round trip
+still requires manual verification.
+
+Relay-completion regression: the vendored pool emits `oneose` before `onclose`
+when a relay connection fails or a subscription is refused. History reads now
+use direct relay subscriptions with an independent deadline that expires before
+the library's synthetic EOSE timer. Only a genuine EOSE completes a page;
+failed pages retain received receipts, remain incomplete, and retry without
+advancing past missing history. Chat history uses the same reader. Incomplete
+zap totals keep an ellipsis. Transport-level tests exercise the actual vendored
+library with simulated connection failures, CLOSED, silent sockets, and archive
+recovery. A fresh NoGood load recovered 223,495 sats from 866 verified receipts;
+all 2,604 regression tests passed on October 7, 2026.
+
+Chat profile hydration uses cached identities immediately, prioritizes visible
+participants, and applies verified metadata as each relay delivers it. Bounded
+parallel batches and cancellation prevent old lookups from updating a closed
+chat. Avatar nodes are reused, unchanged zapper rankings are retained, and zap
+history counter updates are batched.
+
+Stream hashtag clicks resolve the active account's preferred client at click
+time and honor the existing tab-reuse setting. Jumble uses its native hashtag
+feed; Primal keeps its search route. Clients without a declared hashtag route
+retain the Primal fallback.
+
+The stream directory has a centered, full-width Hide streams footer outside its
+scrolling content. Closing clears the app takeover immediately; resize callbacks
+during the closing animation cannot reapply it. A regression test reproduces
+that callback ordering and fails against the old behavior.

@@ -44,3 +44,22 @@ test('stream restore rejects foreign or unverified events and never decrypts the
  s.context.remote.pubkey='a';s.context.valid=false;await assert.rejects(s.bridge.restore('a'),/Invalid/);assert.equal(s.calls.length,0);
  s.context.valid=true;s.context.plaintext=JSON.stringify({version:1,streams:[{url:'https://example.com/live'}]});assert.equal((await s.bridge.restore('a'))[0].url,'https://example.com/live');
 });
+
+test('backup round trip uses real NIP-44 encryption and a verified kind-30078 signature',async()=>{
+ const fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto');
+ const ctx={TextEncoder,TextDecoder,URL,crypto:crypto.webcrypto,Uint8Array,Object,Array};vm.createContext(ctx);vm.runInContext(fs.readFileSync(require.resolve('../nostr-tools.js'),'utf8'),ctx);
+ const nt=ctx.NostrTools,secret=nt.generateSecretKey(),pubkey=nt.getPublicKey(secret),conversation=nt.nip44.v2.utils.getConversationKey(secret,pubkey),s=syncBridge();
+ s.context.account=pubkey;s.context.NT=nt;
+ s.context.call=async m=>{
+  assert.equal(m.expectedPubkey,pubkey);
+  if(m.type==='SIDECAR_OWNER_ENCRYPT')return nt.nip44.v2.encrypt(m.plaintext,conversation);
+  if(m.type==='SIDECAR_OWNER_DECRYPT')return nt.nip44.v2.decrypt(m.ciphertext,conversation);
+  return nt.finalizeEvent(JSON.parse(JSON.stringify(m.event)),secret);
+ };
+ s.context.publishToRelays=async(_,event)=>{assert.equal(nt.verifyEvent(event),true);s.context.remote=event;};
+ const items=[{url:'https://example.com/live',title:'Private saved stream'}];await s.bridge.save(items,pubkey);
+ assert.equal(s.context.remote.content.includes('example.com'),false);assert.equal(s.context.remote.kind,30078);
+ const restored=await s.bridge.restore(pubkey);assert.equal(restored.length,1);assert.equal(restored[0].title,items[0].title);assert.equal(restored[0].url,items[0].url);
+ const other=nt.generateSecretKey(),wrongKey=nt.nip44.v2.utils.getConversationKey(other,nt.getPublicKey(other));
+ assert.throws(()=>nt.nip44.v2.decrypt(s.context.remote.content,wrongKey));
+});
