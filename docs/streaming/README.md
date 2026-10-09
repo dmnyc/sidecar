@@ -1,6 +1,6 @@
 # Streaming prototype for 1.16
 
-Local branch: `feat/streaming-video`, based on main. No version bump or release yet.
+Stream playback and chat are followed by `feat/stream-directory-updates`. No version bump or release yet.
 
 ## Try it
 
@@ -12,9 +12,17 @@ For an isolated preview, serve the repository and open `/docs/streaming/preview.
 
 The dock is a sibling of all account views. The existing lock, wallet teardown, and approval logic remain intact. The public player neither calls signing APIs nor sends activity messages to extend the unlock timer. The approval overlay starts below the dock and has a separately scrolling card. Expanded playback contracts while an approval is visible; the source is unchanged.
 
-NIP-53 kind 30311 discovery queries three public relays (damus.io, nos.lol, relay.primal.net) only while the directory is open. Events are signature-verified by the existing nostr-tools pool. Latest addressable updates supersede older events, including ended announcements; live listings expire after one hour without updates. Discovery closes when selecting a stream, closing the list, or receiving an approval. Media traffic continues for the selected stream.
+NIP-53 kind 30311 discovery queries three public relays (damus.io, nos.lol, relay.primal.net) only while the directory is open. Events are signature-verified by the existing nostr-tools pool. Latest addressable updates supersede older events, including ended announcements; discovery requests the last seven days (up to 1,000 events per relay). Announcements updated within one hour qualify as live immediately. Older live announcements qualify only after two HLS playlist reads confirm an advancing media sequence; checks follow a master playlist to one variant, never download video segments, run at most two concurrently, and stop when discovery closes. Verification lasts three minutes and is periodically refreshed. Ended announcements remain excluded, and identical playback URLs appear once. Discovery closes when selecting a stream, closing the list, or receiving an approval. Media traffic continues for the selected stream.
 
 Profile links and event-linked zaps use the existing profile and wallet flows. No NIP-71 recordings, follow-list filtering, custom relay settings, or cross-window playback coordination is included. Viewer counts currently reflect selection time. Zap history is scanned per relay in 250-receipt pages, with boundary-second draining (up to 1,000 receipts) and an 80-page per-relay safety bound. Saturated boundaries, timeouts, or exhausted scan budgets are marked incomplete. Receipt scans additionally query nostr.wine and relay.snort.social. Live subscriptions are renewed and gaps are scanned every minute; verified totals are retained in memory across recovery and stream revisits. The display uses an ellipsis while loading and a plus sign for observed totals, with exact amounts and coverage status in the tooltip. Closing/reloading the extension document stops playback. Failed streams show an error and can be selected again. Browsers and stream hosts vary in codec/CORS support.
+
+## Directory views
+
+Live, Upcoming, and Past share the stream directory. Upcoming is ordered by scheduled start time; Past is ordered newest first and plays the NIP-53 recording URL only when one is supplied. Entries without playable media open details, and upcoming entries can be bookmarked before they have a media URL.
+
+Page capacity follows the available panel height and measured row height. Navigation stays above Hide streams. Next browses loaded results and, at the end of Upcoming or Past, requests more history, with per-relay cursors and bounded scanning of duplicate-only batches. Timeouts remain retryable. The directory holds at most 2,000 events.
+
+Details use the same bookmark icon as list rows. Encrypted account backup uses compact upload/download controls with tooltips and inline status. Stream UI labels use the existing translation API; production language catalogs are a separate change.
 
 ## Dependency and size
 

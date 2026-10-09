@@ -4,4 +4,4 @@ document.getElementById('theme').onchange=e=>frame.contentWindow.postMessage({pr
 
 document.getElementById('panel-size').onchange=e=>{const [width,height]=e.target.value.split('x').map(Number);frame.style.width=width+'px';frame.style.height=height+'px';document.querySelector('figcaption').textContent=width+' × '+height+' · sidebar review';};
 
-document.getElementById('pseudo-locale').onchange=e=>{frame.src='layout.html?v=stream-details'+(e.target.checked?'&pseudo=1':'');};
+document.getElementById('pseudo-locale').onchange=e=>{frame.src='layout.html?v=verified-live'+(e.target.checked?'&pseudo=1':'');};

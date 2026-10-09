@@ -85,7 +85,7 @@
   function commentZapContext(event,nameFor=key=>SidecarStreams.cocktailName(key)){
     const context=document.createElement('div');context.className='stream-comment-zap-context';
     const label=document.createElement('strong');label.textContent=SidecarI18n.t('Zap comment');
-    const excerpt=document.createElement('blockquote');excerpt.textContent=contentParts(event.content,NostrTools.nip19.decode).map(part=>part.pubkey?'@'+nameFor(part.pubkey):part.entity?SidecarI18n.t(part.type==='naddr'?'Linked event':'Linked note'):part.text).join('');excerpt.dir='auto';excerpt.title=event.content;
+    const excerpt=document.createElement('blockquote');excerpt.textContent=contentParts(event.content,NostrTools.nip19.decode).map(part=>part.pubkey?'@'+nameFor(part.pubkey):part.entity?(part.type==='naddr'?SidecarI18n.t('Linked event'):SidecarI18n.t('Linked note')):part.text).join('');excerpt.dir='auto';excerpt.title=event.content;
     context.append(label,excerpt);return context;
   }
   function mount(directory, getItem, allowed, onOpen, getZaps=()=>[], getTopZappers=()=>[]) {
@@ -258,7 +258,7 @@
         author.prepend(avatar(profile?.picture,author.dataset.avatarSlot));
         const time=el('time','stream-chat-time',SidecarI18n.fmtDate(date,{hour:'numeric',minute:'2-digit'}));time.dateTime=date.toISOString();time.title=SidecarI18n.fmtDate(date,{dateStyle:'full',timeStyle:'short'});
         const answer=el('button','icon-btn stream-chat-answer');answer.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 5-7 6 7 6M3 11h10a8 8 0 0 1 8 8"/></svg>';answer.type='button';answer.setAttribute('aria-label',t('Reply'));answer.onclick=()=>{reply=event;replyText.textContent=t('Replying to {{name}}',{name:profile?.name || author.textContent});replyLabel.hidden=false;input.focus();};
-        const zap=el('button','icon-btn stream-chat-zap-action');zap.type='button';zap.setAttribute('aria-label',t(event.kind===9735?'Zap author':'Zap comment'));zap.title=zap.getAttribute('aria-label');
+        const zap=el('button','icon-btn stream-chat-zap-action');zap.type='button';zap.setAttribute('aria-label',(event.kind===9735?t('Zap author'):t('Zap comment')));zap.title=zap.getAttribute('aria-label');
         const bolt=document.getElementById('stream-zap')?.querySelector('svg');if(bolt)zap.append(bolt.cloneNode(true));zap.onclick=()=>{if(allowed())bridge()?.zap(event);};
         const actions=el('div','stream-chat-actions');actions.append(answer,zap);
         const reactButton=el('button','icon-btn');reactButton.type='button';reactButton.title=t('React');reactButton.setAttribute('aria-label',t('React'));
@@ -284,14 +284,14 @@
           }
           row.append(body);
         }
-        const more=el('button','stream-chat-more',t(expanded.has(event.id)?'Less':'More'));more.type='button';more.setAttribute('aria-expanded',String(expanded.has(event.id)));more.hidden=true;
+        const more=el('button','stream-chat-more',(expanded.has(event.id)?t('Less'):t('More')));more.type='button';more.setAttribute('aria-expanded',String(expanded.has(event.id)));more.hidden=true;
         row.classList.toggle('is-expanded',expanded.has(event.id));
-        more.onclick=()=>{const open=!expanded.has(event.id);if(open)expanded.add(event.id);else expanded.delete(event.id);row.classList.toggle('is-expanded',open);more.textContent=t(open?'Less':'More');more.setAttribute('aria-expanded',String(open));};
+        more.onclick=()=>{const open=!expanded.has(event.id);if(open)expanded.add(event.id);else expanded.delete(event.id);row.classList.toggle('is-expanded',open);more.textContent=(open?t('Less'):t('More'));more.setAttribute('aria-expanded',String(open));};
         if(event.kind!==9735){
           const chips=el('div','stream-chat-reactions');
           for(const group of reactions.groups(event.id,account,e=>bridge()?.muted(e))){
             const chip=el('button','stream-chat-reaction',group.content+' '+SidecarI18n.fmtNum(group.count));chip.type='button';
-            chip.setAttribute('aria-pressed',String(group.mine));chip.title=t(group.mine?'You reacted {{reaction}}':'React {{reaction}}',{reaction:group.content});chip.setAttribute('aria-label',chip.title);chip.disabled=group.mine;chip.onclick=()=>react(event,group.content);chips.append(chip);
+            chip.setAttribute('aria-pressed',String(group.mine));chip.title=(group.mine?t('You reacted {{reaction}}',{reaction:group.content}):t('React {{reaction}}',{reaction:group.content}));chip.setAttribute('aria-label',chip.title);chip.disabled=group.mine;chip.onclick=()=>react(event,group.content);chips.append(chip);
           }
           row.append(more,chips,actions);clamps.push({body,more,event});
         }
@@ -379,7 +379,7 @@
       if(chat)onOpen?.();
       pane.hidden=!chat;document.documentElement.classList.toggle('stream-chat-active',!!chat);
       toggle.setAttribute('aria-expanded',String(!!chat));
-      toggle.setAttribute('aria-label',t(chat?'Close chat':'Stream chat'));toggle.title=t(chat?'Close chat':'Stream chat');
+      toggle.setAttribute('aria-label',(chat?t('Close chat'):t('Stream chat')));toggle.title=(chat?t('Close chat'):t('Stream chat'));
       if(chat){
         if(!mentionEditor && bridge()?.createMentionEditor){
           mentionEditor=bridge().createMentionEditor({placeholder:t('Write a message'),candidates:()=>[...profiles].map(([pubkey,p])=>({pubkey,...p})),onChange:()=>{send.disabled=!account || busy || !allowed() || draftText().length>4000;}});
