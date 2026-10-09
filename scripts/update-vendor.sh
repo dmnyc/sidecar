@@ -18,6 +18,7 @@
 # See VENDOR.md for the provenance table and verification instructions.
 set -euo pipefail
 
+HLS_VERSION=1.7.3
 NOSTR_TOOLS_VERSION=2.23.11
 JSQR_VERSION=1.4.0
 QRCODE_GENERATOR_VERSION=2.0.4
@@ -55,6 +56,7 @@ fetch() { # fetch <package> <version> → verified tarball extracted to $WORK/<p
 cd "$WORK"
 echo "Fetching official npm artifacts (each tarball verified against registry dist.integrity)…"
 fetch nostr-tools "$NOSTR_TOOLS_VERSION"
+fetch hls.js "$HLS_VERSION"
 fetch jsqr "$JSQR_VERSION"
 fetch qrcode-generator "$QRCODE_GENERATOR_VERSION"
 fetch unicode-emoji-json "$UNICODE_EMOJI_JSON_VERSION"
@@ -62,6 +64,7 @@ fetch emojibase-data "$EMOJIBASE_DATA_VERSION"
 
 mkdir -p "$STAGE"
 cp nostr-tools/lib/nostr.bundle.js "$STAGE/nostr-tools.js"
+cp hls.js/dist/hls.js "$STAGE/hls.js"
 cp jsqr/dist/jsQR.js "$STAGE/jsqr.js"
 cp qrcode-generator/dist/qrcode.js "$STAGE/qrcode-generator.js"
 
@@ -137,7 +140,7 @@ npx esbuild entry.js --bundle --format=iife --global-name=SidecarNip49 \
 # Hash the staged bundles with bare filenames (the shape CI verifies from the
 # repo root), then gate on a diff against what's committed.
 cd "$STAGE"
-sha256sum nostr-tools.js nip49.js jsqr.js qrcode-generator.js emoji-data.js > "$WORK/vendor-hashes.new"
+sha256sum nostr-tools.js nip49.js jsqr.js qrcode-generator.js emoji-data.js hls.js > "$WORK/vendor-hashes.new"
 if [ -f "$ROOT/scripts/vendor-hashes.sha256" ] &&
    ! diff -u "$ROOT/scripts/vendor-hashes.sha256" "$WORK/vendor-hashes.new"; then
   if [ "$ACCEPT_HASH_CHANGE" -ne 1 ]; then
@@ -155,7 +158,7 @@ fi
 cd "$ROOT"
 cp "$WORK/vendor-hashes.new" scripts/vendor-hashes.sha256
 cp "$STAGE/nostr-tools.js" "$STAGE/nip49.js" "$STAGE/jsqr.js" "$STAGE/qrcode-generator.js" \
-   "$STAGE/emoji-data.js" .
+   "$STAGE/emoji-data.js" "$STAGE/hls.js" .
 echo
 echo "Vendored bundles refreshed. Recorded hashes:"
 cat scripts/vendor-hashes.sha256

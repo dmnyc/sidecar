@@ -1268,6 +1268,7 @@
       return;
     }
     state = await call({ type: 'SIDECAR_GET_STATE' });
+    window.dispatchEvent(new CustomEvent('sidecar-chat-account'));
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     // Re-init means a lock, an unlock or a reload, and a peek does not survive any of
     // them: the timer is dropped and the live state goes back to the preference.
@@ -1620,7 +1621,8 @@
     toast(t('Locked'), 'success');
   });
 
-  $('compose-fab').addEventListener('click', () => {
+  $('compose-note-btn').addEventListener('click', () => {
+    if ($('compose-fab').disabled) return;
     const balloon = $('first-post-balloon');
     const isFirstTime = balloon && !balloon.classList.contains('hidden') && state?.activePubkey;
     if (isFirstTime) {
@@ -2264,10 +2266,100 @@
     return row;
   }
 
-  async function openProfileSheet(pubkey) {
+  // Chat keeps no signing keys; every send pins the account reviewed in its composer.
+  window.SidecarStreamChatAccount = {
+    identity() {
+      if (!state?.activePubkey || !$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return null;
+      const account = state.accounts.find(a => a.pubkey === state.activePubkey);
+      return { pubkey: state.activePubkey, name: cachedProfile(state.activePubkey)?.name || account?.name || window.SidecarStreams.cocktailName(state.activePubkey) };
+    },
+    prepare: async function () {
+      const pubkey = this.identity()?.pubkey;
+      if (pubkey) await loadMuteList(pubkey, await relayUrls(false));
+    },
+    muted(event) { return isMutedNotif(_muteLists.get(state?.activePubkey), event); },
+    createMentionEditor(options) { return createMentionEditor(options); },
+    cachedProfiles(pubkeys) { return new Map(pubkeys.map(key=>[key,cachedProfile(key)]).filter(([,p])=>p)); },
+    profiles: async function(pubkeys,onProfile,signal) {
+      if(!this.identity() || signal?.aborted)return new Map();
+      const sources=[...new Set(['wss://purplepag.es',...await relayUrls(false).catch(()=>[])])];
+      if(!this.identity() || signal?.aborted)return new Map();
+      return window.SidecarStreams.profileBatch({pool:getPool(),sources,keys:pubkeys,signal,verify:NT.verifyEvent,onProfile:(key,p)=>{
+        if(signal?.aborted)return;cacheProfile(key,p.content);onProfile?.(key,p);
+      }});
+    },
+    hashtagUrl: async function(tag) {
+      const client=await preferredClient();
+      return (client.hashtag || VIEW_CLIENTS.primal.hashtag)(tag);
+    },
+    openHashtag: async function(tag) { await openInClient(await this.hashtagUrl(tag)); },
+    profile(pubkey) { if (this.identity()) openProfileSheet(pubkey); },
+    zapRecipient(pubkey) { if (this.identity() && /^[a-f0-9]{64}$/.test(pubkey)) openProfileSheet(pubkey, {zap:true}); },
+    zap(event) {
+      if (this.identity() && event.kind === 1311 && NT.verifyEvent(event)) openProfileSheet(event.pubkey, {zap:true, chatEvent:event});
+    },
+    pickReaction(host,onPick) { return emojiPickerOver(host,onPick); },
+    react: async function(target,content,hints,expectedPubkey) {
+      const check=()=>{if(this.identity()?.pubkey!==expectedPubkey)throw new Error('Account changed');};
+      check();if(!NT.verifyEvent(target))throw new Error('Invalid chat message');
+      const event=window.SidecarStreamChat.reactionTemplate(target,content);
+      const targets=[...new Set([...(await postRelays()),...hints.filter(url=>typeof url==='string' && url.startsWith('wss://')).slice(0,6)])];
+      check();const signed=await call({type:'SIDECAR_OWNER_SIGN',event,expectedPubkey});check();
+      if(signed.pubkey!==expectedPubkey)throw new Error('Account changed');
+      await publishToRelays(targets,signed);return signed;
+    },
+    send: async function (event, hints, expectedPubkey) {
+      if (this.identity()?.pubkey !== expectedPubkey || event.kind !== 1311) throw new Error('Account changed');
+      const address = event.tags.find(tag => tag[0] === 'a')?.[1];
+      // Rebuild rather than forwarding arbitrary kinds or tags to the signer.
+      const replyId = event.tags.find(tag => tag[0] === 'e')?.[1];
+      const replyAuthor = event.tags.find(tag => tag[0] === 'p')?.[1];
+      const message = window.SidecarStreamChat.template(address, event.content, replyId ? {id:replyId,pubkey:replyAuthor} : null);
+      const targets = [...new Set([...(await postRelays()), ...hints.filter(url => typeof url === 'string' && url.startsWith('wss://')).slice(0,6)])];
+      if (this.identity()?.pubkey !== expectedPubkey) throw new Error('Account changed');
+      const signed = await call({type:'SIDECAR_OWNER_SIGN', event:message, expectedPubkey});
+      await publishToRelays(targets, signed);
+      return signed;
+    },
+  };
+
+  // Explicit encrypted NIP-78 save/restore, scoped to the account captured on click.
+  window.SidecarStreamBookmarks = {
+    identity: () => window.SidecarStreamChatAccount.identity(),
+    async save(items, pubkey) {
+      const check=()=>{if(this.identity()?.pubkey!==pubkey)throw new Error('Account changed');};
+      check();const targets=await postRelays();check();
+      const plaintext=window.SidecarStreams.encodeBookmarks(items);
+      const content=await call({type:'SIDECAR_OWNER_ENCRYPT',nip:44,peer:pubkey,expectedPubkey:pubkey,plaintext});check();
+      const event={kind:30078,created_at:Math.floor(Date.now()/1000),tags:[['d','sidecar:stream-bookmarks'],['encryption','nip44']],content};
+      const signed=await call({type:'SIDECAR_OWNER_SIGN',event,expectedPubkey:pubkey});check();
+      if(signed.pubkey!==pubkey)throw new Error('Account changed');
+      await publishToRelays(targets,signed);check();
+    },
+    async restore(pubkey) {
+      const check=()=>{if(this.identity()?.pubkey!==pubkey)throw new Error('Account changed');};
+      check();const targets=await backupReadRelays();check();
+      const event=await poolGet(targets,{kinds:[30078],authors:[pubkey],'#d':['sidecar:stream-bookmarks']});check();
+      if(!event)return null;
+      if(event.kind!==30078 || event.pubkey!==pubkey || !NT.verifyEvent(event) || event.created_at>Math.floor(Date.now()/1000)+60 ||
+        event.tags.filter(x=>x[0]==='d').length!==1 || !event.tags.some(x=>x[0]==='d' && x[1]==='sidecar:stream-bookmarks') ||
+        !event.tags.some(x=>x[0]==='encryption' && x[1]==='nip44') || event.content.length>100000)throw new Error('Invalid stream backup');
+      const plaintext=await call({type:'SIDECAR_OWNER_DECRYPT',nip:44,peer:pubkey,expectedPubkey:pubkey,ciphertext:event.content});check();
+      return window.SidecarStreams.decodeBookmarks(plaintext);
+    },
+  };
+
+  window.addEventListener('sidecar-stream-zap', (event) => {
+    if (!$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return;
+    const pubkey = event.detail?.pubkey;
+    if (/^[a-f0-9]{64}$/.test(pubkey || '')) openProfileSheet(pubkey, { zap: true, streamEvent: event.detail?.event });
+  });
+
+  async function openProfileSheet(pubkey, options) {
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
     openModal((modal) => {
+      if (options?.zap) modal.classList.add('stream-zap-modal');
       // NOT modal-sheet. That class exists for the notifications list, which fills
       // the panel and scrolls an inner element; it sets overflow:hidden and
       // height:100%, so a sheet without its own scroller simply loses anything past
@@ -2303,6 +2395,7 @@
       const lud = h('div', { className: 'peek-meta hidden' });
       body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
       modal.append(body);
+      if(options?.chatEvent)modal.append(window.SidecarStreamChat.commentZapContext(options.chatEvent,key=>cachedProfile(key)?.name || window.SidecarStreams.cocktailName(key)));
 
       getFollowCount(pubkey).then((n) => {
         if (modal.isConnected) setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
@@ -2487,9 +2580,10 @@
         };
         zapPanel = (zapHasWallet && !isSelf)
           ? zapForm
-          : zapPayBlock(zapAddr, isSelf ? selfPay : undefined);
+          : zapPayBlock(zapAddr, isSelf ? selfPay : options?.chatEvent ? {note:t('Scan or copy sends a payment to the author, not a zap on this comment. Connect a wallet to zap the comment.')} : undefined);
         payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
         zapWrap.append(zapPanel);
+        if (options?.zap) zapPanel.classList.remove('hidden');
         paintPayState();
         zapWrap.classList.remove('hidden');
       }
@@ -2648,7 +2742,7 @@
       const payRow = h('div', { className: 'peek-pay-row' });
       const zapErr = h('div', { className: 'error' });
       const zapBtn = h('button', { className: 'secondary peek-zap-open' });
-      zapBtn.append(boltIcon(), h('span', { textContent: 'Zap' }));
+      zapBtn.append(boltIcon(), h('span', { textContent: options?.chatEvent ? t('Zap comment') : t('Zap') }));
       const offerBtn = h('button', { className: 'secondary peek-zap-open' });
       offerBtn.append(icon('zap'), h('span', { textContent: 'Pay offer' }));
       let offerShown = false;
@@ -2682,6 +2776,8 @@
             msats: sats * 1000,
             comment: note.value.trim(),
             recipientPubkey: pubkey,
+            streamEvent: options?.streamEvent,
+            event: options?.chatEvent,
           });
           flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
           const res = await client.payInvoice(invoice);
@@ -2744,6 +2840,7 @@
           // hideConnect: there is a wallet, so the line offering to connect one would be
           // answering a question nobody asked.
           zapHandoff = zapPayBlock(zapAddr, { hideConnect: true });
+          if(options?.chatEvent)zapHandoff.append(h('p',{className:'hint zap-pay-note',textContent:t('Scan or copy sends a payment to the author, not a zap on this comment.')}));
           zapForm.append(zapHandoff);
         }
         zapHandoff.classList.toggle('hidden');
@@ -3045,7 +3142,7 @@
     }
   });
 
-  $('comment-btn').addEventListener('click', webCommentModal);
+  $('comment-btn').addEventListener('click', () => { if (!$('compose-fab').disabled) webCommentModal(); });
 
   // ---- help & guides (opens as a full page in the main browser window) ----
   $('help-btn').addEventListener('click', () => {
@@ -3619,6 +3716,7 @@
     });
     menu.append(foot);
   }
+  window.addEventListener('sidecar-open-streams', closeAcctMenu);
   function openAcctMenu() {
     buildAcctMenu();
     const menu = $('acct-menu');
@@ -4290,10 +4388,10 @@
     });
   }
 
-  async function getProfile(pubkey) {
+  async function getProfile(pubkey, options) {
     if (!pubkey) return null;
     const hit = cachedProfile(pubkey);
-    if (hit) return hit;
+    if (hit && !options?.refresh) return hit;
     if (_profileInflight.has(pubkey)) return _profileInflight.get(pubkey);
     const p = (async () => {
       try {
@@ -4301,11 +4399,11 @@
         // plus purplepag.es and the configured set). A profile edited in another client
         // often lives only there, and the account overview showed "Not set" for a
         // NIP-05 and lightning address that were intact. Everyone else keeps the
-        // configured set: this is also the path for bookmark authors, reply targets and
+        // configured set plus the existing profile aggregator: this is also the path for bookmark authors, reply targets and
         // zap recipients, and widening those would mean a kind:10002 lookup (and a disk
         // write) per stranger, and connecting to relays other people chose.
         const own = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
-        const relays = own ? await readRelayUrls(pubkey) : await relayUrls(false);
+        const relays = own ? await readRelayUrls(pubkey) : [...new Set([...(await relayUrls(false)), 'wss://purplepag.es'])];
         if (!relays.length) return null;
         const res = await Promise.race([
           poolGetProfileInfo(relays, pubkey, { maxWait: PROFILE_MAX_WAIT }),
@@ -9000,7 +9098,7 @@
     modal.innerHTML = '';
     // Both per-modal variants reset here, or the last one to open leaks into the next:
     // a composer would leave every later dialog 620px wide.
-    modal.classList.remove('modal-sheet', 'compose-modal', 'has-drafts-btn'); // opt back in per modal
+    modal.classList.remove('modal-sheet', 'compose-modal', 'has-drafts-btn', 'stream-zap-modal'); // opt back in per modal
     // And the dismiss guard, for the same reason a class is: a stale one would make an
     // unrelated dialog refuse to close.
     _modalDismissGuard = null;
@@ -10541,6 +10639,7 @@
       toast(t('The multi-account note will show again'), 'success');
     });
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
+    $('livevideo-toggle').checked = settings.liveVideoEnabled !== false;
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     $('hidebalance-toggle').checked = settings.hideBalances === true; // default off
     $('balancepeek-toggle').checked = settings.autoHideBalances === true; // default off
@@ -12778,7 +12877,7 @@
     const fab = $('compose-fab');
     if (fab) {
       fab.disabled = locked;
-      fab.title = locked ? 'Mining a post. Stop it first.' : 'Post a note';
+      fab.title = locked ? t('Mining a post. Stop it first.') : t('Compose');
     }
     const acct = $('acct-btn');
     if (acct) {
@@ -13217,9 +13316,8 @@
       const block = h('div', { className: 'reply-target' });
       // The picture has to come from _profileCache: _notifProfiles is NAME ONLY (see its
       // declaration), so passing a bare pubkey gave avatarEl nothing to render and every
-      // reply showed a placeholder. Cached only — no fetch. This is a context strip, and
-      // a face arriving late is not worth a relay round trip on a screen the user is
-      // already typing into.
+      // reply showed a placeholder. Draw cached metadata immediately, then refresh a
+      // missing picture without blocking the composer.
       const prof = cachedProfile(replyTo.pubkey) || {};
       const av = avatarEl({ pubkey: replyTo.pubkey, picture: prof.picture, name: notifAuthorName(replyTo.pubkey) }, 'reply-target-av');
       // Cache first, then fetch if it misses. _profileCache has a 5-minute TTL, so a
@@ -13228,7 +13326,7 @@
       // only when there is no picture already, and it paints in when it lands rather
       // than holding up a composer the user is about to type into.
       if (!prof.picture) {
-        getProfile(replyTo.pubkey)
+        getProfile(replyTo.pubkey, { refresh: true })
           .then((p) => { if (p && p.picture && av.isConnected) applyAvatar(av, p); })
           .catch(() => {});
       }
@@ -21301,7 +21399,7 @@
   // NOTE (which is how a client shows it under the note, and how the recipient can tell
   // what was zapped). Without it the zap is of the person, which is what the profile
   // sheet sends.
-  async function zapInvoice({ addr, msats, comment, recipientPubkey, event }) {
+  async function zapInvoice({ addr, msats, comment, recipientPubkey, event, streamEvent }) {
     const { meta } = await lnAddressParams(addr);
     if (!(meta.allowsNostr && meta.nostrPubkey)) {
       throw new Error(t('That lightning address cannot receive zaps, only payments.'));
@@ -21318,6 +21416,11 @@
     const template = event
       ? NT.nip57.makeZapRequest({ event, amount: msats, relays, comment: comment || '' })
       : NT.nip57.makeZapRequest({ pubkey: recipientPubkey, amount: msats, relays, comment: comment || '' });
+
+    // Keep the payment recipient as the host, even when a provider published the stream.
+    if (streamEvent && /^30311:[a-f0-9]{64}:/.test(streamEvent.address || '') && /^[a-f0-9]{64}$/.test(streamEvent.id || '')) {
+      template.tags.push(['a', streamEvent.address], ['e', streamEvent.id], ['k', '30311']);
+    }
 
     // PUBLIC ONLY, for now. Anonymous (an ephemeral signing key) and private (the
     // sender encrypted into an `anon` tag) both worked out to be worse than sending
@@ -21746,6 +21849,10 @@
       _balancePeekTimer = null;
     }
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoHideBalances: e.target.checked } });
+  });
+
+  $('livevideo-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { liveVideoEnabled: e.target.checked } });
   });
 
   $('pinbalance-toggle').addEventListener('change', async (e) => {
@@ -22982,8 +23089,8 @@
       const unlockLabel = $('approval-unlock').querySelector('label');
       if (unlockLabel) {
         unlockLabel.textContent = data.autoLockNever
-          ? t('Enter your PIN: first unlock since your browser started')
-          : t('Enter your PIN to unlock');
+          ? t('Enter your PIN or passphrase: first unlock since your browser started')
+          : t('Enter your PIN or passphrase');
       }
       setTimeout(() => pin.focus(), 50);
     } else {

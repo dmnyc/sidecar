@@ -129,3 +129,19 @@ test('each relay gets a bounded wait, so one slow relay cannot sink the read', a
   assert.match(lift('async function getProfile('), /PROFILE_MAX_WAIT \* 2/);
   assert.match(bare, /const PROFILE_MISS_TTL = 30 \* 1000;/);
 });
+
+test('explicit picture refresh bypasses a cached profile without a picture', async () => {
+  let picture = '';
+  const m = build({ answer: async () => ({ content: JSON.stringify({ name: 'Derek', picture }) }) });
+  await m.getProfile(OWN);
+  picture = 'https://example.com/avatar.jpg';
+  const refreshed = await m.getProfile(OWN, { refresh: true });
+  assert.equal(refreshed.picture, picture);
+  assert.equal(m.calls.queries.length, 2);
+});
+
+test('other-account profile lookup includes the established profile aggregator', async () => {
+  const m = build({ own: [], answer: async () => ({ content: '{"picture":"https://example.com/p.jpg"}' }) });
+  await m.getProfile(OWN);
+  assert.ok(m.calls.queries[0].relays.includes('wss://purplepag.es'));
+});

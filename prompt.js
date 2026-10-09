@@ -711,7 +711,7 @@
       // written to disk. Say so, or the setting looks broken.
       if (data.autoLockNever) {
         const label = els.unlock.querySelector('label');
-        if (label) label.textContent = t('Enter your PIN: first unlock since your browser started');
+        if (label) label.textContent = t('Enter your PIN or passphrase: first unlock since your browser started');
       }
       setTimeout(() => els.pin.focus(), 50);
     }

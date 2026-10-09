@@ -1,7 +1,7 @@
 # Vendored code provenance
 
 Sidecar has no build step: what ships is what's committed. Third-party code is
-vendored as five bundled files, each traceable to official artifacts published
+vendored as six bundled files, each traceable to official artifacts published
 on registry.npmjs.org. This file records exactly where each bundle comes from so
 that anyone can re-derive and verify them — no trust in this repo required.
 
@@ -88,3 +88,7 @@ JSON.
 3. Update the version/hash table above to match `scripts/vendor-hashes.sha256`.
 4. Commit the bundles, the hash file, and this table together — CI fails if
    the files and the hash file ever disagree.
+
+## Streaming prototype
+
+`hls.js` is the byte-exact, unminified `dist/hls.js` from the official npm `hls.js@1.7.3` archive (Apache-2.0). SHA-256: `81b783697c4a08d7e7218303665f49e04b72dda1c67ff9677719586fcfe25fb7`. The registry SHA-512 integrity was verified before extraction. `scripts/update-vendor.sh` reproduces the copy. No CDN scripts, new first-party minification, or remote executable code are used. The full build supports separate HLS audio renditions, including radio streams.

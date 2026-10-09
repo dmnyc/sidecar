@@ -3741,6 +3741,7 @@ async function handleControl(message, sender, sendResponse) {
       case 'SIDECAR_OWNER_ENCRYPT': {
         if (KS.isLocked()) throw new Error('Keystore is locked');
         const pk = await KS.getActivePubkey();
+        if (message.expectedPubkey && message.expectedPubkey !== pk) throw new Error('Account changed');
         const peer = message.peer || pk; // default: encrypt to self (backups)
         const m = message.nip === 44 ? 'nip44.encrypt' : 'nip04.encrypt';
         result = await SIGNER.perform(m, { pubkey: peer, plaintext: message.plaintext }, await KS.getPrivkey(pk), pk);
@@ -3749,6 +3750,7 @@ async function handleControl(message, sender, sendResponse) {
       case 'SIDECAR_OWNER_DECRYPT': {
         if (KS.isLocked()) throw new Error('Keystore is locked');
         const pk = await KS.getActivePubkey();
+        if (message.expectedPubkey && message.expectedPubkey !== pk) throw new Error('Account changed');
         const peer = message.peer || pk;
         const m = message.nip === 44 ? 'nip44.decrypt' : 'nip04.decrypt';
         result = await SIGNER.perform(m, { pubkey: peer, ciphertext: message.ciphertext }, await KS.getPrivkey(pk), pk);

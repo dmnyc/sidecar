@@ -381,7 +381,7 @@ test('a cache miss falls back to one fetch, not a placeholder forever', () => {
   // even though the bell fetched this exact profile.
   const fn = lift('function buildReplyBlock(');
   assert.match(fn, /if \(!prof\.picture\)/, 'only when there is nothing to show');
-  assert.match(fn, /getProfile\(replyTo\.pubkey\)/);
+  assert.match(fn, /getProfile\(replyTo\.pubkey, \{ refresh: true \}\)/);
   assert.match(fn, /av\.isConnected/, 'and not into a composer that has since closed');
 });
 

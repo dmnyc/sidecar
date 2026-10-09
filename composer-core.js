@@ -687,8 +687,8 @@ window.SidecarCore = (function () {
       const q = ctx.query.toLowerCase();
       const willSearchGlobal = ctx.query.length >= 2 && deps.naAvailable();
 
-      const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
-      let followMatches = [];
+      const matchFollows = (list) => [...new Map([...(opts?.candidates?.() || []),...list].map(c=>[c.pubkey,c])).values()].filter((c) => c.name && c.name.toLowerCase().includes(q));
+      let followMatches = matchFollows([]);
       let globals = [];
       let globalPending = false;
       let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
@@ -899,6 +899,7 @@ window.SidecarCore = (function () {
       },
       focus: () => editor.focus(),
       close: closeAcDropdown,
+      refreshSuggestions: updateAcDropdown,
     };
   }
 
@@ -2983,8 +2984,8 @@ window.SidecarCore = (function () {
 
   const VIEW_CLIENTS = {
     // DEFAULT_CLIENT leads the list; the rest are in the order they were added.
-    jumble: { label: 'Jumble', url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
-    primal: { label: 'Primal', url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
+    jumble: { label: 'Jumble', hashtag: (tag) => 'https://jumble.social/notes?' + new URLSearchParams({t:tag.toLowerCase()}), url: (ne) => 'https://jumble.social/notes/' + ne, profile: (np) => 'https://jumble.social/users/' + np },
+    primal: { label: 'Primal', hashtag: (tag) => 'https://primal.net/search/' + encodeURIComponent('#' + tag), url: (ne) => 'https://primal.net/e/' + ne, profile: (np) => 'https://primal.net/p/' + np },
     yakihonne: { label: 'YakiHonne', url: (ne) => 'https://yakihonne.com/note/' + ne, profile: (np) => 'https://yakihonne.com/profile/' + np },
     iris: { label: 'Iris', url: (ne) => 'https://iris.to/' + ne, profile: (np) => 'https://iris.to/' + np },
     snort: { label: 'Snort', url: (ne) => 'https://snort.social/' + ne, profile: (np) => 'https://snort.social/' + np },

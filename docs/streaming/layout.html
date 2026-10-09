@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en" data-theme="sleepy-hollow">
+<head><base href="/">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sidecar</title>
@@ -30,10 +30,10 @@
   <link rel="stylesheet" href="themes/patterns.css" />
   <!-- Marks which Constellation plate this session shows; see sky-plate.js. In the head
        and synchronous, so the mark is set before the first paint. -->
-  <script src="sky-plate.js"></script>
+  
   <!-- The special editions and their dates; read by the script that applies the theme. -->
-  <script src="seasons.js"></script>
-  <link rel="stylesheet" href="streams.css" />
+  
+  <link rel="stylesheet" href="streams.css?v=directory-footer" />
 </head>
 <body>
   <section id="stream-dock" aria-label="Live video" data-i18n-aria-label="Live video">
@@ -1100,45 +1100,45 @@
   <!-- ===== Dev build indicator (local/unpacked builds only, opt-in via Settings) ===== -->
   <button id="dev-badge" class="dev-badge hidden" title="Sidecar dev build"></button>
 
-  <script src="i18n.js"></script>
-  <script src="replaceable-baseline.js"></script>
-  <script src="nip85.js"></script>
-  <script src="nostr-tools.js"></script>
-  <script src="ws-guard.js"></script>
-  <script src="nip49.js"></script>
-  <script src="crypto.js"></script>
-  <script src="qrcode-generator.js"></script>
-  <script src="qr.js"></script>
+  
+  
+  
+  
+  
+  
+  
+  
+  
   <!-- after qrcode-generator: pdf-backup draws the QR from its module matrix -->
-  <script src="pdf-backup.js"></script>
-  <script src="nwc-client.js"></script>
+  
+  
   <!-- CLINK offers (noffer), the payer half. Before sidepanel.js, which installs it
        with this panel's signer and pool on the way up. -->
-  <script src="clink.js"></script>
-  <script src="relay-health.js"></script>
+  
+  
   <!-- Which relays an account uses (self.SidecarRelayPolicy). Shared with the background,
        which answers a client's getRelays() from the same rule the panel posts by. -->
-  <script src="relay-policy.js"></script>
-  <script src="wot.js"></script>
+  
+  
   <!-- Lazarus, recovery of user data from relay history (self.SidecarLazarus). Own
        code, pure core only: the registry, ranking and delta math live here; the
        scanning and signing stay in the panel, where the clicks are. -->
-  <script src="lazarus.js"></script>
+  
   <!-- The reaction picker's emoji table (self.SidecarEmoji). Vendored and generated;
        see VENDOR.md. Static data, so it is parsed once here rather than fetched when
        the picker opens: 52KB of JSON over a message port, on a surface that has to
        feel instant, is the worse trade. -->
   <!-- The "on this day" list. Hand-written and meant to be edited; its own file so it
        can be added to without opening sidepanel.js, and so batches do not collide. -->
-  <script src="on-this-day.js"></script>
-  <script src="emoji-data.js"></script>
-  <script src="version.js"></script>
+  
+  
+  
   <!-- The DOM toolkit the composer is built from, loaded before the panel because the
        panel destructures it on its first line. Shared with the expanded composer page. -->
-  <script src="composer-core.js"></script>
-  <script src="sidepanel.js"></script>
-  <script src="hls.js"></script>
-  <script src="stream-core.js?v=cocktail-names"></script>
-  <script src="stream-chat.js"></script><script src="stream-details.js"></script><script src="streams.js"></script>
-</body>
+  
+  
+  
+  
+  
+<script src="i18n.js"></script><script src="docs/streaming/locale.js"></script><script src="nostr-tools.js"></script><script src="composer-core.js"></script><script src="hls.js"></script><script src="stream-core.js?v=relay-history"></script><script src="stream-chat.js"></script><script src="stream-details.js"></script><script src="streams.js?v=directory-footer"></script><script src="docs/streaming/layout.js?v=stream-details"></script></body>
 </html>

@@ -1,0 +1,593 @@
+/* The public media dock is a sibling of every account/lock view. */
+:root { --stream-height: 33px; }
+body { padding-top: var(--stream-height); }
+#stream-dock { position: fixed; inset: 0 0 auto; z-index: 95; background: var(--velvet-1); border-bottom: 1px solid var(--border-strong); color: var(--text); }
+.stream-toolbar { display:flex; align-items:center; gap:8px; padding:0 8px; min-height:32px; }
+.stream-toolbar strong { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+.stream-toolbar button { font:inherit; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--velvet-2); color:var(--text); }
+#stream-video { display:block; width:100%; height:min(180px, 27vh); object-fit:contain; background:#000; }
+/* Hide Chromium’s disabled native fullscreen control; PiP remains available. */
+#stream-video::-webkit-media-controls-fullscreen-button { display:none; }
+#stream-dock[hidden], #stream-video[hidden], #stream-dock [hidden] { display:none; }
+.stream-expanded #stream-video { height: min(360px, 48vh); }
+.stream-approving #stream-video { height:min(140px, 22vh); }
+.stream-approving .stream-toolbar button:not(#stream-stop) { display:none; }
+#stream-status:empty { display:none; }
+#stream-status { margin:0; padding:4px 12px; font-size:12px; }
+#stream-directory { max-height: min(480px, 60vh); overflow:auto; padding:12px; }
+#stream-form { display:flex; flex-direction:column; gap:8px; }
+#stream-form input { width:100%; box-sizing:border-box; }
+#stream-list { display:grid; gap:10px; margin-top:12px; }
+.stream-result { display:flex; align-items:center; gap:10px; text-align:start; padding:8px; background:var(--velvet-2); color:var(--text); border:1px solid var(--border); border-radius:8px; }
+.stream-result img { width:86px; height:48px; object-fit:cover; border-radius:4px; }
+.stream-result span { min-width:0; overflow-wrap:anywhere; }
+#view-main, #view-settings { height:calc(100vh - var(--stream-height)); }
+#view-lock { min-height:calc(100vh - var(--stream-height)); }
+.approval-overlay { top:var(--stream-height); padding:10px; }
+.approval-card { max-height:100%; }
+/* Ruby glass pilot lamp: warm center, dark rim, and a restrained incandescent halo.
+   Steady light rather than a pulsing notification; the label carries its meaning. */
+.stream-toolbar #stream-browse { display:inline-flex; align-items:center; justify-content:center; gap:8px; flex-shrink:0; min-height:32px; padding:6px 10px; border-color:transparent; background:transparent; }
+.stream-live-label { font-size:11px; font-weight:700; line-height:1; letter-spacing:0.13em; text-transform:uppercase; color:var(--text-2, var(--text)); }
+/* A round ruby lens with a reflected highlight and a dark glass rim. */
+#stream-dock .stream-pilot {
+  position:relative; display:block; box-sizing:border-box;
+  width:11px; height:11px; min-width:11px; min-height:11px; flex:0 0 11px;
+  aspect-ratio:1; border-radius:50%; overflow:hidden;
+  border:1px solid #55585d;
+  background:radial-gradient(ellipse at 50% 80%, #fb6545 0%, transparent 52%),
+    radial-gradient(circle at 42% 35%, #eb5540 0%, #bd231e 42%, #710e13 72%, #280b12 100%);
+  box-shadow:0 0 0 1px #c8cbd04d, inset 0 1px 1px #e4e6e88c,
+    inset 0 -1px 2px #26040cc9, 0 0 5px #e7443959, 0 0 11px #bf2c292e;
+}
+#stream-dock .stream-pilot::after {
+  content:''; position:absolute; top:1px; left:1px; width:6px; height:4px;
+  border-radius:50%; transform:rotate(-25deg);
+  background:linear-gradient(180deg,#fff3e6e6,#ffd1b34d 65%,transparent);
+}
+.stream-toolbar #stream-expand { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:7px; flex-shrink:0; background:transparent; border-color:transparent; }
+#stream-expand svg { width:16px; height:16px; display:block; }
+#stream-expand .stream-collapse-icon, #stream-expand[aria-expanded="true"] .stream-expand-icon { display:none; }
+#stream-expand[aria-expanded="true"] .stream-collapse-icon { display:block; }
+.stream-toolbar #stream-browse:hover, .stream-toolbar #stream-expand:hover { background:var(--hover-soft); border-color:var(--border); }
+.stream-toolbar button:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+/* Preserve hidden and approval states despite the more specific control styling. */
+.stream-toolbar #stream-expand[hidden], .stream-approving #stream-expand, .stream-approving #stream-browse { display:none; }
+
+.stream-toolbar #stream-stop { width:32px; height:32px; padding:0; flex-shrink:0; border-color:transparent; background:transparent; }
+
+.stream-toolbar #stream-stop { display:inline-flex; align-items:center; justify-content:center; }
+.stream-toolbar #stream-stop[hidden] { display:none; }
+/* Equal outer columns keep the title centered in the panel, independent of controls. */
+.stream-toolbar { display:grid; grid-template-columns:var(--stream-control-space,72px) minmax(0,1fr) var(--stream-control-space,72px); gap:4px; }
+.stream-toolbar #stream-browse { justify-self:start; padding-inline:6px; }
+.stream-controls { display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; }
+#stream-title-window { min-width:0; overflow:hidden; text-align:center; padding:0 8px; mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); }
+.stream-toolbar #stream-title { display:inline-block; width:max-content; max-width:none; overflow:visible; text-overflow:clip; white-space:nowrap; vertical-align:middle; font-size:12px; font-weight:500; }
+#stream-title-window.stream-title-scrolling { text-align:left; }
+.stream-title-scrolling #stream-title { animation:stream-title-drift var(--stream-title-duration, 18s) linear infinite alternate; }
+@keyframes stream-title-drift { 0%,15% { transform:translateX(0); } 85%,100% { transform:translateX(var(--stream-title-travel)); } }
+#stream-title-window:hover #stream-title { animation-play-state:paused; }
+html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { animation:none; }
+@media (prefers-reduced-motion:reduce) { .stream-title-scrolling #stream-title { animation:none; } }
+.stream-approving #stream-browse { display:inline-flex; pointer-events:none; }
+/* LIVE is a quiet text cue, not a separate pill; retain the keyboard focus ring. */
+.stream-toolbar #stream-browse,
+.stream-toolbar #stream-browse:hover,
+.stream-toolbar #stream-browse:active,
+.stream-toolbar #stream-browse[aria-expanded="true"] {
+  background:none; border-color:transparent; box-shadow:none; border-radius:0;
+}
+/* The feed picker floats over the app; its list owns the scroll, not the lock page. */
+#stream-directory {
+  position:absolute; inset:100% 0 auto;
+  max-height:min(480px, calc(100dvh - var(--stream-height) - 12px));
+  overflow-y:auto; overscroll-behavior:contain;
+  background:var(--velvet-1); border-bottom:1px solid var(--border-strong);
+  box-shadow:0 14px 28px #0005;
+}
+#view-lock {
+  height:calc(100dvh - var(--stream-height)); min-height:0;
+  overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; justify-content:safe center;
+}
+#stream-dock:has(#stream-directory:not([hidden])) ~ #view-lock {
+  overflow:hidden;
+}
+
+/* One full-width disclosure target; the independent playback controls sit above it. */
+.stream-toolbar { position:relative; display:block; padding:0; }
+.stream-toolbar #stream-browse {
+  display:grid; grid-template-columns:var(--stream-control-space,72px) minmax(0,1fr) var(--stream-control-space,72px);
+  gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
+}
+.stream-live-cue { display:inline-flex; align-items:center; gap:8px; padding-inline:6px; }
+#stream-title-window { display:block; }
+.stream-controls { position:absolute; right:8px; top:0; height:32px; }
+.stream-approving #stream-browse { display:grid; }
+
+/* Keep unlock and navigation available beneath even the expanded player. */
+#stream-dock { max-height:50dvh; display:flex; flex-direction:column; }
+#stream-dock[hidden] { display:none; }
+.stream-toolbar { flex:0 0 32px; }
+#stream-video { min-height:0; flex:0 1 auto; }
+#stream-status { flex:0 0 auto; max-height:48px; overflow:auto; }
+#stream-advanced { order:3; margin-top:12px; }
+#stream-advanced summary { cursor:pointer; color:var(--text-muted); padding:8px 0; }
+#stream-form { margin-top:8px; }
+#stream-directory { display:flex; flex-direction:column; }
+#stream-directory[hidden] { display:none; }
+#stream-refresh { align-self:flex-end; }
+
+/* Quiet directory actions and consistent media wells. */
+#stream-refresh { width:32px; height:32px; display:grid; place-items:center; margin-bottom:2px; }
+#stream-list { margin-top:0; }
+.stream-thumbnail { position:relative; display:grid; place-items:center; flex:0 0 86px; width:86px; height:48px; overflow:hidden; border-radius:6px; background:linear-gradient(145deg,var(--velvet-1),var(--velvet-2)); border:1px solid var(--border); }
+.stream-thumbnail-play { width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:10px solid var(--muted); opacity:.65; margin-left:3px; }
+.stream-result .stream-thumbnail img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.stream-more summary, #stream-advanced summary { list-style:none; font:inherit; font-size:13px; color:var(--muted); cursor:pointer; padding:10px 0; }
+.stream-more summary::-webkit-details-marker, #stream-advanced summary::-webkit-details-marker { display:none; }
+.stream-more summary::after, #stream-advanced summary::after { content:'›'; display:inline-block; margin-left:8px; }
+.stream-more[open] summary::after, #stream-advanced[open] summary::after { transform:rotate(90deg); }
+.stream-more .stream-result { width:100%; margin-bottom:10px; }
+#stream-advanced { border-top:1px solid var(--border); margin-top:12px; }
+#stream-form { padding:4px 0 8px; }
+#stream-form input { min-width:0; }
+#stream-form .primary { align-self:stretch; }
+
+.stream-directory-actions { display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); margin-top:12px; padding-top:6px; }
+.stream-directory-actions .ghost { font:inherit; font-size:13px; border:0; padding:8px 10px; border-radius:8px; }
+.stream-directory-actions #stream-url-toggle { margin-left:auto; }
+.stream-directory-actions #stream-refresh { margin:0; align-self:auto; }
+#stream-more-list { display:grid; gap:10px; margin-top:10px; }
+#stream-more-list[hidden] { display:none; }
+#stream-advanced { order:initial; border:0; margin-top:8px; }
+
+
+.stream-row { position:relative; }
+.stream-row .stream-result { width:100%; min-height:74px; padding-bottom:14px; }
+.stream-avatar { position:absolute; left:70px; top:39px; width:30px; height:30px; border-radius:50%; overflow:hidden; border:2px solid var(--velvet-1); background:var(--velvet-2); box-shadow:0 0 0 1px var(--border); display:grid; place-items:center; }
+.stream-avatar::before { content:''; width:64%; height:64%; background:var(--text); mask:url('icons/avatar-default.svg') center / contain no-repeat; -webkit-mask:url('icons/avatar-default.svg') center / contain no-repeat; opacity:.72; }
+.stream-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.stream-avatar:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+
+.stream-pagination { display:flex; justify-content:space-between; gap:12px; order:1; padding-top:4px; }
+.stream-pagination .secondary { font:inherit; padding:8px 12px; border-radius:8px; }
+.stream-pagination button:disabled { opacity:.4; cursor:default; }
+
+/* PiP owns the picture; keep only the LIVE bar in the sidebar. */
+#stream-dock.stream-pip #stream-video { height:0; min-height:0; flex-basis:0; }
+#stream-dock.stream-pip #stream-status, #stream-dock.stream-pip #stream-expand { display:none; }
+
+#stream-page-controls:empty { display:none; }
+#stream-page-controls .stream-pagination { padding:0; gap:2px; }
+#stream-page-controls .icon-btn { width:32px; height:32px; padding:0; font-size:24px; line-height:1; }
+.stream-directory-actions { gap:4px; }
+
+/* A single segmented toolbar with consistent targets and icon strokes. */
+.stream-directory-actions {
+  gap:0; padding:0; margin-top:12px; min-height:36px;
+  border:1px solid var(--border); border-radius:8px;
+  background:var(--velvet-2); overflow:hidden;
+}
+#stream-page-controls { display:flex; flex:0 0 auto; }
+#stream-page-controls .stream-pagination { gap:0; }
+.stream-directory-actions #stream-refresh,
+#stream-page-controls .icon-btn {
+  width:36px; height:36px; flex:0 0 36px; margin:0; padding:9px;
+  display:grid; place-items:center; border:0; border-radius:0;
+  background:transparent; color:var(--muted); box-shadow:none;
+}
+.stream-directory-actions svg { display:block; width:18px; height:18px; }
+.stream-directory-actions .ghost {
+  flex:1 1 auto; height:36px; margin:0; padding:0 12px;
+  border:0; border-left:1px solid var(--border); border-radius:0;
+  font:inherit; font-size:13px; line-height:1; color:var(--muted);
+}
+.stream-directory-actions #stream-url-toggle { margin-left:0; }
+.stream-directory-actions button:not(:disabled):hover,
+.stream-directory-actions button[aria-expanded="true"] { background:var(--hover-soft); color:var(--text); }
+.stream-directory-actions button:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
+
+#stream-page-controls .icon-btn svg { width:20px; height:20px; }
+.stream-directory-actions #stream-refresh { width:44px; flex-basis:44px; padding:9px 13px; }
+
+/* The garnish's implied circle is centered near 16.6,16.6, while its cropped
+   32-unit viewBox is centered at 18.6,18.6. Include the missing half in alignment. */
+.stream-avatar::before { transform:translate(6.25%, 6.25%); }
+
+.stream-result-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; text-align:left; }
+#stream-info { display:flex; align-items:center; gap:8px; padding:2px 8px; flex:0 0 36px; min-height:36px; border-top:1px solid var(--border); }
+#stream-info[hidden], .stream-pip #stream-info { display:none; }
+#stream-host { display:flex; align-items:center; gap:8px; min-width:0; flex:1; color:var(--text); text-decoration:none; }
+#stream-host-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+.stream-host-avatar { position:relative; width:24px; height:24px; flex:0 0 24px; border-radius:50%; overflow:hidden; background:var(--velvet-2); }
+.stream-host-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; transform:translate(6.25%,6.25%); }
+#stream-host-image { position:absolute; width:100%; height:100%; object-fit:cover; }
+#stream-viewers { font-size:12px; color:var(--muted); white-space:nowrap; }
+#stream-viewers::after { content:''; display:inline-block; width:14px; height:14px; vertical-align:-2px; margin-left:5px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
+#stream-zap { width:32px; height:32px; flex-shrink:0; padding:7px; }
+#stream-zap svg { width:11px; height:18px; fill:currentColor; stroke:none; }
+#stream-zap { display:flex; align-items:center; justify-content:center; padding:5px; }
+#stream-zap:disabled { opacity:.4; cursor:default; }
+
+#stream-stop svg { width:16px; height:16px; display:block; }
+
+
+/* Stream payments stay below the player; profile biography cannot enlarge them. */
+#modal-overlay:has(.stream-zap-modal) {
+  top:var(--stream-height, 0px);
+  padding:12px;
+}
+#modal.stream-zap-modal {
+  max-height:100%;
+  min-height:0;
+  overscroll-behavior:contain;
+}
+.stream-zap-modal .peek-banner,
+.stream-zap-modal .peek-status,
+.stream-zap-modal .peek-body > :not(.peek-name) { display:none; }
+.stream-zap-modal .peek-avatar { width:40px; height:40px; margin-top:0; }
+.stream-zap-modal .peek-name { margin:0; }
+.stream-zap-modal .peek-actions > .secondary { display:none; }
+
+#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-right:-11px; }
+
+/* transitions.dev: number pop-in for newly received event zaps. */
+:root {
+  --digit-dur: 500ms;
+  --digit-distance: 8px;
+  --digit-stagger: 70ms;
+  --digit-blur: 2px;
+  --digit-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --digit-dir-x: 0;
+  --digit-dir-y: 1;
+}
+
+@keyframes t-digit-pop-in {
+  0%   {
+    transform: translate(
+      calc(var(--digit-distance) * var(--digit-dir-x)),
+      calc(var(--digit-distance) * var(--digit-dir-y))
+    );
+    opacity: 0;
+    filter: blur(var(--digit-blur));
+  }
+  100% { transform: translate(0, 0); opacity: 1; filter: blur(0); }
+}
+
+.t-digit-group {
+  display: inline-flex;
+  align-items: baseline;
+}
+.t-digit {
+  display: inline-block;
+  will-change: transform, opacity, filter;
+}
+.t-digit-group.is-animating .t-digit {
+  animation: t-digit-pop-in var(--digit-dur) var(--digit-ease) both;
+}
+.t-digit-group.is-animating .t-digit[data-stagger="1"] {
+  animation-delay: var(--digit-stagger);
+}
+.t-digit-group.is-animating .t-digit[data-stagger="2"] {
+  animation-delay: calc(var(--digit-stagger) * 2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-digit-group .t-digit { animation: none !important; }
+}
+
+#stream-zap-total[hidden] { display:none; }
+
+#stream-stop svg > rect:first-child { stroke:var(--muted); stroke-opacity:.55; }
+
+#stream-feed-toggle {
+  display:flex; align-items:center; justify-content:center;
+  width:100%; height:24px; min-height:24px; flex-shrink:0;
+  padding:0; border:0; border-radius:0; background:transparent;
+  color:var(--muted); box-shadow:none; cursor:pointer;
+}
+#stream-feed-toggle svg { width:16px; height:16px; }
+#stream-feed-toggle[aria-expanded="true"] svg { transform:rotate(180deg); }
+#stream-feed-toggle:hover { color:var(--text); background:var(--hover-soft); }
+#stream-feed-toggle:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
+
+/* Overlay the disclosure at the row's bottom edge without adding dock height. */
+#stream-info { position:relative; }
+#stream-feed-toggle {
+  position:absolute; left:50%; bottom:2px; transform:translateX(-50%);
+  width:32px; height:18px; min-height:0;
+}
+#stream-feed-toggle svg { width:16px; height:16px; stroke-width:2; }
+#stream-feed-toggle { color:color-mix(in srgb, var(--muted) 65%, var(--text)); }
+
+/* Keep names clear of the centered feed disclosure. */
+#stream-info:has(#stream-feed-toggle:not([hidden])) #stream-host {
+  max-width:calc(50% - 24px);
+  margin-right:auto;
+}
+
+/* Decorations must use the lock area's remaining height, not the full viewport. */
+#view-lock { container-type:size; container-name:stream-lock; }
+html[data-theme="departures"] #view-lock .lock-clock {
+  --clock:min(140px, max(0px, calc(50cqh - 220px)));
+  top:calc(50cqh - 200px - var(--clock));
+}
+html[data-theme="departures"] #view-lock .lock-board { bottom:calc(25cqh - 134px); }
+html[data-theme="turnstile"] #view-lock .lock-sign-up { bottom:calc(50cqh + 210px); }
+html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97px); }
+@container stream-lock (max-height:720px) {
+  html[data-theme="departures"] #view-lock .lock-board,
+  html[data-theme="turnstile"] #view-lock .lock-sign-down { display:none; }
+}
+@container stream-lock (max-height:640px) {
+  html[data-theme="turnstile"] #view-lock .lock-sign-up { display:none; }
+}
+@container stream-lock (max-height:600px) {
+  html[data-theme="departures"] #view-lock .lock-station { display:none; }
+}
+
+.stream-empty { text-align:center; color:var(--muted); margin:16px 0; }
+
+/* Stream identities stay circular even in themes with global square corners. */
+#stream-dock .stream-avatar,
+#stream-dock .stream-avatar img,
+#stream-dock .stream-host-avatar,
+#stream-dock #stream-host-image { border-radius:50%; }
+
+:root {
+  --dropdown-open-dur: 250ms;
+  --dropdown-close-dur: 150ms;
+  --dropdown-pre-scale: 0.97;
+  --dropdown-closing-scale: 0.99;
+  --dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.t-dropdown {
+  transform-origin: top left;
+  transform: scale(var(--dropdown-pre-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-open-dur) var(--dropdown-ease),
+    opacity   var(--dropdown-open-dur) var(--dropdown-ease);
+  will-change: transform, opacity;
+}
+.t-dropdown[data-origin="top-right"]     { transform-origin: top right; }
+.t-dropdown[data-origin="top-center"]    { transform-origin: top center; }
+.t-dropdown[data-origin="bottom-left"]   { transform-origin: bottom left; }
+.t-dropdown[data-origin="bottom-center"] { transform-origin: bottom center; }
+.t-dropdown[data-origin="bottom-right"]  { transform-origin: bottom right; }
+
+.t-dropdown.is-open {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+.t-dropdown.is-closing {
+  transform: scale(var(--dropdown-closing-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-close-dur) var(--dropdown-ease),
+    opacity   var(--dropdown-close-dur) var(--dropdown-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-dropdown { transition: none !important; }
+}
+
+#compose-menu { position:fixed; right:18px; z-index:96; width:max-content; max-width:calc(100vw - 36px); padding:6px; background:var(--velvet-1); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px #0005; }
+#compose-menu[hidden] { display:none; }
+#compose-menu button { display:block; width:100%; text-align:start; padding:12px 16px; border:0; background:transparent; color:var(--text); font:inherit; }
+#compose-menu button:hover, #compose-menu button:focus-visible { background:var(--hover-soft); }
+#stream-directory.stream-idle-directory { position:fixed; inset:0 0 auto; z-index:96; box-sizing:border-box; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
+#stream-directory.stream-playing-directory { inset-inline:0; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
+#stream-directory[hidden] { display:none; }
+
+#compose-menu button { display:flex; align-items:center; gap:12px; }
+#compose-menu button svg { width:20px; height:20px; flex:0 0 20px; color:var(--gold); }
+
+
+.stream-thumbnail-play { display:grid; place-items:center; width:24px; height:24px; border:0; margin:0; color:var(--muted); opacity:.7; }
+.stream-thumbnail-play svg { width:24px; height:24px; }
+
+/* transitions.dev shimmer adapted to a single sweep clipped to the bolt. */
+#stream-zap { position:relative; --zap-shine-duration:1000ms; }
+#stream-zap::after {
+  content:''; position:absolute; left:50%; top:50%; width:11px; height:18px;
+  transform:translate(-50%,-50%); pointer-events:none; opacity:0;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 55 94'%3E%3Cpath d='M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  background:linear-gradient(110deg, transparent 35%, var(--gold) 44%, white 50%, var(--gold) 56%, transparent 65%) 100% 0 / 400% 100% no-repeat;
+}
+#stream-zap.is-shining::after { animation:stream-zap-shine var(--zap-shine-duration) linear; }
+@keyframes stream-zap-shine {
+  0% { background-position:100% 0; opacity:0; }
+  15%, 85% { opacity:1; }
+  100% { background-position:0% 0; opacity:0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  #stream-zap.is-shining::after { animation:none; }
+}
+
+html.reduce-balance-motion #stream-zap.is-shining::after,
+html.reduce-motion #stream-zap.is-shining::after,
+html.reduce-balance-motion #stream-zap-total .t-digit,
+html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
+
+.stream-row .stream-result { padding-right:38px; }
+.stream-bookmark { position:absolute; right:4px; top:2px; width:32px; height:32px; padding:7px; z-index:1; }
+.stream-bookmark svg { width:18px; height:18px; }
+.stream-bookmark[aria-pressed="true"], #stream-saved-toggle[aria-pressed="true"] { color:var(--gold); }
+
+.stream-directory-actions #stream-saved-toggle { width:36px; flex:0 0 36px; padding:9px; }
+#stream-saved-toggle[aria-pressed="true"] svg { fill:currentColor; }
+
+/* Chat takes over the app below the player, retaining active bottom status bars. */
+#stream-chat-panel { position:fixed; inset-inline:0; z-index:94; box-sizing:border-box; padding:0 0 8px; background:var(--velvet-1); color:var(--text); display:flex; flex-direction:column; min-height:0; }
+#stream-chat-panel[hidden] { display:none; }
+html.stream-chat-active #view-main > :not(#relax-status):not(#mining-status) { display:none; }
+html.stream-chat-active #view-main { justify-content:flex-end; }
+#stream-chat-toggle[aria-expanded="true"] { color:var(--gold); }
+.stream-chat-log { padding-inline:10px 4px; overflow:auto; overscroll-behavior:contain; min-height:0; flex:1; }
+/* Chat prose owns the width; secondary actions appear over the trailing edge. */
+.stream-chat-message { position:relative; padding:7px 0; border:0; min-width:0; }
+.stream-chat-head { display:flex; align-items:center; gap:6px; min-width:0; min-height:28px; }
+.stream-chat-author { display:flex; align-items:center; gap:6px; min-width:0; max-width:65%; padding:0; background:none; border:0; color:var(--text); text-align:start; }
+.stream-chat-author > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stream-chat-author img { width:22px; height:22px; flex-shrink:0; border-radius:50% !important; object-fit:cover; }
+.stream-chat-author > .stream-chat-avatar,.stream-top-zapper > .stream-chat-avatar { position:relative; display:block; width:22px; height:22px; flex:0 0 22px; border-radius:50% !important; overflow:hidden; background:var(--velvet-1); }
+.stream-chat-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; transform:translate(6.25%,6.25%); }
+.stream-chat-avatar img { position:absolute; inset:0; }
+.stream-chat-time { margin-inline-start:auto; flex-shrink:0; font-size:10px; color:var(--muted); white-space:nowrap; }
+.stream-chat-actions { position:absolute; inset-inline-end:0; top:4px; display:flex; background:var(--velvet-1); opacity:0; pointer-events:none; }
+.stream-chat-actions .icon-btn { flex-shrink:0; width:32px; height:32px; display:grid; place-items:center; padding:0; }
+.stream-chat-actions .icon-btn svg { display:block; width:18px; height:18px; }
+.stream-chat-actions .stream-chat-zap-action svg { width:11px; height:18px; fill:currentColor; stroke:none; }
+.stream-chat-message:hover .stream-chat-actions,.stream-chat-message:focus-within .stream-chat-actions { opacity:1; pointer-events:auto; }
+.stream-chat-body { margin:2px 0 0; font-size:13px; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4; overflow:hidden; }
+.stream-chat-message.is-expanded .stream-chat-body { display:block; white-space:pre-wrap; overflow:visible; }
+.stream-chat-link { color:var(--gold); text-decoration:none; }
+.stream-chat-link:hover { text-decoration:underline; }
+.stream-chat-more { border:0; background:none; color:var(--muted); padding:4px 0; font-size:12px; }
+.stream-chat-more[hidden] { display:none; }
+.stream-chat-reactions { display:flex; flex-wrap:wrap; gap:4px; }
+.stream-chat-reactions:not(:empty) { margin-top:5px; }
+.stream-chat-reaction { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:4px 7px; border:1px solid var(--border); border-radius:12px; background:transparent; color:var(--muted); font-size:12px; }
+.stream-chat-reaction[aria-pressed="true"] { color:var(--gold); border-color:var(--gold); opacity:1; }
+.stream-chat-preview-picker { position:absolute; inset:0; z-index:5; background:var(--velvet-1); padding:12px; display:flex; align-content:start; flex-wrap:wrap; gap:8px; }
+.stream-comment-zap-context { margin-block:10px; min-width:0; }
+.stream-chat-preview-zap { box-sizing:border-box; width:calc(100% - 24px); max-width:344px; background:var(--velvet-1); color:var(--text); border:1px solid var(--border); border-radius:12px; padding:16px; }
+.stream-comment-zap-context blockquote { margin:6px 0 0; padding-inline-start:10px; border-inline-start:2px solid var(--border); color:var(--muted); font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; }
+.stream-chat-day:first-child { margin-top:4px; }
+.stream-chat-day { text-align:center; color:var(--muted); font-size:11px; margin:14px 0 6px; }
+.stream-chat-parent { display:block; color:var(--muted); font-size:12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; border-inline-start:2px solid var(--border); padding-inline-start:6px; margin-block:3px; text-decoration:none; }
+@media (hover:none) { .stream-chat-actions { position:static; opacity:1; pointer-events:auto; justify-content:flex-end; background:none; } }
+.stream-chat-form { margin-inline:10px; flex-shrink:0; display:grid; gap:8px; padding-top:8px; border-top:1px solid var(--border); }
+.stream-chat-form textarea { width:100%; box-sizing:border-box; resize:none; height:64px; min-height:64px; margin:0; }
+.stream-chat-identity,.stream-chat-status { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+.stream-chat-status { margin-inline:10px; }
+.stream-chat-status:empty { display:none; }
+.stream-chat-form { grid-template-columns:minmax(0,1fr) 44px; align-items:stretch; column-gap:0; }
+.stream-chat-identity,.stream-chat-form > .ghost { grid-column:1 / -1; }
+.stream-chat-form > .primary { width:44px; height:64px; margin:0; padding:0; display:grid; place-items:center; }
+@media (max-height:700px) {
+  html.stream-chat-active #stream-video { height:min(110px,20vh); }
+}
+html.stream-chat-active #compose-fab,
+html.stream-chat-active #compose-menu { display:none; }
+.stream-chat-log > .ghost { width:100%; }
+
+#stream-chat-toggle { display:flex; align-items:center; justify-content:center; width:32px; height:32px; flex:0 0 32px; padding:6px; }
+#stream-chat-toggle svg { width:18px; height:18px; }
+#stream-chat-toggle[hidden] { display:none; }
+
+/* Preserve theme corner sizes on the outside of the connected composer. */
+#stream-chat-panel .stream-chat-form textarea { border-start-end-radius:0; border-end-end-radius:0; border-inline-end:0; }
+#stream-chat-panel .stream-chat-form > .primary { border-start-start-radius:0; border-end-start-radius:0; }
+
+.stream-chat-reply { grid-column:1 / -1; display:flex; align-items:center; gap:8px; padding-inline-start:10px; border-inline-start:2px solid var(--gold); background:var(--velvet-2); }
+.stream-chat-reply[hidden] { display:none; }
+.stream-chat-reply > span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:var(--muted); }
+.stream-chat-reply > .icon-btn { flex:0 0 44px; width:44px; height:44px; display:grid; place-items:center; }
+
+/* Adjacent action targets touch; the rest of the info row keeps its spacing. */
+#stream-zap + #stream-chat-toggle { margin-inline-start:-8px; }
+
+.stream-controls #stream-viewers { padding-inline:4px 0; margin-inline-end:-4px; flex-shrink:0; }
+
+/* Player actions highlight their glyphs, preserving keyboard focus outlines. */
+#stream-dock :is(#stream-zap, #stream-chat-toggle, #stream-stop):hover {
+  background:transparent; border-color:transparent; box-shadow:none;
+}
+#stream-dock :is(#stream-zap, #stream-chat-toggle, #stream-stop):not(:disabled):hover {
+  color:var(--gold);
+}
+#stream-stop:hover svg > rect:first-child { stroke:currentColor; stroke-opacity:1; }
+
+.stream-chat-zap { border:0; border-radius:0; margin:0; padding:4px 0; }
+.stream-chat-zap .stream-chat-author { max-width:55%; font-size:12px; }
+.stream-chat-zap .stream-chat-body { min-width:0; margin:2px 0 0; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; }
+.stream-chat-zap-amount { color:var(--gold); white-space:nowrap; font-size:12px; }
+
+/* Reuse the note composer's mention pills, keeping the chat input joined to Send. */
+.stream-chat-editor { min-width:0; position:relative; }
+#stream-chat-panel .stream-chat-editor .compose-editor { box-sizing:border-box; height:64px; min-height:64px; max-height:64px; overflow:auto; margin:0; padding:12px; font-size:14px; border:1px solid var(--border); border-radius:10px; background:var(--input-bg,linear-gradient(180deg,rgba(8,2,20,.6),rgba(20,4,40,.6))); color:var(--text); border-start-end-radius:0; border-end-end-radius:0; border-inline-end:0; }
+#stream-chat-panel .stream-chat-editor .ac-dropdown { top:auto !important; bottom:calc(100% + 4px); max-height:min(200px,35vh); inset-inline:0; width:auto; z-index:2; }
+
+#stream-chat-panel .stream-chat-editor .compose-editor:focus { border-color:var(--gold-soft); box-shadow:0 0 0 3px var(--focus-ring,rgba(203,161,78,.16)); }
+
+.stream-chat-identity-row { grid-column:1 / -1; display:flex; align-items:center; gap:8px; min-width:0; }
+.stream-chat-identity-row .stream-chat-identity { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.stream-chat-hide { flex-shrink:0; border:0; background:none; box-shadow:none; padding:4px 0; color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
+.stream-chat-hide:hover { color:var(--gold); background:none; text-decoration:underline; }
+
+html.stream-directory-active #view-main > :not(#relax-status):not(#mining-status) { display:none; }
+html.stream-directory-active #view-main { justify-content:flex-end; }
+html.stream-directory-active :is(#compose-fab,#compose-menu) { display:none; }
+#stream-directory { overflow:hidden; }
+.stream-directory-content { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-bottom:12px; }
+.stream-directory-content > * { flex-shrink:0; }
+#stream-directory .stream-directory-hide { display:flex; justify-content:center; align-items:center; align-self:stretch; flex:0 0 auto; min-height:44px; margin:0; padding:10px 16px; border:0; border-top:1px solid var(--border); border-radius:0; background:var(--velvet-1); color:var(--text); font:inherit; font-weight:600; text-align:center; box-shadow:none; }
+#stream-directory .stream-directory-hide:hover { color:var(--gold); background:var(--hover-soft); }
+#stream-directory .stream-directory-hide:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
+
+.stream-chat-form .stream-chat-status { grid-column:1 / -1; margin:0; font-size:12px; }
+
+/* transitions.dev text-state swap; the title keeps its separate marquee transform. */
+:root {
+  --text-swap-dur: 150ms;
+  --text-swap-translate-y: 4px;
+  --text-swap-blur: 2px;
+  --text-swap-ease: ease-in-out;
+}
+.t-text-swap {
+  display: inline-block;
+  transform: translateY(0);
+  filter: blur(0);
+  opacity: 1;
+  transition:
+    transform var(--text-swap-dur) var(--text-swap-ease),
+    filter    var(--text-swap-dur) var(--text-swap-ease),
+    opacity   var(--text-swap-dur) var(--text-swap-ease);
+  will-change: transform, filter, opacity;
+}
+.t-text-swap.is-exit {
+  transform: translateY(calc(var(--text-swap-translate-y) * -1));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+}
+.t-text-swap.is-enter-start {
+  transform: translateY(var(--text-swap-translate-y));
+  filter: blur(var(--text-swap-blur));
+  opacity: 0;
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-text-swap { transition: none !important; }
+}
+html.reduce-motion .t-text-swap,html.reduce-balance-motion .t-text-swap { transition:none !important; }
+#stream-title-window .t-text-swap { width:100%; overflow:hidden; vertical-align:middle; }
+.stream-about { position:fixed; inset-inline:0; box-sizing:border-box; z-index:96; padding:10px 12px; overflow:auto; overscroll-behavior:contain; background:var(--velvet-1); color:var(--text); }
+.stream-about[hidden] { display:none; }
+.stream-about-header { display:flex; align-items:center; gap:8px; }
+.stream-about h2 { min-width:0; margin:0; font-size:16px; overflow-wrap:anywhere; }
+.stream-about .stream-about-back { display:inline-flex; align-items:center; justify-content:center; flex:0 0 36px; width:36px; height:36px; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--muted); }
+.stream-about .stream-about-back:hover { background:transparent; box-shadow:none; color:var(--accent); }
+.stream-about .stream-about-back:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+html[dir="rtl"] .stream-about-back svg { transform:rotate(180deg); }
+.stream-about-description { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.5; }
+.stream-about-started,.stream-about-categories { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+html.stream-about-active #view-main > :not(#relax-status):not(#mining-status),html.stream-about-active #compose-fab { display:none !important; }
+html.stream-about-active #view-main { justify-content:flex-end; }
+.stream-top-zappers { display:flex; flex-shrink:0; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; scrollbar-width:none; }
+.stream-top-zappers::-webkit-scrollbar { display:none; }
+.stream-top-zappers:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
+.stream-top-zappers[hidden] { display:none; }
+.stream-top-zapper { display:flex; align-items:center; justify-content:center; gap:4px; flex:0 0 auto; min-width:0; white-space:nowrap; padding:5px 2px; background:transparent; border:0; color:var(--gold); font-size:12px; }
+.stream-top-zapper:hover,.stream-top-zapper:focus-visible { color:var(--text); }
+.stream-top-zapper img,.stream-top-initial { width:22px; height:22px; border-radius:50% !important; object-fit:cover; flex-shrink:0; }
+.stream-top-initial { display:grid; place-items:center; background:var(--velvet-2); color:var(--text); }
+.stream-bookmark-backup { margin-block:12px; display:grid; gap:8px; }
+.stream-bookmark-backup[hidden] { display:none; }
+.stream-bookmark-backup p { margin:0; font-size:12px; color:var(--muted); }
