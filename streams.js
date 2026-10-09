@@ -1,6 +1,8 @@
 /* A persistent public player: refresh(), lock, and approval never recreate its video. */
-(() => {
+(async () => {
   'use strict';
+  // Chat, About, and bookmark controls have labels fixed at mount time.
+  await SidecarI18n.ready;
   const { t } = SidecarI18n;
   const root = document.getElementById('stream-dock');
   const video = document.getElementById('stream-video');
@@ -44,13 +46,13 @@
       const latest=new SidecarStreams.Directory();
       for(const event of events) { const parsed=SidecarStreams.parse(event);if(parsed?.key===item.key)latest.accept(event); }
       if(run!==discoveryGeneration || isLocked() || !enabled)return;
-      const current=latest.live().find(e=>e.key===item.key);
-      if(current)play(current.url,current.title,current.host,current);
+      const current=latest.events.get(item.key);
+      if(current){for(const event of events)if(SidecarStreams.parse(event)?.key===item.key)model.accept(event);openDirectoryItem(current);}
       else directoryError(t('This saved stream is not live or could not be reached.'));
     } catch (_) { if(run===discoveryGeneration)directoryError(t('Could not load the saved stream. Try again.')); }
     finally { lookup.destroy(); }
   }
-  const model = new SidecarStreams.Directory();
+  const model = new SidecarStreams.Directory(2000);
   let hls = null, pool = null, subscription = null, timer = null, selected = false, generation = 0, discoveryGeneration = 0, discoveryAbort = null;
   let enabled = false;
   let selectedHost = null, selectedEvent = null, zapPool = null, zapAbort = null, zapRetryTimer = null, zapHistoryTimer = null;
@@ -100,9 +102,10 @@
   function message(text) { status.textContent = text; }
   function setExpanded(on) {
     const label=on?'Collapse video':'Expand video';
+    const translated=on?t('Collapse video'):t('Expand video');
     expand.setAttribute('aria-expanded',String(on));
-    expand.setAttribute('aria-label',t(label));
-    expand.setAttribute('title',t(label));
+    expand.setAttribute('aria-label',translated);
+    expand.setAttribute('title',translated);
     expand.setAttribute('data-i18n-aria-label',label);
     expand.setAttribute('data-i18n-title',label);
   }
@@ -247,7 +250,7 @@
         if (picture || item?.image) avatar.src = picture || item.image;
       });
       const viewers = document.getElementById('stream-viewers');
-      viewers.hidden = item?.viewers == null;
+      viewers.hidden = item?.status === 'ended' || item?.viewers == null;
       if (!viewers.hidden) {
         viewers.textContent = SidecarI18n.fmtNum(item.viewers);
         viewers.title = t('Reported viewers');
@@ -255,6 +258,8 @@
       }
     }
 
+    root.querySelector('.stream-live-label').textContent = item?.status === 'ended' ? t('Replay') : t('Live');
+    root.classList.toggle('stream-replay', item?.status === 'ended');
     selected = true; document.getElementById('stream-stop').hidden = false; video.hidden = false; root.classList.add('stream-playing'); expand.hidden = false;
     title.textContent = label || t('Untitled livestream'); title.setAttribute('title',title.textContent); details?.set({...item,title:title.textContent}); measureTitle(); message(t('Connecting…')); directory.hidden = true; setFeedExpanded(false); disconnect();
     syncVisibility();
@@ -314,14 +319,100 @@
     profileImages.set(host, record);
     return record.promise;
   }
-  const PAGE_SIZE = 6;
-  let streamPage = 0, morePage = 0;
+  let pageSize = 6;
+  let streamPage = 0, morePage = 0, category = 'live', detailItem = null;
+  let historyLoaded = false, historyBusy = false;
+  const historyCursors = new Map();
+  function streamDate(value) {
+    return SidecarI18n.fmtDate(new Date(value * 1000), {dateStyle:'medium',timeStyle:'short'});
+  }
+  function itemTiming(item) {
+    if (item.status === 'planned') return item.starts ? t('Starts {{date}}', {date:streamDate(item.starts)}) : t('Start time not announced');
+    if (item.status === 'ended') return item.ends ? t('Ended {{date}}', {date:streamDate(item.ends)}) : t('Ended');
+    return '';
+  }
+  function openDirectoryItem(item) {
+    if (item.status === 'ended' && item.recording) { play(item.recording,item.title,item.host,item); return; }
+    if (model.isLive(item)) { play(item.url,item.title,item.host,item); return; }
+    detailItem=item; paint(); revealContent(list); list.querySelector('.stream-history-back')?.focus();
+  }
+  function drawDirectoryDetails(item) {
+    const content=document.createElement('section');content.className='stream-directory-detail';
+    const header=document.createElement('div');header.className='stream-directory-detail-header';
+    const back=document.createElement('button');back.type='button';back.className='stream-history-back ghost';back.setAttribute('aria-label',t('Back'));back.title=t('Back');
+    back.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg>';
+    back.onclick=()=>{detailItem=null;paint();};
+    const heading=document.createElement('h3');heading.textContent=item.title;heading.dir='auto';
+    const timing=document.createElement('p');timing.className='stream-result-time';timing.textContent=itemTiming(item);
+    const description=document.createElement('p');description.className='stream-directory-description';description.dir='auto';description.textContent=item.summary || t('No stream description available.');
+    header.append(back,heading);content.append(header,timing,description);
+    const state=document.createElement('p');state.textContent=item.status==='planned' ? t('This stream has not started yet.') : model.isLive(item) ? t('Live') : t('No recording available.');
+    if((item.status==='ended' && item.recording) || (model.isLive(item))) {
+      const watch=document.createElement('button');watch.type='button';watch.className='primary';watch.textContent=t('Watch');watch.onclick=()=>openDirectoryItem(item);content.append(watch);
+    }
+    else content.append(state);
+    const save=document.createElement('button');save.type='button';save.className='stream-bookmark icon-btn';
+    const isSaved=savedStreams.some(row=>row.key===item.key);
+    save.setAttribute('aria-pressed',String(isSaved));save.title=isSaved?t('Remove saved stream'):t('Save stream');save.setAttribute('aria-label',save.title);
+    const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('fill',isSaved?'currentColor':'none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','2');icon.setAttribute('aria-hidden','true');
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M6 3h12v18l-6-4-6 4V3z');icon.append(path);save.append(icon);
+    save.onclick=async()=>{const entry=SidecarStreams.bookmark(item);if(entry && await saveBookmarks(isSaved?savedStreams.filter(row=>row.key!==item.key):[...savedStreams,entry]))list.querySelector('.stream-directory-detail-header .stream-bookmark')?.focus({preventScroll:true});};
+    header.append(save);list.append(content);
+  }
+  async function loadHistory(reset=false) {
+    if(historyBusy || !enabled || isLocked() || !pool)return;
+    if(reset){historyCursors.clear();historyLoaded=false;}
+    historyBusy=true;paint();
+    const run=discoveryGeneration, activePool=pool, signal=discoveryAbort.signal;
+    let confirmed=0;
+    try {
+      await Promise.all(relays.map(async relay=>{
+        if(historyCursors.get(relay)===null){confirmed++;return;}
+        const filter={kinds:[30311],limit:100};
+        if(historyCursors.has(relay))filter.until=historyCursors.get(relay);
+        const {events,complete}=await SidecarStreams.relayPage(activePool,relay,filter,signal,5000);
+        if(run!==discoveryGeneration)return;
+        if(complete)confirmed++;
+        const valid=events.filter(event=>SidecarStreams.parse(event));
+        for(const event of valid)model.accept(event);
+        // Only confirmed EOSE advances the cursor; a timeout stays retryable.
+        if(complete && valid.length)historyCursors.set(relay,Math.min(...valid.map(event=>event.created_at))-1);
+        else if(complete && !events.length)historyCursors.set(relay,null);
+      }));
+      if(run===discoveryGeneration){historyLoaded=confirmed>0;directoryError(confirmed?'':t('Could not load stream history. Try again.'));}
+    } catch (_) { if(run===discoveryGeneration)directoryError(t('Could not load stream history. Try again.')); }
+    finally {if(run===discoveryGeneration){historyBusy=false;paint();}}
+  }
+  let historyPaging=false;
+  function canLoadHistory() {
+    return !savedOnly && category!=='live' && model.events.size<2000 && !relays.every(relay=>historyCursors.get(relay)===null);
+  }
+  async function nextHistoryPage(container,page,changePage) {
+    if(historyBusy || historyPaging)return;
+    const run=discoveryGeneration, view=category, extra=moreOpen, size=pageSize;
+    const current=()=>run===discoveryGeneration && view===category && !savedOnly && extra===moreOpen && size===pageSize && !detailItem;
+    const rows=()=> (view==='past'?model.past():model.upcoming()).filter(item=>(item.title==='Untitled livestream')===extra);
+    historyPaging=true;directoryError(t('Loading…'));paint();
+    try {
+      // A relay batch may contain only duplicates or another category. Keep looking,
+      // but bound each click so a sparse history cannot trigger an unlimited scan.
+      for(let attempt=0;attempt<5 && canLoadHistory();attempt++) {
+        const before=JSON.stringify([...historyCursors]);
+        await loadHistory();
+        if(!current())return;
+        if(rows().length>(page+1)*pageSize){changePage(page+1);directoryError('');revealContent(container);return;}
+        if(before===JSON.stringify([...historyCursors]))break;
+      }
+      if(current())directoryError(canLoadHistory()?t('No additional streams found yet. Select Next to keep looking.'):t('No more streams available.'));
+    } finally {historyPaging=false;paint();}
+  }
   function paginate(container, items, requested, changePage) {
-    const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    const pages = Math.max(1, Math.ceil(items.length / pageSize));
     const page = Math.max(0, Math.min(requested, pages - 1));
-    if (pages > 1 && (container === list ? !moreOpen : moreOpen)) {
+    const fetchMore=canLoadHistory();
+    if ((pages > 1 || fetchMore) && (container === list ? !moreOpen : moreOpen)) {
       const nav = document.createElement('div'); nav.className = 'stream-pagination';
-      for (const [label, delta] of [['Previous', -1], ['Next', 1]]) {
+      for (const [label, delta] of [[t('Previous'), -1], [t('Next'), 1]]) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'icon-btn';
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
@@ -331,13 +422,17 @@
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         path.setAttribute('d', delta < 0 ? 'M16 3l-9 9 9 9' : 'M8 3l9 9-9 9');
         svg.append(path); button.append(svg);
-        button.setAttribute('aria-label', t(label)); button.title = t(label); button.disabled = delta < 0 ? page === 0 : page === pages - 1;
-        button.addEventListener('click', () => { changePage(page + delta); paint(); revealContent(container); });
+        const loading=historyBusy || historyPaging;
+        button.setAttribute('aria-label', delta>0 && loading?t('Loading…'):label); button.title = label; button.disabled = loading || (delta < 0 ? page === 0 : page === pages - 1 && !fetchMore);
+        button.addEventListener('click', () => {
+          if(delta>0 && page===pages-1 && fetchMore){nextHistoryPage(container,page,changePage);return;}
+          directoryError('');changePage(page + delta); paint(); revealContent(container);
+        });
         nav.append(button);
       }
       document.getElementById('stream-page-controls').append(nav);
     }
-    return { page, items: items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) };
+    return { page, items: items.slice(page * pageSize, (page + 1) * pageSize) };
   }
   let moreOpen = false;
   let lookingForStreams = false;
@@ -345,8 +440,11 @@
     document.getElementById('stream-page-controls').replaceChildren();
     list.replaceChildren();
     const more = document.getElementById('stream-more-list'); more.replaceChildren();
-    const items = savedOnly ? savedStreams : model.live();
-    if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=savedOnly ? t('No saved streams yet.') : lookingForStreams ? t('Looking for streams…') : t('No live streams found. Try refreshing.');list.append(p); }
+    const actions=directory.querySelector('.stream-directory-actions');
+    actions.hidden=!!detailItem;
+    if(detailItem){detailItem=model.events.get(detailItem.key)||detailItem;more.hidden=true;document.getElementById('stream-advanced').hidden=true;drawDirectoryDetails(detailItem);return;}
+    const items = savedOnly ? savedStreams : category==='upcoming' ? model.upcoming() : category==='past' ? model.past() : model.live();
+    if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=savedOnly ? t('No saved streams yet.') : (lookingForStreams || historyBusy) ? t('Looking for streams…') : category==='upcoming' ? t('No upcoming streams found.') : category==='past' ? t('No past streams found.') : t('No live streams found. Try refreshing.');list.append(p); }
     const named = items.filter(item => item.title !== 'Untitled livestream');
     const untitled = items.filter(item => item.title === 'Untitled livestream');
     const mainPage = paginate(list, named, streamPage, page => { streamPage = page; });
@@ -379,11 +477,17 @@
       artwork.addEventListener('error',()=>{artwork.hidden=true;});
       if(item.image)artwork.src=item.image;
       button.append(thumb);
-      const label=document.createElement('span'); label.textContent=item.title === 'Untitled livestream' ? t('Untitled livestream') : item.title;label.dir='auto';label.className='stream-result-title';button.title=label.textContent;button.append(label);
-      button.addEventListener('click',()=>savedOnly ? openSaved(item) : play(item.url,label.textContent,item.host,item));
+      const label=document.createElement('span'); label.textContent=item.title === 'Untitled livestream' ? t('Untitled livestream') : item.title;label.dir='auto';label.className='stream-result-title';button.title=label.textContent;
+      const copy=document.createElement('span');copy.className='stream-result-copy';copy.append(label);
+      if(!savedOnly && item.status!=='live') {
+        const timing=document.createElement('span');timing.className='stream-result-time';timing.textContent=itemTiming(item);copy.append(timing);
+        if(item.status==='ended'){const state=document.createElement('span');state.className='stream-result-time';state.textContent=item.recording?t('Replay available'):t('No recording available.');copy.append(state);}
+      }
+      button.append(copy);
+      button.addEventListener('click',()=>savedOnly ? openSaved(item) : openDirectoryItem(item));
       const save=document.createElement('button');save.type='button';save.className='stream-bookmark icon-btn';
       const isSaved=savedStreams.some(e=>e.key===item.key);
-      save.setAttribute('aria-pressed',String(isSaved));save.title=t(isSaved?'Remove saved stream':'Save stream');save.setAttribute('aria-label',save.title);
+      save.setAttribute('aria-pressed',String(isSaved));save.title=(isSaved?t('Remove saved stream'):t('Save stream'));save.setAttribute('aria-label',save.title);
       const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('fill',isSaved?'currentColor':'none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','2');icon.setAttribute('aria-hidden','true');
       const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M6 3h12v18l-6-4-6 4V3z');icon.append(path);save.append(icon);
       save.addEventListener('click',event=>{event.stopPropagation();const entry=SidecarStreams.bookmark(item);if(entry)saveBookmarks(isSaved?savedStreams.filter(e=>e.key!==item.key):[...savedStreams,entry]);});row.append(save);
@@ -412,23 +516,50 @@
     }
     document.getElementById('stream-more-toggle').hidden = !untitledCount;
     more.hidden = !untitledCount || !moreOpen;
+    schedulePageSize();
   }
   let directoryPaintTimer=null;
   function queueDirectoryPaint() {
     if(directoryPaintTimer!==null)return;
     directoryPaintTimer=setTimeout(()=>{directoryPaintTimer=null;paint();},100);
   }
-  function disconnect() { chat?.close(); clearTimeout(directoryPaintTimer);directoryPaintTimer=null;discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
-  function discover() {
+  const liveChecks=new Map();
+  let liveCheckTimer=null, liveCheckRun=null;
+  function scheduleLiveChecks(){
+    if(liveCheckTimer!==null)return;
+    liveCheckTimer=setTimeout(()=>{liveCheckTimer=null;checkOlderLiveStreams();},200);
+  }
+  async function checkOlderLiveStreams(){
+    if(!enabled || isLocked() || !pool || !discoveryAbort || liveCheckRun===discoveryGeneration)return;
+    const run=discoveryGeneration,signal=discoveryAbort.signal,now=Date.now()/1000;
+    const urls=[...new Set([...model.events.values()].filter(item=>item.status==='live' && item.url && now-item.updated>=3600)
+      .sort((a,b)=>b.updated-a.updated).map(item=>item.url))];
+    // Two concurrent probes, with a cooldown per URL, bound work for noisy relays.
+    const pending=urls.filter(url=>![...model.events.values()].some(item=>item.status==='live' && item.url===url && now-item.updated<3600) && (!liveChecks.has(url)||now-liveChecks.get(url)>60)).sort((a,b)=>(liveChecks.get(a)||0)-(liveChecks.get(b)||0));
+    let cursor=0;liveCheckRun=run;
+    try { await Promise.all([0,1].map(async()=>{
+      for(;cursor<Math.min(20,pending.length) && !signal.aborted;){
+        const url=pending[cursor++];liveChecks.set(url,now);
+        const active=await SidecarStreams.advancingPlaylist(url,signal);
+        if(run!==discoveryGeneration || signal.aborted)return;
+        if(active)model.verified.set(url,Date.now()/1000);else model.verified.delete(url);
+        queueDirectoryPaint();
+      }
+    })); } finally {if(liveCheckRun===run)liveCheckRun=null;}
+  }
+  function disconnect() { clearTimeout(liveCheckTimer);liveCheckTimer=null;liveChecks.clear(); historyBusy=false; chat?.close(); clearTimeout(directoryPaintTimer);directoryPaintTimer=null;discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
+  function discover(resetHistory=false) {
     if (!enabled || isLocked()) return;
     disconnect(); lookingForStreams = true; paint();
     const run=discoveryGeneration; discoveryAbort=new AbortController();
     // Public, read-only discovery; never authenticate or keep the keystore awake.
     pool = new NostrTools.SimplePool();
     subscription = pool.subscribeMany(relays,
-      { kinds:[30311], since:Math.floor(Date.now()/1000)-3600, limit:100 },
-      { abort:discoveryAbort.signal, onevent:event=>{if(run===discoveryGeneration && model.accept(event))queueDirectoryPaint();}, oneose:()=>{if(run===discoveryGeneration){lookingForStreams=false;paint();}} });
-    timer=setInterval(paint,30000);
+      { kinds:[30311], since:Math.floor(Date.now()/1000)-7*86400, limit:1000 },
+      { abort:discoveryAbort.signal, onevent:event=>{if(run===discoveryGeneration && model.accept(event)){queueDirectoryPaint();scheduleLiveChecks();}}, oneose:()=>{if(run===discoveryGeneration){lookingForStreams=false;paint();}} });
+    timer=setInterval(()=>{paint();scheduleLiveChecks();},30000);
+    scheduleLiveChecks();
+    if(category!=='live' && !savedOnly && (resetHistory || !historyLoaded))loadHistory(resetHistory);
   }
   function positionDirectory() {
     // Closing panels remain visible during their animation, but no longer take over the app.
@@ -451,33 +582,87 @@
     if(bar){new ResizeObserver(positionDirectory).observe(bar);new MutationObserver(positionDirectory).observe(bar,{attributes:true,attributeFilter:['class','hidden']});}
   }
   const backup=document.createElement('div');backup.className='stream-bookmark-backup';backup.hidden=true;
-  const backupLabel=document.createElement('p'),backupStatus=document.createElement('p');backupStatus.setAttribute('role','status');
+  const backupRow=document.createElement('div');backupRow.className='stream-backup-row';
+  const backupCopy=document.createElement('div');backupCopy.className='stream-backup-copy';
+  const backupHeading=document.createElement('span');backupHeading.className='stream-backup-heading';backupHeading.textContent=t('Encrypted backup');
+  const backupLabel=document.createElement('p'),backupStatus=document.createElement('p');backupLabel.dir='auto';backupStatus.setAttribute('role','status');backupStatus.setAttribute('aria-live','polite');
+  backupCopy.append(backupHeading,backupLabel);
+  const backupActions=document.createElement('div');backupActions.className='stream-backup-actions';
   const saveRemote=document.createElement('button'),loadRemote=document.createElement('button');
-  for(const button of [saveRemote,loadRemote]){button.type='button';button.className='ghost';}
-  saveRemote.textContent=t('Save to account');loadRemote.textContent=t('Restore from account');
-  backup.append(backupLabel,saveRemote,loadRemote,backupStatus);directory.append(backup);
+  for(const [button,label,path] of [
+    [saveRemote,t('Save to account'),'M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5'],
+    [loadRemote,t('Restore from account'),'M12 3v13m-5-5 5 5 5-5M4 16v5h16v-5']
+  ]) {
+    button.type='button';button.className='icon-btn';button.title=label;button.setAttribute('aria-label',label);
+    const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    for(const [key,value] of Object.entries({viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'2','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true'}))icon.setAttribute(key,value);
+    const shape=document.createElementNS('http://www.w3.org/2000/svg','path');shape.setAttribute('d',path);icon.append(shape);button.append(icon);backupActions.append(button);
+  }
+  backupRow.append(backupCopy,backupActions);backup.append(backupRow,backupStatus);directory.append(backup);
   let backupBusy=false,backupNoticeTimer;
   function updateBackup(){
     const who=window.SidecarStreamBookmarks?.identity();backup.hidden=!savedOnly || !who;
-    backupLabel.textContent=who?t('Encrypted bookmarks for {{name}}',{name:who.name}):'';
+    backupLabel.textContent=who?.name || '';backupLabel.title=backupLabel.textContent;
+    backup.setAttribute('aria-busy',String(backupBusy));
     saveRemote.disabled=loadRemote.disabled=backupBusy || !who;
   }
   async function transferBookmarks(restore){
     const bridge=window.SidecarStreamBookmarks,who=bridge?.identity();if(!who || backupBusy)return;
-    backupBusy=true;clearTimeout(backupNoticeTimer);updateBackup();backupStatus.textContent=t(restore?'Restoring…':'Saving…');
+    backupBusy=true;clearTimeout(backupNoticeTimer);updateBackup();backupStatus.textContent=(restore?t('Restoring…'):t('Saving…'));
     try{
       if(restore){const items=await bridge.restore(who.pubkey);if(bridge.identity()?.pubkey!==who.pubkey)throw new Error('Account changed');
         if(items===null){backupStatus.textContent=t('No saved streams found for this account.');return;}
         if(!await saveBookmarks(SidecarStreams.mergeBookmarks(savedStreams,items)))throw new Error('Storage failed');
       }else await bridge.save(savedStreams,who.pubkey);
-      if(bridge.identity()?.pubkey===who.pubkey)backupStatus.textContent=t(restore?'Streams restored.':'Streams saved to your account.');
+      if(bridge.identity()?.pubkey===who.pubkey)backupStatus.textContent=(restore?t('Streams restored.'):t('Streams saved to your account.'));
     }catch(_){if(bridge.identity()?.pubkey===who.pubkey)backupStatus.textContent=t('Could not sync streams. Check your connection and try again.');}
     finally{backupBusy=false;updateBackup();backupNoticeTimer=setTimeout(()=>{backupStatus.textContent='';},7000);}
   }
   saveRemote.onclick=()=>transferBookmarks(false);loadRemote.onclick=()=>transferBookmarks(true);
   window.addEventListener('sidecar-chat-account',()=>{backupStatus.textContent='';updateBackup();});
+  const filters=document.createElement('div');filters.className='stream-category-tabs';filters.setAttribute('role','group');filters.setAttribute('aria-label',t('Stream categories'));
+  for(const [value,label] of [['live',t('Live')],['upcoming',t('Upcoming')],['past',t('Past')]]) {
+    const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-pressed',String(value===category));
+    button.onclick=()=>{
+      directoryError('');category=value;detailItem=null;savedOnly=false;streamPage=morePage=0;moreOpen=false;
+      document.getElementById('stream-saved-toggle').setAttribute('aria-pressed','false');updateBackup();
+      for(const child of filters.children)child.setAttribute('aria-pressed',String(child===button));
+      paint();if(value!=='live'&&!historyLoaded)loadHistory();
+    };
+    filters.append(button);
+  }
+  directory.insertBefore(filters,list);
   const directoryContent=document.createElement('div');directoryContent.className='stream-directory-content';
-  directoryContent.append(...directory.childNodes);directory.append(directoryContent);
+  const directoryActions=directory.querySelector('.stream-directory-actions');
+  directoryContent.append(...directory.childNodes);
+  // Keep navigation outside the scrolling results so each page has the same controls position.
+  directory.append(directoryContent,directoryActions);
+  let pageMeasureTimer=null, measuredWidth=0, measuredRowHeight=0;
+  function schedulePageSize() {
+    if(pageMeasureTimer!==null)return;
+    pageMeasureTimer=setTimeout(()=>{pageMeasureTimer=null;measurePageSize();},0);
+  }
+  function measurePageSize() {
+    if(directory.hidden || detailItem || !directoryContent.clientHeight)return;
+    const active=moreOpen?document.getElementById('stream-more-list'):list;
+    const rows=[...active.querySelectorAll('.stream-row')];
+    if(!rows.length)return;
+    const width=directoryContent.clientWidth;
+    if(width!==measuredWidth){measuredWidth=width;measuredRowHeight=0;}
+    // Retain the tallest measured row at this width so title wrapping does not
+    // make the page capacity oscillate as different results are displayed.
+    measuredRowHeight=Math.max(measuredRowHeight,...rows.map(row=>row.getBoundingClientRect().height));
+    const style=getComputedStyle(active),contentStyle=getComputedStyle(directoryContent),tabStyle=getComputedStyle(filters);
+    const gap=parseFloat(style.rowGap)||0;
+    const reserved=filters.getBoundingClientRect().height+(parseFloat(tabStyle.marginBottom)||0)
+      +(parseFloat(contentStyle.paddingTop)||0)+(parseFloat(contentStyle.paddingBottom)||0);
+    const available=directoryContent.clientHeight-reserved;
+    const next=Math.max(1,Math.floor((available+gap)/(measuredRowHeight+gap)));
+    if(next===pageSize)return;
+    streamPage=Math.floor(streamPage*pageSize/next);morePage=Math.floor(morePage*pageSize/next);
+    pageSize=next;paint();
+  }
+  new ResizeObserver(schedulePageSize).observe(directoryContent);
   const hideDirectory=document.createElement('button');
   hideDirectory.type='button';hideDirectory.className='stream-directory-hide ghost';hideDirectory.textContent=t('Hide streams');
   hideDirectory.addEventListener('click',()=>{closeFeed();(root.hidden?entry:feedToggle)?.focus();});directory.append(hideDirectory);
@@ -514,8 +699,8 @@
     if(!directory.hidden && ![directory, entry, browse, feedToggle].some(node => node && path.includes(node)))closeFeed();
   });
   document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
-  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;updateBackup();streamPage=0;moreOpen=false;document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
-  document.getElementById('stream-refresh').addEventListener('click',discover);
+  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();streamPage=0;moreOpen=false;document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
+  document.getElementById('stream-refresh').addEventListener('click',()=>discover(true));
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.
     directoryContent.scrollTop += element.getBoundingClientRect().top - directoryContent.getBoundingClientRect().top - 12;

@@ -22,13 +22,14 @@
   function parse(event, now = Date.now() / 1000) {
     if (!event || event.kind !== 30311 || !Array.isArray(event.tags) || !/^[a-f0-9]{64}$/.test(event.pubkey) || !Number.isFinite(event.created_at) || event.created_at > now + 60) return null;
     const tag = key => event.tags.find(t => Array.isArray(t) && t[0] === key)?.[1];
+    const timestamp = key => /^\d+$/.test(tag(key) || '') && Number.isSafeInteger(Number(tag(key))) && Number(tag(key)) > 0 && Number(tag(key)) <= 8640000000000 ? Number(tag(key)) : null;
     const d = tag('d');
     if (typeof d !== 'string') return null;
     return { key: `30311:${event.pubkey}:${d}`, id: event.id, updated: event.created_at,
       title: String(tag('title') || 'Untitled livestream').slice(0, 240),
-      url: httpsUrl(tag('streaming')), image: httpsUrl(tag('image')),
+      url: httpsUrl(tag('streaming')), recording: httpsUrl(tag('recording')), status: tag('status'), image: httpsUrl(tag('image')),
       summary: String(tag('summary') || '').slice(0,12000),
-      starts: /^\d+$/.test(tag('starts') || '') && Number.isSafeInteger(Number(tag('starts'))) && Number(tag('starts'))>0 && Number(tag('starts'))<=now ? Number(tag('starts')) : null,
+      starts: timestamp('starts'), ends: timestamp('ends') && timestamp('ends') <= now ? timestamp('ends') : null,
       categories: event.tags.filter(t=>Array.isArray(t) && t[0]==='t' && typeof t[1]==='string').slice(0,12).map(t=>t[1].slice(0,80)),
       live: tag('status') === 'live' && now - event.created_at < 3600,
       viewers: /^\d+$/.test(tag('current_participants') || '') && Number.isSafeInteger(Number(tag('current_participants'))) ? Number(tag('current_participants')) : null,
@@ -36,22 +37,74 @@
       host: event.tags.find(t => Array.isArray(t) && t[0] === 'p' && typeof t[3] === 'string' && t[3].toLowerCase() === 'host' && /^[a-f0-9]{64}$/.test(t[1]))?.[1] || event.pubkey };
   }
   class Directory {
-    constructor() { this.events = new Map(); }
+    constructor(limit = 300) { this.events = new Map(); this.limit = limit; this.verified = new Map(); }
     accept(event, now) {
       const item = parse(event, now); if (!item) return false;
       const old = this.events.get(item.key);
       if (old && (old.updated > item.updated || (old.updated === item.updated && old.id <= item.id))) return false;
       this.events.set(item.key, item);
-      if (this.events.size > 300) this.events.delete([...this.events].sort((a,b) => a[1].updated-b[1].updated)[0][0]);
+      if (this.events.size > this.limit) this.events.delete([...this.events].sort((a,b) => a[1].updated-b[1].updated)[0][0]);
       return true;
     }
-    live(now = Date.now()/1000) { return [...this.events.values()].filter(e => e.live && e.url && now-e.updated < 3600).sort((a,b)=>b.updated-a.updated); }
+    upcoming(now = Date.now()/1000) {
+      return [...this.events.values()].filter(e => e.status === 'planned' && (!e.starts || e.starts >= now))
+        .sort((a,b) => (a.starts || Infinity) - (b.starts || Infinity) || b.updated - a.updated);
+    }
+    past() {
+      return [...this.events.values()].filter(e => e.status === 'ended')
+        .sort((a,b) => (b.ends || b.updated) - (a.ends || a.updated));
+    }
+    isLive(item, now = Date.now()/1000) {
+      return item?.status==='live' && !!item.url && (now-item.updated<3600 || this.verified.has(item.url) && now-this.verified.get(item.url)<180);
+    }
+    live(now = Date.now()/1000) {
+      const seen=new Set();
+      return [...this.events.values()].filter(e=>this.isLive(e,now)).sort((a,b)=>b.updated-a.updated)
+        .filter(e=>{if(seen.has(e.url))return false;seen.add(e.url);return true;});
+    }
+  }
+  // Probe only playlists, never video segments. A responding but frozen playlist
+  // is not evidence of a live stream; its media sequence must advance.
+  async function advancingPlaylist(url, signal, request=fetch, pause) {
+    if(!httpsUrl(url) || signal?.aborted)return false;
+    const controller=new AbortController(),cancel=()=>controller.abort();
+    signal?.addEventListener('abort',cancel,{once:true});
+    const timer=setTimeout(cancel,20000);
+    const wait=pause || (ms=>new Promise((resolve,reject)=>{
+      const stop=()=>{clearTimeout(id);reject(new Error('Aborted'));};
+      const id=setTimeout(()=>{controller.signal.removeEventListener('abort',stop);resolve();},ms);
+      controller.signal.addEventListener('abort',stop,{once:true});
+      if(controller.signal.aborted)stop();
+    }));
+    async function read(target,depth=0){
+      if(!httpsUrl(target))throw new Error('Unsafe playlist');
+      const response=await request(target,{signal:controller.signal,credentials:'omit',referrerPolicy:'no-referrer',cache:'no-store'});
+      if(!response.ok)throw new Error('Unavailable playlist');
+      const base=response.url || target;
+      if(!httpsUrl(base))throw new Error('Unsafe redirect');
+      const body=await response.text();
+      if(body.length>262144 || !body.trimStart().startsWith('#EXTM3U') || body.includes('#EXT-X-ENDLIST'))throw new Error('Not live HLS');
+      const lines=body.split(/\r?\n/).map(line=>line.trim());
+      const master=lines.findIndex(line=>line.startsWith('#EXT-X-STREAM-INF:'));
+      if(master>=0){
+        const child=lines.slice(master+1).find(line=>line && !line.startsWith('#'));
+        if(depth>=2 || !child)throw new Error('Invalid master playlist');
+        return read(new URL(child,base).href,depth+1);
+      }
+      const sequence=body.match(/^#EXT-X-MEDIA-SEQUENCE:(\d+)\s*$/m);
+      if(!sequence || !body.includes('#EXTINF:'))throw new Error('No live sequence');
+      return {url:base,sequence:BigInt(sequence[1]),delay:Math.min(10000,Math.max(4000,Number(body.match(/^#EXT-X-TARGETDURATION:(\d+)/m)?.[1] || 4)*1000+500))};
+    }
+    try{const first=await read(url);await wait(first.delay);if(controller.signal.aborted)return false;const second=await read(first.url);return second.sequence>first.sequence;}
+    catch(_){return false;}
+    finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
   }
   function bookmark(item) {
     const url = httpsUrl(item?.url);
-    if (!url) return null;
-    const key = /^30311:[a-f0-9]{64}:/.test(item.key || '') ? item.key : 'url:' + url;
-    return { key, url, title:String(item.title || new URL(url).hostname).slice(0,240),
+    const address = /^30311:[a-f0-9]{64}:/.test(item?.key || '') ? item.key : null;
+    if (!url && !address) return null;
+    const key = address || 'url:' + url;
+    return { key, url, title:String(item.title || (url ? new URL(url).hostname : 'Untitled livestream')).slice(0,240),
       image:httpsUrl(item.image), host:/^[a-f0-9]{64}$/.test(item.host || '') ? item.host : null,
       relays:(Array.isArray(item.relays) ? item.relays : []).filter(u => typeof u === 'string' && u.startsWith('wss://')).slice(0,6) };
   }
@@ -229,7 +282,7 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, Directory, invoiceDetails, ZapTotals };
+  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);

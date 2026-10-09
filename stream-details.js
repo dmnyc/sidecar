@@ -14,6 +14,7 @@
     header.append(back,heading);panel.append(header,description,started,categories);document.body.append(panel);
     let item=null,timer=null,transition=null,showRuntime=false;
     function duration(){
+      if(item?.status === 'ended')return '';
       const value=SidecarStreams.runtime(item?.starts);if(!value)return '';
       const values={days:fmtNum(value.days),hours:fmtNum(value.hours),minutes:fmtNum(value.minutes)};
       if(value.days)return tn('Live for {{count}} day','Live for {{count}} days',value.days);
@@ -21,7 +22,7 @@
       return value.minutes?t('Live for {{hours}}h {{minutes}}m',values):tn('Live for {{count}} hour','Live for {{count}} hours',value.hours);
     }
     function reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.matches('.reduce-motion,.reduce-balance-motion');}
-    function schedule(){clearTimeout(timer);if(item?.starts)timer=setTimeout(rotate,showRuntime?4000:12000);}
+    function schedule(){clearTimeout(timer);if(item?.starts && item.status !== 'ended')timer=setTimeout(rotate,showRuntime?4000:12000);}
     function rotate(){
       if(!item)return;
       if(reduced() || document.hidden || trigger.matches(':hover,:focus-within')){showRuntime=false;title.textContent=item.title;schedule();return;}

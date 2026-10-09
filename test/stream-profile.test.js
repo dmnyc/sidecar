@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
 const source=fs.readFileSync(require('node:path').join(__dirname,'../streams.js'),'utf8');
-const lookup=source.slice(source.indexOf('  function profileImage('),source.indexOf('  const PAGE_SIZE'));
+const lookup=source.slice(source.indexOf('  function profileImage('),source.indexOf('  let pageSize'));
 test('profile lookup survives directory shutdown and reads declared relays on a miss',async()=>{
  let finish;let destroyed=false;const calls=[];
  const context={updatePlayingProfile(){},profileImages:new Map(),enabled:true,isLocked:()=>false,relays:['wss://default.example'],SidecarStreams:require('../stream-core'),NostrTools:{SimplePool:class{

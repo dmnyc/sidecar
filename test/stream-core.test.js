@@ -26,7 +26,7 @@ test('unnamed stream participants get stable cocktail aliases rather than public
 test('stream metadata retains description, categories, and a valid actual start',()=>{
  const e=event();e.tags.push(['summary','A station\nwith music'],['starts','100'],['t','music']);
  const item=parse(e,1000);assert.equal(item.starts,100);assert.equal(item.summary,'A station\nwith music');assert.deepEqual(item.categories,['music']);
- for(const start of ['','-1','1001','not a date','9007199254740992']){e.tags=e.tags.filter(t=>t[0]!=='starts');e.tags.push(['starts',start]);assert.equal(parse(e,1000).starts,null);}
+ for(const start of ['','-1','not a date','9007199254740992']){e.tags=e.tags.filter(t=>t[0]!=='starts');e.tags.push(['starts',start]);assert.equal(parse(e,1000).starts,null);}
 });
 test('runtime uses days for long-running streams and omits unknown starts',()=>{
  const {runtime}=require('../stream-core');assert.equal(runtime(null),null);assert.equal(runtime(200,100),null);
