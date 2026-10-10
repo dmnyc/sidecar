@@ -77,7 +77,7 @@ test('an arriving approval closes any open modal', () => {
   // reveal something the user had forgotten, and the approval's backdrop click would
   // land on it.
   const fn = panel.match(/function showApproval\(\) \{[\s\S]*?\n    const payment =/)[0];
-  assert.match(fn, /classList\.contains\('modal-open'\)\) closeModal\(\)/,
+  assert.match(fn, /classList\.contains\('modal-open'\)\) closeModal\('approval'\)/,
     'showApproval must close an open modal');
 });
 
@@ -87,7 +87,7 @@ test('the approval is shown BEFORE the modal is closed', () => {
   // approval by a frame.
   const fn = panel.match(/function showApproval\(\) \{[\s\S]*?\n    const payment =/)[0];
   const showAt = fn.indexOf("show($('view-approval'))");
-  const closeAt = fn.indexOf('closeModal()');
+  const closeAt = fn.indexOf("closeModal('approval')");
   assert.ok(showAt !== -1 && closeAt !== -1, 'both calls must be present');
   assert.ok(showAt < closeAt, 'show() must come first');
 });
@@ -98,7 +98,7 @@ test('closing a modal cannot lose a draft', () => {
   // user typed text.
     // `!handedToTab` joined it: Expand gives the slot to the tab, and this save would
   // otherwise run right after and delete it for an empty reply.
-  assert.match(panel, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) persistDraft\(\);/,
+  assert.match(panel, /if \(!published && !handedToTab && !switchingDraft && enteredEditor\) \{\s*persistDraft\(\)/,
     "the composer's onClose must still persist its draft");
   assert.match(panel, /onChange: \(text\) => saveWebCommentDraft\(/,
     'page comments must still save on every keystroke');
