@@ -585,7 +585,7 @@
     // script in a page's world, and this window — and the alternative is a fourth file
     // loaded by all three to hold ten strings. The cost is that a new light theme must be
     // registered in all three, so each copy names the others.
-    const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile'];
+    const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'phantom-bouquet'];
     const isLight = LIGHT_THEMES.includes(theme);
     if (isLight) {
       const mark = document.querySelector('.brand img');

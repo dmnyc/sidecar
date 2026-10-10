@@ -9,6 +9,12 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+### Added
+- **Phantom Bouquet, the second special edition (November 9 – December 6).** After the Victorian skeleton-leaf bouquet: ivory skeleton leaves of maple, oak and four companions lying on linen over larger ones bleached white, a few dyed madder, ochre, rust, olive and plum, set in Sorts Mill Goudy. The balance drifts down into place a figure at a time. On the lock screen a few leaves fall slowly down the cloth, each turning at its own steady pace, and stay still under Reduce motion.
+
+### Changed
+- **Each special edition's art ships only in a release tagged inside its window.** A store package is downloaded whole at install and at every update, so the tag is the only moment packaging can respect the calendar: Phantom Bouquet's art rides only in a release tagged November 9 through December 6, that release is the one Sleepy Hollow's art (438 KB) leaves, and next October's releases bring Sleepy Hollow back without anyone having to remember. The two never ride together — a build tagged on November 8, Sleepy Hollow's last day, still ships Sleepy Hollow and no Phantom Bouquet, and the November 9 build swaps them; one edition missing a build beats both riding in it. Edition stylesheets stay in the package at 15–19 KB, so every document's stylesheet link stays valid, and the gallery — which only offers an edition inside its window — never asks for a file that is not there.
+
 ## [1.15.8] — 2026-10-05
 
 ### Fixed
