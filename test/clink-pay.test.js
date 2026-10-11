@@ -258,7 +258,7 @@ test('THE PANEL SAYS NOTHING IT DOES NOT HAVE TO', () => {
   assert.doesNotMatch(bare, /offerNote/, 'the note element outlived its text');
 });
 
-test('two buttons, one row, neither the other’s fallback', () => {
+test('the offer sits inside the payment area the bolt opens, neither the other’s fallback', () => {
   // A lightning address is a server answering for them; an offer is their own wallet
   // answering for itself. Plenty of profiles carry exactly one of the two, so the row
   // holds whichever apply and gives them equal width.
@@ -270,8 +270,13 @@ test('two buttons, one row, neither the other’s fallback', () => {
   // dragged narrow: they stacked at widths where they would have fitted side by side.
   const row = css.slice(css.indexOf('.peek-pay-row > .peek-zap-open'), css.indexOf('.peek-zap-open {'));
   assert.ok(!/min-width/.test(row), 'a hand-picked floor wraps the row before the labels need it');
-  assert.match(bare, /payRow\.prepend\(zapBtn\)/);
+  // The Zap button is an icon in the row under the name now, so the row holds only Pay
+  // offer, inside the payment area, and only when there is a zap panel for it to sit
+  // beside. A profile with an offer and no address is opened by the bolt itself.
   assert.match(bare, /payRow\.append\(offerBtn\)/);
+  assert.doesNotMatch(bare, /payRow\.prepend\(zapBtn\)/, 'the Zap button went back into the pay row');
+  assert.match(bare, /payRow\.classList\.toggle\('hidden', !\(zapPanel && offerShown\)\);/);
+  assert.match(bare, /if \(!zapPanel\) \{\s*if \(offerFound\) openOfferPanel\(offerFound\);\s*return;/);
 });
 
 test('ONE PAYMENT PANEL AT A TIME, AND NEITHER BUTTON DOES THE OTHER’S JOB', () => {
@@ -356,7 +361,9 @@ test('THE BUTTON SAYS WHICH PANEL IS OPEN', () => {
   // would be a fourth to keep in step with them.
   assert.match(body, /const lit = \(el\) => !!el && el\.isConnected && !el\.classList\.contains\('hidden'\);/);
   assert.match(body, /const offerOn = lit\(offerPanel\) \|\| lit\(offerHandoff\);/);
-  assert.match(body, /zapBtn\.classList\.toggle\('peek-pay-on', zapOn\)/);
+  // With no zap panel the bolt is what opens the offer, so it carries that state.
+  assert.match(body, /const boltOn = zapOn \|\| \(!zapPanel && offerOn\);/);
+  assert.match(body, /zapBtn\.classList\.toggle\('peek-pay-on', boltOn\)/);
   assert.match(body, /offerBtn\.classList\.toggle\('peek-pay-on', offerOn\)/);
   // A disclosure, so it says so to anything not looking at the color.
   assert.match(body, /aria-expanded/);

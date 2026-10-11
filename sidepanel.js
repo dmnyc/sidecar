@@ -815,6 +815,7 @@
   const _notifProfiles = new Map(); // sender pubkey → display name string
   const _muteLists = new Map(); // pubkey → resolved mute set (see emptyMuteSet)
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
+  const _localMutes = new Map(); // pubkey → Map('p:<id>' → { tag, removed }) changed here (see changeMute)
   const _ownNoteIds = new Map(); // pubkey → Set<eventId> (this account's own recent kind:1 ids)
   const _ownNoteIdsPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
   const _ownCommentIds = new Map(); // pubkey → Set<eventId> (own recent kind:1111 ids; see strayReplyToOwnComment)
@@ -2555,11 +2556,18 @@
         const lit = (el) => !!el && el.isConnected && !el.classList.contains('hidden');
         const zapOn = lit(zapPanel);
         const offerOn = lit(offerPanel) || lit(offerHandoff);
-        zapBtn.classList.toggle('peek-pay-on', zapOn);
+        // With no zap panel the bolt is what opens the offer, so it carries that state.
+        const boltOn = zapOn || (!zapPanel && offerOn);
+        zapBtn.classList.toggle('peek-pay-on', boltOn);
         offerBtn.classList.toggle('peek-pay-on', offerOn);
         // A disclosure, so say so to anything that is not looking at the color.
-        zapBtn.setAttribute('aria-expanded', String(zapOn));
+        zapBtn.setAttribute('aria-expanded', String(boltOn));
         offerBtn.setAttribute('aria-expanded', String(offerOn));
+        // The area shows only while a panel is open, with Pay offer last inside it and only
+        // when there is a zap panel for it to sit beside.
+        zapWrap.classList.toggle('hidden', !(zapOn || offerOn));
+        payRow.classList.toggle('hidden', !(zapPanel && offerShown));
+        zapWrap.append(payRow);
       }
 
       function revealZap() {
@@ -2581,11 +2589,10 @@
         zapPanel = (zapHasWallet && !isSelf)
           ? zapForm
           : zapPayBlock(zapAddr, isSelf ? selfPay : options?.chatEvent ? {note:t('Scan or copy sends a payment to the author, not a zap on this comment. Connect a wallet to zap the comment.')} : undefined);
-        payRow.prepend(zapBtn); // first, because a zap is the one most profiles can take
+        enableBolt();
         zapWrap.append(zapPanel);
         if (options?.zap) zapPanel.classList.remove('hidden');
         paintPayState();
-        zapWrap.classList.remove('hidden');
       }
 
       // A SECOND WAY TO PAY, beside the first rather than under it. Zap and Pay offer are
@@ -2599,10 +2606,11 @@
       function revealOffer(offer) {
         if (offerShown || !offer || !modal.isConnected) return;
         offerShown = true;
+        offerFound = offer;
+        enableBolt();
         payRow.append(offerBtn);
         offerBtn.addEventListener('click', () => openOfferPanel(offer));
         paintPayState();
-        zapWrap.classList.remove('hidden');
       }
 
       let lastAbout = null; // guards renderAbout against a second, identical pass
@@ -2736,13 +2744,19 @@
         offerErr);
 
       const zapWrap = h('div', { className: 'peek-zap hidden' });
-      // Both payment buttons live here, side by side. Two short labels with no content
-      // beside them competing for width, which is the one shape the panel's row rule
-      // allows two worded controls in.
-      const payRow = h('div', { className: 'peek-pay-row' });
+      // Pay offer, inside the payment area the bolt opens. Rare, and a way to pay rather
+      // than a way out, so it is a worded button in the panel and not a fifth icon.
+      const payRow = h('div', { className: 'peek-pay-row hidden' });
       const zapErr = h('div', { className: 'error' });
-      const zapBtn = h('button', { className: 'secondary peek-zap-open' });
-      zapBtn.append(boltIcon(), h('span', { textContent: options?.chatEvent ? t('Zap comment') : t('Zap') }));
+      // THE BOLT IS AN ICON IN THE ROW UNDER THE NAME, beside follow, mute and the way out
+      // to the client. It is there from the start and dimmed until there is something
+      // to pay with, so the icons next to it do not move when the answer arrives.
+      const zapLabel = options?.chatEvent ? t('Zap comment') : t('Zap');
+      const zapBtn = h('button', { className: 'icon-btn sm peek-bolt pending', type: 'button', title: zapLabel, disabled: true });
+      zapBtn.setAttribute('aria-label', zapLabel);
+      zapBtn.append(boltIcon());
+      const enableBolt = () => { zapBtn.disabled = false; zapBtn.classList.remove('pending'); };
+      let offerFound = null; // a profile with an offer and no address: the bolt opens it
       const offerBtn = h('button', { className: 'secondary peek-zap-open' });
       offerBtn.append(icon('zap'), h('span', { textContent: 'Pay offer' }));
       let offerShown = false;
@@ -2817,7 +2831,10 @@
         }
       });
       zapBtn.addEventListener('click', () => {
-        if (!zapPanel) return;
+        if (!zapPanel) {
+          if (offerFound) openOfferPanel(offerFound);
+          return;
+        }
         // ONE PAYMENT PANEL AT A TIME. Two open at once is two amount fields and two Pay
         // buttons on a 358px sheet, and no way to tell which one a number was typed into.
         offerPanel.classList.add('hidden');
@@ -2847,8 +2864,7 @@
       });
       zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, zapQrBtn, send]),
         zapDefaultSaver(amount, presets), zapErr);
-      zapWrap.append(payRow);
-      modal.append(zapWrap);   // filled by revealZap once both answers are in
+      zapWrap.append(payRow);   // sits under the icon row, mounted with it below; filled once both answers are in
 
       // Asked here, AFTER the pieces it chooses between exist. Started earlier it would
       // still have worked, because a promise cannot run its callback before this function
@@ -2863,18 +2879,49 @@
       // Secondary, not primary. Once the zap form is open there would otherwise be
       // two filled buttons competing, and the hand-off is the way OUT of the sheet
       // rather than the thing it is for.
-      const open = h('button', { className: 'secondary', textContent: 'View in client' });
+      // The way out to the client, an icon in the row under the name. Its name is the client's.
+      const open = h('button', { className: 'icon-btn sm', type: 'button', title: t('View in client') });
+      open.setAttribute('aria-label', t('View in client'));
+      open.append(icon('external'));
+      // Opens the profile in a tab and leaves this card where it is: the way out is to
+      // look something up, and coming back to a card that closed itself loses the place.
       open.addEventListener('click', async () => {
         const client = await preferredClient();
         openInClient(client.profile(npub));
-        closeModal();
       });
       const close = h('button', { className: 'ghost', textContent: 'Close' });
       close.addEventListener('click', closeModal);
-      actions.append(open, close);
+      actions.append(close);
       modal.append(actions);
+      // THE ICON ROW, under the follower line: follow and mute for other people, then the
+      // bolt and the way out. Not on your own keys, and not on the sheets opened to zap a
+      // stream comment, for follow and mute: there the sheet is a payment, and a mute
+      // button beside it is a stranger's click away. The bolt and the link are on every
+      // card. The payment area opens directly under the row, next to the button.
+      const manage = !isSelf && !options?.zap && state.activePubkey;
+      const toolbar = manage
+        ? personActions({
+          pubkey,
+          get name() { return name.textContent; },
+          get picture() { return (_profileCache.get(pubkey)?.content || {}).picture || null; },
+        }, { followKnown: false })
+        : h('span', { className: 'ac-item-actions' });
+      toolbar.classList.add('peek-person-actions');
+      if (manage) toolbar.append(h('span', { className: 'peek-tool-sep' }));
+      toolbar.append(zapBtn, open);
+      rel.after(toolbar);
+      toolbar.after(zapWrap);
+      if (manage) {
+        isFollowing(pubkey).then((yes) => {
+          if (modal.isConnected) toolbar.setFollowing(yes);
+        }).catch(() => {});
+      }
 
-      preferredClient().then((c) => { open.textContent = 'View in ' + c.label; });
+      preferredClient().then((c) => {
+        const label = t('View in {{client}}', { client: c.label });
+        open.title = label;
+        open.setAttribute('aria-label', label);
+      });
 
       function paint(c) {
         if (!c) return;
@@ -3038,12 +3085,21 @@
       const item = h('div', { className: 'ac-item' + (i === searchIndex ? ' active' : '') });
       const av = h('span', { className: 'ac-item-av' });
       applyAvatar(av, c.picture ? { picture: c.picture } : {});
-      item.append(av, h('span', { className: 'ac-item-name', textContent: c.name }));
+      const nameEl = h('span', { className: 'ac-item-name', textContent: c.name });
+      item.append(av, nameEl);
       // Only ever a positive claim. Tier 0 gets nothing rather than "unknown":
       // absence of a vouch is not evidence, and labelling it would read as an
       // accusation the panel cannot support.
-      if (c.tier === 2) item.append(h('span', { className: 'ac-item-trust', textContent: 'Following' }));
-      else if (c.tier === 1) item.append(h('span', { className: 'ac-item-trust', textContent: 'In your network' }));
+      // Drawn from the row's tier, and redrawn when following or unfollowing changes it, so
+      // the mark never disagrees with the icon beside it.
+      const paintTrust = () => {
+        const old = item.querySelector('.ac-item-trust');
+        if (old) old.remove();
+        const label = c.tier === 2 ? 'Following' : c.tier === 1 ? 'In your network' : '';
+        if (label) nameEl.after(h('span', { className: 'ac-item-trust', textContent: label }));
+      };
+      paintTrust();
+      if (state.activePubkey && !((state && state.accounts) || []).some((a) => a.pubkey === c.pubkey)) item.append(personActions(c, { onTier: paintTrust }));
       item.addEventListener('mousedown', (e) => { e.preventDefault(); closeSearch(); openProfileSheet(c.pubkey); });
       box.append(item);
     });
@@ -6711,6 +6767,10 @@
           }
         }
       } catch (_) {}
+      // Mutes and unmutes made here this session. A relay that still serves the previous
+      // version of the list must not bring a just-muted row back, or take an unmuted
+      // person's mute out of the set again.
+      applyLocalMutes(_localMutes.get(pubkey), muted);
       _muteLists.set(pubkey, muted);
       // Drop any events that slipped into the cache before the list was ready
       // (first load), or that arrived from a user muted after the fact (a
@@ -6722,6 +6782,324 @@
     })();
     _muteListPromises.set(pubkey, p);
     return p;
+  }
+
+  // ---- muting from the bell ----
+  // What a notification row can be muted by: the person it names, the note it is
+  // about, and the thread that note sits in. The person is the zapper for a zap
+  // (zapSender), and never the account itself.
+  //
+  // The note is the row's own for a note or a comment, and the note a reaction, repost
+  // or zap landed on for the rest. Muting it hides it and the replies that tag it
+  // (isMutedNotif reads e, q and E); a reply to a reply tags the root and its own
+  // parent, so a deeper branch is not covered, which is why the thread is a separate
+  // row. The thread is the NIP-22 root (E), else the NIP-10 root marker, else the first
+  // e tag, which is the root in the positional form. It is left out when it is the note
+  // itself, so a root note is offered one mute rather than two that do the same thing.
+  // '' leaves a row out of the menu: a reaction that names no note has neither.
+  function muteTargets(ev, own) {
+    const hex = (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : '');
+    const person = hex(zapSender(ev));
+    const { tags } = muteSubject(ev);
+    const E = tags.find((x) => x[0] === 'E' && hex(x[1]));
+    const root = tags.find((x) => x[0] === 'e' && x[3] === 'root' && hex(x[1]));
+    const first = tags.find((x) => x[0] === 'e' && hex(x[1]));
+    const noteLike = ev.kind === 1 || ev.kind === WEB_COMMENT_KIND;
+    const note = noteLike ? hex(ev.id) : (first ? first[1] : '');
+    let thread = '';
+    if (E) thread = E[1];
+    else if (root) thread = root[1];
+    else if (first) thread = first[1];
+    return { person: person && person !== own ? person : '', note, thread: thread === note ? '' : thread };
+  }
+
+  // Mutes and unmutes made in this panel, laid over every load of the list (see
+  // loadMuteList). entries: Map('p:<id>' → { tag, removed }).
+  function applyLocalMutes(entries, set) {
+    if (!entries) return;
+    for (const { tag, removed } of entries.values()) {
+      if (!removed) collectMuteTags([tag], set);
+      else if (tag[0] === 'p') set.pubkeys.delete(tag[1]);
+      else if (tag[0] === 'e') set.threads.delete(tag[1]);
+    }
+    collectMuteTags([], set); // recounts
+  }
+
+  // Add one entry to the PRIVATE part of the account's mute list: the tags that live
+  // encrypted in the event's content, where nobody reading the list can see who the
+  // account has muted. Public tags and every other private entry ride through
+  // untouched. Or take one OUT, from wherever it is, public or private: a person muted
+  // by another client has to be unmutable here or the button is a lie.
+  //
+  // READ BEFORE WRITE, AND FAIL CLOSED, the way addBookmark does. A kind 10000 is
+  // replaceable, so a list built from a read that failed erases every mute the account
+  // has. Nothing is published unless the list was read, and nothing is published if
+  // the private part exists and could not be decrypted: writing back a list without
+  // entries we could not read would delete them. An account with neither a profile
+  // nor a list gets the error; that is the right way round.
+  //
+  // The new content is encrypted with the scheme the old one used, so a client that
+  // only reads NIP-04 still reads the list; a list with no private part starts on NIP-44.
+  // Taking a public entry out leaves the ciphertext as it was.
+  //
+  // Serialized: two quick changes are two read-modify-writes, and run side by side the
+  // second would publish a list that lacks the first.
+  let _muteWrite = Promise.resolve();
+  function changeMute(pubkey, tag, remove) {
+    const run = _muteWrite.then(() => writeMute(pubkey, tag, remove));
+    _muteWrite = run.catch(() => {});
+    return run;
+  }
+  const addPrivateMute = (pubkey, tag) => changeMute(pubkey, tag, false);
+  const removeMute = (pubkey, tag) => changeMute(pubkey, tag, true);
+
+  async function writeMute(pubkey, tag, remove) {
+    if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
+    const relays = await readRelayUrls(pubkey);
+    const got = await poolQuerySync(relays, { kinds: [0, 10000], authors: [pubkey] }, { maxWait: 6000 });
+    const list = (got || []).filter((e) => e.kind === 10000).sort((a, b) => b.created_at - a.created_at)[0] || null;
+    if (!list && !(got || []).some((e) => e.kind === 0)) {
+      throw new Error(t('Could not read your mute list, so nothing was changed.'));
+    }
+    let hidden = [];
+    let nip = 44;
+    if (list && list.content) {
+      let read = false;
+      for (const n of list.content.includes('?iv=') ? [4, 44] : [44, 4]) {
+        try {
+          const plain = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: list.content, nip: n, expectedPubkey: pubkey });
+          const parsed = JSON.parse(plain);
+          if (Array.isArray(parsed)) { hidden = parsed; nip = n; read = true; break; }
+        } catch (_) {}
+      }
+      if (!read) throw new Error(t('Could not read your private mutes, so nothing was changed.'));
+    }
+    const same = (x) => Array.isArray(x) && x[0] === tag[0] && x[1] === tag[1];
+    const inPublic = !!list && list.tags.some(same);
+    const inHidden = hidden.some(same);
+    let changed = false;
+    if (remove ? (inPublic || inHidden) : (!inPublic && !inHidden)) {
+      let content = list ? list.content : '';
+      if (!remove || inHidden) {
+        const next = remove ? hidden.filter((x) => !same(x)) : [...hidden, tag];
+        content = await call({ type: 'SIDECAR_OWNER_ENCRYPT', nip, plaintext: JSON.stringify(next), expectedPubkey: pubkey });
+      }
+      const signed = await call({
+        type: 'SIDECAR_OWNER_SIGN',
+        expectedPubkey: pubkey,
+        event: {
+          kind: 10000,
+          // Newer than what it replaces even within the same second.
+          created_at: Math.max(Math.floor(Date.now() / 1000), list ? list.created_at + 1 : 0),
+          tags: list ? list.tags.filter((x) => !(remove && same(x))).map((x) => x.slice()) : [],
+          content,
+        },
+      });
+      await publishSigned(signed);
+      seedBaseline(pubkey, signed);
+      changed = true;
+    }
+    // Applied here even when nothing needed writing: the row or button that offered it
+    // should go the same way either way.
+    const mine = _localMutes.get(pubkey) || new Map();
+    mine.set(tag[0] + ':' + tag[1], { tag, removed: !!remove });
+    _localMutes.set(pubkey, mine);
+    const set = _muteLists.get(pubkey) || emptyMuteSet();
+    applyLocalMutes(new Map([[tag[0] + ':' + tag[1], { tag, removed: !!remove }]]), set);
+    _muteLists.set(pubkey, set);
+    pruneNameMuted(pubkey);
+    return changed;
+  }
+
+  // Follow or unfollow, which is the same job as the mute list with a worse failure: a
+  // kind 3 is the account's whole social graph, and it is replaceable. So the same rules,
+  // and one more.
+  //
+  // READ BEFORE WRITE, AND FAIL CLOSED. Nothing is published unless a list or at least
+  // the profile came back, and nothing is published when the list reads as empty while
+  // Sidecar already holds follows for this account: that is a truncated or stale read,
+  // and a one-entry list written over it is the wipe the baseline guard exists to catch
+  // after the fact. The guard only speaks up for a loss of ten or more, so this does not
+  // lean on it. The read asks the write relays as well as the read relays and takes the
+  // newest: the account's own list is published to the write set.
+  //
+  // Every tag the list already carries rides through exactly as it was, relay hints and
+  // petnames included, and so does its content. Only the one pubkey is added or removed.
+  let _followWrite = Promise.resolve();
+  function changeFollow(pubkey, target, remove, info) {
+    const run = _followWrite.then(() => writeFollow(pubkey, target, remove, info));
+    _followWrite = run.catch(() => {});
+    return run;
+  }
+  const addFollow = (pubkey, target, info) => changeFollow(pubkey, target, false, info);
+  const removeFollow = (pubkey, target) => changeFollow(pubkey, target, true);
+
+  async function writeFollow(pubkey, target, remove, info) {
+    if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
+    if (!/^[0-9a-f]{64}$/.test(target)) throw new Error(t('Could not follow this account.'));
+    const read = await readRelayUrls(pubkey);
+    let write = [];
+    try { write = await postRelays(); } catch (_) {}
+    const relays = [...new Set([...read, ...write])];
+    const got = await poolQuerySync(relays, { kinds: [0, 3], authors: [pubkey] }, { maxWait: 6000 });
+    const list = (got || []).filter((e) => e.kind === 3).sort((a, b) => b.created_at - a.created_at)[0] || null;
+    if (!list && !(got || []).some((e) => e.kind === 0)) {
+      throw new Error(t('Could not read your follow list, so nothing was changed.'));
+    }
+    const isP = (x) => Array.isArray(x) && x[0] === 'p' && typeof x[1] === 'string';
+    const known = followListCache && followListPubkey === pubkey ? followListCache.length : 0;
+    if (known > 0 && !(list && list.tags.some(isP))) {
+      throw new Error(t('Your follow list read as empty, which does not match what Sidecar loaded, so nothing was changed.'));
+    }
+    const isTarget = (x) => isP(x) && x[1].toLowerCase() === target;
+    const present = !!list && list.tags.some(isTarget);
+    let tags = list ? list.tags.map((x) => x.slice()) : [];
+    let changed = false;
+    if (remove ? present : !present) {
+      tags = tags.filter((x) => !(remove && isTarget(x)));
+      if (!remove) tags.push(['p', target]);
+      const signed = await call({
+        type: 'SIDECAR_OWNER_SIGN',
+        expectedPubkey: pubkey,
+        event: {
+          kind: 3,
+          // Newer than what it replaces even within the same second.
+          created_at: Math.max(Math.floor(Date.now() / 1000), list ? list.created_at + 1 : 0),
+          tags,
+          content: list ? list.content : '',
+        },
+      });
+      await publishSigned(signed);
+      seedBaseline(pubkey, signed);
+      changed = true;
+    }
+    // What the panel already holds about this list, brought into line without a reload.
+    const total = new Set(tags.filter(isP).map((x) => x[1].toLowerCase())).size;
+    followCountCache.set(pubkey, total);
+    if (followListCache && followListPubkey === pubkey) {
+      const at = followListCache.findIndex((c) => c.pubkey === target);
+      if (remove && at >= 0) followListCache.splice(at, 1);
+      else if (!remove && at < 0) {
+        followListCache.push({ pubkey: target, name: (info && info.name) || shortNpub(NT.nip19.npubEncode(target)), picture: (info && info.picture) || null });
+      }
+    }
+    forgetWot();
+    return changed;
+  }
+
+  // Do you follow this one person. Answered from the loaded follow list when there is
+  // one, and otherwise from the kind 3 alone: getFollowList() also fetches the profile of
+  // everyone followed, which for a list of a thousand is seconds of waiting to answer a
+  // question about one pubkey. No list at all is no answer, not "no": it rejects, and the
+  // caller leaves the button unavailable rather than offering a Follow that may be wrong.
+  async function isFollowing(target) {
+    const owner = state.activePubkey;
+    if (followListCache && followListPubkey === owner) return followListCache.some((c) => c.pubkey === target);
+    const ev = await poolGet(await readRelayUrls(owner), { kinds: [3], authors: [owner] }, { maxWait: 8000 });
+    if (!ev) throw new Error('No follow list');
+    return ev.tags.some((x) => Array.isArray(x) && x[0] === 'p' && x[1] === target);
+  }
+
+  // Follow and mute, as two icon buttons: at the end of a search result, and on the
+  // profile card that result opens. Icons only: the row is ~300px and already carries a
+  // name and a trust mark, and a word on each button would be the narrow-panel mistake. The tooltip and the screen-reader label are
+  // words, and translated.
+  //
+  // A tap changes the icon at once and the relays catch up; a failure puts it back and
+  // says why. Both are undone by the same button, so neither asks twice. The mute button
+  // stays hidden until the account's mute list has been read, because its icon is a claim
+  // about it. Never on your own keys.
+  // c.name is read when a toast is made, so a card whose name arrives late says the name.
+  // With opts.followKnown === false the follow button waits for box.setFollowing(), because
+  // a card learns whether you follow someone after it opens; a result row already knows.
+  //
+  // A button that is not ready is dimmed and disabled, never removed: taking it out of the
+  // layout slid its neighbor into its place, and the icon you were about to press moved.
+  // It fades up when it becomes available.
+  function personActions(c, opts) {
+    const owner = state.activePubkey;
+    const box = h('span', { className: 'ac-item-actions' });
+    // The row opens the profile on mousedown. These must not, and must not take focus
+    // from the search box either, or the results close under the tap.
+    const make = (act) => {
+      const b = h('button', { className: 'icon-btn sm pending', type: 'button', tabIndex: -1, disabled: true });
+      b.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); });
+      b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (!b.disabled) act(); });
+      return b;
+    };
+    const ready = (b) => { b.disabled = false; b.classList.remove('pending'); b.setAttribute('aria-busy', 'false'); };
+    const paint = (b, iconName, label, on) => {
+      b.replaceChildren(icon(iconName));
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.classList.toggle('on', on);
+    };
+    const errText = (e) => (e && e.message ? e.message : t('Something went wrong.'));
+
+    const setTier = (tier) => { c.tier = tier; if (opts && opts.onTier) opts.onTier(); };
+
+    let following = c.tier === 2;
+    let followBusy = false;
+    const followBtn = make(async () => {
+      if (followBusy) return;
+      followBusy = true;
+      const was = following;
+      const tierBefore = c.tier;
+      following = !was;
+      paintFollow();
+      // The row's mark changes with the icon, not after the relays: a follow is a gold
+      // check beside the word Following, and an unfollow is neither, or just the network
+      // mark if the people you follow still vouch for them.
+      setTier(following ? 2 : trustTier(c.pubkey, new Set((followListCache || []).map((x) => x.pubkey).filter((pk) => pk !== c.pubkey))));
+      try {
+        if (was) await removeFollow(owner, c.pubkey);
+        else await addFollow(owner, c.pubkey, { name: c.name, picture: c.picture });
+        toast(was ? t('Unfollowed {{name}}', { name: c.name }) : t('Followed {{name}}', { name: c.name }), 'success');
+      } catch (e) {
+        following = was;
+        paintFollow();
+        setTier(tierBefore);
+        toast(errText(e), 'error');
+      }
+      followBusy = false;
+    });
+    const paintFollow = () => paint(followBtn, following ? 'user-check' : 'user-plus', following ? t('Unfollow') : t('Follow'), following);
+    paintFollow();
+    if (!opts || opts.followKnown !== false) ready(followBtn);
+
+    let muted = false;
+    let muteBusy = false;
+    const muteBtn = make(async () => {
+      if (muteBusy) return;
+      muteBusy = true;
+      const was = muted;
+      muted = !was;
+      paintMute();
+      try {
+        if (was) await removeMute(owner, ['p', c.pubkey]);
+        else await addPrivateMute(owner, ['p', c.pubkey]);
+        toast(was ? t('Unmuted {{name}}', { name: c.name }) : t('Muted {{name}}', { name: c.name }), 'success');
+      } catch (e) {
+        muted = was;
+        paintMute();
+        toast(errText(e), 'error');
+      }
+      muteBusy = false;
+    });
+    const paintMute = () => paint(muteBtn, muted ? 'eye-off' : 'eye', muted ? t('Unmute') : t('Mute'), muted);
+    relayUrls(false).then((r) => loadMuteList(owner, r)).then((set) => {
+      muted = set.pubkeys.has(c.pubkey);
+      paintMute();
+      ready(muteBtn);
+    }).catch(() => {});
+
+    box.setFollowing = (v) => {
+      following = !!v;
+      paintFollow();
+      ready(followBtn);
+    };
+    box.append(followBtn, muteBtn);
+    return box;
   }
 
   // The account's most recent kind:1 note ids (not bounded by the notification
@@ -7194,6 +7572,58 @@
         });
         panel.appendChild(row);
       }
+
+      // Mute rows, last: the copy items are harmless and these are not. Each takes two
+      // taps, and the second tap is a rewrite of the row's own label (a confirm with words
+      // does not fit beside content in this width), disarmed after a few seconds.
+      const mt = opts && opts.mute;
+      if (mt) {
+        const personName = mt.person ? notifAuthorName(mt.person) : '';
+        const rows = [
+          mt.person && { glyph: 'user-x', label: t('Mute {{name}}', { name: personName }), done: t('Muted {{name}}', { name: personName }), tag: ['p', mt.person] },
+          mt.note && { glyph: 'eye-off', label: t('Mute this note and replies'), done: t('Note muted'), tag: ['e', mt.note] },
+          mt.thread && { glyph: 'eye-off', label: t('Mute the whole thread'), done: t('Thread muted'), tag: ['e', mt.thread] },
+        ].filter(Boolean);
+        for (const r of rows) {
+          const row = h('button', { className: 'notif-more-item', type: 'button' });
+          const label = h('span', { textContent: r.label });
+          row.append(icon(r.glyph), label);
+          let armed = null;
+          const disarm = () => {
+            clearTimeout(armed);
+            armed = null;
+            label.textContent = r.label;
+            row.classList.remove('armed');
+          };
+          row.addEventListener('click', async (e) => {
+            stop(e);
+            if (!armed) {
+              label.textContent = t('Tap again to mute');
+              row.classList.add('armed');
+              armed = setTimeout(disarm, 4000);
+              return;
+            }
+            clearTimeout(armed);
+            row.disabled = true;
+            // Out of view NOW, not when the relays have answered. The write is a read
+            // from the relays, a signature and a publish, and sitting on an open menu for
+            // that long reads as a tap that did nothing. A failure puts the row back with
+            // its menu as it was, so the error has something to point at.
+            if (mt.item) mt.item.classList.add('hidden');
+            try {
+              const added = await addPrivateMute(mt.pubkey, r.tag);
+              toast(added ? r.done : t('Already muted'), 'success');
+              setOpen(false);
+            } catch (e2) {
+              if (mt.item) mt.item.classList.remove('hidden');
+              toast(e2 && e2.message ? e2.message : t('Could not mute'), 'error');
+              row.disabled = false;
+              disarm();
+            }
+          });
+          panel.appendChild(row);
+        }
+      }
     }
     return { btn, panel };
   }
@@ -7359,7 +7789,7 @@
 
       // The ⋮ menu opens directly under the line it came from, not at the foot of a row
       // that may be a note, three thumbnails and an action bar tall.
-      const moreMenu = buildEventMenu(ev, linkTarget);
+      const moreMenu = buildEventMenu(ev, linkTarget, { mute: { ...muteTargets(ev, a.pubkey), pubkey: a.pubkey, item } });
       item.appendChild(moreMenu.panel);
 
       // A note or a comment can be answered, reacted to and zapped. A reaction, a repost

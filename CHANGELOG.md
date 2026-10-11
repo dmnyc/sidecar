@@ -9,6 +9,10 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+### Added
+- **Mute a person, a note or a thread from the notifications panel.** The ⋮ menu on each notification has **Mute** for the person, **Mute this note and replies**, and **Mute the whole thread**. Muting takes a second tap to confirm. A mute goes into the encrypted part of your mute list, so no one reading the list sees who you muted, and unmuting removes a person wherever they are on it, including mutes made in other clients. Everything else on your list is kept as it is, and nothing is written if your list or its private entries cannot be read first.
+- **Follow, unfollow, mute and unmute from search.** Each search result, and the profile card it opens, has two icon buttons, one tap each, and the icon changes the moment you tap. On the card they sit in one row with a bolt for Zap and a link out to your client, which replace the two wide buttons; Pay offer is inside the Zap panel. Unmuting removes a person wherever they are on your list, including mutes made in other clients. A follow or unfollow changes only that one entry: the rest of your follow list, with its relay hints and petnames, is kept as it is, and nothing is written if the list cannot be read first.
+
 ## [1.15.8] — 2026-10-05
 
 ### Fixed

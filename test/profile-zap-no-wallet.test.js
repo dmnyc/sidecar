@@ -73,9 +73,10 @@ test('BOTH BRANCHES SIT BEHIND THE SAME ZAP BUTTON', () => {
   // send form is reached only by having a wallet and the QR is the other branch.
   assert.match(sheet, /zapPanel = \(zapHasWallet && !isSelf\)\s*\n?\s*\? zapForm\s*\n?\s*: zapPayBlock\(zapAddr/,
     'the two branches are no longer chosen by whether a wallet exists');
-  // The Zap button is still unconditional; it just shares a row with Pay offer now, and
-  // goes in first because a zap is the route most profiles can take.
-  assert.match(sheet, /payRow\.prepend\(zapBtn\);/, 'the Zap button is not always shown');
+  // The Zap button is still unconditional: an icon in the row under the name, there from
+  // the start and enabled once the reveal knows there is something to pay with.
+  assert.match(sheet, /toolbar\.append\(zapBtn, open\);/, 'the Zap button is not always shown');
+  assert.match(sheet, /zapPanel = \(zapHasWallet && !isSelf\)[\s\S]*?\n\s*enableBolt\(\);\s*\n\s*zapWrap\.append\(zapPanel\);/, 'the reveal no longer enables the button it opens');
   assert.match(sheet, /zapWrap\.append\(zapPanel\);/, 'the panel it opens is no longer attached');
   assert.match(sheet, /className: 'recv-out peek-zap-pay hidden'/, 'the pay block is exposed on load again');
   assert.match(sheet, /zapPanel\.classList\.toggle\('hidden'\)/, 'the button no longer opens whichever panel applies');
