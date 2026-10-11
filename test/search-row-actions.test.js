@@ -28,6 +28,7 @@ const CAL = 'c'.repeat(64);
 const DAN = 'd'.repeat(64);
 
 const WRITER = [
+  lift(/  async function listRelays\(pubkey\) \{[\s\S]*?\n  \}\n/, 'listRelays'),
   lift(/  let _followWrite = [^\n]*\n  function changeFollow\([\s\S]*?\n  \}\n  const addFollow = [^\n]*\n  const removeFollow = [^\n]*\n/, 'changeFollow'),
   lift(/  async function writeFollow\([\s\S]*?\n  \}\n/, 'writeFollow'),
 ].join('\n');
@@ -208,7 +209,7 @@ function rowWorld({ muted = false, mutesFail = false } = {}) {
     },
     icon: (name) => ({ icon: name }),
     toast: (m, type) => toasts.push([m, type]),
-    relayUrls: async () => ['wss://r'],
+    listRelays: async () => ['wss://r'],
     loadMuteList: async () => { if (mutesFail) throw new Error('down'); return set; },
     trustTier: (pk, set) => { ctxTrust.seen.push([pk, [...set]]); return ctxTrust.value; },
     addFollow: (...a) => { calls.push(['follow', ...a]); return gates.follow ? gates.follow.promise : Promise.resolve(true); },
@@ -320,6 +321,42 @@ test('unfollow and unmute are the same buttons, one tap each', async () => {
   assert.deepEqual(plain(w.toasts.map((t) => t[0])), ['Unfollowed Bob', 'Unmuted Bob']);
   assert.equal(iconOf(follow), 'user-plus');
   assert.equal(iconOf(mute), 'eye');
+});
+
+test('an unmute that had nothing to remove says so, never "Unmuted"', async () => {
+  const w = rowWorld({ muted: true });
+  w.ctx.removeMute = async () => false;
+  const [, mute] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
+  await settle();
+  await mute.click();
+  assert.deepEqual(plain(w.toasts), [['Bob is not on your mute list.', 'success']]);
+  assert.equal(iconOf(mute), 'eye', 'the icon agrees with the list the relays gave back');
+});
+
+test('an unfollow that had nothing to remove says so, never "Unfollowed"', async () => {
+  const w = rowWorld();
+  w.ctx.removeFollow = async () => false;
+  const [follow] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 2 }).children;
+  await follow.click();
+  assert.deepEqual(plain(w.toasts), [['You are not following Bob.', 'success']]);
+});
+
+test('a mute that found them already muted says so', async () => {
+  const w = rowWorld();
+  w.ctx.addPrivateMute = async () => false;
+  const [, mute] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
+  await settle();
+  await mute.click();
+  assert.deepEqual(plain(w.toasts), [['Already muted', 'success']]);
+});
+
+test('the mute button reads the list from the read and the write relays', async () => {
+  const w = rowWorld();
+  const seen = [];
+  w.ctx.listRelays = async (pk) => { seen.push(pk); return ['wss://r']; };
+  w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 });
+  await settle();
+  assert.deepEqual(seen, [ME]);
 });
 
 test('a second tap while the first is still in flight does nothing', async () => {

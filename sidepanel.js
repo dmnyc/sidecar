@@ -6825,6 +6825,19 @@
     collectMuteTags([], set); // recounts
   }
 
+  // Where an account's own lists are looked for: its read relays and its write relays
+  // together, newest copy wins. A list is published to the write relays and read back from
+  // the read relays, and either set can be the one that has the latest version. Asking
+  // only the read relays is how a mute written from another client, or an edit made a
+  // moment ago, goes unseen, and an edit built from that older copy is then published over
+  // the newer one.
+  async function listRelays(pubkey) {
+    const read = await readRelayUrls(pubkey);
+    let write = [];
+    try { write = await postRelays(); } catch (_) {}
+    return [...new Set([...read, ...write])];
+  }
+
   // Add one entry to the PRIVATE part of the account's mute list: the tags that live
   // encrypted in the event's content, where nobody reading the list can see who the
   // account has muted. Public tags and every other private entry ride through
@@ -6832,8 +6845,10 @@
   // by another client has to be unmutable here or the button is a lie.
   //
   // READ BEFORE WRITE, AND FAIL CLOSED, the way addBookmark does. A kind 10000 is
-  // replaceable, so a list built from a read that failed erases every mute the account
-  // has. Nothing is published unless the list was read, and nothing is published if
+  // replaceable, so a list built from a read that failed, or from an older copy than the
+  // newest, erases every mute the account has: it asks the read and the write relays both
+  // (listRelays). A false return means there was nothing to change, and an unmute says so
+  // rather than reporting success. Nothing is published unless the list was read, and nothing is published if
   // the private part exists and could not be decrypted: writing back a list without
   // entries we could not read would delete them. An account with neither a profile
   // nor a list gets the error; that is the right way round.
@@ -6855,7 +6870,7 @@
 
   async function writeMute(pubkey, tag, remove) {
     if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
-    const relays = await readRelayUrls(pubkey);
+    const relays = await listRelays(pubkey);
     const got = await poolQuerySync(relays, { kinds: [0, 10000], authors: [pubkey] }, { maxWait: 6000 });
     const list = (got || []).filter((e) => e.kind === 10000).sort((a, b) => b.created_at - a.created_at)[0] || null;
     if (!list && !(got || []).some((e) => e.kind === 0)) {
@@ -6937,10 +6952,7 @@
   async function writeFollow(pubkey, target, remove, info) {
     if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
     if (!/^[0-9a-f]{64}$/.test(target)) throw new Error(t('Could not follow this account.'));
-    const read = await readRelayUrls(pubkey);
-    let write = [];
-    try { write = await postRelays(); } catch (_) {}
-    const relays = [...new Set([...read, ...write])];
+    const relays = await listRelays(pubkey);
     const got = await poolQuerySync(relays, { kinds: [0, 3], authors: [pubkey] }, { maxWait: 6000 });
     const list = (got || []).filter((e) => e.kind === 3).sort((a, b) => b.created_at - a.created_at)[0] || null;
     if (!list && !(got || []).some((e) => e.kind === 0)) {
@@ -7052,9 +7064,13 @@
       // mark if the people you follow still vouch for them.
       setTier(following ? 2 : trustTier(c.pubkey, new Set((followListCache || []).map((x) => x.pubkey).filter((pk) => pk !== c.pubkey))));
       try {
-        if (was) await removeFollow(owner, c.pubkey);
-        else await addFollow(owner, c.pubkey, { name: c.name, picture: c.picture });
-        toast(was ? t('Unfollowed {{name}}', { name: c.name }) : t('Followed {{name}}', { name: c.name }), 'success');
+        const changed = was
+          ? await removeFollow(owner, c.pubkey)
+          : await addFollow(owner, c.pubkey, { name: c.name, picture: c.picture });
+        // Nothing to remove is said as such: the list the relays gave back did not have them.
+        toast(was
+          ? (changed ? t('Unfollowed {{name}}', { name: c.name }) : t('You are not following {{name}}.', { name: c.name }))
+          : t('Followed {{name}}', { name: c.name }), 'success');
       } catch (e) {
         following = was;
         paintFollow();
@@ -7076,9 +7092,12 @@
       muted = !was;
       paintMute();
       try {
-        if (was) await removeMute(owner, ['p', c.pubkey]);
-        else await addPrivateMute(owner, ['p', c.pubkey]);
-        toast(was ? t('Unmuted {{name}}', { name: c.name }) : t('Muted {{name}}', { name: c.name }), 'success');
+        const changed = was
+          ? await removeMute(owner, ['p', c.pubkey])
+          : await addPrivateMute(owner, ['p', c.pubkey]);
+        toast(was
+          ? (changed ? t('Unmuted {{name}}', { name: c.name }) : t('{{name}} is not on your mute list.', { name: c.name }))
+          : (changed ? t('Muted {{name}}', { name: c.name }) : t('Already muted')), 'success');
       } catch (e) {
         muted = was;
         paintMute();
@@ -7087,7 +7106,7 @@
       muteBusy = false;
     });
     const paintMute = () => paint(muteBtn, muted ? 'eye-off' : 'eye', muted ? t('Unmute') : t('Mute'), muted);
-    relayUrls(false).then((r) => loadMuteList(owner, r)).then((set) => {
+    listRelays(owner).then((r) => loadMuteList(owner, r)).then((set) => {
       muted = set.pubkeys.has(c.pubkey);
       paintMute();
       ready(muteBtn);

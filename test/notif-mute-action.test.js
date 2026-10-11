@@ -34,6 +34,7 @@ const CODE = [
   lift(/  function muteSubject\(ev\) \{[\s\S]*?\n  \}\n/, 'muteSubject'),
   lift(/  function muteTargets\(ev, own\) \{[\s\S]*?\n  \}\n/, 'muteTargets'),
   lift(/  function applyLocalMutes\(entries, set\) \{[\s\S]*?\n  \}\n/, 'applyLocalMutes'),
+  lift(/  async function listRelays\(pubkey\) \{[\s\S]*?\n  \}\n/, 'listRelays'),
   lift(/  let _muteWrite = [^\n]*\n  function changeMute\([\s\S]*?\n  \}\n  const addPrivateMute = [^\n]*\n  const removeMute = [^\n]*\n/, 'changeMute'),
   lift(/  async function writeMute\([\s\S]*?\n  \}\n/, 'writeMute'),
   lift(/  function loadMuteList\(pubkey, relays, force\) \{[\s\S]*?\n  \}\n/, 'loadMuteList'),
@@ -55,6 +56,7 @@ function world({ list = null, profile = true, undecryptable = false, relayDown =
     relayUrls: async () => ['wss://relay.test'],
     WEB_COMMENT_KIND: 1111,
     readRelayUrls: async () => ['wss://relay.test'],
+    postRelays: async () => ['wss://relay.test'],
     poolQuerySync: async (_r, f) => {
       if (relayDown) return [];
       const out = w.store.filter((e) => f.kinds.includes(e.kind));
