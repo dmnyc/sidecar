@@ -2899,6 +2899,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 @media (prefers-reduced-motion: reduce) { .ac-item-actions .icon-btn { transition: none; } }
 .ac-item-actions .icon-btn.on { color: var(--gold); }
 .ac-item-actions .icon-btn.on:hover { color: var(--gold); }
+/* Waiting for the second tap. A red check on a red wash, which reads as "confirm" and is
+   not the resting muted state (a red crossed-out icon on nothing). */
+.ac-item-actions .icon-btn.armed, .ac-item-actions .icon-btn.armed:hover {
+  color: var(--red); background: color-mix(in srgb, var(--red) 16%, transparent);
+}
 .ac-item-actions .icon-btn:nth-child(2).on, .ac-item-actions .icon-btn:nth-child(2).on:hover { color: var(--red); }
 .ac-loading { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
 /* Shape and metrics live on .recv-spinner, which this shares. */
@@ -5391,15 +5396,26 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    button to this container and clamps the text with .about-clamp, so a scroller on
    the container traps the toggle below the fold — the bio expands and there is then
    no way to collapse it. Let .about-clamp cap the height and let the modal scroll. */
+/* The bio is the one left-aligned block on a card that is otherwise centered, so a thin
+   line sets it apart from what is above it. :empty hides the whole thing, line included,
+   for a profile with no bio. */
 .peek-about {
   text-align: left; font-size: 13px; line-height: 1.5; color: var(--text-2);
-  margin: 10px 0; overflow-wrap: anywhere;
+  margin: 12px 0 10px; padding-top: 12px; border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
 }
 .peek-about:empty { display: none; }
-/* The hand-off sits below the content, full width, never inline (CLAUDE.md). */
-.peek-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-.peek-actions button { width: 100%; }
-.peek-actions button.armed { color: var(--red); }
+/* The lightning address, centered under the icon row, with room from the icons above it. */
+.peek-person-actions ~ .peek-meta { margin-top: 8px; }
+/* The card's corner X sits over the banner, which is user content: a disc keeps it
+   readable on any picture and in any theme, so it does not borrow --muted from the sheet. */
+.modal-x.peek-x {
+  top: 10px; right: 10px;
+  background: rgba(0, 0, 0, 0.55); color: #fff;
+  border-radius: 50%; width: 32px; height: 32px;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.modal-x.peek-x:hover { background: rgba(0, 0, 0, 0.75); color: #fff; }
 /* reach + relationship on the peek sheet. Inherits .profile-stats from the
    Profile tab so the two read as the same thing said about two people. Wraps,
    because three phrases do not always fit 358px on one line. */

@@ -197,6 +197,7 @@ function rowWorld({ muted = false, mutesFail = false } = {}) {
   const toasts = [];
   const calls = [];
   const gates = { follow: null, mute: null };
+  const timers = [];
   const set = { pubkeys: new Set(muted ? [BOB] : []) };
   const ctx = withI18n({
     state: { activePubkey: ME },
@@ -214,13 +215,17 @@ function rowWorld({ muted = false, mutesFail = false } = {}) {
     trustTier: (pk, set) => { ctxTrust.seen.push([pk, [...set]]); return ctxTrust.value; },
     addFollow: (...a) => { calls.push(['follow', ...a]); return gates.follow ? gates.follow.promise : Promise.resolve(true); },
     removeFollow: (...a) => { calls.push(['unfollow', ...a]); return gates.follow ? gates.follow.promise : Promise.resolve(true); },
+    setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; },
+    clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].f = null; },
     addPrivateMute: (...a) => { calls.push(['mute', ...a]); return gates.mute ? gates.mute.promise : Promise.resolve(true); },
     removeMute: (...a) => { calls.push(['unmute', ...a]); return gates.mute ? gates.mute.promise : Promise.resolve(true); },
   });
   vm.createContext(ctx);
   vm.runInContext(lift(/  function personActions\(c, opts\) \{[\s\S]*?\n    return box;\n  \}\n/, 'personActions') + '\nglobalThis.actions = personActions;', ctx);
-  return { ctx, toasts, calls, gates };
+  return { ctx, toasts, calls, gates, timers };
 }
+// Muting and unmuting each take a second tap.
+const tapTwice = async (b) => { await b.click(); await b.click(); };
 
 const iconOf = (b) => b.children[0].icon;
 
@@ -234,7 +239,7 @@ test('two icon buttons, no visible words, each with a translated name for assist
   assert.equal(follow.attrs['aria-label'], 'Follow');
   assert.equal(follow.title, 'Follow');
   await settle();
-  assert.equal(iconOf(mute), 'eye');
+  assert.equal(iconOf(mute), 'volume-2');
   assert.equal(mute.attrs['aria-label'], 'Mute');
   for (const b of box.children) assert.ok(!b.textContent, 'no text node on an icon button');
 });
@@ -255,7 +260,7 @@ test('the state shows what is true: followed and muted rows start flipped', asyn
   await settle();
   assert.equal(iconOf(follow), 'user-check');
   assert.equal(follow.attrs['aria-label'], 'Unfollow');
-  assert.equal(iconOf(mute), 'eye-off');
+  assert.equal(iconOf(mute), 'volume-x');
   assert.equal(mute.attrs['aria-label'], 'Unmute');
 });
 
@@ -310,17 +315,17 @@ test('a failed follow flips back and says why', async () => {
   assert.deepEqual(plain(w.toasts), [['Could not read your follow list, so nothing was changed.', 'error']]);
 });
 
-test('unfollow and unmute are the same buttons, one tap each', async () => {
+test('unfollow takes one tap and unmute takes a second tap to confirm', async () => {
   const w = rowWorld({ muted: true });
   const c = { pubkey: BOB, name: 'Bob', tier: 2 };
   const [follow, mute] = w.ctx.actions(c).children;
   await settle();
   await follow.click();
-  await mute.click();
+  await tapTwice(mute);
   assert.deepEqual(plain(w.calls), [['unfollow', ME, BOB], ['unmute', ME, ['p', BOB]]]);
   assert.deepEqual(plain(w.toasts.map((t) => t[0])), ['Unfollowed Bob', 'Unmuted Bob']);
   assert.equal(iconOf(follow), 'user-plus');
-  assert.equal(iconOf(mute), 'eye');
+  assert.equal(iconOf(mute), 'volume-2');
 });
 
 test('an unmute that had nothing to remove says so, never "Unmuted"', async () => {
@@ -328,9 +333,9 @@ test('an unmute that had nothing to remove says so, never "Unmuted"', async () =
   w.ctx.removeMute = async () => false;
   const [, mute] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
   await settle();
-  await mute.click();
+  await tapTwice(mute);
   assert.deepEqual(plain(w.toasts), [['Bob is not on your mute list.', 'success']]);
-  assert.equal(iconOf(mute), 'eye', 'the icon agrees with the list the relays gave back');
+  assert.equal(iconOf(mute), 'volume-2', 'the icon agrees with the list the relays gave back');
 });
 
 test('an unfollow that had nothing to remove says so, never "Unfollowed"', async () => {
@@ -346,7 +351,7 @@ test('a mute that found them already muted says so', async () => {
   w.ctx.addPrivateMute = async () => false;
   const [, mute] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
   await settle();
-  await mute.click();
+  await tapTwice(mute);
   assert.deepEqual(plain(w.toasts), [['Already muted', 'success']]);
 });
 
@@ -494,8 +499,7 @@ test('both are icons with names for assistive tech, and no words on the card for
   assert.match(source, /zapBtn\.setAttribute\('aria-label', zapLabel\)/);
   assert.match(source, /const open = h\('button', \{ className: 'icon-btn sm', type: 'button', title: t\('View in client'\) \}\);\s*open\.setAttribute\('aria-label', t\('View in client'\)\);\s*open\.append\(icon\('external'\)\);/);
   assert.match(source, /open\.title = label;\s*open\.setAttribute\('aria-label', label\);/, 'the client is named in the tooltip once known');
-  const actions = source.match(/actions\.append\(close\);/);
-  assert.ok(actions, 'only Close is left in the foot of the card');
+  assert.doesNotMatch(source.slice(source.indexOf('async function openProfileSheet('), source.indexOf('async function openProfileFor(')), /actions\.append\(/, 'nothing is left in a foot container: the card ends at its panels');
 });
 
 test('the bolt is enabled by whichever of a zap or an offer turns up first', () => {
@@ -677,4 +681,122 @@ test('the link out opens the profile in a tab and leaves the card open', () => {
   const handler = source.slice(at, source.indexOf('});', at) + 3);
   assert.match(handler, /openInClient\(client\.profile\(npub\)\)/);
   assert.doesNotMatch(handler, /closeModal/, 'the card closed itself when the profile opened elsewhere');
+});
+
+// ---- the card closes from its corner ----
+
+test('the card has a corner X, first in the card, and no Close button at the foot', () => {
+  const A = source.indexOf('async function openProfileSheet(');
+  const card = source.slice(A, source.indexOf('async function openProfileFor('));
+  assert.match(card, /const x = h\('button', \{ className: 'modal-x peek-x', type: 'button', title: t\('Close'\) \}\);\s*x\.setAttribute\('aria-label', t\('Close'\)\);\s*x\.append\(icon\('x'\)\);\s*x\.addEventListener\('click', closeModal\);\s*modal\.prepend\(x\);/);
+  assert.doesNotMatch(card, /textContent: (?:t\()?'Close'\)?/, 'a worded Close button is back at the foot of the card');
+  assert.doesNotMatch(card, /peek-actions/, 'the empty foot container is back');
+});
+
+test('the corner X stays readable over any banner picture', () => {
+  const rule = css.match(/^\.modal-x\.peek-x \{([^}]*)\}/m);
+  assert.ok(rule, 'a card-specific X rule exists');
+  assert.match(rule[1], /background: rgba\(0, 0, 0, 0\.\d+\)/, 'a dark disc, not a text color borrowed from the sheet');
+  assert.match(rule[1], /color: #fff/);
+  assert.match(rule[1], /border-radius: 50%/);
+  assert.match(css, /^\.modal-x\.peek-x:hover \{[^}]*color: #fff/m);
+  assert.doesNotMatch(css, /^\.peek-actions/m, 'the foot container styling went with the container');
+});
+
+// ---- the lightning address above the bio, the bio set apart by a line ----
+
+test('the card reads: icons, then the lightning address, then the bio', () => {
+  assert.match(source, /\[npubChip\(npub\)\]\), rel, lud, about\);/, 'the bio is above the address again');
+});
+
+test('the left-aligned bio is set apart from the centered block by a thin line, which goes when there is no bio', () => {
+  const rule = css.match(/^\.peek-about \{([^}]*)\}/m);
+  assert.ok(rule, 'the bio rule exists');
+  assert.match(rule[1], /text-align: left/);
+  assert.match(rule[1], /border-top: 1px solid var\(--border\)/);
+  assert.match(rule[1], /padding-top: \d+px/, 'room under the line');
+  assert.match(css, /^\.peek-about:empty \{ display: none; \}/m, 'no bio, no line');
+  assert.match(css, /^\.peek-person-actions ~ \.peek-meta \{ margin-top: \d+px; \}/m, 'room between the icons and the address');
+});
+
+// ---- mute and unmute ask twice, everywhere ----
+
+test('the first tap on mute only arms it: a red check, and a name saying what the next tap does', async () => {
+  const w = rowWorld();
+  const [, mute] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
+  await settle();
+  await mute.click();
+  assert.equal(w.calls.length, 0, 'nothing is written on the first tap');
+  assert.equal(iconOf(mute), 'check');
+  assert.equal(mute.classList.contains('armed'), true);
+  assert.equal(mute.title, 'Tap again to mute');
+  assert.equal(mute.attrs['aria-label'], 'Tap again to mute');
+  await mute.click();
+  assert.deepEqual(plain(w.calls), [['mute', ME, ['p', BOB]]]);
+  assert.equal(iconOf(mute), 'volume-x', 'and the icon settles on the new state');
+  assert.equal(mute.classList.contains('armed'), false);
+});
+
+test('unmute is armed the same way, and says unmute', async () => {
+  const w = rowWorld({ muted: true });
+  const [, mute] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
+  await settle();
+  await mute.click();
+  assert.equal(w.calls.length, 0);
+  assert.equal(mute.attrs['aria-label'], 'Tap again to unmute');
+  assert.equal(mute.classList.contains('armed'), true);
+});
+
+test('an armed mute button falls back by itself, and the next tap arms again instead of muting', async () => {
+  const w = rowWorld();
+  const [, mute] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
+  await settle();
+  await mute.click();
+  const timer = w.timers.find((x) => x.f && x.ms === 4000);
+  assert.ok(timer, 'a disarm timer was set');
+  timer.f();
+  assert.equal(mute.classList.contains('armed'), false);
+  assert.equal(iconOf(mute), 'volume-2');
+  assert.equal(mute.attrs['aria-label'], 'Mute');
+  await mute.click();
+  assert.equal(w.calls.length, 0, 'after the fall back the next tap only arms');
+});
+
+test('following is not asked twice: only mute and unmute are', async () => {
+  const w = rowWorld();
+  const [follow] = w.ctx.actions({ pubkey: BOB, name: 'Bob', tier: 0 }).children;
+  await follow.click();
+  assert.equal(w.calls.length, 1);
+  assert.equal(follow.classList.contains('armed'), false);
+});
+
+test('the armed look is a red wash that is not the resting muted state', () => {
+  const rule = css.match(/^\.ac-item-actions \.icon-btn\.armed, \.ac-item-actions \.icon-btn\.armed:hover \{([^}]*)\}/m);
+  assert.ok(rule, 'an armed rule exists');
+  assert.match(rule[1], /color: var\(--red\)/);
+  assert.match(rule[1], /background: color-mix\(in srgb, var\(--red\) \d+%, transparent\)/);
+});
+
+test('every mute control in the app asks twice: the bell rows and the icon, on a row and on the card', () => {
+  const bell = source.slice(source.indexOf('// Mute rows, last:'), source.indexOf('return { btn, panel };'));
+  assert.match(bell, /if \(!armed\) \{/, 'the bell rows arm first');
+  const icons = source.slice(source.indexOf('function personActions('), source.indexOf('box.setFollowing = '));
+  assert.match(icons, /if \(!muteArmed\) \{/, 'the icon arms first, and it is the one component behind both the row and the card');
+  assert.doesNotMatch(source.slice(source.indexOf('async function writeMute('), source.indexOf('async function writeMute(') + 300), /armed/, 'the writers stay free of UI state');
+});
+
+// ---- the mute icon is a speaker ----
+
+test('mute is a speaker, crossed out once muted, everywhere it appears', () => {
+  const core = fs.readFileSync(path.join(__dirname, '..', 'composer-core.js'), 'utf8');
+  for (const name of ['volume-2', 'volume-x']) {
+    assert.match(core, new RegExp("'" + name + "': '<polygon points=\"11 5 6 9 2 9 2 15 6 15 11 19 11 5\"></polygon>"), name + ' is not in the icon table');
+  }
+  assert.match(core, /'volume-x': '[^']*<line x1="23" y1="9" x2="17" y2="15"><\/line><line x1="17" y1="9" x2="23" y2="15"><\/line>/, 'the crossed speaker lost its cross');
+  assert.match(source, /paint\(muteBtn, muted \? 'volume-x' : 'volume-2', muted \? t\('Unmute'\) : t\('Mute'\), muted\)/);
+  const bell = source.slice(source.indexOf('// Mute rows, last:'), source.indexOf('return { btn, panel };'));
+  assert.equal((bell.match(/glyph: 'volume-x'/g) || []).length, 3, 'person, note and thread all use the speaker');
+  assert.doesNotMatch(bell, /glyph: 'eye-off'|glyph: 'user-x'/, 'an old mute glyph is back in the bell');
+  const mine = source.slice(source.indexOf('function personActions('), source.indexOf('box.setFollowing = '));
+  assert.doesNotMatch(mine, /'eye'|'eye-off'/, 'an eye is back on the mute button');
 });

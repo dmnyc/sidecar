@@ -2394,7 +2394,7 @@
       rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
-      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, about, lud);
+      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, lud, about);
       modal.append(body);
       if(options?.chatEvent)modal.append(window.SidecarStreamChat.commentZapContext(options.chatEvent,key=>cachedProfile(key)?.name || window.SidecarStreams.cocktailName(key)));
 
@@ -2875,11 +2875,6 @@
         .catch(() => { zapHasWallet = false; })   // an unreachable wallet is no wallet
         .then(revealZap);
 
-      const actions = h('div', { className: 'peek-actions' });
-      // Secondary, not primary. Once the zap form is open there would otherwise be
-      // two filled buttons competing, and the hand-off is the way OUT of the sheet
-      // rather than the thing it is for.
-      // The way out to the client, an icon in the row under the name. Its name is the client's.
       const open = h('button', { className: 'icon-btn sm', type: 'button', title: t('View in client') });
       open.setAttribute('aria-label', t('View in client'));
       open.append(icon('external'));
@@ -2889,10 +2884,15 @@
         const client = await preferredClient();
         openInClient(client.profile(npub));
       });
-      const close = h('button', { className: 'ghost', textContent: 'Close' });
-      close.addEventListener('click', closeModal);
-      actions.append(close);
-      modal.append(actions);
+      // THE WAY OUT IS THE CORNER X, where every other sheet puts it, drawn on a dark disc
+      // because what sits behind it is somebody's banner picture and no text color is
+      // legible on every one. It replaces a Close button at the foot of the card, which sat
+      // under the pay and profile buttons and read as one more of them.
+      const x = h('button', { className: 'modal-x peek-x', type: 'button', title: t('Close') });
+      x.setAttribute('aria-label', t('Close'));
+      x.append(icon('x'));
+      x.addEventListener('click', closeModal);
+      modal.prepend(x);
       // THE ICON ROW, under the follower line: follow and mute for other people, then the
       // bolt and the way out. Not on your own keys, and not on the sheets opened to zap a
       // stream comment, for follow and mute: there the sheet is a payment, and a mute
@@ -7041,6 +7041,7 @@
     };
     const ready = (b) => { b.disabled = false; b.classList.remove('pending'); b.setAttribute('aria-busy', 'false'); };
     const paint = (b, iconName, label, on) => {
+      b.classList.remove('armed');
       b.replaceChildren(icon(iconName));
       b.title = label;
       b.setAttribute('aria-label', label);
@@ -7085,8 +7086,28 @@
 
     let muted = false;
     let muteBusy = false;
+    // MUTING AND UNMUTING BOTH TAKE A SECOND TAP, as they do in the bell. An icon has no
+    // words to rewrite, so the first tap turns it into a red check and says what the next
+    // one does in its tooltip and its screen-reader name; it falls back after a few seconds.
+    let muteArmed = null;
+    const disarmMute = () => {
+      clearTimeout(muteArmed);
+      muteArmed = null;
+      paintMute();
+    };
     const muteBtn = make(async () => {
       if (muteBusy) return;
+      if (!muteArmed) {
+        const label = muted ? t('Tap again to unmute') : t('Tap again to mute');
+        muteBtn.replaceChildren(icon('check'));
+        muteBtn.title = label;
+        muteBtn.setAttribute('aria-label', label);
+        muteBtn.classList.add('armed');
+        muteArmed = setTimeout(disarmMute, 4000);
+        return;
+      }
+      clearTimeout(muteArmed);
+      muteArmed = null;
       muteBusy = true;
       const was = muted;
       muted = !was;
@@ -7105,7 +7126,7 @@
       }
       muteBusy = false;
     });
-    const paintMute = () => paint(muteBtn, muted ? 'eye-off' : 'eye', muted ? t('Unmute') : t('Mute'), muted);
+    const paintMute = () => paint(muteBtn, muted ? 'volume-x' : 'volume-2', muted ? t('Unmute') : t('Mute'), muted);
     listRelays(owner).then((r) => loadMuteList(owner, r)).then((set) => {
       muted = set.pubkeys.has(c.pubkey);
       paintMute();
@@ -7599,9 +7620,9 @@
       if (mt) {
         const personName = mt.person ? notifAuthorName(mt.person) : '';
         const rows = [
-          mt.person && { glyph: 'user-x', label: t('Mute {{name}}', { name: personName }), done: t('Muted {{name}}', { name: personName }), tag: ['p', mt.person] },
-          mt.note && { glyph: 'eye-off', label: t('Mute this note and replies'), done: t('Note muted'), tag: ['e', mt.note] },
-          mt.thread && { glyph: 'eye-off', label: t('Mute the whole thread'), done: t('Thread muted'), tag: ['e', mt.thread] },
+          mt.person && { glyph: 'volume-x', label: t('Mute {{name}}', { name: personName }), done: t('Muted {{name}}', { name: personName }), tag: ['p', mt.person] },
+          mt.note && { glyph: 'volume-x', label: t('Mute this note and replies'), done: t('Note muted'), tag: ['e', mt.note] },
+          mt.thread && { glyph: 'volume-x', label: t('Mute the whole thread'), done: t('Thread muted'), tag: ['e', mt.thread] },
         ].filter(Boolean);
         for (const r of rows) {
           const row = h('button', { className: 'notif-more-item', type: 'button' });
