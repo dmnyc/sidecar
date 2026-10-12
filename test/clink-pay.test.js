@@ -275,7 +275,7 @@ test('the offer sits inside the payment area the bolt opens, neither the otherâ€
   // beside. A profile with an offer and no address is opened by the bolt itself.
   assert.match(bare, /payRow\.append\(offerBtn\)/);
   assert.doesNotMatch(bare, /payRow\.prepend\(zapBtn\)/, 'the Zap button went back into the pay row');
-  assert.match(bare, /payRow\.classList\.toggle\('hidden', !\(zapPanel && offerShown\)\);/);
+  assert.match(bare, /payRow\.classList\.toggle\('hidden', !\(\(zapPanel \|\| zapSheet\) && offerShown\)\);/);
   assert.match(bare, /if \(!zapPanel\) \{\s*if \(offerFound\) openOfferPanel\(offerFound\);\s*return;/);
 });
 

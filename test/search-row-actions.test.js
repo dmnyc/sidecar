@@ -516,14 +516,14 @@ test('the bolt is gold, set apart by a divider, and the area waits for a panel',
 });
 
 // The payment area's state, run: a hidden area, an offer with no address, and both.
-function payWorld({ zapOpen = false, offerOpen = false, hasZap = true, offerShown = false } = {}) {
+function payWorld({ zapOpen = false, offerOpen = false, hasZap = true, offerShown = false, zapSheet = false } = {}) {
   const mk = (hidden) => { const e = el('div'); if (hidden) e.classList.add('hidden'); e.isConnected = true; return e; };
   const ctx = {
     zapPanel: hasZap ? mk(!zapOpen) : null,
     offerPanel: mk(!offerOpen), offerHandoff: null,
     zapBtn: el('button'), offerBtn: el('button'),
     zapWrap: Object.assign(el('div'), { appended: [] }), payRow: el('div'),
-    offerShown,
+    offerShown, options: zapSheet ? { zap: true } : {},
   };
   ctx.zapWrap.append = (x) => ctx.zapWrap.appended.push(x);
   vm.createContext(ctx);
@@ -799,4 +799,60 @@ test('mute is a speaker, crossed out once muted, everywhere it appears', () => {
   assert.doesNotMatch(bell, /glyph: 'eye-off'|glyph: 'user-x'/, 'an old mute glyph is back in the bell');
   const mine = source.slice(source.indexOf('function personActions('), source.indexOf('box.setFollowing = '));
   assert.doesNotMatch(mine, /'eye'|'eye-off'/, 'an eye is back on the mute button');
+});
+
+// ---- the stream zap sheet: the card styled down to a name and a payment area ----
+
+test('THE STREAM ZAP SHEET KEEPS ITS PAYMENT AREA: the rule that hides the card body must not hide it', () => {
+  const streamsCss = fs.readFileSync(path.join(__dirname, '..', 'streams.css'), 'utf8');
+  const rule = streamsCss.match(/^\.stream-zap-modal \.peek-body > ([^{]*)\{\s*display:none;\s*\}/m);
+  assert.ok(rule, 'the zap sheet hiding rule exists');
+  // Every class the rule spares, read out of its :not() list.
+  const spared = [...rule[1].matchAll(/:not\(\.([\w-]+)\)/g)].map((m) => m[1]);
+  assert.ok(spared.includes('peek-name'), 'the name stays');
+  assert.ok(spared.includes('peek-zap'), 'the payment area stays: it is what the sheet is for');
+  // And the area really is a child of the body, which is why the rule can reach it, with
+  // the class the rule names.
+  assert.match(source, /const zapWrap = h\('div', \{ className: 'peek-zap hidden' \}\);/);
+  assert.match(source, /rel\.after\(toolbar\);\s*toolbar\.after\(zapWrap\);/, 'it sits in the body, next to the icon row');
+  assert.match(source, /body\.append\(name, nip05Row, h\('div', \{ className: 'peek-npub' \}, \[npubChip\(npub\)\]\), rel, lud, about\);/, 'rel is a child of the body');
+});
+
+test('no other rule hides the payment area on that sheet, and the dead foot-container rule is gone', () => {
+  const streamsCss = fs.readFileSync(path.join(__dirname, '..', 'streams.css'), 'utf8');
+  const hiders = streamsCss.split('\n').filter((l) => /\.stream-zap-modal[^{]*\{[^}]*display:\s*none/.test(l));
+  for (const line of hiders) assert.doesNotMatch(line, /\.peek-zap\b(?!\))/, 'a rule hides .peek-zap: ' + line);
+  assert.doesNotMatch(streamsCss, /\.peek-actions/, 'a rule for the deleted foot container is back');
+});
+
+test('every place that opens the card for a stream goes through the same sheet class', () => {
+  // The streams opening the card, by zapRecipient or a comment: all pass zap:true, which is
+  // what puts .stream-zap-modal on the modal and what the CSS above keys on.
+  const callers = source.match(/openProfileSheet\([^)]*\{[^}]*zap:\s*true[^}]*\}\)/g) || [];
+  assert.ok(callers.length >= 2, 'the stream callers moved: ' + callers.length);
+  assert.match(source, /if \(options\?\.zap\) modal\.classList\.add\('stream-zap-modal'\);/);
+});
+
+test('on the zap sheet an offer with no address still has Pay offer, because there is no bolt to open it', () => {
+  const w = payWorld({ hasZap: false, offerShown: true, zapSheet: true });
+  w.paint();
+  assert.equal(w.zapWrap.classList.contains('hidden'), false, 'the area shows');
+  assert.equal(w.payRow.classList.contains('hidden'), false, 'with Pay offer in it');
+});
+
+test('on the zap sheet an address with an offer shows both, and with neither the area stays shut', () => {
+  const both = payWorld({ zapOpen: true, offerShown: true, zapSheet: true });
+  both.paint();
+  assert.equal(both.zapWrap.classList.contains('hidden'), false);
+  assert.equal(both.payRow.classList.contains('hidden'), false);
+  const none = payWorld({ hasZap: false, offerShown: false, zapSheet: true });
+  none.paint();
+  assert.equal(none.zapWrap.classList.contains('hidden'), true, 'nothing to pay with, nothing to show');
+});
+
+test('off the zap sheet nothing changes: an offer alone is opened by the bolt, not shown in the area', () => {
+  const w = payWorld({ hasZap: false, offerShown: true, zapSheet: false });
+  w.paint();
+  assert.equal(w.zapWrap.classList.contains('hidden'), true);
+  assert.equal(w.payRow.classList.contains('hidden'), true);
 });

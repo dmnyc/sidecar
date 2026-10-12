@@ -2565,8 +2565,11 @@
         offerBtn.setAttribute('aria-expanded', String(offerOn));
         // The area shows only while a panel is open, with Pay offer last inside it and only
         // when there is a zap panel for it to sit beside.
-        zapWrap.classList.toggle('hidden', !(zapOn || offerOn));
-        payRow.classList.toggle('hidden', !(zapPanel && offerShown));
+        // The stream zap sheet has no icon row to open anything from, so there the area also
+        // shows for an offer with no zap panel beside it, with Pay offer in it.
+        const zapSheet = !!(options && options.zap);
+        zapWrap.classList.toggle('hidden', !(zapOn || offerOn || (zapSheet && offerShown)));
+        payRow.classList.toggle('hidden', !((zapPanel || zapSheet) && offerShown));
         zapWrap.append(payRow);
       }
 
