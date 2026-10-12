@@ -9,6 +9,34 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.16.0] — 2026-10-12
+
+### Added
+- **Live video.** Watch livestreams and replays in a player above the panel. Open the radio icon to browse **Live**, **Upcoming** and **Past** streams, save streams as bookmarks, or paste an HTTPS media address. Playback keeps going as you move around Sidecar, lock it or approve a signature, and closing the player stops it. A scheduled stream opens its details and can be bookmarked before it starts, and an ended stream plays its recording when one was published. **Enable live video** in Settings turns it off.
+- **Stream chat and zaps.** Chat with the host while you watch, with replies, mentions and reactions signed by your account, and zap the stream or a comment. The player shows viewers, the verified zap total, top zappers and how long the stream has run, with an About view. The zap total ends in a plus once at least two relays have given a complete history, and in an ellipsis while it loads or when fewer have.
+- **Saved streams back up encrypted to your account** and restore on another browser. Your local bookmarks stay either way.
+- **Longer auto-lock.** Auto-lock can wait 8 or 24 hours of inactivity, and **Never** is now **Until browser closes**, which says what it does: your PIN is still asked once per browser session.
+- **Mute a person, a note or a thread from the notifications panel.** The ⋮ menu on each notification has **Mute** for the person, **Mute this note and replies**, and **Mute the whole thread**, each with a second tap to confirm. A zap offers only the person who sent it. A mute goes into the encrypted part of your mute list, so no one reading the list sees who you muted. Everything else on your list is kept as it is, and nothing is written if your list or its private entries cannot be read first.
+- **Follow, unfollow, mute and unmute from search.** Each search result, and the profile card it opens, has a follow button and a mute button, drawn as icons. Following takes one tap and the icon changes at once; muting and unmuting take a second tap. Unmuting removes a person wherever they are on your list, including mutes made in other clients. A follow or unfollow changes only that one entry of your follow list, relay hints and petnames included.
+
+### Changed
+- **A new layout for the profile card.** One row of icons under the name: follow, mute, a bolt for Zap, and a link out to your client. Pay offer is inside the Zap panel, the lightning address sits above the bio with a thin line between them, and the card closes from a corner X.
+- **A saved draft says so when signing interrupts it.** When a signing request interrupts the composer in the panel, “Draft saved” appears once the encrypted draft has been written.
+- **Writing a note and commenting on a page are in the compose menu.**
+- **Sidecar bundles the full HLS.js build** to play live video, with its source and hash recorded and checked at build time.
+
+## [1.15.9] — 2026-10-07
+
+### Fixed
+- **Uploads find your own Blossom servers in both composers.** Server discovery now includes the account’s declared relays, including write-only relays, while honoring the bootstrap setting. A failed or empty lookup is retried on the next upload instead of sending uploads to nostr.build for another five minutes. The shared discovery fix also applies to profile images.
+- **The full-size composer’s toolbar holds still.** Uploading media keeps the Media label and shows its progress shimmer; cycling PoW no longer shifts the other buttons.
+
+### Changed
+- **Close sits in the full-size composer’s top bar,** using the same control as Settings and staying available during mining. Saved drafts take the card’s corner, aligned with its content padding.
+
+### Documentation
+- **Recorded the theme and font size audit.** The measurements, licensing considerations and optimization options are documented; the font-conversion experiment remains unshipped. No fonts, theme artwork, permissions or application-code minification change in this release.
+
 ## [1.15.8] — 2026-10-05
 
 ### Fixed

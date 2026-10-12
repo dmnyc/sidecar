@@ -1,6 +1,6 @@
 # Sidecar Privacy Policy
 
-_Last updated: 2026-10-02_
+_Last updated: 2026-10-12_
 
 Sidecar is a browser extension that acts as a Nostr signer (NIP-07) and a
 Lightning wallet client (Nostr Wallet Connect / NIP-47). It is designed so that
@@ -17,8 +17,8 @@ what it sends, and what it does not do.
 - The only servers Sidecar contacts are ones tied to an action you take: the
   **Nostr relays you configure**, **your own Lightning wallet** (via the Nostr
   Wallet Connect string you provide), and a few services described below (link
-  previews, media uploads, and @-mention search). Nothing is sent to the
-  developer.
+  previews, media uploads, live video, and @-mention search). Nothing is sent to
+  the developer.
 
 ## What is stored, and where
 
@@ -33,6 +33,9 @@ storage. None of it is transmitted to the developer.
   with the same protection as your keys.
 - **Settings and preferences** — auto-lock timer, relay list, per-site
   permissions, per-site spending budgets, default web client, and similar.
+- **Saved streams** — streams you bookmark in the live video directory are kept in
+  the browser's extension storage on your device. If you back them up, an
+  encrypted copy is published to your relays (see Live video below).
 - **Local activity log** — a capped, on-device history of signing/permission
   events, shown in the Activity tab. It never leaves your device and can be
   cleared at any time.
@@ -97,6 +100,21 @@ Sidecar only talks to services **you choose**:
   identifies the app and not you, and it loads the previews from nostr.build's
   servers. Nothing is sent until you open the picker. A GIF you pick is attached by
   its nostr.build link, so nothing is uploaded.
+- **Live video** — nothing is sent until you open the Live streams list or play a
+  stream, and **Enable live video** in Settings turns the feature off. Browsing
+  reads public stream announcements (NIP-53) without signing in, from a fixed set
+  of public relays (relay.damus.io, nos.lol and relay.primal.net), which are not
+  limited to the relays you configure. Playing a stream loads its video from the
+  address in the announcement, so that host sees your IP address and which stream
+  you are watching, as with any video link; stream artwork and host pictures load
+  from their own addresses the same way, with no referrer. A stream's zap total is
+  read from public relays (those three, the stream's own, and purplepag.es,
+  nostr.wine and relay.snort.social), and Sidecar asks the host's Lightning
+  provider for its LNURL details to decide which zap receipts to trust, which
+  shows that provider your IP address. Stream chat reads from and posts to the
+  stream's relays and those same public relays; a message you send is signed by
+  your account and published. Saved streams stay on your device. A backup, if you
+  make one, is encrypted to your own key before it is published to your relays.
 - **@-mention search** — when you type `@` in the composer to mention someone,
   Sidecar searches your follows locally. The first time you search a name, it
   offers to also query the **Nostr Archives** name index so you can find any
