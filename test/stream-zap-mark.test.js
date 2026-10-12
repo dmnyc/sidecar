@@ -42,9 +42,11 @@ test('too few relays finishing gets the plus too', () => {
   assert.equal(zapTotalMark({ count: 252, loading: false }), '+', 'an unknown count is not a quorum');
 });
 
-test('no zaps: a dash once it is known, never a plus or nothing', () => {
-  assert.equal(zapTotalMark({ count: 0, loading: false, answered: 7, truncated: false }), '—');
-  assert.equal(zapTotalMark({ count: 0, loading: false, answered: 0, truncated: true }), '—');
+test('NO ZAPS: blank once it is known, never a dash and never a plus', () => {
+  assert.equal(zapTotalMark({ count: 0, loading: false, answered: 7, truncated: false }), '');
+  assert.equal(zapTotalMark({ count: 0, loading: false, answered: 0, truncated: true }), '');
+  assert.equal(zapTotalMark({ count: 0, loading: false }), '');
+  assert.equal(zapTotalMark({ count: 0, loading: true }), '…', 'still loading is still said');
 });
 
 test('the tooltip follows the same rule as the mark', () => {
@@ -135,7 +137,7 @@ test('the player passes the scan\'s answer to the mark and the tooltip', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'streams.js'), 'utf8');
   assert.match(src, /let loading=true, partial=true, answered=0, truncated=false,/);
   assert.match(src, /const mark=SidecarStreams\.zapTotalMark\(\{count:session\.totals\.count,loading,answered,truncated\}\);/);
-  assert.match(src, /setZapDigits\(output,session\.totals\.count \? value\+mark : mark,animate\);/);
+  assert.match(src, /setZapDigits\(output,text,animate\);/);
   assert.match(src, /partial=!result\.complete;answered=result\.answered;truncated=!!result\.truncated;/);
   assert.match(src, /SidecarStreams\.zapTotalUncertain\(\{answered,truncated\}\) \? t\('Zap history incomplete; retrying available relays\.'\)/);
   assert.doesNotMatch(src, /loading \|\| partial\?'…':'\+'/, 'the all-or-nothing rule is back');
@@ -144,4 +146,50 @@ test('the player passes the scan\'s answer to the mark and the tooltip', () => {
 test('an incomplete history is still retried on a timer', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'streams.js'), 'utf8');
   assert.match(src, /zapHistoryTimer=setTimeout\(\(\)=>\{[^}]*recover\(\)/, 'the incomplete scan is retried');
+});
+
+// ---- the real player: an empty total is hidden, and the loading mark is the only thing shown before it ----
+const vm = require('node:vm');
+async function watch({ count = 0 } = {}) {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'streams.js'), 'utf8');
+  const fn = src.slice(src.indexOf('  async function watchZaps('), src.indexOf('  function play('));
+  const log = [];
+  const out = {
+    _hidden: undefined,
+    get hidden() { return this._hidden; },
+    set hidden(v) { this._hidden = v; log.push({ hidden: v }); },
+    replaceChildren() {}, removeAttribute() {}, setAttribute() {},
+  };
+  const context = {
+    zapSessions: new Map(), setZapDigits(el, text) { log.push({ text }); }, SidecarI18n: { fmtNum: String }, t: (x) => x,
+    document: { getElementById: () => out }, AbortController, fetch: () => {}, relays: [], generation: 1, zapAbort: null, zapPool: null, zapRetryTimer: null,
+    NostrTools: { SimplePool: class { destroy() {} } },
+    SidecarStreams: { ZapTotals: class { constructor() { this.count = count; this.msats = count * 1000; } }, zapTotalMark: core.zapTotalMark, zapTotalUncertain: core.zapTotalUncertain, zapProvider: async () => { throw Error('offline'); } },
+    setTimeout: () => 0, clearTimeout() {}, shineZap() {}, window: { dispatchEvent() {} }, CustomEvent: class {},
+  };
+  vm.createContext(context);
+  vm.runInContext(fn, context);
+  await context.watchZaps({ host: 'a'.repeat(64), key: 'k', relays: [] }, 1);
+  return log;
+}
+const shown = (log) => log.filter((e) => 'text' in e).map((e) => e.text);
+const hiddenSeq = (log) => log.filter((e) => 'hidden' in e).map((e) => e.hidden);
+
+test('a stream with no zaps shows an ellipsis while it loads, then nothing at all', async () => {
+  const log = await watch({ count: 0 });
+  assert.deepEqual(shown(log), ['…', ''], 'the dash never appears');
+  assert.deepEqual(hiddenSeq(log), [false, true], 'visible while loading, hidden once there is nothing to show');
+});
+
+test('a stream with zaps keeps its total visible', async () => {
+  const log = await watch({ count: 4 });
+  const texts = shown(log);
+  assert.ok(texts.every((t) => t !== '' && t !== '—'), 'a total is never blank or a dash: ' + JSON.stringify(texts));
+  assert.deepEqual(hiddenSeq(log), [false, false]);
+});
+
+test('the player draws nothing for an empty total and does not leave a blank slot', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'streams.js'), 'utf8');
+  assert.match(src, /const text=session\.totals\.count \? value\+mark : mark;\s*\/\/[^\n]*\n\s*output\.hidden=!text;\s*setZapDigits\(output,text,animate\);/);
+  assert.doesNotMatch(src, /output\.hidden=false;\s*const value=/, 'it is drawn visible again before it knows what to show');
 });

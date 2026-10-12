@@ -210,7 +210,10 @@
       truncated:results.some(r=>r==='capped'),
     };
   }
-  // The mark after a zap total. An ellipsis says the history is still loading. Once it has
+  // The mark after a zap total. An ellipsis says the history is still loading, and a stream with
+  // no zaps to show is blank once it has loaded: a dash reads as a value, and an empty count is
+  // not one.
+  // An ellipsis says the history is still loading. Once it has
   // loaded, a total that can be trusted is shown as it is, with no mark: a short stream
   // that reads 1,000 sats does not need a caveat. A "+" says it is at least this much, and
   // it is kept for the totals that are hard to pin down: a history longer than a scan will
@@ -222,7 +225,7 @@
     return !!truncated || (answered || 0) < ZAP_QUORUM;
   }
   function zapTotalMark({ count, loading, answered, truncated }) {
-    if (!count) return loading ? '…' : '—';
+    if (!count) return loading ? '…' : '';
     if (loading) return '…';
     return zapTotalUncertain({ answered, truncated }) ? '+' : '';
   }
