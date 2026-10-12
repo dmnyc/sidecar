@@ -67,9 +67,12 @@ body { padding-top: var(--stream-height); }
 #stream-title-window { min-width:0; overflow:hidden; text-align:center; padding:0 8px; mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); }
 /* A status message takes the title's place in the top row: one line, cut with an ellipsis, never
    a second row. */
-#stream-message { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:500; color:var(--muted); }
+#stream-message { display:inline-block; vertical-align:middle; max-width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:500; color:var(--muted); }
 #stream-message[hidden] { display:none; }
 #stream-title-window.stream-messaging #stream-title { display:none; }
+/* The title sits in a full-width wrapper for its text-swap animation (stream-details.js). Hidden
+   with the title or it keeps the first line to itself and the message drops onto a second one. */
+#stream-title-window.stream-messaging .t-text-swap { display:none; }
 .stream-toolbar #stream-title { display:inline-block; width:max-content; max-width:none; overflow:visible; text-overflow:clip; white-space:nowrap; vertical-align:middle; font-size:12px; font-weight:500; }
 #stream-title-window.stream-title-scrolling { text-align:left; }
 .stream-title-scrolling #stream-title { animation:stream-title-drift var(--stream-title-duration, 18s) linear infinite alternate; }

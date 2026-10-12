@@ -163,6 +163,7 @@ test('NO STATUS LINE: the script, the markup and the stylesheet have no second r
  const css=read('streams.css');
  assert.doesNotMatch(css,/#stream-status/);
  assert.match(css,/#stream-title-window\.stream-messaging #stream-title \{ display:none; \}/);
- assert.match(css,/#stream-message \{ display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;/,'one line, cut with an ellipsis');
+ assert.match(css,/#stream-message \{ display:inline-block; vertical-align:middle; max-width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;/,'one line, aligned like the title, cut with an ellipsis');
+ assert.match(css,/#stream-title-window\.stream-messaging \.t-text-swap \{ display:none; \}/,'the title\'s animation wrapper is full width and would hold the first line');
  assert.match(css,/#stream-message\[hidden\] \{ display:none; \}/);
 });
