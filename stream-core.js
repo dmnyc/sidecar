@@ -180,40 +180,51 @@
         while(!signal.aborted && pages++<maxPages) {
           const page=await query(relay,{...filter,until,limit:pageSize});
           const events=Array.isArray(page)?page:page.events;
-          if(signal.aborted)return false;
-          if(!events.length)return Array.isArray(page) || page.complete;
+          if(signal.aborted)return 'failed';
+          if(!events.length)return Array.isArray(page) || page.complete ? 'done' : 'failed';
           const valid=events.filter(e=>Number.isSafeInteger(e.created_at) && e.created_at<=until && e.created_at>=0);
-          if(!valid.length)return false;
+          if(!valid.length)return 'failed';
           for(const event of valid)await accept(event);
-          if(!Array.isArray(page) && !page.complete)return false;
+          if(!Array.isArray(page) && !page.complete)return 'failed';
           const oldest=Math.min(...valid.map(e=>e.created_at));
           // Drain the boundary second before advancing, including ties across pages.
           const boundaryPage=await query(relay,{...filter,since:oldest,until:oldest,limit:1000});
           const boundary=Array.isArray(boundaryPage)?boundaryPage:boundaryPage.events;
-          if(signal.aborted)return false;
+          if(signal.aborted)return 'failed';
           for(const event of boundary)await accept(event);
-          if(!Array.isArray(boundaryPage) && !boundaryPage.complete)return false;
-          if(boundary.length>=1000)return false; // Cannot prove this second was exhausted.
-          if(oldest===0 || (filter.since!=null && oldest<=filter.since))return true;
+          if(!Array.isArray(boundaryPage) && !boundaryPage.complete)return 'failed';
+          if(boundary.length>=1000)return 'capped'; // Cannot prove this second was exhausted.
+          if(oldest===0 || (filter.since!=null && oldest<=filter.since))return 'done';
           until=oldest-1;
         }
-      } catch (_) { return false; }
-      return false;
+      } catch (_) { return 'failed'; }
+      // The loop ended on its page limit: the history is longer than a scan will walk.
+      return signal.aborted ? 'failed' : 'capped';
     }));
-    return {complete:!signal.aborted && results.every(Boolean), answered:results.filter(Boolean).length};
+    // 'done' is a relay that walked its whole history. 'capped' is one that stopped at a limit
+    // with more behind it, which is what makes a long stream's total hard to pin down, and is
+    // not the same as 'failed', a relay that timed out or closed on us.
+    return {
+      complete:!signal.aborted && results.every(r=>r==='done'),
+      answered:results.filter(r=>r==='done').length,
+      truncated:results.some(r=>r==='capped'),
+    };
   }
-  // The mark after a zap total. "…" says the number cannot be taken as a floor yet: the
-  // history is still loading, or too few relays have finished a clean pass. "+" says it is
-  // at least this much, and receipts the relays did not show may exist. Asking EVERY relay
-  // to finish cleanly kept the mark on "…" for good, because the list includes relays that
-  // hold no zap receipts at all (a profile aggregator, a paid relay) and a single one that
-  // times out fails the whole pass. A quorum of relays that did finish is what the "+"
-  // needs to be true.
+  // The mark after a zap total. An ellipsis says the history is still loading. Once it has
+  // loaded, a total that can be trusted is shown as it is, with no mark: a short stream
+  // that reads 1,000 sats does not need a caveat. A "+" says it is at least this much, and
+  // it is kept for the totals that are hard to pin down: a history longer than a scan will
+  // walk (a relay stopped at its limit with more behind it), or too few relays finishing a
+  // clean pass to call it a count. A relay that merely times out does not by itself put a
+  // plus on a total, because the list includes relays that hold no zap receipts at all.
   const ZAP_QUORUM = 2;
-  function zapTotalMark({ count, loading, partial, answered }) {
+  function zapTotalUncertain({ answered, truncated }) {
+    return !!truncated || (answered || 0) < ZAP_QUORUM;
+  }
+  function zapTotalMark({ count, loading, answered, truncated }) {
     if (!count) return loading ? '…' : '—';
     if (loading) return '…';
-    return partial && (answered || 0) < ZAP_QUORUM ? '…' : '+';
+    return zapTotalUncertain({ answered, truncated }) ? '+' : '';
   }
   // A provider-signed receipt is counted only after its signed request and invoice agree.
   function invoiceDetails(raw) {
@@ -295,7 +306,7 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, ZAP_QUORUM, Directory, invoiceDetails, ZapTotals };
+  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);
