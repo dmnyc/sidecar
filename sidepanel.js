@@ -2349,17 +2349,45 @@
     },
   };
 
+  // THE BOLT TOGGLES ITS SHEET. The sheet's overlay starts below the player, so the bolt that
+  // opened it stays in reach, and pressing it again used to rebuild the same sheet. It now
+  // closes it, but only when what is open is the stream's own zap sheet for this host: a
+  // sheet opened from a chat comment, another host's, or one that is already closing is
+  // replaced by the stream sheet as before. Closing goes through closeModal, the path the
+  // corner X takes, so a payment in flight is not touched.
   window.addEventListener('sidecar-stream-zap', (event) => {
     if (!$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return;
     const pubkey = event.detail?.pubkey;
-    if (/^[a-f0-9]{64}$/.test(pubkey || '')) openProfileSheet(pubkey, { zap: true, streamEvent: event.detail?.event });
+    if (!/^[a-f0-9]{64}$/.test(pubkey || '')) return;
+    if (streamZapSheetOpenFor(pubkey)) { closeModal(); return; }
+    openProfileSheet(pubkey, { zap: true, streamEvent: event.detail?.event });
   });
+
+  function streamZapSheetOpenFor(pubkey) {
+    const modal = $('modal');
+    return document.documentElement.classList.contains('modal-open')
+      && !modal.classList.contains('is-closing')
+      && modal.classList.contains('stream-zap-modal')
+      && modal.dataset.zapScope === 'stream'
+      && modal.dataset.zapHost === pubkey;
+  }
+  // The bolt says whether its sheet is open, to the eye and to a screen reader.
+  function setStreamZapBolt(open) {
+    $('stream-zap')?.setAttribute('aria-expanded', String(!!open));
+  }
+  setStreamZapBolt(false);
 
   async function openProfileSheet(pubkey, options) {
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
     openModal((modal) => {
       if (options?.zap) modal.classList.add('stream-zap-modal');
+      if (options?.zap) {
+        modal.dataset.zapHost = pubkey;
+        modal.dataset.zapScope = options.chatEvent ? 'comment' : 'stream';
+        // Only the stream's own sheet is the bolt's: a comment's zap came from a comment.
+        setStreamZapBolt(!options.chatEvent);
+      }
       // NOT modal-sheet. That class exists for the notifications list, which fills
       // the panel and scrolls an inner element; it sets overflow:hidden and
       // height:100%, so a sheet without its own scroller simply loses anything past
@@ -2981,7 +3009,7 @@
         const write = (list && list.write) || [];
         return write.length ? poolGetProfile(write, pubkey) : null;
       }).then(land).catch(() => {});
-    });
+    }, options?.zap ? () => setStreamZapBolt(false) : undefined);
   }
 
   async function openProfileFor(pubkey) {
@@ -9103,6 +9131,9 @@
     // unrelated dialog refuse to close.
     _modalDismissGuard = null;
     modalCleanup = onClose || null;
+    // What a zap sheet records about itself goes with it, so no other dialog is taken for it.
+    delete modal.dataset.zapHost; delete modal.dataset.zapScope;
+    setStreamZapBolt(false);
     buildContent(modal);
     show($('modal-overlay'));
     document.documentElement.classList.add('modal-open');

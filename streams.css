@@ -213,6 +213,8 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 #stream-zap svg { width:11px; height:18px; fill:currentColor; stroke:none; }
 #stream-zap { display:flex; align-items:center; justify-content:center; padding:5px; }
 #stream-zap:disabled { opacity:.4; cursor:default; }
+/* Its sheet is open: the bolt is pressed in, so pressing it again reads as closing it. */
+#stream-zap[aria-expanded="true"] { color:var(--gold); background:var(--hover-medium); }
 
 #stream-stop svg { width:16px; height:16px; display:block; }
 
