@@ -6797,9 +6797,14 @@
   // e tag, which is the root in the positional form. It is left out when it is the note
   // itself, so a root note is offered one mute rather than two that do the same thing.
   // '' leaves a row out of the menu: a reaction that names no note has neither.
+  //
+  // A ZAP OFFERS ONLY THE ZAPPER. A receipt is a notice of a payment, not a post, and the
+  // note it landed on is somebody else's: muting that note, or its thread, to stop seeing
+  // a zap would silence every reply and reaction on it as a side effect.
   function muteTargets(ev, own) {
     const hex = (v) => (typeof v === 'string' && /^[0-9a-f]{64}$/.test(v) ? v : '');
     const person = hex(zapSender(ev));
+    if (ev.kind === 9735) return { person: person && person !== own ? person : '', note: '', thread: '' };
     const { tags } = muteSubject(ev);
     const E = tags.find((x) => x[0] === 'E' && hex(x[1]));
     const root = tags.find((x) => x[0] === 'e' && x[3] === 'root' && hex(x[1]));

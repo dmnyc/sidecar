@@ -138,11 +138,26 @@ test('a reaction mutes the note it landed on, not the reaction event', () => {
   assert.equal(t.thread, '', 'same id as the note, so one row');
 });
 
-test('a zap mutes the zapper and the zapped note, not the LNURL service that signed it', () => {
+test('a zap offers only the zapper, never the note or thread it landed on, and not the LNURL service that signed it', () => {
   const { api } = world();
-  const request = JSON.stringify({ pubkey: BOB, content: 'hi', tags: [['e', NOTE]] });
-  const ev = { id: REPLY, pubkey: 'f'.repeat(64), kind: 9735, tags: [['description', request], ['p', ME]] };
-  assert.deepEqual({ ...api.muteTargets(ev, ME) }, { person: BOB, note: NOTE, thread: '' });
+  const request = JSON.stringify({ pubkey: BOB, content: 'hi', tags: [['e', NOTE], ['e', ROOT, '', 'root']] });
+  const ev = { id: REPLY, pubkey: 'f'.repeat(64), kind: 9735, tags: [['description', request], ['p', ME], ['e', NOTE]] };
+  assert.deepEqual({ ...api.muteTargets(ev, ME) }, { person: BOB, note: '', thread: '' });
+});
+
+test('a zap you sent yourself offers nothing at all', () => {
+  const { api } = world();
+  const request = JSON.stringify({ pubkey: ME, content: '', tags: [['e', NOTE]] });
+  const ev = { id: REPLY, pubkey: 'f'.repeat(64), kind: 9735, tags: [['description', request], ['P', ME], ['e', NOTE]] };
+  assert.deepEqual({ ...api.muteTargets(ev, ME) }, { person: '', note: '', thread: '' });
+});
+
+test('reactions and replies still offer their note and thread: only zaps are limited to the person', () => {
+  const { api } = world();
+  const reaction = { id: REPLY, pubkey: BOB, kind: 7, tags: [['e', NOTE], ['p', ME]], content: '+' };
+  assert.equal(api.muteTargets(reaction, ME).note, NOTE);
+  const reply = { id: REPLY, pubkey: BOB, kind: 1, tags: [['e', ROOT, '', 'root'], ['e', NOTE, '', 'reply']] };
+  assert.deepEqual({ ...api.muteTargets(reply, ME) }, { person: BOB, note: REPLY, thread: ROOT });
 });
 
 test('you are never offered a mute on yourself', () => {
