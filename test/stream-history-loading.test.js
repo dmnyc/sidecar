@@ -4,7 +4,7 @@ const vm=require('node:vm');
 const fs=require('node:fs');
 const {Directory,parse}=require('../stream-core');
 const source=fs.readFileSync(require('node:path').join(__dirname,'../streams.js'),'utf8');
-const fn=source.slice(source.indexOf('  async function loadHistory('),source.indexOf('  function paginate('));
+const fn=source.slice(source.indexOf('  async function loadHistory('),source.indexOf('  // ROWS ARE KEPT ACROSS REPAINTS'));
 const now=Math.floor(Date.now()/1000),author='a'.repeat(64);
 const event=(id,time,status='ended')=>({id,kind:30311,pubkey:author,created_at:time,tags:[['d',id],['status',status]]});
 function setup(read) {
