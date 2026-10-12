@@ -85,7 +85,11 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-toolbar #stream-browse,
 .stream-toolbar #stream-browse:hover,
 .stream-toolbar #stream-browse:active,
-.stream-toolbar #stream-browse[aria-expanded="true"] {
+.stream-toolbar #stream-browse[aria-expanded="true"],
+.stream-toolbar #stream-title-button,
+.stream-toolbar #stream-title-button:hover,
+.stream-toolbar #stream-title-button:active,
+.stream-toolbar #stream-title-button[aria-expanded="true"] {
   background:none; border-color:transparent; box-shadow:none; border-radius:0;
 }
 /* The feed picker floats over the app; its list owns the scroll, not the lock page. */
@@ -104,16 +108,20 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
   overflow:hidden;
 }
 
-/* One full-width disclosure target; the independent playback controls sit above it. */
+/* One full-width target for About stream. The independent playback controls sit above it on the
+   right, and LIVE, which shows and hides the stream list, is its own button above its left
+   column, so the title keeps the pixels it had. */
 .stream-toolbar { position:relative; display:block; padding:0; }
-.stream-toolbar #stream-browse {
+.stream-toolbar #stream-title-button {
   display:grid; grid-template-columns:var(--stream-control-space,72px) minmax(0,1fr) var(--stream-control-space,72px);
-  gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
+  align-items:center; gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
 }
+.stream-toolbar #stream-title-button #stream-title-window { grid-column:2; }
+.stream-toolbar #stream-browse { position:absolute; left:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; }
 .stream-live-cue { display:inline-flex; align-items:center; gap:8px; padding-inline:6px; }
 #stream-title-window { display:block; }
 .stream-controls { position:absolute; right:8px; top:0; height:32px; }
-.stream-approving #stream-browse { display:grid; }
+.stream-approving #stream-title-button { display:grid; pointer-events:none; }
 
 /* Keep unlock and navigation available beneath even the expanded player. */
 #stream-dock { max-height:50dvh; display:flex; flex-direction:column; }
