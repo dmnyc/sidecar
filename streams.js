@@ -166,13 +166,14 @@
     const controller=zapAbort=new AbortController();
     const active=zapPool=new NostrTools.SimplePool();
     const current=()=>run===generation && !controller.signal.aborted;
-    let loading=true, partial=true, receiptPaintTimer=null, receiptAnimate=false;
+    let loading=true, partial=true, answered=0, receiptPaintTimer=null, receiptAnimate=false;
     controller.signal.addEventListener('abort',()=>clearTimeout(receiptPaintTimer),{once:true});
     const paint=(animate=false)=>{
       if(!current())return;
       output.hidden=false;
       const value=SidecarI18n.fmtNum(session.totals.msats/1000,{notation:'compact',maximumFractionDigits:1});
-      setZapDigits(output,session.totals.count ? value+(loading || partial?'…':'+') : (loading?'…':'—'),animate);
+      const mark=SidecarStreams.zapTotalMark({count:session.totals.count,loading,partial,answered});
+      setZapDigits(output,session.totals.count ? value+mark : mark,animate);
       if(animate)shineZap();
       output.title=loading ? t('Loading verified zap history…') : partial ? t('Zap history incomplete; retrying available relays.') : t('Verified zaps observed on available relays; other receipts may exist.');
       if(session.totals.count)output.title+=' '+t('{{sats}} sats · {{count}} zaps observed for this event',{sats:SidecarI18n.fmtNum(session.totals.msats/1000),count:SidecarI18n.fmtNum(session.totals.count)});
@@ -217,7 +218,7 @@
         const before=Math.floor(Date.now()/1000);
         const result=await SidecarStreams.zapHistory({sources,query,accept,filter:partial?filter:{...filter,since:Math.max(0,watermark-2)},signal:controller.signal});
         if(!current())return;
-        loading=false;partial=!result.complete;if(!partial)watermark=before;paint();
+        loading=false;partial=!result.complete;answered=result.answered;if(!partial)watermark=before;paint();
         zapHistoryTimer=setTimeout(()=>{if(!current())return;live.close();live=subscribe();recover().catch(()=>{});},60000);
       };
       await recover();

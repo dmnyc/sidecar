@@ -202,6 +202,19 @@
     }));
     return {complete:!signal.aborted && results.every(Boolean), answered:results.filter(Boolean).length};
   }
+  // The mark after a zap total. "…" says the number cannot be taken as a floor yet: the
+  // history is still loading, or too few relays have finished a clean pass. "+" says it is
+  // at least this much, and receipts the relays did not show may exist. Asking EVERY relay
+  // to finish cleanly kept the mark on "…" for good, because the list includes relays that
+  // hold no zap receipts at all (a profile aggregator, a paid relay) and a single one that
+  // times out fails the whole pass. A quorum of relays that did finish is what the "+"
+  // needs to be true.
+  const ZAP_QUORUM = 2;
+  function zapTotalMark({ count, loading, partial, answered }) {
+    if (!count) return loading ? '…' : '—';
+    if (loading) return '…';
+    return partial && (answered || 0) < ZAP_QUORUM ? '…' : '+';
+  }
   // A provider-signed receipt is counted only after its signed request and invoice agree.
   function invoiceDetails(raw) {
     if (typeof raw !== 'string' || raw.length > 20000 || (raw !== raw.toLowerCase() && raw !== raw.toUpperCase())) return null;
@@ -282,7 +295,7 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, Directory, invoiceDetails, ZapTotals };
+  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, ZAP_QUORUM, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);
