@@ -2377,6 +2377,22 @@
   }
   setStreamZapBolt(false);
 
+  // A zap sheet that has paid its way out gives the panel back. Once the payment is on its way
+  // there is nothing left to decide on the card, and the progress toast carries the rest. Only
+  // while the sheet is still the one on screen: a different sheet opened since must stay.
+  function putAwayPaidSheet(sheetEl) {
+    if (sheetEl && sheetEl.isConnected) closeModal();
+  }
+  // Any other control in the player bar puts an open zap sheet away first, so the chat and the list
+  // are never left behind it. The bolt is not one: it opens and closes the sheet itself.
+  const DOCK_CONTROLS = new Set(['stream-chat-toggle', 'stream-browse', 'stream-title-button', 'stream-feed-toggle', 'stream-expand', 'stream-stop']);
+  $('stream-dock')?.addEventListener('click', (e) => {
+    const control = e.target?.closest?.('button');
+    if (!control || !DOCK_CONTROLS.has(control.id)) return;
+    const modal = $('modal');
+    if (document.documentElement.classList.contains('modal-open') && !modal.classList.contains('is-closing') && modal.classList.contains('stream-zap-modal')) closeModal();
+  }, true);
+
   async function openProfileSheet(pubkey, options) {
     const npub = NT.nip19.npubEncode(pubkey);
     const cached = _profileCache.get(pubkey);
@@ -2808,6 +2824,7 @@
             event: options?.chatEvent,
           });
           flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
+          putAwayPaidSheet(zapForm);
           const res = await client.payInvoice(invoice);
           // NWC history keeps the amount and nothing else, so an outgoing zap
           // rendered as a bare "Sent" with no counterparty. Both the other payment
