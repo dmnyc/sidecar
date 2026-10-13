@@ -858,20 +858,15 @@
           <div class="setting">
             <h3 data-i18n="Auto-lock" data-i18n-review>Auto-lock</h3>
             <select id="autolock-select">
-              <option value="0" data-i18n="Never" data-i18n-review>Never</option>
+              <option value="0" data-i18n="Until browser closes" data-i18n-review>Until browser closes</option>
               <option value="1" data-i18n="After 1 minute" data-i18n-review>After 1 minute</option>
               <option value="5" data-i18n="After 5 minutes" data-i18n-review>After 5 minutes</option>
               <option value="15" data-i18n="After 15 minutes" data-i18n-review>After 15 minutes</option>
               <option value="60" data-i18n="After 1 hour" data-i18n-review>After 1 hour</option>
+              <option value="480" data-i18n="After 8 hours" data-i18n-review>After 8 hours</option>
+              <option value="1440" data-i18n="After 24 hours" data-i18n-review>After 24 hours</option>
             </select>
-            <!-- "Never" turns off the idle timer, and reads like an absolute promise —
-                 but the unlocked key lives in memory for the browser session and is gone
-                 when the browser closes, because the alternative is writing a decrypted
-                 key to disk. Someone who picks Never and is then asked for a PIN the next
-                 morning has no way to tell that apart from the setting not working. -->
-            <!-- 'once per browser session' is pinned by trust-nudge.test.js on purpose: without it
-                 Never reads as an absolute promise. -->
-            <p class="hint" data-i18n="Even on Never, your PIN is asked once per browser session." data-i18n-review>Even on Never, your PIN is asked once per browser session.</p>
+            <p class="hint" data-i18n="Sidecar locks after the selected period of inactivity. Your PIN is required once per browser session." data-i18n-review>Sidecar locks after the selected period of inactivity. Your PIN is required once per browser session.</p>
           </div>
 
           <div class="setting">
