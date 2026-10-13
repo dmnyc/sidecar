@@ -369,9 +369,17 @@
     profileImages.set(host, record);
     return record.promise;
   }
-  let pageSize = 6;
-  let streamPage = 0, morePage = 0, category = 'live', detailItem = null;
+  // THE DIRECTORY IS A LIST THAT SCROLLS, NOT A SET OF PAGES. Rows are revealed REVEAL_BATCH at a
+  // time as the end of a list nears the bottom of the scroller, and fetched from history when
+  // there are no more known ones. `reveal` is how many of each list are showing.
+  const REVEAL_BATCH = 20;
+  const reveal = { main: REVEAL_BATCH, more: REVEAL_BATCH };
+  const listTotals = { main: 0, more: 0 };
+  let category = 'live', detailItem = null, detailScroll = 0;
   let historyLoaded = false, historyBusy = false;
+  // A history scan that came back with nothing while more history remains. It is not retried on
+  // its own: the list ends in a button, so the reader chooses to keep looking.
+  let historyStalled = false;
   const historyCursors = new Map();
   function streamDate(value) {
     return SidecarI18n.fmtDate(new Date(value * 1000), {dateStyle:'medium',timeStyle:'short'});
@@ -384,14 +392,14 @@
   function openDirectoryItem(item) {
     if (item.status === 'ended' && item.recording) { play(item.recording,item.title,item.host,item); return; }
     if (model.isLive(item)) { play(item.url,item.title,item.host,item); return; }
-    detailItem=item; paint(); revealContent(list); list.querySelector('.stream-history-back')?.focus();
+    detailScroll=directoryContent.scrollTop;detailItem=item; paint(); revealContent(list); list.querySelector('.stream-history-back')?.focus();
   }
   function drawDirectoryDetails(item) {
     const content=document.createElement('section');content.className='stream-directory-detail';
     const header=document.createElement('div');header.className='stream-directory-detail-header';
     const back=document.createElement('button');back.type='button';back.className='stream-history-back ghost';back.setAttribute('aria-label',t('Back'));back.title=t('Back');
     back.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg>';
-    back.onclick=()=>{detailItem=null;paint();};
+    back.onclick=()=>{detailItem=null;paint();directoryContent.scrollTop=detailScroll;};
     const heading=document.createElement('h3');heading.textContent=item.title;heading.dir='auto';
     const timing=document.createElement('p');timing.className='stream-result-time';timing.textContent=itemTiming(item);
     const description=document.createElement('p');description.className='stream-directory-description';description.dir='auto';description.textContent=item.summary || t('No stream description available.');
@@ -411,7 +419,7 @@
   }
   async function loadHistory(reset=false) {
     if(historyBusy || !enabled || isLocked() || !pool)return;
-    if(reset){historyCursors.clear();historyLoaded=false;}
+    if(reset){historyCursors.clear();historyLoaded=false;historyStalled=false;}
     historyBusy=true;paint();
     const run=discoveryGeneration, activePool=pool, signal=discoveryAbort.signal;
     let confirmed=0;
@@ -437,71 +445,111 @@
   function canLoadHistory() {
     return !savedOnly && category!=='live' && model.events.size<2000 && !relays.every(relay=>historyCursors.get(relay)===null);
   }
-  async function nextHistoryPage(container,page,changePage) {
-    if(historyBusy || historyPaging)return;
-    const run=discoveryGeneration, view=category, extra=moreOpen, size=pageSize;
-    const current=()=>run===discoveryGeneration && view===category && !savedOnly && extra===moreOpen && size===pageSize && !detailItem;
-    const rows=()=> (view==='past'?model.past():model.upcoming()).filter(item=>(item.title==='Untitled livestream')===extra);
-    historyPaging=true;directoryError(t('Loading…'));paint();
+  // Fetch the next batch of history for the list that has run out of known streams. Bounded: a
+  // sparse history cannot trigger an unlimited scan, and a scan that finds nothing stops and asks.
+  async function loadMoreHistory(kind) {
+    if(historyBusy || historyPaging || !canLoadHistory())return;
+    const run=discoveryGeneration, view=category, extra=kind==='more';
+    const current=()=>run===discoveryGeneration && view===category && !savedOnly && !detailItem;
+    const known=()=>(view==='past'?model.past():model.upcoming()).filter(item=>(item.title==='Untitled livestream')===extra).length;
+    const before=known();
+    historyPaging=true;paint();
     try {
-      // A relay batch may contain only duplicates or another category. Keep looking,
-      // but bound each click so a sparse history cannot trigger an unlimited scan.
+      // A relay batch may contain only duplicates or another category. Keep looking, but
+      // bound each trigger.
       for(let attempt=0;attempt<5 && canLoadHistory();attempt++) {
-        const before=JSON.stringify([...historyCursors]);
+        const cursors=JSON.stringify([...historyCursors]);
         await loadHistory();
         if(!current())return;
-        if(rows().length>(page+1)*pageSize){changePage(page+1);directoryError('');revealContent(container);return;}
-        if(before===JSON.stringify([...historyCursors]))break;
+        if(known()>before)return;
+        if(cursors===JSON.stringify([...historyCursors]))break;
       }
-      if(current())directoryError(canLoadHistory()?t('No additional streams found yet. Select Next to keep looking.'):t('No more streams available.'));
+      if(current())historyStalled=canLoadHistory();
     } finally {historyPaging=false;paint();}
   }
-  function paginate(container, items, requested, changePage) {
-    const pages = Math.max(1, Math.ceil(items.length / pageSize));
-    const page = Math.max(0, Math.min(requested, pages - 1));
-    const fetchMore=canLoadHistory();
-    if ((pages > 1 || fetchMore) && (container === list ? !moreOpen : moreOpen)) {
-      const nav = document.createElement('div'); nav.className = 'stream-pagination';
-      for (const [label, delta] of [[t('Previous'), -1], [t('Next'), 1]]) {
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'icon-btn';
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
-        svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2');
-        svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
-        svg.setAttribute('aria-hidden', 'true');
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', delta < 0 ? 'M16 3l-9 9 9 9' : 'M8 3l9 9-9 9');
-        svg.append(path); button.append(svg);
-        const loading=historyBusy || historyPaging;
-        button.setAttribute('aria-label', delta>0 && loading?t('Loading…'):label); button.title = label; button.disabled = loading || (delta < 0 ? page === 0 : page === pages - 1 && !fetchMore);
-        button.addEventListener('click', () => {
-          if(delta>0 && page===pages-1 && fetchMore){nextHistoryPage(container,page,changePage);return;}
-          directoryError('');changePage(page + delta); paint(); revealContent(container);
-        });
-        nav.append(button);
-      }
-      document.getElementById('stream-page-controls').append(nav);
+  // ROWS ARE KEPT ACROSS REPAINTS. paint() runs on every discovery event, on a timer and on every
+  // history load, and a list that is rebuilt each time loses the reader's place and flashes
+  // every thumbnail. A row is built once per stream and reused until something it shows changes.
+  const rowCache = new Map();
+  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
+  function syncRows(container, items) {
+    const wanted=[];
+    for(const item of items) {
+      const sig=rowSig(item);let kept=rowCache.get(item.key);
+      if(!kept || kept.sig!==sig){kept={sig,row:buildRow(item)};rowCache.set(item.key,kept);}
+      else kept.row.refreshAvatar?.();
+      wanted.push(kept.row);
     }
-    return { page, items: items.slice(page * pageSize, (page + 1) * pageSize) };
+    // Touch only what differs, so the scroll position and the loaded images stay where they are.
+    wanted.forEach((row,index)=>{const at=container.children[index];if(at!==row)container.insertBefore(row,at||null);});
+    while(container.children.length>wanted.length)container.lastElementChild.remove();
+  }
+  function resetReveal() {
+    reveal.main=reveal.more=REVEAL_BATCH;historyStalled=false;rowCache.clear();
+    directoryContent.scrollTop=0;
+  }
+  // What closes a list: the next batch is on its way, there is a button to keep looking, or there
+  // is nothing more. An empty foot still holds its place, because it is what the scroll watches.
+  const foot = { main: makeFoot('main'), more: makeFoot('more') };
+  function makeFoot(kind) {
+    const el=document.createElement('div');el.className='stream-list-foot';el.setAttribute('role','status');el.setAttribute('data-list',kind);return el;
+  }
+  function paintFoot(kind, total) {
+    const el=foot[kind];el.replaceChildren();
+    if(total>reveal[kind])return;                       // more is known: the scroll will reveal it
+    if(canLoadHistory()) {
+      if(historyBusy || historyPaging)el.textContent=t('Loading…');
+      else if(historyStalled) {
+        const again=document.createElement('button');again.type='button';again.className='ghost';again.textContent=t('Keep looking');
+        again.addEventListener('click',()=>{historyStalled=false;loadMoreHistory(kind);});
+        el.append(again);
+      }
+    } else if(total>REVEAL_BATCH)el.textContent=t('No more streams available.');
+  }
+  // Is the end of this list within reach of the bottom of the scroller?
+  function nearEnd(kind) {
+    const el=foot[kind];
+    if(!el || el.hidden || directory.hidden || detailItem || !directoryContent.clientHeight)return false;
+    return el.getBoundingClientRect().top <= directoryContent.getBoundingClientRect().bottom + 160;
+  }
+  function loadMore(kind) {
+    if(listTotals[kind]>reveal[kind]){reveal[kind]+=REVEAL_BATCH;paint();return;}
+    if(canLoadHistory() && !historyBusy && !historyPaging && !historyStalled)loadMoreHistory(kind);
+  }
+  let endCheck=null;
+  function scheduleEndCheck() {
+    if(endCheck!==null)return;
+    endCheck=(typeof requestAnimationFrame==='function'?requestAnimationFrame:setTimeout)(()=>{
+      endCheck=null;
+      for(const kind of ['main','more'])if(nearEnd(kind)){loadMore(kind);break;}
+    });
   }
   let moreOpen = false;
   let lookingForStreams = false;
-  function paint() {
-    document.getElementById('stream-page-controls').replaceChildren();
-    list.replaceChildren();
-    const more = document.getElementById('stream-more-list'); more.replaceChildren();
-    const actions=directory.querySelector('.stream-directory-actions');
-    actions.hidden=!!detailItem;
-    if(detailItem){detailItem=model.events.get(detailItem.key)||detailItem;more.hidden=true;document.getElementById('stream-advanced').hidden=true;drawDirectoryDetails(detailItem);return;}
-    const items = savedOnly ? savedStreams : category==='upcoming' ? model.upcoming() : category==='past' ? model.past() : model.live();
-    if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=savedOnly ? t('No saved streams yet.') : (lookingForStreams || historyBusy) ? t('Looking for streams…') : category==='upcoming' ? t('No upcoming streams found.') : category==='past' ? t('No past streams found.') : t('No live streams found. Try refreshing.');list.append(p); }
-    const named = items.filter(item => item.title !== 'Untitled livestream');
-    const untitled = items.filter(item => item.title === 'Untitled livestream');
-    const mainPage = paginate(list, named, streamPage, page => { streamPage = page; });
-    const extraPage = paginate(more, untitled, morePage, page => { morePage = page; });
-    streamPage = mainPage.page; morePage = extraPage.page;
-    const untitledCount = untitled.length;
-    for (const item of [...mainPage.items, ...extraPage.items]) {
+  // A row's avatar. It is asked for when the row is built and again each time the row is reused,
+  // until a profile has answered, because a reused row is not rebuilt: a lookup that came back
+  // after the list had reconnected used to be dropped, and its row kept a blank avatar for good.
+  // The avatar is this row's own to set whenever it arrives; only the player's artwork, which is
+  // shared, waits on the discovery that asked for it.
+  function rowAvatar(item, avatar) {
+    const run=discoveryGeneration;
+    let answered=false, asking=false;
+    return function refresh() {
+      if(!item.host || answered || asking)return;
+      asking=true;
+      profileImage(item.host, item.relays).then(url=>{
+        asking=false;
+        const picture = url || item.image; // Stream artwork is preferable to an empty avatar when no profile is published.
+        if(url)answered=true;
+        if(picture && avatar.getAttribute('src')!==picture)avatar.src=picture;
+        if(run!==discoveryGeneration)return;
+        if(url)profileArtwork.src=url;
+        const banner=profileImages.get(item.host)?.banner;
+        if(banner)bannerArtwork.src=banner;
+      });
+    };
+  }
+  function buildRow(item) {
       const row=document.createElement('div');row.className='stream-row';
       const button=document.createElement('button');button.type='button';button.className='stream-result';
       const thumb = document.createElement('span'); thumb.className = 'stream-thumbnail'; thumb.setAttribute('aria-hidden', 'true');
@@ -552,21 +600,35 @@
         if (item.image && avatar.src !== item.image) avatar.src=item.image;
       });
       profile.append(avatar);row.append(button,profile);
-      const run=discoveryGeneration;
-      if(item.host)profileImage(item.host, item.relays).then(url=>{
-        const picture = url || item.image; // Stream artwork is preferable to an empty avatar when no profile is published.
-        if(run!==discoveryGeneration)return;
-        if(picture)avatar.src=picture;
-        if(url)profileArtwork.src=url;
-        const banner=profileImages.get(item.host)?.banner;
-        if(banner)bannerArtwork.src=banner;
-      });
-      if (item.title === 'Untitled livestream') { more.append(row); }
-      else list.append(row);
+      row.refreshAvatar=rowAvatar(item,avatar);
+      row.refreshAvatar();
+      return row;
+  }
+  function paint() {
+    const more = document.getElementById('stream-more-list');
+    const actions=directory.querySelector('.stream-directory-actions');
+    actions.hidden=!!detailItem;
+    if(detailItem){
+      list.replaceChildren();more.replaceChildren();foot.main.hidden=foot.more.hidden=true;
+      detailItem=model.events.get(detailItem.key)||detailItem;more.hidden=true;document.getElementById('stream-advanced').hidden=true;drawDirectoryDetails(detailItem);return;
     }
-    document.getElementById('stream-more-toggle').hidden = !untitledCount;
-    more.hidden = !untitledCount || !moreOpen;
-    schedulePageSize();
+    const items = savedOnly ? savedStreams : category==='upcoming' ? model.upcoming() : category==='past' ? model.past() : model.live();
+    const named = items.filter(item => item.title !== 'Untitled livestream');
+    const untitled = items.filter(item => item.title === 'Untitled livestream');
+    listTotals.main=named.length;listTotals.more=untitled.length;
+    if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=savedOnly ? t('No saved streams yet.') : (lookingForStreams || historyBusy) ? t('Looking for streams…') : category==='upcoming' ? t('No upcoming streams found.') : category==='past' ? t('No past streams found.') : t('No live streams found. Try refreshing.');list.replaceChildren(p); }
+    else syncRows(list,named.slice(0,reveal.main));
+    syncRows(more,untitled.slice(0,reveal.more));
+    // Rows that left the lists are forgotten, so a long session does not hold every stream it saw.
+    const keep=new Set([...named.slice(0,reveal.main),...untitled.slice(0,reveal.more)].map(item=>item.key));
+    for(const key of [...rowCache.keys()])if(!keep.has(key))rowCache.delete(key);
+    document.getElementById('stream-more-toggle').hidden = !untitled.length;
+    more.hidden = !untitled.length || !moreOpen;
+    foot.main.hidden=false;foot.more.hidden=more.hidden;
+    paintFoot('main',named.length);paintFoot('more',untitled.length);
+    const loading=historyBusy || historyPaging;
+    list.setAttribute('aria-busy',String(loading));more.setAttribute('aria-busy',String(loading));
+    scheduleEndCheck();
   }
   let directoryPaintTimer=null;
   function queueDirectoryPaint() {
@@ -683,7 +745,7 @@
   for(const [value,label] of [['live',t('Live')],['upcoming',t('Upcoming')],['past',t('Past')]]) {
     const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-pressed',String(value===category));
     button.onclick=()=>{
-      directoryError('');category=value;detailItem=null;savedOnly=false;streamPage=morePage=0;moreOpen=false;
+      directoryError('');category=value;detailItem=null;savedOnly=false;moreOpen=false;resetReveal();
       document.getElementById('stream-saved-toggle').setAttribute('aria-pressed','false');updateBackup();
       for(const child of filters.children)child.setAttribute('aria-pressed',String(child===button));
       paint();if(value!=='live'&&!historyLoaded)loadHistory();
@@ -696,32 +758,14 @@
   directoryContent.append(...directory.childNodes);
   // Keep navigation outside the scrolling results so each page has the same controls position.
   directory.append(directoryContent,directoryActions);
-  let pageMeasureTimer=null, measuredWidth=0, measuredRowHeight=0;
-  function schedulePageSize() {
-    if(pageMeasureTimer!==null)return;
-    pageMeasureTimer=setTimeout(()=>{pageMeasureTimer=null;measurePageSize();},0);
-  }
-  function measurePageSize() {
-    if(directory.hidden || detailItem || !directoryContent.clientHeight)return;
-    const active=moreOpen?document.getElementById('stream-more-list'):list;
-    const rows=[...active.querySelectorAll('.stream-row')];
-    if(!rows.length)return;
-    const width=directoryContent.clientWidth;
-    if(width!==measuredWidth){measuredWidth=width;measuredRowHeight=0;}
-    // Retain the tallest measured row at this width so title wrapping does not
-    // make the page capacity oscillate as different results are displayed.
-    measuredRowHeight=Math.max(measuredRowHeight,...rows.map(row=>row.getBoundingClientRect().height));
-    const style=getComputedStyle(active),contentStyle=getComputedStyle(directoryContent),tabStyle=getComputedStyle(filters);
-    const gap=parseFloat(style.rowGap)||0;
-    const reserved=filters.getBoundingClientRect().height+(parseFloat(tabStyle.marginBottom)||0)
-      +(parseFloat(contentStyle.paddingTop)||0)+(parseFloat(contentStyle.paddingBottom)||0);
-    const available=directoryContent.clientHeight-reserved;
-    const next=Math.max(1,Math.floor((available+gap)/(measuredRowHeight+gap)));
-    if(next===pageSize)return;
-    streamPage=Math.floor(streamPage*pageSize/next);morePage=Math.floor(morePage*pageSize/next);
-    pageSize=next;paint();
-  }
-  new ResizeObserver(schedulePageSize).observe(directoryContent);
+  // The end of each list, watched from inside the scroller. Where there is no IntersectionObserver
+  // the scroll itself is watched.
+  list.after(foot.main);document.getElementById('stream-more-list').after(foot.more);
+  if(typeof IntersectionObserver==='function') {
+    const ends=new IntersectionObserver(scheduleEndCheck,{root:directoryContent,rootMargin:'0px 0px 160px 0px'});
+    ends.observe(foot.main);ends.observe(foot.more);
+  } else directoryContent.addEventListener('scroll',scheduleEndCheck,{passive:true});
+  new ResizeObserver(scheduleEndCheck).observe(directoryContent);
   const hideDirectory=document.createElement('button');
   hideDirectory.type='button';hideDirectory.className='stream-directory-hide ghost';hideDirectory.textContent=t('Hide streams');
   hideDirectory.addEventListener('click',()=>{closeFeed();(root.hidden?entry:feedToggle)?.focus();});directory.append(hideDirectory);
@@ -760,8 +804,8 @@
     if(!directory.hidden && ![directory, entry, browse, titleButton, feedToggle].some(node => node && path.includes(node)))closeFeed();
   });
   document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
-  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();streamPage=0;moreOpen=false;document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
-  document.getElementById('stream-refresh').addEventListener('click',()=>discover(true));
+  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();moreOpen=false;resetReveal();document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
+  document.getElementById('stream-refresh').addEventListener('click',()=>{resetReveal();discover(true);});
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.
     directoryContent.scrollTop += element.getBoundingClientRect().top - directoryContent.getBoundingClientRect().top - 12;
