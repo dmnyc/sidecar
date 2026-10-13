@@ -157,7 +157,7 @@ test('renderMain clears the deferred flag once it actually draws', () => {
 test('every overlay teardown flushes', () => {
   // Three places take an overlay down: closeModal, and the two spots that hide the
   // approval card. Miss one and the panel keeps showing stale content after it.
-  const closeModal = source.match(/  function closeModal\(\) \{[\s\S]*?\n  \}/)[0];
+  const closeModal = source.match(/  function closeModal\(reason\) \{[\s\S]*?\n  \}/)[0];
   assert.match(closeModal, /flushDeferredMainRender\(\)/, 'closeModal');
 
   const hides = [...source.matchAll(/hide\(\$\('view-approval'\)\);/g)];
@@ -172,7 +172,7 @@ test('every overlay teardown flushes', () => {
 test('closeModal removes the class BEFORE flushing', () => {
   // Ordering matters: flush checks panelIsCovered(), so flushing first would no-op
   // and the deferred render would never land.
-  const fn = source.match(/  function closeModal\(\) \{[\s\S]*?\n  \}/)[0];
+  const fn = source.match(/  function closeModal\(reason\) \{[\s\S]*?\n  \}/)[0];
   assert.ok(
     fn.indexOf("remove('modal-open')") < fn.indexOf('flushDeferredMainRender'),
     'the class must come off first'

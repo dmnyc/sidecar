@@ -147,7 +147,7 @@ test('the panel lists them behind the folder, beside the close box', () => {
   assert.match(panel, /if \(hasSaved && opts && opts\.resumeSaved\) resumeFrom\(saved\);/);
   // And leaving does not save over, or bounce back to, the draft being left.
   assert.match(panel, /switchingDraft = true;\s*closeModal\(\);/);
-  assert.match(panel, /if \(!switchingDraft && opts && typeof opts\.returnTo === 'function'\)/);
+  assert.match(panel, /if \(reason !== 'approval' && !switchingDraft && opts && typeof opts\.returnTo === 'function'\)/);
 });
 
 test('a poll is listed as a poll, and previewed by its options until it has a question', () => {
