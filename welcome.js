@@ -128,15 +128,6 @@ function apps() {
     desc: t('A food culture community and recipe app: share, discover, and zap great #nostrichefs.'),
   },
   {
-    name: 'Imwald',
-    url: 'https://jumble.imwald.eu',
-    domain: 'jumble.imwald.eu',
-    cat: 'other',
-    icon: 'icons/apps/imwald.svg',
-    flush: true,
-    desc: t('A user-friendly client for relay feed browsing, publications, and relay discovery.'),
-  },
-  {
     name: 'ContextVM',
     url: 'https://contextvm.org',
     domain: 'contextvm.org',

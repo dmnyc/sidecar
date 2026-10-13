@@ -28,6 +28,9 @@ Update that section alongside this file as part of every release.
 - **The streamer’s name and picture open their profile card** in the panel, as chat names do.
 - **Sidecar bundles the full HLS.js build** to play live video, with its source and hash recorded and checked at build time.
 
+### Removed
+- **Imwald is gone from the Welcome directory.** The app has shut down, so its entry and icon no longer ship.
+
 ### Fixed
 - **The wallet’s history updates when a payment arrives.** A received payment moved the balance and raised a toast, but the list only caught up when you reopened the wallet.
 - **Clicking into a notification’s zap form no longer opens the note.** The message and amount fields sent your client’s tab to the note.
