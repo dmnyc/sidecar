@@ -135,8 +135,8 @@ test('an aborted scan is a failure, not a truncation, and is never complete', as
 
 test('the player passes the scan\'s answer to the mark and the tooltip', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'streams.js'), 'utf8');
-  assert.match(src, /let loading=true, partial=true, answered=0, truncated=false,/);
-  assert.match(src, /const mark=SidecarStreams\.zapTotalMark\(\{count:session\.totals\.count,loading,answered,truncated\}\);/);
+  assert.match(src, /let loading=true, extending=!session\.extended, partial=true, answered=0, truncated=false,/);
+  assert.match(src, /const mark=SidecarStreams\.zapTotalMark\(\{count:session\.totals\.count,loading:counting,answered,truncated\}\);/);
   assert.match(src, /setZapDigits\(output,text,animate\);/);
   assert.match(src, /partial=!result\.complete;answered=result\.answered;truncated=!!result\.truncated;/);
   assert.match(src, /SidecarStreams\.zapTotalUncertain\(\{answered,truncated\}\) \? t\('Zap history incomplete; retrying available relays\.'\)/);

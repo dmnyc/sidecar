@@ -173,6 +173,41 @@
     return found;
   }
   // Scan relays independently: one relay's recent page must not truncate another's history.
+  // Zap receipts are spread across relays, and the first scan's few relays hold only part of them.
+  // After the stream is playing, a second scan reads a short list of relays that hold many, plus
+  // the ones the zap requests themselves ask for, and the total grows as they answer.
+  const ZAP_ARCHIVE_RELAYS = ['wss://nostr21.com', 'wss://relay.ditto.pub', 'wss://nostr-01.yakihonne.com', 'wss://relay.nostr.net', 'wss://soloco.nl'];
+  // A relay URL worth connecting to for this: wss, a real hostname, nothing that points inward.
+  function zapRelayUrl(value) {
+    try {
+      if (typeof value !== 'string' || value.length > 100) return null;
+      const u = new URL(value.trim());
+      const host = u.hostname.toLowerCase();
+      if (u.protocol !== 'wss:' || u.username || u.password || u.port || u.search || u.hash || (u.pathname !== '/' && u.pathname !== '')) return null;
+      if (!host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') || host.startsWith('[') || /(^|\.)(localhost|local|internal|onion|lan|home|test|invalid|example)$/.test(host)) return null;
+      return 'wss://' + host;
+    } catch (_) { return null; }
+  }
+  // The relays a receipt's zap request asks to be published to, as clean URLs.
+  function relayHints(request) {
+    const found = [];
+    for (const tag of Array.isArray(request?.tags) ? request.tags : []) {
+      if (!Array.isArray(tag) || tag[0] !== 'relays') continue;
+      for (const value of tag.slice(1, 21)) { const url = zapRelayUrl(value); if (url) found.push(url); }
+    }
+    return [...new Set(found)];
+  }
+  // The relays for the second scan: the archive list first, then the most requested ones, each not
+  // already scanned, at most `limit` in all.
+  function extraZapRelays({ known = [], hints = new Map(), archive = ZAP_ARCHIVE_RELAYS, limit = 10, hintLimit = 5 }) {
+    const seen = new Set(known.map(zapRelayUrl).filter(Boolean));
+    const out = [];
+    for (const url of archive.map(zapRelayUrl)) if (url && !seen.has(url) && out.length < limit) { seen.add(url); out.push(url); }
+    const ranked = [...hints].map(([url, n]) => [zapRelayUrl(url), n]).filter(([url]) => url).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    let taken = 0;
+    for (const [url] of ranked) { if (taken >= hintLimit || out.length >= limit) break; if (seen.has(url)) continue; seen.add(url); out.push(url); taken++; }
+    return out;
+  }
   async function zapHistory({sources, query, accept, filter, signal, pageSize=250, maxPages=80}) {
     const results=await Promise.all(sources.map(async relay=>{
       let until=filter.until ?? Math.floor(Date.now()/1000), pages=0;
@@ -308,7 +343,7 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, Directory, invoiceDetails, ZapTotals };
+  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, zapRelayUrl, relayHints, extraZapRelays, ZAP_ARCHIVE_RELAYS, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);
