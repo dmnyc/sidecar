@@ -9,7 +9,7 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
-## [1.16.0] — 2026-10-12
+## [1.16.0] — 2026-10-13
 
 ### Added
 - **Live video.** Watch livestreams and replays in a player above the panel. Open the radio icon to browse **Live**, **Upcoming** and **Past** streams, save streams as bookmarks, or paste an HTTPS media address. Playback keeps going as you move around Sidecar, lock it or approve a signature, and closing the player stops it. A scheduled stream opens its details and can be bookmarked before it starts, and an ended stream plays its recording when one was published. **Enable live video** in Settings turns it off.
