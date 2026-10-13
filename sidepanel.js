@@ -5687,7 +5687,9 @@
       const n = parseInt(amountEl.value, 10);
       const worth = !!n && n > 0 && clampZapDefault(n) !== defaultZapSats;
       btn.classList.toggle('hidden', !worth);
-      if (worth) btn.textContent = t('Save {{amount}} as your default', { amount: fmtSats(clampZapDefault(n)) });
+      // A no-break space rather than nothing, so the line keeps its height where the card holds its
+      // place (see .zap-save-default in styles.css) and typing an amount does not move the card.
+      btn.textContent = worth ? t('Save {{amount}} as your default', { amount: fmtSats(clampZapDefault(n)) }) : '\u00a0';
     };
     amountEl.addEventListener('input', sync);
     btn.addEventListener('click', async (e) => {

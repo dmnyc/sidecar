@@ -5707,6 +5707,9 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   color: var(--lav); cursor: pointer;
 }
 .zap-save-default:hover { color: var(--gold); text-decoration: underline; }
+/* In the profile and stream zap card, which is centered, the line keeps its place while empty.
+   Taking it away and bringing it back changed the card's height with every digit typed. */
+.peek-zap .zap-save-default.hidden { display: block !important; visibility: hidden; pointer-events: none; }
 
 /* [+] in the fourth preset slot, for an account that has never set its own amount. With
    21 built in and the row deduped, that account sees three chips and no sign a fourth is
