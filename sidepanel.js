@@ -8213,6 +8213,10 @@
 
       row.append(replyBtn, repostBtn, reactBtn, zapBtn, bmBtn);
       const wrap = h('div', { className: 'notif-act-wrap' }, [row, choices, zapForm, err]);
+      // The row is an anchor that opens the note in a client. The buttons stop their own clicks;
+      // this stops the rest (the message and amount fields, the gaps between them), which would
+      // otherwise reach the anchor and send the client tab to the note.
+      wrap.addEventListener('click', stop);
       return wrap;
     }
 
