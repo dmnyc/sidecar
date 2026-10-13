@@ -567,6 +567,15 @@
     })); } finally {if(liveCheckRun===run)liveCheckRun=null;}
   }
   function disconnect() { clearTimeout(liveCheckTimer);liveCheckTimer=null;liveChecks.clear(); historyBusy=false; chat?.close(); clearTimeout(directoryPaintTimer);directoryPaintTimer=null;discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
+  // The streamer's avatar and name open their profile card in the panel, as chat names do. The
+  // link to the web client stays as the fallback when no account is available to show it.
+  function openHostProfile(event) {
+    const bridge = window.SidecarStreamChatAccount;
+    if (!selectedHost || !bridge?.identity()) return;
+    event.preventDefault();
+    bridge.profile(selectedHost);
+  }
+  document.getElementById('stream-host').addEventListener('click', openHostProfile);
   function discover(resetHistory=false) {
     if (!enabled || isLocked()) return;
     disconnect(); lookingForStreams = true; paint();
