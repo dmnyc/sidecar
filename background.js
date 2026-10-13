@@ -37,8 +37,8 @@ const DEFAULT_RELAYS = {
 
 const AUTO_LOCK_ALARM = 'sidecar-auto-lock';
 // Idle auto-lock, in minutes. Applied only when the user has never touched the
-// Settings dropdown — an explicit choice (including "Never", stored as 0) is
-// always respected once saved. Keys shouldn't stay decrypted indefinitely in a
+// Settings dropdown — an explicit choice (including "When browser closes", stored as 0)
+// is always respected once saved, even one the dropdown no longer offers. Keys shouldn't stay decrypted indefinitely in a
 // browser that's left open; this only fires on true inactivity (bumpAutoLock is
 // called on every sign/pay/unlock), so normal active use never hits it.
 const DEFAULT_AUTO_LOCK_MINUTES = 15;
