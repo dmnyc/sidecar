@@ -8,7 +8,7 @@
   const video = document.getElementById('stream-video');
   const directory = document.getElementById('stream-directory');
   const list = document.getElementById('stream-list');
-  const status = document.getElementById('stream-status');
+  const messageEl = document.getElementById('stream-message');
   const title = document.getElementById('stream-title');
   const browse = document.getElementById('stream-browse');
   const entry = document.getElementById('stream-entry');
@@ -99,7 +99,17 @@
   }
   const titleObserver = new ResizeObserver(measureTitle);
   titleObserver.observe(titleWindow); titleObserver.observe(title);
-  function message(text) { status.textContent = text; }
+  // EVERY STATUS MESSAGE IS SAID IN THE TOP ROW, next to LIVE, in the title's place, and none
+  // on a line of its own: a line under the player grew the dock each time the player
+  // connected, stalled or failed, and shrank it again after. The title gives way for as long
+  // as the message lasts, nothing else in the dock moves, and the full text is in the
+  // tooltip for the ones too long to fit.
+  function message(text) {
+    titleWindow.classList.toggle('stream-messaging', !!text);
+    messageEl.hidden = !text;
+    messageEl.textContent = text;
+    if (text) messageEl.setAttribute('title', text); else messageEl.removeAttribute('title');
+  }
   function setExpanded(on) {
     const label=on?'Collapse video':'Expand video';
     const translated=on?t('Collapse video'):t('Expand video');
@@ -230,7 +240,14 @@
   function play(url, label, host, item) {
     if (!enabled || isLocked()) return;
     url = SidecarStreams.httpsUrl(url);
-    if (!url) { message(t('Enter an HTTPS stream URL.')); return; }
+    if (!url) {
+      // A correction, not a state: it must not keep the title of a stream that is playing fine
+      // covered, so it clears itself.
+      const text = t('Enter an HTTPS stream URL.');
+      message(text);
+      setTimeout(() => { if (messageEl.textContent === text) message(''); }, 4000);
+      return;
+    }
     clearTimeout(feedCloseTimer); directory.classList.remove('is-open','is-closing');
     stop(); root.append(directory); directory.classList.remove('stream-idle-directory'); const run = generation;
     selectedHost = host || null; selectedEvent = item || null;

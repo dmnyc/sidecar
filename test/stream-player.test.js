@@ -104,3 +104,66 @@ test('stream controls wait for locale loading before mounting their permanent la
  assert.ok(s.nodes.some(node=>node.getAttribute('aria-label')==='Im Konto speichern' && node.title==='Im Konto speichern'));
  assert.equal(mounted,true);s.start();assert.equal(s.get('stream-video').plays,1);
 });
+
+// ---- every status message is said in the top row, so the player never grows ----
+
+const topRow=s=>({win:s.get('stream-title-window'),text:s.get('stream-message')});
+test('connecting is said in the top row, in the title\'s place', async () => {
+ const s=await setup();s.start();const {win,text}=topRow(s);
+ assert.equal(text.textContent,'Connecting…');assert.equal(text.hidden,false);
+ assert.equal(win.classList.contains('stream-messaging'),true);
+});
+test('playing takes the message away and the title is back', async () => {
+ const s=await setup();s.start();s.get('stream-video').events.playing();const {win,text}=topRow(s);
+ assert.equal(text.textContent,'');assert.equal(text.hidden,true);
+ assert.equal(win.classList.contains('stream-messaging'),false);
+});
+test('a stall says Buffering… in the same place, and it clears when playback resumes', async () => {
+ const s=await setup();s.start();const v=s.get('stream-video');v.events.playing();
+ v.events.waiting();
+ assert.equal(topRow(s).text.textContent,'Buffering…');assert.equal(topRow(s).win.classList.contains('stream-messaging'),true);
+ v.events.playing();
+ assert.equal(topRow(s).text.textContent,'');assert.equal(topRow(s).win.classList.contains('stream-messaging'),false);
+});
+test('a stall with no stream selected says nothing', async () => {
+ const s=await setup();s.get('stream-video').events.waiting();
+ assert.equal(topRow(s).text.textContent,'');assert.equal(topRow(s).win.classList.contains('stream-messaging'),false);
+});
+test('an error is said in the top row too, with its full text in the tooltip for when it is cut off', async () => {
+ const s=await setup();s.start();s.get('stream-video').events.error();
+ const {text}=topRow(s);
+ assert.match(text.textContent,/Stream unavailable/);
+ assert.equal(text.getAttribute('title'),text.textContent);
+});
+test('closing the player leaves no message behind', async () => {
+ const s=await setup();s.start();s.get('stream-video').events.waiting();
+ s.get('stream-stop').events.click();
+ assert.equal(topRow(s).text.textContent,'');assert.equal(topRow(s).win.classList.contains('stream-messaging'),false);
+ assert.equal(topRow(s).text.getAttribute('title'),null,'no stale tooltip');
+});
+test('the one correction message clears itself and never clears a newer message', () => {
+ // play() is only reached with a bad URL from callers other than the form (whose submit
+ // already ignores one), so this branch cannot be driven from the page: pinned as source.
+ const src=require('node:fs').readFileSync(require('node:path').join(__dirname,'..','streams.js'),'utf8');
+ const at=src.indexOf("const text = t('Enter an HTTPS stream URL.');");
+ assert.ok(at>0,'the correction moved');
+ const block=src.slice(at,at+260);
+ assert.match(block,/message\(text\);/);
+ assert.match(block,/setTimeout\(\(\) => \{ if \(messageEl\.textContent === text\) message\(''\); \}, 4000\);/,'it clears itself, but only if it is still the message on screen');
+});
+test('NO STATUS LINE: the script, the markup and the stylesheet have no second row to grow', () => {
+ const fs=require('node:fs'),path=require('node:path');
+ const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8');
+ assert.doesNotMatch(read('streams.js'),/stream-status|status\.textContent/);
+ for (const f of ['sidepanel.html','docs/streaming/layout.html','docs/streaming/preview.html']) {
+  const html=read(f);
+  assert.doesNotMatch(html,/id="stream-status"/,f+' still has the status row');
+  assert.match(html,/<span id="stream-title-window"><strong id="stream-title" dir="auto"><\/strong><span id="stream-message" role="status" hidden><\/span><\/span>/,f+' lacks the message slot in the title window');
+ }
+ const css=read('streams.css');
+ assert.doesNotMatch(css,/#stream-status/);
+ assert.match(css,/#stream-title-window\.stream-messaging #stream-title \{ display:none; \}/);
+ assert.match(css,/#stream-message \{ display:inline-block; vertical-align:middle; max-width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;/,'one line, aligned like the title, cut with an ellipsis');
+ assert.match(css,/#stream-title-window\.stream-messaging \.t-text-swap \{ display:none; \}/,'the title\'s animation wrapper is full width and would hold the first line');
+ assert.match(css,/#stream-message\[hidden\] \{ display:none; \}/);
+});

@@ -12,8 +12,6 @@ body { padding-top: var(--stream-height); }
 .stream-expanded #stream-video { height: min(360px, 48vh); }
 .stream-approving #stream-video { height:min(140px, 22vh); }
 .stream-approving .stream-toolbar button:not(#stream-stop) { display:none; }
-#stream-status:empty { display:none; }
-#stream-status { margin:0; padding:4px 12px; font-size:12px; }
 #stream-directory { max-height: min(480px, 60vh); overflow:auto; padding:12px; }
 #stream-form { display:flex; flex-direction:column; gap:8px; }
 #stream-form input { width:100%; box-sizing:border-box; }
@@ -67,6 +65,14 @@ body { padding-top: var(--stream-height); }
 .stream-toolbar #stream-browse { justify-self:start; padding-inline:6px; }
 .stream-controls { display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; }
 #stream-title-window { min-width:0; overflow:hidden; text-align:center; padding:0 8px; mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); }
+/* A status message takes the title's place in the top row: one line, cut with an ellipsis, never
+   a second row. */
+#stream-message { display:inline-block; vertical-align:middle; max-width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:500; color:var(--muted); }
+#stream-message[hidden] { display:none; }
+#stream-title-window.stream-messaging #stream-title { display:none; }
+/* The title sits in a full-width wrapper for its text-swap animation (stream-details.js). Hidden
+   with the title or it keeps the first line to itself and the message drops onto a second one. */
+#stream-title-window.stream-messaging .t-text-swap { display:none; }
 .stream-toolbar #stream-title { display:inline-block; width:max-content; max-width:none; overflow:visible; text-overflow:clip; white-space:nowrap; vertical-align:middle; font-size:12px; font-weight:500; }
 #stream-title-window.stream-title-scrolling { text-align:left; }
 .stream-title-scrolling #stream-title { animation:stream-title-drift var(--stream-title-duration, 18s) linear infinite alternate; }
@@ -114,7 +120,6 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 #stream-dock[hidden] { display:none; }
 .stream-toolbar { flex:0 0 32px; }
 #stream-video { min-height:0; flex:0 1 auto; }
-#stream-status { flex:0 0 auto; max-height:48px; overflow:auto; }
 #stream-advanced { order:3; margin-top:12px; }
 #stream-advanced summary { cursor:pointer; color:var(--text-muted); padding:8px 0; }
 #stream-form { margin-top:8px; }
@@ -160,7 +165,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 
 /* PiP owns the picture; keep only the LIVE bar in the sidebar. */
 #stream-dock.stream-pip #stream-video { height:0; min-height:0; flex-basis:0; }
-#stream-dock.stream-pip #stream-status, #stream-dock.stream-pip #stream-expand { display:none; }
+#stream-dock.stream-pip #stream-expand { display:none; }
 
 #stream-page-controls:empty { display:none; }
 #stream-page-controls .stream-pagination { padding:0; gap:2px; }
