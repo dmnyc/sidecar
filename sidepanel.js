@@ -11138,6 +11138,19 @@
   }
 
   // ---- settings ----
+  // The picker offers 5, 15 and 30 minutes, an hour, 8 and 24 hours, and "When browser closes". An
+  // account that chose 1 minute while it was offered keeps that setting: it is shown
+  // here as its own entry, in order, until a different one is picked, so opening Settings never
+  // reads as a change and never moves a lock timer by itself.
+  function ensureAutoLockOption(select, minutes) {
+    for (const old of [...select.options]) if (old.dataset && old.dataset.legacy) old.remove();
+    if (!minutes || [...select.options].some((o) => Number(o.value) === minutes)) return;
+    const option = h('option', { value: String(minutes), textContent: tn('After {{count}} minute', 'After {{count}} minutes', minutes) });
+    option.dataset.legacy = '1';
+    const before = [...select.options].find((o) => Number(o.value) === 0 || Number(o.value) > minutes);
+    select.insertBefore(option, before || null);
+  }
+
   async function renderSettings() {
     // version + update check
     const build = window.SIDECAR_BUILD || {};
@@ -11147,6 +11160,7 @@
 
     // auto-lock
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+    ensureAutoLockOption($('autolock-select'), Number(settings.autoLockMinutes || 0));
     $('autolock-select').value = String(settings.autoLockMinutes || 0);
     // Blank means "follow the global default", which is the state of every account
     // that has never chosen. The label on that option names what the default is, so

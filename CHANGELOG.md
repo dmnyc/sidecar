@@ -9,7 +9,7 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
-## [1.16.0] — 2026-10-12
+## [1.16.0] — 2026-10-13
 
 ### Added
 - **Live video.** Watch livestreams and replays in a player above the panel. Open the radio icon to browse **Live**, **Upcoming** and **Past** streams, save streams as bookmarks, or paste an HTTPS media address. Playback keeps going as you move around Sidecar, lock it or approve a signature, and closing the player stops it. A scheduled stream opens its details and can be bookmarked before it starts, and an ended stream plays its recording when one was published. **Enable live video** in Settings turns it off.
@@ -17,7 +17,7 @@ Update that section alongside this file as part of every release.
 - **The stream list scrolls instead of paging.** Twenty streams show at first and more load as you reach the end, with Past and Upcoming fetching older streams as they run out and a **Keep looking** button when a search finds none. Click **Live** at the top left of the player to show or hide the list; the title still opens About stream.
 - **Four new themes.** Jazz Age and Departures join the dark themes, and Ben Day and Turnstile the light ones, for twenty in all.
 - **Saved streams back up encrypted to your account** and restore on another browser. Your local bookmarks stay either way.
-- **Longer auto-lock.** Auto-lock can wait 8 or 24 hours of inactivity, and **Never** is now **Until browser closes**, which says what it does: your PIN is still asked once per browser session.
+- **Longer auto-lock.** Auto-lock can wait 30 minutes, 8 hours or 24 hours, and **Never** is now **When browser closes**, last in the list, which says what it does: your PIN is still asked once per browser session. The 1-minute choice is retired; an account that already chose it keeps it.
 - **Mute a person, a note or a thread from the notifications panel.** The ⋮ menu on each notification has **Mute** for the person, **Mute this note and replies**, and **Mute the whole thread**, each with a second tap to confirm. A zap offers only the person who sent it. A mute goes into the encrypted part of your mute list, so no one reading the list sees who you muted. Everything else on your list is kept as it is, and nothing is written if your list or its private entries cannot be read first.
 - **Follow, unfollow, mute and unmute from search.** Each search result, and the profile card it opens, has a follow button and a mute button, drawn as icons. Following takes one tap and the icon changes at once; muting and unmuting take a second tap. Unmuting removes a person wherever they are on your list, including mutes made in other clients. A follow or unfollow changes only that one entry of your follow list, relay hints and petnames included.
 
@@ -27,6 +27,9 @@ Update that section alongside this file as part of every release.
 - **Writing a note and commenting on a page are in the compose menu.**
 - **The streamer’s name and picture open their profile card** in the panel, as chat names do.
 - **Sidecar bundles the full HLS.js build** to play live video, with its source and hash recorded and checked at build time.
+
+### Removed
+- **Imwald is gone from the Welcome directory.** The app has shut down, so its entry and icon no longer ship.
 
 ### Fixed
 - **The wallet’s history updates when a payment arrives.** A received payment moved the balance and raised a toast, but the list only caught up when you reopened the wallet.

@@ -7,7 +7,7 @@ machine-generated code comes from.
 
 **Short version:** Sidecar has no build step. The extension is plain JavaScript,
 loaded as classic scripts. What ships is what is committed, with two exceptions,
-both documented below: five vendored third-party bundles, and a generated
+both documented below: six vendored third-party files, and a generated
 one-line `version.js`.
 
 ---

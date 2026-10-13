@@ -57,6 +57,7 @@
         <a href="#lightning-address">Lightning address</a>
         <a href="#wallet">Wallet</a>
         <a href="#boosts">Boosts</a>
+        <a href="#live-video">Live video</a>
         <a href="#themes">Themes</a>
         <a href="#whats-new">What's new</a>
       </div>
@@ -169,7 +170,7 @@
       </figure>
 
       <p>The same screen holds <strong>Auto-lock</strong>. Sidecar asks for your PIN once
-      per browser session even with <em>Until browser closes</em> selected, because the key is held in memory and
+      per browser session even with <em>When browser closes</em> selected, because the key is held in memory and
       never written to disk unencrypted — locking sooner only shortens the window in which
       an unlocked panel is sitting on an unattended machine.</p>
 
@@ -442,6 +443,10 @@
       the composer by accident and Sidecar offers the draft back the next time you open
       it.</p>
 
+      <h3>Muting and following</h3>
+      <p>The ⋮ menu on a notification can <strong>Mute</strong> the person, <strong>Mute this note and replies</strong>, or <strong>Mute the whole thread</strong>. A zap offers only the person who sent it. Each takes a second tap to confirm, the notification leaves at once, and the mute goes into the encrypted part of your mute list, so nobody reading the list can see who you muted.</p>
+      <p>Search results, and the profile card they open, have follow and mute buttons drawn as icons. Following takes one tap. Muting and unmuting take two. Unmuting removes a person wherever they are on your list, including mutes made in other clients.</p>
+
       <h3>Why strangers are grouped, not hidden</h3>
       <p>Reply spam arrives from keys made minutes ago, which is what makes muting a
       losing game: every mute list is a denylist, and a denylist cannot outrun a
@@ -637,6 +642,22 @@
     </section>
 
     <!-- ===== Themes ===== -->
+    <section class="guide-section" id="live-video">
+      <h2>Live video</h2>
+      <p>Sidecar can play a livestream or a replay in a player above the panel, so you can watch while you do everything else it does. Open the radio icon to browse what is <strong>Live</strong>, <strong>Upcoming</strong> and <strong>Past</strong>, or paste an HTTPS video address. The player keeps going while you move around Sidecar, lock it or approve a signature, and closing it stops the stream.</p>
+
+      <h3>The list</h3>
+      <p>Twenty streams show at first and more load as you reach the end of the list. Past and Upcoming read older streams from the relays when the ones Sidecar already has run out, and if a pass finds nothing, a <strong>Keep looking</strong> button offers another. The bookmark on a row saves the stream. Saved streams stay on this device and back up encrypted to your account, so they restore on another browser.</p>
+      <p>Click <strong>LIVE</strong> at the top left of the player to show or hide the list. The title beside it opens <strong>About stream</strong>, and the streamer’s name and picture open their profile card.</p>
+
+      <h3>Chat and zaps</h3>
+      <p>The chat button opens the stream’s chat. Replies, mentions and reactions are signed by the account you choose in the composer, like any other note. The bolt zaps the stream from your own wallet, and every comment has a bolt of its own to zap whoever wrote it. Press the bolt again, or any other control in the player bar, and the zap sheet closes. It also puts itself away once a payment is on its way, because nothing is left to decide on it. The toast “Zapping” and then “Zapped” carries the rest.</p>
+      <p>The number beside the bolt is the stream’s verified zap total. It pulses while Sidecar counts and can keep growing for a few seconds as it reads more relays. A plus means at least this much, and appears only when the total is hard to pin down. Sidecar counts only receipts it can verify against the host’s own Lightning provider, so the number can read lower than a site that counts every receipt.</p>
+
+      <h3>What it contacts</h3>
+      <p>Browsing reads public stream announcements from relays, without signing in. Playing a stream loads its video from the address in the announcement, so that host sees your IP address and which stream you are watching, as with any video link. <strong>Enable live video</strong> in Settings turns the whole feature off. The <a href="https://sidecar.top/privacy" target="_blank" rel="noopener">privacy policy</a> lists the relays and hosts involved.</p>
+    </section>
+
     <section class="guide-section" id="themes">
       <h2>Themes</h2>
       <p>Sidecar ships twenty themes, in <strong>Settings &rarr; Appearance</strong>. They
@@ -683,7 +704,7 @@
       <ul class="whatsnew-list">
         <li><strong>Live video.</strong> Watch livestreams and replays above the panel from the radio icon, chat with the host, zap the stream, and save streams. The player keeps going while you work, and Settings has a switch to turn it off.</li>
         <li><strong>Follow and mute from search and notifications.</strong> Search results and profile cards have follow and mute buttons, and a notification’s ⋮ menu can mute a person, a note or a thread. Mutes go into the encrypted part of your mute list.</li>
-        <li><strong>Auto-lock can wait 8 or 24 hours,</strong> and Never is now “Until browser closes.”</li>
+        <li><strong>Auto-lock can wait 30 minutes, 8 or 24 hours,</strong> and Never is now “When browser closes,” last in the list. The 1-minute choice is retired.</li>
         <li><strong>The profile card is one row of icons,</strong> with the lightning address above the bio and a corner X to close it.</li>
         <li><strong>Four new themes:</strong> Jazz Age and Departures for dark, Ben Day and Turnstile for light, twenty in all.</li>
         <li><strong>The stream list scrolls,</strong> loading more as you reach the end. Click Live to show or hide it, and click the zap total or the bolt to zap.</li>
