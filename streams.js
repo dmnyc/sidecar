@@ -427,6 +427,7 @@
     for(const item of items) {
       const sig=rowSig(item);let kept=rowCache.get(item.key);
       if(!kept || kept.sig!==sig){kept={sig,row:buildRow(item)};rowCache.set(item.key,kept);}
+      else kept.row.refreshAvatar?.();
       wanted.push(kept.row);
     }
     // Touch only what differs, so the scroll position and the loaded images stay where they are.
@@ -475,6 +476,29 @@
   }
   let moreOpen = false;
   let lookingForStreams = false;
+  // A row's avatar. It is asked for when the row is built and again each time the row is reused,
+  // until a profile has answered, because a reused row is not rebuilt: a lookup that came back
+  // after the list had reconnected used to be dropped, and its row kept a blank avatar for good.
+  // The avatar is this row's own to set whenever it arrives; only the player's artwork, which is
+  // shared, waits on the discovery that asked for it.
+  function rowAvatar(item, avatar) {
+    const run=discoveryGeneration;
+    let answered=false, asking=false;
+    return function refresh() {
+      if(!item.host || answered || asking)return;
+      asking=true;
+      profileImage(item.host, item.relays).then(url=>{
+        asking=false;
+        const picture = url || item.image; // Stream artwork is preferable to an empty avatar when no profile is published.
+        if(url)answered=true;
+        if(picture && avatar.getAttribute('src')!==picture)avatar.src=picture;
+        if(run!==discoveryGeneration)return;
+        if(url)profileArtwork.src=url;
+        const banner=profileImages.get(item.host)?.banner;
+        if(banner)bannerArtwork.src=banner;
+      });
+    };
+  }
   function buildRow(item) {
       const row=document.createElement('div');row.className='stream-row';
       const button=document.createElement('button');button.type='button';button.className='stream-result';
@@ -526,15 +550,8 @@
         if (item.image && avatar.src !== item.image) avatar.src=item.image;
       });
       profile.append(avatar);row.append(button,profile);
-      const run=discoveryGeneration;
-      if(item.host)profileImage(item.host, item.relays).then(url=>{
-        const picture = url || item.image; // Stream artwork is preferable to an empty avatar when no profile is published.
-        if(run!==discoveryGeneration)return;
-        if(picture)avatar.src=picture;
-        if(url)profileArtwork.src=url;
-        const banner=profileImages.get(item.host)?.banner;
-        if(banner)bannerArtwork.src=banner;
-      });
+      row.refreshAvatar=rowAvatar(item,avatar);
+      row.refreshAvatar();
       return row;
   }
   function paint() {

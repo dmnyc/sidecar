@@ -376,3 +376,13 @@ test('the one control left is a button that asks, with a name for assistive tech
   assert.match(source, /again\.type='button';again\.className='ghost';again\.textContent=t\('Keep looking'\);/);
   assert.match(source, /again\.addEventListener\('click',\(\)=>\{historyStalled=false;loadMoreHistory\(kind\);\}\);/);
 });
+
+test('a reused row is asked to refresh its avatar; a row just built is not asked twice', () => {
+  const p = page({ live: many(3) });
+  const asked = [];
+  p.ctx.buildRow = (it) => { const row = node(); row.item = it; row.refreshAvatar = () => asked.push(it.key); return row; };
+  p.paint();
+  assert.deepEqual(asked, [], 'a built row loads its own avatar');
+  p.paint();
+  assert.deepEqual(asked, ['k0', 'k1', 'k2'], 'a reused row tries again until a profile has answered');
+});
