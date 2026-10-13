@@ -13,7 +13,7 @@ Update that section alongside this file as part of every release.
 
 ### Added
 - **Live video.** Watch livestreams and replays in a player above the panel. Open the radio icon to browse **Live**, **Upcoming** and **Past** streams, save streams as bookmarks, or paste an HTTPS media address. Playback keeps going as you move around Sidecar, lock it or approve a signature, and closing the player stops it. A scheduled stream opens its details and can be bookmarked before it starts, and an ended stream plays its recording when one was published. **Enable live video** in Settings turns it off.
-- **Stream chat and zaps.** Chat with the host while you watch, with replies, mentions and reactions signed by your account, and zap the stream or a comment. The player shows viewers, the verified zap total, top zappers and how long the stream has run, with an About view. The zap total pulses while it counts and grows as more relays answer, then shows the plain number, with a plus only when the total is hard to pin down. Click the total or the bolt to open the zap sheet, and click the bolt again to close it.
+- **Stream chat and zaps.** Chat with the host while you watch, with replies, mentions and reactions signed by your account, and zap the stream or a comment. The player shows viewers, the verified zap total, top zappers and how long the stream has run, with an About view. The zap total pulses while it counts and grows as more relays answer, then shows the plain number, with a plus only when the total is hard to pin down. Click the total or the bolt to open the zap sheet, and click the bolt again to close it. The sheet puts itself away once a zap is on its way, and pressing chat or another player control closes it too.
 - **The stream list scrolls instead of paging.** Twenty streams show at first and more load as you reach the end, with Past and Upcoming fetching older streams as they run out and a **Keep looking** button when a search finds none. Click **Live** at the top left of the player to show or hide the list; the title still opens About stream.
 - **Saved streams back up encrypted to your account** and restore on another browser. Your local bookmarks stay either way.
 - **Longer auto-lock.** Auto-lock can wait 8 or 24 hours of inactivity, and **Never** is now **Until browser closes**, which says what it does: your PIN is still asked once per browser session.
@@ -28,6 +28,7 @@ Update that section alongside this file as part of every release.
 - **Sidecar bundles the full HLS.js build** to play live video, with its source and hash recorded and checked at build time.
 
 ### Fixed
+- **The wallet’s history updates when a payment arrives.** A received payment moved the balance and raised a toast, but the list only caught up when you reopened the wallet.
 - **Clicking into a notification’s zap form no longer opens the note.** The message and amount fields sent your client’s tab to the note.
 
 ## [1.15.9] — 2026-10-07
