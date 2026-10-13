@@ -176,6 +176,8 @@
       // Nothing to show, nothing drawn: an empty total is hidden rather than left as a blank slot.
       output.hidden=!text;
       setZapDigits(output,text,animate);
+      // A total still being counted pulses instead of trailing an ellipsis.
+      output.classList.toggle('stream-zap-counting',loading && !!session.totals.count);
       if(animate)shineZap();
       output.title=loading ? t('Loading verified zap history…') : SidecarStreams.zapTotalUncertain({answered,truncated}) ? t('Zap history incomplete; retrying available relays.') : t('Verified zaps observed on available relays; other receipts may exist.');
       if(session.totals.count)output.title+=' '+t('{{sats}} sats · {{count}} zaps observed for this event',{sats:SidecarI18n.fmtNum(session.totals.msats/1000),count:SidecarI18n.fmtNum(session.totals.count)});

@@ -1,7 +1,7 @@
 'use strict';
 
-// The mark after a stream's zap total. While the history loads it is an ellipsis. Once it has
-// loaded, a total that can be trusted is shown plain: a short stream that reads 1,000 sats
+// The mark after a stream's zap total. While the history loads there is no mark: the total
+// pulses instead (see the player tests below). Once it has loaded, a total that can be trusted is shown plain: a short stream that reads 1,000 sats
 // needs no caveat. A plus ("at least this much") is for a total that is hard to pin down: a
 // history longer than a scan will walk, or too few relays finishing a clean pass.
 //
@@ -16,10 +16,10 @@ const path = require('node:path');
 const core = require('../stream-core');
 const { zapTotalMark, zapTotalUncertain, ZAP_QUORUM, zapHistory } = core;
 
-test('while the history loads, a total is marked unfinished', () => {
-  assert.equal(zapTotalMark({ count: 3, loading: true, answered: 0, truncated: false }), '…');
-  assert.equal(zapTotalMark({ count: 0, loading: true, answered: 0 }), '…');
-  assert.equal(zapTotalMark({ count: 3, loading: true, answered: 7, truncated: false }), '…', 'loading outranks everything else');
+test('while the history loads, a total carries no mark: it pulses instead', () => {
+  assert.equal(zapTotalMark({ count: 3, loading: true, answered: 0, truncated: false }), '');
+  assert.equal(zapTotalMark({ count: 0, loading: true, answered: 0 }), '');
+  assert.equal(zapTotalMark({ count: 3, loading: true, answered: 7, truncated: false }), '', 'loading never adds a plus');
 });
 
 test('A TOTAL THAT CAN BE TRUSTED IS SHOWN PLAIN: no plus on a short stream', () => {
@@ -46,7 +46,7 @@ test('NO ZAPS: blank once it is known, never a dash and never a plus', () => {
   assert.equal(zapTotalMark({ count: 0, loading: false, answered: 7, truncated: false }), '');
   assert.equal(zapTotalMark({ count: 0, loading: false, answered: 0, truncated: true }), '');
   assert.equal(zapTotalMark({ count: 0, loading: false }), '');
-  assert.equal(zapTotalMark({ count: 0, loading: true }), '…', 'still loading is still said');
+  assert.equal(zapTotalMark({ count: 0, loading: true }), '', 'still loading says nothing');
 });
 
 test('the tooltip follows the same rule as the mark', () => {
@@ -159,6 +159,7 @@ async function watch({ count = 0 } = {}) {
     get hidden() { return this._hidden; },
     set hidden(v) { this._hidden = v; log.push({ hidden: v }); },
     replaceChildren() {}, removeAttribute() {}, setAttribute() {},
+    classList: { toggle(name, on) { log.push({ counting: !!on }); } },
   };
   const context = {
     zapSessions: new Map(), setZapDigits(el, text) { log.push({ text }); }, SidecarI18n: { fmtNum: String }, t: (x) => x,
@@ -175,10 +176,17 @@ async function watch({ count = 0 } = {}) {
 const shown = (log) => log.filter((e) => 'text' in e).map((e) => e.text);
 const hiddenSeq = (log) => log.filter((e) => 'hidden' in e).map((e) => e.hidden);
 
-test('a stream with no zaps shows an ellipsis while it loads, then nothing at all', async () => {
+test('a stream with no zaps shows nothing while it loads and after', async () => {
   const log = await watch({ count: 0 });
-  assert.deepEqual(shown(log), ['…', ''], 'the dash never appears');
-  assert.deepEqual(hiddenSeq(log), [false, true], 'visible while loading, hidden once there is nothing to show');
+  assert.deepEqual(shown(log), ['', ''], 'no ellipsis and no dash');
+  assert.deepEqual(hiddenSeq(log), [true, true]);
+  assert.ok(log.filter((e) => 'counting' in e).every((e) => e.counting === false), 'nothing to pulse');
+});
+
+test('a total pulses while it is still counting, and stops once the history is loaded', async () => {
+  const log = await watch({ count: 4 });
+  assert.deepEqual(log.filter((e) => 'counting' in e).map((e) => e.counting), [true, false]);
+  assert.ok(shown(log).every((t) => !t.includes('…')), 'the ellipsis is gone');
 });
 
 test('a stream with zaps keeps its total visible', async () => {
@@ -192,4 +200,10 @@ test('the player draws nothing for an empty total and does not leave a blank slo
   const src = fs.readFileSync(path.join(__dirname, '..', 'streams.js'), 'utf8');
   assert.match(src, /const text=session\.totals\.count \? value\+mark : mark;\s*\/\/[^\n]*\n\s*output\.hidden=!text;\s*setZapDigits\(output,text,animate\);/);
   assert.doesNotMatch(src, /output\.hidden=false;\s*const value=/, 'it is drawn visible again before it knows what to show');
+});
+
+test('the pulse is a stylesheet animation that motion settings turn off', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'streams.css'), 'utf8');
+  assert.match(css, /#stream-zap-total\.stream-zap-counting \{ animation:stream-zap-count/);
+  assert.match(css, /html\.reduce-motion #stream-zap-total\.stream-zap-counting \{ animation:none; \}/);
 });

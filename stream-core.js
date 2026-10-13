@@ -225,8 +225,7 @@
     return !!truncated || (answered || 0) < ZAP_QUORUM;
   }
   function zapTotalMark({ count, loading, answered, truncated }) {
-    if (!count) return loading ? '…' : '';
-    if (loading) return '…';
+    if (!count || loading) return '';
     return zapTotalUncertain({ answered, truncated }) ? '+' : '';
   }
   // A provider-signed receipt is counted only after its signed request and invoice agree.

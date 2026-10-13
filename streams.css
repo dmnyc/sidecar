@@ -417,6 +417,10 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
 
 html.reduce-balance-motion #stream-zap.is-shining::after,
 html.reduce-motion #stream-zap.is-shining::after,
+@keyframes stream-zap-count { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+#stream-zap-total.stream-zap-counting { animation:stream-zap-count 1.2s ease-in-out infinite; }
+html.reduce-balance-motion #stream-zap-total.stream-zap-counting,
+html.reduce-motion #stream-zap-total.stream-zap-counting { animation:none; }
 html.reduce-balance-motion #stream-zap-total .t-digit,
 html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 
