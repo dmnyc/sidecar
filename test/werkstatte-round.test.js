@@ -27,6 +27,8 @@ const IGNORE = new Set([
   'tx-icon',
   'welcome-mark', // welcome.html is not themed
   'css', 'json', 'low', 'profile-body', // captured from compound selectors
+  'modal-x', 'peek-x', // the profile card's corner X: a dark disc over the banner picture, and
+                       // a dark tile in the square themes, which is what they do to everything
 ]);
 
 for (const theme of SQUARE_THEMES) {

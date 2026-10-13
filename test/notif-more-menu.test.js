@@ -47,7 +47,7 @@ test('THE JSON IS THE SIGNED EVENT, NOT WHAT THE CACHE HUNG ON IT', () => {
 
 test('every notification row gets the menu, not only the note-like ones', () => {
   const build = lift('function buildItem(');
-  assert.match(build, /buildEventMenu\(ev, linkTarget\)/);
+  assert.match(build, /buildEventMenu\(ev, linkTarget, \{ mute:/);
   assert.match(build, /right\.appendChild\(moreMenu\.btn\)/, 'the ⋮ lives in the top-right slot');
   // Outside the isNoteLike / targetId branches, so reactions, reposts, zaps and votes
   // have it too.
