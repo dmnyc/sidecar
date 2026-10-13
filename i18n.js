@@ -23,10 +23,14 @@
 (function (root) {
   'use strict';
 
-  // The languages the picker offers, each named in itself. English is the only one
-  // until a translation ships; en-XA is the developer's pseudo-locale.
+  // The languages the picker offers, each named in itself,
+  // with draft launch catalogs available for review; en-XA is the pseudo-locale.
   const LANGUAGES = [
     { code: 'en', name: 'English' },
+    { code: 'de', name: 'Deutsch' },
+    { code: 'es', name: 'Español' },
+    { code: 'fr', name: 'Français' },
+    { code: 'pt-BR', name: 'Português (Brasil)' },
   ];
   const PSEUDO = 'en-XA';
   // en-XB, the developer's TEST locale: a real locale file (locales/en-XB.json, written by
@@ -211,17 +215,22 @@
     });
   }
 
-  const ready = (async () => {
+  // A worker can outlive the panel that changes the language. Reload explicitly
+  // after a settings write, and ignore an older read/fetch that finishes later.
+  let localeRevision = 0;
+  async function reload() {
+    const revision = ++localeRevision;
     const setting = await readSetting();
     const code = resolve(setting === 'auto' ? browserLanguage() : setting);
-    if (code !== lang) {
-      lang = code;
-      plural = new Intl.PluralRules(lang === PSEUDO ? 'en' : lang);
-    }
+    const loaded = await loadDicts(code);
+    if (revision !== localeRevision) return lang;
+    lang = code;
+    plural = new Intl.PluralRules(lang === PSEUDO ? 'en' : lang);
+    dicts = loaded;
     writeCache(lang);
-    dicts = await loadDicts(lang);
     return lang;
-  })();
+  }
+  const ready = reload();
 
   // Switch language with its dictionaries already in hand: the tests use it, and so can
   // a live switch once there is one. dictionaries is [active, base], most specific first.
@@ -248,8 +257,36 @@
     });
   }
 
+  // Internal control responses keep their original English error for diagnostics.
+  // Translate only known cases; unknown details remain visible without guessing.
+  function controlError(response) {
+    if (!response) return '';
+    const params = response.errorParams || {};
+    switch (response.errorKey || response.error) {
+      case 'pin-cooldown':
+        if (Number.isFinite(params.seconds) && params.seconds >= 0) {
+          return tSec('Too many attempts — try again in {{duration}}', {
+            duration: fmtNum(params.seconds, { style: 'unit', unit: 'second', unitDisplay: 'long' }),
+          });
+        }
+        break;
+      case 'pin-remaining':
+        if (Number.isInteger(params.count) && params.count >= 0) {
+          return tSec('Incorrect PIN. Attempts remaining before Sidecar erases itself: {{count}}', { count: fmtNum(params.count) });
+        }
+        break;
+      case 'Incorrect PIN': return tSec('Incorrect PIN');
+      case 'Incorrect current PIN': return tSec('Incorrect current PIN');
+      case 'PIN required': return tSec('PIN required');
+      case 'Keystore not initialized': return tSec('Keystore not initialized');
+      case 'Keystore is locked': return tSec('Keystore is locked');
+      case 'Too many failed attempts — Sidecar has been erased': return tSec('Too many failed attempts — Sidecar has been erased');
+    }
+    return response.error || '';
+  }
+
   const api = {
-    t, tn, tSec, fill, fmtNum, fmtDate, fmtRelative, applyDom, ready, setLocale,
+    t, tn, tSec, fill, fmtNum, fmtDate, fmtRelative, applyDom, ready, reload, setLocale, controlError,
     get lang() { return lang; },
     get dir() { return RTL.has(lang.split('-')[0]) ? 'rtl' : 'ltr'; },
     languages: () => LANGUAGES.slice(),

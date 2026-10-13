@@ -1079,7 +1079,7 @@
           st && st.status === 'throttled' ? tSec('Too many attempts. Try again in {{seconds}}s.', { seconds: Math.ceil(st.waitMs / 1000) })
           : st && st.status === 'bad' ? tn('Incorrect PIN. {{count}} attempt left before all data is erased.', 'Incorrect PIN. {{count}} attempts left before all data is erased.', st.remaining)
           : st && st.status === 'wiped' ? tSec('Too many attempts. All data on this device was erased.')
-          : (unlocked && unlocked.error) || tSec('Incorrect PIN');
+          : I18N.controlError(st) || I18N.controlError(unlocked) || tSec('Incorrect PIN');
         els.pin.value = '';
         els.pin.focus();
         return;

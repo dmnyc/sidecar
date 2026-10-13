@@ -1,0 +1,213 @@
+1.16 i18n completion audit — October 7, 2026
+
+Current integration branch: feat/streaming-video
+
+Initial evidence:
+- Six local translation commits were not ancestors of this branch: profiles,
+  relays, backups, accounts, connected sites/About, and panel remainder.
+- Production languages: English only. No production locales/*.json files.
+- Original extractor found 1,021 keys and omitted all streaming scripts.
+- Existing i18n-design.md phase status is stale; infrastructure, first-run,
+  approvals, settings, wallet, notifications, and composer work already exists.
+
+Progress:
+- Integrated the six translation patches without committing or merging branches.
+- Preserved newer shared-composer, highlights, comment-zap, and About features
+  while resolving conflicts from those patches.
+- Integrated snapshot passed all 2,625 tests.
+- Added streaming scripts and qualified I18N calls to key extraction.
+- Replaced unextractable dynamic stream keys with literal translation calls.
+- Wrapped additional account/UI messages, wallet catalog, and QR scanner text.
+- QR scanner and wallet catalog now await locale readiness before rendering.
+
+Remaining verification/work (not a completion claim):
+- Finish a full source/UI audit, including help, auxiliary pages, rich-text
+  notices, user-visible errors, new features, formatting, and RTL layout.
+- Re-run tests after the additional wrappers and add runtime checks for these
+  pages with an asynchronously loaded locale.
+- Generate the test locale and visually inspect key flows at 360px in en-XA/en-XB.
+- Audit font fallback, logical CSS properties, and untranslated static HTML.
+- Select production languages, prepare complete catalogs, verify placeholder
+  and plural coverage, and obtain required native security-string reviews.
+- Update the design status/release evidence once the actual scope is verified.
+- Questions requiring maintainer decisions are in 1.16-questions.txt.
+
+No i18n integration changes have been committed or pushed in this phase.
+
+End of source-integration pass:
+- Full suite: 2,628/2,628 passed after the source wrapping and runtime tests.
+- Subsequent static account labels and wallet rich-text footer changes passed
+  9 focused extractor/auxiliary-page tests; full suite rerun remains part of
+  the final completion gate.
+- Generated en-XB catalog: 1,720 keys (developer-only, ignored by Git).
+- Raw DOM audit found additional unwrapped nodes. Theme/client brand names and
+  protocol identifiers are intentionally not translation keys. Welcome footer
+  text is already translated by its runtime renderer. Help still needs a
+  deliberate whole-page localization strategy and cannot be claimed complete.
+- All work in this pass remains uncommitted. No external publication occurred.
+
+October 8 follow-up:
+- Payment-success notifications now await the worker locale and translate the
+  whole sentence, including locale-aware amount formatting. Website responses
+  and their English error contract remain unchanged.
+- Chart scrub labels and the visible developer-log clock now use I18N.fmtDate.
+- Added runtime tests for delayed notification locale startup and every chart
+  range. The old chart formatter fails the selected-language expectation.
+- Full suite after these production changes: 2,630/2,630 passed.
+- Fixed the streaming review pseudo toggle: apply static translations after
+  locale startup and refresh the preview asset versions. The prior preview
+  displayed English labels despite the toggle being checked.
+- Subsequent preview/runtime checks: 5/5 passed. Generated catalog: 1,721 keys.
+- Browser check: 360px preview lock screen in en-XA, no horizontal overflow;
+  input/label/button scrollWidth matches clientWidth. Evidence saved to
+  /tmp/i18n-lock-preview.png. This fixture is not a full production-panel test:
+  its cloned markup and fictional dynamic data differ from sidepanel.js.
+- Additional gap: Relay Rider instructions/HUD still use English ASCII bitmap
+  glyphs; translated non-ASCII text would be silently blank. Needs Unicode
+  rendering and localized layout before claiming complete auxiliary coverage.
+- Remaining notification failures and some protocol-derived errors still need
+  presentation-layer localization without changing website-facing errors.
+
+October 8 runtime-language pass:
+- Context-menu payment labels now wait for the locale, including Chromium's
+  unsupported-scheme fallback path. Known notification failures are translated
+  at the UI boundary; unknown wallet/network details remain untouched data.
+- Added runtime tests for localized failure notifications, immutable original
+  errors, delayed menu initialization, and scheme fallback.
+- Full suite at the payment/menu snapshot: 2,633/2,633 passed.
+- Stream UI now awaits locale readiness before mounting permanent bookmark,
+  chat, and About labels. Updated playback tests to await real initialization;
+  delayed-locale test verifies the translated bookmark button is rendered.
+- Added I18N.reload for the long-lived background worker. A language-setting
+  change reloads its dictionary and rebuilds context menus. A revision guard
+  prevents an older startup/settings read from replacing a newer language.
+- Focused runtime checks after startup/reload changes: 38/38 passed.
+- Generated developer catalog now has 1,737 keys. No production language has
+  been enabled and no translation is being represented as native-reviewed.
+- Typography audit confirms no general :lang rules for CJK/Arabic letter-spacing
+  and uppercase yet; most themed serif stacks also lack the design's explicit
+  system-ui fallback. These remain unverified layout work, not completed items.
+- Full regression run after stream startup and worker language reload changes:
+  2,636/2,636 passed; git diff --check passed. Updated i18n-design.md status to
+  distinguish the original baseline from current work and outstanding gates.
+
+Relay Rider rendering pass:
+- Game startup now waits for locale readiness. HUD counters, status popups, and
+  translated title/pause/game-over captions are extractable keys. Key bindings
+  and counter values are template parameters rather than translatable data.
+- English retains its bitmap glyphs. Unsupported glyphs and non-English text use
+  system fonts, measureText, and whole-string shaping for joined/RTL scripts.
+- Translated instructions wrap at measured widths; the delivery diagram remains
+  visible on the 360x600 preview. Pop backgrounds account for Unicode text height.
+- 28 focused tests passed, including executed Arabic shaping, English bitmap
+  preservation, unsupported-glyph fallback, and long-word/CJK wrapping checks.
+- Checked en-XA visually at sidebar width; screenshot /tmp/i18n-rider-preview.png.
+  Temporary preview tab/server closed; sound was never enabled.
+- Extremely short/narrow game fields and unusually long production translations
+  still require vertical overflow verification. Do not claim all game locales
+  complete from this single preview. Full suite rerun remains a final gate.
+- Generated developer catalog: 1,753 keys. No commits or pushes in this phase.
+
+Small-screen and catalog completeness pass:
+- Added a native, keyboard-focusable scrolling fallback when game captions
+  exceed the available canvas height. Animation frames preserve scroll position;
+  roomy layouts return to canvas rendering. Long text is never shrunk to fit.
+- Browser stress check at 116x190: deliberately overlong captions had matching
+  clientWidth/scrollWidth (92px), scrollHeight 1,693px, and keyboard scrolling
+  reached the final instruction. Evidence: /tmp/i18n-rider-overflow.png.
+- Runtime tests cover the fallback, scroll preservation, and resizing back.
+- Fixed mixed t/tn extraction: '{{count}} following' and '{{count}} muted' were
+  losing plural forms because plain calls were encountered first. Catalogs now
+  retain the plain key plus plural forms. Confirmed the old extractor loses both.
+- 23 focused catalog/wiring/game-runtime checks passed after this fix.
+- Generated catalog: 1,754 base keys (plain/plural lookup entries can share a key).
+- Full suite at the game-overflow snapshot: 2,640/2,640 passed. The subsequent
+  catalog fix passed all 23 focused checks. Working tree whitespace check passed.
+
+Catalog release validation:
+- Added scripts/i18n-coverage.mjs with a --check exit status and --json report.
+  It reads actual registered production languages, merges regional fallback
+  catalogs as runtime does, and checks every required locale plural category,
+  mixed plain/plural keys, empty/non-string values, markup, placeholders, and
+  unknown keys. It lists security keys without claiming they were reviewed.
+- Empty production-language registration fails the coverage gate rather than
+  passing vacuously. Current result: 0 non-English production languages; gate
+  fails as expected. This is a release dependency, not a test failure.
+- Native review, guide completeness, and rendered layout are explicitly outside
+  this command's proof. They remain separate requirements.
+- 24 focused coverage/extractor/wiring tests passed. No commit or push occurred.
+
+Internal PIN error presentation:
+- Branch/catalog review confirmed no additional production locale catalogs or
+  launch-language decisions in the existing i18n branches.
+- Found that unexpected unlock/step-up failures bypassed panel translation.
+  Added structured cooldown/remaining-attempt metadata to internal control
+  responses, preserving the original English error and website error contract.
+- Shared I18N.controlError translates known PIN/keystore failures and keeps
+  unknown diagnostics visible. The panel call boundary, unlock screen, and
+  approval popup use it. Invalid metadata falls back to the original error.
+- Included i18n.js literal UI keys in extraction; the translator implementation
+  remains exempt from the caller-only ban on variable translation keys.
+- 46 i18n-focused tests passed. Another 25 PIN/core checks verified unchanged
+  retry delay, persisted failure counts, final-strike erasure, successful reset,
+  and translated presentation with original errors intact.
+- Earlier full catalog snapshot: 2,647/2,647 passed. Current full run is pending.
+- Generated developer catalog now has 1,760 base keys.
+- Full suite after internal PIN presentation changes: 2,648/2,648 passed.
+  The three additional PIN-guard behavior tests passed separately afterward.
+  No source edits followed that full run; work remains uncommitted.
+
+Shared error-boundary follow-up:
+- The expanded composer now uses I18N.controlError at its control-call boundary.
+- Both approval views inspect an error inside the unlock result before falling
+  back to the outer response. A keystore initialization error must not be
+  mislabeled as an incorrect PIN.
+- 27 focused tests passed, including executed panel/composer call boundaries,
+  unchanged worker errors, and preserved destructive-operation metadata.
+- Production language/catalog work still requires the launch-language decision;
+  native review must follow actual translated security strings. RTL/font and
+  complete-guide verification must be evaluated for those selected languages.
+- No commit, push, release tag, or production-language registration occurred.
+
+Current verification and dependency checkpoint:
+- Full current worktree suite: 2,653/2,653 passed; git diff --check passed.
+- Coverage release command exits 1 as expected: 1,760 base keys and no registered
+  non-English production languages. There are no test jobs or preview servers
+  from this pass left running.
+- Completion is NOT established. The next catalog and language-specific layout
+  work needs the launch languages; native security reviews need real translated
+  strings and reviewers; guide implementation needs the recorded scope choice.
+- Maintainer-dependency audit, first consecutive checkpoint: unanswered decisions
+  are listed in 1.16-questions.txt. No production language is guessed or enabled.
+
+
+October 8 launch-catalog pass (supersedes the no-catalog checkpoints above):
+- Confirmed targets: de, es, fr, pt-BR; pt-PT deferred.
+- Registered complete draft catalogs: 1,824 German entries; 1,884 each in
+  Spanish, French, and Brazilian Portuguese. Includes all required CLDR forms.
+- Added all 32 browser messages for each language, preserving the browser's
+  payment placeholder definitions. These messages follow browser language;
+  the app setting controls extension-page language.
+- Fixed extraction of numeric HTML apostrophes so keys match decoded DOM
+  attributes. Two existing strings were affected.
+- Coverage: 1,762 base keys; zero missing, invalid, or unknown catalog entries.
+- Real-catalog runtime tests exercise persisted settings, asynchronous fetch,
+  static DOM labels, PIN errors, and plural selection including 1,000,000.
+- Full suite: 2,667 passed. This was after catalog registration and stale
+  draft-toast test harness corrections; focused guide tests are recorded below.
+- Browser preview: German, Spanish, French, and pt-BR lock screens at 360px
+  fit without horizontal overflow. en-XA lock controls fit in all 21 preview
+  themes; each applied data-theme was checked before measuring.
+- This preview uses actual styles and lock markup with fictional data. It is
+  NOT proof of full installed-extension acceptance, expanded-composer layout,
+  every approval, or every screen/theme/language combination.
+- Added a language picker to the streaming review fixture and retained the
+  selected theme on locale reload.
+- Native-review packets: 490 marked security/browser entries per language,
+  all explicitly unreviewed. Instructions identify files, checks, and outputs.
+- The full guide remains English with a translated notice. Accepting English
+  for the initial release remains a maintainer decision.
+- No native approval, commit, push, merge, tag, or publication occurred.
+
+- Final focused locale/guide suite: 59/59 passed; git diff --check passed.
+- Temporary browser preview and localhost server were closed after verification.

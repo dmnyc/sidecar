@@ -1,17 +1,27 @@
 # Multilingual support — design
 
-Status: phase 1 (infrastructure) implemented on `feat/i18n-core`; phases 2 to 5 to
-come. Where phase 1 settled something this proposal left open, §6 says what and why.
+Status (October 8, 2026): infrastructure, first-run/security screens, and the
+panel-area source integrations are present in the `feat/streaming-video`
+worktree. Source coverage and runtime/layout verification are still in progress.
+The extractor currently finds 1,762 keys, including streaming UI. German (de),
+Spanish (es), French (fr), and Brazilian Portuguese (pt-BR) now have complete
+draft app and browser-message catalogs and are registered for development review.
+European Portuguese (pt-PT) is deferred to a future phase. en-XA and en-XB are
+development tools. Native security reviews, full extension layout acceptance,
+and the guide release-scope decision remain open. The full guide is still English,
+with a translated notice. Catalog completeness alone is not release approval.
 
-Sidecar has no translation layer today. This document measures what would need
-to change, describes how Jumble (a Nostr web client that ships 19 languages)
-solves the same problem, and proposes a design that fits Sidecar's constraints:
-vanilla JS, no build step, and every third-party file vendored and hash-checked
-(see `VENDOR.md`).
+The observations in §1 and the Jumble comparison are the original design
+baseline, not a description of the current worktree. §6 records the implemented
+infrastructure decisions. The work-in-progress evidence and open maintainer
+questions are in `docs/i18n/1.16-audit.txt` and `docs/i18n/1.16-questions.txt`.
+
+This design fits Sidecar's constraints: vanilla JS, no build step, and every
+third-party file vendored and hash-checked (see `VENDOR.md`).
 
 The short version: copy Jumble's key format and conventions, not its library.
 
-## 1. What Sidecar has today
+## 1. Original baseline
 
 ### No translation layer
 
@@ -314,6 +324,18 @@ the rule translations will stress.
    seeded from its locale files, with credit in `NOTICE`.
 5. **Right-to-left**, and `help.html` as whole translated pages
    (`help.<lang>.html`) rather than string-by-string.
+
+### Catalog coverage gate
+
+Run `node scripts/i18n-coverage.mjs --check` before releasing a new language.
+Use `--json` for the full missing-key and validation report. The command checks
+registered production catalogs, including regional fallback and each locale's
+plural categories. A release with no non-English production language does not
+satisfy the multilingual release goal and fails this gate.
+
+This check proves catalog structure and coverage only. It does not certify
+translation accuracy, native security review, guide completeness, or rendered
+layout. Those still need their own evidence.
 
 ## 5. Open questions
 

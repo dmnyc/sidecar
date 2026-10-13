@@ -60,6 +60,18 @@
     background: rgba(14, 14, 20, 0.72); border: 1px solid #2a2a36; border-radius: 8px;
     color: #8d8698; cursor: pointer;
   }
+  .rider-captions {
+    position: absolute; inset-inline: 12px; bottom: 44px;
+    overflow: auto; overscroll-behavior: contain; padding: 12px;
+    background: rgba(14, 14, 20, 0.94); color: #efe6cd;
+    border-block: 1px solid #f2c12e;
+    font: 14px/1.5 system-ui, sans-serif; text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .rider-captions[hidden] { display: none; }
+  .rider-captions p { margin: 0 0 12px; }
+  .rider-captions p:last-child { margin-bottom: 0; }
+  .rider-captions:focus-visible { outline: 2px solid #f2c12e; }
   #sound:hover { color: #efe6cd; border-color: #4a4a60; }
   #sound svg { width: 16px; height: 16px; }
   #sound[aria-pressed="true"] .off,

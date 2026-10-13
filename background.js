@@ -3357,6 +3357,47 @@ function notify(message) {
   );
 }
 
+// Notifications use the extension locale; payment responses sent to websites keep
+// their protocol-facing English errors. A cold service worker may still be loading
+// its locale when a payment finishes.
+async function notifyPaymentSent(sats) {
+  const I18N = self.SidecarI18n;
+  await I18N.ready;
+  notify(sats != null
+    ? I18N.tSec('Payment sent — {{amount}} sats', { amount: I18N.fmtNum(sats) })
+    : I18N.tSec('Payment sent'));
+}
+
+// Translate known failures only at the notification boundary. Unknown wallet or
+// network details are data; preserve them, and never change the error sent to a page.
+async function notifyPaymentFailure(error) {
+  const I18N = self.SidecarI18n;
+  await I18N.ready;
+  const { tSec } = I18N;
+  const reason = typeof error === 'string' ? error : error?.message;
+  let message;
+  switch (reason) {
+    case 'Sidecar has no accounts set up yet': message = tSec('Sidecar has no accounts set up yet'); break;
+    case 'No active Sidecar account': message = tSec('No active Sidecar account'); break;
+    case 'This site is blocked in Sidecar': message = tSec('This site is blocked in Sidecar'); break;
+    case 'No wallet connected in Sidecar': message = tSec('No wallet connected in Sidecar'); break;
+    case 'You rejected this payment': message = tSec('You rejected this payment'); break;
+    case 'Keystore is locked': message = tSec('Keystore is locked'); break;
+    case 'No invoice provided': message = tSec('No invoice provided'); break;
+    case 'Not a BOLT11 Lightning invoice': message = tSec('Not a BOLT11 Lightning invoice'); break;
+    case 'No image to read': message = tSec('No image to read'); break;
+    case 'Not a readable image URL': message = tSec('Not a readable image URL'); break;
+    case 'No QR code found in that image': message = tSec('No QR code found in that image'); break;
+    case 'That QR is not a Lightning invoice': message = tSec('That QR is not a Lightning invoice'); break;
+    case 'No Lightning invoice found in the selection.': message = tSec('No Lightning invoice found in the selection.'); break;
+    case undefined:
+    case '':
+    case 'Payment failed': message = tSec('Payment failed'); break;
+    default: message = tSec('Payment failed: {{reason}}', { reason });
+  }
+  notify(message);
+}
+
 // Tell a tab a page invoice was paid, so its "Pay with Sidecar" pill clears
 // (the invoice link often lingers in the DOM after the modal shows "Paid").
 // Tell the tabs on `host` that a payment settled, so the content script can throw its
@@ -3561,17 +3602,16 @@ function createPayMenu() {
     // if a build ever rejects the lightning: pattern, fall back to a pattern-less
     // link item — the click handler's extractInvoice already fails safe on
     // non-lightning links with a "no invoice found" notice.
-    create(
-      { id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] },
-      () => create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'] })
-    );
-    create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
-    create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
-    // NIP-84: quote the selected passage as a kind:9802 highlight, sourced to the page.
-    // Waits for the language file, since the title is fixed once the item exists.
     const I18N = self.SidecarI18n;
-    Promise.resolve(I18N && I18N.ready).catch(() => {}).then(() => {
-      const t = I18N ? I18N.t : (s) => s;
+    Promise.resolve(I18N.ready).then(() => {
+      const { t, tSec } = I18N;
+      create(
+        { id: 'sidecar-pay-link', title: tSec('Pay this invoice with Sidecar'), contexts: ['link'], targetUrlPatterns: ['lightning:*'] },
+        () => create({ id: 'sidecar-pay-link', title: tSec('Pay this invoice with Sidecar'), contexts: ['link'] })
+      );
+      create({ id: 'sidecar-pay-selection', title: tSec('Pay Lightning invoice with Sidecar'), contexts: ['selection'] });
+      create({ id: 'sidecar-pay-qr', title: tSec('Pay QR code with Sidecar'), contexts: ['image'] });
+      // NIP-84: quote a selected passage as a kind:9802 highlight.
       create({ id: 'sidecar-highlight', title: t('Highlight with Sidecar'), contexts: ['selection'] });
     });
   });
@@ -3682,10 +3722,10 @@ chrome.contextMenus &&
       Promise.resolve(getInvoice)
         .then((inv) => payFromPage(inv, host, originWindowId).then((r) => ({ r, inv })))
         .then(({ r, inv }) => {
-          notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+          void notifyPaymentSent(r.sats);
           notifyTabPaid(tab && tab.id, inv, r.preimage);
         })
-        .catch((e) => notify((e && e.message) || 'Payment failed'));
+        .catch((e) => { void notifyPaymentFailure(e); });
 
     if (info.menuItemId === 'sidecar-highlight') {
       startHighlight(info, tab);
@@ -3695,7 +3735,7 @@ chrome.contextMenus &&
       pay(invoiceFromQrImage(info.srcUrl));
     } else if (info.menuItemId === 'sidecar-pay-link' || info.menuItemId === 'sidecar-pay-selection') {
       const invoice = extractInvoice(info.linkUrl || info.selectionText);
-      if (!invoice) return notify('No Lightning invoice found in the selection.');
+      if (!invoice) { void notifyPaymentFailure('No Lightning invoice found in the selection.'); return; }
       pay(invoice);
     }
   });
@@ -3931,7 +3971,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 async function guardPinAttempt(attempt) {
   const guard = await loadUnlockGuard();
   const waitMs = unlockDelayMs(guard.fails) - (Date.now() - guard.lastAt);
-  if (waitMs > 0) throw new Error('Too many attempts — try again in ' + Math.ceil(waitMs / 1000) + 's');
+  if (waitMs > 0) throw Object.assign(new Error('Too many attempts — try again in ' + Math.ceil(waitMs / 1000) + 's'), { errorKey: 'pin-cooldown', errorParams: { seconds: Math.ceil(waitMs / 1000) } });
   let result;
   try {
     result = await attempt();
@@ -3947,7 +3987,7 @@ async function guardPinAttempt(attempt) {
     await saveUnlockGuard({ fails, lastAt: Date.now() });
     const remaining = MAX_UNLOCK_FAILS - fails;
     if (remaining <= 5) {
-      throw new Error(e.message + ' — ' + remaining + (remaining === 1 ? ' attempt' : ' attempts') + ' left before Sidecar erases itself');
+      throw Object.assign(new Error(e.message + ' — ' + remaining + (remaining === 1 ? ' attempt' : ' attempts') + ' left before Sidecar erases itself'), { errorKey: 'pin-remaining', errorParams: { count: remaining } });
     }
     throw e;
   }
@@ -4420,6 +4460,10 @@ async function handleControl(message, sender, sendResponse) {
           merged.autoZapDailyMaxSats = Math.min(Math.max(1, Number(merged.autoZapDailyMaxSats) || 1), AUTOZAP_ABS_DAILY_MAX);
         }
         await sset({ sidecar_settings: merged });
+        if (merged.language !== prev.language) {
+          await self.SidecarI18n.reload();
+          createPayMenu();
+        }
         // Apply an auto-lock change immediately: drop any alarm armed under the
         // old value, then re-arm from the new one (no-op when Never or locked).
         // Without this the change only took effect on the next sign/pay/unlock —
@@ -4708,7 +4752,7 @@ async function handleControl(message, sender, sendResponse) {
     // `destructive` rides along when the wipe check refused SIDECAR_OWNER_SIGN, as it
     // does from the site path: without it the panel's call() has nothing to read, and
     // a caller can only relay a bare sentence instead of offering the confirmation.
-    sendResponse({ ok: false, error: e.message, destructive: e.destructive || undefined });
+    sendResponse({ ok: false, error: e.message, errorKey: e.errorKey, errorParams: e.errorParams, destructive: e.destructive || undefined });
   }
 }
 
@@ -5016,13 +5060,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     payFromPage(message.invoice, host, originWindowId, message.enableAutoZap === true, message.offerPayAnywhere === true)
       .then((r) => {
         payTabs.delete(key);
-        notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+        void notifyPaymentSent(r.sats);
         notifyTabPaid(tabId, message.invoice, r.preimage);
       })
       .catch((e) => {
         payTabs.delete(key);
         const m = (e && e.message) || 'Payment failed';
-        notify(m);
+        void notifyPaymentFailure(e);
         notifyTabPayFailed(tabId, message.invoice, m);
       });
     sendResponse({ ok: true });

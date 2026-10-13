@@ -2264,7 +2264,7 @@ window.SidecarCore = (function () {
   async function devReplyTags(target, selectedKind, selfPubkey, authorOf) {
     if (!selectedKind) return target ? replyTags(target, selfPubkey) : null;
     if (!target) {
-      if (selectedKind === WEB_COMMENT_KIND) throw new Error('Reply to a note to create a kind 1111 comment.');
+      if (selectedKind === WEB_COMMENT_KIND) throw new Error(t('Reply to a note to create a kind 1111 comment.'));
       return null;
     }
     const normal = replyTags(target, selfPubkey);
@@ -2275,7 +2275,7 @@ window.SidecarCore = (function () {
       const rootId = rootTag ? rootTag[1] : target.id;
       const rootAuthor = rootId === target.id ? target.pubkey
         : rootTag[4] || (await authorOf(rootId));
-      if (!rootAuthor) throw new Error('Could not load the thread author. Try again before posting this comment.');
+      if (!rootAuthor) throw new Error(t('Could not load the thread author. Try again before posting this comment.'));
       return { kind: WEB_COMMENT_KIND, tags: [
         ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
         ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,

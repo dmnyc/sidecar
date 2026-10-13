@@ -168,7 +168,7 @@ test('THE LETTERS THAT NEED A MIDDLE COLUMN HAVE ONE', () => {
   // have passed. What was actually missing is a stroke reaching the middle of the cell with
   // space either side, which is the one thing four columns cannot hold, so that is what is
   // checked. It is also, exactly, why the font is five wide and not four.
-  const body = js.slice(js.indexOf('const F = {'), js.indexOf('const textW'));
+  const body = js.slice(js.indexOf('const F = {'), js.indexOf('const bitmapText'));
   const glyphs = {};
   for (const m of body.matchAll(/^\s+('.'|[A-Z0-9]): \[([^\]]*)\],$/gm)) {
     glyphs[m[1].replace(/'/g, '')] = m[2].split(',').map((c) => c.trim().replace(/'/g, ''));
@@ -393,7 +393,7 @@ test('EVERY POP IS LEGIBLE WHEREVER IT LANDS', () => {
   assert.match(src, /if \(p\.t < 14 && p\.t % 4 < 2\) continue;/, 'pops blink throughout again');
   // Single size, not double. The plate is what made it readable; at double it was shouting
   // a correction at someone who had only been a few pixels out.
-  assert.match(src, /pop\('MISSED'[^;]*, 1, 84\);/, 'the miss is no longer held long, or went back to double size');
+  assert.match(src, /pop\(t\('Missed'\)[^;]*, 1, 84\);/, 'the miss is no longer held long, or went back to double size');
 });
 
 test('the HUD fits on the narrowest field, close button and all', () => {
@@ -415,7 +415,7 @@ test('the HUD fits on the narrowest field, close button and all', () => {
   }
   // And the source has to actually do that, not just be capable of it.
   const src = stripComments(js);
-  assert.match(src, /label = 'SENT ' \+ pad\(mail, 3\)/, 'the label has no narrow fallback');
+  assert.match(src, /label = t\('Sent \{\{count\}\}'/, 'the label has no narrow fallback');
   assert.match(src, /if \(scX >= 4 \+ textW\(label\) \+ 8\) text\(sc/, 'the scene counter is drawn unconditionally');
 
   // THE FUEL GAUGE ENDS BEFORE THE CLOSE BUTTON. The panel floats that button over the

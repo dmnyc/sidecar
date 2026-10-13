@@ -50,7 +50,7 @@
   }
   async function call(message) {
     const resp = await bg(message);
-    if (!resp || !resp.ok) throw new Error((resp && resp.error) || t('Request failed'));
+    if (!resp || !resp.ok) throw new Error(I18N.controlError(resp) || t('Request failed'));
     return resp.result;
   }
 

@@ -122,15 +122,15 @@ test('THE UI SAYS WHAT IT COSTS, NOT ONLY WHAT IT SAVES', () => {
   // control taking the right edge, so a label over roughly 26 characters wraps and
   // orphans its last word, and a note over about 34 does the same. Three rewrites went
   // that way before the lengths were the thing that got fixed rather than the layout.
-  const label = body.match(/always-active-label', textContent: '([^']*)'/);
-  const note = body.match(/always-active-note', textContent: '([^']*)'/);
+  const label = body.match(/always-active-label', textContent: (?:t|tSec)\('([^']*)'\)/);
+  const note = body.match(/always-active-note', textContent: (?:t|tSec)\('([^']*)'\)/);
   assert.ok(label && label[1].replace(/\\u2019/g, "'").length <= 26,
     'the label wraps and orphans its last word at this width');
   assert.ok(note && note[1].length <= 34, 'the note grew back into two lines');
 
   // And the sheet's own opening paragraph, which was six lines describing what the list
   // underneath it already shows.
-  const top = body.match(/className: 'hint', textContent: '([^']*)'/);
+  const top = body.match(/className: 'hint', textContent: (?:t|tSec)\('([^']*)'\)/);
   assert.ok(top && top[1].length <= 130, 'the opening paragraph grew back');
   // A failed write must not leave the switch showing a state that was never stored.
   assert.match(body, /toggle\.checked = !on;/);

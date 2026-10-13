@@ -11,6 +11,7 @@
 // the whole point is that it doesn't linger anywhere visible.
 (function () {
   'use strict';
+  const {tSec}=SidecarI18n;
 
   const video = document.getElementById('scanq-video');
   const status = document.getElementById('scanq-status');
@@ -77,16 +78,16 @@
       const name = e && e.name;
       status.textContent =
         name === 'NotAllowedError'
-          ? 'Camera access was denied. Close this and use "Choose file" instead.'
+          ? tSec('Camera access was denied. Close this and use "Choose file" instead.')
           : name === 'NotFoundError'
-            ? 'No camera was found. Close this and use "Choose file" instead.'
-            : "Couldn't start the camera. Close this and use \"Choose file\" instead.";
+            ? tSec('No camera was found. Close this and use "Choose file" instead.')
+            : tSec("Couldn't start the camera. Close this and use \"Choose file\" instead.");
       status.classList.add('scanq-err');
       return;
     }
     video.srcObject = stream;
     try { await video.play(); } catch (_) { /* autoplay may reject; frames still arrive */ }
-    status.textContent = 'Point the camera at the QR code on your sheet.';
+    status.textContent = tSec('Point the camera at the QR code on your sheet.');
 
     const detect = makeDetector();
     const tick = async () => {
@@ -97,7 +98,7 @@
         if (m) {
           const secret = m[1].toLowerCase();
           done = true;
-          status.textContent = 'Found it — sending to Sidecar…';
+          status.textContent = tSec('Found it — sending to Sidecar…');
           // Await the hand-off before closing. Tearing the window down mid-send
           // would drop the key and look like a scan that silently did nothing.
           let ok = false;
@@ -112,7 +113,7 @@
           if (!ok) {
             // Leave the window open. Retrying is safe — nothing was stored.
             done = false;
-            status.textContent = "Couldn't hand that to Sidecar. Try again.";
+            status.textContent = tSec("Couldn't hand that to Sidecar. Try again.");
             status.classList.add('scanq-err');
           } else {
             cleanup();
@@ -126,5 +127,5 @@
     raf = requestAnimationFrame(tick);
   }
 
-  start();
+  SidecarI18n.ready.then(start);
 })();

@@ -128,7 +128,7 @@ test('thousands are grouped, like the follow count', async () => {
 
 test('the stat sits beside the follow count and is painted', () => {
   const src = stripComments(source);
-  assert.match(src, /h\('span', \{ className: 'profile-stat' \}, \[muteNum, document\.createTextNode\(' muted'\)\]\)/,
+  assert.match(src, /h\('span', \{ className: 'profile-stat' \}, I18N\.fill\(t\('\{\{count\}\} muted'\), \{ count: muteNum \}\)\)/,
     'the muted stat is gone from the row');
   assert.match(src, /paintMuteCount\(active\.pubkey, muteNum, muteStat\)/, 'nothing fills the number in');
 });
@@ -152,5 +152,5 @@ test('THE REFRESH BUTTON REACHES IT', () => {
 
 test('the button says what it does', () => {
   const src = stripComments(source);
-  assert.match(src, /title: 'Refresh profile, follow and mute counts'/, 'the tooltip still promises only two of three');
+  assert.match(src, /title: t\('Refresh profile, follow and mute counts'\)/, 'the tooltip still promises only two of three');
 });

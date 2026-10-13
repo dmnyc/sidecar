@@ -58,6 +58,7 @@ function liftLine(pattern, label) {
 // deps.stored     what is already in chrome.storage.local under sidecar_nip65
 // deps.only       nip65-only mode for the active account
 // deps.configured the global relay map behind SIDECAR_GET_RELAYS
+const { withI18n } = require('./helpers/i18n.js');
 function harness(deps = {}) {
   const store = deps.stored ? { sidecar_nip65: deps.stored } : {};
   const ctx = {
@@ -105,6 +106,7 @@ function harness(deps = {}) {
     },
     state: { activePubkey: 'a'.repeat(64) },
   };
+  withI18n(ctx);
   vm.createContext(ctx);
   // The shared relay rule, loaded the way the panel loads it (self.SidecarRelayPolicy).
   ctx.self = ctx;

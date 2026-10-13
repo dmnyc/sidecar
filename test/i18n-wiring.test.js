@@ -65,7 +65,8 @@ test('EVERY __MSG__ IN THE MANIFEST HAS ITS ENGLISH, OR THE EXTENSION WILL NOT L
 
 test('each _locales translation carries only keys English has, and none empty', () => {
   const en = JSON.parse(read('_locales/en/messages.json'));
-  for (const lang of fs.readdirSync(path.join(ROOT, '_locales'))) {
+  for (const entry of fs.readdirSync(path.join(ROOT, '_locales'), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+    const lang = entry.name;
     const m = JSON.parse(read(path.join('_locales', lang, 'messages.json')));
     for (const [k, v] of Object.entries(m)) {
       assert.ok(en[k], lang + ' has ' + k + ', which English does not');
@@ -96,9 +97,13 @@ test('LOCALE FILES CARRY NO MARKUP', () => {
 
 test('A TRANSLATION KEEPS EXACTLY ITS KEY\'S {{PLACEHOLDERS}}', () => {
   // A dropped {{amount}} would show a payment card with no amount on it.
+  // Plural grammar can spell out one ("your relay") while other forms use count.
+  const pluralKeys = new Set(require('../scripts/i18n-keys-core').allKeys().filter(k=>k.plural).map(k=>k.key));
   for (const f of locales) {
     for (const [k, v] of Object.entries(JSON.parse(read(path.join('locales', f))))) {
-      assert.deepEqual(placeholders(v), placeholders(baseKey(k)), f + ': "' + k + '"');
+      const plural = pluralKeys.has(baseKey(k)) && /_(zero|one|two|few|many|other)$/.test(k);
+      const required = text => placeholders(text).filter(name=>!plural || name!=='count');
+      assert.deepEqual(required(v), required(baseKey(k)), f + ': "' + k + '"');
     }
   }
 });

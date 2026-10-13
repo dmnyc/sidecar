@@ -1,0 +1,26 @@
+1.16 translation decisions and remaining dependencies — October 8, 2026
+
+Confirmed:
+- Launch targets: German (de), Spanish (es), French (fr), Brazilian Portuguese
+  (pt-BR). pt-PT is a later phase.
+- Secondary candidates: Russian, Ukrainian, Japanese, Arabic.
+- Translation tools may provide drafts. Community members may review them.
+- A fully translated guide is preferred.
+
+Current worktree:
+- All four app catalogs and all 32 browser messages per language are drafted.
+- All four languages are registered for development review.
+- No native-speaker review has been claimed or recorded.
+- The full guide remains English, with a translated notice identifying that.
+
+Still needed:
+1. Native reviewers for the security-critical text. The design requires native
+   review before shipping a language. Assignments and packets are in review/.
+2. Maintainer decision: is the labeled English guide acceptable for the initial
+   release, or must complete translated guides ship with it?
+3. Full extension layout acceptance on the selected languages, including the
+   expanded composer, approvals, and theme variants.
+4. Explicit approval before commits/pushes, and the normal reviewed release
+   process before merging, tagging, or publishing.
+
+Catalog completeness is not release approval.

@@ -11,9 +11,9 @@ const ROOT = path.join(__dirname, '..');
 
 // The files whose strings are translated through i18n.js. content.js is not among them:
 // it follows the browser through chrome.i18n and _locales (docs/i18n-design.md §3.2).
-const JS_FILES = ['sidepanel.js', 'prompt.js', 'welcome.js', 'compose.js', 'composer-core.js',
+const JS_FILES = ['i18n.js', 'sidepanel.js', 'prompt.js', 'welcome.js', 'compose.js', 'composer-core.js',
   'wallets.js', 'help.js', 'scan-qr.js', 'relay-rider.js', 'theme-tile.js', 'background.js',
-  'replaceable-baseline.js', 'highlight.js'];
+  'replaceable-baseline.js', 'highlight.js', 'streams.js', 'stream-chat.js', 'stream-details.js'];
 const HTML_FILES = ['sidepanel.html', 'prompt.html', 'welcome.html', 'compose.html', 'help.html',
   'wallets.html', 'scan-qr.html', 'relay-rider.html', 'theme-tile.html', 'highlight.html'];
 
@@ -38,11 +38,11 @@ function extractFromJs(src) {
   // t('Copy') — the name t alone, not something.t or format(. tSec('…') is the same call,
   // marked security-critical: those keys need a native speaker's review before a language
   // ships (docs/i18n-design.md §3.7).
-  for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$.])(t|tSec)\(\s*` + LIT, 'g'))) {
+  for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$.])(?:(?:SidecarI18n|I18N)\.)?(t|tSec)\(\s*` + LIT, 'g'))) {
     keys.push(m[1] === 'tSec' ? { key: unquote(m[2]), security: true } : { key: unquote(m[2]) });
   }
   // tn('{{count}} relay', '{{count}} relays', n)
-  for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$.])tn\(\s*` + LIT + String.raw`\s*,\s*` + LIT, 'g'))) {
+  for (const m of code.matchAll(new RegExp(String.raw`(?<![\w$.])(?:(?:SidecarI18n|I18N)\.)?tn\(\s*` + LIT + String.raw`\s*,\s*` + LIT, 'g'))) {
     keys.push({ key: unquote(m[1]), other: unquote(m[2]), plural: true });
   }
   return keys;
@@ -53,7 +53,7 @@ function extractFromJs(src) {
 function nonLiteralCalls(src) {
   const code = codeOnly(src);
   const out = [];
-  for (const m of code.matchAll(/(?<![\w$.])(tn?|tSec)\(\s*([^'"\s)])/g)) {
+  for (const m of code.matchAll(/(?<![\w$.])(?:(?:SidecarI18n|I18N)\.)?(tn?|tSec)\(\s*([^'"\s)])/g)) {
     const line = code.slice(0, m.index).split('\n').length;
     out.push(line + ': ' + code.slice(m.index, code.indexOf('\n', m.index)).trim());
   }
@@ -64,7 +64,14 @@ function nonLiteralCalls(src) {
 // the HTML form of tSec: its keys are security-critical.
 function extractFromHtml(src) {
   const keys = [];
-  const decode = (v) => v.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  const named = { quot: '"', amp: '&', lt: '<', gt: '>', apos: "'" };
+  // Decode once, as the DOM does, including numeric apostrophes from HTML escaping.
+  const decode = (v) => v.replace(/&(quot|amp|lt|gt|apos|#x[0-9a-f]+|#[0-9]+);/gi, (entity, code) => {
+    if (code[0] !== '#') return named[code.toLowerCase()];
+    const point = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : Number(code.slice(1));
+    return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+      ? String.fromCodePoint(point) : '\ufffd';
+  });
   for (const tag of src.matchAll(/<[a-z][^>]*\bdata-i18n[^>]*>/gi)) {
     const review = /\bdata-i18n-review\b/.test(tag[0]);
     for (const m of tag[0].matchAll(/data-i18n(?:-(?!review\b)[a-z-]+)?="([^"]*)"/g)) {
@@ -81,7 +88,16 @@ function allKeys(root = ROOT) {
   const add = (k) => {
     const had = seen.get(k.key);
     if (!had) seen.set(k.key, k);
-    else if (k.security) had.security = true;
+    else {
+      if (k.security) had.security = true;
+      // The same English key can be used by both t() and tn(). Keep both
+      // lookup shapes instead of letting first-seen source order lose one.
+      if (!!had.plural !== !!k.plural) had.simple = true;
+      if (k.plural) {
+        had.plural = true;
+        had.other = k.other;
+      }
+    }
   };
   for (const f of JS_FILES) {
     const p = path.join(root, f);

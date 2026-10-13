@@ -14,7 +14,11 @@
 //
 // Drawn at 160x240 and integer-scaled, every coordinate rounded, no sub-pixel anything.
 
-(() => {
+(async () => {
+  const I18N = window.SidecarI18n;
+  await I18N.ready;
+  const { t } = I18N;
+  I18N.applyDom();
   // THE PLAYFIELD IS SIZED TO THE WINDOW, not fixed. This runs in a side panel, and
   // letterboxing a game inside a 360px panel wastes the only space there is.
   //
@@ -47,6 +51,13 @@
   cv.dataset.hud = String(HUD_H);
   const ctx = cv.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
+  // A native scrolling fallback keeps long instructions reachable at small sizes.
+  const captionPanel = document.createElement('section');
+  captionPanel.className = 'rider-captions'; captionPanel.hidden = true;
+  captionPanel.tabIndex = 0; captionPanel.setAttribute('aria-label', t('Game status and controls'));
+  document.getElementById('stage').append(captionPanel);
+  let captionSignature = '';
+
 
   // ---- palette ------------------------------------------------------------------------
   // Yellow rig, red boxes, gray road: the livery of a Danish post office sidecar, which is
@@ -132,11 +143,22 @@
 
   // `k` draws each font pixel as a k by k block, which is how a bitmap font gets bigger
   // without getting soft. Everything stays on the same grid.
-  const textW = (s, k) => s.length * 6 * (k || 1) - (k || 1);
+  const bitmapText = s => I18N.lang === 'en' && [...String(s).toUpperCase()].every(ch => F[ch]);
+  function textW(s, k = 1) {
+    if (bitmapText(s)) return s.length * 6 * k - k;
+    ctx.save(); ctx.font = (8 * k) + 'px system-ui, sans-serif';
+    const width = ctx.measureText(String(s)).width; ctx.restore(); return width;
+  }
 
   function text(s, x, y, color, k) {
     k = k || 1;
     ctx.fillStyle = color;
+    if (!bitmapText(s)) {
+      // Shape the whole string so Arabic joining and mixed-direction runs survive.
+      ctx.save(); ctx.font = (8 * k) + 'px system-ui, sans-serif';
+      ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.direction = I18N.dir;
+      ctx.fillText(String(s), x, y); ctx.restore(); return;
+    }
     let cx = x;
     for (const ch of String(s).toUpperCase()) {
       const g = F[ch] || F[' '];
@@ -428,6 +450,8 @@
   };
 
   addEventListener('keydown', (e) => {
+    if (!captionPanel.hidden && captionPanel.contains(e.target) &&
+        ['ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.code)) return;
     // Sound is the button in the corner, not a key. It used to be Q, which is as far from
     // the driving keys as the board goes and for the same reason the one nobody
     // remembered. A focused button still answers Enter and Space on its own, and they
@@ -466,8 +490,7 @@
   let focused = document.hasFocus();
 
   const soundBtn = document.getElementById('sound');
-  // The button's label is the one translated string on the page; everything else is drawn.
-  if (window.SidecarI18n) window.SidecarI18n.ready.then(() => window.SidecarI18n.applyDom());
+  // The sound label and canvas captions share the page's selected language.
 
   function paintSound() {
     if (soundBtn) soundBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
@@ -837,7 +860,7 @@
           if (b.near <= REACH) deliver(b);
           // Only when you were near it. Every box you never went for saying MISSED is
           // noise; the one you were four pixels short of is the lesson.
-          else if (b.near < REACH * 3) pop('MISSED', b.x - textW('MISSED') - 6, b.sy - 2, C.miss, 1, 84);
+          else if (b.near < REACH * 3) pop(t('Missed'), b.x - textW(t('Missed')) - 6, b.sy - 2, C.miss, 1, 84);
         }
         continue;
       }
@@ -875,7 +898,7 @@
       if (rigL < f.x + CAN_W && f.x < rigR) {
         f.got = true;
         fuel = Math.min(100, fuel + 16);
-        pop('FUEL', f.x - 6, sy - 8, C.fuelOk);
+        pop(t('Fuel'), f.x - 6, sy - 8, C.fuelOk);
         blip(620, 0.05, 'triangle');
         setTimeout(() => blip(830, 0.07, 'triangle'), 50);
       }
@@ -964,13 +987,14 @@
     // pixels depends on the scale: half the band for its inset, plus the button and a
     // little air, the two of those being fixed in CSS pixels.
     const gutter = Math.ceil(HUD_H / 2 + (BUTTON / 2 + 6) / scale);
-    const sc = 'SCENE ' + scene;
+    const sc = t('Scene {{number}}', { number: I18N.fmtNum(scene) });
     // On a narrow field the two counters do not both fit. The label gives way first, and
     // only then the scene counter, which is the one already announced by a banner every
     // time it changes and shown again at the end. SENT says the same thing as DELIVERED in
     // four letters and keeps the direction unambiguous, which MAIL did not.
-    let label = 'DELIVERED ' + pad(mail, 3);
-    if (4 + textW(label) + 8 + textW(sc) + gutter > W) label = 'SENT ' + pad(mail, 3);
+    let label = t('Delivered {{count}}', { count: I18N.fmtNum(mail, { minimumIntegerDigits: 3, useGrouping: false }) });
+    if (4 + textW(label) + 8 + textW(sc) + gutter > W) label = t('Sent {{count}}', { count: I18N.fmtNum(mail, { minimumIntegerDigits: 3, useGrouping: false }) });
+    if (4 + textW(label) + gutter > W) label = I18N.fmtNum(mail);
     text(label, 4, 3, C.ink);
     const scX = W - gutter - textW(sc);
     if (scX >= 4 + textW(label) + 8) text(sc, scX, 3, C.inkDim);
@@ -993,6 +1017,7 @@
   }
 
   function draw() {
+    if (mode === 'play' || I18N.lang === 'en') captionPanel.hidden = true;
     drawRoad();
 
     // THE DELIVERY LINE. How close is close enough is the one thing a title screen cannot
@@ -1047,12 +1072,12 @@
       const x = Math.round(p.x);
       const y = Math.round(p.y);
       ctx.fillStyle = C.plate;
-      ctx.fillRect(x - 3, y - 3, textW(p.txt, p.k) + 6, 5 * p.k + 6);
+      ctx.fillRect(x - 3, y - 3, textW(p.txt, p.k) + 6, (bitmapText(p.txt) ? 5 : 9) * p.k + 6);
       text(p.txt, x, y, p.color, p.k);
     }
 
     if (bannerT > 0 && bannerT % 10 < 7) {
-      const s = 'SCENE ' + scene;
+      const s = t('Scene {{number}}', { number: I18N.fmtNum(scene) });
       textMid(s, 96, C.cream);
     }
 
@@ -1108,7 +1133,51 @@
     return Math.max(HUD_H + 2, Math.min(Math.round((H - h) / 2), H - h - 2));
   }
 
+  function captionLines(value, width) {
+    const lines = []; let line = '';
+    const words = String(value).split(/\s+/);
+    const segmenter = typeof Intl.Segmenter === 'function'
+      ? new Intl.Segmenter(I18N.lang, { granularity: 'grapheme' }) : null;
+    for (const word of words) {
+      if (line && textW(line + ' ' + word) > width) { lines.push(line); line = ''; }
+      if (textW(word) <= width) { line += (line ? ' ' : '') + word; continue; }
+      // Long words and unspaced scripts wrap without discarding any characters.
+      for (const part of segmenter ? [...segmenter.segment(word)].map(x => x.segment) : [...word]) {
+        if (line && textW(line + part) > width) { lines.push(line); line = ''; }
+        line += part;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function localizedOverlay(rows, diagram = false) {
+    const lines = rows.flatMap(row => captionLines(row, W - 24));
+    const height = 20 + lines.length * 12 + (diagram ? 36 : 0);
+    if (height > H - HUD_H - 4) {
+      const signature = JSON.stringify(rows);
+      if (captionSignature !== signature) {
+        captionPanel.replaceChildren(...rows.map(value => {
+          const row = document.createElement('p'); row.textContent = value; return row;
+        }));
+        captionPanel.scrollTop = 0; captionSignature = signature;
+      }
+      captionPanel.style.top = ((HUD_H + 2) * scale) + 'px';
+      captionPanel.hidden = false;
+      return;
+    }
+    captionPanel.hidden = true;
+    const top = blockTop(height); panel(top, height);
+    lines.forEach((line, index) => textMid(line, top + 10 + index * 12, C.cream));
+    if (diagram) titleDiagram(top + 14 + lines.length * 12);
+  }
+
   function overlayTitle() {
+    if (I18N.lang !== 'en') {
+      localizedOverlay(['Relay Rider', t('Deliver the notes!'), t('{{keys}} Arrows to steer', { keys: '←→' }),
+        t('{{gas}} Gas  {{brake}} Brake', { gas: '↑', brake: '↓' }), t('{{key}} Pause', { key: 'P' }), t('Your best {{count}}', { count: I18N.fmtNum(best) }), t('Press {{key}}', { key: t('Space') })], true);
+      return;
+    }
     // The controls live here now. The page used to carry a line of text under the canvas,
     // and in a side panel that line was costing a whole step of scale.
     const top = blockTop(152);
@@ -1131,6 +1200,12 @@
   }
 
   function overlayOver() {
+    if (I18N.lang !== 'en') {
+      localizedOverlay([t('Out of fuel'), t('Delivered {{count}}', { count: I18N.fmtNum(mail) }),
+        t('Scene {{number}}', { number: I18N.fmtNum(scene) }),
+        record ? t('New best') : t('Your best {{count}}', { count: I18N.fmtNum(best) }), t('Press {{key}}', { key: t('Space') })]);
+      return;
+    }
     const top = blockTop(112);
     panel(top, 112);
     // Out of fuel is the end of the run, so it says so at the size of one. Same trick as
@@ -1147,6 +1222,7 @@
   }
 
   function overlayPause() {
+    if (I18N.lang !== 'en') { localizedOverlay([t('Paused'), t('{{key}} to ride on', { key: 'P' })]); return; }
     const top = blockTop(30);
     panel(top, 30);
     textMid('PAUSED', top + 10, C.cream);

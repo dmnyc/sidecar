@@ -122,7 +122,9 @@ test('numbers and dates follow the language', () => {
 test('THE BROWSER LANGUAGE RESOLVES TO A SUPPORTED ONE, OR ENGLISH', () => {
   const i = load();
   assert.equal(i.resolve('en-GB'), 'en');
-  assert.equal(i.resolve('fr-CA'), 'en', 'no French yet, so English');
+  assert.equal(i.resolve('fr-CA'), 'fr');
+  assert.equal(i.resolve('pt-BR'), 'pt-BR');
+  assert.equal(i.resolve('pt-PT'), 'en', 'European Portuguese is a later phase');
   assert.equal(i.resolve(''), 'en');
   assert.equal(i.resolve('en-XA'), 'en-XA');
 });
@@ -164,7 +166,7 @@ test('IT LOADS IN THE SERVICE WORKER, WHICH HAS NO DOM AND NO localStorage', asy
 });
 
 test('a broken or missing locale file falls back to English, never to blank', async () => {
-  const i = load({ settings: { language: 'de' } }); // no 'de' registered, and fetch fails
+  const i = load({ settings: { language: 'de' } }); // registered catalog fetch fails
   await i.ready;
   assert.equal(i.t('Copy'), 'Copy');
 });
@@ -194,4 +196,47 @@ test('THE PSEUDO-LOCALE KEEPS THE SLOT, SO THE NODE STILL LANDS', () => {
   i.setLocale('en-XA', []);
   const out = i.fill(i.t('Find more apps at {{first}} and {{second}}.'), { first: 'F', second: 'S' });
   assert.ok(out.includes('F') && out.includes('S'), JSON.stringify(out));
+});
+
+test('a long-lived worker can reload the language after settings change', async () => {
+  const settings = { language: 'en' };
+  const i = load({ settings, worker: true }); await i.ready;
+  assert.equal(i.t('Copy'), 'Copy');
+  settings.language = 'en-XA';
+  await i.reload();
+  assert.equal(i.lang, 'en-XA'); assert.notEqual(i.t('Copy'), 'Copy');
+  settings.language = 'en';
+  await i.reload();
+  assert.equal(i.t('Copy'), 'Copy');
+});
+
+test('an older locale read cannot override a newer reload', async () => {
+  const reads = [];
+  const ctx = { Intl, Promise, Object, String, Number, Math, Set, Array, JSON,
+    chrome: { i18n: { getUILanguage: () => 'en-US' },
+      storage: { local: { get: (_key, callback) => reads.push(callback) } },
+      runtime: { getURL: value => value } },
+    fetch: async () => ({ ok: false }),
+  };
+  ctx.self = ctx; vm.createContext(ctx); vm.runInContext(SRC, ctx);
+  const i = ctx.SidecarI18n;
+  const latest = i.reload();
+  reads[1]({ sidecar_settings: { language: 'en-XA' } }); await latest;
+  reads[0]({ sidecar_settings: { language: 'en' } }); await i.ready;
+  assert.equal(i.lang, 'en-XA'); assert.notEqual(i.t('Copy'), 'Copy');
+});
+
+test('internal PIN errors localize structured values without changing the original error', async () => {
+  const i=load(); await i.ready;
+  i.setLocale('de',[{
+    'Incorrect PIN':'Falsche PIN',
+    'Too many attempts — try again in {{duration}}':'Warten: {{duration}}',
+    'Incorrect PIN. Attempts remaining before Sidecar erases itself: {{count}}':'Vor dem Löschen verbleibend: {{count}}',
+  }]);
+  const response={error:'Incorrect PIN'};
+  assert.equal(i.controlError(response),'Falsche PIN');assert.equal(response.error,'Incorrect PIN');
+  assert.equal(i.controlError({error:'legacy',errorKey:'pin-cooldown',errorParams:{seconds:21}}),'Warten: 21 Sekunden');
+  assert.equal(i.controlError({error:'legacy',errorKey:'pin-remaining',errorParams:{count:3}}),'Vor dem Löschen verbleibend: 3');
+  assert.equal(i.controlError({error:'legacy',errorKey:'pin-remaining',errorParams:{count:'bad'}}),'legacy');
+  assert.equal(i.controlError({error:'Unknown diagnostic'}),'Unknown diagnostic');
 });

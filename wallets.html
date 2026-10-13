@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Find a wallet for Sidecar</title>
+  <title data-i18n="Find a wallet for Sidecar">Find a wallet for Sidecar</title>
   <link rel="stylesheet" href="fonts.css">
   <link rel="stylesheet" href="welcome.css">
   <link rel="stylesheet" href="themes/speakeasy.css">
@@ -32,19 +32,19 @@
 </head>
 <body>
   <nav class="helpnav">
-    <a class="helpnav-brand" href="help.html" title="Back to the guide">
+    <a class="helpnav-brand" href="help.html" title="Back to the guide" data-i18n-title="Back to the guide">
       <img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
     </a>
     <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
-    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu">
-      <span class="helpnav-burger-text">Menu</span>
+    <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu" data-i18n-aria-label="Open menu">
+      <span class="helpnav-burger-text" data-i18n="Menu">Menu</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
     </label>
     <div class="helpnav-menu">
-      <a class="helpnav-guide" href="help.html"><span class="helpnav-back" aria-hidden="true">&lsaquo;</span> Guide</a>
+      <a class="helpnav-guide" href="help.html"><span class="helpnav-back" aria-hidden="true">&lsaquo;</span> <span data-i18n="Guide">Guide</span></a>
       <div class="helpnav-pages">
-        <a href="welcome.html">Nostr apps</a>
-        <a href="wallets.html" class="active" aria-current="page">Wallets</a>
+        <a href="welcome.html" data-i18n="Nostr apps">Nostr apps</a>
+        <a href="wallets.html" class="active" aria-current="page" data-i18n="Wallets">Wallets</a>
       </div>
     </div>
   </nav>
@@ -52,15 +52,15 @@
   <div class="page">
 
     <header class="header">
-      <h1>Pick a Lightning wallet.</h1>
-      <p>Sidecar connects to any wallet that supports Nostr Wallet Connect (NWC). Choose one below, create a connection string in it, then paste that into Sidecar's Wallet tab. Sidecar never holds your funds.</p>
+      <h1 data-i18n="Pick a Lightning wallet.">Pick a Lightning wallet.</h1>
+      <p data-i18n="Sidecar connects to any wallet that supports Nostr Wallet Connect (NWC). Choose one below, create a connection string in it, then paste that into Sidecar&#x27;s Wallet tab. Sidecar never holds your funds.">Sidecar connects to any wallet that supports Nostr Wallet Connect (NWC). Choose one below, create a connection string in it, then paste that into Sidecar's Wallet tab. Sidecar never holds your funds.</p>
     </header>
 
     <div class="filters" id="filters">
-      <button class="filter-btn active" data-cat="all">All</button>
-      <button class="filter-btn" data-cat="selfcustodial">Self-custodial</button>
-      <button class="filter-btn" data-cat="custodial">Custodial</button>
-      <button class="filter-btn" data-cat="ecash">Ecash</button>
+      <button class="filter-btn active" data-cat="all" data-i18n="All">All</button>
+      <button class="filter-btn" data-cat="selfcustodial" data-i18n="Self-custodial">Self-custodial</button>
+      <button class="filter-btn" data-cat="custodial" data-i18n="Custodial">Custodial</button>
+      <button class="filter-btn" data-cat="ecash" data-i18n="Ecash">Ecash</button>
       <button class="filter-btn" data-cat="spark">Spark</button>
     </div>
 
@@ -68,9 +68,9 @@
 
     <footer class="footer">
       <div class="footer-divider"></div>
-      <p class="footer-tip"><strong>Self-custodial</strong> means you hold your own keys. <strong>Custodial</strong> wallets hold your funds for you (easiest to start). <strong>Ecash</strong> wallets use Cashu tokens, with the funds held by a mint. <strong>Spark</strong> wallets run on the Spark layer 2: you hold a key, but moving funds relies on Spark’s operators.</p>
-      <p class="footer-tip">New to Lightning? Any wallet here gets you started — you can always switch later.</p>
-      <p class="footer-tip"><a href="https://github.com/dmnyc/sidecar/issues" target="_blank" rel="noopener">Suggest a wallet to add →</a></p>
+      <p class="footer-tip" id="wallet-custody-tip"><strong>Self-custodial</strong> means you hold your own keys. <strong>Custodial</strong> wallets hold your funds for you (easiest to start). <strong>Ecash</strong> wallets use Cashu tokens, with the funds held by a mint. <strong>Spark</strong> wallets run on the Spark layer 2: you hold a key, but moving funds relies on Spark’s operators.</p>
+      <p class="footer-tip" data-i18n="New to Lightning? Any wallet here gets you started — you can always switch later.">New to Lightning? Any wallet here gets you started — you can always switch later.</p>
+      <p class="footer-tip"><a href="https://github.com/dmnyc/sidecar/issues" target="_blank" rel="noopener" data-i18n="Suggest a wallet to add →">Suggest a wallet to add →</a></p>
     </footer>
 
   </div>
