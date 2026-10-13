@@ -19842,6 +19842,9 @@
       const type = payload && payload.notification_type;
       if (type === 'payment_received' || type === 'payment_sent') {
         refreshWalletBalance();
+        // The history is a separate request from the balance; without this it stayed as it was
+        // until the wallet was reopened. A no-op when the wallet view is not mounted.
+        refreshTransactionList();
         if (type === 'payment_received') {
           const amt = payload.notification && payload.notification.amount;
           if (amt) toast('Received ' + fmtSats(msatToSat(amt)) + ' sats', 'success');
