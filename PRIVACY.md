@@ -109,9 +109,12 @@ Sidecar only talks to services **you choose**:
   you are watching, as with any video link; stream artwork and host pictures load
   from their own addresses the same way, with no referrer. A stream's zap total is
   read from public relays (those three, the stream's own, and purplepag.es,
-  nostr.wine and relay.snort.social), and Sidecar asks the host's Lightning
-  provider for its LNURL details to decide which zap receipts to trust, which
-  shows that provider your IP address. Stream chat reads from and posts to the
+  nostr.wine and relay.snort.social), then, once the player is up, from up to ten
+  more: nostr21.com, relay.ditto.pub, nostr-01.yakihonne.com, relay.nostr.net,
+  soloco.nl, and the five most requested in the zap receipts already read. Each
+  of these relays sees your IP address and which stream's receipts you ask for.
+  Sidecar asks the host's Lightning provider for its LNURL details to decide
+  which zap receipts to trust, which shows that provider your IP address. Stream chat reads from and posts to the
   stream's relays and those same public relays; a message you send is signed by
   your account and published. Saved streams stay on your device. A backup, if you
   make one, is encrypted to your own key before it is published to your relays.
