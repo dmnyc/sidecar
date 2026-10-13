@@ -2880,6 +2880,31 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   margin-left: auto; flex-shrink: 0;
   font-size: 11px; color: var(--muted); white-space: nowrap;
 }
+.ac-item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+/* At the right edge when there is no trust mark to push it there. */
+.ac-item-name + .ac-item-actions { margin-left: auto; }
+/* On the profile card: centered under the follower line, not on the card's own sheet
+   when it is opened to zap a stream comment (the card is a payment there). */
+.peek-person-actions { justify-content: center; gap: 10px; margin: 14px 0 2px; }
+.peek-person-actions .icon-btn svg { width: 20px; height: 20px; }
+/* The bolt is the card's main action and says so in gold; a divider sets the pair of
+   person controls apart from the pair that acts on the profile. */
+.peek-bolt { color: var(--gold); }
+.peek-person-actions .peek-bolt.peek-pay-on { background: var(--hover-medium); }
+.peek-tool-sep { width: 1px; height: 18px; background: var(--border-strong); margin: 0 4px; flex-shrink: 0; }
+.ac-item-actions .icon-btn { transition: opacity 0.25s ease, color 0.2s ease; }
+/* Not ready yet: dimmed and inert but still taking its place, so the other button
+   does not move. */
+.ac-item-actions .icon-btn.pending { opacity: 0.3; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .ac-item-actions .icon-btn { transition: none; } }
+.ac-item-actions .icon-btn.on { color: var(--gold); }
+.ac-item-actions .icon-btn.on:hover { color: var(--gold); }
+/* Waiting for the second tap. A red check on a red wash, which reads as "confirm" and is
+   not the resting muted state (a red crossed-out icon on nothing). */
+.ac-item-actions .icon-btn.armed, .ac-item-actions .icon-btn.armed:hover {
+  color: var(--red); background: color-mix(in srgb, var(--red) 16%, transparent);
+}
+.ac-item-actions .icon-btn:nth-child(2).on, .ac-item-actions .icon-btn:nth-child(2).on:hover { color: var(--red); }
 .ac-loading { display: flex; align-items: center; gap: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); }
 /* Shape and metrics live on .recv-spinner, which this shares. */
 
@@ -5371,14 +5396,26 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    button to this container and clamps the text with .about-clamp, so a scroller on
    the container traps the toggle below the fold — the bio expands and there is then
    no way to collapse it. Let .about-clamp cap the height and let the modal scroll. */
+/* The bio is the one left-aligned block on a card that is otherwise centered, so a thin
+   line sets it apart from what is above it. :empty hides the whole thing, line included,
+   for a profile with no bio. */
 .peek-about {
   text-align: left; font-size: 13px; line-height: 1.5; color: var(--text-2);
-  margin: 10px 0; overflow-wrap: anywhere;
+  margin: 12px 0 10px; padding-top: 12px; border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
 }
 .peek-about:empty { display: none; }
-/* The hand-off sits below the content, full width, never inline (CLAUDE.md). */
-.peek-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-.peek-actions button { width: 100%; }
+/* The lightning address, centered under the icon row, with room from the icons above it. */
+.peek-person-actions ~ .peek-meta { margin-top: 8px; }
+/* The card's corner X sits over the banner, which is user content: a disc keeps it
+   readable on any picture and in any theme, so it does not borrow --muted from the sheet. */
+.modal-x.peek-x {
+  top: 10px; right: 10px;
+  background: rgba(0, 0, 0, 0.55); color: #fff;
+  border-radius: 50%; width: 32px; height: 32px;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.modal-x.peek-x:hover { background: rgba(0, 0, 0, 0.75); color: #fff; }
 /* reach + relationship on the peek sheet. Inherits .profile-stats from the
    Profile tab so the two read as the same thing said about two people. Wraps,
    because three phrases do not always fit 358px on one line. */
@@ -5535,6 +5572,8 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .notif-more-item span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notif-more-item:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
 .notif-more-item:hover svg { color: var(--gold); }
+.notif-more-item.armed, .notif-more-item.armed svg { color: var(--red); }
+.notif-more-item:disabled { opacity: 0.6; cursor: default; }
 
 /* Indented to the same 22px gutter .notif-content uses, so the glyph column stays clear
    and an expanded row reads as belonging to the one above it. */
@@ -5668,6 +5707,9 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   color: var(--lav); cursor: pointer;
 }
 .zap-save-default:hover { color: var(--gold); text-decoration: underline; }
+/* In the profile and stream zap card, which is centered, the line keeps its place while empty.
+   Taking it away and bringing it back changed the card's height with every digit typed. */
+.peek-zap .zap-save-default.hidden { display: block !important; visibility: hidden; pointer-events: none; }
 
 /* [+] in the fourth preset slot, for an account that has never set its own amount. With
    21 built in and the row deduped, that account sees three chips and no sign a fourth is

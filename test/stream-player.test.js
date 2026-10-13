@@ -1,10 +1,10 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const fs=require('node:fs');
-async function setup(storage, i18n){
+async function setup(storage, i18n, windowExtra){
  const els=new Map();const observers=[];const nodes=[];
- function el(){const flags=new Set(),attrs=new Map();const node={childNodes:[],hidden:false,textContent:'',value:'',style:{setProperty(){}},classList:{add(...xs){xs.forEach(x=>flags.add(x));},remove(...xs){xs.forEach(x=>flags.delete(x));},contains(x){return flags.has(x);},toggle(x,on){on=on??!flags.has(x);on?flags.add(x):flags.delete(x);return on;}},events:{},addEventListener(n,f){this.events[n]=f;},setAttribute(k,v){attrs.set(k,String(v));},getAttribute(k){return attrs.get(k) ?? null;},removeAttribute(n){attrs.delete(n);delete this[n];},getBoundingClientRect(){return {height:42,width:this.width ?? 360};},replaceChildren(...children){this.childNodes=children;},append(...children){this.childNodes.push(...children);},get children(){return this.childNodes;},insertBefore(child,before){const at=this.childNodes.indexOf(before);this.childNodes.splice(at<0?this.childNodes.length:at,0,child);},querySelector(){return el();},play(){this.plays++;return Promise.resolve();},pause(){this.pauses++;},load(){this.loads++;},canPlayType(){return 'probably';},plays:0,pauses:0,loads:0};nodes.push(node);return node;}
+ function el(){const flags=new Set(),attrs=new Map();const node={childNodes:[],hidden:false,textContent:'',value:'',style:{setProperty(){}},classList:{add(...xs){xs.forEach(x=>flags.add(x));},remove(...xs){xs.forEach(x=>flags.delete(x));},contains(x){return flags.has(x);},toggle(x,on){on=on??!flags.has(x);on?flags.add(x):flags.delete(x);return on;}},events:{},addEventListener(n,f){this.events[n]=f;},setAttribute(k,v){attrs.set(k,String(v));},getAttribute(k){return attrs.get(k) ?? null;},removeAttribute(n){attrs.delete(n);delete this[n];},getBoundingClientRect(){return {height:42,width:this.width ?? 360};},replaceChildren(...children){this.childNodes=children;},after(){},remove(){},get lastElementChild(){return this.childNodes[this.childNodes.length-1];},append(...children){this.childNodes.push(...children);},get children(){return this.childNodes;},insertBefore(child,before){const at=this.childNodes.indexOf(before);this.childNodes.splice(at<0?this.childNodes.length:at,0,child);},querySelector(){return el();},play(){this.plays++;return Promise.resolve();},pause(){this.pauses++;},load(){this.loads++;},canPlayType(){return 'probably';},plays:0,pauses:0,loads:0};nodes.push(node);return node;}
  const get=id=>{if(!els.has(id))els.set(id,el());return els.get(id);};
  get('view-approval').classList.add('hidden');get('view-lock').classList.add('hidden');
- const context={SidecarI18n:i18n || require('./helpers/i18n').englishI18n(),SidecarStreams:require('../stream-core'),document:{getElementById:get,documentElement:el(),createElement:el,createElementNS:el},ResizeObserver:class{observe(){}},MutationObserver:class{constructor(f){observers.push(f);}observe(){}},window:{addEventListener(){}},setInterval,clearInterval,setTimeout,clearTimeout,URL};
+ const context={SidecarI18n:i18n || require('./helpers/i18n').englishI18n(),SidecarStreams:require('../stream-core'),document:{getElementById:get,documentElement:el(),createElement:el,createElementNS:el},ResizeObserver:class{observe(){}},MutationObserver:class{constructor(f){observers.push(f);}observe(){}},window:Object.assign({addEventListener(){}},windowExtra),setInterval,clearInterval,setTimeout,clearTimeout,URL};
  if(storage)context.chrome={storage:{local:{get:()=>storage.read},onChanged:{addListener:f=>storage.changed=f}}};
  await vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../streams.js'),'utf8'),context);
  return {get,nodes,lock(on){get('view-lock').classList.toggle('hidden',!on);observers.forEach(f=>f());},approval(on){get('view-approval').classList.toggle('hidden',!on);observers.forEach(f=>f());},start(){get('stream-url').value='https://example.com/live.mp4';get('stream-form').events.submit({preventDefault(){}});}};
@@ -103,4 +103,113 @@ test('stream controls wait for locale loading before mounting their permanent la
  const s=await pending;
  assert.ok(s.nodes.some(node=>node.getAttribute('aria-label')==='Im Konto speichern' && node.title==='Im Konto speichern'));
  assert.equal(mounted,true);s.start();assert.equal(s.get('stream-video').plays,1);
+});
+
+// ---- every status message is said in the top row, so the player never grows ----
+
+const topRow=s=>({win:s.get('stream-title-window'),text:s.get('stream-message')});
+test('connecting is said in the top row, in the title\'s place', async () => {
+ const s=await setup();s.start();const {win,text}=topRow(s);
+ assert.equal(text.textContent,'Connecting…');assert.equal(text.hidden,false);
+ assert.equal(win.classList.contains('stream-messaging'),true);
+});
+test('playing takes the message away and the title is back', async () => {
+ const s=await setup();s.start();s.get('stream-video').events.playing();const {win,text}=topRow(s);
+ assert.equal(text.textContent,'');assert.equal(text.hidden,true);
+ assert.equal(win.classList.contains('stream-messaging'),false);
+});
+test('a stall says Buffering… in the same place, and it clears when playback resumes', async () => {
+ const s=await setup();s.start();const v=s.get('stream-video');v.events.playing();
+ v.events.waiting();
+ assert.equal(topRow(s).text.textContent,'Buffering…');assert.equal(topRow(s).win.classList.contains('stream-messaging'),true);
+ v.events.playing();
+ assert.equal(topRow(s).text.textContent,'');assert.equal(topRow(s).win.classList.contains('stream-messaging'),false);
+});
+test('a stall with no stream selected says nothing', async () => {
+ const s=await setup();s.get('stream-video').events.waiting();
+ assert.equal(topRow(s).text.textContent,'');assert.equal(topRow(s).win.classList.contains('stream-messaging'),false);
+});
+test('an error is said in the top row too, with its full text in the tooltip for when it is cut off', async () => {
+ const s=await setup();s.start();s.get('stream-video').events.error();
+ const {text}=topRow(s);
+ assert.match(text.textContent,/Stream unavailable/);
+ assert.equal(text.getAttribute('title'),text.textContent);
+});
+test('closing the player leaves no message behind', async () => {
+ const s=await setup();s.start();s.get('stream-video').events.waiting();
+ s.get('stream-stop').events.click();
+ assert.equal(topRow(s).text.textContent,'');assert.equal(topRow(s).win.classList.contains('stream-messaging'),false);
+ assert.equal(topRow(s).text.getAttribute('title'),null,'no stale tooltip');
+});
+test('the one correction message clears itself and never clears a newer message', () => {
+ // play() is only reached with a bad URL from callers other than the form (whose submit
+ // already ignores one), so this branch cannot be driven from the page: pinned as source.
+ const src=require('node:fs').readFileSync(require('node:path').join(__dirname,'..','streams.js'),'utf8');
+ const at=src.indexOf("const text = t('Enter an HTTPS stream URL.');");
+ assert.ok(at>0,'the correction moved');
+ const block=src.slice(at,at+260);
+ assert.match(block,/message\(text\);/);
+ assert.match(block,/setTimeout\(\(\) => \{ if \(messageEl\.textContent === text\) message\(''\); \}, 4000\);/,'it clears itself, but only if it is still the message on screen');
+});
+test('NO STATUS LINE: the script, the markup and the stylesheet have no second row to grow', () => {
+ const fs=require('node:fs'),path=require('node:path');
+ const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8');
+ assert.doesNotMatch(read('streams.js'),/stream-status|status\.textContent/);
+ for (const f of ['sidepanel.html','docs/streaming/layout.html','docs/streaming/preview.html']) {
+  const html=read(f);
+  assert.doesNotMatch(html,/id="stream-status"/,f+' still has the status row');
+  assert.match(html,/<span id="stream-title-window"><strong id="stream-title" dir="auto"><\/strong><span id="stream-message" role="status" hidden><\/span><\/span>/,f+' lacks the message slot in the title window');
+ }
+ const css=read('streams.css');
+ assert.doesNotMatch(css,/#stream-status/);
+ assert.match(css,/#stream-title-window\.stream-messaging #stream-title \{ display:none; \}/);
+ assert.match(css,/#stream-message \{ display:inline-block; vertical-align:middle; max-width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;/,'one line, aligned like the title, cut with an ellipsis');
+ assert.match(css,/#stream-title-window\.stream-messaging \.t-text-swap \{ display:none; \}/,'the title\'s animation wrapper is full width and would hold the first line');
+ assert.match(css,/#stream-message\[hidden\] \{ display:none; \}/);
+});
+
+// ---- LIVE shows and hides the stream list; the title keeps About stream ----
+
+function aboutPanel() {
+ const calls={toggle:0,close:0,mounted:null};
+ return {calls,window:{SidecarStreamDetails:{mount(args){calls.mounted=args;return {toggle(){calls.toggle++;},close(){calls.close++;},set(){}};}}}};
+}
+
+test('the title still opens About stream and does not touch the list', async () => {
+ const about=aboutPanel();const s=await setup(null,null,about.window);s.start();
+ s.get('stream-title-button').events.click();
+ assert.equal(about.calls.toggle,1);
+ assert.equal(s.get('stream-directory').hidden,true,'the list is untouched');
+});
+
+test('About is wired to the title button, not to LIVE', async () => {
+ const about=aboutPanel();const s=await setup(null,null,about.window);
+ assert.equal(about.calls.mounted.trigger,s.get('stream-title-button'));
+ assert.notEqual(about.calls.mounted.trigger,s.get('stream-browse'));
+});
+
+test('locked or awaiting approval, neither button works', async () => {
+ const about=aboutPanel();const s=await setup(null,null,about.window);s.start();s.lock(true);
+ assert.equal(s.get('stream-browse').disabled,true);assert.equal(s.get('stream-title-button').disabled,true);
+ s.lock(false);
+ assert.equal(s.get('stream-browse').disabled,false);assert.equal(s.get('stream-title-button').disabled,false);
+});
+
+test('markup, previews and stylesheet agree: two buttons, LIVE over the left column, the title keeping its full-width target', () => {
+ const fs=require('node:fs'),path=require('node:path');
+ const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8');
+ for (const f of ['sidepanel.html','docs/streaming/layout.html','docs/streaming/preview.html']) {
+  const html=read(f);
+  assert.match(html,/<button id="stream-browse" aria-expanded="false" aria-label="Live streams" title="Live streams" data-i18n-aria-label="Live streams" data-i18n-title="Live streams"><span class="stream-live-cue"><span class="stream-pilot" aria-hidden="true"><\/span><span class="stream-live-label" data-i18n="Live">Live<\/span><\/span><\/button><button id="stream-title-button" type="button" aria-expanded="false"><span id="stream-title-window">/,f+': LIVE and the title are not two buttons');
+  assert.equal((html.match(/id="stream-browse"/g)||[]).length,1);
+  assert.doesNotMatch(html.match(/<button id="stream-browse"[\s\S]*?<\/button>/)[0],/stream-title-window/,f+': the title is still inside LIVE');
+ }
+ const css=read('streams.css');
+ assert.match(css,/\.stream-toolbar #stream-title-button \{\s*display:grid; grid-template-columns:var\(--stream-control-space,72px\) minmax\(0,1fr\) var\(--stream-control-space,72px\);\s*align-items:center; gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;\s*\}/,'the title button keeps the full-width grid, centered as the old button was');
+ assert.match(css,/\.stream-toolbar #stream-title-button #stream-title-window \{ grid-column:2; \}/,'the title stays in the middle column');
+ assert.match(css,/\.stream-toolbar #stream-browse \{ position:absolute; left:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; \}/,'LIVE sits over the left column, above the title button');
+ assert.match(css,/\.stream-approving #stream-title-button \{ display:grid; pointer-events:none; \}/);
+ const quiet=css.match(/\.stream-toolbar #stream-browse,\n\.stream-toolbar #stream-browse:hover,\n\.stream-toolbar #stream-browse:active,\n\.stream-toolbar #stream-browse\[aria-expanded="true"\],\n\.stream-toolbar #stream-title-button,\n\.stream-toolbar #stream-title-button:hover,\n\.stream-toolbar #stream-title-button:active,\n\.stream-toolbar #stream-title-button\[aria-expanded="true"\] \{\s*background:none; border-color:transparent; box-shadow:none; border-radius:0;/);
+ assert.ok(quiet,'both buttons are drawn as quiet text, not as buttons, in every state');
+ assert.doesNotMatch(css,/\.stream-approving #stream-browse \{ display:grid; \}/,'the old combined-button rule is back');
 });

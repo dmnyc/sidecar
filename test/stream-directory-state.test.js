@@ -6,7 +6,7 @@ function fixture(){
  const attrs=new Map(),feedToggle={setAttribute:(k,v)=>attrs.set(k,v),getAttribute:k=>attrs.get(k)};
  const directory={hidden:false,classList:classes(['stream-idle-directory','is-open']),style:{}},html={classList:classes()},root={hidden:false,getBoundingClientRect:()=>({bottom:250})};
  let finish;
- const ctx={directory,root,feedToggle,entry:null,document:{documentElement:html,getElementById:()=>null},window:{innerHeight:800},disconnect(){},clearTimeout(){},setTimeout:fn=>{finish=fn;return 1;},getComputedStyle:()=>({getPropertyValue:()=> '150'})};
+ const ctx={directory,root,feedToggle,browse:{setAttribute:(k,v)=>attrs.set('live-'+k,v)},entry:null,document:{documentElement:html,getElementById:()=>null},window:{innerHeight:800},disconnect(){},clearTimeout(){},setTimeout:fn=>{finish=fn;return 1;},getComputedStyle:()=>({getPropertyValue:()=> '150'})};
  const functions=['setFeedExpanded','positionDirectory','closeFeed'].map(name=>{
   const start=source.indexOf('  function '+name+'('),end=source.indexOf('\n  }',start)+4;return source.slice(start,end);
  }).join('\n');

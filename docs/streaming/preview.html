@@ -1,6 +1,6 @@
 <!doctype html><html lang="en" data-theme="speakeasy"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sidecar streaming prototype</title><link rel="stylesheet" href="../../fonts.css"><link rel="stylesheet" href="../../styles.css"><link rel="stylesheet" href="../../themes/speakeasy.css"><link rel="stylesheet" href="../../streams.css"></head><body><button id="stream-entry" type="button" aria-label="Live streams" data-i18n="Live streams" aria-controls="stream-directory" aria-expanded="false">Live streams</button>  <section id="stream-dock" aria-label="Live video" data-i18n-aria-label="Live video">
     <div class="stream-toolbar">
-      <button id="stream-browse" aria-expanded="false" aria-label="Live streams" title="Live streams" data-i18n-aria-label="Live streams" data-i18n-title="Live streams"><span class="stream-live-cue"><span class="stream-pilot" aria-hidden="true"></span><span class="stream-live-label" data-i18n="Live">Live</span></span><span id="stream-title-window"><strong id="stream-title" dir="auto"></strong></span></button>
+      <button id="stream-browse" aria-expanded="false" aria-label="Live streams" title="Live streams" data-i18n-aria-label="Live streams" data-i18n-title="Live streams"><span class="stream-live-cue"><span class="stream-pilot" aria-hidden="true"></span><span class="stream-live-label" data-i18n="Live">Live</span></span></button><button id="stream-title-button" type="button" aria-expanded="false"><span id="stream-title-window"><strong id="stream-title" dir="auto"></strong><span id="stream-message" role="status" hidden></span></span></button>
       <div class="stream-controls">
       <button id="stream-expand" aria-expanded="false" aria-label="Expand video" title="Expand video" data-i18n-aria-label="Expand video" data-i18n-title="Expand video" hidden><svg class="stream-expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><svg class="stream-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/></svg></button>
       <span id="stream-viewers" hidden></span>
@@ -14,15 +14,13 @@
       <span id="stream-zap-total" hidden></span>
       <button id="stream-zap" class="icon-btn" aria-label="Zap streamer" title="Zap streamer" data-i18n-aria-label="Zap streamer" data-i18n-title="Zap streamer"><svg viewBox="0 0 55 94" fill="currentColor" aria-hidden="true"><path d="M35.563 0V40.406H54.969L21.016 93.75V51.719H0L35.563 0Z"></path></svg></button>
     </div>
-    <p id="stream-status" role="status"></p>
 
     <div id="stream-directory" hidden>
       <div id="stream-list"></div>
       <div class="stream-directory-actions">
-        <span id="stream-page-controls"></span>
         <button class="icon-btn" id="stream-refresh" aria-label="Refresh streams" title="Refresh streams" data-i18n-aria-label="Refresh streams" data-i18n-title="Refresh streams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
         <button id="stream-more-toggle" class="ghost" aria-expanded="false" aria-controls="stream-more-list" data-i18n="More" hidden>More</button>
-        <button id="stream-url-toggle" class="ghost" aria-expanded="false" aria-controls="stream-advanced" aria-label="Open stream URL" data-i18n-aria-label="Open stream URL" data-i18n="URL">URL</button>
+        <button id="stream-url-toggle" class="ghost" aria-expanded="false" aria-controls="stream-advanced" aria-label="Enter stream URL" data-i18n-aria-label="Enter stream URL" data-i18n="Enter stream URL">Enter stream URL</button>
       </div>
       <div id="stream-more-list" hidden></div>
       <div id="stream-advanced" hidden>

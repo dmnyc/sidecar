@@ -12,8 +12,6 @@ body { padding-top: var(--stream-height); }
 .stream-expanded #stream-video { height: min(360px, 48vh); }
 .stream-approving #stream-video { height:min(140px, 22vh); }
 .stream-approving .stream-toolbar button:not(#stream-stop) { display:none; }
-#stream-status:empty { display:none; }
-#stream-status { margin:0; padding:4px 12px; font-size:12px; }
 #stream-directory { max-height: min(480px, 60vh); overflow:auto; padding:12px; }
 #stream-form { display:flex; flex-direction:column; gap:8px; }
 #stream-form input { width:100%; box-sizing:border-box; }
@@ -67,6 +65,14 @@ body { padding-top: var(--stream-height); }
 .stream-toolbar #stream-browse { justify-self:start; padding-inline:6px; }
 .stream-controls { display:flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; }
 #stream-title-window { min-width:0; overflow:hidden; text-align:center; padding:0 8px; mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent); }
+/* A status message takes the title's place in the top row: one line, cut with an ellipsis, never
+   a second row. */
+#stream-message { display:inline-block; vertical-align:middle; max-width:100%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:500; color:var(--muted); }
+#stream-message[hidden] { display:none; }
+#stream-title-window.stream-messaging #stream-title { display:none; }
+/* The title sits in a full-width wrapper for its text-swap animation (stream-details.js). Hidden
+   with the title or it keeps the first line to itself and the message drops onto a second one. */
+#stream-title-window.stream-messaging .t-text-swap { display:none; }
 .stream-toolbar #stream-title { display:inline-block; width:max-content; max-width:none; overflow:visible; text-overflow:clip; white-space:nowrap; vertical-align:middle; font-size:12px; font-weight:500; }
 #stream-title-window.stream-title-scrolling { text-align:left; }
 .stream-title-scrolling #stream-title { animation:stream-title-drift var(--stream-title-duration, 18s) linear infinite alternate; }
@@ -79,7 +85,11 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-toolbar #stream-browse,
 .stream-toolbar #stream-browse:hover,
 .stream-toolbar #stream-browse:active,
-.stream-toolbar #stream-browse[aria-expanded="true"] {
+.stream-toolbar #stream-browse[aria-expanded="true"],
+.stream-toolbar #stream-title-button,
+.stream-toolbar #stream-title-button:hover,
+.stream-toolbar #stream-title-button:active,
+.stream-toolbar #stream-title-button[aria-expanded="true"] {
   background:none; border-color:transparent; box-shadow:none; border-radius:0;
 }
 /* The feed picker floats over the app; its list owns the scroll, not the lock page. */
@@ -98,23 +108,26 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
   overflow:hidden;
 }
 
-/* One full-width disclosure target; the independent playback controls sit above it. */
+/* One full-width target for About stream. The independent playback controls sit above it on the
+   right, and LIVE, which shows and hides the stream list, is its own button above its left
+   column, so the title keeps the pixels it had. */
 .stream-toolbar { position:relative; display:block; padding:0; }
-.stream-toolbar #stream-browse {
+.stream-toolbar #stream-title-button {
   display:grid; grid-template-columns:var(--stream-control-space,72px) minmax(0,1fr) var(--stream-control-space,72px);
-  gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
+  align-items:center; gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
 }
+.stream-toolbar #stream-title-button #stream-title-window { grid-column:2; }
+.stream-toolbar #stream-browse { position:absolute; left:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; }
 .stream-live-cue { display:inline-flex; align-items:center; gap:8px; padding-inline:6px; }
 #stream-title-window { display:block; }
 .stream-controls { position:absolute; right:8px; top:0; height:32px; }
-.stream-approving #stream-browse { display:grid; }
+.stream-approving #stream-title-button { display:grid; pointer-events:none; }
 
 /* Keep unlock and navigation available beneath even the expanded player. */
 #stream-dock { max-height:50dvh; display:flex; flex-direction:column; }
 #stream-dock[hidden] { display:none; }
 .stream-toolbar { flex:0 0 32px; }
 #stream-video { min-height:0; flex:0 1 auto; }
-#stream-status { flex:0 0 auto; max-height:48px; overflow:auto; }
 #stream-advanced { order:3; margin-top:12px; }
 #stream-advanced summary { cursor:pointer; color:var(--text-muted); padding:8px 0; }
 #stream-form { margin-top:8px; }
@@ -154,17 +167,19 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .stream-avatar:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
 
-.stream-pagination { display:flex; justify-content:space-between; gap:12px; order:1; padding-top:4px; }
-.stream-pagination .secondary { font:inherit; padding:8px 12px; border-radius:8px; }
-.stream-pagination button:disabled { opacity:.4; cursor:default; }
+.stream-list-foot { min-height:1px; text-align:center; color:var(--muted); font-size:12px; }
+/* The end of a scrolling list: loading, a button to keep looking, or nothing more. Empty, it still
+   holds its place, because it is what the scroll watches. */
+.stream-list-foot:not(:empty) { padding:10px 0 2px; }
+.stream-list-foot[hidden] { display:none; }
+.stream-list-foot .ghost { font:inherit; font-size:13px; padding:8px 12px; border:0; border-radius:8px; color:var(--text); }
+.stream-list-foot .ghost:hover { background:var(--hover-soft); }
+.stream-list-foot .ghost:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
 
 /* PiP owns the picture; keep only the LIVE bar in the sidebar. */
 #stream-dock.stream-pip #stream-video { height:0; min-height:0; flex-basis:0; }
-#stream-dock.stream-pip #stream-status, #stream-dock.stream-pip #stream-expand { display:none; }
+#stream-dock.stream-pip #stream-expand { display:none; }
 
-#stream-page-controls:empty { display:none; }
-#stream-page-controls .stream-pagination { padding:0; gap:2px; }
-#stream-page-controls .icon-btn { width:32px; height:32px; padding:0; font-size:24px; line-height:1; }
 .stream-directory-actions { gap:4px; }
 
 /* A single segmented toolbar with consistent targets and icon strokes. */
@@ -173,10 +188,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
   border:1px solid var(--border); border-radius:8px;
   background:var(--velvet-2); overflow:hidden;
 }
-#stream-page-controls { display:flex; flex:0 0 auto; }
-#stream-page-controls .stream-pagination { gap:0; }
-.stream-directory-actions #stream-refresh,
-#stream-page-controls .icon-btn {
+.stream-directory-actions #stream-refresh {
   width:36px; height:36px; flex:0 0 36px; margin:0; padding:9px;
   display:grid; place-items:center; border:0; border-radius:0;
   background:transparent; color:var(--muted); box-shadow:none;
@@ -192,7 +204,6 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-directory-actions button[aria-expanded="true"] { background:var(--hover-soft); color:var(--text); }
 .stream-directory-actions button:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
 
-#stream-page-controls .icon-btn svg { width:20px; height:20px; }
 .stream-directory-actions #stream-refresh { width:44px; flex-basis:44px; padding:9px 13px; }
 
 /* The garnish's implied circle is centered near 16.6,16.6, while its cropped
@@ -213,6 +224,8 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 #stream-zap svg { width:11px; height:18px; fill:currentColor; stroke:none; }
 #stream-zap { display:flex; align-items:center; justify-content:center; padding:5px; }
 #stream-zap:disabled { opacity:.4; cursor:default; }
+/* Its sheet is open: the bolt is pressed in, so pressing it again reads as closing it. */
+#stream-zap[aria-expanded="true"] { color:var(--gold); background:var(--hover-medium); }
 
 #stream-stop svg { width:16px; height:16px; display:block; }
 
@@ -229,12 +242,14 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 }
 .stream-zap-modal .peek-banner,
 .stream-zap-modal .peek-status,
-.stream-zap-modal .peek-body > :not(.peek-name) { display:none; }
+/* The zap sheet is the avatar, the name and the payment area, so everything else in the
+   body goes, and the payment area (.peek-zap) is the one thing that must not: it sits in
+   the body, and hiding it left a card with a name and nothing to pay with. */
+.stream-zap-modal .peek-body > :not(.peek-name):not(.peek-zap) { display:none; }
 .stream-zap-modal .peek-avatar { width:40px; height:40px; margin-top:0; }
 .stream-zap-modal .peek-name { margin:0; }
-.stream-zap-modal .peek-actions > .secondary { display:none; }
 
-#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-right:-11px; }
+#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-right:-11px; cursor:pointer; }
 
 /* transitions.dev: number pop-in for newly received event zaps. */
 :root {
@@ -417,6 +432,10 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
 
 html.reduce-balance-motion #stream-zap.is-shining::after,
 html.reduce-motion #stream-zap.is-shining::after,
+@keyframes stream-zap-count { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+#stream-zap-total.stream-zap-counting { animation:stream-zap-count 1.2s ease-in-out infinite; }
+html.reduce-balance-motion #stream-zap-total.stream-zap-counting,
+html.reduce-motion #stream-zap-total.stream-zap-counting { animation:none; }
 html.reduce-balance-motion #stream-zap-total .t-digit,
 html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 

@@ -55,7 +55,7 @@ test('directory opens recordings instead of expired live URLs and never autoplay
  const fs=require('node:fs'),vm=require('node:vm');
  const source=fs.readFileSync(require('node:path').join(__dirname,'../streams.js'),'utf8');
  const fn=source.slice(source.indexOf('  function openDirectoryItem('),source.indexOf('  function drawDirectoryDetails('));
- const played=[];const ctx={Date,model:new Directory(),play:(...args)=>played.push(args),detailItem:null,paint(){},revealContent(){},list:{querySelector(){return null;}}};
+ const played=[];const ctx={Date,model:new Directory(),play:(...args)=>played.push(args),detailItem:null,directoryContent:{scrollTop:0},paint(){},revealContent(){},list:{querySelector(){return null;}}};
  vm.createContext(ctx);vm.runInContext(fn,ctx);
  const replay={status:'ended',recording:'https://example.com/replay.mp4',url:'https://example.com/expired.m3u8',title:'Replay',host:author};
  ctx.openDirectoryItem(replay);assert.equal(played[0][0],replay.recording);
