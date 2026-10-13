@@ -207,3 +207,20 @@ test('the pulse is a stylesheet animation that motion settings turn off', () => 
   assert.match(css, /#stream-zap-total\.stream-zap-counting \{ animation:stream-zap-count/);
   assert.match(css, /html\.reduce-motion #stream-zap-total\.stream-zap-counting \{ animation:none; \}/);
 });
+
+test('a click on the zap total is a click on the bolt', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'streams.js'), 'utf8');
+  const at = src.indexOf("  document.getElementById('stream-zap-total').addEventListener('click'");
+  assert.notEqual(at, -1);
+  const stmt = src.slice(at, src.indexOf('\n', at));
+  let clicks = 0, listener;
+  const els = {
+    'stream-zap-total': { addEventListener(type, fn) { if (type === 'click') listener = fn; } },
+    'stream-zap': { click() { clicks++; } },
+  };
+  vm.runInNewContext(stmt, { document: { getElementById: (id) => els[id] } });
+  listener();
+  assert.equal(clicks, 1);
+  const css = fs.readFileSync(path.join(__dirname, '..', 'streams.css'), 'utf8');
+  assert.match(css, /#stream-zap-total \{[^}]*cursor:pointer/);
+});

@@ -750,6 +750,8 @@
     if (!selectedHost || isLocked() || root.classList.contains('stream-approving')) return;
     window.dispatchEvent(new CustomEvent('sidecar-stream-zap', { detail: { pubkey: selectedHost, event: selectedEvent && { id:selectedEvent.id, address:selectedEvent.key } } }));
   });
+  // The total sits against the bolt and reads as part of it, so a click on it is a click on the bolt.
+  document.getElementById('stream-zap-total').addEventListener('click', () => document.getElementById('stream-zap').click());
   const fab = document.getElementById('compose-fab');
   const composeMenu = document.getElementById('compose-menu');
   if (fab && composeMenu && document.addEventListener) {
