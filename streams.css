@@ -226,6 +226,8 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 #stream-zap svg { width:11px; height:18px; fill:currentColor; stroke:none; }
 #stream-zap { display:flex; align-items:center; justify-content:center; padding:5px; }
 #stream-zap:disabled { opacity:.4; cursor:default; }
+/* Its sheet is open: the bolt is pressed in, so pressing it again reads as closing it. */
+#stream-zap[aria-expanded="true"] { color:var(--gold); background:var(--hover-medium); }
 
 #stream-stop svg { width:16px; height:16px; display:block; }
 
@@ -242,12 +244,14 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 }
 .stream-zap-modal .peek-banner,
 .stream-zap-modal .peek-status,
-.stream-zap-modal .peek-body > :not(.peek-name) { display:none; }
+/* The zap sheet is the avatar, the name and the payment area, so everything else in the
+   body goes, and the payment area (.peek-zap) is the one thing that must not: it sits in
+   the body, and hiding it left a card with a name and nothing to pay with. */
+.stream-zap-modal .peek-body > :not(.peek-name):not(.peek-zap) { display:none; }
 .stream-zap-modal .peek-avatar { width:40px; height:40px; margin-top:0; }
 .stream-zap-modal .peek-name { margin:0; }
-.stream-zap-modal .peek-actions > .secondary { display:none; }
 
-#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-right:-11px; }
+#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-right:-11px; cursor:pointer; }
 
 /* transitions.dev: number pop-in for newly received event zaps. */
 :root {
@@ -430,6 +434,10 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
 
 html.reduce-balance-motion #stream-zap.is-shining::after,
 html.reduce-motion #stream-zap.is-shining::after,
+@keyframes stream-zap-count { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+#stream-zap-total.stream-zap-counting { animation:stream-zap-count 1.2s ease-in-out infinite; }
+html.reduce-balance-motion #stream-zap-total.stream-zap-counting,
+html.reduce-motion #stream-zap-total.stream-zap-counting { animation:none; }
 html.reduce-balance-motion #stream-zap-total .t-digit,
 html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 

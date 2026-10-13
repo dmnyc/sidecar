@@ -169,6 +169,7 @@
     document.getElementById('stream-zap').classList.remove('is-shining');
   });
   const zapSessions=new Map();
+  const ZAP_EXTRA_DEADLINE=30000, ZAP_EXTRA_BATCH=5;
   async function watchZaps(item, run, attempt = 0) {
     const output=document.getElementById('stream-zap-total');
     const cacheKey=item.key+':'+item.host;
@@ -178,15 +179,22 @@
     const controller=zapAbort=new AbortController();
     const active=zapPool=new NostrTools.SimplePool();
     const current=()=>run===generation && !controller.signal.aborted;
-    let loading=true, partial=true, receiptPaintTimer=null, receiptAnimate=false;
+    let loading=true, extending=!session.extended, partial=true, answered=0, truncated=false, receiptPaintTimer=null, receiptAnimate=false;
+    const hints=new Map();
     controller.signal.addEventListener('abort',()=>clearTimeout(receiptPaintTimer),{once:true});
     const paint=(animate=false)=>{
       if(!current())return;
-      output.hidden=false;
       const value=SidecarI18n.fmtNum(session.totals.msats/1000,{notation:'compact',maximumFractionDigits:1});
-      setZapDigits(output,session.totals.count ? value+(loading || partial?'…':'+') : (loading?'…':'—'),animate);
+      const counting=loading || extending;
+      const mark=SidecarStreams.zapTotalMark({count:session.totals.count,loading:counting,answered,truncated});
+      const text=session.totals.count ? value+mark : mark;
+      // Nothing to show, nothing drawn: an empty total is hidden rather than left as a blank slot.
+      output.hidden=!text;
+      setZapDigits(output,text,animate);
+      // A total still being counted pulses instead of trailing an ellipsis.
+      output.classList.toggle('stream-zap-counting',counting && !!session.totals.count);
       if(animate)shineZap();
-      output.title=loading ? t('Loading verified zap history…') : partial ? t('Zap history incomplete; retrying available relays.') : t('Verified zaps observed on available relays; other receipts may exist.');
+      output.title=counting ? t('Loading verified zap history…') : SidecarStreams.zapTotalUncertain({answered,truncated}) ? t('Zap history incomplete; retrying available relays.') : t('Verified zaps observed on available relays; other receipts may exist.');
       if(session.totals.count)output.title+=' '+t('{{sats}} sats · {{count}} zaps observed for this event',{sats:SidecarI18n.fmtNum(session.totals.msats/1000),count:SidecarI18n.fmtNum(session.totals.count)});
       output.setAttribute('aria-label',output.title);
     };
@@ -215,6 +223,7 @@
         if(accepted){
           const request=JSON.parse(receipt.tags.find(t=>t[0]==='description')[1]);
           const invoice=SidecarStreams.invoiceDetails(receipt.tags.find(t=>t[0]==='bolt11')[1]);
+          for(const url of SidecarStreams.relayHints(request))hints.set(url,(hints.get(url)||0)+1);
           session.rows.set(receipt.id,{id:receipt.id,kind:9735,pubkey:request.pubkey,content:request.content || '',created_at:receipt.created_at,tags:receipt.tags,sats:invoice.msats/1000});
           if(session.rows.size>1000){const oldest=[...session.rows.values()].sort((a,b)=>a.created_at-b.created_at || a.id.localeCompare(b.id))[0];session.rows.delete(oldest.id);}
           if(current())scheduleReceiptPaint(animate);
@@ -229,13 +238,35 @@
         const before=Math.floor(Date.now()/1000);
         const result=await SidecarStreams.zapHistory({sources,query,accept,filter:partial?filter:{...filter,since:Math.max(0,watermark-2)},signal:controller.signal});
         if(!current())return;
-        loading=false;partial=!result.complete;if(!partial)watermark=before;paint();
+        loading=false;partial=!result.complete;answered=result.answered;truncated=!!result.truncated;if(!partial)watermark=before;paint();
         zapHistoryTimer=setTimeout(()=>{if(!current())return;live.close();live=subscribe();recover().catch(()=>{});},60000);
       };
+      // The second scan reads more relays once the first has answered, so the player is never kept
+      // waiting on it. It pulses the total until it is done or its deadline passes.
+      const extend=async()=>{
+        if(!current())return;
+        const more=session.extended ? [] : SidecarStreams.extraZapRelays({known:sources,hints});
+        if(!more.length){extending=false;paint();return;}
+        const stop=new AbortController(),abort=()=>stop.abort();
+        controller.signal.addEventListener('abort',abort,{once:true});
+        const cap=setTimeout(abort,ZAP_EXTRA_DEADLINE);
+        try {
+          for(let i=0;i<more.length && !stop.signal.aborted;i+=ZAP_EXTRA_BATCH) {
+            const result=await SidecarStreams.zapHistory({sources:more.slice(i,i+ZAP_EXTRA_BATCH),query:(relay,request)=>SidecarStreams.relayPage(active,relay,request,stop.signal),accept,filter,signal:stop.signal});
+            if(!current())return;
+            answered+=result.answered;truncated=truncated || !!result.truncated;paint();
+          }
+          if(!stop.signal.aborted)session.extended=true;
+        } finally {
+          clearTimeout(cap);controller.signal.removeEventListener('abort',abort);
+          if(current()){extending=false;paint();}
+        }
+      };
       await recover();
+      await extend();
     } catch (_) {
       active.destroy();if(!current())return;
-      loading=false;partial=true;paint();
+      loading=false;extending=false;partial=true;paint();
       if(attempt<2)zapRetryTimer=setTimeout(()=>{zapRetryTimer=null;if(current())watchZaps(item,run,attempt+1);},[2000,5000][attempt]);
     }
   }
@@ -775,6 +806,8 @@
     if (!selectedHost || isLocked() || root.classList.contains('stream-approving')) return;
     window.dispatchEvent(new CustomEvent('sidecar-stream-zap', { detail: { pubkey: selectedHost, event: selectedEvent && { id:selectedEvent.id, address:selectedEvent.key } } }));
   });
+  // The total sits against the bolt and reads as part of it, so a click on it is a click on the bolt.
+  document.getElementById('stream-zap-total').addEventListener('click', () => document.getElementById('stream-zap').click());
   const fab = document.getElementById('compose-fab');
   const composeMenu = document.getElementById('compose-menu');
   if (fab && composeMenu && document.addEventListener) {

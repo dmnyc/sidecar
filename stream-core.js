@@ -173,6 +173,41 @@
     return found;
   }
   // Scan relays independently: one relay's recent page must not truncate another's history.
+  // Zap receipts are spread across relays, and the first scan's few relays hold only part of them.
+  // After the stream is playing, a second scan reads a short list of relays that hold many, plus
+  // the ones the zap requests themselves ask for, and the total grows as they answer.
+  const ZAP_ARCHIVE_RELAYS = ['wss://nostr21.com', 'wss://relay.ditto.pub', 'wss://nostr-01.yakihonne.com', 'wss://relay.nostr.net', 'wss://soloco.nl'];
+  // A relay URL worth connecting to for this: wss, a real hostname, nothing that points inward.
+  function zapRelayUrl(value) {
+    try {
+      if (typeof value !== 'string' || value.length > 100) return null;
+      const u = new URL(value.trim());
+      const host = u.hostname.toLowerCase();
+      if (u.protocol !== 'wss:' || u.username || u.password || u.port || u.search || u.hash || (u.pathname !== '/' && u.pathname !== '')) return null;
+      if (!host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') || host.startsWith('[') || /(^|\.)(localhost|local|internal|onion|lan|home|test|invalid|example)$/.test(host)) return null;
+      return 'wss://' + host;
+    } catch (_) { return null; }
+  }
+  // The relays a receipt's zap request asks to be published to, as clean URLs.
+  function relayHints(request) {
+    const found = [];
+    for (const tag of Array.isArray(request?.tags) ? request.tags : []) {
+      if (!Array.isArray(tag) || tag[0] !== 'relays') continue;
+      for (const value of tag.slice(1, 21)) { const url = zapRelayUrl(value); if (url) found.push(url); }
+    }
+    return [...new Set(found)];
+  }
+  // The relays for the second scan: the archive list first, then the most requested ones, each not
+  // already scanned, at most `limit` in all.
+  function extraZapRelays({ known = [], hints = new Map(), archive = ZAP_ARCHIVE_RELAYS, limit = 10, hintLimit = 5 }) {
+    const seen = new Set(known.map(zapRelayUrl).filter(Boolean));
+    const out = [];
+    for (const url of archive.map(zapRelayUrl)) if (url && !seen.has(url) && out.length < limit) { seen.add(url); out.push(url); }
+    const ranked = [...hints].map(([url, n]) => [zapRelayUrl(url), n]).filter(([url]) => url).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    let taken = 0;
+    for (const [url] of ranked) { if (taken >= hintLimit || out.length >= limit) break; if (seen.has(url)) continue; seen.add(url); out.push(url); taken++; }
+    return out;
+  }
   async function zapHistory({sources, query, accept, filter, signal, pageSize=250, maxPages=80}) {
     const results=await Promise.all(sources.map(async relay=>{
       let until=filter.until ?? Math.floor(Date.now()/1000), pages=0;
@@ -180,27 +215,53 @@
         while(!signal.aborted && pages++<maxPages) {
           const page=await query(relay,{...filter,until,limit:pageSize});
           const events=Array.isArray(page)?page:page.events;
-          if(signal.aborted)return false;
-          if(!events.length)return Array.isArray(page) || page.complete;
+          if(signal.aborted)return 'failed';
+          if(!events.length)return Array.isArray(page) || page.complete ? 'done' : 'failed';
           const valid=events.filter(e=>Number.isSafeInteger(e.created_at) && e.created_at<=until && e.created_at>=0);
-          if(!valid.length)return false;
+          if(!valid.length)return 'failed';
           for(const event of valid)await accept(event);
-          if(!Array.isArray(page) && !page.complete)return false;
+          if(!Array.isArray(page) && !page.complete)return 'failed';
           const oldest=Math.min(...valid.map(e=>e.created_at));
           // Drain the boundary second before advancing, including ties across pages.
           const boundaryPage=await query(relay,{...filter,since:oldest,until:oldest,limit:1000});
           const boundary=Array.isArray(boundaryPage)?boundaryPage:boundaryPage.events;
-          if(signal.aborted)return false;
+          if(signal.aborted)return 'failed';
           for(const event of boundary)await accept(event);
-          if(!Array.isArray(boundaryPage) && !boundaryPage.complete)return false;
-          if(boundary.length>=1000)return false; // Cannot prove this second was exhausted.
-          if(oldest===0 || (filter.since!=null && oldest<=filter.since))return true;
+          if(!Array.isArray(boundaryPage) && !boundaryPage.complete)return 'failed';
+          if(boundary.length>=1000)return 'capped'; // Cannot prove this second was exhausted.
+          if(oldest===0 || (filter.since!=null && oldest<=filter.since))return 'done';
           until=oldest-1;
         }
-      } catch (_) { return false; }
-      return false;
+      } catch (_) { return 'failed'; }
+      // The loop ended on its page limit: the history is longer than a scan will walk.
+      return signal.aborted ? 'failed' : 'capped';
     }));
-    return {complete:!signal.aborted && results.every(Boolean), answered:results.filter(Boolean).length};
+    // 'done' is a relay that walked its whole history. 'capped' is one that stopped at a limit
+    // with more behind it, which is what makes a long stream's total hard to pin down, and is
+    // not the same as 'failed', a relay that timed out or closed on us.
+    return {
+      complete:!signal.aborted && results.every(r=>r==='done'),
+      answered:results.filter(r=>r==='done').length,
+      truncated:results.some(r=>r==='capped'),
+    };
+  }
+  // The mark after a zap total. An ellipsis says the history is still loading, and a stream with
+  // no zaps to show is blank once it has loaded: a dash reads as a value, and an empty count is
+  // not one.
+  // An ellipsis says the history is still loading. Once it has
+  // loaded, a total that can be trusted is shown as it is, with no mark: a short stream
+  // that reads 1,000 sats does not need a caveat. A "+" says it is at least this much, and
+  // it is kept for the totals that are hard to pin down: a history longer than a scan will
+  // walk (a relay stopped at its limit with more behind it), or too few relays finishing a
+  // clean pass to call it a count. A relay that merely times out does not by itself put a
+  // plus on a total, because the list includes relays that hold no zap receipts at all.
+  const ZAP_QUORUM = 2;
+  function zapTotalUncertain({ answered, truncated }) {
+    return !!truncated || (answered || 0) < ZAP_QUORUM;
+  }
+  function zapTotalMark({ count, loading, answered, truncated }) {
+    if (!count || loading) return '';
+    return zapTotalUncertain({ answered, truncated }) ? '+' : '';
   }
   // A provider-signed receipt is counted only after its signed request and invoice agree.
   function invoiceDetails(raw) {
@@ -282,7 +343,7 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, Directory, invoiceDetails, ZapTotals };
+  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, zapRelayUrl, relayHints, extraZapRelays, ZAP_ARCHIVE_RELAYS, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);

@@ -36,7 +36,7 @@ const bareCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 const closeModalFn = (() => {
   const src = stripComments(panel);
-  const at = src.indexOf('function closeModal()');
+  const at = src.indexOf('function closeModal(reason)');
   assert.ok(at !== -1, 'closeModal moved');
   return src.slice(at, src.indexOf('\n  }', at));
 })();
