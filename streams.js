@@ -10,11 +10,13 @@
   const list = document.getElementById('stream-list');
   const messageEl = document.getElementById('stream-message');
   const title = document.getElementById('stream-title');
-  const browse = document.getElementById('stream-browse');
+  const browse = document.getElementById('stream-browse');           // LIVE: shows and hides the stream list
+  const titleButton = document.getElementById('stream-title-button'); // the title: opens About stream
   const entry = document.getElementById('stream-entry');
   const feedToggle = document.getElementById('stream-feed-toggle');
   function setFeedExpanded(on) {
     feedToggle.setAttribute('aria-expanded', String(on));
+    browse.setAttribute('aria-expanded', String(on));
     entry?.setAttribute('aria-expanded', String(on));
     document.documentElement.classList.toggle('stream-directory-active',on && !root.hidden);
   }
@@ -59,7 +61,7 @@
   const lockView = document.getElementById('view-lock');
   const isLocked = () => lockView && !lockView.classList.contains('hidden');
   let chat = null,returnToChat=false;
-  const details=window.SidecarStreamDetails?.mount({dock:root,title,trigger:browse,
+  const details=window.SidecarStreamDetails?.mount({dock:root,title,trigger:titleButton,
     allowed:()=>enabled && !isLocked() && !root.classList.contains('stream-approving'),
     onOpen:()=>{returnToChat=document.documentElement.classList.contains('stream-chat-active');chat?.close();clearTimeout(feedCloseTimer);disconnect();directory.hidden=true;setFeedExpanded(false);},
     onClose:()=>{if(returnToChat)chat?.open();returnToChat=false;}});
@@ -70,7 +72,7 @@
     root.classList.toggle('stream-idle', !selected);
     if (entry) { entry.hidden = !enabled; entry.disabled = !!isLocked() || root.classList.contains('stream-approving'); }
     document.getElementById('stream-zap').disabled = !!isLocked() || root.classList.contains('stream-approving');
-    browse.disabled = !!isLocked() || root.classList.contains('stream-approving');
+    browse.disabled = titleButton.disabled = !!isLocked() || root.classList.contains('stream-approving');
     feedToggle.hidden = !enabled || !selected || !!isLocked() || root.classList.contains('stream-approving');
     layout();
   }
@@ -596,6 +598,15 @@
     })); } finally {if(liveCheckRun===run)liveCheckRun=null;}
   }
   function disconnect() { clearTimeout(liveCheckTimer);liveCheckTimer=null;liveChecks.clear(); historyBusy=false; chat?.close(); clearTimeout(directoryPaintTimer);directoryPaintTimer=null;discoveryGeneration++; discoveryAbort?.abort(); discoveryAbort=null; subscription?.close(); subscription=null; pool?.destroy(); pool=null; clearInterval(timer);timer=null; }
+  // The streamer's avatar and name open their profile card in the panel, as chat names do. The
+  // link to the web client stays as the fallback when no account is available to show it.
+  function openHostProfile(event) {
+    const bridge = window.SidecarStreamChatAccount;
+    if (!selectedHost || !bridge?.identity()) return;
+    event.preventDefault();
+    bridge.profile(selectedHost);
+  }
+  document.getElementById('stream-host').addEventListener('click', openHostProfile);
   function discover(resetHistory=false) {
     if (!enabled || isLocked()) return;
     disconnect(); lookingForStreams = true; paint();
@@ -736,7 +747,9 @@
   }
   chat = window.SidecarStreamChat?.mount(directory, () => selectedEvent, () => enabled && !isLocked() && !root.classList.contains('stream-approving'), () => {details?.close();disconnect();directory.hidden=true;setFeedExpanded(false);}, () => [...(zapSessions.get(selectedEvent?.key+':'+selectedEvent?.host)?.rows?.values() || [])], () => SidecarStreams.topZappers(zapSessions.get(selectedEvent?.key+':'+selectedEvent?.host)?.totals));
   chat?.sync();
-  browse.addEventListener('click', ()=>details?details.toggle():toggleFeed());
+  // LIVE shows and hides the list, as the chevron does. The title keeps About stream.
+  browse.addEventListener('click', toggleFeed);
+  titleButton.addEventListener('click', ()=>details?details.toggle():toggleFeed());
   feedToggle.addEventListener('click', toggleFeed);
   entry?.addEventListener('click', toggleFeed);
   document.getElementById('acct-btn')?.addEventListener('click',()=>{if(!directory.hidden)closeFeed();});
@@ -744,7 +757,7 @@
     // Repainting pagination detaches the clicked button before this listener runs.
     // Use the original event path so an inside click stays inside after repaint.
     const path = event.composedPath();
-    if(!directory.hidden && ![directory, entry, browse, feedToggle].some(node => node && path.includes(node)))closeFeed();
+    if(!directory.hidden && ![directory, entry, browse, titleButton, feedToggle].some(node => node && path.includes(node)))closeFeed();
   });
   document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
   document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();streamPage=0;moreOpen=false;document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
