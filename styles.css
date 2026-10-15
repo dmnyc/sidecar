@@ -2463,14 +2463,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* data recovery modal (Lazarus) */
 .modal .recovery-modal .actions { margin-top: 22px; }
-.lazarus-credit { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; }
+/* The credit is a small lockup: the spec line with the wordmark centered
+   beneath it. A side-by-side row wraps badly in the 300px column. */
+.lazarus-credit { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; }
 .lazarus-credit:hover { color: var(--text-2); }
 .lazarus-credit:hover span { text-decoration: underline; }
+/* the wordmark, in the text color, sized to read as a logo rather than a glyph */
+.lazarus-mark { display: inline-flex; flex: none; }
+.lazarus-mark svg { height: 18px; width: auto; fill: currentColor; opacity: 0.85; }
 /* pair the credit tightly under the scan button so it reads as
    "this feature is powered by Lazarus" rather than a section footer */
 .recovery-block .secondary { margin-bottom: 0; }
-.recovery-block .lazarus-credit { display: flex; justify-content: center; margin-top: 8px; }
-.recovery-modal .lazarus-credit { display: flex; justify-content: center; margin-top: 10px; }
+.recovery-block .lazarus-credit { margin-top: 8px; }
+.recovery-modal .lazarus-credit { margin-top: 10px; }
 /* the kind picker: chips wrap two-to-a-row in the 300px sheet, grouped under a
    quiet tier label — the tiers carry the spec's own "how much does this matter" */
 .lazarus-tier { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin: 12px 0 6px; }
@@ -4859,6 +4864,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   text-transform: uppercase; color: var(--muted); margin-bottom: 2px;
 }
 .batch-member-text { font-size: 12.5px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.approval-batch-note { font-size: 12.5px; line-height: 1.45; color: var(--muted); margin: 8px 2px 0; }
 /* one-time explainer for multi-account (shared-identity) signing */
 .shared-headsup {
   margin: 2px 0 14px; padding: 11px 12px; border-radius: 10px;

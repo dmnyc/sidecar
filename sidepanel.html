@@ -864,7 +864,7 @@
               <option value="1440" data-i18n="After 24 hours" data-i18n-review>After 24 hours</option>
               <option value="0" data-i18n="When browser closes" data-i18n-review>When browser closes</option>
             </select>
-            <p class="hint" data-i18n="Sidecar locks after the selected period of inactivity. Your PIN is required once per browser session." data-i18n-review>Sidecar locks after the selected period of inactivity. Your PIN is required once per browser session.</p>
+            <p class="hint" data-i18n="Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session." data-i18n-review>Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.</p>
           </div>
 
           <div class="setting">
@@ -1010,6 +1010,11 @@
            a site describe one note and get an unseen second one signed by the same
            click. Filled by renderBatchList in sidepanel.js; scrollable in styles.css. -->
       <div id="approval-batch-list" class="approval-batch-list hidden"></div>
+
+      <!-- Why no Approve all sits beside it: one tap must never sign a request the card
+           does not list. The popup settles one request at a time and never offers a
+           batch, so this caption is panel-only. Filled by renderBatchList. -->
+      <p id="approval-batch-note" class="approval-batch-note hidden"></p>
 
       <!-- Scope-of-consent note: some Allows cover more than the request on screen —
            a decrypt burst covers about a minute, a WebLN read covers the session.
