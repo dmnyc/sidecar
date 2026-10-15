@@ -298,6 +298,9 @@
         if (run !== generation) return;
         document.getElementById('stream-host-name').textContent = profileImages.get(host)?.name || fallbackName;
         if (picture || item?.image) avatar.src = picture || item.image;
+        // A host nothing answered for gets one more ask once the miss has expired. updatePlayingProfile
+        // puts the name and picture in place if it finds them.
+        if (!picture && !profileImages.get(host)?.name) setTimeout(() => { if (run === generation) profileImage(host, item?.relays); }, PROFILE_MISS_MS + 500);
       });
       const viewers = document.getElementById('stream-viewers');
       viewers.hidden = item?.status === 'ended' || item?.viewers == null;
@@ -344,30 +347,82 @@
     const cached = profileImages.get(host);
     if (cached && cached.expiresAt > Date.now()) return cached.promise;
     if (!enabled || isLocked()) return Promise.resolve(null);
-    // Selecting a stream closes discovery; profile resolution must finish independently.
-    const profilePool = new NostrTools.SimplePool();
-    const record = { expiresAt: Infinity, promise: null };
-    const sources = [...new Set([...relays, 'wss://purplepag.es', ...hints.filter(url => typeof url === 'string' && url.startsWith('wss://')).slice(0,6)])];
-    record.promise = (async () => {
-      let event = await profilePool.get(sources, {kinds:[0], authors:[host]}, {maxWait:4000});
-      if (!event) {
-        const relayList = await profilePool.get(sources, {kinds:[10002], authors:[host]}, {maxWait:4000});
-        const declared = [...new Set((relayList?.tags || []).filter(tag => tag[0] === 'r' && typeof tag[1] === 'string' && tag[1].startsWith('wss://')).map(tag => tag[1]))].filter(url => !sources.includes(url)).slice(0,6);
-        if (declared.length) event = await profilePool.get(declared, {kinds:[0], authors:[host]}, {maxWait:4000});
-      }
-      return event;
-    })().then(event => {
-      let picture = null;
-      try { const content = JSON.parse(event?.content || '{}'); picture = SidecarStreams.httpsUrl(content.picture); record.banner = SidecarStreams.httpsUrl(content.banner); record.name = content.display_name || content.displayName || content.name || ''; } catch (_) {}
-      record.expiresAt = Date.now() + (picture ? 300000 : 30000);
-      updatePlayingProfile(host, record, picture);
-      return picture;
-    }).catch(() => {
-      if (profileImages.get(host) === record) profileImages.delete(host);
-      return null;
-    }).finally(() => profilePool.destroy());
+    const record = { expiresAt: Infinity, promise: null, name: '', banner: null };
+    record.promise = new Promise(resolve => { profileWaiting.set(host, { record, resolve, hints }); });
     profileImages.set(host, record);
+    if (profileFlushTimer === null) profileFlushTimer = setTimeout(flushProfiles, PROFILE_WINDOW_MS);
     return record.promise;
+  }
+  // PROFILE LOOKUPS ARE BATCHED. Every row of the list and the player want a host's profile, and each
+  // used to open a pool of its own: a list of twenty opened about eighty connections at once, relays
+  // refused many of them, and a refused lookup read as "no profile". Asks made within a moment now
+  // share one read, one request per relay for every host in it, and each host settles the moment its
+  // profile arrives instead of waiting for the slowest relay. A miss is remembered for seconds, not
+  // half a minute, so it cannot outlive the next try.
+  const PROFILE_WINDOW_MS = 40, PROFILE_BATCH = 50, PROFILE_HIT_MS = 300000, PROFILE_NO_PICTURE_MS = 30000, PROFILE_MISS_MS = 3000, PROFILE_DECLARED_HOSTS = 4;
+  const profileWaiting = new Map();
+  let profileFlushTimer = null;
+  async function flushProfiles() {
+    profileFlushTimer = null;
+    const waiting = [...profileWaiting];
+    profileWaiting.clear();
+    for (let at = 0; at < waiting.length; at += PROFILE_BATCH) await readProfiles(waiting.slice(at, at + PROFILE_BATCH));
+  }
+  async function readProfiles(entries) {
+    const byHost = new Map(entries), settled = new Set();
+    const settle = (host, profile) => {
+      const entry = byHost.get(host);
+      if (!entry) return;
+      const { record, resolve } = entry;
+      // The first profile to arrive settles the host. A newer version arriving later from a slower relay
+      // corrects the name and picture, though not a row that has already been drawn.
+      if (settled.has(host) && !(profile && profile.created_at > (record.created || 0))) return;
+      const first = !settled.has(host);
+      settled.add(host);
+      let picture = null;
+      if (profile) {
+        picture = SidecarStreams.httpsUrl(profile.content?.picture);
+        record.banner = SidecarStreams.httpsUrl(profile.content?.banner);
+        record.name = profile.name || '';
+        record.created = profile.created_at || 0;
+      }
+      record.expiresAt = Date.now() + (picture ? PROFILE_HIT_MS : profile ? PROFILE_NO_PICTURE_MS : PROFILE_MISS_MS);
+      updatePlayingProfile(host, record, picture);
+      if (first) resolve(picture);
+    };
+    // Selecting a stream closes discovery; profile resolution must finish independently.
+    const pool = new NostrTools.SimplePool();
+    try {
+      const hints = [...new Set(entries.flatMap(([, entry]) => entry.hints || []).filter(url => typeof url === 'string' && url.startsWith('wss://')))].slice(0, 6);
+      const sources = [...new Set([...relays, 'wss://purplepag.es', ...hints])];
+      await SidecarStreams.profileBatch({ pool, sources, keys: [...byHost.keys()], verify: NostrTools.verifyEvent, onProfile: settle });
+      // A host nobody had a profile for may publish it only to relays it declares in its own list.
+      const missing = [...byHost.keys()].filter(host => !settled.has(host))
+        .sort((a, b) => (b === selectedHost) - (a === selectedHost)).slice(0, PROFILE_DECLARED_HOSTS);
+      let next = 0;
+      await Promise.all(Array.from({ length: Math.min(2, missing.length) }, async () => {
+        while (next < missing.length) {
+          const host = missing[next++];
+          const relayList = await pool.get(sources, { kinds: [10002], authors: [host] }, { maxWait: 3000 });
+          const declared = [...new Set((relayList?.tags || []).filter(tag => tag[0] === 'r' && typeof tag[1] === 'string' && tag[1].startsWith('wss://')).map(tag => tag[1]))].filter(url => !sources.includes(url)).slice(0, 6);
+          if (!declared.length) continue;
+          const event = await pool.get(declared, { kinds: [0], authors: [host] }, { maxWait: 3000 });
+          try {
+            const content = JSON.parse(event?.content || '{}');
+            if (content && typeof content === 'object') settle(host, { content, name: [content.display_name, content.displayName, content.name].find(x => typeof x === 'string' && x.trim()) || '' });
+          } catch (_) {}
+        }
+      }));
+      for (const host of byHost.keys()) settle(host, null);
+    } catch (_) {
+      // The lookup itself failed, which says nothing about the profile: forget it so the next ask tries again.
+      for (const [host, { record, resolve }] of byHost) {
+        if (settled.has(host)) continue;
+        settled.add(host);
+        if (profileImages.get(host) === record) profileImages.delete(host);
+        resolve(null);
+      }
+    } finally { pool.destroy(); }
   }
   // THE DIRECTORY IS A LIST THAT SCROLLS, NOT A SET OF PAGES. Rows are revealed REVEAL_BATCH at a
   // time as the end of a list nears the bottom of the scroller, and fetched from history when
