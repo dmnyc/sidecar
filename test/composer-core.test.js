@@ -18,6 +18,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
 const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
@@ -332,4 +333,38 @@ test('the expanded composer page loads the core before it uses it', () => {
   assert.ok(coreAt < pageAt, 'composer-core.js has to come first');
   // nostr-tools too: the editor decodes and encodes bech32 through it.
   assert.ok(pageHtml.indexOf('nostr-tools.js') < coreAt);
+});
+
+test('the mention trigger requires the @ to sit at a word boundary (#506)', () => {
+  // The real function, run: one text node, one caret offset, and whatever the trigger
+  // regex makes of the text before it. `daniel@breez` is an email being typed, not a
+  // mention, and a popup there ends with a pill spliced into the address.
+  const run = (textContent, startOffset) => {
+    const node = { nodeType: 3, textContent };
+    const c = {
+      Node: { TEXT_NODE: 3 },
+      editor: { contains: () => true },
+      window: { getSelection: () => ({ rangeCount: 1, getRangeAt: () => ({
+        collapsed: true, startContainer: node, startOffset }) }) },
+    };
+    vm.createContext(c);
+    const at = core.indexOf('function getCaretContext(');
+    let depth = 0, open = core.indexOf('{', at);
+    for (let i = open; i < core.length; i++) {
+      if (core[i] === '{') depth++;
+      else if (core[i] === '}' && --depth === 0) { vm.runInContext(core.slice(at, i + 1), c); break; }
+    }
+    return c.getCaretContext();
+  };
+  // Addresses mid-word: no popup.
+  assert.equal(run('daniel@breez', 12), null, 'a popup opened inside an email');
+  assert.equal(run('daniel@breez.tips', 17), null, 'a popup opened inside a lightning address');
+  assert.equal(run('jürgen@breez', 12), null, 'a popup opened after a non-ascii name');
+  assert.equal(run('snake_case@breez', 16), null, 'a popup opened after an underscore');
+  // A word boundary before the @: the popup opens.
+  const lineStart = run('@breez', 6);
+  assert.equal(lineStart && lineStart.query, 'breez', 'no popup at line start');
+  assert.ok(run('hey @breez', 10), 'no popup after a space');
+  assert.ok(run('(@breez', 7), 'no popup after punctuation');
+  assert.ok(run('hey 🤝@breez', 12), 'no popup after an emoji');
 });

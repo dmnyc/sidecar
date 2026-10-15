@@ -572,7 +572,13 @@ window.SidecarCore = (function () {
       const node = range.startContainer;
       if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
       const before = node.textContent.slice(0, range.startOffset);
-      const match = before.match(/@([^\s@]*)$/);
+      // The @ must sit at a word boundary — line start, whitespace, punctuation, or
+      // emoji before it. A letter or digit before it means an address being typed
+      // (daniel@example.com), and a popup there ends with a pill spliced into the
+      // middle of it. A consuming prefix rather than a lookbehind: WebViews this
+      // ships in do not all support lookbehind. Same rule BARE_REF_RE applies to
+      // bare bech32 references: a reference embedded in a word isn't a reference.
+      const match = before.match(/(?:^|[^\p{L}\p{N}_])@([^\s@]*)$/u);
       if (!match) return null;
       return { node, query: match[1] };
     }
@@ -663,7 +669,11 @@ window.SidecarCore = (function () {
         item.addEventListener('mousedown', (e) => {
           e.preventDefault();
           const fresh = getCaretContext();
-          selectAcItem(c, fresh ? fresh.query : ctx.query);
+          // The popup may outlive its context (text moved since it opened). A fresh
+          // null means the @ no longer sits at a boundary — picking now would splice
+          // the pill into whatever word is there now, so the pick is refused.
+          if (!fresh) return;
+          selectAcItem(c, fresh.query);
         });
         acDropdown.append(item);
       });
@@ -760,7 +770,15 @@ window.SidecarCore = (function () {
       if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex + 1, acResults.length - 1); updateAcActiveItem(); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex - 1, 0); updateAcActiveItem(); }
       else if (e.key === 'Enter' || e.key === 'Tab') {
-        if (acResults[acIndex]) { e.preventDefault(); const ctx = getCaretContext(); selectAcItem(acResults[acIndex], ctx ? ctx.query : ''); }
+        if (acResults[acIndex]) {
+          // Same refusal as the mousedown pick: an eager Enter on a popup whose
+          // context has gone stale (the caret now sits mid-word on an address)
+          // must not splice a pill with an empty query — it lands as the word.
+          const ctx = getCaretContext();
+          if (!ctx) return;
+          e.preventDefault();
+          selectAcItem(acResults[acIndex], ctx.query);
+        }
       } else if (e.key === 'Escape') { e.preventDefault(); closeAcDropdown(); }
     });
 
