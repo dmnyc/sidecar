@@ -150,11 +150,11 @@ makes no network requests and needs no image assets:
 | `pdf-backup.js` | 556 | illustration path data for the printable backup sheet |
 | `content.js` | 467–473 | logo path data |
 | `sidepanel.html` | 114, 368 | inline `<svg>` icons on buttons |
+| `sidepanel.js` | 17842 | the Lazarus wordmark, inline `<svg>` path data on the data-recovery credit |
 | `themes/nixie.css` | 130 | a `data:` URI SVG pattern used as a background |
 
 Line numbers are for the 1.15.0 package and move between releases; the rule to apply
-is the shape, not the line. `sidepanel.js` no longer has a line long enough to
-qualify. `emoji-data.js` has one very long line and is covered in section 4 above,
+is the shape, not the line. `emoji-data.js` has one very long line and is covered in section 4 above,
 because it is generated data rather than first-party source, and so is
 `relay-rider-score.js`, a table of note numbers covered in section 6.
 
