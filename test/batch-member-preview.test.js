@@ -63,6 +63,9 @@ function entry(id, method, content, extra = {}) {
 function pendingViewOf(queue) {
   const ctx = { queue };
   vm.createContext(ctx);
+  // The real guard module, so isBatchableEntry asks the same tracked-kinds set the
+  // overwrite warning asks and the two lists cannot drift apart.
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'replaceable-baseline.js'), 'utf8'), ctx);
   vm.runInContext(
     [
       // isNip42AuthEvent reads it for the clock-skew check. Missing, the guard threw the
@@ -195,4 +198,24 @@ test('the element and its scroll exist, styled so a burst cannot hide the button
   assert.ok(rule, 'styles.css has no .approval-batch-list rule');
   assert.match(rule[0], /max-height/, 'the list can grow without bound');
   assert.match(rule[0], /overflow-y:\s*auto/, 'the list has no scroll of its own');
+});
+
+test('a same-kind burst of the overwrite guard\'s kinds never batches', () => {
+  // The guard tracks kinds 0/3/10000/10040 because they REPLACE what came before, and
+  // a follow-list or mute-list replacement is exactly what "Allow all" must never sign
+  // behind a preview row. Whatever a site queues for those kinds, each sign stands on
+  // its own prompt with the warning and its deliberate second step.
+  const view = pendingViewOf([
+    entry('f1', 'signEvent', '["pubkey one","pubkey two"]', { state: 'showing', kind: 3, tags: [] }),
+    entry('f2', 'signEvent', '["pubkey one"]', { kind: 3, tags: [] }),
+  ]);
+  assert.equal(view.head.groupIds.length, 1, 'a follow-list burst rode one Allow all');
+  assert.equal(view.head.members.length, 0, 'members formed without batching');
+  assert.equal(view.head.groupIds[0], 'f1', 'the head stopped being itself');
+
+  const wiped = pendingViewOf([
+    entry('m1', 'signEvent', '[]', { state: 'showing', kind: 10000, tags: [] }),
+    entry('m2', 'signEvent', '["kept"]', { kind: 10000, tags: [] }),
+  ]);
+  assert.equal(wiped.head.groupIds.length, 1, 'a mute-list burst rode one Allow all');
 });

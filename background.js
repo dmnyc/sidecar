@@ -575,7 +575,15 @@ function isBatchableEntry(e) {
   if (e.state === 'interrupted' || !e.data) return false;
   const m = e.method;
   return (m === 'signEvent' || m === 'nip04.encrypt' || m === 'nip44.encrypt') &&
-    !isNip42AuthEvent(e.data && e.data.params && (e.data.params.event || e.data.params));
+    !isNip42AuthEvent(e.data && e.data.params && (e.data.params.event || e.data.params)) &&
+    // The overwrite guard's kinds never batch. Kinds 0/3/10000/10040 REPLACE what came
+    // before, so a same-kind burst of them is the exact shape the destructive-overwrite
+    // warning exists for, and one tap on "Allow all" would sign a follow-list or mute-list
+    // replacement the card only previews as a row. Each stands on its own prompt, with the
+    // warning and the deliberate second step that demands. Asked through the module itself,
+    // not a copied list of kinds, so the two cannot drift; via globalThis rather than the
+    // BASELINE const above because the tests lift this function on its own.
+    !(m === 'signEvent' && globalThis.SidecarBaseline.isTracked(e.kind));
 }
 function batchKeyOf(e) {
   // Kind alone is not a kind for encrypts: nip04.encrypt and nip44.encrypt both carry
