@@ -2057,6 +2057,14 @@
     scanTimer = setTimeout(scanForInvoice, 400);
   }
 
+  // The page-facing half of "Use Sidecar for Lightning payments" (#501). The MAIN-world
+  // provider cannot read chrome.storage, so this side relays the setting as a config
+  // message. It relays OFF as an explicit false rather than omitting it, so a page
+  // that saw "on" can be corrected without a reload.
+  function tellProviderWeblnTakeover(on) {
+    try { window.postMessage({ ext: 'sidecar', kind: 'config', weblnTakeover: on === true }, '*'); } catch (_) {}
+  }
+
   // React to events pushed from the worker: setting toggle, and payment success
   // (clear the card — the invoice link often lingers after "Paid").
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -2069,6 +2077,7 @@
       if ('payPillAnywhere' in msg) pillAnywhere = msg.payPillAnywhere === true;
       if ('payOfferDismissed' in msg) payOfferDismissed = msg.payOfferDismissed === true;
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
+      if ('weblnTakeover' in msg) tellProviderWeblnTakeover(msg.weblnTakeover === true);
       scanForInvoice();
     } else if (msg.event === 'autopaying') {
       // An auto-zap is going out for this invoice. There is no action to take, which is
@@ -2138,6 +2147,7 @@
       pillAnywhere = settings.payPillAnywhere === true;
       payOfferDismissed = settings.payOfferDismissed === true;
       setCardTheme(settings.cardTheme || ''); // same reply carries the palette
+      tellProviderWeblnTakeover(settings.weblnTakeover === true);
       scanForInvoice();
     });
   } catch (_) {}

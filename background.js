@@ -3108,6 +3108,10 @@ function pushPageSettings(merged) {
             // Keep the card's auto-zap offer in step: turning the setting on
             // in Settings should retire the offer without a page reload.
             autoZapOffer: merged.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
+            // "Use Sidecar for Lightning payments" (#501) rides the same push so a
+            // toggle takes over (or hands back) without a page reload. content.js
+            // relays it to the MAIN-world provider as a config message.
+            weblnTakeover: merged.weblnTakeover === true,
           },
           () => void chrome.runtime.lastError
         );
