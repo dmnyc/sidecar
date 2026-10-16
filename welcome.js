@@ -485,6 +485,25 @@ function apps() {
     icon: 'https://nostr-proto.org/nostr-proto-logo.png',
     desc: t('A forum about Nostr itself, with rooms for the protocol, relays, apps, and help.'),
   },
+  {
+    name: 'The Curious Pair',
+    url: 'https://curiouspair.net',
+    domain: 'curiouspair.net',
+    cat: 'media',
+    // A squared, opaque mark that fills its frame, so flush.
+    icon: 'icons/apps/curious-pair.svg',
+    flush: true,
+    desc: t('A podcast library made by its listeners: request an episode and the hosts talk it through.'),
+  },
+  {
+    name: 'Anagram',
+    url: 'https://anagram.chat',
+    domain: 'anagram.chat',
+    cat: 'social',
+    // Transparent mark, so it takes the framed treatment rather than flush.
+    icon: 'icons/apps/anagram.png',
+    desc: t('Private messaging and calls over Nostr.'),
+  },
   ];
 }
 
