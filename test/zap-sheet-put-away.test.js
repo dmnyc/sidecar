@@ -66,10 +66,10 @@ test('the bolt, controls without an id, and anything that is not an open zap she
 
 test('the sheet is put away only after the invoice exists and the payment goes out, before waiting on it', () => {
   const invoice = code.indexOf('const invoice = await zapInvoice(');
-  const flight = code.indexOf('flight = toast(', invoice);
+  const flight = code.indexOf('flight = beginPaymentFlight(', invoice);
   const away = code.indexOf('putAwayPaidSheet(zapForm);', invoice);
   const pay = code.indexOf('const res = await client.payInvoice(invoice);', invoice);
   assert.ok(invoice > 0 && flight > invoice && away > flight && pay > away,
-    'zapInvoice, then the progress toast, then put away, then payInvoice');
+    'zapInvoice, then the payment bar flight, then put away, then payInvoice');
   assert.equal(code.split('putAwayPaidSheet(zapForm)').length - 1, 1, 'one call site, the stream and profile sheet');
 });
