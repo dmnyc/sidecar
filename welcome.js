@@ -79,7 +79,7 @@ function apps() {
     cat: 'commerce',
     icon: 'https://geyser.fund/logo-brand.svg',
     flush: true,
-    desc: t('Crowdfunding for Bitcoin and Nostr projects: fundraisers powered by Lightning contributions.'),
+    desc: t('Crowdfunding for Bitcoin and Nostr projects, powered by Lightning contributions.'),
   },
   {
     name: 'Conduit Market',
@@ -198,7 +198,7 @@ function apps() {
     url: 'https://www.wordswithzaps.top',
     domain: 'wordswithzaps.top',
     cat: 'gaming',
-    desc: t('A two-player word game with Lightning stakes: challenge friends and zap your way to victory.'),
+    desc: t('A two-player word game with Lightning stakes: challenge friends and zap to win.'),
   },
   {
     name: 'NostrHub',
@@ -249,7 +249,7 @@ function apps() {
     url: 'https://plebeian.market',
     domain: 'plebeian.market',
     cat: 'commerce',
-    desc: t('A peer-to-peer marketplace on Nostr: buy and sell goods and services for Bitcoin, no middleman.'),
+    desc: t('A peer-to-peer Nostr marketplace: buy and sell for Bitcoin, no middleman.'),
   },
   {
     name: 'SatsList',
@@ -452,7 +452,7 @@ function apps() {
     // like Iris's apple-touch-icon rather than taking the velvet wrap.
     icon: 'https://brainstorm.world/favicon.svg',
     flush: true,
-    desc: t('The Web of Trust layer for Nostr: trust scores built from your own connections, not from an algorithm.'),
+    desc: t('Web of Trust for Nostr: trust scores built from your own connections, not an algorithm.'),
   },
   {
     name: 'NymChat',
@@ -464,7 +464,7 @@ function apps() {
     // icon is opaque and fills its frame — flush.
     icon: 'icons/apps/nym.png',
     flush: true,
-    desc: t('Ephemeral chat over Nostr: geohash channels for whoever is near you, Bluetooth mesh when there is no signal.'),
+    desc: t('Ephemeral chat over Nostr: geohash channels for people near you, and Bluetooth mesh offline.'),
   },
   {
     name: 'Shakespeare',
@@ -474,7 +474,7 @@ function apps() {
     // Serves a clean 192x192 PNG at a stable path; filled square, flush.
     icon: 'https://shakespeare.diy/shakespeare-192x192.png',
     flush: true,
-    desc: t('Describe an app and it builds and publishes it to Nostr, in your browser. Open source, from Soapbox.'),
+    desc: t('Describe an app and it builds and publishes it to Nostr, in your browser. By Soapbox.'),
   },
   {
     name: 'Nostr Protocol Forum',
@@ -511,7 +511,7 @@ function apps() {
     cat: 'social',
     // A dark chip inset with margin, not a full-bleed square, so it takes the framed treatment.
     icon: 'icons/apps/armada.svg',
-    desc: t('An open-source, encrypted Discord alternative: communities with channels, voice and DMs, no host required.'),
+    desc: t('Open-source, encrypted Discord alternative: channels, voice and DMs, no host required.'),
   },
   ];
 }
