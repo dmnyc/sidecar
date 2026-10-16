@@ -128,11 +128,12 @@ function el(tag, props) {
 }
 const textOf = (e) => [e.textContent || e.text || '', ...(e.children || []).map(textOf)].join(' ').replace(/\s+/g, ' ').trim();
 
-function openSheet({ now = SIGNED_AT + 10, payStore = {} } = {}) {
+function openSheet({ now = SIGNED_AT + 10, payStore = {}, payInvoice } = {}) {
   const clock = { now };
   const timers = [];
   const made = [];
   const paid = [];
+  const flights = []; // { label, settle } — the payment bar's flights (#495)
   const h = (tag, props, kids) => {
     const e = el(tag, props);
     (kids || []).forEach((k) => { e.children.push(k); if (k && typeof k === 'object') k.parentElement = e; });
@@ -152,11 +153,19 @@ function openSheet({ now = SIGNED_AT + 10, payStore = {} } = {}) {
     openModal: (build) => build(el('div')),
     closeModal() {},
     toast: () => ({ close() {} }),
+    // The payment bar (#495): the Send handler starts a flight and settles it with
+    // the outcome, so the harness records both ends for the contract test below.
+    beginPaymentFlight: (label) => {
+      const flight = { label, settles: [] };
+      flights.push(flight);
+      return { settle: (ok, line, sub) => flight.settles.push({ ok, line, sub }) };
+    },
+    surfacePaymentFailure() {},
     fmtSats: (n) => String(n),
     fmtFeeMsat: () => '',
     isLnInvoice: (v) => /^ln(bc|tb)[0-9]/i.test(v),
     isLnAddress: (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v),
-    ensureNwc: async () => ({ payInvoice: async (inv, msat) => { paid.push({ inv, msat }); return {}; } }),
+    ensureNwc: async () => ({ payInvoice: payInvoice || (async (inv, msat) => { paid.push({ inv, msat }); return {}; }) }),
     lnAddressParams: async () => { throw new Error('not in these tests'); },
     lnAddressToInvoice: async () => { throw new Error('not in these tests'); },
     getPayMeta: async () => payStore,
@@ -178,6 +187,7 @@ function openSheet({ now = SIGNED_AT + 10, payStore = {} } = {}) {
     pay: find((e) => e.tag === 'button' && e.textContent === 'Pay'),
     comment: find((e) => e.cls.has('send-comment')),
     paid,
+    flights,
     clock,
     payStore,
     fireTimers() { const t = timers.splice(0); t.forEach((f) => f()); },
@@ -227,6 +237,33 @@ test('and Pay then pays that invoice, for its own amount, after the button has a
   assert.ok(s.pay.cls.has('primary'));
   await s.pay.fire('click');
   assert.deepEqual(s.paid, [{ inv: COFFEE, msat: undefined }]);
+});
+
+test('the payment bar carries the flight: started on pay, settled with the outcome (#495)', async () => {
+  // End to end, against the same driven sheet: the flight begins only once the money
+  // is genuinely moving (nothing before the first press), and both outcomes settle it —
+  // success with the amount, failure with the error, never a flight left standing.
+  const s = openSheet();
+  await s.paste(COFFEE);
+  assert.deepEqual(s.flights, [], 'no flight before Pay');
+  await s.pay.fire('click');
+  await s.pay.fire('click');
+  assert.equal(s.flights.length, 1, 'one flight for one payment');
+  assert.equal(s.flights[0].label, 'Sending 250000 sats');
+  // The harness's fmtSats adds no separators and the fake wallet reports no fee, so
+  // the settled line is the bare amount.
+  assert.deepEqual(s.flights[0].settles, [{ ok: true, line: 'Sent 250000 sats', sub: undefined }]);
+
+  const fail = openSheet({
+    payInvoice: async () => { throw new Error('Insufficient balance'); },
+  });
+  await fail.paste(COFFEE);
+  await fail.pay.fire('click'); // the confirm press
+  await fail.pay.fire('click'); // the payment, which fails
+  assert.equal(fail.flights.length, 1);
+  // The raw call: line null so the bar defaults it to "Payment failed", the error
+  // message riding as the sub line.
+  assert.deepEqual(fail.flights[0].settles, [{ ok: false, line: null, sub: 'Insufficient balance' }]);
 });
 
 // ---- a large payment takes a second press --------------------------------------------------

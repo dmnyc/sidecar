@@ -746,14 +746,14 @@
     directory.classList.toggle('stream-playing-directory',playing);
     const top=playing?root.getBoundingClientRect().bottom:(entry?.closest('.topbar')?.getBoundingClientRect().bottom || 56);
     let bottom=window.innerHeight;
-    for(const id of ['relax-status','mining-status']){
+    for(const id of ['relax-status','payment-status','mining-status']){
       const bar=document.getElementById(id);
       if(bar && bar.getClientRects().length && !bar.classList.contains('hidden'))bottom=Math.min(bottom,bar.getBoundingClientRect().top);
     }
     directory.style.top=top+'px';directory.style.height=Math.max(0,bottom-top)+'px';directory.style.maxHeight=directory.style.height;
   }
   window.addEventListener('resize',positionDirectory);
-  for(const id of ['relax-status','mining-status']){
+  for(const id of ['relax-status','payment-status','mining-status']){
     const bar=document.getElementById(id);
     if(bar){new ResizeObserver(positionDirectory).observe(bar);new MutationObserver(positionDirectory).observe(bar,{attributes:true,attributeFilter:['class','hidden']});}
   }

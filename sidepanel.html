@@ -347,6 +347,23 @@
       <button type="button" id="mining-status-stop" class="mining-status-stop" data-i18n="Stop">Stop</button>
     </div>
 
+    <!-- One payment bar for every payment path (#495), the mining bar's sibling: a
+         pending payment minimizes here with one live line — Zapping, then Zapped or
+         Failed — and no sheet has to stay open while the money moves. A payment cannot
+         be cancelled once it is sent, so unlike the mine above there is no Stop. Sits
+         above the relax bar: a payment is seconds, a relax window is minutes. Panel-side
+         payments (Send, zaps, offers) feed it directly; website payments ride the
+         paymentStarted / paymentSettled events from the worker. See
+         beginPaymentFlight and renderPaymentStatus in sidepanel.js. -->
+    <div id="payment-status" class="payment-status hidden" role="status" aria-live="polite">
+      <span class="payment-status-glyph" id="payment-status-glyph" aria-hidden="true"></span>
+      <span class="payment-status-main">
+        <span class="payment-status-line" id="payment-status-line"></span>
+        <span class="payment-status-sub" id="payment-status-sub"></span>
+      </span>
+      <span class="payment-status-count hidden" id="payment-status-count"></span>
+    </div>
+
     <!-- Persistent bottom status bar, shown only while a relax (auto-sign) window
          is active. Status dot + signing account + live mm:ss
          countdown + Restart / End. See renderRelaxStatus in sidepanel.js. -->
