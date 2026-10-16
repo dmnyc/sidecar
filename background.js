@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
+  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -24,6 +24,7 @@ const SIGNER = self.SidecarSigner;
 const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 const RELAX = self.SidecarRelax;
+const KINDS = self.SidecarKindGrants;
 const BASELINE = self.SidecarBaseline;
 const ZAPREQ = self.SidecarZapRequests;
 
@@ -1521,6 +1522,19 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     const relaxActive = relaxEligible && (await RELAX.has(host, activePubkey));
     if (relaxActive) sharedIdentity = false;
 
+    // Persistent per-kind auto-approve ("Always allow this event type for this
+    // site", #482): a standing grant saved from the card's checkbox. Sign-event
+    // kinds only, and only kinds a grant may ever cover (isGrantableKind —
+    // never the account/wallet-control kinds, the overwrite guard's replaceable
+    // kinds, zap requests, or relay auth). The grant is scoped to the account
+    // and host resolving this request, plus the event's `d` tag when it has
+    // one, so a grant saved on one record covers that record, not the kind's
+    // every event. Split from kindGrantActive (below) so the "does a grant
+    // cover this kind" half is computed once for the payload flag too.
+    const kindGrantEligible = method === 'signEvent' && !isRelayAuth &&
+      KINDS.isGrantableKind(signKind);
+    const signDTag = kindGrantEligible ? KINDS.dTagOf(signEvent) : null;
+
     // Destructive-overwrite check. Kinds 0/3/10000 REPLACE their previous version, so
     // a client publishing a short or empty list wipes the real one everywhere. Compare
     // against what Sidecar last signed and, if this looks like a wipe, always confirm —
@@ -1554,9 +1568,20 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       ? await autoZapMaySign(signEvent)
       : false;
 
+    // A standing grant for this (host, account, kind[, d]) signs without asking.
+    // Never covers a destructive overwrite — those kinds are not grantable to
+    // begin with, so this is belt-and-suspenders — never bypasses an unlock
+    // (still required below, exactly like trust/relax), and suppresses the
+    // shared-identity confirm the same way an active relax window does: the
+    // grant names the account it signs as, which is the question that confirm
+    // exists to ask.
+    const kindGrantActive = kindGrantEligible && !destructive &&
+      (await KINDS.has(host, activePubkey, signKind, signDTag));
+    if (kindGrantActive) sharedIdentity = false;
+
     const needApproval = destructive
       ? true
-      : (coalesced || appDataAutoAllow || decryptCoalesced || relaxActive || zapAutoSign
+      : (coalesced || appDataAutoAllow || decryptCoalesced || relaxActive || zapAutoSign || kindGrantActive
           ? false
           : ((status === 'ask' && !isRelayAuth) || sharedIdentity));
 
@@ -1655,6 +1680,14 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         needApproval,
         sharedIdentity,
         relaxEligible,
+        // May THIS card offer the standing "Always allow this event type"
+        // checkbox (#482)? Computed by the same eligibility the grant handler
+        // enforces, so the offer and the write cannot drift — the checkbox is
+        // offered only where checking it would actually save a grant. The `d`
+        // tag rides along so both surfaces can say what future requests the
+        // grant would cover (one record, when the event carries a `d`).
+        canKindGrant: kindGrantEligible && !destructive,
+        kindDTag: signDTag,
         // True once this (host, account) has been approved one-time a few times over —
         // the prompt turns it into a line pointing at Trust. Suppressed while a
         // destructive warning is showing: that screen is asking for full attention on
@@ -1775,6 +1808,28 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       if (decision.action === 'trust') {
         await clearApproveCount(host, activePubkey);
         await PERMS.setLevel(activePubkey, host, 'trusted');
+      }
+      // "Always allow this event type" (#482): the checkbox turned this one
+      // approval into a standing grant for (host, account, kind[, d]). Validated
+      // against the same eligibility the checkbox was offered under — a decision
+      // surface cannot mint a grant for a kind no card may offer it on (and
+      // 'trust' supersedes it: a broader tier was chosen, so the flag is only
+      // honored on 'once'). Granted for the account that actually signs, which
+      // is why this sits after the switcher resolution above.
+      if (decision.action === 'once' && decision.extra && decision.extra.alwaysKind &&
+          kindGrantEligible && !destructive) {
+        await KINDS.grant(host, activePubkey, signKind, signDTag);
+        // The burst queued behind this card is the exact nuisance the grant
+        // exists for: settle the matching entries now instead of walking the
+        // person through one prompt per sibling. Same shape as driveOnce()'s
+        // relax re-collapse — settlePrompt('once') lets each entry proceed
+        // through its own handleNostrRpc (unlock, logging, baseline), and the
+        // settled guard makes an already-decided entry a no-op. The queue was
+        // just emptied from under a possibly-visible card, so re-drive the
+        // surface (next head, or close a stale popup) and ping the panel.
+        const swept = KINDS.matchTargets(queue, host, activePubkey, signKind, signDTag);
+        for (const id of swept) settlePrompt(id, 'once');
+        if (swept.length) { driveDisplay(); broadcastQueue(); }
       }
       // Tally the one-time approvals so the prompt can eventually point at Trust.
       // Only 'once' — picking 'relax' or 'trust' IS acting on that advice.
@@ -3654,6 +3709,7 @@ async function handleControl(message, sender, sendResponse) {
         result = await KS.removeAccount(message.pubkey);
         await PERMS.clearAccount(message.pubkey);
         await BUDGETS.clearAccount(message.pubkey);
+        await KINDS.clearAccount(message.pubkey); // and its standing per-kind grants
         await clearSiteAccountsForPubkey(message.pubkey);
         await BASELINE.forget(message.pubkey); // don't leave overwrite baselines behind
         await new Promise((r) => chrome.storage.local.remove('sidecar_reaction_use:' + message.pubkey, r)); // its quick-reaction row
@@ -3959,11 +4015,21 @@ async function handleControl(message, sender, sendResponse) {
       case 'SIDECAR_GET_PERMISSIONS':
         result = await PERMS.getAll(await KS.getActivePubkey());
         break;
+      case 'SIDECAR_GET_KIND_GRANTS':
+        // The active account's standing per-kind grants (#482), for the site
+        // rows in the Activity tab to list and revoke.
+        result = await KINDS.listFor(await KS.getActivePubkey());
+        break;
+      case 'SIDECAR_REMOVE_KIND_GRANT':
+        await KINDS.revoke(await KS.getActivePubkey(), message.host, message.kind, message.d);
+        result = true;
+        break;
       case 'SIDECAR_SET_LEVEL':
         result = await PERMS.setLevel(await KS.getActivePubkey(), message.host, message.level);
         break;
       case 'SIDECAR_REMOVE_HOST':
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
+        await KINDS.revokeForHost(await KS.getActivePubkey(), message.host); // and its per-kind grants
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
         await clearAuthorizedForHost(message.host); // and the shared-identity history
         await clearAlwaysActiveHost(message.host); // and any standing instruction to skip the check
@@ -4011,6 +4077,7 @@ async function handleControl(message, sender, sendResponse) {
         // ask. The log is cleared for ALL accounts, unlike the per-account Clear
         // history button, because every row in it is a site record.
         await PERMS.clearAll();
+        await KINDS.clearAll();
         await sset({ [SITE_ACCTS_KEY]: {}, [SITE_AUTHZ_KEY]: {}, [SITE_ALWAYS_ACTIVE_KEY]: {}, [ACTIVITY_KEY]: [] });
         result = true;
         break;

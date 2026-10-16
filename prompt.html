@@ -484,6 +484,18 @@
       <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
     </div>
 
+    <!-- "Always allow this event type" (#482): a standing, revocable grant for one event
+         kind — or, when the event carries a `d` tag, that one record — from this site,
+         signed by the account that granted it. The background offers it (data.canKindGrant)
+         only on kinds a grant may ever cover, and the note below spells out exactly what
+         future requests it signs, naming the site, account, kind, and record. Unticked:
+         an approval is one approval. -->
+    <div id="always-kind-offer" class="remember hidden">
+      <label class="check"><input type="checkbox" id="always-kind-box" />
+      <span data-i18n="Always allow this event type for this site" data-i18n-review>Always allow this event type for this site</span></label>
+      <div id="always-kind-note" class="always-kind-note"></div>
+    </div>
+
     <div id="remember" class="remember hidden">
     <label class="check"><input type="checkbox" id="remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
     <div class="budget-row">
