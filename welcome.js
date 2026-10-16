@@ -512,6 +512,8 @@ function renderCard(app, labels) {
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
   a.dataset.cat = app.cat;
+  // What a typed word is looked for in: the name, the address, the description and the category.
+  a.dataset.search = [app.name, app.domain, app.desc, labels[app.cat]].join(' ').toLowerCase();
 
   const faviconWrap = document.createElement('div');
   faviconWrap.className = 'favicon-wrap' + (app.flush ? ' flush' : '');
@@ -643,25 +645,48 @@ function renderGrid() {
   renderFooterTips();
 })();
 
-// Category filter
-document.getElementById('filters').addEventListener('click', e => {
-  const btn = e.target.closest('.filter-btn');
-  if (!btn) return;
-  const cat = btn.dataset.cat;
-
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-
+// Category filter and word search, applied together. Every typed word has to appear somewhere in
+// a card (name, address, description, category), in any order and any case.
+let activeCat = 'all';
+let searchWords = [];
+function cardMatches(card, cat, words) {
+  if (cat !== 'all' && card.dataset.cat !== cat) return false;
+  const text = card.dataset.search || '';
+  return words.every(word => text.includes(word));
+}
+function applyFilters() {
+  let shown = 0;
   // :not(.app-slot) so the open slot survives every filter. It has no data-cat, so
   // without this it would vanish the moment anything but All was picked.
   document.querySelectorAll('.card:not(.app-slot)').forEach(card => {
-    if (cat === 'all' || card.dataset.cat === cat) {
-      card.classList.remove('hidden-cat');
-    } else {
-      card.classList.add('hidden-cat');
-    }
+    const match = cardMatches(card, activeCat, searchWords);
+    card.classList.toggle('hidden-cat', !match);
+    if (match) shown++;
   });
+  const none = document.getElementById('no-match');
+  if (none) {
+    none.hidden = shown > 0;
+    none.textContent = shown > 0 ? '' : t('No apps match “{{query}}”. Try fewer words, or a different category.', { query: searchWords.join(' ') });
+  }
+}
+document.getElementById('filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  activeCat = btn.dataset.cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
 });
+const searchBox = document.getElementById('search');
+if (searchBox) {
+  searchBox.addEventListener('input', () => {
+    searchWords = searchBox.value.toLowerCase().split(/\s+/).filter(Boolean);
+    applyFilters();
+  });
+  searchBox.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && searchBox.value) { searchBox.value = ''; searchWords = []; applyFilters(); }
+  });
+}
 
 // First-run nudge: if the panel isn't open yet, show a strip at the top of the
 // page telling the user to pin Sidecar. It shows at most once — closing it or
