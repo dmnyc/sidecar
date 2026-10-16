@@ -2571,6 +2571,21 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--lav); font-size: 11.5px; font-weight: 600; padding: 2px 4px;
 }
 .site-shared-manage:hover { color: var(--text); text-decoration: underline; }
+/* Standing per-kind grants (#482), listed under a site row: what it signs without
+   asking, one line per grant, each with a one-tap revoke. The label truncates —
+   a `d` tag is page-controlled text of any length — and the ✕ keeps its metrics
+   (flex-shrink: 0), per the row-controls grammar. */
+.kind-grants { margin-top: 6px; }
+.kind-grants-title { font-size: 11px; color: var(--faint); margin-bottom: 3px; }
+.kind-grant { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.kind-grant-label {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11.5px; color: var(--gold);
+}
+/* The standing-grant explanation on the approval card, under its checkbox: names
+   the site, account, kind, and `d` record the grant would cover. */
+.always-kind-note { font-size: 11.5px; color: var(--faint); line-height: 1.45; margin-top: 2px; }
 /* The shared-identity opt-out, under the account list in the site's Manage sheet. Just
    a separator and spacing: the row inside uses .toggle-row, which is the panel's own
    switch, and the explanation is a sibling .hint beneath it rather than a column wedged

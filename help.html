@@ -50,6 +50,7 @@
         <a href="#clients">Clients compared</a>
         <a href="#relax">Relax mode</a>
         <a href="#batches">Allow all</a>
+        <a href="#always-kind">Always allow an event type</a>
         <a href="#erasing">Erasing data</a>
         <a href="#notifications">Notifications</a>
         <a href="#relays">Your relays</a>
@@ -375,6 +376,27 @@
       tap signs. There is a <em>Reject all</em>, and deliberately no <em>Approve all</em>:
       rejecting is always safe, while approving everything at once would sign requests
       you have not read.</p>
+    </section>
+
+    <!-- ===== Always allow an event type ===== -->
+    <section class="guide-section" id="always-kind">
+      <h2>Always allow an event type</h2>
+      <p>Some requests come back from the same site forever — an app saving its settings
+      every time you open it. On those approval cards you can tick <em>Always allow this
+      event type for this site</em>. Sidecar then signs that kind of event from that site
+      without asking again.</p>
+
+      <p>The grant is narrow on purpose. It covers one event kind — and when the event
+      carries a <code>d</code> tag, that one record rather than everything of that kind —
+      for that site only, signed by the account that approved it. It covers signing only:
+      the site can still never encrypt or decrypt anything without asking. Lock Sidecar
+      and the grant pauses with it — a locked keystore still asks for your PIN. Some kinds
+      can never carry the checkbox at all: anything that replaces your profile or follow
+      lists, anything that moves money, and the account-control kinds.</p>
+
+      <p>To see what you've granted, open the <strong>Activity</strong> tab: each site's
+      row lists what it signs without asking, with an ✕ to revoke. Revoking puts the site
+      straight back to asking.</p>
     </section>
 
     <!-- ===== Destructive-overwrite guard ===== -->
