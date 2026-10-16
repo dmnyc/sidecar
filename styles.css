@@ -4398,7 +4398,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 
 /* "N more waiting" backlog strip + Reject all, inside the approval card. */
 .approval-backlog {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
   font-size: 12.5px; color: var(--muted);
 }
@@ -4407,6 +4407,10 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   color: var(--red); font-size: 12.5px; font-weight: 600; padding: 4px 6px; white-space: nowrap;
 }
 .approval-reject-all:hover { text-decoration: underline; filter: brightness(1.1); }
+/* Why no Approve all — under the strip, where the person looking for the missing
+   button is. Full-width below the row (the strip itself is a flex row; the note
+   must not sit beside the count and the button), in the batch caption's voice. */
+.approval-backlog-note { flex-basis: 100%; font-size: 11.5px; line-height: 1.45; color: var(--muted); margin: 2px 0 0; }
 
 /* nsec/ncryptsec tabs (key backup modal) */
 .modal-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 14px; }
