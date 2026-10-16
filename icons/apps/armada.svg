@@ -1,0 +1,24 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Armada">
+  <title>Armada</title>
+  <!--
+    Favicon-optimized mark. A dark rounded chip keeps the frameless sail/wave
+    mark legible against light browser tabs; flat fills, no glow (which muds at
+    16px). Same geometry as public/logo.svg, inset for breathing room.
+  -->
+  <defs>
+    <linearGradient id="armada-sail" x1="24" y1="8" x2="104" y2="93" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fb4d96"/>
+      <stop offset="1" stop-color="#e0186f"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#100b15"/>
+  <g transform="translate(12.8 12.8) scale(0.8)">
+    <g fill="#19e6e6">
+      <path d="M95.4 104.865H32.59c-1.18 0-2.14-.96-2.14-2.14s.96-2.14 2.14-2.14H95.4c1.18 0 2.14.96 2.14 2.14s-.96 2.14-2.14 2.14z"/>
+      <path d="M83.98 115.565H44.01a1.43 1.43 0 1 1 0-2.86h39.97a1.43 1.43 0 1 1 0 2.86z"/>
+      <path d="M73.99 123.775H54.01a1.071 1.071 0 0 1 0-2.14h19.98a1.071 1.071 0 0 1 0 2.14z"/>
+    </g>
+    <path d="M64 4.225l-39.97 88.5h17.13l2.31-5.2 2.76-6.22-2.22-1.43-1.42-12.84h9.99l4.89-11.01L64 41.335l11.42 25.7h9.99l-1.43 12.84-2.22 1.43 2.77 6.22 2.31 5.2h17.13z" fill="url(#armada-sail)"/>
+    <path d="M76.84 79.165c-.15 0-.31-.05-.44-.15l-12.41-9.65-12.41 9.65c-.31.24-.76.19-1-.13a.706.706 0 0 1 .13-1l12.85-9.99c.26-.2.62-.2.88 0l12.85 9.99a.715.715 0 0 1-.43 1.28z" fill="url(#armada-sail)"/>
+  </g>
+</svg>

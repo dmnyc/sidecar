@@ -504,6 +504,15 @@ function apps() {
     icon: 'icons/apps/anagram.png',
     desc: t('Private messaging and calls over Nostr.'),
   },
+  {
+    name: 'Armada',
+    url: 'https://armada.buzz/',
+    domain: 'armada.buzz',
+    cat: 'social',
+    // A dark chip inset with margin, not a full-bleed square, so it takes the framed treatment.
+    icon: 'icons/apps/armada.svg',
+    desc: t('An open-source, encrypted Discord alternative: communities with channels, voice and DMs, no host required.'),
+  },
   ];
 }
 
