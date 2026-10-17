@@ -699,6 +699,10 @@
             <p class="hint" data-i18n="Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice." data-i18n-review>Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
             <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span data-i18n="Show on Nostr sites">Show on Nostr sites</span></label>
             <label class="toggle-row"><input type="checkbox" id="paypill-anywhere-toggle" /> <span data-i18n="Show on unconnected sites">Show on unconnected sites</span></label>
+            <!-- Off by default: taking Lightning on a page another wallet extension
+                 claimed is the person's own decision, never a silent one (#501). -->
+            <label class="toggle-row"><input type="checkbox" id="webln-takeover-toggle" /> <span data-i18n="Use Sidecar for Lightning payments" data-i18n-review>Use Sidecar for Lightning payments</span></label>
+            <p class="hint" data-i18n="When another wallet extension answers a page’s Lightning calls, Sidecar waits for your word. Turn this on and Sidecar steps in; the other wallet stays reachable and nothing changes on pages you already have open." data-i18n-review>When another wallet extension answers a page’s Lightning calls, Sidecar waits for your word. Turn this on and Sidecar steps in; the other wallet stays reachable and nothing changes on pages you already have open.</p>
           </div>
 
           <div class="setting">

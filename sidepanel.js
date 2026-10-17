@@ -11174,6 +11174,7 @@
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('paypill-anywhere-toggle').checked = settings.payPillAnywhere === true; // default off
+    $('webln-takeover-toggle').checked = settings.weblnTakeover === true; // default off (#501)
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     // The way back from "Don't show this again": clears both flags in the local
@@ -22378,6 +22379,12 @@
 
   $('paypill-anywhere-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { payPillAnywhere: e.target.checked } });
+  });
+
+  $('webln-takeover-toggle').addEventListener('change', async (e) => {
+    // Rides the live settings push (pushPageSettings) to every open page, so taking
+    // over — or handing the slot back — needs no reload.
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { weblnTakeover: e.target.checked } });
   });
 
   $('clienttag-toggle').addEventListener('change', async (e) => {
