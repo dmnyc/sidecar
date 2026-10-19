@@ -306,3 +306,25 @@ test('the backlog strip carries the why-no-Approve-all line where Reject all liv
   assert.match(fn, /Rejecting is always safe/, 'the note does not say why there is no Approve all');
   assert.match(s, /renderBacklog\(view\.waiting \|\| \[\]\)/, 'the strip stopped rendering from the queue view');
 });
+
+// The note ships `hidden` in the markup. Filling it is not showing it: the first cut
+// set the text and left the class, so the line existed and nobody could see it.
+test('renderBacklog reveals the why-no-Approve-all note along with the strip', () => {
+  const el = () => {
+    const classes = new Set(['hidden']);
+    return { textContent: '', classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) } };
+  };
+  const els = { 'approval-backlog': el(), 'approval-backlog-count': el(), 'approval-backlog-note': el() };
+  const ctx = vm.createContext({
+    $: (id) => els[id],
+    show: (e) => e.classList.remove('hidden'),
+    hide: (e) => e.classList.add('hidden'),
+    t: (s) => s,
+    tn: (one, other, n) => (n === 1 ? one : other),
+  });
+  vm.runInContext(lift(panel, 'function renderBacklog(') + '\nthis.renderBacklog = renderBacklog;', ctx);
+  ctx.renderBacklog([{}, {}]);
+  assert.equal(els['approval-backlog'].classList.contains('hidden'), false, 'the strip stayed hidden');
+  assert.match(els['approval-backlog-note'].textContent, /Rejecting is always safe/);
+  assert.equal(els['approval-backlog-note'].classList.contains('hidden'), false, 'the note is filled but still hidden');
+});

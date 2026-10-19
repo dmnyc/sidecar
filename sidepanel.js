@@ -24018,7 +24018,7 @@
     const count = $('approval-backlog-count');
     count.textContent = tn('{{count}} more request waiting', '{{count}} more requests waiting', waiting.length);
     const note = $('approval-backlog-note');
-    if (note) note.textContent = t('Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.');
+    if (note) { note.textContent = t('Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.'); show(note); }
     show(strip);
   }
 
