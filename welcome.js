@@ -513,6 +513,38 @@ function apps() {
     icon: 'icons/apps/armada.svg',
     desc: t('Open-source, encrypted Discord alternative: channels, voice and DMs, no host required.'),
   },
+  {
+    name: 'zapMeaCoffee',
+    url: 'https://zapmeacoffee.com',
+    domain: 'zapmeacoffee.com',
+    cat: 'commerce',
+    // Their mark on their own site: a dark outline bolt (Lucide's `zap`) on a yellow rounded
+    // tile. Their favicon is the bolt alone in black, which disappears on a dark card, so the
+    // tile is drawn too. It fills its frame, so flush.
+    logo: `<svg viewBox="0 0 46 46" aria-hidden="true"><rect width="46" height="46" rx="10" fill="#e8bc5d"/><g transform="translate(12 12) scale(.92)" fill="none" stroke="#2a2620" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></g></svg>`,
+    flush: true,
+    desc: t('Accept Lightning tips from your supporters, with your Nostr profile and a Lightning address.'),
+  },
+  {
+    name: 'Magic Internet Math',
+    url: 'https://magicinternetmath.com',
+    domain: 'magicinternetmath.com',
+    cat: 'other',
+    // Their logo with the wordmark cropped off, so the shape reads at icon size. An opaque dark
+    // square that fills its frame, so flush.
+    icon: 'icons/apps/magic-internet-math.png',
+    flush: true,
+    desc: t('Interactive math courses, from basic algebra to the cryptography behind the internet.'),
+  },
+  {
+    name: 'Fanfares',
+    url: 'https://fanfares.io',
+    domain: 'fanfares.io',
+    cat: 'commerce',
+    // Their 180px touch icon: a rounded square with its own margin, so framed rather than flush.
+    icon: 'https://fanfares.io/apple-touch-icon.png',
+    desc: t('Sell your content for bitcoin: publishing for the internet money era.'),
+  },
   ];
 }
 
