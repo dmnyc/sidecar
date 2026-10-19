@@ -45,8 +45,7 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 
 > "It's a browser extension that…kind of makes Nostr cooler."
 >
-> — [Fundamentals](https://github.com/fundamentals21m), creator of [Magic Internet Math](https://magicinternetmath.com)
-<!-- TODO: add this Fundamentals testimonial to sidecar.top (sidecar-site, public/index.php) -->
+> — [Fundamentals](https://jumble.social/users/npub12eml5kmtrjmdt0h8shgg32gye5yqsf2jha6a70jrqt82q9d960sspky99g), creator of [Magic Internet Math](https://magicinternetmath.com)
 
 ## Features
 
