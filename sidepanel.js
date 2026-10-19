@@ -24027,13 +24027,18 @@
     if (note) { note.textContent = t('One tap signs every event listed. A batch never mixes event kinds.'); show(note); }
   }
 
-  // "N more waiting" strip inside the approval card + a Reject all escape hatch.
+  // "N more waiting" strip inside the approval card + a Reject all escape hatch —
+  // and the one line on this screen that answers "why is there a Reject all and no
+  // Approve all" (#502, remedy 1): rejecting is always safe; bulk approving is only
+  // ever offered for a same-kind batch the card lists in full.
   function renderBacklog(waiting) {
     const strip = $('approval-backlog');
     if (!strip) return;
     if (!waiting.length) { hide(strip); return; }
     const count = $('approval-backlog-count');
     count.textContent = tn('{{count}} more request waiting', '{{count}} more requests waiting', waiting.length);
+    const note = $('approval-backlog-note');
+    if (note) { note.textContent = t('Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.'); show(note); }
     show(strip);
   }
 

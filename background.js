@@ -594,7 +594,16 @@ function isBatchableEntry(e) {
     // warning and the deliberate second step that demands. Asked through the module itself,
     // not a copied list of kinds, so the two cannot drift; via globalThis rather than the
     // BASELINE const above because the tests lift this function on its own.
-    !(m === 'signEvent' && globalThis.SidecarBaseline.isTracked(e.kind));
+    !(m === 'signEvent' && globalThis.SidecarBaseline.isTracked(e.kind)) &&
+    // Nor do zap requests (#502): a kind-9734 event is the signing half of a payment,
+    // and the amount it commits to rides in its tags — which a batch member row does
+    // not show. One tap on "Allow all" would sign a burst of spend commitments the
+    // card described as bare content rows. The payment itself (sendPayment/keysend)
+    // already can't batch — the method whitelist above admits only sign and encrypt —
+    // so this closes the one path a payment had into a bulk approval. Auto-zaps are
+    // the standing way to sign these without asking, and they carry per-zap and daily
+    // caps; a batch would carry neither.
+    !(m === 'signEvent' && e.kind === 9734);
 }
 function batchKeyOf(e) {
   // Kind alone is not a kind for encrypts: nip04.encrypt and nip44.encrypt both carry
