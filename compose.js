@@ -78,6 +78,8 @@
   let dkey = null;
   let saveTimer = null;
   let posting = false;
+  // The receipt is on screen: the editor is gone and nothing here is a draft any more.
+  let receiptShown = false;
   // The fingerprint Post last asked "again?" about, or null: see reviewThenPost.
   let repeatAsked = null;
   // Until when "Post it again?" stays inert: a beat, so a double-tap or an impatient
@@ -419,6 +421,10 @@
       .catch(() => null);
   }
   async function persistDraft() {
+    // A TAB ON ITS RECEIPT HAS NO DRAFT TO KEEP. Its draft is empty, and an empty one
+    // deletes the slot below, which is the slot the panel may just have written for the
+    // next reply to the same note. visibilitychange and beforeunload both land here.
+    if (receiptShown) return;
     const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
     // Media counts as content on its own: an upload with no words yet is still work, and
     // dropping it because the caption had not been written is the kind of thing that makes
@@ -797,6 +803,22 @@
       },
     }));
     pane.append(back);
+  }
+
+  // The panel pointing this tab at a draft. A tab showing its receipt has no editor to
+  // switch, so it starts over on the requested draft, the same way "Write another" does;
+  // switching would repaint an editor that is gone and fail without a word.
+  function handleComposeOpen(msg) {
+    const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
+      ? msg.replyId.toLowerCase() : null;
+    if (receiptShown) {
+      location.replace(location.pathname + (want ? '?reply=' + want : ''));
+      return;
+    }
+    if (want === replyId) return;   // already here
+    // Whatever is on screen belongs to the slot it was typed in, so it goes back
+    // there before the key moves. Same rule as the account switch.
+    switchToDraft(want).catch(() => {});
   }
 
   // The one way this tab moves between drafts, for a chip and for the panel's message
@@ -1313,6 +1335,13 @@
 
   async function showPosted(signed, relayCount, what) {
     const sheet = document.querySelector('.compose-sheet');
+    // THE ADDRESS SAYS SO. The panel cannot ask a tab anything without the "tabs"
+    // permission, but getContexts reports each document's URL, fragment and all, so a
+    // marker there is how it learns this tab holds a receipt and not a draft. Without it
+    // the panel treated the receipt as an open composer and sent every new note and reply
+    // to a page that could only show "Your note is live".
+    receiptShown = true;
+    try { history.replaceState(null, '', location.pathname + location.search + '#done'); } catch (_) {}
     let href = null;
     let label = null;
     try {
@@ -1833,12 +1862,7 @@
       // is already open on something else. Focusing it without this showed whatever was
       // already here, which is how a reply arrived looking like a blank new note.
       if (msg && msg.type === 'SIDECAR_COMPOSE_OPEN') {
-        const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
-          ? msg.replyId.toLowerCase() : null;
-        if (want === replyId) return;   // already here
-        // Whatever is on screen belongs to the slot it was typed in, so it goes back
-        // there before the key moves. Same rule as the account switch.
-        switchToDraft(want).catch(() => {});
+        handleComposeOpen(msg);
         return;
       }
       if (!msg || msg.type !== 'SIDECAR_EVENT') return;
