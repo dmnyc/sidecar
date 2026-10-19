@@ -46,6 +46,17 @@ function resolveSettings(sidecar_settings) {
   return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
 }
 
+// The host to offer "Use Sidecar for Lightning payments" for, or '' for no offer. One
+// offer at a time and never again once answered; a person who already opted in has
+// nothing to be offered. A page can send the notice for itself, so the worst a forged
+// one buys is a card naming that page, which the person can wave off for good.
+function weblnOfferHost(settings, host) {
+  if (!host || !settings) return '';
+  if (settings.weblnTakeover === true || settings.weblnOfferDismissed === true) return '';
+  if (settings.weblnOfferHost) return '';
+  return host;
+}
+
 // NIP-13 difficulty, as the four rungs the panel offers. Mirrored from POW_LEVELS in
 // sidepanel.js and pinned to it by test, because this is the copy that decides what gets
 // STORED and the panel's is only what gets drawn.
@@ -4283,6 +4294,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',
     'SIDECAR_TRY_ZAP_AUTOPAY',
     'SIDECAR_IS_CONNECTED', 'SIDECAR_GET_SETTINGS', 'SIDECAR_SET_SETTINGS',
+    // Another wallet holds window.webln on this page (#501). Records an offer; changes nothing.
+    'SIDECAR_WEBLN_OTHER_PRESENT',
     // The pay card's lettering face: a public font file, and nothing else.
     'SIDECAR_CARD_FONT',
   ]);
@@ -4361,6 +4374,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
           cardTheme: SidecarSeasons.resolve(st, cardAccount) || (cardAccount && by[cardAccount]) || st.theme || '',
           hasWallet,
+          // "Use Sidecar for Lightning payments" (#501): the content script relays it
+          // to the page-world provider on every load, so a saved ON survives a reload
+          // (the live push alone only reached pages that were already open). The page
+          // can already read the relayed message, so this adds no new reader.
+          weblnTakeover: st.weblnTakeover === true,
         },
       });
     });
@@ -4391,6 +4409,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((pk) => sendResponse({ ok: true, connected: !!pk }))
       .catch(() => sendResponse({ ok: true, connected: false }));
     return true; // async response
+  }
+
+  // Another wallet answers Lightning on this page. The person is told once, in the
+  // panel, and the answer lands in SIDECAR_WEBLN_OFFER_ANSWER below, which a page
+  // cannot send. The host comes from the sender's own URL like the handlers around it.
+  if (message.type === 'SIDECAR_WEBLN_OTHER_PRESENT') {
+    let h = '';
+    try { h = new URL((sender && sender.url) || '').host; } catch (_) {}
+    sget('sidecar_settings').then(async ({ sidecar_settings }) => {
+      const prev = sidecar_settings || {};
+      if (weblnOfferHost(prev, h)) {
+        await sset({ sidecar_settings: { ...prev, weblnOfferHost: h } });
+        if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_WEBLN_OFFER', host: h }); } catch (_) {} }
+      }
+      sendResponse({ ok: true });
+    }).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  // The person's answer to the offer, from the panel. "Use Sidecar" turns the setting
+  // on; either answer retires the offer for good, so it is made once, not nagged.
+  if (message.type === 'SIDECAR_WEBLN_OFFER_ANSWER') {
+    sget('sidecar_settings').then(async ({ sidecar_settings }) => {
+      const prev = sidecar_settings || {};
+      const merged = { ...prev, weblnOfferHost: null, weblnOfferDismissed: true };
+      if (message.use === true) merged.weblnTakeover = true;
+      await sset({ sidecar_settings: merged });
+      pushPageSettings(merged);
+      sendResponse({ ok: true });
+    }).catch(() => sendResponse({ ok: false }));
+    return true;
   }
 
   // Is a side panel currently connected? The welcome page uses this to decide

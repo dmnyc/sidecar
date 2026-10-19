@@ -279,11 +279,20 @@
     const other = window.webln;
     let holding = false;   // Sidecar took the slot and has not handed it back
     let lastSeen = null;   // the last setting relayed, so a repeat is a no-op
+    let announced = false; // the content script has been told another wallet holds the slot
     window.addEventListener('message', function (event) {
       if (event.source !== window) return;
       const d = event.data;
       if (!d || d.ext !== 'sidecar' || d.kind !== 'config') return;
       const want = d.weblnTakeover === true;
+      // The first config message proves the content script is listening (it is the
+      // one that sent it), so this is the first moment a notice cannot be lost. It
+      // says only that another wallet holds the slot; the panel decides whether that
+      // is worth a word to the person, and only the panel can switch anything on.
+      if (!announced && !want && !holding) {
+        announced = true;
+        try { window.postMessage({ ext: 'sidecar', kind: 'webln-other-present' }, '*'); } catch (_) {}
+      }
       if (want === lastSeen) return;
       lastSeen = want;
       if (want) {
