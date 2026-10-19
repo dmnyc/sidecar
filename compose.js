@@ -509,6 +509,16 @@
   // The note being answered, drawn above the tabs. Deliberately NOT the panel's
   // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
   // is a face, a name and the text, all of which this file already knows how to get.
+  // "kind 1" or "kind 1111" in small print beside the label. The dev selector can choose
+  // the kind instead of inheriting it, so it repaints this too: a label that said kind 1
+  // over a kind 1111 reply would be worse than none.
+  function paintReplyKind() {
+    const el = document.querySelector('#compose-reply-target .reply-target-kind');
+    if (!el || !replyTo) return;
+    const kind = devBuild && devOn.kind && devKind ? devKind : SC.replyKind(replyTo);
+    el.textContent = t('kind {{kind}}', { kind });
+  }
+
   function paintReplyTarget() {
     // The dev controls depend on whether this is a reply, and every path that changes
     // that comes through here.
@@ -551,7 +561,11 @@
     box.classList.remove('hidden');
     box.classList.remove('reply-target-lost');
 
-    box.append(h('div', { className: 'reply-target-label', textContent: t('Replying to') }));
+    box.append(h('div', { className: 'reply-target-label' }, [
+      h('span', { textContent: t('Replying to') }),
+      h('span', { className: 'reply-target-kind' }),
+    ]));
+    paintReplyKind();
     const av = h('span', { className: 'avatar reply-target-av' });
     applyAvatar(av, null);
     const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
@@ -647,7 +661,7 @@
         ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
         : t('Dev build only. Automatic preserves the kind of the event you answer.');
     };
-    select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+    select.addEventListener('change', () => { devKind = Number(select.value); paint(); paintReplyKind(); });
     paint();
     return h('div', { className: 'compose-dev-kind' }, [
       h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
