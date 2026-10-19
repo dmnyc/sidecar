@@ -24024,6 +24024,35 @@
     show(strip);
   }
 
+  // "Use Sidecar for Lightning payments?", offered once, where another wallet extension
+  // already answers a page's Lightning calls (#501). It lives here and not on the page
+  // because a page can forge the notice that raises it, and a switch that moves money
+  // must not be one a site can flip. Either button retires it for good.
+  function renderWeblnOffer(host) {
+    const card = $('webln-offer');
+    if (!card) return;
+    if (!host) { hide(card); card.innerHTML = ''; return; }
+    card.innerHTML = '';
+    const msg = h('span', { className: 'webln-offer-msg', textContent: t('Sidecar isn’t set as your default Lightning wallet on {{host}}. Switch?', { host }) });
+    const use = h('button', { className: 'primary', textContent: t('Use Sidecar') });
+    const later = h('button', { className: 'ghost', textContent: t('Not now') });
+    const answer = async (yes) => {
+      renderWeblnOffer('');
+      await bg({ type: 'SIDECAR_WEBLN_OFFER_ANSWER', use: yes });
+      if (yes) { const tgl = $('webln-takeover-toggle'); if (tgl) tgl.checked = true; }
+    };
+    use.addEventListener('click', () => answer(true));
+    later.addEventListener('click', () => answer(false));
+    card.append(msg, h('div', { className: 'webln-offer-controls' }, [use, later]));
+    show(card);
+  }
+  async function refreshWeblnOffer() {
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      renderWeblnOffer(s && s.weblnOfferHost ? s.weblnOfferHost : '');
+    } catch (_) {}
+  }
+
   // Requests that were in flight when Sidecar's service worker restarted. Their
   // page channels are gone (the sites already got an error/timeout), so they
   // can't be signed — surface them honestly as dismissible tombstones.
@@ -24066,6 +24095,7 @@
     } catch (_) {}
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
+      if (msg && msg.type === 'SIDECAR_WEBLN_OFFER') renderWeblnOffer(String(msg.host || ''));
       if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {
@@ -24079,6 +24109,7 @@
     });
     // Pull authoritative state on (re)connect.
     refreshApproval();
+    refreshWeblnOffer();
   }
   connectApprovalPort();
 

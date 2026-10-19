@@ -85,6 +85,16 @@
       return;
     }
 
+    // Another wallet holds window.webln on this page. Carries nothing: the worker takes
+    // the host from this tab's own URL, and what it does with the fact is the panel's
+    // business (an offer the person can accept or wave off, never an action).
+    if (d.kind === 'webln-other-present') {
+      if (weblnOtherTold || !extensionAlive()) return;
+      weblnOtherTold = true;
+      try { chrome.runtime.sendMessage({ type: 'SIDECAR_WEBLN_OTHER_PRESENT' }, () => void chrome.runtime.lastError); } catch (_) {}
+      return;
+    }
+
     if (d.kind !== 'request') return;
     const type = SCOPE_TO_TYPE[d.scope];
     if (!type) return;
@@ -259,6 +269,7 @@
   // passed. The BOLT11's own expiry still applies on top of this; this is only
   // the ceiling on how long a copy counts as a live intent to pay.
   let copiedInvoice = '';
+  let weblnOtherTold = false; // the worker has heard another wallet holds window.webln here
   let copiedAt = 0;
   const COPIED_TTL_MS = 3 * 60 * 1000;
   let escHandler = null;

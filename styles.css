@@ -4364,6 +4364,17 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .reload-banner-btn:active { transform: translateY(0); }
 .reload-banner-btn svg { width: 14px; height: 14px; }
 
+/* "Use Sidecar for Lightning payments?" offer. Words on the buttons, so they take their
+   own full-width row beneath the message, the same shape .site-controls uses. */
+.webln-offer {
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+  margin: 10px 16px 0; padding: 10px 12px; border-radius: 10px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04)); border: 1px solid var(--border);
+}
+.webln-offer-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); }
+.webln-offer-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.webln-offer-controls button { flex: 1 1 auto; }
+
 /* Interrupted-request tombstone banner (queue survived an SW restart). */
 .interrupted-banner {
   display: flex; align-items: center; gap: 10px;
