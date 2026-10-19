@@ -13903,7 +13903,7 @@
       const full = replyTo.content || '';
       renderNoteText(body, full, 240);
       makeMediaExpandable(block, body);
-      block.append(who, body);
+      block.append(h('div', { className: 'reply-target-label', textContent: t('Replying to') }), who, body);
 
       // READING THE REST OF WHAT YOU ARE ANSWERING.
       //
@@ -14190,7 +14190,7 @@
         onChange: (text) => {
           draft.text = text;
           // An edit makes it a different note, so the repeat question no longer applies.
-          if (repeatAsked) { repeatAsked = null; post.textContent = t('Post'); err.textContent = ''; }
+          if (repeatAsked) { repeatAsked = null; post.textContent = replyTo ? t('Reply') : t('Post'); err.textContent = ''; }
           updatePostState();
           scheduleSave();
         },
@@ -14641,7 +14641,7 @@
       const paintEitherOr = pollEditor.paintEitherOr;
 
       const err = h('div', { className: 'error' });
-      const post = h('button', { className: 'primary', textContent: t('Post') });
+      const post = h('button', { className: 'primary', textContent: replyTo ? t('Reply') : t('Post') });
       function updatePostState() {
         // The tab composes a note. A poll is a different kind with its own editor, so
         // once one is open the way out of the panel goes away rather than quietly

@@ -513,6 +513,14 @@
     // The dev controls depend on whether this is a reply, and every path that changes
     // that comes through here.
     paintDevControls();
+    // A REPLY SAYS SO IN THREE PLACES, not one: the quote's label below, the editor's
+    // placeholder and the button. The tab used to say "Post" and "What's on your mind?"
+    // over an answered note, which is how a reply got mistaken for a new one. A tab that
+    // lost its target below is still a new note, and says so by keeping all three plain.
+    if (editorApi && editorApi.editor) {
+      editorApi.editor.dataset.placeholder = replyTo ? t('Write your reply…') : t('What’s on your mind?');
+    }
+    paintPostButton();
     const box = document.getElementById('compose-reply-target');
     if (!box) return;
     box.innerHTML = '';
@@ -543,6 +551,7 @@
     box.classList.remove('hidden');
     box.classList.remove('reply-target-lost');
 
+    box.append(h('div', { className: 'reply-target-label', textContent: t('Replying to') }));
     const av = h('span', { className: 'avatar reply-target-av' });
     applyAvatar(av, null);
     const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
@@ -1192,7 +1201,7 @@
       post.disabled = true;
       return;
     }
-    post.textContent = repeatAsked ? t('Post it again?') : t('Post');
+    post.textContent = repeatAsked ? t('Post it again?') : replyTo ? t('Reply') : t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
     if (draft.poll) {

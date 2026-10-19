@@ -313,7 +313,7 @@ test('the quote is shown whole in the tab, which is the room the panel lacks', (
   // The panel caps at 240 because it has 360px. The tab is the space the panel does not
   // have, so capping there would reproduce the problem the tab exists to solve.
   const fn = page.slice(page.indexOf('function paintReplyTarget()'));
-  assert.match(fn.slice(0, 2600), /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
+  assert.match(fn.slice(0, 3600), /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
   // Above the tabs, not inside a pane, or switching to Preview would hide the subject.
   const html = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
   const target = html.indexOf('id="compose-reply-target"');
