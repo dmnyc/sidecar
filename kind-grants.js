@@ -49,6 +49,16 @@
   const CONTROL_KINDS = new Set([24133, 23194, 23195]);
   const REPLACEABLE_KINDS = new Set([0, 3, 10000, 10040]);
 
+  // The rest of the replaceable range (10000-19999: relay lists, pins, bookmarks,
+  // DM relays, file servers) replaces what came before just the same, with no merge
+  // and no undo. The overwrite guard watches only the four kinds above, so a standing
+  // grant on any other would sign a wholesale rewrite with nobody looking.
+  const isReplaceableKind = (kind) => REPLACEABLE_KINDS.has(kind) || (kind >= 10000 && kind < 20000);
+
+  // A deletion (5) removes the person's own events from every relay that honors it,
+  // for whatever ids the request names. Never something to pre-approve.
+  const DELETION_KINDS = new Set([5]);
+
   // Zap requests (9734) carry the amount in their tags, so a standing grant
   // would be a blank check: every future zap request from the site signed
   // whatever size it asked for, sidestepping the auto-zap caps that are the
@@ -109,7 +119,8 @@
   function isGrantableKind(kind) {
     return kind != null &&
       !CONTROL_KINDS.has(kind) &&
-      !REPLACEABLE_KINDS.has(kind) &&
+      !isReplaceableKind(kind) &&
+      !DELETION_KINDS.has(kind) &&
       !PAYMENT_KINDS.has(kind) &&
       !AUTH_KINDS.has(kind);
   }

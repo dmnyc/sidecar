@@ -116,7 +116,7 @@ test('a grant persists across a worker restart (storage.local, not memory)', asy
 });
 
 test('control and replaceable kinds can never carry a grant', async () => {
-  for (const k of [24133, 23194, 23195, 0, 3, 10000, 10040]) {
+  for (const k of [24133, 23194, 23195, 0, 3, 10000, 10040, 10001, 10002, 10003, 10050, 5]) {
     assert.equal(KINDS.isGrantableKind(k), false, 'kind ' + k + ' must never be grantable');
     assert.equal(await KINDS.has(HOST, pkA, k), false, 'kind ' + k + ' must be refused by has()');
   }
@@ -131,7 +131,7 @@ test('grant() throws for an ungrantable kind, so no surface can mint one', async
 test('zap requests and relay auth are not grantable; ordinary content kinds are', () => {
   assert.equal(KINDS.isGrantableKind(9734), false, 'a zap request carries the amount — a grant would be a blank check');
   assert.equal(KINDS.isGrantableKind(22242), false, 'well-formed relay auth is already pre-approved; a grant would cover malformed ones');
-  for (const k of [1, 6, 7, 14, 1111, 30023, APP_DATA, 10002]) {
+  for (const k of [1, 6, 7, 14, 1111, 30023, APP_DATA]) {
     assert.equal(KINDS.isGrantableKind(k), true, 'kind ' + k + ' should be grantable');
   }
   assert.equal(KINDS.isGrantableKind(null), false, 'encrypt/decrypt carry no kind and can never match');
