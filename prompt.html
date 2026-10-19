@@ -98,7 +98,8 @@
     /* The scrollable content fades out at its bottom edge, so text visibly
        dissolves above the buttons — an unmistakable "there's more to scroll". */
     .prompt-scroll {
-      flex: 1 1 auto; overflow-y: auto; padding: 22px 22px 6px;
+      /* Bottom padding = the fade's 30px + 6: the last of the content must scroll clear of it. */
+      flex: 1 1 auto; overflow-y: auto; padding: 22px 22px 36px;
       -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
       mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
     }

@@ -4718,7 +4718,11 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   border: 1px solid var(--border-strong); box-shadow: var(--shadow), var(--sheen);
 }
 .approval-scroll {
-  flex: 1 1 auto; overflow-y: auto; padding: 22px 22px 6px;
+  /* The bottom padding is the fade's own height plus a little. The fade covers the last
+     30px of the region, so with 6px of padding the last 24px of real content, a caption
+     or a button row, stayed dimmed even scrolled to the very end, and a card that fit
+     had nothing to scroll to reveal it. The fade now falls on empty padding. */
+  flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 22px 22px 36px;
   /* The content dissolves above the footer rather than being cut, which is the
      unmistakable "there is more to scroll" prompt.html already uses. */
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);

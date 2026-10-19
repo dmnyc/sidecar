@@ -23929,6 +23929,34 @@
     await bg({ type: 'SIDECAR_REJECT_ALL_PENDING' });
     await refreshApproval();
   });
+  // A WHEEL THE CARD CANNOT USE MUST NOT REACH WHAT IS BEHIND IT. The overlay is a fixed
+  // layer over the panel, and a wheel over any part of it that has nothing to scroll (a
+  // short card, the pinned buttons, the dimmed edge) was handed on as a scroll of the
+  // panel underneath, so the blurred list moved behind a card that stayed put. Modals
+  // lock the page with the modal-open class; the approval does not set that class, which
+  // other code reads as "a modal is open", so the wheel is held here instead.
+  //
+  // True when the wheel should be swallowed: no scroll region between the pointer and the
+  // overlay can still move in the direction asked. A region sitting at its end counts as
+  // unable, otherwise the last notch of a long card would spill into the panel behind.
+  function approvalWheelShouldBeHeld(target, deltaY, overlay, styleOf = (n) => getComputedStyle(n)) {
+    for (let n = target; n; n = n.parentElement) {
+      if (n.scrollHeight > n.clientHeight + 1) {
+        const oy = styleOf(n).overflowY;
+        if (oy === 'auto' || oy === 'scroll') {
+          const room = deltaY < 0
+            ? n.scrollTop > 0
+            : n.scrollTop + n.clientHeight < n.scrollHeight - 1;
+          if (deltaY !== 0 && room) return false;
+        }
+      }
+      if (n === overlay) break;
+    }
+    return true;
+  }
+  $('view-approval').addEventListener('wheel', (e) => {
+    if (approvalWheelShouldBeHeld(e.target, e.deltaY, e.currentTarget)) e.preventDefault();
+  }, { passive: false });
   // Tapping the dimmed backdrop (outside the card) rejects, like closing the popup.
   $('view-approval').addEventListener('click', (e) => {
     if (e.target === $('view-approval')) decideApproval('reject');
