@@ -43,6 +43,11 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 >
 > — [Avi Burra](https://jumble.social/users/npub1hqaz3dlyuhfqhktqchawke39l92jj9nt30dsgh2zvd9z7dv3j3gqpkt56s), on Firefox Add-ons
 
+> "It's a browser extension that…kind of makes Nostr cooler."
+>
+> — [Fundamentals](https://github.com/fundamentals21m), creator of [Magic Internet Math](https://magicinternetmath.com)
+<!-- TODO: add this Fundamentals testimonial to sidecar.top (sidecar-site, public/index.php) -->
+
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Generating a new key runs a quick guided setup (name, photo, bio). Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
