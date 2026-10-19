@@ -509,10 +509,28 @@
   // The note being answered, drawn above the tabs. Deliberately NOT the panel's
   // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
   // is a face, a name and the text, all of which this file already knows how to get.
+  // "kind 1" or "kind 1111" in small print beside the label. The dev selector can choose
+  // the kind instead of inheriting it, so it repaints this too: a label that said kind 1
+  // over a kind 1111 reply would be worse than none.
+  function paintReplyKind() {
+    const el = document.querySelector('#compose-reply-target .reply-target-kind');
+    if (!el || !replyTo) return;
+    const kind = devBuild && devOn.kind && devKind ? devKind : SC.replyKind(replyTo);
+    el.textContent = t('kind {{kind}}', { kind });
+  }
+
   function paintReplyTarget() {
     // The dev controls depend on whether this is a reply, and every path that changes
     // that comes through here.
     paintDevControls();
+    // A REPLY SAYS SO IN THREE PLACES, not one: the quote's label below, the editor's
+    // placeholder and the button. The tab used to say "Post" and "What's on your mind?"
+    // over an answered note, which is how a reply got mistaken for a new one. A tab that
+    // lost its target below is still a new note, and says so by keeping all three plain.
+    if (editorApi && editorApi.editor) {
+      editorApi.editor.dataset.placeholder = replyTo ? t('Write your reply…') : t('What’s on your mind?');
+    }
+    paintPostButton();
     const box = document.getElementById('compose-reply-target');
     if (!box) return;
     box.innerHTML = '';
@@ -543,6 +561,11 @@
     box.classList.remove('hidden');
     box.classList.remove('reply-target-lost');
 
+    box.append(h('div', { className: 'reply-target-label' }, [
+      h('span', { textContent: t('Replying to') }),
+      h('span', { className: 'reply-target-kind' }),
+    ]));
+    paintReplyKind();
     const av = h('span', { className: 'avatar reply-target-av' });
     applyAvatar(av, null);
     const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
@@ -638,7 +661,7 @@
         ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
         : t('Dev build only. Automatic preserves the kind of the event you answer.');
     };
-    select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+    select.addEventListener('change', () => { devKind = Number(select.value); paint(); paintReplyKind(); });
     paint();
     return h('div', { className: 'compose-dev-kind' }, [
       h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
@@ -1192,7 +1215,7 @@
       post.disabled = true;
       return;
     }
-    post.textContent = repeatAsked ? t('Post it again?') : t('Post');
+    post.textContent = repeatAsked ? t('Post it again?') : replyTo ? t('Reply') : t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
     if (draft.poll) {

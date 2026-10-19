@@ -1420,6 +1420,13 @@ window.SidecarCore = (function () {
   // is which key to leave OUT of the p tags.
   const WEB_COMMENT_KIND = 1111;
 
+  // The kind a reply to this event goes out as: 1111 under a comment, 1 otherwise. Asked
+  // of replyTags itself rather than restated, so the label that announces it cannot
+  // drift from what is published.
+  function replyKind(target) {
+    return target ? replyTags(target, '').kind : null;
+  }
+
   function replyTags(target, selfPubkey) {
     const tags = [];
     const tgTags = (target && target.tags) || [];
@@ -3346,7 +3353,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,

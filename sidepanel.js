@@ -13872,6 +13872,14 @@
     //
     // The countdown is the LAST thing you see before it publishes, and a reply read
     // without its parent is the one that goes out saying the wrong thing.
+    // "kind 1" or "kind 1111" beside the label. The dev selector can choose the kind
+    // instead of inheriting it, so it repaints this too.
+    let replyKindEl = null;
+    function paintReplyKind() {
+      if (!replyKindEl || !replyTo) return;
+      const kind = isDevBuild() && devKindEnabled && devKind ? devKind : window.SidecarCore.replyKind(replyTo);
+      replyKindEl.textContent = t('kind {{kind}}', { kind });
+    }
     function buildReplyBlock() {
       if (!replyTo) return null;
       const block = h('div', { className: 'reply-target' });
@@ -13903,7 +13911,9 @@
       const full = replyTo.content || '';
       renderNoteText(body, full, 240);
       makeMediaExpandable(block, body);
-      block.append(who, body);
+      replyKindEl = h('span', { className: 'reply-target-kind' });
+      paintReplyKind();
+      block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Replying to') }), replyKindEl]), who, body);
 
       // READING THE REST OF WHAT YOU ARE ANSWERING.
       //
@@ -14163,7 +14173,7 @@
           ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
           : t('Dev build only. Automatic preserves the kind of the event you answer.');
       };
-      select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+      select.addEventListener('change', () => { devKind = Number(select.value); paint(); paintReplyKind(); });
       paint();
       return h('div', { className: 'compose-dev-kind' }, [
         h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
@@ -14190,7 +14200,7 @@
         onChange: (text) => {
           draft.text = text;
           // An edit makes it a different note, so the repeat question no longer applies.
-          if (repeatAsked) { repeatAsked = null; post.textContent = t('Post'); err.textContent = ''; }
+          if (repeatAsked) { repeatAsked = null; post.textContent = replyTo ? t('Reply') : t('Post'); err.textContent = ''; }
           updatePostState();
           scheduleSave();
         },
@@ -14641,7 +14651,7 @@
       const paintEitherOr = pollEditor.paintEitherOr;
 
       const err = h('div', { className: 'error' });
-      const post = h('button', { className: 'primary', textContent: t('Post') });
+      const post = h('button', { className: 'primary', textContent: replyTo ? t('Reply') : t('Post') });
       function updatePostState() {
         // The tab composes a note. A poll is a different kind with its own editor, so
         // once one is open the way out of the panel goes away rather than quietly
