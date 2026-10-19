@@ -469,7 +469,7 @@ test('THE ALT SAVES WITH THE DRAFT, THROUGH THE REAL HANDLERS', async () => {
   vm.createContext(sandbox);
   const handlerSrc = onSaveBody[0].replace(/^onSave: /, '').replace(/,\s*$/, '');
   vm.runInContext(
-    persistFn[0] + '\n' + saveIntoFn[0] +
+    'let receiptShown = false;\n' + persistFn[0] + '\n' + saveIntoFn[0] +
     '\nfunction scheduleSave() { return persistDraft(); }' +
     '\nconst onSaveHandler = ' + handlerSrc + ';' +
     '\nglobalThis.saveTheAlt = (v) => onSaveHandler(v);' +

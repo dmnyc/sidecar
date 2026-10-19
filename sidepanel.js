@@ -13468,13 +13468,26 @@
       // tab focused that tab and showed the wrong draft, silently.
       let replyId = null;
       try { replyId = new URL(found.documentUrl).searchParams.get('reply') || null; } catch (_) {}
-      return { ...found, replyId };
+      // A tab that posted says so in its address (compose.js showPosted): what it holds is
+      // a receipt, not a draft.
+      return { ...found, replyId, done: /#done$/.test(found.documentUrl) };
     } catch (_) {
       // An older Chrome without getContexts, or a call that threw. Falling through to
       // opening the panel composer is the safe direction: the draft store is the same
       // either way, and refusing to open a composer at all would be worse than a race.
       return null;
     }
+  }
+
+  // Whether the open compose tab is editing THIS draft. A tab on its receipt is editing
+  // nothing: treating it as an open composer refused every new note and reply until it
+  // was closed.
+  function composeTabHoldsDraft(open, wantId) {
+    return !!open && !open.done && open.replyId === wantId;
+  }
+  // Whether the open tab has to be pointed at another draft first.
+  function composeTabNeedsSwitch(open, wantId) {
+    return !!open && (open.done || open.replyId !== wantId);
   }
 
   // HANDING A DRAFT TO THE TAB, from Expand and from the always-expanded setting alike.
@@ -13510,7 +13523,7 @@
         // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the "tabs"
         // permission, which this extension does not ask for, and chrome.tabs.update
         // fails silently without it.
-        if (open.replyId !== wantId) {
+        if (composeTabNeedsSwitch(open, wantId)) {
           chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId }).catch(() => {});
         }
         await chrome.tabs.update(open.tabId, { active: true });
@@ -13553,7 +13566,7 @@
     {
       const wantId = (opts && opts.replyTo && opts.replyTo.id) || null;
       const open = await liveComposeTab();
-      if (open && open.replyId === wantId) {
+      if (composeTabHoldsDraft(open, wantId)) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
         try {
