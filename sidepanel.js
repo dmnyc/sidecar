@@ -23376,6 +23376,9 @@
   async function renderSharedNote(data) {
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
+    // A payment's switch button is worded by the capsule ("Pay from a different account"); the
+    // shared-identity wording below is for signing.
+    if (isPaymentApproval(data)) return;
     if (!data.sharedIdentity) {
       $('approval-switch-toggle').textContent = tSec('Sign in with a different account');
       return;
@@ -23473,10 +23476,21 @@
     if (actions) actions.classList.toggle('approval-locked', locked);
   }
 
+  // A payment card offers the other accounts that have a wallet to pay from, in place of the
+  // sign-in switcher, which is for logging in as someone else. The card's own account is first.
+  function approvalPayList(data) {
+    return [
+      { pubkey: data.payerPubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
+      ...(data.payFromOptions || []),
+    ];
+  }
+
   function renderApprovalAccountCapsule(data) {
     const payment = isPaymentApproval(data);
-    const list = approvalAccountList(data);
-    const chosen = list.find((a) => a.pubkey === pendingApproval.chosenPubkey) || list[0];
+    const payOptions = payment ? (data.payFromOptions || []) : [];
+    const list = payment && data.payerPubkey ? approvalPayList(data) : approvalAccountList(data);
+    const chosenKey = payment && data.payerPubkey ? pendingApproval.payFrom : pendingApproval.chosenPubkey;
+    const chosen = list.find((a) => a.pubkey === chosenKey) || list[0];
 
     const acct = $('approval-account');
     acct.innerHTML = '';
@@ -23493,9 +23507,24 @@
 
     const toggle = $('approval-switch-toggle');
     const menu = $('approval-switch-menu');
-    const canSwitch = !payment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    const canSwitch = payment
+      ? payOptions.length > 0 && !!data.payerPubkey
+      : Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
     menu.innerHTML = '';
     hide(menu);
+    // The same button serves both cards, so its words follow the card it is on.
+    toggle.textContent = payment ? t('Pay from a different account') : t('Sign in with a different account');
+    // "Use {name} for all further payments on this site": offered once another account is
+    // picked, unticked every time the pick changes, so keeping a site on an account is
+    // always a deliberate tap and never a leftover from an earlier pick.
+    const bind = $('approval-bind-payer');
+    if (payment && pendingApproval.payFrom) {
+      $('approval-bind-payer-label').textContent = t('Use {{name}} for all further payments on this site', { name: chosen.name || shortNpub(chosen.npub) });
+      show(bind);
+    } else {
+      hide(bind);
+      $('approval-bind-payer-box').checked = false;
+    }
     if (!canSwitch) {
       hide(toggle);
       return;
@@ -23533,7 +23562,13 @@
         row.append(c);
       }
       row.addEventListener('click', () => {
-        pendingApproval.chosenPubkey = a.pubkey;
+        if (isPaymentApproval(data) && data.payerPubkey) {
+          // Paying from this account; the card's own account is "no pick".
+          pendingApproval.payFrom = a.pubkey === data.payerPubkey ? null : a.pubkey;
+          $('approval-bind-payer-box').checked = false;
+        } else {
+          pendingApproval.chosenPubkey = a.pubkey;
+        }
         hide(menu);
         renderApprovalAccountCapsule(data);
       });
@@ -23808,6 +23843,12 @@
     }
   }
 
+  // The flags a payment card adds to its decision when another account was picked to pay from.
+  function payFromExtra(data, pending, action, keepOnIt) {
+    if (!isPaymentApproval(data) || !data.payerPubkey || !pending.payFrom || action === 'reject') return null;
+    return { payFromPubkey: pending.payFrom, bindPayer: !!keepOnIt };
+  }
+
   async function decideApproval(action, opts) {
     if (!pendingApproval) return;
     const { id, data } = pendingApproval;
@@ -23889,6 +23930,10 @@
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
     }
+    // A payment from another account than the site's own. The worker re-checks it against
+    // the accounts the card offered; the box is the separate choice to keep the site on it.
+    const payFromFlags = payFromExtra(data, pendingApproval, action, $('approval-bind-payer-box').checked);
+    if (payFromFlags) extra = Object.assign({}, extra, payFromFlags);
     // Batch: an "Allow all (N)" / "Reject all" on a same-kind burst applies the
     // same decision (and account choice) to every grouped request at once. Trust
     // and budget are never batched (they're single-item / payment concerns).

@@ -2674,6 +2674,16 @@ function flashPaidByHost(host) {
 // card on a site that was never signed into Sidecar (a BTCPay checkout) passes it: binding
 // it there would make that site "connected", so it would list under Connected sites and
 // its next invoice would get the full-screen card by itself.
+// The account the person picked on the payment card to pay from instead, or '' when they
+// did not pick one. Only an account the card OFFERED counts: the decision is a plain object
+// from an extension page, and a value naming any other account (or none) must pay as the
+// site's own, never as something it was not given a chance to approve.
+function payFromChoice(decision, offered) {
+  const want = decision && decision.payFromPubkey;
+  if (typeof want !== 'string' || !/^[0-9a-f]{64}$/.test(want)) return '';
+  return Array.isArray(offered) && offered.some((a) => a && a.pubkey === want) ? want : '';
+}
+
 function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap, opts) {
   return withPayInFlight(() =>
     withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap, opts))
@@ -2712,9 +2722,30 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   }
   const autoOk = budgetOk || zapOk;
 
+  // Set when the person picks another account on the card. `pubkey` is rebound to it below, so
+  // the wallet call, the budget, the activity log and the binding all follow the account that
+  // actually pays. bindPayer is the separate, unticked-by-default choice to keep it.
+  let switchedPayer = false;
+  let bindPayer = false;
   if (!autoOk) {
     const st = await KS.getState();
     const acct = st.accounts.find((a) => a.pubkey === pubkey);
+    // The other accounts that could pay this: only those with a wallet connected, because a
+    // card that offered an account which then failed with "no wallet" would be worse than none.
+    const payFromOptions = [];
+    for (const a of st.accounts) {
+      if (a.pubkey === pubkey) continue;
+      let hasWallet = false;
+      try { hasWallet = await KS.hasNwc(a.pubkey); } catch (_) {}
+      if (hasWallet) {
+        payFromOptions.push({
+          pubkey: a.pubkey,
+          npub: self.NostrTools.nip19.npubEncode(a.pubkey),
+          name: a.name || '',
+          picture: a.picture || '',
+        });
+      }
+    }
     const decision = await openPrompt({
       scope: 'webln',
       host,
@@ -2722,6 +2753,8 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
       npub: self.NostrTools.nip19.npubEncode(pubkey),
       accountName: (acct && acct.name) || '',
       accountPicture: (acct && acct.picture) || '',
+      payerPubkey: pubkey,
+      payFromOptions,
       amountSats: sats, // null for amountless invoices
       memo: memo || '',
       needUnlock: KS.isLocked(),
@@ -2743,6 +2776,24 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     }, originWindowId);
     if (decision.action === 'reject') throw new Error('You rejected this payment');
     if (KS.isLocked()) throw new Error('Keystore is locked');
+    // Paying from another account. Chosen on Sidecar's own card, so a page cannot ask for it,
+    // and only from the accounts the card offered. Every later line, the budget below
+    // included, then belongs to the account that pays.
+    const payFrom = payFromChoice(decision, payFromOptions);
+    if (payFrom) {
+      const prevBound = await getSiteAccount(host);
+      switchedPayer = true;
+      bindPayer = decision.bindPayer === true;
+      pubkey = payFrom;
+      // Ticking "all further payments" is a choice made on the card, so it stands whether or not
+      // this payment then succeeds: an invoice that turns out to be paid already says nothing
+      // about which account the person wants for the site. Signing binds only after success
+      // because that binding is implicit; this one is not.
+      if (bindPayer) {
+        await setSiteAccount(host, pubkey);
+        if (prevBound && prevBound !== pubkey) { await RELAX.revokeForHost(host); syncRelaxBadge(); }
+      }
+    }
     // Approved with the offer still ticked → turn it on, at the documented defaults.
     // Reached only from an approval on an extension page; a rejected or dismissed
     // prompt leaves the setting alone.
@@ -2829,7 +2880,10 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     // can say "Zap to alice" instead of "Sent". Bookkeeping, so it sits here with the
     // rest of it — after the money moved and off the caller's path.
     if (zapRecipient) await savePayMetaEntry(invoice, { zapPubkey: zapRecipient });
-    if (!(opts && opts.bind === false)) await setSiteAccount(host, pubkey);
+    // A pick made on the card was dealt with when it was approved: a one-time pick leaves the
+    // site paired with the account it had, and "all further payments" paired it then. Only a
+    // payment the card did not change binds here, as it always did.
+    if (!switchedPayer && !(opts && opts.bind === false)) await setSiteAccount(host, pubkey);
   });
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
   // Tell an open side panel to refresh its balance/history.
