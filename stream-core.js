@@ -27,7 +27,7 @@
     if (typeof d !== 'string') return null;
     return { key: `30311:${event.pubkey}:${d}`, id: event.id, updated: event.created_at,
       title: String(tag('title') || 'Untitled livestream').slice(0, 240),
-      url: httpsUrl(tag('streaming')), recording: httpsUrl(tag('recording')), status: tag('status'), image: httpsUrl(tag('image')),
+      url: httpsUrl(tag('streaming')), recording: httpsUrl(tag('recording')), status: tag('status'), image: httpsUrl(tag('image')), thumb: httpsUrl(tag('thumb')),
       summary: String(tag('summary') || '').slice(0,12000),
       starts: timestamp('starts'), ends: timestamp('ends') && timestamp('ends') <= now ? timestamp('ends') : null,
       categories: event.tags.filter(t=>Array.isArray(t) && t[0]==='t' && typeof t[1]==='string').slice(0,12).map(t=>t[1].slice(0,80)),

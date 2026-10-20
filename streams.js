@@ -526,7 +526,7 @@
   // history load, and a list that is rebuilt each time loses the reader's place and flashes
   // every thumbnail. A row is built once per stream and reused until something it shows changes.
   const rowCache = new Map();
-  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
+  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.thumb||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
   function syncRows(container, items) {
     const wanted=[];
     for(const item of items) {
@@ -586,7 +586,12 @@
   // after the list had reconnected used to be dropped, and its row kept a blank avatar for good.
   // The avatar is this row's own to set whenever it arrives; only the player's artwork, which is
   // shared, waits on the discovery that asked for it.
-  function rowAvatar(item, avatar) {
+  //
+  // The two artwork layers under the row's thumbnail are passed in. They were once used here without
+  // being given, so as soon as a profile arrived the line that set them threw a ReferenceError inside
+  // the promise, silently, and a stream whose own image did not load never got its host's picture or
+  // banner as a thumbnail.
+  function rowAvatar(item, avatar, profileArtwork, bannerArtwork) {
     const run=discoveryGeneration;
     let answered=false, asking=false;
     return function refresh() {
@@ -622,6 +627,13 @@
       const bannerArtwork=document.createElement('img');bannerArtwork.alt='';bannerArtwork.hidden=true;
       bannerArtwork.referrerPolicy='no-referrer';
       thumb.insertBefore(bannerArtwork,artwork);
+      // The stream's own live frame (the thumb tag) outranks the host's banner but not the announced image.
+      const thumbArtwork=document.createElement('img');thumbArtwork.alt='';thumbArtwork.hidden=true;
+      thumbArtwork.referrerPolicy='no-referrer';
+      thumb.insertBefore(thumbArtwork,artwork);
+      thumbArtwork.addEventListener('load',()=>{thumbArtwork.hidden=false;});
+      thumbArtwork.addEventListener('error',()=>{thumbArtwork.hidden=true;});
+      if(item.thumb)thumbArtwork.src=item.thumb;
       bannerArtwork.addEventListener('load',()=>{bannerArtwork.hidden=false;});
       bannerArtwork.addEventListener('error',()=>{bannerArtwork.hidden=true;});
       profileArtwork.addEventListener('load',()=>{profileArtwork.hidden=false;});
@@ -655,7 +667,7 @@
         if (item.image && avatar.src !== item.image) avatar.src=item.image;
       });
       profile.append(avatar);row.append(button,profile);
-      row.refreshAvatar=rowAvatar(item,avatar);
+      row.refreshAvatar=rowAvatar(item,avatar,profileArtwork,bannerArtwork);
       row.refreshAvatar();
       return row;
   }
