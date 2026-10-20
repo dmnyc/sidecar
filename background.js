@@ -2523,6 +2523,84 @@ const naptime = (ms) => new Promise((r) => setTimeout(r, ms));
 const invSettled = (inv) => !!(inv && (inv.settled_at || inv.preimage || inv.state === 'settled'));
 const invFailed = (inv) => !!(inv && (inv.state === 'failed' || inv.state === 'expired'));
 
+// The unix second a BOLT11 invoice stops being payable: its 35-bit timestamp plus its expiry tag
+// ('x', default one hour), or null when it cannot be read. Local, so an expired invoice can be
+// named as expired without asking the wallet anything.
+function invoiceExpiresAt(invoice) {
+  try {
+    const s = String(invoice).toLowerCase();
+    const sep = s.lastIndexOf('1');
+    if (sep < 1) return null;
+    const words = [];
+    for (const c of s.slice(sep + 1)) {
+      const v = BECH32_CHARS.indexOf(c);
+      if (v < 0) return null;
+      words.push(v);
+    }
+    const body = words.slice(0, words.length - 6); // drop the checksum
+    const end = body.length - 104; // the signature occupies the final 104 words
+    if (end < 7) return null;
+    let timestamp = 0;
+    for (let i = 0; i < 7; i++) timestamp = timestamp * 32 + body[i];
+    let expiry = 3600;
+    let i = 7;
+    while (i + 3 <= end) {
+      const tag = body[i];
+      const len = body[i + 1] * 32 + body[i + 2];
+      const start = i + 3;
+      if (start + len > end) break;
+      if (tag === 6) { // 'x'
+        let n = 0;
+        for (let k = start; k < start + len; k++) n = n * 32 + body[k];
+        expiry = n;
+      }
+      i = start + len;
+    }
+    return timestamp + expiry;
+  } catch (_) {
+    return null;
+  }
+}
+
+// A wallet's "no" is often written for its own logs. For an already-paid invoice one answers
+// "The transaction requested was not found.", which tells the person nothing true about their
+// invoice. When the wallet refused, work out the real reason where that can be done safely:
+// an expired invoice is read off the invoice itself, an already-paid one is confirmed with a
+// read-only lookup, and anything else keeps the wallet's own words. A refusal still means the
+// money stayed put; this only changes what is said about it, and a failed lookup changes nothing.
+const REFUSAL_LOOKUP_MS = 5000;
+async function explainRefusal(err, invoice, client, nowMs) {
+  if (!err || !err.walletDenied) return err;
+  const refusal = (message) => {
+    const e = new Error(message);
+    e.walletDenied = true;
+    e.walletMessage = err.message;
+    return e;
+  };
+  dlog('info', 'pay', 'wallet refused', { code: err.code, message: err.message });
+  const expiresAt = invoiceExpiresAt(invoice);
+  if (expiresAt != null && (nowMs == null ? Date.now() : nowMs) / 1000 >= expiresAt) {
+    return refusal('This invoice has expired.');
+  }
+  const notFound = err.code === 'NOT_FOUND' || /not (be )?found/i.test(err.message || '');
+  if (!notFound) return err;
+  const hash = bolt11PaymentHash(invoice);
+  let timer;
+  try {
+    const inv = await Promise.race([
+      client.lookupInvoice(hash ? { payment_hash: hash } : { invoice }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('lookup timed out')), REFUSAL_LOOKUP_MS); }),
+    ]);
+    if (invSettled(inv)) return refusal('This invoice has already been paid.');
+    if (inv && inv.state === 'expired') return refusal('This invoice has expired.');
+  } catch (_) {
+    // The wallet could not say. Fall through to the cautious wording below.
+  } finally {
+    clearTimeout(timer);
+  }
+  return refusal('The invoice may already be paid or no longer valid.');
+}
+
 // When to stop trusting silence. Most zaps settle in a few seconds; past that the
 // ephemeral response is more likely lost than late, and the wallet's own record is
 // both faster and more truthful than waiting out the 30s NWC timeout.
@@ -2789,10 +2867,15 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // it for the full 180s — issue #138. The wallet is the only authority on what
   // actually happened, so payAndConfirm asks it rather than inferring from silence.
   const hash = bolt11PaymentHash(invoice);
-  const res = await payAndConfirm(c, {
-    send: () => c.payInvoice(invoice),
-    lookupArg: hash ? { payment_hash: hash } : { invoice },
-  });
+  let res;
+  try {
+    res = await payAndConfirm(c, {
+      send: () => c.payInvoice(invoice),
+      lookupArg: hash ? { payment_hash: hash } : { invoice },
+    });
+  } catch (e) {
+    throw await explainRefusal(e, invoice, c);
+  }
   const preimage = res && (res.preimage || res.payment_preimage);
 
   // ---- the money has moved; from here nothing may delay the caller ----

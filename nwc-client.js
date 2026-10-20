@@ -183,6 +183,9 @@
                     // paid"). A bare code is left as it is.
                     const err = new Error(res.error.message ? asSentence(res.error.message) : res.error.code || 'Wallet error');
                     err.walletDenied = true;
+                    // The wallet's own code (NIP-47: NOT_FOUND, INSUFFICIENT_BALANCE ...), so a caller
+                    // can tell what kind of no it was without matching on wording that differs by wallet.
+                    err.code = res.error.code;
                     reject(err);
                   } else resolve(res.result);
                 } catch (e) {
