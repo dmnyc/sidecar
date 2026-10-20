@@ -454,7 +454,7 @@ html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 /* Chat takes over the app below the player, retaining active bottom status bars. */
 #stream-chat-panel { position:fixed; inset-inline:0; z-index:94; box-sizing:border-box; padding:0 0 8px; background:var(--velvet-1); color:var(--text); display:flex; flex-direction:column; min-height:0; }
 #stream-chat-panel[hidden] { display:none; }
-html.stream-chat-active #view-main > :not(#relax-status):not(#mining-status) { display:none; }
+html.stream-chat-active #view-main > :not(#relax-status):not(#payment-status):not(#mining-status) { display:none; }
 html.stream-chat-active #view-main { justify-content:flex-end; }
 #stream-chat-toggle[aria-expanded="true"] { color:var(--gold); }
 .stream-chat-log { padding-inline:10px 4px; overflow:auto; overscroll-behavior:contain; min-height:0; flex:1; }
@@ -550,7 +550,7 @@ html.stream-chat-active #compose-menu { display:none; }
 .stream-chat-hide { flex-shrink:0; border:0; background:none; box-shadow:none; padding:4px 0; color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
 .stream-chat-hide:hover { color:var(--gold); background:none; text-decoration:underline; }
 
-html.stream-directory-active #view-main > :not(#relax-status):not(#mining-status) { display:none; }
+html.stream-directory-active #view-main > :not(#relax-status):not(#payment-status):not(#mining-status) { display:none; }
 html.stream-directory-active #view-main { justify-content:flex-end; }
 html.stream-directory-active :is(#compose-fab,#compose-menu) { display:none; }
 #stream-directory { overflow:hidden; }
@@ -606,7 +606,7 @@ html.reduce-motion .t-text-swap,html.reduce-balance-motion .t-text-swap { transi
 html[dir="rtl"] .stream-about-back svg { transform:rotate(180deg); }
 .stream-about-description { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.5; }
 .stream-about-started,.stream-about-categories { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
-html.stream-about-active #view-main > :not(#relax-status):not(#mining-status),html.stream-about-active #compose-fab { display:none !important; }
+html.stream-about-active #view-main > :not(#relax-status):not(#payment-status):not(#mining-status),html.stream-about-active #compose-fab { display:none !important; }
 html.stream-about-active #view-main { justify-content:flex-end; }
 .stream-top-zappers { display:flex; flex-shrink:0; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; scrollbar-width:none; }
 .stream-top-zappers::-webkit-scrollbar { display:none; }

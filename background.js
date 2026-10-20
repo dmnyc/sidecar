@@ -2984,6 +2984,10 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   bumpAutoLock();
   const c = await getSwNwc(pubkey);
   if (!c) throw new Error('No wallet connected in Sidecar');
+  // The money is authorized and the wallet is real: the flight is genuinely going
+  // out, so the panel's payment bar picks it up here rather than at settle (#495).
+  // `zap` picks the bar's verb the same way the page pill does.
+  tellPanelPayment('paymentStarted', { sats, host, zap: !!zapRecipient });
   // Never report a payment as failed on the strength of not having heard back.
   // Publishing the NIP-47 request is what commits the money; hearing the reply is a
   // separate thing that can fail on its own (a slow route outrunning the 30s timeout,
@@ -2999,7 +3003,10 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
       lookupArg: hash ? { payment_hash: hash } : { invoice },
     });
   } catch (e) {
-    throw await explainRefusal(e, invoice, c);
+    // The bar shows the same explained reason the page gets, not the wallet's bare error.
+    const refusal = await explainRefusal(e, invoice, c);
+    tellPanelPayment('paymentSettled', { ok: false, sats, error: refusal && refusal.message });
+    throw refusal;
   }
   const preimage = res && (res.preimage || res.payment_preimage);
 
@@ -3043,14 +3050,25 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     if (!switchedPayer && !(opts && opts.bind === false)) await setSiteAccount(host, pubkey);
   });
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
-  // Tell an open side panel to refresh its balance/history.
+  // Tell an open side panel to refresh its balance/history, and retire the payment
+  // bar's flight (#495).
   chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
+  tellPanelPayment('paymentSettled', { ok: true, sats });
   // Let the paying page celebrate (the content script's lightning strike). This is the
   // WebLN path — a zap from a client's own UI, where notifyTabPaid isn't otherwise
   // called because there's no "Pay with Sidecar" card involved. Best-effort: the page
   // may have navigated away, and a missing flourish is not an error.
   notifyTabsPaidByHost(host).catch(() => {}); // deliberately not awaited — a flourish must not delay the reply
   return { preimage: preimage || '', sats };
+}
+
+// ---- panel payment bar (#495) ----
+// The panel shows ONE pending-payment bar for every payment path. Panel-side payments
+// (Send form, zaps) feed it directly; these broadcasts are the website paths' feed, so
+// a payment started from a page rides the bar for its whole flight instead of surfacing
+// only at the settled walletChanged refresh. Best-effort: no panel, no problem.
+function tellPanelPayment(event, fields) {
+  try { chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event, ...fields }).catch(() => {}); } catch (_) {}
 }
 
 // ---- keysend spend path ----
@@ -3127,6 +3145,7 @@ async function payKeysendLocked(ks, host, pubkey, originWindowId) {
   bumpAutoLock();
   const c = await getSwNwc(pubkey);
   if (!c) throw new Error('No wallet connected in Sidecar');
+  tellPanelPayment('paymentStarted', { sats: ks.sats, host, zap: false });
 
   // Our own preimage, so there is something to confirm against afterwards — a keysend has
   // no invoice and no recipient-issued hash. See keysendPreimage.
@@ -3147,6 +3166,7 @@ async function payKeysendLocked(ks, host, pubkey, originWindowId) {
     // have settled is how a site spends past its limit. Leaving it debited over-counts,
     // which is the direction that costs nobody anything.
     if (reserved && e && e.walletDenied) await BUDGETS.refund(pubkey, host, ks.sats);
+    tellPanelPayment('paymentSettled', { ok: false, sats: ks.sats, error: e && e.message });
     throw e;
   }
   // The wallet echoes the preimage; ours is the fallback, and they should agree.
@@ -3189,6 +3209,7 @@ async function payKeysendLocked(ks, host, pubkey, originWindowId) {
   });
   logActivity({ ts: Date.now(), host, method: 'webln.keysend', amountSats: ks.sats, pubkey });
   chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'walletChanged' }).catch(() => {});
+  tellPanelPayment('paymentSettled', { ok: true, sats: ks.sats });
   // Debounced: a boost is several of these in a row (see flashPaidByHost).
   flashPaidByHost(host);
   return { preimage, sats: ks.sats };

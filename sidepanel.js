@@ -560,10 +560,9 @@
   // otherwise the outgoing toast's timer would later remove its replacement.
   const _toastTimers = new WeakMap();
   // 'progress' is the third kind and the odd one: it does NOT expire, and the caller is
-  // expected to close it when whatever it describes finishes. It exists because a panel
-  // payment has no other in-flight surface. The page gets a corner indicator from the
-  // content script, and the panel's own bottom-right corner belongs to the compose FAB,
-  // so the toast stack is the one place a "still happening" line can live here.
+  // expected to close it when whatever it describes finishes. It once carried every
+  // panel payment; the payment bar (#495) owns that job now, so no current caller
+  // passes it — the kind stays only as part of the helper's shape.
   //
   // Returns the element either way, with .close() on it, so a caller holding a progress
   // toast can retire it through the same fade the timer would have used.
@@ -611,6 +610,116 @@
       dismiss();
     });
     return t;
+  }
+
+  // ---- one payment status bar (#495) ----
+  // Every payment path in the panel — stream and profile zaps, bell zaps, the Send
+  // form, offer payments, the creator zap — and every website payment the worker
+  // makes lands in ONE minimized bar at the foot of the panel, built like the mining
+  // bar: one lifecycle (Zapping → Zapped / Failed), one place to look, and no sheet
+  // that has to stay open while the money moves. A payment cannot be cancelled once
+  // it is sent, so unlike the mine there is no Stop; tapping the bar dismisses only
+  // a finished result, never a live one.
+  const paymentFlights = new Map(); // seq -> { label, sub } — payments in the air
+  let paymentSeq = 0;
+  let paymentResult = null;         // { ok, line, sub } — lingers after the last flight
+  let paymentResultTimer = null;
+
+  // Start a flight. Returns a handle whose settle(ok, line, sub) ends it: the line
+  // becomes the bar's short result (green check, or the red alert with the failure's
+  // own message beneath it) and lingers a moment, like the mining bar's "Posted.".
+  function beginPaymentFlight(label, sub) {
+    const id = ++paymentSeq;
+    paymentFlights.set(id, { label: label || t('Sending payment'), sub: sub || '' });
+    // A fresh flight replaces a lingering result — the bar is about what is
+    // happening now, and a result still standing when new money moves is stale.
+    if (paymentResultTimer) { clearTimeout(paymentResultTimer); paymentResultTimer = null; }
+    paymentResult = null;
+    renderPaymentStatus();
+    return {
+      settle(ok, line, sub) {
+        if (!paymentFlights.delete(id)) return;
+        showPaymentResult(ok, line, sub);
+      },
+    };
+  }
+
+  function showPaymentResult(ok, line, sub) {
+    paymentResult = {
+      ok: !!ok,
+      line: line || (ok ? t('Payment sent') : t('Payment failed')),
+      sub: sub || '',
+    };
+    if (paymentResultTimer) clearTimeout(paymentResultTimer);
+    // A failure lingers longer than a success: it is the one thing that may need
+    // reading, and unlike a success it does not announce itself a second way.
+    paymentResultTimer = setTimeout(endPaymentResult, paymentResult.ok ? 3500 : 8000);
+    renderPaymentStatus();
+  }
+
+  function endPaymentResult() {
+    paymentResultTimer = null;
+    paymentResult = null;
+    renderPaymentStatus();
+  }
+
+  // The bar lives at the foot of the main view. When another surface owns the panel
+  // (an approval card, the lock screen), a failure would land where nobody is
+  // looking, so it toasts as well; from the main view the bar IS the announcement.
+  function surfacePaymentFailure(message) {
+    if (!message) return;
+    const view = document.getElementById('view-main');
+    if (view && view.classList.contains('hidden')) toast(message, 'error');
+  }
+
+  // Website payments arrive as worker events with no handle, so a settle retires the
+  // oldest flight (a boost is several keysends back to back, started and settled in
+  // order). A settle with no flight at all is still news — the panel may have been
+  // reloaded mid-payment — so it shows as a bare result.
+  function settleWebsitePayment(ok, line, sub) {
+    if (paymentFlights.size) paymentFlights.delete(paymentFlights.keys().next().value);
+    showPaymentResult(ok, line, sub);
+    if (!ok) surfacePaymentFailure(sub || line);
+  }
+
+  function renderPaymentStatus() {
+    const bar = document.getElementById('payment-status');
+    const view = document.getElementById('view-main');
+    if (!bar) return;
+    const flightCount = paymentFlights.size;
+    if (!flightCount && !paymentResult) {
+      bar.classList.add('hidden');
+      if (view) view.classList.remove('payment-active'); // drop the FAB lift
+      return;
+    }
+    bar.classList.remove('hidden');
+    if (view) view.classList.add('payment-active');
+    const glyph = document.getElementById('payment-status-glyph');
+    const line = document.getElementById('payment-status-line');
+    const sub = document.getElementById('payment-status-sub');
+    const count = document.getElementById('payment-status-count');
+    // A failure's message may run to a second line; see .payment-status.is-failed.
+    bar.classList.toggle('is-failed', !flightCount && !!paymentResult && !paymentResult.ok);
+    glyph.className = 'payment-status-glyph';
+    glyph.textContent = '';
+    if (flightCount) {
+      // The newest flight's line; older ones stand behind it as the count chip.
+      const newest = [...paymentFlights.values()][flightCount - 1];
+      glyph.append(h('span', { className: 'toast-spin' })); // the shared spinner idiom
+      line.textContent = newest.label;
+      sub.textContent = newest.sub;
+    } else if (paymentResult) {
+      glyph.append(icon(paymentResult.ok ? 'check' : 'alert'));
+      if (!paymentResult.ok) glyph.classList.add('bad');
+      line.textContent = paymentResult.line;
+      sub.textContent = paymentResult.sub;
+    }
+    if (flightCount > 1) {
+      count.textContent = t('{{count}} in flight', { count: I18N.fmtNum(flightCount) });
+      count.classList.remove('hidden');
+    } else {
+      count.classList.add('hidden');
+    }
   }
 
   // ---- lightning strike (zap sent) ----
@@ -948,6 +1057,27 @@
     if (msg.event === 'notePublished' && msg.pubkey && msg.id) {
       if (msg.kind === WEB_COMMENT_KIND) rememberOwnComment(msg.pubkey, msg.id);
       else rememberOwnNote(msg.pubkey, msg.id);
+      return;
+    }
+    // A WEBSITE PAYMENT IN THE AIR (#495). The worker broadcasts the moment an
+    // authorized website payment starts moving and when it settles, so the payment
+    // bar shows the whole flight — not only the walletChanged refresh after the
+    // money landed. The bar line is generic on purpose: the worker knows the amount
+    // and the host, and says exactly that much.
+    if (msg.event === 'paymentStarted') {
+      const line = msg.sats != null
+        ? (msg.zap ? tSec('Zapping {{amount}} sats', { amount: fmtSats(msg.sats) })
+                   : tSec('Sending {{amount}} sats', { amount: fmtSats(msg.sats) }))
+        : tSec('Sending payment');
+      beginPaymentFlight(line, msg.host || '');
+      return;
+    }
+    if (msg.event === 'paymentSettled') {
+      settleWebsitePayment(
+        msg.ok === true,
+        msg.ok === true && msg.sats != null ? tSec('Sent {{amount}} sats', { amount: fmtSats(msg.sats) }) : undefined,
+        msg.ok === true ? '' : (msg.error || '')
+      );
       return;
     }
     if (msg.event === 'walletChanged' && state && !state.locked) {
@@ -2760,15 +2890,14 @@
           });
           const paying = sats || offerData.price || 0;
           offerPay.textContent = 'Paying…';
-          flight = toast(paying ? 'Paying ' + fmtSats(paying) + ' sats' : 'Paying', 'progress');
+          flight = beginPaymentFlight(paying ? tSec('Paying {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paying'));
           await client.payInvoice(bolt11);
-          if (flight) flight.close();
-          toast(paying ? 'Paid ' + fmtSats(paying) + ' sats' : 'Paid', 'success');
+          if (flight) flight.settle(true, paying ? tSec('Paid {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paid'));
           lightningStrike();
           closeModal();
           return;
         } catch (e) {
-          if (flight) flight.close();
+          if (flight) flight.settle(false, null, e.message || 'Could not pay that offer.');
           offerErr.textContent = e.message || 'Could not pay that offer.';
         }
         offerPay.disabled = false;
@@ -2826,8 +2955,9 @@
         send.textContent = 'Sending…';
         // The panel path people actually reach. This sheet is dismissible mid-zap, so a
         // disabled button inside it was never an in-flight indicator: close the sheet and
-        // there was nothing at all until the toast. Same progress toast the Send modal
-        // uses, started once the invoice exists and the payment is genuinely going out.
+        // there was nothing at all until the toast. Same start point as the Send modal:
+        // the bar takes over once the invoice exists and the payment is genuinely going
+        // out, and it stays up wherever the user goes — sheet closed or not.
         let flight = null;
         try {
           const client = await ensureNwc();
@@ -2840,7 +2970,7 @@
             streamEvent: options?.streamEvent,
             event: options?.chatEvent,
           });
-          flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
+          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           putAwayPaidSheet(zapForm);
           const res = await client.payInvoice(invoice);
           // NWC history keeps the amount and nothing else, so an outgoing zap
@@ -2859,19 +2989,18 @@
             comment: note.value.trim(),
             feeMsat: res && res.fees_paid,
           });
-          flight.close();
+          flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike(); // only once it settles
-          toast(tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }), 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
           note.value = '';
         } catch (e) {
-          // Toasted as well as written inline, for the same reason the Send modal does it:
-          // this sheet is dismissible mid-payment, and zapErr goes with it. Success
-          // already toasted, so without this a zap that worked was announced and a zap
-          // that failed was silent, which is the wrong way round.
-          if (flight) flight.close();
-          toast(e.message, 'error');
+          // The bar is the announcement — this sheet is dismissible mid-payment, and
+          // zapErr goes with it. When another surface owns the panel the bar would
+          // land unseen, so the failure toasts too (see surfacePaymentFailure);
+          // the inline line still serves whoever never left the sheet.
+          if (flight) flight.settle(false, null, e.message);
+          surfacePaymentFailure(e.message);
           zapErr.textContent = e.message;
         } finally {
           send.disabled = false;
@@ -8315,6 +8444,10 @@
         if (!zapGate.pass(sats)) return;
         send.disabled = true;
         send.textContent = t('Sending…');
+        // One payment bar for every path (#495): this sheet used to have only the
+        // disabled button as its pending indicator, and an inline-only failure. The
+        // bar starts once the invoice exists and the payment is genuinely going out.
+        let flight = null;
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
@@ -8328,6 +8461,7 @@
             recipientPubkey: who,
             event: ev,
           });
+          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           const res = await client.payInvoice(invoice);
           await savePayMeta(invoice, {
             zapPubkey: who,
@@ -8335,12 +8469,14 @@
             comment: comment.value.trim(),
             feeMsat: res && res.fees_paid,
           });
+          flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike();
-          toast(tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }), 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
           comment.value = '';
         } catch (e2) {
+          if (flight) flight.settle(false, null, e2.message);
+          surfacePaymentFailure(e2.message);
           err.textContent = e2.message;
         } finally {
           send.disabled = false;
@@ -21418,13 +21554,15 @@
       // a "Keep browsing" button under a block explaining that the payment was still
       // going. Once a payment in flight had an indicator of its own there was nothing left
       // for that sentence to tell anyone, so the modal simply leaves when the payment
-      // does, and the progress toast carries the rest.
+      // does, and the payment bar carries the rest.
       //
       // Unlike the page card, there is no approval prompt behind this: the panel holds its
       // own NWC client and pressing Pay IS the authorization. So the moment it closes is
       // the moment the money is genuinely moving, and nothing here has to hedge.
       function beginFlight(sats) {
-        return toast(sats != null ? tSec('Sending {{amount}} sats', { amount: fmtSats(sats) }) : tSec('Sending payment'), 'progress');
+        return beginPaymentFlight(
+          sats != null ? tSec('Sending {{amount}} sats', { amount: fmtSats(sats) }) : tSec('Sending payment')
+        );
       }
 
       // The recipient card: who the address resolved to, and on what terms.
@@ -21621,7 +21759,7 @@
         err.textContent = '';
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
-        let flight = null; // the progress toast, once the payment is past the point of return
+        let flight = null; // the payment bar's flight handle, once past the point of return
         try {
           let invoice = val;
           let paySats = null;     // what is being sent, for the toasts
@@ -21668,8 +21806,8 @@
           }
           // Everything that could still fail back INTO this form has happened: a bad
           // address, an out-of-range amount, a server that would not issue an invoice.
-          // Past here the payment is going out, so the form stops being the right place to
-          // stand and the toast takes over.
+          // Past here the payment is going out, so the form stops being the right place
+          // to stand and the payment bar takes over.
           flight = beginFlight(paySats);
           closeModal();
           const res = await client.payInvoice(invoice, amountMsat);
@@ -21679,26 +21817,27 @@
           // Always, not only when there is a note or a fee to keep: the record is also
           // how the card knows this invoice was paid if it is pasted again.
           await savePayMeta(invoice, { address, comment: note, feeMsat, paid: true });
-          flight.close();
-          lightningStrike(); // only after the payment actually settles
-          // Lead with the amount — "Payment sent" alone doesn't tell you what left.
-          // A pasted BOLT11 carries its own amount; a lightning address took one from
-          // the field above. An amountless invoice leaves us nothing honest to state,
-          // so it falls back to the bare confirmation rather than guessing.
-          toast(
+          // The bar's result line is the confirmation — amount when there is one to
+          // state honestly, the fee with it. A pasted BOLT11 carries its own amount;
+          // an amountless invoice leaves nothing to state, so it falls back to the
+          // bare "Payment sent" rather than guessing.
+          flight.settle(
+            true,
             (paySats != null ? tSec('Sent {{amount}} sats', { amount: fmtSats(paySats) }) : tSec('Payment sent')) +
-              (feeMsat != null ? ' · ' + tSec('fee {{fee}}', { fee: fmtFeeMsat(feeMsat) }) : ''),
-            'success'
+              (feeMsat != null ? ' · ' + tSec('fee {{fee}}', { fee: fmtFeeMsat(feeMsat) }) : '')
           );
+          lightningStrike(); // only after the payment actually settles
           renderWallet();
           renderPinnedBalanceBar();
         } catch (e) {
-          // The toast is the only way a failure reaches anyone once the modal has gone,
-          // which it has for everything after beginFlight. The inline line still serves
-          // whoever is looking at a form that never got that far, and writing it costs
-          // nothing when they are not: err is detached by then, so it is a no-op.
-          if (flight) flight.close();
-          toast(e.message, 'error');
+          // The bar is the only way a failure reaches anyone once the modal has gone,
+          // which it has for everything after beginFlight — unless another surface
+          // (an approval card, the lock screen) owns the panel, in which case the
+          // failure toasts too. The inline line still serves whoever is looking at a
+          // form that never got that far: err is detached by then for the rest, so
+          // writing it is a no-op.
+          if (flight) flight.settle(false, null, e.message);
+          surfacePaymentFailure(e.message);
           err.textContent = e.message;
           pay.disabled = false;
           payGate.paint();
@@ -22285,15 +22424,21 @@
         if (!creatorGate.pass(sats)) return;
         send.disabled = true;
         send.textContent = 'Sending…';
+        // One payment bar for every path (#495): the flight starts once the invoice
+        // exists and the payment is genuinely going out, so a failure before that
+        // still fails back into this form.
+        let flight = null;
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
           const invoice = await lnAddressToInvoice(CREATOR_LN, sats * 1000, message.value.trim() || 'Sidecar zap');
+          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           await client.payInvoice(invoice);
+          flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           closeModal();
           lightningStrike(); // only after the payment actually settles
-          toast('Thank you! Zapped ' + fmtSats(sats) + ' sats', 'success');
         } catch (e) {
+          if (flight) flight.settle(false, null, e.message);
           err.textContent = e.message;
           send.disabled = false;
           creatorGate.paint();

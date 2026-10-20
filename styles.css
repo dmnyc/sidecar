@@ -5114,6 +5114,57 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 #view-main.mining-active .fab { bottom: 64px; }
 #view-main.mining-active.relax-active .fab { bottom: 118px; }
 
+/* ONE PAYMENT BAR FOR EVERY PAYMENT PATH (#495) — the mining bar's sibling, in the
+   same slot and the same clothes so the two read as one system: gold top edge, one
+   line of what is happening, and nothing pressable. Told apart by the glyph, which
+   spins (a payment is indeterminate work with a finish, unlike a mine) and by the
+   absence of a Stop, which a sent payment has no use for. */
+.payment-status {
+  flex-shrink: 0; display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px 9px; border-top: 1px solid var(--gold-soft);
+  background:
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.07), rgba(var(--accent-rgb), 0.02)),
+    linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  color: var(--text);
+  cursor: default;
+}
+.payment-status.hidden { display: none; }
+.payment-status-glyph { flex: 0 0 auto; display: flex; color: var(--gold); }
+.payment-status-glyph svg { width: 15px; height: 15px; }
+/* In flight: the shared spinner idiom. A payment has no measurable progress to
+   show, so nothing fills — the spinner says working, the line says what. */
+.payment-status-glyph .toast-spin { width: 14px; height: 14px; opacity: 1; }
+/* Settled: the check keeps the gold; the failure reads as one. */
+.payment-status-glyph.bad { color: var(--red); }
+.payment-status-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.payment-status-line { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The failure's own message, or the host a website payment is moving money for.
+   Page-controlled text of any length: truncates like the mining bar's who-line. */
+.payment-status-sub {
+  font-size: 11px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* A failure's message is the one place the sub line needs room: a wallet's own words, or ours,
+   can run past one line, and cutting them to "The invoice may alrea..." tells the person nothing.
+   Two lines, then the ellipsis. The host line of a payment still in flight stays on one. */
+.payment-status.is-failed .payment-status-sub {
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+/* More than one payment in the air at once (a boost is several keysends back to
+   back): the line shows the newest, this chip counts the rest. */
+.payment-status-count {
+  flex: 0 0 auto; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--border-strong); font-size: 11px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Lift the compose FAB clear of the bar, matching the mining and relax lifts above.
+   Same combinatorics: bars stack, and each combined rule out-specifies the ones it
+   supersedes by carrying more classes. */
+#view-main.payment-active .fab { bottom: 64px; }
+#view-main.mining-active.payment-active .fab { bottom: 114px; }
+#view-main.relax-active.payment-active .fab { bottom: 128px; }
+#view-main.mining-active.relax-active.payment-active .fab { bottom: 178px; }
+
 .relax-status {
   flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;
   padding: 8px 12px 9px; border-top: 1px solid var(--border-strong);
