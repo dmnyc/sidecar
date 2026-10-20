@@ -44,6 +44,9 @@
     autozapOfferLabel: $('autozap-offer-label'),
     payAnywhereOffer: $('payanywhere-offer'),
     payAnywhereOfferBox: $('payanywhere-offer-box'),
+    alwaysKindOffer: $('always-kind-offer'),
+    alwaysKindBox: $('always-kind-box'),
+    alwaysKindNote: $('always-kind-note'),
   };
 
   // Same transport, same reason as sidepanel.js — see the long note on bg() there (#224).
@@ -691,6 +694,24 @@
       });
     }
 
+    // "Always allow this event type" (#482): on a card whose kind a standing
+    // grant may cover, offer the checkbox and say exactly what ticking it
+    // signs from now on — the site, the account, the kind, and the record's
+    // `d` tag when the event carries one. textContent only: host and `d` are
+    // page-controlled. Unticked on every fresh card, and never on a pure
+    // unlock (nothing is being approved there to make standing).
+    if (data.canKindGrant && data.needApproval) {
+      const ev = data.params && (data.params.event || data.params);
+      const kind = ev ? ev.kind : null;
+      const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      const who = data.accountName || shortNpub(data.npub);
+      els.alwaysKindNote.textContent = data.kindDTag != null
+        ? tSec('Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
+        : tSec('Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
+      els.alwaysKindBox.checked = false;
+      els.alwaysKindOffer.classList.remove('hidden');
+    }
+
     // Point at Trust once someone has approved this site several times over. Built with
     // textContent, not innerHTML — `host` is attacker-controlled, and this string is
     // assembled from it.
@@ -1072,6 +1093,12 @@
     }
     if (data.offerPayAnywhere === true && els.payAnywhereOfferBox.checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
+    }
+    // #482: carry the standing per-kind grant with the approval. Only 'once'
+    // — picking Trust chooses the broader tier instead, and the background
+    // re-validates eligibility before writing anything.
+    if (data.canKindGrant && action === 'once' && els.alwaysKindBox.checked) {
+      extra = Object.assign({}, extra, { alwaysKind: true });
     }
     // "Wrong account" escape: carry the account to make active. The background detaches
     // and then throws, so this never signs.

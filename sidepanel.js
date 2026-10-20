@@ -11411,7 +11411,7 @@
   };
 
 
-  function siteRow(host, level, boundPk, authorizedPks, onForget) {
+  function siteRow(host, level, boundPk, authorizedPks, onForget, grants) {
     const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
     const isActiveBound = boundPk && boundPk === state.activePubkey;
     // 2+ accounts have signed in here — a multi-login client (Jumble, YakiHonne,
@@ -11438,6 +11438,26 @@
       manage.addEventListener('click', () => sharedSiteModal(host, authorizedPks));
       shared.append(manage);
       main.append(shared);
+    }
+    // Standing per-kind grants (#482): what this site signs without asking.
+    // The account axis is the row's own "Signs in as" line above — the list
+    // shows the active account's grants, the identity this pane manages. One
+    // tap on ✕ revokes; the worst case is the site asking again.
+    if (grants && grants.length) {
+      const wrap = h('div', { className: 'kind-grants' });
+      wrap.append(h('div', { className: 'kind-grants-title', textContent: t('Signs without asking:') }));
+      for (const g of grants) {
+        const line = h('div', { className: 'kind-grant' });
+        const label = (KIND_NAMES[g.kind] || 'kind ' + g.kind) + (g.d ? ' · “' + g.d + '”' : '');
+        line.append(h('span', { className: 'kind-grant-label', textContent: label }));
+        line.append(iconButton(t('Stop always signing this'), 'x', async () => {
+          await call({ type: 'SIDECAR_REMOVE_KIND_GRANT', host, kind: g.kind, d: g.d });
+          line.remove();
+          if (!wrap.querySelector('.kind-grant')) wrap.remove();
+        }));
+        wrap.append(line);
+      }
+      main.append(wrap);
     }
     row.append(main);
 
@@ -11668,23 +11688,33 @@
   let sitesShownN = 0;
   let logShownN = 0;
   async function renderActivity() {
-    const [perms, bindings, authorized, log] = await Promise.all([
+    const [perms, bindings, authorized, log, kindGrants] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
       call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
       call({ type: 'SIDECAR_GET_SITE_AUTHORIZED' }),
       call({ type: 'SIDECAR_GET_ACTIVITY' }),
+      call({ type: 'SIDECAR_GET_KIND_GRANTS' }),
     ]);
+    // Standing per-kind grants (#482) grouped by host, so each site row can
+    // show — and revoke — what that site always signs without asking.
+    const grantsByHost = {};
+    for (const g of kindGrants || []) {
+      (grantsByHost[g.host] || (grantsByHost[g.host] = [])).push(g);
+    }
     const sites = $('sites-list');
     const sitesFilter = $('sites-filter');
     const sitesMore = $('sites-more');
     // Union of the active account's permissioned hosts and every bound host, so
     // a site pinned to a different account still shows up (and can be switched).
-    // Ordered by most-recently-used first (per the activity log, which is already
-    // newest-first) so an active site isn't buried pages deep behind stale ones;
-    // sites with no logged activity yet sort after, alphabetically among themselves.
+    // Hosts whose only record is a standing per-kind grant (#482) join too —
+    // otherwise a grant on an otherwise-unrecorded site would be invisible and
+    // irrevocable. Ordered by most-recently-used first (per the activity log,
+    // which is already newest-first) so an active site isn't buried pages deep
+    // behind stale ones; sites with no logged activity yet sort after,
+    // alphabetically among themselves.
     const lastUsed = new Map();
     for (const e of log) if (e.host && !lastUsed.has(e.host)) lastUsed.set(e.host, e.ts);
-    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort((a, b) => {
+    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings), ...Object.keys(grantsByHost)])].sort((a, b) => {
       const ta = lastUsed.get(a), tb = lastUsed.get(b);
       if (ta != null && tb != null) return tb - ta;
       if (ta != null) return -1;
@@ -11728,7 +11758,7 @@
         const renderSitesPage = () => {
           const target = Math.min(Math.max(SITES_PAGE, sitesShownN), filtered.length);
           filtered.slice(shownSites, target).forEach((host) =>
-            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null, onSiteForgotten))
+            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null, onSiteForgotten, grantsByHost[host] || null))
           );
           shownSites = target;
           sitesShownN = target;
@@ -23825,6 +23855,30 @@
       hide(relaxRow);
     }
 
+    // "Always allow this event type" (#482): on a single card whose kind a
+    // standing grant may cover, offer the checkbox and say exactly what
+    // ticking it signs from now on — site, account, kind, and the record's
+    // `d` tag when the event carries one. textContent only: host and `d` are
+    // page-controlled. Single cards only — a batch shares its kind but not
+    // necessarily its `d` record, so one checkbox cannot describe what it
+    // would save. Toggled on every render (this card is reused) and unticked
+    // on every fresh card, like the payment offers above.
+    const alwaysKindOffer = $('approval-always-kind-offer');
+    const offerAlwaysKind = !payment && groupN === 1 && data.needApproval && data.canKindGrant;
+    if (offerAlwaysKind) {
+      const kindEv = data.params && (data.params.event || data.params);
+      const kind = kindEv ? kindEv.kind : null;
+      const kindName = approvalKindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      const who = data.accountName || shortNpub(data.npub);
+      $('approval-always-kind-note').textContent = data.kindDTag != null
+        ? tSec('Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
+        : tSec('Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
+      $('approval-always-kind-box').checked = false;
+      show(alwaysKindOffer);
+    } else {
+      hide(alwaysKindOffer);
+    }
+
     // Point at Trust once this site has been approved one-time several times over.
     // textContent, never innerHTML — `host` is attacker-controlled.
     const nudge = $('approval-trust-nudge');
@@ -23925,6 +23979,14 @@
     if (pendingApproval && pendingApproval.data && pendingApproval.data.offerPayAnywhere === true &&
         $('approval-payanywhere-offer-box').checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
+    }
+    // #482: carry the standing per-kind grant with the approval. Only 'once' —
+    // picking Trust chooses the broader tier instead, and the background
+    // re-validates eligibility before writing anything. The box is hidden on
+    // batch cards, so an "Allow all" can never attach a grant.
+    if (pendingApproval && pendingApproval.data && pendingApproval.data.canKindGrant &&
+        action === 'once' && $('approval-always-kind-box').checked) {
+      extra = Object.assign({}, extra, { alwaysKind: true });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
