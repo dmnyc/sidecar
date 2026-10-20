@@ -698,6 +698,8 @@
     const line = document.getElementById('payment-status-line');
     const sub = document.getElementById('payment-status-sub');
     const count = document.getElementById('payment-status-count');
+    // A failure's message may run to a second line; see .payment-status.is-failed.
+    bar.classList.toggle('is-failed', !flightCount && !!paymentResult && !paymentResult.ok);
     glyph.className = 'payment-status-glyph';
     glyph.textContent = '';
     if (flightCount) {

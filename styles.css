@@ -5086,6 +5086,12 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   font-size: 11px; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* A failure's message is the one place the sub line needs room: a wallet's own words, or ours,
+   can run past one line, and cutting them to "The invoice may alrea..." tells the person nothing.
+   Two lines, then the ellipsis. The host line of a payment still in flight stays on one. */
+.payment-status.is-failed .payment-status-sub {
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
 /* More than one payment in the air at once (a boost is several keysends back to
    back): the line shows the newest, this chip counts the rest. */
 .payment-status-count {
