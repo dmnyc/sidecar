@@ -76,6 +76,10 @@
       <p data-i18n="Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.">Sign in to any of these apps — no password, just your key. Click the Sidecar icon in your toolbar whenever a site asks.</p>
     </header>
 
+    <div class="search">
+      <input id="search" type="search" placeholder="Search apps" data-i18n-placeholder="Search apps" aria-label="Search apps" data-i18n-aria-label="Search apps" autocomplete="off" spellcheck="false">
+    </div>
+
     <div class="filters" id="filters">
       <button class="filter-btn active" data-cat="all" data-i18n="All">All</button>
       <button class="filter-btn" data-cat="social" data-i18n="Social">Social</button>
@@ -85,6 +89,8 @@
       <button class="filter-btn" data-cat="tools" data-i18n="Tools">Tools</button>
       <button class="filter-btn" data-cat="other" data-i18n="Other Stuff">Other Stuff</button>
     </div>
+
+    <p class="no-match" id="no-match" role="status" hidden></p>
 
     <div class="grid" id="grid"></div>
 

@@ -194,16 +194,17 @@ test('AN OPEN TAB IS TOLD TO SWITCH, BECAUSE IT CANNOT BE NAVIGATED', () => {
   assert.match(panel, /SIDECAR_COMPOSE_OPEN/);
   assert.match(page, /msg\.type === 'SIDECAR_COMPOSE_OPEN'/);
   // Validated on arrival as well as in the URL: a message is another way in.
-  const handler = page.slice(page.indexOf("msg.type === 'SIDECAR_COMPOSE_OPEN'"));
-  assert.match(handler.slice(0, 700), /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(msg\.replyId\)/);
+  assert.match(page, /msg\.type === 'SIDECAR_COMPOSE_OPEN'\) \{\s*handleComposeOpen\(msg\);/);
+  const handler = page.slice(page.indexOf('function handleComposeOpen('));
+  assert.match(handler.slice(0, 900), /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(msg\.replyId\)/);
   // The open draft is written back before the key moves, or the text on screen lands in
   // the slot it was not typed in.
   // Through switchToDraft, the one path a draft chip takes too.
-  assert.match(handler.slice(0, 700), /switchToDraft\(want\)/);
+  assert.match(handler.slice(0, 900), /switchToDraft\(want\)/);
   const sw = page.slice(page.indexOf('async function switchToDraft'));
   assert.match(sw.slice(0, 900), /await flushDraft\(\);\s*replyId = want;[\s\S]*await reopenDraft\(\);/);
   // And a message naming the draft already open does nothing.
-  assert.match(handler.slice(0, 700), /if \(want === replyId\) return;/);
+  assert.match(handler.slice(0, 900), /if \(want === replyId\) return;/);
 
   // replyId has to be reassignable for any of that to work.
   assert.match(page, /let replyId = \(\(\) => \{/);
@@ -312,7 +313,7 @@ test('the quote is shown whole in the tab, which is the room the panel lacks', (
   // The panel caps at 240 because it has 360px. The tab is the space the panel does not
   // have, so capping there would reproduce the problem the tab exists to solve.
   const fn = page.slice(page.indexOf('function paintReplyTarget()'));
-  assert.match(fn.slice(0, 2600), /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
+  assert.match(fn.slice(0, 3600), /composer\.renderNoteText\(body, replyTo\.content \|\| '', Infinity\)/);
   // Above the tabs, not inside a pane, or switching to Preview would hide the subject.
   const html = fs.readFileSync(path.join(ROOT, 'compose.html'), 'utf8');
   const target = html.indexOf('id="compose-reply-target"');

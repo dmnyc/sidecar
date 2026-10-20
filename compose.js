@@ -78,6 +78,8 @@
   let dkey = null;
   let saveTimer = null;
   let posting = false;
+  // The receipt is on screen: the editor is gone and nothing here is a draft any more.
+  let receiptShown = false;
   // The fingerprint Post last asked "again?" about, or null: see reviewThenPost.
   let repeatAsked = null;
   // Until when "Post it again?" stays inert: a beat, so a double-tap or an impatient
@@ -419,6 +421,10 @@
       .catch(() => null);
   }
   async function persistDraft() {
+    // A TAB ON ITS RECEIPT HAS NO DRAFT TO KEEP. Its draft is empty, and an empty one
+    // deletes the slot below, which is the slot the panel may just have written for the
+    // next reply to the same note. visibilitychange and beforeunload both land here.
+    if (receiptShown) return;
     const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
     // Media counts as content on its own: an upload with no words yet is still work, and
     // dropping it because the caption had not been written is the kind of thing that makes
@@ -503,10 +509,28 @@
   // The note being answered, drawn above the tabs. Deliberately NOT the panel's
   // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
   // is a face, a name and the text, all of which this file already knows how to get.
+  // "kind 1" or "kind 1111" in small print beside the label. The dev selector can choose
+  // the kind instead of inheriting it, so it repaints this too: a label that said kind 1
+  // over a kind 1111 reply would be worse than none.
+  function paintReplyKind() {
+    const el = document.querySelector('#compose-reply-target .reply-target-kind');
+    if (!el || !replyTo) return;
+    const kind = devBuild && devOn.kind && devKind ? devKind : SC.replyKind(replyTo);
+    el.textContent = t('kind {{kind}}', { kind });
+  }
+
   function paintReplyTarget() {
     // The dev controls depend on whether this is a reply, and every path that changes
     // that comes through here.
     paintDevControls();
+    // A REPLY SAYS SO IN THREE PLACES, not one: the quote's label below, the editor's
+    // placeholder and the button. The tab used to say "Post" and "What's on your mind?"
+    // over an answered note, which is how a reply got mistaken for a new one. A tab that
+    // lost its target below is still a new note, and says so by keeping all three plain.
+    if (editorApi && editorApi.editor) {
+      editorApi.editor.dataset.placeholder = replyTo ? t('Write your reply…') : t('What’s on your mind?');
+    }
+    paintPostButton();
     const box = document.getElementById('compose-reply-target');
     if (!box) return;
     box.innerHTML = '';
@@ -537,6 +561,11 @@
     box.classList.remove('hidden');
     box.classList.remove('reply-target-lost');
 
+    box.append(h('div', { className: 'reply-target-label' }, [
+      h('span', { textContent: t('Replying to') }),
+      h('span', { className: 'reply-target-kind' }),
+    ]));
+    paintReplyKind();
     const av = h('span', { className: 'avatar reply-target-av' });
     applyAvatar(av, null);
     const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
@@ -632,7 +661,7 @@
         ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
         : t('Dev build only. Automatic preserves the kind of the event you answer.');
     };
-    select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+    select.addEventListener('change', () => { devKind = Number(select.value); paint(); paintReplyKind(); });
     paint();
     return h('div', { className: 'compose-dev-kind' }, [
       h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
@@ -797,6 +826,22 @@
       },
     }));
     pane.append(back);
+  }
+
+  // The panel pointing this tab at a draft. A tab showing its receipt has no editor to
+  // switch, so it starts over on the requested draft, the same way "Write another" does;
+  // switching would repaint an editor that is gone and fail without a word.
+  function handleComposeOpen(msg) {
+    const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
+      ? msg.replyId.toLowerCase() : null;
+    if (receiptShown) {
+      location.replace(location.pathname + (want ? '?reply=' + want : ''));
+      return;
+    }
+    if (want === replyId) return;   // already here
+    // Whatever is on screen belongs to the slot it was typed in, so it goes back
+    // there before the key moves. Same rule as the account switch.
+    switchToDraft(want).catch(() => {});
   }
 
   // The one way this tab moves between drafts, for a chip and for the panel's message
@@ -1170,7 +1215,7 @@
       post.disabled = true;
       return;
     }
-    post.textContent = repeatAsked ? t('Post it again?') : t('Post');
+    post.textContent = repeatAsked ? t('Post it again?') : replyTo ? t('Reply') : t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
     if (draft.poll) {
@@ -1313,6 +1358,13 @@
 
   async function showPosted(signed, relayCount, what) {
     const sheet = document.querySelector('.compose-sheet');
+    // THE ADDRESS SAYS SO. The panel cannot ask a tab anything without the "tabs"
+    // permission, but getContexts reports each document's URL, fragment and all, so a
+    // marker there is how it learns this tab holds a receipt and not a draft. Without it
+    // the panel treated the receipt as an open composer and sent every new note and reply
+    // to a page that could only show "Your note is live".
+    receiptShown = true;
+    try { history.replaceState(null, '', location.pathname + location.search + '#done'); } catch (_) {}
     let href = null;
     let label = null;
     try {
@@ -1833,12 +1885,7 @@
       // is already open on something else. Focusing it without this showed whatever was
       // already here, which is how a reply arrived looking like a blank new note.
       if (msg && msg.type === 'SIDECAR_COMPOSE_OPEN') {
-        const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
-          ? msg.replyId.toLowerCase() : null;
-        if (want === replyId) return;   // already here
-        // Whatever is on screen belongs to the slot it was typed in, so it goes back
-        // there before the key moves. Same rule as the account switch.
-        switchToDraft(want).catch(() => {});
+        handleComposeOpen(msg);
         return;
       }
       if (!msg || msg.type !== 'SIDECAR_EVENT') return;

@@ -442,6 +442,10 @@ html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 .stream-row .stream-result { padding-right:38px; }
 .stream-bookmark { position:absolute; right:4px; top:2px; width:32px; height:32px; padding:7px; z-index:1; }
 .stream-bookmark svg { width:18px; height:18px; }
+/* The copy button sits directly under the bookmark in a row, and beside it in a stream's details. */
+.stream-copy { padding:7px; }
+.stream-copy svg { width:18px; height:18px; }
+.stream-row .stream-copy { position:absolute; right:4px; top:36px; width:32px; height:32px; z-index:1; }
 .stream-bookmark[aria-pressed="true"], #stream-saved-toggle[aria-pressed="true"] { color:var(--gold); }
 
 .stream-directory-actions #stream-saved-toggle { width:36px; flex:0 0 36px; padding:9px; }

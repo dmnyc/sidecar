@@ -470,6 +470,7 @@
     const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('fill',isSaved?'currentColor':'none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','2');icon.setAttribute('aria-hidden','true');
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M6 3h12v18l-6-4-6 4V3z');icon.append(path);save.append(icon);
     save.onclick=async()=>{const entry=SidecarStreams.bookmark(item);if(entry && await saveBookmarks(isSaved?savedStreams.filter(row=>row.key!==item.key):[...savedStreams,entry]))list.querySelector('.stream-directory-detail-header .stream-bookmark')?.focus({preventScroll:true});};
+    const copyAddress=copyAddressButton(item);if(copyAddress)header.append(copyAddress);
     header.append(save);list.append(content);
   }
   async function loadHistory(reset=false) {
@@ -526,7 +527,7 @@
   // history load, and a list that is rebuilt each time loses the reader's place and flashes
   // every thumbnail. A row is built once per stream and reused until something it shows changes.
   const rowCache = new Map();
-  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
+  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.thumb||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
   function syncRows(container, items) {
     const wanted=[];
     for(const item of items) {
@@ -586,7 +587,12 @@
   // after the list had reconnected used to be dropped, and its row kept a blank avatar for good.
   // The avatar is this row's own to set whenever it arrives; only the player's artwork, which is
   // shared, waits on the discovery that asked for it.
-  function rowAvatar(item, avatar) {
+  //
+  // The two artwork layers under the row's thumbnail are passed in. They were once used here without
+  // being given, so as soon as a profile arrived the line that set them threw a ReferenceError inside
+  // the promise, silently, and a stream whose own image did not load never got its host's picture or
+  // banner as a thumbnail.
+  function rowAvatar(item, avatar, profileArtwork, bannerArtwork) {
     const run=discoveryGeneration;
     let answered=false, asking=false;
     return function refresh() {
@@ -603,6 +609,44 @@
         if(banner)bannerArtwork.src=banner;
       });
     };
+  }
+  // A stream's address, copied to the clipboard as an naddr: the same thing the stream box takes, so a
+  // stream can be sent to someone and opened from it. Not offered for a saved video link, which has no
+  // announcement behind it. The icon turns into a tick for a moment so the copy is seen to have happened.
+  function copyAddressButton(item) {
+    const address = SidecarStreams.streamAddress(item);
+    if (!address) return null;
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'stream-copy icon-btn';
+    const label = t('Copy stream address');
+    button.title = label; button.setAttribute('aria-label', label);
+    const drawIcon = done => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round'); svg.setAttribute('aria-hidden', 'true');
+      if (done) {
+        const tick = document.createElementNS('http://www.w3.org/2000/svg', 'path'); tick.setAttribute('d', 'M5 13l4 4L19 7'); svg.append(tick);
+      } else {
+        const back = document.createElementNS('http://www.w3.org/2000/svg', 'rect'); back.setAttribute('x', '9'); back.setAttribute('y', '9'); back.setAttribute('width', '11'); back.setAttribute('height', '11'); back.setAttribute('rx', '2');
+        const front = document.createElementNS('http://www.w3.org/2000/svg', 'path'); front.setAttribute('d', 'M5 15V6a2 2 0 0 1 2-2h9');
+        svg.append(back, front);
+      }
+      button.replaceChildren(svg);
+    };
+    drawIcon(false);
+    let timer = null;
+    button.addEventListener('click', async event => {
+      event.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(NostrTools.nip19.naddrEncode(address));
+      } catch (_) { return; }
+      const copied = t('Copied');
+      button.title = copied; button.setAttribute('aria-label', copied);
+      drawIcon(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => { button.title = label; button.setAttribute('aria-label', label); drawIcon(false); }, 1500);
+    });
+    return button;
   }
   function buildRow(item) {
       const row=document.createElement('div');row.className='stream-row';
@@ -622,6 +666,13 @@
       const bannerArtwork=document.createElement('img');bannerArtwork.alt='';bannerArtwork.hidden=true;
       bannerArtwork.referrerPolicy='no-referrer';
       thumb.insertBefore(bannerArtwork,artwork);
+      // The stream's own live frame (the thumb tag) outranks the host's banner but not the announced image.
+      const thumbArtwork=document.createElement('img');thumbArtwork.alt='';thumbArtwork.hidden=true;
+      thumbArtwork.referrerPolicy='no-referrer';
+      thumb.insertBefore(thumbArtwork,artwork);
+      thumbArtwork.addEventListener('load',()=>{thumbArtwork.hidden=false;});
+      thumbArtwork.addEventListener('error',()=>{thumbArtwork.hidden=true;});
+      if(item.thumb)thumbArtwork.src=item.thumb;
       bannerArtwork.addEventListener('load',()=>{bannerArtwork.hidden=false;});
       bannerArtwork.addEventListener('error',()=>{bannerArtwork.hidden=true;});
       profileArtwork.addEventListener('load',()=>{profileArtwork.hidden=false;});
@@ -644,6 +695,7 @@
       const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 24 24');icon.setAttribute('fill',isSaved?'currentColor':'none');icon.setAttribute('stroke','currentColor');icon.setAttribute('stroke-width','2');icon.setAttribute('aria-hidden','true');
       const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M6 3h12v18l-6-4-6 4V3z');icon.append(path);save.append(icon);
       save.addEventListener('click',event=>{event.stopPropagation();const entry=SidecarStreams.bookmark(item);if(entry)saveBookmarks(isSaved?savedStreams.filter(e=>e.key!==item.key):[...savedStreams,entry]);});row.append(save);
+      const copyAddress=copyAddressButton(item);if(copyAddress)row.append(copyAddress);
       const profile=document.createElement('a');profile.className='stream-avatar';
       profile.hidden=!item.host;
       if(item.host)profile.href='https://primal.net/p/'+NostrTools.nip19.npubEncode(item.host);
@@ -655,7 +707,7 @@
         if (item.image && avatar.src !== item.image) avatar.src=item.image;
       });
       profile.append(avatar);row.append(button,profile);
-      row.refreshAvatar=rowAvatar(item,avatar);
+      row.refreshAvatar=rowAvatar(item,avatar,profileArtwork,bannerArtwork);
       row.refreshAvatar();
       return row;
   }
@@ -880,7 +932,62 @@
   });
   document.getElementById('stream-stop').addEventListener('click',()=>{stop();disconnect();directory.hidden=true;setFeedExpanded(false);});
   expand.addEventListener('click',()=>{ if (expand.hidden) return; const on=root.classList.toggle('stream-expanded');setExpanded(on); });
-  document.getElementById('stream-form').addEventListener('submit',async e=>{ e.preventDefault();const url=SidecarStreams.httpsUrl(document.getElementById('stream-url').value);if(!url)return;const name=document.getElementById('stream-url-name').value.trim() || new URL(url).hostname;const item=SidecarStreams.bookmark({url,title:name});if(document.getElementById('stream-url-save').checked && !await saveBookmarks([...savedStreams.filter(e=>e.key!==item.key),item]))return;play(url,name); });
+  // The naddr of a stream announcement is looked up on the relays and opened the way a row of the list
+  // is: it plays if it is live or has a recording, and shows its details if it does not.
+  // The lookup settles shortly after the first relay answers rather than waiting for the slowest:
+  // another relay may hold a newer version of the announcement, so the others get a moment more.
+  const STREAM_LOOKUP_GRACE_MS = 700, STREAM_LOOKUP_MAX_MS = 5000;
+  async function findStream(address) {
+    const pool = new NostrTools.SimplePool();
+    const controller = new AbortController(), events = [];
+    let grace = null;
+    try {
+      const sources = [...new Set([...address.relays, ...relays, 'wss://purplepag.es'])];
+      const filter = { kinds: [30311], authors: [address.pubkey], '#d': [address.identifier] };
+      await Promise.all(sources.map(url => SidecarStreams.relayPage(pool, url, filter, controller.signal, STREAM_LOOKUP_MAX_MS, event => {
+        if (event.pubkey !== address.pubkey || !SidecarStreams.parse(event) || !NostrTools.verifyEvent(event)) return;
+        events.push(event);
+        if (grace === null) grace = setTimeout(() => controller.abort(), STREAM_LOOKUP_GRACE_MS);
+      })));
+      const newest = events.sort((a, b) => b.created_at - a.created_at)[0];
+      const item = newest && SidecarStreams.parse(newest);
+      if (!item) return null;
+      model.accept(newest);
+      return model.events.get(item.key) || item;
+    } finally { clearTimeout(grace); controller.abort(); pool.destroy(); }
+  }
+  let streamFormBusy = false;
+  const streamForm = document.getElementById('stream-form');
+  streamForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (streamFormBusy || !enabled || isLocked()) return;
+    const typed = SidecarStreams.parseStreamAddress(document.getElementById('stream-url').value, value => NostrTools.nip19.decode(value));
+    if (!typed) return;
+    directoryError('');
+    if (typed.error) { directoryError(typed.error === 'not-a-stream' ? t('That address is not a stream.') : t('Enter a video link or a stream naddr.')); return; }
+    const save = document.getElementById('stream-url-save').checked;
+    if (typed.url) {
+      const name = document.getElementById('stream-url-name').value.trim() || new URL(typed.url).hostname;
+      const item = SidecarStreams.bookmark({ url: typed.url, title: name });
+      if (save && !await saveBookmarks([...savedStreams.filter(row => row.key !== item.key), item])) return;
+      play(typed.url, name);
+      return;
+    }
+    streamFormBusy = true;
+    const submit = streamForm.querySelector('button[type=submit]'), label = submit.textContent;
+    submit.disabled = true; submit.textContent = t('Looking…');
+    try {
+      const item = await findStream(typed.naddr);
+      if (!item) { directoryError(t('Could not find that stream. Check the address and try again.')); return; }
+      if (save) {
+        const entry = SidecarStreams.bookmark(item);
+        if (entry && !await saveBookmarks([...savedStreams.filter(row => row.key !== entry.key), entry])) return;
+      }
+      openDirectoryItem(item);
+    } catch (_) {
+      directoryError(t('Could not find that stream. Check the address and try again.'));
+    } finally { streamFormBusy = false; submit.disabled = false; submit.textContent = label; }
+  });
   // Keep approval space usable even when the user was watching expanded video.
   const approval=document.getElementById('view-approval');
   new MutationObserver(()=>{

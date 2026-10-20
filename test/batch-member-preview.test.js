@@ -219,3 +219,112 @@ test('a same-kind burst of the overwrite guard\'s kinds never batches', () => {
   ]);
   assert.equal(wiped.head.groupIds.length, 1, 'a mute-list burst rode one Allow all');
 });
+
+test('a same-kind burst of zap requests never batches', () => {
+  // #502's acceptance: a payment in the queue must not be approvable by the bulk
+  // path. A kind-9734 sign is the signing half of a payment, and the amount it
+  // commits to rides in its TAGS — which memberViewOf does not show (it shows
+  // content only). A same-site burst of zap requests therefore collapsed into one
+  // "Allow all (N)" whose member rows described bare content while the tap signed
+  // N unseen spend commitments. Auto-zaps remain the standing no-prompt way to
+  // sign these, and they carry per-zap and daily caps a batch never did.
+  const view = pendingViewOf([
+    entry('z1', 'signEvent', '{}', { state: 'showing', kind: 9734, tags: [['relays', '["wss://relay.example"]'], ['amount', '21000'], ['lnurl', 'lnurl1x']] }),
+    entry('z2', 'signEvent', '{}', { kind: 9734, tags: [['relays', '["wss://relay.example"]'], ['amount', '1000000'], ['lnurl', 'lnurl1x']] }),
+    entry('z3', 'signEvent', '{}', { kind: 9734, tags: [['relays', '["wss://relay.example"]'], ['amount', '5000'], ['lnurl', 'lnurl1x']] }),
+  ]);
+  assert.equal(view.head.groupIds.length, 1, 'a zap-request burst rode one Allow all');
+  assert.equal(view.head.members.length, 0, 'members formed without batching');
+  assert.equal(view.head.groupIds[0], 'z1', 'the head stopped being itself');
+});
+
+test('a payment can ride in no batch, as head or as member', () => {
+  // The payment itself (webln sendPayment/keysend) is kept out by the method
+  // whitelist — pinned here so a whitelist widening cannot silently re-admit it.
+  const asHead = pendingViewOf([
+    entry('p1', 'sendPayment', 'lnbc2100m1...', { state: 'showing' }),
+    entry('p2', 'sendPayment', 'lnbc2100m2...'),
+  ]);
+  assert.equal(asHead.head.groupIds.length, 1, 'a payment burst rode one Allow all');
+  assert.equal(asHead.head.members.length, 0);
+
+  // And a payment queued behind a batchable sign head joins nothing: the method
+  // rides in the batch key, and sendPayment is not batchable at all.
+  const asMember = pendingViewOf([
+    entry('s1', 'signEvent', 'hello', { state: 'showing' }),
+    entry('p3', 'sendPayment', 'lnbc2100m3...'),
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(asMember.head.groupIds)), ['s1'], 'a payment joined a note batch');
+  assert.equal(asMember.head.members.length, 1, 'members formed without batching');
+  assert.ok(asMember.waiting.some((w) => w.id === 'p3' && w.method === 'sendPayment'),
+    'the payment vanished from the queue view');
+});
+
+test('the acceptance queue: destructive, payment, and relay-auth all stand outside the bulk path', () => {
+  // #502 acceptance, verbatim in one queue: a destructive overwrite, a payment and
+  // a relay-auth request, plus the one same-kind pair that SHOULD still batch — and
+  // nothing but that pair is touchable by "Allow all".
+  const now = Math.floor(Date.now() / 1000);
+  const authTags = [['relay', 'wss://relay.example'], ['challenge', 'challenge-string']];
+  const view = pendingViewOf([
+    entry('head', 'signEvent', 'note one', { state: 'showing' }),
+    entry('follow', 'signEvent', '["pubkey one"]', { kind: 3, tags: [] }),
+    entry('pay', 'sendPayment', 'lnbc2100m4...'),
+    entry('auth', 'signEvent', '', { kind: 22242, tags: authTags, created_at: now }),
+    entry('note2', 'signEvent', 'note two'),
+  ]);
+  // JSON round-trip: an array built inside the vm carries that realm's Array
+  // prototype, and deepEqual on it compares prototypes that differ.
+  assert.deepEqual(JSON.parse(JSON.stringify(view.head.groupIds)), ['head', 'note2'],
+    'only the same-kind note pair is offered to one tap');
+  assert.equal(view.head.members.length, 2);
+  const bulked = new Set(view.head.groupIds);
+  for (const outside of ['follow', 'pay', 'auth']) {
+    assert.ok(!bulked.has(outside), outside + ' rode the bulk path');
+    assert.ok(view.waiting.some((w) => w.id === outside), outside + ' vanished from the queue view');
+  }
+});
+
+// ---- the queue strip explains the asymmetry (#502 remedy 1) ----------------------------
+
+test('the backlog strip carries the why-no-Approve-all line where Reject all lives', () => {
+  const el = panelHtml.match(/<p id="approval-backlog-note"[^>]*>/);
+  assert.ok(el, 'sidepanel.html has no backlog note element');
+  assert.match(el[0], /class="[^"]*\bapproval-backlog-note\b/,
+    'the element carries the id but not the class styles.css targets');
+  const rule = css.match(/\.approval-backlog-note\s*\{[^}]*\}/);
+  assert.ok(rule, 'styles.css has no .approval-backlog-note rule');
+  // The strip is a flex row (count + button); the note must take its own full-width
+  // row below them, per the row-controls rule, or it wraps into the button's space.
+  assert.match(rule[0], /flex-basis:\s*100%/);
+  const stripRule = css.match(/\.approval-backlog\s*\{[^}]*\}/);
+  assert.match(stripRule[0], /flex-wrap:\s*wrap/, 'the note cannot wrap without the strip wrapping');
+  // Filled by renderBacklog, with the strip it belongs to.
+  const s = stripComments(panel);
+  const fn = stripComments(lift(panel, 'function renderBacklog('));
+  assert.match(fn, /approval-backlog-note/, 'renderBacklog lost the note');
+  assert.match(fn, /Rejecting is always safe/, 'the note does not say why there is no Approve all');
+  assert.match(s, /renderBacklog\(view\.waiting \|\| \[\]\)/, 'the strip stopped rendering from the queue view');
+});
+
+// The note ships `hidden` in the markup. Filling it is not showing it: the first cut
+// set the text and left the class, so the line existed and nobody could see it.
+test('renderBacklog reveals the why-no-Approve-all note along with the strip', () => {
+  const el = () => {
+    const classes = new Set(['hidden']);
+    return { textContent: '', classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) } };
+  };
+  const els = { 'approval-backlog': el(), 'approval-backlog-count': el(), 'approval-backlog-note': el() };
+  const ctx = vm.createContext({
+    $: (id) => els[id],
+    show: (e) => e.classList.remove('hidden'),
+    hide: (e) => e.classList.add('hidden'),
+    t: (s) => s,
+    tn: (one, other, n) => (n === 1 ? one : other),
+  });
+  vm.runInContext(lift(panel, 'function renderBacklog(') + '\nthis.renderBacklog = renderBacklog;', ctx);
+  ctx.renderBacklog([{}, {}]);
+  assert.equal(els['approval-backlog'].classList.contains('hidden'), false, 'the strip stayed hidden');
+  assert.match(els['approval-backlog-note'].textContent, /Rejecting is always safe/);
+  assert.equal(els['approval-backlog-note'].classList.contains('hidden'), false, 'the note is filled but still hidden');
+});

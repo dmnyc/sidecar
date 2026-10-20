@@ -84,6 +84,70 @@ body {
   line-height: 1.6;
 }
 
+/* Two buttons under the help guide's intro, for the pages the nav bar's small links
+   point at and nobody notices. */
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.quick-link {
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 139, 250, 0.5);
+  background: rgba(167, 139, 250, 0.14);
+  color: var(--lav);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.quick-link:hover {
+  background: rgba(167, 139, 250, 0.24);
+  border-color: rgba(167, 139, 250, 0.75);
+}
+
+/* ===== Search ===== */
+
+.search {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.search input {
+  width: min(100%, 420px);
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+.search input::placeholder { color: var(--muted); }
+.search input:hover { border-color: var(--border-strong); }
+.search input:focus-visible {
+  outline: none;
+  border-color: rgba(167, 139, 250, 0.5);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.18);
+}
+
+.no-match {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.no-match[hidden] { display: none; }
+
 /* ===== Category filters ===== */
 
 .filters {
