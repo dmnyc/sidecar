@@ -252,3 +252,64 @@ test('the replaceable set agrees with replaceable-baseline.js', () => {
       'baseline guards kind ' + k + ' but a standing grant could cover it');
   }
 });
+
+// ---- the wiring: a card's tick must become a saved grant ---------------------------------
+//
+// The module above was always tested; the path from a decided card to KINDS.grant was not.
+// settlePrompt hands the worker `Object.assign({ action }, extra)`, so the card's flag is
+// decision.alwaysKind. The worker once read decision.extra.alwaysKind, which is undefined,
+// so a ticked box saved nothing. This runs the real settlePrompt and the real check.
+test('a ticked box on a decided card reaches the worker as a grant request', () => {
+  const bgSrc = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  const lift = (decl) => {
+    const at = bgSrc.indexOf(decl);
+    assert.ok(at !== -1, decl + ' is gone');
+    let depth = 0;
+    for (let i = bgSrc.indexOf('{', at); i < bgSrc.length; i++) {
+      if (bgSrc[i] === '{') depth++;
+      else if (bgSrc[i] === '}' && --depth === 0) return bgSrc.slice(at, i + 1);
+    }
+    throw new Error('unbalanced ' + decl);
+  };
+  const resolved = [];
+  const callbacks = new Map([['req1', { settled: false, resolve: (d) => resolved.push(d) }]]);
+  const ctx = require('node:vm').createContext({
+    callbacks, queue: [], qPersist() {}, DECRYPT_METHODS: new Set(),
+    grantDecrypt() {}, flushDecryptSiblings() {}, broadcastQueue() {}, driveDisplay() {}, stopKeepaliveIfIdle() {},
+  });
+  require('node:vm').runInContext(lift('function kindGrantWanted(') + '\n' + lift('function settlePrompt(') + '\nthis.settlePrompt = settlePrompt; this.kindGrantWanted = kindGrantWanted;', ctx);
+  ctx.settlePrompt('req1', 'once', { alwaysKind: true });
+  const decision = resolved[0];
+  assert.equal(ctx.kindGrantWanted(decision), true, 'the tick was lost between the card and the worker');
+  // Unticked, trust and reject never ask for one.
+  assert.equal(ctx.kindGrantWanted({ action: 'once' }), false);
+  assert.equal(ctx.kindGrantWanted({ action: 'trust', alwaysKind: true }), false, 'trust supersedes the box');
+  assert.equal(ctx.kindGrantWanted({ action: 'reject', alwaysKind: true }), false);
+  assert.equal(ctx.kindGrantWanted(null), false);
+  // And the worker asks the helper, not a property that does not exist.
+  const handler = bgSrc.slice(bgSrc.indexOf('async function handleNostrRpc'));
+  assert.match(handler, /if \(kindGrantWanted\(decision\) && kindGrantEligible && !destructive\)/);
+  const code = bgSrc.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.doesNotMatch(code, /decision\.extra/, 'decision.extra does not exist; the flags are on the decision');
+});
+
+// The ✕ in the Activity tab sends SIDECAR_REMOVE_KIND_GRANT. The worker once called
+// revoke(pubkey, host, ...) against a module that takes (host, pubkey, ...), so it removed
+// nothing while the panel dropped the line from the screen. This runs the real handler
+// body against the real module.
+test('the worker\'s revoke handler removes the grant it names', async () => {
+  const bgSrc = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  const m = bgSrc.match(/case 'SIDECAR_REMOVE_KIND_GRANT':([\s\S]*?)\n\s*break;/);
+  assert.ok(m, 'the revoke case is gone');
+  const handler = new Function('KINDS', 'KS', 'message', 'return (async () => { let result; ' + m[1] + '\n return result; })()');
+  await KINDS.grant(HOST, pkA, 7);
+  await KINDS.grant(HOST, pkA, APP_DATA, 'settings');
+  assert.equal(await KINDS.has(HOST, pkA, 7), true);
+  const KS = { getActivePubkey: async () => pkA };
+  const out = await handler(KINDS, KS, { host: HOST, kind: 7, d: undefined });
+  assert.equal(out, true);
+  assert.equal(await KINDS.has(HOST, pkA, 7), false, 'the ✕ removed nothing');
+  assert.equal(await KINDS.has(HOST, pkA, APP_DATA, 'settings'), true, 'and it must take only the grant it names');
+  await handler(KINDS, KS, { host: HOST, kind: APP_DATA, d: 'settings' });
+  assert.equal(await KINDS.has(HOST, pkA, APP_DATA, 'settings'), false);
+});

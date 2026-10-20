@@ -952,6 +952,16 @@ chrome.windows.onRemoved.addListener((windowId) => {
 });
 
 // ---- T3: resolve a request by explicit decision ----
+
+// Whether the card's "Always allow this event type" box came back ticked. settlePrompt
+// resolves with Object.assign({ action }, extra), so the card's flags sit ON the decision
+// (decision.enableAutoZap, decision.budgetSats and the rest). The first cut of this read
+// decision.extra.alwaysKind, which never exists, so a ticked box was ignored on every
+// card and no grant was ever saved. Only 'once' carries it; 'trust' chose a broader tier.
+function kindGrantWanted(decision) {
+  return !!decision && decision.action === 'once' && decision.alwaysKind === true;
+}
+
 function settlePrompt(id, action, extra) {
   const cb = callbacks.get(id);
   if (!cb || cb.settled) return; // the `settled` guard makes any double-result a no-op → can't double-sign
@@ -1816,8 +1826,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // 'trust' supersedes it: a broader tier was chosen, so the flag is only
       // honored on 'once'). Granted for the account that actually signs, which
       // is why this sits after the switcher resolution above.
-      if (decision.action === 'once' && decision.extra && decision.extra.alwaysKind &&
-          kindGrantEligible && !destructive) {
+      if (kindGrantWanted(decision) && kindGrantEligible && !destructive) {
         await KINDS.grant(host, activePubkey, signKind, signDTag);
         // The burst queued behind this card is the exact nuisance the grant
         // exists for: settle the matching entries now instead of walking the
@@ -4021,7 +4030,9 @@ async function handleControl(message, sender, sendResponse) {
         result = await KINDS.listFor(await KS.getActivePubkey());
         break;
       case 'SIDECAR_REMOVE_KIND_GRANT':
-        await KINDS.revoke(await KS.getActivePubkey(), message.host, message.kind, message.d);
+        // (host, pubkey, kind, d): the module's order. The other calls below take (pubkey, host),
+        // which is how this one came to be written the wrong way round and revoke nothing.
+        await KINDS.revoke(message.host, await KS.getActivePubkey(), message.kind, message.d);
         result = true;
         break;
       case 'SIDECAR_SET_LEVEL':
