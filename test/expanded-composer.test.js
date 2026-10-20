@@ -158,13 +158,14 @@ test('ONE TAB, AND IT IS THE RIGHT DRAFT', () => {
   // And it reports WHICH draft the tab holds, because focusing a tab that is open on
   // something else shows the wrong draft and says nothing.
   assert.match(panelBare, /searchParams\.get\('reply'\)/);
-  assert.match(panelBare, /if \(open && open\.replyId === wantId\)/,
-    'the panel composer stands down for a tab holding a different draft');
+  assert.match(panelBare, /composeTabHoldsDraft\(open, wantId\)/,
+    'the panel composer stands down for a tab holding this draft');
+  assert.match(panelBare, /return !!open && !open\.done && open\.replyId === wantId;/);
   // A tab on another draft is TOLD to switch, not navigated. Pointing an open tab at
   // another URL needs the "tabs" permission, which this extension does not ask for, and
   // chrome.tabs.update fails silently without it: the tab stays on the old draft and
   // says nothing, which is how expanding a reply landed on a blank new note.
-  assert.match(panelBare, /if \(open\.replyId !== wantId\) \{[\s\S]{0,240}SIDECAR_COMPOSE_OPEN/);
+  assert.match(panelBare, /if \(composeTabNeedsSwitch\(open, wantId\)\) \{[\s\S]{0,240}SIDECAR_COMPOSE_OPEN/);
   assert.ok(!/chrome\.tabs\.update\([^)]*url:/.test(panelBare),
     'navigating an open tab needs a permission the manifest does not ask for');
 });
@@ -795,7 +796,7 @@ test('ONE COMPOSER PER ACCOUNT, BECAUSE THERE IS ONE DRAFT SLOT PER ACCOUNT', ()
   // reply. The comparison used to be "is this a reply at all", which was right while the
   // tab could only ever hold the plain draft and is wrong now that it can hold either.
   assert.match(panelBare, /const wantId = \(opts && opts\.replyTo && opts\.replyTo\.id\) \|\| null;/);
-  assert.match(panelBare, /if \(open && open\.replyId === wantId\) \{/);
+  assert.match(panelBare, /if \(composeTabHoldsDraft\(open, wantId\)\) \{/);
 
   // And Expand reuses a tab rather than opening a second one. A tab on a DIFFERENT
   // draft is navigated to this one, since merely focusing it would show the wrong draft

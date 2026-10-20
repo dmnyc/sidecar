@@ -1784,9 +1784,28 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 
 /* What a reply is answering, above the editor. Same role as .webcomment-target. */
 .reply-target {
-  border-left: 2px solid var(--border-strong);
+  border-left: 2px solid var(--gold);
   padding: 2px 0 2px 10px;
   margin: 10px 0 4px;
+}
+/* The word that says what this block is. Without it the quote read as decoration, and a
+   reply was easy to mistake for a new note. */
+.reply-target-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+/* Which kind the reply goes out as: the right end of the label row, in the same caps. */
+.reply-target-kind {
+  font-weight: 500;
+  color: var(--muted);
 }
 .reply-target-who { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
 .reply-target-av { width: 20px; height: 20px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--velvet-1); }
@@ -4379,6 +4398,17 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .reload-banner-btn:active { transform: translateY(0); }
 .reload-banner-btn svg { width: 14px; height: 14px; }
 
+/* "Use Sidecar for Lightning payments?" offer. Words on the buttons, so they take their
+   own full-width row beneath the message, the same shape .site-controls uses. */
+.webln-offer {
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+  margin: 10px 16px 0; padding: 10px 12px; border-radius: 10px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04)); border: 1px solid var(--border);
+}
+.webln-offer-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); }
+.webln-offer-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.webln-offer-controls button { flex: 1 1 auto; }
+
 /* Interrupted-request tombstone banner (queue survived an SW restart). */
 .interrupted-banner {
   display: flex; align-items: center; gap: 10px;
@@ -4413,7 +4443,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 
 /* "N more waiting" backlog strip + Reject all, inside the approval card. */
 .approval-backlog {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
   margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
   font-size: 12.5px; color: var(--muted);
 }
@@ -4422,6 +4452,10 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   color: var(--red); font-size: 12.5px; font-weight: 600; padding: 4px 6px; white-space: nowrap;
 }
 .approval-reject-all:hover { text-decoration: underline; filter: brightness(1.1); }
+/* Why no Approve all — under the strip, where the person looking for the missing
+   button is. Full-width below the row (the strip itself is a flex row; the note
+   must not sit beside the count and the button), in the batch caption's voice. */
+.approval-backlog-note { flex-basis: 100%; font-size: 11.5px; line-height: 1.45; color: var(--muted); margin: 2px 0 0; }
 
 /* nsec/ncryptsec tabs (key backup modal) */
 .modal-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 14px; }
@@ -4699,7 +4733,11 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   border: 1px solid var(--border-strong); box-shadow: var(--shadow), var(--sheen);
 }
 .approval-scroll {
-  flex: 1 1 auto; overflow-y: auto; padding: 22px 22px 6px;
+  /* The bottom padding is the fade's own height plus a little. The fade covers the last
+     30px of the region, so with 6px of padding the last 24px of real content, a caption
+     or a button row, stayed dimmed even scrolled to the very end, and a card that fit
+     had nothing to scroll to reveal it. The fade now falls on empty padding. */
+  flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 22px 22px 36px;
   /* The content dissolves above the footer rather than being cut, which is the
      unmistakable "there is more to scroll" prompt.html already uses. */
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
@@ -4976,6 +5014,11 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .remember { margin-bottom: 14px; }
 .remember .check { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text); font-size: 13px; margin-bottom: 8px; cursor: pointer; }
 .remember input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
+/* The keep-this-account line wraps to two lines, unlike the single-line offers above. Left to
+   the card's centered text, the words centered in the space the box leaves and sat well away
+   from it. Left-aligned beside the box, with the box on the first line. */
+#approval-bind-payer .check { align-items: flex-start; justify-content: flex-start; text-align: left; }
+#approval-bind-payer input[type=checkbox] { margin-top: 1px; }
 .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
 /* The approval's checkboxes as one group (sidepanel.html): as wide as the widest row and
    centered, so a lone checkbox sits where it always did, while stacked ones share a left

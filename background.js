@@ -47,6 +47,17 @@ function resolveSettings(sidecar_settings) {
   return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
 }
 
+// The host to offer "Use Sidecar for Lightning payments" for, or '' for no offer. One
+// offer at a time and never again once answered; a person who already opted in has
+// nothing to be offered. A page can send the notice for itself, so the worst a forged
+// one buys is a card naming that page, which the person can wave off for good.
+function weblnOfferHost(settings, host) {
+  if (!host || !settings) return '';
+  if (settings.weblnTakeover === true || settings.weblnOfferDismissed === true) return '';
+  if (settings.weblnOfferHost) return '';
+  return host;
+}
+
 // NIP-13 difficulty, as the four rungs the panel offers. Mirrored from POW_LEVELS in
 // sidepanel.js and pinned to it by test, because this is the copy that decides what gets
 // STORED and the panel's is only what gets drawn.
@@ -584,7 +595,16 @@ function isBatchableEntry(e) {
     // warning and the deliberate second step that demands. Asked through the module itself,
     // not a copied list of kinds, so the two cannot drift; via globalThis rather than the
     // BASELINE const above because the tests lift this function on its own.
-    !(m === 'signEvent' && globalThis.SidecarBaseline.isTracked(e.kind));
+    !(m === 'signEvent' && globalThis.SidecarBaseline.isTracked(e.kind)) &&
+    // Nor do zap requests (#502): a kind-9734 event is the signing half of a payment,
+    // and the amount it commits to rides in its tags — which a batch member row does
+    // not show. One tap on "Allow all" would sign a burst of spend commitments the
+    // card described as bare content rows. The payment itself (sendPayment/keysend)
+    // already can't batch — the method whitelist above admits only sign and encrypt —
+    // so this closes the one path a payment had into a bulk approval. Auto-zaps are
+    // the standing way to sign these without asking, and they carry per-zap and daily
+    // caps; a batch would carry neither.
+    !(m === 'signEvent' && e.kind === 9734);
 }
 function batchKeyOf(e) {
   // Kind alone is not a kind for encrypts: nip04.encrypt and nip44.encrypt both carry
@@ -1082,6 +1102,16 @@ function hasContentGrant(host, pubkey, kind) {
 }
 function grantContent(host, pubkey, kind) {
   contentGrants.set(grantKey(host, pubkey, kind), Date.now() + COALESCE_WINDOW_MS);
+}
+
+// Every short-lived "yes" a site has earned in this worker's memory: the app-data window above and
+// the decrypt-burst window below. Forgetting a site ends them, along with its saved tier, grants and
+// binding. Left running, one more sign inside the window went through with no card and quietly
+// bound the forgotten site again.
+function forgetStandingApprovals(host) {
+  const prefix = host + '|';
+  for (const k of [...contentGrants.keys()]) if (k.startsWith(prefix)) contentGrants.delete(k);
+  for (const k of [...decryptGrants.keys()]) if (k.startsWith(prefix)) decryptGrants.delete(k);
 }
 
 // ---- decrypt-burst coalescing ----
@@ -2567,6 +2597,84 @@ const naptime = (ms) => new Promise((r) => setTimeout(r, ms));
 const invSettled = (inv) => !!(inv && (inv.settled_at || inv.preimage || inv.state === 'settled'));
 const invFailed = (inv) => !!(inv && (inv.state === 'failed' || inv.state === 'expired'));
 
+// The unix second a BOLT11 invoice stops being payable: its 35-bit timestamp plus its expiry tag
+// ('x', default one hour), or null when it cannot be read. Local, so an expired invoice can be
+// named as expired without asking the wallet anything.
+function invoiceExpiresAt(invoice) {
+  try {
+    const s = String(invoice).toLowerCase();
+    const sep = s.lastIndexOf('1');
+    if (sep < 1) return null;
+    const words = [];
+    for (const c of s.slice(sep + 1)) {
+      const v = BECH32_CHARS.indexOf(c);
+      if (v < 0) return null;
+      words.push(v);
+    }
+    const body = words.slice(0, words.length - 6); // drop the checksum
+    const end = body.length - 104; // the signature occupies the final 104 words
+    if (end < 7) return null;
+    let timestamp = 0;
+    for (let i = 0; i < 7; i++) timestamp = timestamp * 32 + body[i];
+    let expiry = 3600;
+    let i = 7;
+    while (i + 3 <= end) {
+      const tag = body[i];
+      const len = body[i + 1] * 32 + body[i + 2];
+      const start = i + 3;
+      if (start + len > end) break;
+      if (tag === 6) { // 'x'
+        let n = 0;
+        for (let k = start; k < start + len; k++) n = n * 32 + body[k];
+        expiry = n;
+      }
+      i = start + len;
+    }
+    return timestamp + expiry;
+  } catch (_) {
+    return null;
+  }
+}
+
+// A wallet's "no" is often written for its own logs. For an already-paid invoice one answers
+// "The transaction requested was not found.", which tells the person nothing true about their
+// invoice. When the wallet refused, work out the real reason where that can be done safely:
+// an expired invoice is read off the invoice itself, an already-paid one is confirmed with a
+// read-only lookup, and anything else keeps the wallet's own words. A refusal still means the
+// money stayed put; this only changes what is said about it, and a failed lookup changes nothing.
+const REFUSAL_LOOKUP_MS = 5000;
+async function explainRefusal(err, invoice, client, nowMs) {
+  if (!err || !err.walletDenied) return err;
+  const refusal = (message) => {
+    const e = new Error(message);
+    e.walletDenied = true;
+    e.walletMessage = err.message;
+    return e;
+  };
+  dlog('info', 'pay', 'wallet refused', { code: err.code, message: err.message });
+  const expiresAt = invoiceExpiresAt(invoice);
+  if (expiresAt != null && (nowMs == null ? Date.now() : nowMs) / 1000 >= expiresAt) {
+    return refusal('This invoice has expired.');
+  }
+  const notFound = err.code === 'NOT_FOUND' || /not (be )?found/i.test(err.message || '');
+  if (!notFound) return err;
+  const hash = bolt11PaymentHash(invoice);
+  let timer;
+  try {
+    const inv = await Promise.race([
+      client.lookupInvoice(hash ? { payment_hash: hash } : { invoice }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('lookup timed out')), REFUSAL_LOOKUP_MS); }),
+    ]);
+    if (invSettled(inv)) return refusal('This invoice has already been paid.');
+    if (inv && inv.state === 'expired') return refusal('This invoice has expired.');
+  } catch (_) {
+    // The wallet could not say. Fall through to the cautious wording below.
+  } finally {
+    clearTimeout(timer);
+  }
+  return refusal('The invoice may already be paid or no longer valid.');
+}
+
 // When to stop trusting silence. Most zaps settle in a few seconds; past that the
 // ephemeral response is more likely lost than late, and the wallet's own record is
 // both faster and more truthful than waiting out the 30s NWC timeout.
@@ -2718,6 +2826,16 @@ function flashPaidByHost(host) {
 // card on a site that was never signed into Sidecar (a BTCPay checkout) passes it: binding
 // it there would make that site "connected", so it would list under Connected sites and
 // its next invoice would get the full-screen card by itself.
+// The account the person picked on the payment card to pay from instead, or '' when they
+// did not pick one. Only an account the card OFFERED counts: the decision is a plain object
+// from an extension page, and a value naming any other account (or none) must pay as the
+// site's own, never as something it was not given a chance to approve.
+function payFromChoice(decision, offered) {
+  const want = decision && decision.payFromPubkey;
+  if (typeof want !== 'string' || !/^[0-9a-f]{64}$/.test(want)) return '';
+  return Array.isArray(offered) && offered.some((a) => a && a.pubkey === want) ? want : '';
+}
+
 function payInvoiceCore(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap, opts) {
   return withPayInFlight(() =>
     withPayLock(pubkey, () => payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, offerAutoZap, opts))
@@ -2756,9 +2874,30 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   }
   const autoOk = budgetOk || zapOk;
 
+  // Set when the person picks another account on the card. `pubkey` is rebound to it below, so
+  // the wallet call, the budget, the activity log and the binding all follow the account that
+  // actually pays. bindPayer is the separate, unticked-by-default choice to keep it.
+  let switchedPayer = false;
+  let bindPayer = false;
   if (!autoOk) {
     const st = await KS.getState();
     const acct = st.accounts.find((a) => a.pubkey === pubkey);
+    // The other accounts that could pay this: only those with a wallet connected, because a
+    // card that offered an account which then failed with "no wallet" would be worse than none.
+    const payFromOptions = [];
+    for (const a of st.accounts) {
+      if (a.pubkey === pubkey) continue;
+      let hasWallet = false;
+      try { hasWallet = await KS.hasNwc(a.pubkey); } catch (_) {}
+      if (hasWallet) {
+        payFromOptions.push({
+          pubkey: a.pubkey,
+          npub: self.NostrTools.nip19.npubEncode(a.pubkey),
+          name: a.name || '',
+          picture: a.picture || '',
+        });
+      }
+    }
     const decision = await openPrompt({
       scope: 'webln',
       host,
@@ -2766,6 +2905,8 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
       npub: self.NostrTools.nip19.npubEncode(pubkey),
       accountName: (acct && acct.name) || '',
       accountPicture: (acct && acct.picture) || '',
+      payerPubkey: pubkey,
+      payFromOptions,
       amountSats: sats, // null for amountless invoices
       memo: memo || '',
       needUnlock: KS.isLocked(),
@@ -2787,6 +2928,24 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     }, originWindowId);
     if (decision.action === 'reject') throw new Error('You rejected this payment');
     if (KS.isLocked()) throw new Error('Keystore is locked');
+    // Paying from another account. Chosen on Sidecar's own card, so a page cannot ask for it,
+    // and only from the accounts the card offered. Every later line, the budget below
+    // included, then belongs to the account that pays.
+    const payFrom = payFromChoice(decision, payFromOptions);
+    if (payFrom) {
+      const prevBound = await getSiteAccount(host);
+      switchedPayer = true;
+      bindPayer = decision.bindPayer === true;
+      pubkey = payFrom;
+      // Ticking "all further payments" is a choice made on the card, so it stands whether or not
+      // this payment then succeeds: an invoice that turns out to be paid already says nothing
+      // about which account the person wants for the site. Signing binds only after success
+      // because that binding is implicit; this one is not.
+      if (bindPayer) {
+        await setSiteAccount(host, pubkey);
+        if (prevBound && prevBound !== pubkey) { await RELAX.revokeForHost(host); syncRelaxBadge(); }
+      }
+    }
     // Approved with the offer still ticked → turn it on, at the documented defaults.
     // Reached only from an approval on an extension page; a rejected or dismissed
     // prompt leaves the setting alone.
@@ -2833,10 +2992,15 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // it for the full 180s — issue #138. The wallet is the only authority on what
   // actually happened, so payAndConfirm asks it rather than inferring from silence.
   const hash = bolt11PaymentHash(invoice);
-  const res = await payAndConfirm(c, {
-    send: () => c.payInvoice(invoice),
-    lookupArg: hash ? { payment_hash: hash } : { invoice },
-  });
+  let res;
+  try {
+    res = await payAndConfirm(c, {
+      send: () => c.payInvoice(invoice),
+      lookupArg: hash ? { payment_hash: hash } : { invoice },
+    });
+  } catch (e) {
+    throw await explainRefusal(e, invoice, c);
+  }
   const preimage = res && (res.preimage || res.payment_preimage);
 
   // ---- the money has moved; from here nothing may delay the caller ----
@@ -2873,7 +3037,10 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     // can say "Zap to alice" instead of "Sent". Bookkeeping, so it sits here with the
     // rest of it — after the money moved and off the caller's path.
     if (zapRecipient) await savePayMetaEntry(invoice, { zapPubkey: zapRecipient });
-    if (!(opts && opts.bind === false)) await setSiteAccount(host, pubkey);
+    // A pick made on the card was dealt with when it was approved: a one-time pick leaves the
+    // site paired with the account it had, and "all further payments" paired it then. Only a
+    // payment the card did not change binds here, as it always did.
+    if (!switchedPayer && !(opts && opts.bind === false)) await setSiteAccount(host, pubkey);
   });
   logActivity({ ts: Date.now(), host, method: 'webln.sendPayment', amountSats: sats, pubkey });
   // Tell an open side panel to refresh its balance/history.
@@ -3172,6 +3339,10 @@ function pushPageSettings(merged) {
             // Keep the card's auto-zap offer in step: turning the setting on
             // in Settings should retire the offer without a page reload.
             autoZapOffer: merged.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
+            // "Use Sidecar for Lightning payments" (#501) rides the same push so a
+            // toggle takes over (or hands back) without a page reload. content.js
+            // relays it to the MAIN-world provider as a config message.
+            weblnTakeover: merged.weblnTakeover === true,
           },
           () => void chrome.runtime.lastError
         );
@@ -4044,6 +4215,9 @@ async function handleControl(message, sender, sendResponse) {
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
         await clearAuthorizedForHost(message.host); // and the shared-identity history
         await clearAlwaysActiveHost(message.host); // and any standing instruction to skip the check
+        forgetStandingApprovals(message.host); // and the short in-memory approve windows
+        await RELAX.revokeForHost(message.host); // and a timed Auto-sign window, which outlived the forget
+        syncRelaxBadge();
         break;
       case 'SIDECAR_GET_SITE_BINDINGS':
         result = await getAllSiteAccounts();
@@ -4090,6 +4264,12 @@ async function handleControl(message, sender, sendResponse) {
         await PERMS.clearAll();
         await KINDS.clearAll();
         await sset({ [SITE_ACCTS_KEY]: {}, [SITE_AUTHZ_KEY]: {}, [SITE_ALWAYS_ACTIVE_KEY]: {}, [ACTIVITY_KEY]: [] });
+        // The short approve windows end with everything else: the in-memory app-data and
+        // decrypt windows, and any timed Auto-sign window.
+        contentGrants.clear();
+        decryptGrants.clear();
+        await RELAX.revokeAll();
+        syncRelaxBadge();
         result = true;
         break;
       // The page-invoice card asks before it appears: is this invoice simply the one
@@ -4357,6 +4537,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     'SIDECAR_NOSTR_RPC', 'SIDECAR_WEBLN_RPC', 'SIDECAR_PAY_PAGE_INVOICE',
     'SIDECAR_TRY_ZAP_AUTOPAY',
     'SIDECAR_IS_CONNECTED', 'SIDECAR_GET_SETTINGS', 'SIDECAR_SET_SETTINGS',
+    // Another wallet holds window.webln on this page (#501). Records an offer; changes nothing.
+    'SIDECAR_WEBLN_OTHER_PRESENT',
     // The pay card's lettering face: a public font file, and nothing else.
     'SIDECAR_CARD_FONT',
   ]);
@@ -4435,6 +4617,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
           cardTheme: SidecarSeasons.resolve(st, cardAccount) || (cardAccount && by[cardAccount]) || st.theme || '',
           hasWallet,
+          // "Use Sidecar for Lightning payments" (#501): the content script relays it
+          // to the page-world provider on every load, so a saved ON survives a reload
+          // (the live push alone only reached pages that were already open). The page
+          // can already read the relayed message, so this adds no new reader.
+          weblnTakeover: st.weblnTakeover === true,
         },
       });
     });
@@ -4465,6 +4652,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((pk) => sendResponse({ ok: true, connected: !!pk }))
       .catch(() => sendResponse({ ok: true, connected: false }));
     return true; // async response
+  }
+
+  // Another wallet answers Lightning on this page. The person is told once, in the
+  // panel, and the answer lands in SIDECAR_WEBLN_OFFER_ANSWER below, which a page
+  // cannot send. The host comes from the sender's own URL like the handlers around it.
+  if (message.type === 'SIDECAR_WEBLN_OTHER_PRESENT') {
+    let h = '';
+    try { h = new URL((sender && sender.url) || '').host; } catch (_) {}
+    sget('sidecar_settings').then(async ({ sidecar_settings }) => {
+      const prev = sidecar_settings || {};
+      if (weblnOfferHost(prev, h)) {
+        await sset({ sidecar_settings: { ...prev, weblnOfferHost: h } });
+        if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_WEBLN_OFFER', host: h }); } catch (_) {} }
+      }
+      sendResponse({ ok: true });
+    }).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  // The person's answer to the offer, from the panel. "Use Sidecar" turns the setting
+  // on; either answer retires the offer for good, so it is made once, not nagged.
+  if (message.type === 'SIDECAR_WEBLN_OFFER_ANSWER') {
+    sget('sidecar_settings').then(async ({ sidecar_settings }) => {
+      const prev = sidecar_settings || {};
+      const merged = { ...prev, weblnOfferHost: null, weblnOfferDismissed: true };
+      if (message.use === true) merged.weblnTakeover = true;
+      await sset({ sidecar_settings: merged });
+      pushPageSettings(merged);
+      sendResponse({ ok: true });
+    }).catch(() => sendResponse({ ok: false }));
+    return true;
   }
 
   // Is a side panel currently connected? The welcome page uses this to decide

@@ -11174,6 +11174,7 @@
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('paypill-anywhere-toggle').checked = settings.payPillAnywhere === true; // default off
+    $('webln-takeover-toggle').checked = settings.weblnTakeover === true; // default off (#501)
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     // The way back from "Don't show this again": clears both flags in the local
@@ -13497,13 +13498,26 @@
       // tab focused that tab and showed the wrong draft, silently.
       let replyId = null;
       try { replyId = new URL(found.documentUrl).searchParams.get('reply') || null; } catch (_) {}
-      return { ...found, replyId };
+      // A tab that posted says so in its address (compose.js showPosted): what it holds is
+      // a receipt, not a draft.
+      return { ...found, replyId, done: /#done$/.test(found.documentUrl) };
     } catch (_) {
       // An older Chrome without getContexts, or a call that threw. Falling through to
       // opening the panel composer is the safe direction: the draft store is the same
       // either way, and refusing to open a composer at all would be worse than a race.
       return null;
     }
+  }
+
+  // Whether the open compose tab is editing THIS draft. A tab on its receipt is editing
+  // nothing: treating it as an open composer refused every new note and reply until it
+  // was closed.
+  function composeTabHoldsDraft(open, wantId) {
+    return !!open && !open.done && open.replyId === wantId;
+  }
+  // Whether the open tab has to be pointed at another draft first.
+  function composeTabNeedsSwitch(open, wantId) {
+    return !!open && (open.done || open.replyId !== wantId);
   }
 
   // HANDING A DRAFT TO THE TAB, from Expand and from the always-expanded setting alike.
@@ -13539,7 +13553,7 @@
         // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the "tabs"
         // permission, which this extension does not ask for, and chrome.tabs.update
         // fails silently without it.
-        if (open.replyId !== wantId) {
+        if (composeTabNeedsSwitch(open, wantId)) {
           chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId }).catch(() => {});
         }
         await chrome.tabs.update(open.tabId, { active: true });
@@ -13582,7 +13596,7 @@
     {
       const wantId = (opts && opts.replyTo && opts.replyTo.id) || null;
       const open = await liveComposeTab();
-      if (open && open.replyId === wantId) {
+      if (composeTabHoldsDraft(open, wantId)) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
         try {
@@ -13888,6 +13902,14 @@
     //
     // The countdown is the LAST thing you see before it publishes, and a reply read
     // without its parent is the one that goes out saying the wrong thing.
+    // "kind 1" or "kind 1111" beside the label. The dev selector can choose the kind
+    // instead of inheriting it, so it repaints this too.
+    let replyKindEl = null;
+    function paintReplyKind() {
+      if (!replyKindEl || !replyTo) return;
+      const kind = isDevBuild() && devKindEnabled && devKind ? devKind : window.SidecarCore.replyKind(replyTo);
+      replyKindEl.textContent = t('kind {{kind}}', { kind });
+    }
     function buildReplyBlock() {
       if (!replyTo) return null;
       const block = h('div', { className: 'reply-target' });
@@ -13919,7 +13941,9 @@
       const full = replyTo.content || '';
       renderNoteText(body, full, 240);
       makeMediaExpandable(block, body);
-      block.append(who, body);
+      replyKindEl = h('span', { className: 'reply-target-kind' });
+      paintReplyKind();
+      block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Replying to') }), replyKindEl]), who, body);
 
       // READING THE REST OF WHAT YOU ARE ANSWERING.
       //
@@ -14179,7 +14203,7 @@
           ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
           : t('Dev build only. Automatic preserves the kind of the event you answer.');
       };
-      select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+      select.addEventListener('change', () => { devKind = Number(select.value); paint(); paintReplyKind(); });
       paint();
       return h('div', { className: 'compose-dev-kind' }, [
         h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
@@ -14206,7 +14230,7 @@
         onChange: (text) => {
           draft.text = text;
           // An edit makes it a different note, so the repeat question no longer applies.
-          if (repeatAsked) { repeatAsked = null; post.textContent = t('Post'); err.textContent = ''; }
+          if (repeatAsked) { repeatAsked = null; post.textContent = replyTo ? t('Reply') : t('Post'); err.textContent = ''; }
           updatePostState();
           scheduleSave();
         },
@@ -14657,7 +14681,7 @@
       const paintEitherOr = pollEditor.paintEitherOr;
 
       const err = h('div', { className: 'error' });
-      const post = h('button', { className: 'primary', textContent: t('Post') });
+      const post = h('button', { className: 'primary', textContent: replyTo ? t('Reply') : t('Post') });
       function updatePostState() {
         // The tab composes a note. A poll is a different kind with its own editor, so
         // once one is open the way out of the panel goes away rather than quietly
@@ -22410,6 +22434,12 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { payPillAnywhere: e.target.checked } });
   });
 
+  $('webln-takeover-toggle').addEventListener('change', async (e) => {
+    // Rides the live settings push (pushPageSettings) to every open page, so taking
+    // over — or handing the slot back — needs no reload.
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { weblnTakeover: e.target.checked } });
+  });
+
   $('clienttag-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showClientTag: e.target.checked } });
   });
@@ -23376,6 +23406,9 @@
   async function renderSharedNote(data) {
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
+    // A payment's switch button is worded by the capsule ("Pay from a different account"); the
+    // shared-identity wording below is for signing.
+    if (isPaymentApproval(data)) return;
     if (!data.sharedIdentity) {
       $('approval-switch-toggle').textContent = tSec('Sign in with a different account');
       return;
@@ -23473,10 +23506,21 @@
     if (actions) actions.classList.toggle('approval-locked', locked);
   }
 
+  // A payment card offers the other accounts that have a wallet to pay from, in place of the
+  // sign-in switcher, which is for logging in as someone else. The card's own account is first.
+  function approvalPayList(data) {
+    return [
+      { pubkey: data.payerPubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
+      ...(data.payFromOptions || []),
+    ];
+  }
+
   function renderApprovalAccountCapsule(data) {
     const payment = isPaymentApproval(data);
-    const list = approvalAccountList(data);
-    const chosen = list.find((a) => a.pubkey === pendingApproval.chosenPubkey) || list[0];
+    const payOptions = payment ? (data.payFromOptions || []) : [];
+    const list = payment && data.payerPubkey ? approvalPayList(data) : approvalAccountList(data);
+    const chosenKey = payment && data.payerPubkey ? pendingApproval.payFrom : pendingApproval.chosenPubkey;
+    const chosen = list.find((a) => a.pubkey === chosenKey) || list[0];
 
     const acct = $('approval-account');
     acct.innerHTML = '';
@@ -23493,9 +23537,24 @@
 
     const toggle = $('approval-switch-toggle');
     const menu = $('approval-switch-menu');
-    const canSwitch = !payment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    const canSwitch = payment
+      ? payOptions.length > 0 && !!data.payerPubkey
+      : Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
     menu.innerHTML = '';
     hide(menu);
+    // The same button serves both cards, so its words follow the card it is on.
+    toggle.textContent = payment ? t('Pay from a different account') : t('Sign in with a different account');
+    // "Use {name} for all further payments on this site": offered once another account is
+    // picked, unticked every time the pick changes, so keeping a site on an account is
+    // always a deliberate tap and never a leftover from an earlier pick.
+    const bind = $('approval-bind-payer');
+    if (payment && pendingApproval.payFrom) {
+      $('approval-bind-payer-label').textContent = t('Use {{name}} for all further payments on this site', { name: chosen.name || shortNpub(chosen.npub) });
+      show(bind);
+    } else {
+      hide(bind);
+      $('approval-bind-payer-box').checked = false;
+    }
     if (!canSwitch) {
       hide(toggle);
       return;
@@ -23533,7 +23592,13 @@
         row.append(c);
       }
       row.addEventListener('click', () => {
-        pendingApproval.chosenPubkey = a.pubkey;
+        if (isPaymentApproval(data) && data.payerPubkey) {
+          // Paying from this account; the card's own account is "no pick".
+          pendingApproval.payFrom = a.pubkey === data.payerPubkey ? null : a.pubkey;
+          $('approval-bind-payer-box').checked = false;
+        } else {
+          pendingApproval.chosenPubkey = a.pubkey;
+        }
         hide(menu);
         renderApprovalAccountCapsule(data);
       });
@@ -23832,6 +23897,12 @@
     }
   }
 
+  // The flags a payment card adds to its decision when another account was picked to pay from.
+  function payFromExtra(data, pending, action, keepOnIt) {
+    if (!isPaymentApproval(data) || !data.payerPubkey || !pending.payFrom || action === 'reject') return null;
+    return { payFromPubkey: pending.payFrom, bindPayer: !!keepOnIt };
+  }
+
   async function decideApproval(action, opts) {
     if (!pendingApproval) return;
     const { id, data } = pendingApproval;
@@ -23921,6 +23992,10 @@
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
     }
+    // A payment from another account than the site's own. The worker re-checks it against
+    // the accounts the card offered; the box is the separate choice to keep the site on it.
+    const payFromFlags = payFromExtra(data, pendingApproval, action, $('approval-bind-payer-box').checked);
+    if (payFromFlags) extra = Object.assign({}, extra, payFromFlags);
     // Batch: an "Allow all (N)" / "Reject all" on a same-kind burst applies the
     // same decision (and account choice) to every grouped request at once. Trust
     // and budget are never batched (they're single-item / payment concerns).
@@ -23961,6 +24036,34 @@
     await bg({ type: 'SIDECAR_REJECT_ALL_PENDING' });
     await refreshApproval();
   });
+  // A WHEEL THE CARD CANNOT USE MUST NOT REACH WHAT IS BEHIND IT. The overlay is a fixed
+  // layer over the panel, and a wheel over any part of it that has nothing to scroll (a
+  // short card, the pinned buttons, the dimmed edge) was handed on as a scroll of the
+  // panel underneath, so the blurred list moved behind a card that stayed put. Modals
+  // lock the page with the modal-open class; the approval does not set that class, which
+  // other code reads as "a modal is open", so the wheel is held here instead.
+  //
+  // True when the wheel should be swallowed: no scroll region between the pointer and the
+  // overlay can still move in the direction asked. A region sitting at its end counts as
+  // unable, otherwise the last notch of a long card would spill into the panel behind.
+  function approvalWheelShouldBeHeld(target, deltaY, overlay, styleOf = (n) => getComputedStyle(n)) {
+    for (let n = target; n; n = n.parentElement) {
+      if (n.scrollHeight > n.clientHeight + 1) {
+        const oy = styleOf(n).overflowY;
+        if (oy === 'auto' || oy === 'scroll') {
+          const room = deltaY < 0
+            ? n.scrollTop > 0
+            : n.scrollTop + n.clientHeight < n.scrollHeight - 1;
+          if (deltaY !== 0 && room) return false;
+        }
+      }
+      if (n === overlay) break;
+    }
+    return true;
+  }
+  $('view-approval').addEventListener('wheel', (e) => {
+    if (approvalWheelShouldBeHeld(e.target, e.deltaY, e.currentTarget)) e.preventDefault();
+  }, { passive: false });
   // Tapping the dimmed backdrop (outside the card) rejects, like closing the popup.
   $('view-approval').addEventListener('click', (e) => {
     if (e.target === $('view-approval')) decideApproval('reject');
@@ -24069,14 +24172,48 @@
     if (note) { note.textContent = t('One tap signs every event listed. A batch never mixes event kinds.'); show(note); }
   }
 
-  // "N more waiting" strip inside the approval card + a Reject all escape hatch.
+  // "N more waiting" strip inside the approval card + a Reject all escape hatch —
+  // and the one line on this screen that answers "why is there a Reject all and no
+  // Approve all" (#502, remedy 1): rejecting is always safe; bulk approving is only
+  // ever offered for a same-kind batch the card lists in full.
   function renderBacklog(waiting) {
     const strip = $('approval-backlog');
     if (!strip) return;
     if (!waiting.length) { hide(strip); return; }
     const count = $('approval-backlog-count');
     count.textContent = tn('{{count}} more request waiting', '{{count}} more requests waiting', waiting.length);
+    const note = $('approval-backlog-note');
+    if (note) { note.textContent = t('Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.'); show(note); }
     show(strip);
+  }
+
+  // "Use Sidecar for Lightning payments?", offered once, where another wallet extension
+  // already answers a page's Lightning calls (#501). It lives here and not on the page
+  // because a page can forge the notice that raises it, and a switch that moves money
+  // must not be one a site can flip. Either button retires it for good.
+  function renderWeblnOffer(host) {
+    const card = $('webln-offer');
+    if (!card) return;
+    if (!host) { hide(card); card.innerHTML = ''; return; }
+    card.innerHTML = '';
+    const msg = h('span', { className: 'webln-offer-msg', textContent: t('Sidecar isn’t set as your default Lightning wallet on {{host}}. Switch?', { host }) });
+    const use = h('button', { className: 'primary', textContent: t('Use Sidecar') });
+    const later = h('button', { className: 'ghost', textContent: t('Not now') });
+    const answer = async (yes) => {
+      renderWeblnOffer('');
+      await bg({ type: 'SIDECAR_WEBLN_OFFER_ANSWER', use: yes });
+      if (yes) { const tgl = $('webln-takeover-toggle'); if (tgl) tgl.checked = true; }
+    };
+    use.addEventListener('click', () => answer(true));
+    later.addEventListener('click', () => answer(false));
+    card.append(msg, h('div', { className: 'webln-offer-controls' }, [use, later]));
+    show(card);
+  }
+  async function refreshWeblnOffer() {
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      renderWeblnOffer(s && s.weblnOfferHost ? s.weblnOfferHost : '');
+    } catch (_) {}
   }
 
   // Requests that were in flight when Sidecar's service worker restarted. Their
@@ -24121,6 +24258,7 @@
     } catch (_) {}
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
+      if (msg && msg.type === 'SIDECAR_WEBLN_OFFER') renderWeblnOffer(String(msg.host || ''));
       if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {
@@ -24134,6 +24272,7 @@
     });
     // Pull authoritative state on (re)connect.
     refreshApproval();
+    refreshWeblnOffer();
   }
   connectApprovalPort();
 
