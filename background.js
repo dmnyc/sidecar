@@ -1093,6 +1093,16 @@ function grantContent(host, pubkey, kind) {
   contentGrants.set(grantKey(host, pubkey, kind), Date.now() + COALESCE_WINDOW_MS);
 }
 
+// Every short-lived "yes" a site has earned in this worker's memory: the app-data window above and
+// the decrypt-burst window below. Forgetting a site ends them, along with its saved tier, grants and
+// binding. Left running, one more sign inside the window went through with no card and quietly
+// bound the forgotten site again.
+function forgetStandingApprovals(host) {
+  const prefix = host + '|';
+  for (const k of [...contentGrants.keys()]) if (k.startsWith(prefix)) contentGrants.delete(k);
+  for (const k of [...decryptGrants.keys()]) if (k.startsWith(prefix)) decryptGrants.delete(k);
+}
+
 // ---- decrypt-burst coalescing ----
 // A client loading a DM inbox can fire dozens of nip04/nip44.decrypt calls at
 // once — one per event it's trying to read (and a sloppy one, like gamestr.io,
@@ -4128,6 +4138,9 @@ async function handleControl(message, sender, sendResponse) {
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
         await clearAuthorizedForHost(message.host); // and the shared-identity history
         await clearAlwaysActiveHost(message.host); // and any standing instruction to skip the check
+        forgetStandingApprovals(message.host); // and the short in-memory approve windows
+        await RELAX.revokeForHost(message.host); // and a timed Auto-sign window, which outlived the forget
+        syncRelaxBadge();
         break;
       case 'SIDECAR_GET_SITE_BINDINGS':
         result = await getAllSiteAccounts();
@@ -4173,6 +4186,12 @@ async function handleControl(message, sender, sendResponse) {
         // history button, because every row in it is a site record.
         await PERMS.clearAll();
         await sset({ [SITE_ACCTS_KEY]: {}, [SITE_AUTHZ_KEY]: {}, [SITE_ALWAYS_ACTIVE_KEY]: {}, [ACTIVITY_KEY]: [] });
+        // The short approve windows end with everything else: the in-memory app-data and
+        // decrypt windows, and any timed Auto-sign window.
+        contentGrants.clear();
+        decryptGrants.clear();
+        await RELAX.revokeAll();
+        syncRelaxBadge();
         result = true;
         break;
       // The page-invoice card asks before it appears: is this invoice simply the one
