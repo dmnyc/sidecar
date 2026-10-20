@@ -24359,10 +24359,33 @@
     card.append(msg, h('div', { className: 'webln-offer-controls' }, [use, later]));
     show(card);
   }
+  // "Show Sidecar on sites you're not signed in to?", raised by the pay card's first-time
+  // offer when the person chose "Pay on any page". Confirmed here and not on the page
+  // for the same reason as the offer above: a site must not be able to switch this on.
+  // Either button ends the question; the setting changes only on "Turn on".
+  function renderPayAnywhereAsk(host) {
+    const card = $('payanywhere-ask');
+    if (!card) return;
+    if (!host) { hide(card); card.innerHTML = ''; return; }
+    card.innerHTML = '';
+    const msg = h('span', { className: 'webln-offer-msg', textContent: t('{{host}} showed a Lightning invoice. Let Sidecar offer to pay invoices on sites you are not signed in to? Every payment still waits for your approval.', { host }) });
+    const on = h('button', { className: 'primary', textContent: t('Turn on') });
+    const later = h('button', { className: 'ghost', textContent: t('Not now') });
+    const answer = async (yes) => {
+      renderPayAnywhereAsk('');
+      await bg({ type: 'SIDECAR_PAY_ANYWHERE_ANSWER', use: yes });
+      if (yes) { const tgl = $('paypill-anywhere-toggle'); if (tgl) tgl.checked = true; }
+    };
+    on.addEventListener('click', () => answer(true));
+    later.addEventListener('click', () => answer(false));
+    card.append(msg, h('div', { className: 'webln-offer-controls' }, [on, later]));
+    show(card);
+  }
   async function refreshWeblnOffer() {
     try {
       const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
       renderWeblnOffer(s && s.weblnOfferHost ? s.weblnOfferHost : '');
+      renderPayAnywhereAsk(s && s.payAnywhereAskHost ? s.payAnywhereAskHost : '');
     } catch (_) {}
   }
 
@@ -24409,6 +24432,7 @@
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
       if (msg && msg.type === 'SIDECAR_WEBLN_OFFER') renderWeblnOffer(String(msg.host || ''));
+      if (msg && msg.type === 'SIDECAR_PAY_ANYWHERE_ASK') renderPayAnywhereAsk(String(msg.host || ''));
       if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {

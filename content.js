@@ -297,6 +297,12 @@
   // payOfferDismissed, and taps go to the app as before.
   let payOfferDismissed = false;
   let offerInvoice = ''; // the invoice whose card is the offer, so a redraw keeps its wording
+  // THE FIRST-TIME OFFER. The first time a payment panel's invoice shows up on a site not
+  // signed in with Sidecar, one card says Sidecar can pay it and lets the person choose:
+  // any page, only the sites they are signed in to, or no invoice payments at all. Any
+  // answer sets payFirstOfferDone, so it is made once. Choosing "any page" only ASKS: the
+  // setting is turned on in the panel, never from here (see SIDECAR_PAY_ANYWHERE_ASK).
+  let payFirstOfferDone = false;
 
   function invoiceSats(bolt11) {
     const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(bolt11);
@@ -1950,7 +1956,12 @@
       // Nothing is offered unasked here, but a card the person opened by tapping a link
       // stays until they close it, pay, or the payment fails.
       if (cardHost && shownInvoice === tappedInvoice) return;
-      if (!pillAnywhere) return removeCard();
+      if (!pillAnywhere) {
+        const first = firstOfferInvoice();
+        if (first && !(cardHost && shownInvoice === first)) renderFirstOffer(first);
+        else if (!first) removeCard();
+        return;
+      }
       // OPTED IN: the corner pill, and only the pill. Only for an invoice in a payment
       // panel (beside a QR, in a dialog: a BTCPay checkout), never one merely sitting on
       // the page, and never the full-screen card: this site has not been signed into, so
@@ -2016,6 +2027,94 @@
     // The one decision this whole change is about: did the person ask?
     if (found.asked) renderCard(invoice);
     else renderPill(invoice);
+  }
+
+  // The invoice the first-time offer is for, or '' for none. Only for an invoice in a payment
+  // panel (the same test as the corner pill, so text merely sitting on a page offers
+  // nothing), only until it is answered, and not to someone who already turned this kind of
+  // prompt off: "Show on Nostr sites" off, or the tap offer's "Don't ask again".
+  function firstOfferInvoice() {
+    if (payFirstOfferDone || payOfferDismissed || !showCard || !hasWallet) return '';
+    const found = findPageInvoice();
+    const inv = found && found.asked ? found.invoice : '';
+    return inv && inv !== dismissedInvoice ? inv : '';
+  }
+
+  function renderFirstOffer(invoice) {
+    removeCard();
+    shownInvoice = invoice;
+    shownMode = 'card';
+    const site = location.host.replace(/^www\./, '');
+    cardHost = document.createElement('div');
+    cardHost.style.cssText = 'all:initial;';
+    const s = cardHost.attachShadow({ mode: 'closed' });
+    const colors = getThemeColors();
+    const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
+      Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
+    const logoSvg = LIGHT_CARD_THEMES.has(cardTheme) ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
+    s.innerHTML =
+      '<style>' + cardCss + '</style>' +
+      '<div class="ov">' +
+      '<div class="card" role="dialog" aria-label="' + escapeHtml(msg('cardLabel', 'Pay with Sidecar')) + '">' +
+      '<div class="brand">' + logoSvg + '</div>' +
+      '<div class="eyebrow">' + escapeHtml(msg('firstOfferEyebrow', 'Sidecar can pay invoices')) + '</div>' +
+      '<div class="memo">' + escapeHtml(msg('firstOfferBody', 'Sidecar can pay a Lightning invoice on any page, not only on sites you are signed in to. Every payment still waits for your approval. You can change this later in Settings.')) + '</div>' +
+      '<div class="site">' + msgHtml('cardFoundOn', 'found on $1', ['<b>' + escapeHtml(site) + '</b>']) + '</div>' +
+      '<button class="pay" type="button">' + bolt('pay-bolt') +
+      '<span class="pay-label">' + escapeHtml(msg('firstOfferAny', 'Pay on any page')) + '</span></button>' +
+      '<div class="pay-status" hidden></div>' +
+      '<button class="other fo-signed" type="button">' + escapeHtml(msg('firstOfferSignedIn', 'Only sites I’m signed in to')) + '</button>' +
+      '<button class="other fo-none" type="button">' + escapeHtml(msg('firstOfferNone', 'Don’t pay invoices')) + '</button>' +
+      '<button class="cancel" type="button">' + escapeHtml(msg('cardNotNow', 'Not now')) + '</button>' +
+      '</div></div>';
+
+    const ov = s.querySelector('.ov');
+    const dismiss = () => { dismissedInvoice = invoice; removeCard(); };
+    // Any answer retires the offer. A page may only ever make Sidecar quieter, so this is
+    // all SIDECAR_SET_SETTINGS lets through; "any page" goes the other way and is asked.
+    const answer = (settings) => {
+      payFirstOfferDone = true;
+      try {
+        chrome.runtime.sendMessage(
+          { type: 'SIDECAR_SET_SETTINGS', settings: Object.assign({ payFirstOfferDone: true }, settings) },
+          () => void chrome.runtime.lastError
+        );
+      } catch (_) {}
+    };
+    s.querySelector('.fo-signed').addEventListener('click', () => {
+      payOfferDismissed = true;
+      answer({ payOfferDismissed: true });
+      dismissedInvoice = invoice;
+      removeCard();
+    });
+    s.querySelector('.fo-none').addEventListener('click', () => {
+      showCard = false;
+      payOfferDismissed = true;
+      answer({ showPayButton: false, payOfferDismissed: true });
+      dismissedInvoice = invoice;
+      removeCard();
+    });
+    s.querySelector('.pay').addEventListener('click', () => {
+      try {
+        // Intent only. Sidecar's panel asks, and the setting changes only if it is approved.
+        chrome.runtime.sendMessage({ type: 'SIDECAR_PAY_ANYWHERE_ASK' }, () => void chrome.runtime.lastError);
+      } catch (_) {}
+      payFirstOfferDone = true;
+      s.querySelectorAll('.pay,.other').forEach((b) => { b.hidden = true; });
+      const status = s.querySelector('.pay-status');
+      status.hidden = false;
+      status.className = 'pay-status';
+      status.textContent = msg('firstOfferConfirm', 'Confirm in Sidecar to turn this on. Nothing changes until you do.');
+      s.querySelector('.cancel').textContent = msg('firstOfferClose', 'Close');
+    });
+    s.querySelector('.cancel').addEventListener('click', dismiss);
+    ov.addEventListener('click', (e) => { if (e.target === ov) dismiss(); });
+    escHandler = (e) => { if (e.key === 'Escape') dismiss(); };
+    window.addEventListener('keydown', escHandler, true);
+    (document.documentElement || document.body).appendChild(cardHost);
+    mountCardFont();
+    requestAnimationFrame(() => ov.classList.add('in'));
   }
 
   // THE ONE PATH THAT STILL OPENS THE CARD BY ITSELF: a tapped `lightning:` link. That is
@@ -2087,6 +2186,7 @@
       showCard = msg.showPayButton !== false;
       if ('payPillAnywhere' in msg) pillAnywhere = msg.payPillAnywhere === true;
       if ('payOfferDismissed' in msg) payOfferDismissed = msg.payOfferDismissed === true;
+      if ('payFirstOfferDone' in msg) payFirstOfferDone = msg.payFirstOfferDone === true;
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       if ('weblnTakeover' in msg) tellProviderWeblnTakeover(msg.weblnTakeover === true);
       scanForInvoice();
@@ -2157,6 +2257,7 @@
       hasWallet = settings.hasWallet === true;
       pillAnywhere = settings.payPillAnywhere === true;
       payOfferDismissed = settings.payOfferDismissed === true;
+      payFirstOfferDone = settings.payFirstOfferDone === true;
       setCardTheme(settings.cardTheme || ''); // same reply carries the palette
       tellProviderWeblnTakeover(settings.weblnTakeover === true);
       scanForInvoice();
