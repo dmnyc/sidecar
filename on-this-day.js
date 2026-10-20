@@ -988,9 +988,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-23': [
     { year: 1915, text: "Tens of thousands marched up Fifth Avenue in New York demanding the right to vote for women." },
+    { year: 1906, text: "Alberto Santos-Dumont flew more than fifty meters at Bagatelle, outside Paris, the first airplane flight a crowd watched and filmed." }, // Wikipedia, Santos-Dumont 14-bis
   ],
   '10-24': [
     { year: 1901, text: "Annie Edson Taylor went over Niagara Falls in a barrel on her sixty-third birthday, and lived." },
+    { year: 1861, text: "The first transcontinental telegraph was completed, and California's chief justice wired Lincoln from San Francisco." }, // Wikipedia, First transcontinental telegraph
   ],
   '10-25': [
     { year: 1415, text: "An outnumbered English army under Henry V defeated the French in the mud at Agincourt." },
@@ -1008,6 +1010,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-29': [
     { year: 1929, text: "The stock market collapsed on Black Tuesday, plunging the nation into the Great Depression." },
+    { year: 1863, text: "Delegates from fourteen states, meeting in Geneva, adopted the resolutions that founded the Red Cross." }, // Wikipedia, International Committee of the Red Cross
   ],
   '10-30': [
     { year: 1938, text: "Orson Welles broadcast The War of the Worlds as a series of news bulletins." },

@@ -273,6 +273,11 @@
     // 1.15.8. Checked against the Project Gutenberg text of Strange Case of Dr Jekyll and
     // Mr Hyde (1886), Henry Jekyll's statement.
     { text: 'Man is not truly one, but truly two.', who: 'Robert Louis Stevenson, 1886' },
+    // 1.16.1. Checked against the Project Gutenberg texts: Poems by Emily Dickinson,
+    // Second Series (1891), "Hope," its first stanza, which runs on past "all"; and The
+    // Education of Henry Adams (printed 1907, published 1918), chapter VII.
+    { text: 'Hope is the thing with feathers that perches in the soul, and sings the tune without the words, and never stops at all.', who: 'Emily Dickinson, 1891' },
+    { text: 'A friend in power is a friend lost.', who: 'Henry Adams, 1907' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
