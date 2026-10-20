@@ -19,6 +19,37 @@
   function httpsUrl(value) {
     try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password ? u.href : null; } catch (_) { return null; }
   }
+  // What was typed into the stream box: a video address, or the naddr of a stream announcement
+  // (kind 30311), with or without a nostr: in front. `decode` is nip19.decode. Anything else is an
+  // error the caller can word: 'not-a-stream' for a well-formed naddr of another kind, 'invalid'
+  // for the rest.
+  function parseStreamAddress(text, decode) {
+    const value = String(text || '').trim().replace(/^nostr:/i, '');
+    if (!value) return null;
+    if (/^naddr1[0-9a-z]+$/i.test(value)) {
+      let data;
+      try {
+        const result = decode(value);
+        if (!result || result.type !== 'naddr') return { error: 'invalid' };
+        data = result.data;
+      } catch (_) { return { error: 'invalid' }; }
+      if (data.kind !== 30311) return { error: 'not-a-stream' };
+      if (!/^[a-f0-9]{64}$/.test(data.pubkey) || typeof data.identifier !== 'string') return { error: 'invalid' };
+      const relays = (Array.isArray(data.relays) ? data.relays : []).filter(url => typeof url === 'string' && url.startsWith('wss://')).slice(0, 6);
+      return { naddr: { pubkey: data.pubkey, identifier: data.identifier, relays } };
+    }
+    const url = httpsUrl(value);
+    return url ? { url } : { error: 'invalid' };
+  }
+  // The address of a stream announcement (kind 30311), in the shape nip19.naddrEncode takes, or null
+  // for a stream with no event behind it (a saved video link). A stream's key is
+  // "30311:<author>:<d>"; the d tag may itself hold colons, so only the first two are the separators.
+  function streamAddress(item) {
+    const match = /^30311:([a-f0-9]{64}):([\s\S]+)$/.exec(String(item?.key || ''));
+    if (!match) return null;
+    const relays = (Array.isArray(item.relays) ? item.relays : []).filter(url => typeof url === 'string' && url.startsWith('wss://')).slice(0, 3);
+    return { kind: 30311, pubkey: match[1], identifier: match[2], relays };
+  }
   function parse(event, now = Date.now() / 1000) {
     if (!event || event.kind !== 30311 || !Array.isArray(event.tags) || !/^[a-f0-9]{64}$/.test(event.pubkey) || !Number.isFinite(event.created_at) || event.created_at > now + 60) return null;
     const tag = key => event.tags.find(t => Array.isArray(t) && t[0] === key)?.[1];
@@ -343,7 +374,7 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, zapRelayUrl, relayHints, extraZapRelays, ZAP_ARCHIVE_RELAYS, Directory, invoiceDetails, ZapTotals };
+  const api = { parseStreamAddress, streamAddress, advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, zapRelayUrl, relayHints, extraZapRelays, ZAP_ARCHIVE_RELAYS, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);
