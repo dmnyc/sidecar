@@ -4999,6 +4999,11 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .remember { margin-bottom: 14px; }
 .remember .check { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text); font-size: 13px; margin-bottom: 8px; cursor: pointer; }
 .remember input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
+/* The keep-this-account line wraps to two lines, unlike the single-line offers above. Left to
+   the card's centered text, the words centered in the space the box leaves and sat well away
+   from it. Left-aligned beside the box, with the box on the first line. */
+#approval-bind-payer .check { align-items: flex-start; justify-content: flex-start; text-align: left; }
+#approval-bind-payer input[type=checkbox] { margin-top: 1px; }
 .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
 /* The approval's checkboxes as one group (sidepanel.html): as wide as the widest row and
    centered, so a lone checkbox sits where it always did, while stacked ones share a left
