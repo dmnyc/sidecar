@@ -2056,7 +2056,7 @@
     s.innerHTML =
       '<style>' + cardCss +
       // Sidecar's own sentence, not a page's memo: it is never clamped to three lines.
-      '.fo-body{display:block;-webkit-line-clamp:unset;overflow:visible;}</style>' +
+      '.fo-body{display:block;-webkit-line-clamp:unset;overflow:visible;text-wrap:balance;}</style>' +
       '<div class="ov">' +
       '<div class="card" role="dialog" aria-label="' + escapeHtml(msg('cardLabel', 'Pay with Sidecar')) + '">' +
       '<div class="brand">' + logoSvg + '</div>' +

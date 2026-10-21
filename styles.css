@@ -4405,7 +4405,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   margin: 10px 16px 0; padding: 10px 12px; border-radius: 10px;
   background: var(--surface-2, rgba(255, 255, 255, 0.04)); border: 1px solid var(--border);
 }
-.webln-offer-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); }
+.webln-offer-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); text-wrap: pretty; }
 .webln-offer-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .webln-offer-controls button { flex: 1 1 auto; }
 
