@@ -2061,7 +2061,7 @@
       '<div class="card" role="dialog" aria-label="' + escapeHtml(msg('cardLabel', 'Pay with Sidecar')) + '">' +
       '<div class="brand">' + logoSvg + '</div>' +
       '<div class="eyebrow">' + escapeHtml(msg('firstOfferEyebrow', 'Sidecar can pay invoices')) + '</div>' +
-      '<div class="memo fo-body">' + escapeHtml(msg('firstOfferBody', 'Sidecar can pay a Lightning invoice on any page, not only on sites you are signed in to. Every payment still waits for your approval. You can change this later in Settings.')) + '</div>' +
+      '<div class="memo fo-body">' + escapeHtml(msg('firstOfferBody', 'On any page, not just connected sites.')) + '</div>' +
       '<div class="site">' + msgHtml('cardFoundOn', 'found on $1', ['<b>' + escapeHtml(site) + '</b>']) + '</div>' +
       '<button class="pay" type="button">' + bolt('pay-bolt') +
       '<span class="pay-label">' + escapeHtml(msg('firstOfferAny', 'Pay on any page')) + '</span></button>' +
@@ -2107,7 +2107,7 @@
       const status = s.querySelector('.pay-status');
       status.hidden = false;
       status.className = 'pay-status';
-      status.textContent = msg('firstOfferConfirm', 'Confirm in Sidecar to turn this on. Nothing changes until you do.');
+      status.textContent = msg('firstOfferConfirm', 'Confirm in Sidecar to turn this on.');
       s.querySelector('.cancel').textContent = msg('firstOfferClose', 'Close');
     });
     s.querySelector('.cancel').addEventListener('click', dismiss);

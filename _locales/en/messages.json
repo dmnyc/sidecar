@@ -184,7 +184,7 @@
     "description": "Heading of the first-time card shown when a Lightning invoice appears on a site not signed in with Sidecar."
   },
   "firstOfferBody": {
-    "message": "Sidecar can pay a Lightning invoice on any page, not only on sites you are signed in to. Every payment still waits for your approval. You can change this later in Settings.",
+    "message": "On any page, not just connected sites.",
     "description": "Body of the first-time card offering to pay invoices on any page."
   },
   "firstOfferAny": {
@@ -200,7 +200,7 @@
     "description": "First-time card choice: opt out of invoice payments from page prompts."
   },
   "firstOfferConfirm": {
-    "message": "Confirm in Sidecar to turn this on. Nothing changes until you do.",
+    "message": "Confirm in Sidecar to turn this on.",
     "description": "First-time card, after choosing Pay on any page: points to Sidecar's panel."
   },
   "firstOfferClose": {

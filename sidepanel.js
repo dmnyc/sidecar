@@ -25011,7 +25011,7 @@
     if (!card) return;
     if (!host) { hide(card); card.innerHTML = ''; return; }
     card.innerHTML = '';
-    const msg = h('span', { className: 'webln-offer-msg', textContent: t('{{host}} showed a Lightning invoice. Let Sidecar offer to pay invoices on sites you are not signed in to? Every payment still waits for your approval.', { host }) });
+    const msg = h('span', { className: 'webln-offer-msg', textContent: t('{{host}} showed an invoice. Let Sidecar pay on sites you’re not signed in to?', { host }) });
     const on = h('button', { className: 'primary', textContent: t('Turn on') });
     const later = h('button', { className: 'ghost', textContent: t('Not now') });
     const answer = async (yes) => {
