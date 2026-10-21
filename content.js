@@ -2054,12 +2054,14 @@
     const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
     const logoSvg = LIGHT_CARD_THEMES.has(cardTheme) ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
     s.innerHTML =
-      '<style>' + cardCss + '</style>' +
+      '<style>' + cardCss +
+      // Sidecar's own sentence, not a page's memo: it is never clamped to three lines.
+      '.fo-body{display:block;-webkit-line-clamp:unset;overflow:visible;}</style>' +
       '<div class="ov">' +
       '<div class="card" role="dialog" aria-label="' + escapeHtml(msg('cardLabel', 'Pay with Sidecar')) + '">' +
       '<div class="brand">' + logoSvg + '</div>' +
       '<div class="eyebrow">' + escapeHtml(msg('firstOfferEyebrow', 'Sidecar can pay invoices')) + '</div>' +
-      '<div class="memo">' + escapeHtml(msg('firstOfferBody', 'Sidecar can pay a Lightning invoice on any page, not only on sites you are signed in to. Every payment still waits for your approval. You can change this later in Settings.')) + '</div>' +
+      '<div class="memo fo-body">' + escapeHtml(msg('firstOfferBody', 'Sidecar can pay a Lightning invoice on any page, not only on sites you are signed in to. Every payment still waits for your approval. You can change this later in Settings.')) + '</div>' +
       '<div class="site">' + msgHtml('cardFoundOn', 'found on $1', ['<b>' + escapeHtml(site) + '</b>']) + '</div>' +
       '<button class="pay" type="button">' + bolt('pay-bolt') +
       '<span class="pay-label">' + escapeHtml(msg('firstOfferAny', 'Pay on any page')) + '</span></button>' +
