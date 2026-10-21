@@ -275,12 +275,15 @@ test('THE FIRST-TIME OFFER IS FOR A PAYMENT PANEL\'S INVOICE, ONCE, AND NEVER TO
   assert.match(bg, /payFirstOfferDone: merged\.payFirstOfferDone === true,/);
 });
 
-test('THE OFFER\'S THREE ANSWERS: ANY PAGE ONLY ASKS, THE OTHER TWO ONLY QUIETEN', () => {
+test('THE OFFER\'S ANSWERS: ANY PAGE ONLY ASKS, AND DECLINING WRITES NOTHING ELSE', () => {
   const offer = stripComments(lift(content, 'function renderFirstOffer('));
-  // Every settings write the card makes is a "quieter" one.
+  // The offer's one job is the unconnected-sites setting. Declining only marks it
+  // answered: it does not silence the tapped-link offer and does not touch pay prompts
+  // on signed-in sites.
   assert.doesNotMatch(offer, /payPillAnywhere/, 'the page card writes Show on unconnected sites');
-  assert.match(offer, /answer\(\{ payOfferDismissed: true \}\)/);
-  assert.match(offer, /answer\(\{ showPayButton: false, payOfferDismissed: true \}\)/);
+  assert.doesNotMatch(offer, /payOfferDismissed/, 'the decline silences the tapped-link offer');
+  assert.doesNotMatch(offer, /showPayButton/, 'the decline turns off pay prompts everywhere');
+  assert.match(offer, /answer\(\{\}\)/);
   assert.match(offer, /type: 'SIDECAR_PAY_ANYWHERE_ASK'/);
   const bg = stripComments(background);
   // A page may send the ask, which only raises a question; the answer is the panel's.
@@ -297,7 +300,7 @@ test('THE OFFER\'S THREE ANSWERS: ANY PAGE ONLY ASKS, THE OTHER TWO ONLY QUIETEN
   assert.match(panel, /type: 'SIDECAR_PAY_ANYWHERE_ANSWER', use: yes/);
   assert.match(panel, /msg\.type === 'SIDECAR_PAY_ANYWHERE_ASK'\) renderPayAnywhereAsk/);
   const en = JSON.parse(fs.readFileSync(path.join(ROOT, '_locales', 'en', 'messages.json'), 'utf8'));
-  for (const k of ['firstOfferEyebrow', 'firstOfferBody', 'firstOfferAny', 'firstOfferSignedIn', 'firstOfferNone', 'firstOfferConfirm', 'firstOfferClose']) {
+  for (const k of ['firstOfferEyebrow', 'firstOfferBody', 'firstOfferAny', 'firstOfferSignedIn', 'firstOfferConfirm', 'firstOfferClose']) {
     assert.ok(en[k] && en[k].message, k + ' has no English');
   }
 });

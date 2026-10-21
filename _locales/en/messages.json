@@ -195,10 +195,6 @@
     "message": "Only sites I’m signed in to",
     "description": "First-time card choice: keep Sidecar's pay prompts to sites signed in with Sidecar."
   },
-  "firstOfferNone": {
-    "message": "Don’t pay invoices",
-    "description": "First-time card choice: opt out of invoice payments from page prompts."
-  },
   "firstOfferConfirm": {
     "message": "Confirm in Sidecar to turn this on.",
     "description": "First-time card, after choosing Pay on any page: points to Sidecar's panel."

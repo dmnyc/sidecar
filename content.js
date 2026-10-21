@@ -298,10 +298,12 @@
   let payOfferDismissed = false;
   let offerInvoice = ''; // the invoice whose card is the offer, so a redraw keeps its wording
   // THE FIRST-TIME OFFER. The first time a payment panel's invoice shows up on a site not
-  // signed in with Sidecar, one card says Sidecar can pay it and lets the person choose:
-  // any page, only the sites they are signed in to, or no invoice payments at all. Any
-  // answer sets payFirstOfferDone, so it is made once. Choosing "any page" only ASKS: the
-  // setting is turned on in the panel, never from here (see SIDECAR_PAY_ANYWHERE_ASK).
+  // signed in with Sidecar, one card says Sidecar can pay it and offers the setting: pay
+  // on any page, or leave it off. Either answer sets payFirstOfferDone, so it is made
+  // once, and neither writes anything else. Declining is not "don't ask again" for the
+  // tapped-link offer, and never touches Show on Nostr sites: this card is about
+  // unconnected sites and nothing else. Choosing "any page" only ASKS: the setting is
+  // turned on in the panel, never from here (see SIDECAR_PAY_ANYWHERE_ASK).
   let payFirstOfferDone = false;
 
   function invoiceSats(bolt11) {
@@ -2049,7 +2051,10 @@
     cardHost.style.cssText = 'all:initial;';
     const s = cardHost.attachShadow({ mode: 'closed' });
     const colors = getThemeColors();
-    const cardCss = CARD_CSS.replace(/\{(\w+)\}/g, (m, k) =>
+    const cardCss = (CARD_CSS +
+      // The two other answers are real choices, so they are drawn as buttons, not links.
+      '.other.fo-choice{border:1px solid {CARD_BORDER};color:{CARD_TEXT};font-weight:600;padding:11px;}' +
+      '.other.fo-choice:hover{background:{CARD_CANCEL_BG};}').replace(/\{(\w+)\}/g, (m, k) =>
       Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
     const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
     const logoSvg = LIGHT_CARD_THEMES.has(cardTheme) ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
@@ -2066,8 +2071,7 @@
       '<button class="pay" type="button">' + bolt('pay-bolt') +
       '<span class="pay-label">' + escapeHtml(msg('firstOfferAny', 'Pay on any page')) + '</span></button>' +
       '<div class="pay-status" hidden></div>' +
-      '<button class="other fo-signed" type="button">' + escapeHtml(msg('firstOfferSignedIn', 'Only sites I’m signed in to')) + '</button>' +
-      '<button class="other fo-none" type="button">' + escapeHtml(msg('firstOfferNone', 'Don’t pay invoices')) + '</button>' +
+      '<button class="other fo-choice fo-signed" type="button">' + escapeHtml(msg('firstOfferSignedIn', 'Only sites I’m signed in to')) + '</button>' +
       '<button class="cancel" type="button">' + escapeHtml(msg('cardNotNow', 'Not now')) + '</button>' +
       '</div></div>';
 
@@ -2084,16 +2088,10 @@
         );
       } catch (_) {}
     };
+    // Declining writes only that the offer was answered, so a page can never quiet Sidecar
+    // anywhere else as a side effect of this card.
     s.querySelector('.fo-signed').addEventListener('click', () => {
-      payOfferDismissed = true;
-      answer({ payOfferDismissed: true });
-      dismissedInvoice = invoice;
-      removeCard();
-    });
-    s.querySelector('.fo-none').addEventListener('click', () => {
-      showCard = false;
-      payOfferDismissed = true;
-      answer({ showPayButton: false, payOfferDismissed: true });
+      answer({});
       dismissedInvoice = invoice;
       removeCard();
     });
