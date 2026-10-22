@@ -318,15 +318,36 @@
     syncVisibility();
     const begin = () => { if (run !== generation || !enabled) return; return video.play().catch(() => { if (run === generation) message(t('Press Play to start watching.')); }); };
     const isHls = !/\.(mp4|webm|ogv)(?:[?#]|$)/i.test(url);
-    if (isHls && Hls.isSupported()) {
-      hls = new Hls({ enableWorker: false, backBufferLength: 15, maxBufferLength: 20 });
-      hls.on(Hls.Events.ERROR, (_, data) => { if (run === generation && data.fatal) message(t('Stream unavailable. Choose another stream or try again.')); });
-      hls.on(Hls.Events.MANIFEST_PARSED, begin);
-      hls.loadSource(url); hls.attachMedia(video);
-    } else {
-      if (isHls && !video.canPlayType('application/vnd.apple.mpegurl')) { message(t('This browser cannot play this stream.')); return; }
-      video.src = url; begin();
-    }
+    if (!isHls) { video.src = url; begin(); return; }
+    loadHls().then((loaded) => {
+      if (run !== generation) return;
+      if (loaded && Hls.isSupported()) {
+        hls = new Hls({ enableWorker: false, backBufferLength: 15, maxBufferLength: 20 });
+        hls.on(Hls.Events.ERROR, (_, data) => { if (run === generation && data.fatal) message(t('Stream unavailable. Choose another stream or try again.')); });
+        hls.on(Hls.Events.MANIFEST_PARSED, begin);
+        hls.loadSource(url); hls.attachMedia(video);
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url; begin();
+      } else {
+        message(loaded ? t('This browser cannot play this stream.') : t('Stream unavailable. Choose another stream or try again.'));
+      }
+    });
+  }
+  // hls.js is 1.65 MB and only a stream needs it, so it is injected on the first HLS play
+  // instead of loading with the panel (the jsqr pattern in sidepanel.js). Resolves true or
+  // false and never rejects; a failed load clears the memo so the next play tries again.
+  let hlsPromise = null;
+  function loadHls() {
+    if (typeof Hls !== 'undefined') return Promise.resolve(true);
+    if (hlsPromise) return hlsPromise;
+    hlsPromise = new Promise((resolve) => {
+      const tag = document.createElement('script');
+      tag.src = 'hls.js';
+      tag.onload = () => { const ok = typeof Hls !== 'undefined'; if (!ok) hlsPromise = null; resolve(ok); };
+      tag.onerror = () => { hlsPromise = null; tag.remove(); resolve(false); };
+      document.head.appendChild(tag);
+    });
+    return hlsPromise;
   }
   video.addEventListener('enterpictureinpicture', () => {
     root.classList.add('stream-pip'); layout();
