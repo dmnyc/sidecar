@@ -4527,9 +4527,27 @@
   const ACCOUNT_STATS_OPEN_MAX = 3;
   // Whether the panel has shown the active account once since it opened (revealActiveAccount).
   let _activeRevealedOnOpen = false;
-  const accountStatsOpen = () => (accountStatsExpanded == null
+  // While the video player is open the overview stays closed, so more of the panel shows
+  // beside it. Held apart from accountStatsExpanded, which is the person's own choice and
+  // comes back when the player closes; opening the drawer by hand ends the hold.
+  let statsCollapsedForPlayer = false;
+  const accountStatsOpen = () => (statsCollapsedForPlayer ? false : accountStatsExpanded == null
     ? ((state && state.accounts) || []).length <= ACCOUNT_STATS_OPEN_MAX
     : accountStatsExpanded);
+  // The drawer on screen, so the player opening or closing can fold it without a rebuild.
+  let accountStatsSync = null;
+  (() => {
+    const dock = $('stream-dock');
+    if (!dock) return;
+    let playing = dock.classList.contains('stream-playing');
+    new MutationObserver(() => {
+      const now = dock.classList.contains('stream-playing');
+      if (now === playing) return;
+      playing = now;
+      statsCollapsedForPlayer = now;
+      if (accountStatsSync) accountStatsSync();
+    }).observe(dock, { attributes: true, attributeFilter: ['class'] });
+  })();
   // The overview's "the network is back, retry what failed", for the one overview on
   // screen. A single listener and a slot rather than a listener per render: the drawer is
   // rebuilt on every renderMain, and each rebuild adding its own would pile up closures
@@ -9411,11 +9429,18 @@
     chev.classList.add('account-stats-chevron');
     if (!open) chev.style.transform = 'rotate(-90deg)';
     header.append(chev, document.createTextNode('Overview'));
+    // Draw the drawer as accountStatsOpen() says now, loading its numbers the first time it opens.
+    const applyOpen = () => {
+      const now = accountStatsOpen();
+      drawer.classList.toggle('collapsed', !now);
+      chev.style.transform = now ? '' : 'rotate(-90deg)';
+      if (now && !drawer.dataset.loaded) loadStats();
+    };
+    accountStatsSync = () => { if (drawer.isConnected) applyOpen(); };
     header.addEventListener('click', () => {
-      accountStatsExpanded = !accountStatsOpen();
-      drawer.classList.toggle('collapsed', !accountStatsExpanded);
-      chev.style.transform = accountStatsExpanded ? '' : 'rotate(-90deg)';
-      if (accountStatsExpanded && !drawer.dataset.loaded) loadStats();
+      accountStatsExpanded = drawer.classList.contains('collapsed');
+      statsCollapsedForPlayer = false;
+      applyOpen();
     });
 
     const body = document.createElement('div');
