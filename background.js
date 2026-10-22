@@ -3357,6 +3357,7 @@ function pushPageSettings(merged) {
             showPayButton: merged.showPayButton,
             payPillAnywhere: merged.payPillAnywhere === true,
             payOfferDismissed: merged.payOfferDismissed === true,
+            payFirstOfferDone: merged.payFirstOfferDone === true,
             // Keep the card's auto-zap offer in step: turning the setting on
             // in Settings should retire the offer without a page reload.
             autoZapOffer: merged.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
@@ -4560,6 +4561,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     'SIDECAR_IS_CONNECTED', 'SIDECAR_GET_SETTINGS', 'SIDECAR_SET_SETTINGS',
     // Another wallet holds window.webln on this page (#501). Records an offer; changes nothing.
     'SIDECAR_WEBLN_OTHER_PRESENT',
+    // The first-time offer's "Pay on any page". Records a question for the panel; changes no setting.
+    'SIDECAR_PAY_ANYWHERE_ASK',
     // The pay card's lettering face: a public font file, and nothing else.
     'SIDECAR_CARD_FONT',
   ]);
@@ -4578,6 +4581,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (s.payPillAnywhere === false) clamped.payPillAnywhere = false;
     // "Don't ask again" on the offer card: a page may only make Sidecar quieter.
     if (s.payOfferDismissed === true) clamped.payOfferDismissed = true;
+    // The first-time offer was answered, whichever way. Only ever to true.
+    if (s.payFirstOfferDone === true) clamped.payFirstOfferDone = true;
     message = { type: 'SIDECAR_SET_SETTINGS', settings: clamped };
   }
   if (!fromExtPage && message.type === 'SIDECAR_GET_SETTINGS') {
@@ -4635,6 +4640,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           payPillAnywhere: st.payPillAnywhere === true,
           // The offer card's "Don't ask again", so a dismissed offer stays dismissed.
           payOfferDismissed: st.payOfferDismissed === true,
+          payFirstOfferDone: st.payFirstOfferDone === true,
           autoZapOffer: st.autoZap === true ? 0 : AUTOZAP_DEFAULT_MAX,
           cardTheme: SidecarSeasons.resolve(st, cardAccount) || (cardAccount && by[cardAccount]) || st.theme || '',
           hasWallet,
@@ -4700,6 +4706,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.use === true) merged.weblnTakeover = true;
       await sset({ sidecar_settings: merged });
       pushPageSettings(merged);
+      sendResponse({ ok: true });
+    }).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  // "Pay on any page", chosen on the first-time offer card. A page can send this for itself,
+  // so it only RAISES A QUESTION in the panel, naming the page; the setting is turned on by
+  // SIDECAR_PAY_ANYWHERE_ANSWER below, which a page cannot send. The panel is opened when
+  // the browser lets us (the click that brought us here is a user gesture); if not, the
+  // question waits there until it is opened.
+  if (message.type === 'SIDECAR_PAY_ANYWHERE_ASK') {
+    let h = '';
+    try { h = new URL((sender && sender.url) || '').host; } catch (_) {}
+    const tabId = sender && sender.tab && sender.tab.id;
+    sget('sidecar_settings').then(async ({ sidecar_settings }) => {
+      const prev = sidecar_settings || {};
+      if (h && prev.payPillAnywhere !== true) {
+        await sset({ sidecar_settings: { ...prev, payFirstOfferDone: true, payAnywhereAskHost: h } });
+        if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_PAY_ANYWHERE_ASK', host: h }); } catch (_) {} }
+        else if (chrome.sidePanel && tabId != null) chrome.sidePanel.open({ tabId }).catch(() => {});
+      }
+      sendResponse({ ok: true });
+    }).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  // The person's answer, from the panel. "Turn on" is Show on unconnected sites; either
+  // answer ends the question.
+  if (message.type === 'SIDECAR_PAY_ANYWHERE_ANSWER') {
+    sget('sidecar_settings').then(async ({ sidecar_settings }) => {
+      const prev = sidecar_settings || {};
+      const merged = { ...prev, payAnywhereAskHost: null, payFirstOfferDone: true };
+      if (message.use === true) merged.payPillAnywhere = true;
+      await sset({ sidecar_settings: merged });
+      pushPageSettings(merged);
+      // The page that asked is holding its card for this answer; tell every tab it came.
+      if (chrome.tabs) {
+        chrome.tabs.query({}, (tabs) => {
+          for (const t of tabs) {
+            if (t.id != null) {
+              chrome.tabs.sendMessage(t.id, { type: 'SIDECAR_EVENT', event: 'payanywhere-answered', use: message.use === true }, () => void chrome.runtime.lastError);
+            }
+          }
+        });
+      }
       sendResponse({ ok: true });
     }).catch(() => sendResponse({ ok: false }));
     return true;

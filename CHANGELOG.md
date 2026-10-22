@@ -9,6 +9,9 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+### Added
+- **A first-time offer to pay invoices on any page.** The first time a payment panel’s Lightning invoice appears on a site you are not signed in to, Sidecar says it can pay it and asks: **Pay on any page**, **Only sites I’m signed in to**, or **Not now**. **Pay on any page** raises a question in the side panel, over whatever is open, and turns on **Show on unconnected sites** only when you tap **Turn on** there; a page cannot turn it on itself. The card waits for your answer and leaves with either one. **Only sites I’m signed in to** ends the offer and changes nothing else, and **Not now** asks again on the next invoice.
+
 ## [1.16.1] — 2026-10-21
 
 ### Added

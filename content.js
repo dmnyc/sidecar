@@ -51,6 +51,16 @@
   // 'pill' or 'card' — which of the two is on screen, so a re-scan does not swap one for
   // the other underneath the user.
   let shownMode = '';
+  // The first-time offer is up. It shares shownInvoice with the card a tap opens, but unlike
+  // that card it gives way to the corner pill once the setting it asks about turns on.
+  let offerUp = false;
+  // The person tapped "Pay on any page" and the answer is out, in Sidecar's panel. The card
+  // holds still until it comes back (or they close it): a page that redraws itself must not
+  // take it away mid-question, and nothing else would tell it to leave.
+  let offerWaiting = false;
+  // Fades the offer card out, then calls back. Set by renderFirstOffer: the card's root is
+  // closed, so only the closure that built it can reach the overlay.
+  let offerFade = (done) => done();
 
   const SCOPE_TO_TYPE = {
     nostr: 'SIDECAR_NOSTR_RPC',
@@ -297,6 +307,14 @@
   // payOfferDismissed, and taps go to the app as before.
   let payOfferDismissed = false;
   let offerInvoice = ''; // the invoice whose card is the offer, so a redraw keeps its wording
+  // THE FIRST-TIME OFFER. The first time a payment panel's invoice shows up on a site not
+  // signed in with Sidecar, one card says Sidecar can pay it and offers the setting: pay
+  // on any page, or leave it off. Either answer sets payFirstOfferDone, so it is made
+  // once, and neither writes anything else. Declining is not "don't ask again" for the
+  // tapped-link offer, and never touches Show on Nostr sites: this card is about
+  // unconnected sites and nothing else. Choosing "any page" only ASKS: the setting is
+  // turned on in the panel, never from here (see SIDECAR_PAY_ANYWHERE_ASK).
+  let payFirstOfferDone = false;
 
   function invoiceSats(bolt11) {
     const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(bolt11);
@@ -1567,6 +1585,8 @@
     cardHost = null;
     shownInvoice = '';
     shownMode = '';
+    offerUp = false;
+    offerWaiting = false;
     cardControls = null;
     if (escHandler) {
       window.removeEventListener('keydown', escHandler, true);
@@ -1943,6 +1963,8 @@
     // Both end the same way: 'paid' and 'payfailed' clear them, and so does the
     // indicator's own dismiss button.
     if (shownMode === 'flight' || awaitingDecision) return;
+    // The first-time offer, waiting on its answer from the panel (see offerWaiting).
+    if (offerUp && offerWaiting) return;
     // TWO SWITCHES, ONE PER KIND OF SITE. showCard is "Show on Nostr sites" and covers
     // sites signed in with Sidecar; pillAnywhere is "Show on unconnected sites" and
     // covers the rest. Neither reaches the other's sites.
@@ -1950,7 +1972,12 @@
       // Nothing is offered unasked here, but a card the person opened by tapping a link
       // stays until they close it, pay, or the payment fails.
       if (cardHost && shownInvoice === tappedInvoice) return;
-      if (!pillAnywhere) return removeCard();
+      if (!pillAnywhere) {
+        const first = firstOfferInvoice();
+        if (first && !(cardHost && shownInvoice === first)) renderFirstOffer(first);
+        else if (!first) removeCard();
+        return;
+      }
       // OPTED IN: the corner pill, and only the pill. Only for an invoice in a payment
       // panel (beside a QR, in a dialog: a BTCPay checkout), never one merely sitting on
       // the page, and never the full-screen card: this site has not been signed into, so
@@ -1960,7 +1987,7 @@
       const offered = findPageInvoice();
       const inv = offered && offered.asked ? offered.invoice : '';
       if (!inv || inv === dismissedInvoice || !hasWallet) return removeCard();
-      if (inv === shownInvoice && cardHost) return;
+      if (inv === shownInvoice && cardHost && !offerUp) return;
       return renderPill(inv);
     }
     if (!showCard) return removeCard();
@@ -2016,6 +2043,112 @@
     // The one decision this whole change is about: did the person ask?
     if (found.asked) renderCard(invoice);
     else renderPill(invoice);
+  }
+
+  // The invoice the first-time offer is for, or '' for none. Only for an invoice in a payment
+  // panel (the same test as the corner pill, so text merely sitting on a page offers
+  // nothing), only until it is answered, and not to someone who already turned this kind of
+  // prompt off: "Show on Nostr sites" off, or the tap offer's "Don't ask again".
+  function firstOfferInvoice() {
+    if (payFirstOfferDone || payOfferDismissed || !showCard || !hasWallet) return '';
+    const found = findPageInvoice();
+    const inv = found && found.asked ? found.invoice : '';
+    return inv && inv !== dismissedInvoice ? inv : '';
+  }
+
+  function renderFirstOffer(invoice) {
+    removeCard();
+    shownInvoice = invoice;
+    shownMode = 'card';
+    offerUp = true;
+    const site = location.host.replace(/^www\./, '');
+    cardHost = document.createElement('div');
+    cardHost.style.cssText = 'all:initial;';
+    const s = cardHost.attachShadow({ mode: 'closed' });
+    const colors = getThemeColors();
+    const cardCss = (CARD_CSS +
+      // .pay sets its own display, which beats the hidden attribute.
+      '.pay[hidden],.other[hidden]{display:none;}' +
+      // The wait, shown as shimmer on the status line: a highlight band swept across the same
+      // glyphs on a loop (transitions-dev, shimmer text), so a quiet card reads as alive.
+      '.pay-status.wait{position:relative;}' +
+      '.pay-status.wait::before{content:attr(data-text);position:absolute;inset:0;pointer-events:none;' +
+      'background-image:linear-gradient(90deg,transparent 0%,transparent 40%,{CARD_TEXT} 50%,transparent 60%,transparent 100%);' +
+      'background-size:400% 100%;background-repeat:no-repeat;-webkit-background-clip:text;background-clip:text;' +
+      'color:transparent;-webkit-text-fill-color:transparent;animation:fo-shimmer 2000ms linear infinite;}' +
+      '@keyframes fo-shimmer{0%{background-position:100% 0;}100%{background-position:0% 0;}}' +
+      '@media (prefers-reduced-motion:reduce){.pay-status.wait::before{animation:none;}}' +
+      // The two other answers are real choices, so they are drawn as buttons, not links.
+      '.other.fo-choice{border:1px solid {CARD_BORDER};color:{CARD_TEXT};font-weight:600;padding:11px;}' +
+      '.other.fo-choice:hover{background:{CARD_CANCEL_BG};}').replace(/\{(\w+)\}/g, (m, k) =>
+      Object.prototype.hasOwnProperty.call(colors, k) ? colors[k] : m);
+    const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
+    const logoSvg = LIGHT_CARD_THEMES.has(cardTheme) ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
+    s.innerHTML =
+      '<style>' + cardCss +
+      // Sidecar's own sentence, not a page's memo: it is never clamped to three lines.
+      '.fo-body{display:block;-webkit-line-clamp:unset;overflow:visible;text-wrap:balance;}</style>' +
+      '<div class="ov">' +
+      '<div class="card" role="dialog" aria-label="' + escapeHtml(msg('cardLabel', 'Pay with Sidecar')) + '">' +
+      '<div class="brand">' + logoSvg + '</div>' +
+      '<div class="eyebrow">' + escapeHtml(msg('firstOfferEyebrow', 'Sidecar can pay invoices')) + '</div>' +
+      '<div class="memo fo-body">' + escapeHtml(msg('firstOfferBody', 'On any page, not just connected sites.')) + '</div>' +
+      '<div class="site">' + msgHtml('cardFoundOn', 'found on $1', ['<b>' + escapeHtml(site) + '</b>']) + '</div>' +
+      '<button class="pay" type="button">' + bolt('pay-bolt') +
+      '<span class="pay-label">' + escapeHtml(msg('firstOfferAny', 'Pay on any page')) + '</span></button>' +
+      '<div class="pay-status" hidden></div>' +
+      '<button class="other fo-choice fo-signed" type="button">' + escapeHtml(msg('firstOfferSignedIn', 'Only sites I’m signed in to')) + '</button>' +
+      '<button class="cancel" type="button">' + escapeHtml(msg('cardNotNow', 'Not now')) + '</button>' +
+      '</div></div>';
+
+    const ov = s.querySelector('.ov');
+    const dismiss = () => { dismissedInvoice = invoice; removeCard(); };
+    offerFade = (done) => {
+      ov.classList.remove('in');
+      const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(done, still ? 0 : 200);
+    };
+    // Any answer retires the offer. A page may only ever make Sidecar quieter, so this is
+    // all SIDECAR_SET_SETTINGS lets through; "any page" goes the other way and is asked.
+    const answer = (settings) => {
+      payFirstOfferDone = true;
+      try {
+        chrome.runtime.sendMessage(
+          { type: 'SIDECAR_SET_SETTINGS', settings: Object.assign({ payFirstOfferDone: true }, settings) },
+          () => void chrome.runtime.lastError
+        );
+      } catch (_) {}
+    };
+    // Declining writes only that the offer was answered, so a page can never quiet Sidecar
+    // anywhere else as a side effect of this card.
+    s.querySelector('.fo-signed').addEventListener('click', () => {
+      answer({});
+      dismissedInvoice = invoice;
+      removeCard();
+    });
+    s.querySelector('.pay').addEventListener('click', () => {
+      try {
+        // Intent only. Sidecar's panel asks, and the setting changes only if it is approved.
+        chrome.runtime.sendMessage({ type: 'SIDECAR_PAY_ANYWHERE_ASK' }, () => void chrome.runtime.lastError);
+      } catch (_) {}
+      payFirstOfferDone = true;
+      s.querySelectorAll('.pay,.other').forEach((b) => { b.hidden = true; });
+      const status = s.querySelector('.pay-status');
+      status.hidden = false;
+      const waitText = msg('firstOfferConfirm', 'Open Sidecar to confirm.');
+      status.className = 'pay-status wait';
+      status.textContent = waitText;
+      status.setAttribute('data-text', waitText);
+      offerWaiting = true;
+      s.querySelector('.cancel').textContent = msg('firstOfferClose', 'Close');
+    });
+    s.querySelector('.cancel').addEventListener('click', dismiss);
+    ov.addEventListener('click', (e) => { if (e.target === ov) dismiss(); });
+    escHandler = (e) => { if (e.key === 'Escape') dismiss(); };
+    window.addEventListener('keydown', escHandler, true);
+    (document.documentElement || document.body).appendChild(cardHost);
+    mountCardFont();
+    requestAnimationFrame(() => ov.classList.add('in'));
   }
 
   // THE ONE PATH THAT STILL OPENS THE CARD BY ITSELF: a tapped `lightning:` link. That is
@@ -2087,9 +2220,18 @@
       showCard = msg.showPayButton !== false;
       if ('payPillAnywhere' in msg) pillAnywhere = msg.payPillAnywhere === true;
       if ('payOfferDismissed' in msg) payOfferDismissed = msg.payOfferDismissed === true;
+      if ('payFirstOfferDone' in msg) payFirstOfferDone = msg.payFirstOfferDone === true;
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       if ('weblnTakeover' in msg) tellProviderWeblnTakeover(msg.weblnTakeover === true);
       scanForInvoice();
+    } else if (msg.event === 'payanywhere-answered') {
+      // Either answer from the panel ends the wait: the card leaves with the card's own fade,
+      // then the page is read again, which now shows the pill (turned on) or nothing (not now).
+      if (msg.use === true) pillAnywhere = true;
+      if (!(offerUp && offerWaiting && cardHost)) { scanForInvoice(); return; }
+      offerWaiting = false;
+      const leaving = cardHost;
+      offerFade(() => { if (cardHost === leaving) removeCard(); scanForInvoice(); });
     } else if (msg.event === 'autopaying') {
       // An auto-zap is going out for this invoice. There is no action to take, which is
       // exactly why it belongs in the corner rather than on a card: money moving with
@@ -2157,6 +2299,7 @@
       hasWallet = settings.hasWallet === true;
       pillAnywhere = settings.payPillAnywhere === true;
       payOfferDismissed = settings.payOfferDismissed === true;
+      payFirstOfferDone = settings.payFirstOfferDone === true;
       setCardTheme(settings.cardTheme || ''); // same reply carries the palette
       tellProviderWeblnTakeover(settings.weblnTakeover === true);
       scanForInvoice();
