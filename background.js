@@ -4740,6 +4740,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.use === true) merged.payPillAnywhere = true;
       await sset({ sidecar_settings: merged });
       pushPageSettings(merged);
+      // The page that asked is holding its card for this answer; tell every tab it came.
+      if (chrome.tabs) {
+        chrome.tabs.query({}, (tabs) => {
+          for (const t of tabs) {
+            if (t.id != null) {
+              chrome.tabs.sendMessage(t.id, { type: 'SIDECAR_EVENT', event: 'payanywhere-answered', use: message.use === true }, () => void chrome.runtime.lastError);
+            }
+          }
+        });
+      }
       sendResponse({ ok: true });
     }).catch(() => sendResponse({ ok: false }));
     return true;
