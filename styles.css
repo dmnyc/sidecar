@@ -5036,6 +5036,13 @@ html:has(#view-approval:not(.hidden)) .toasts {
 #approval-unlock { margin-bottom: 14px; }
 .approval-actions { display: flex; flex-direction: column; gap: 8px; }
 .approval-actions button { width: 100%; }
+/* The pay-anywhere question is two short lines, so it takes none of the approval card's
+   room for a long preview: no fade padding under the text, a closer footer. */
+#view-payanywhere .approval-scroll {
+  padding: 18px 22px 16px; -webkit-mask-image: none; mask-image: none;
+}
+#view-payanywhere .approval-ask { margin-bottom: 0; }
+#view-payanywhere .approval-footer { padding: 14px 22px 14px; }
 
 /* Vault backup: full-width, evenly-stacked export/import buttons. */
 .vault-actions { display: flex; flex-direction: column; gap: 8px; }

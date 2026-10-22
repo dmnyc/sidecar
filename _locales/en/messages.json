@@ -196,7 +196,7 @@
     "description": "First-time card choice: keep Sidecar's pay prompts to sites signed in with Sidecar."
   },
   "firstOfferConfirm": {
-    "message": "Confirm in Sidecar to turn this on.",
+    "message": "Open Sidecar to confirm.",
     "description": "First-time card, after choosing Pay on any page: points to Sidecar's panel."
   },
   "firstOfferClose": {

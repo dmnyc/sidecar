@@ -51,6 +51,16 @@
   // 'pill' or 'card' — which of the two is on screen, so a re-scan does not swap one for
   // the other underneath the user.
   let shownMode = '';
+  // The first-time offer is up. It shares shownInvoice with the card a tap opens, but unlike
+  // that card it gives way to the corner pill once the setting it asks about turns on.
+  let offerUp = false;
+  // The person tapped "Pay on any page" and the answer is out, in Sidecar's panel. The card
+  // holds still until it comes back (or they close it): a page that redraws itself must not
+  // take it away mid-question, and nothing else would tell it to leave.
+  let offerWaiting = false;
+  // Fades the offer card out, then calls back. Set by renderFirstOffer: the card's root is
+  // closed, so only the closure that built it can reach the overlay.
+  let offerFade = (done) => done();
 
   const SCOPE_TO_TYPE = {
     nostr: 'SIDECAR_NOSTR_RPC',
@@ -1575,6 +1585,8 @@
     cardHost = null;
     shownInvoice = '';
     shownMode = '';
+    offerUp = false;
+    offerWaiting = false;
     cardControls = null;
     if (escHandler) {
       window.removeEventListener('keydown', escHandler, true);
@@ -1951,6 +1963,8 @@
     // Both end the same way: 'paid' and 'payfailed' clear them, and so does the
     // indicator's own dismiss button.
     if (shownMode === 'flight' || awaitingDecision) return;
+    // The first-time offer, waiting on its answer from the panel (see offerWaiting).
+    if (offerUp && offerWaiting) return;
     // TWO SWITCHES, ONE PER KIND OF SITE. showCard is "Show on Nostr sites" and covers
     // sites signed in with Sidecar; pillAnywhere is "Show on unconnected sites" and
     // covers the rest. Neither reaches the other's sites.
@@ -1973,7 +1987,7 @@
       const offered = findPageInvoice();
       const inv = offered && offered.asked ? offered.invoice : '';
       if (!inv || inv === dismissedInvoice || !hasWallet) return removeCard();
-      if (inv === shownInvoice && cardHost) return;
+      if (inv === shownInvoice && cardHost && !offerUp) return;
       return renderPill(inv);
     }
     if (!showCard) return removeCard();
@@ -2046,12 +2060,24 @@
     removeCard();
     shownInvoice = invoice;
     shownMode = 'card';
+    offerUp = true;
     const site = location.host.replace(/^www\./, '');
     cardHost = document.createElement('div');
     cardHost.style.cssText = 'all:initial;';
     const s = cardHost.attachShadow({ mode: 'closed' });
     const colors = getThemeColors();
     const cardCss = (CARD_CSS +
+      // .pay sets its own display, which beats the hidden attribute.
+      '.pay[hidden],.other[hidden]{display:none;}' +
+      // The wait, shown as shimmer on the status line: a highlight band swept across the same
+      // glyphs on a loop (transitions-dev, shimmer text), so a quiet card reads as alive.
+      '.pay-status.wait{position:relative;}' +
+      '.pay-status.wait::before{content:attr(data-text);position:absolute;inset:0;pointer-events:none;' +
+      'background-image:linear-gradient(90deg,transparent 0%,transparent 40%,{CARD_TEXT} 50%,transparent 60%,transparent 100%);' +
+      'background-size:400% 100%;background-repeat:no-repeat;-webkit-background-clip:text;background-clip:text;' +
+      'color:transparent;-webkit-text-fill-color:transparent;animation:fo-shimmer 2000ms linear infinite;}' +
+      '@keyframes fo-shimmer{0%{background-position:100% 0;}100%{background-position:0% 0;}}' +
+      '@media (prefers-reduced-motion:reduce){.pay-status.wait::before{animation:none;}}' +
       // The two other answers are real choices, so they are drawn as buttons, not links.
       '.other.fo-choice{border:1px solid {CARD_BORDER};color:{CARD_TEXT};font-weight:600;padding:11px;}' +
       '.other.fo-choice:hover{background:{CARD_CANCEL_BG};}').replace(/\{(\w+)\}/g, (m, k) =>
@@ -2077,6 +2103,11 @@
 
     const ov = s.querySelector('.ov');
     const dismiss = () => { dismissedInvoice = invoice; removeCard(); };
+    offerFade = (done) => {
+      ov.classList.remove('in');
+      const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(done, still ? 0 : 200);
+    };
     // Any answer retires the offer. A page may only ever make Sidecar quieter, so this is
     // all SIDECAR_SET_SETTINGS lets through; "any page" goes the other way and is asked.
     const answer = (settings) => {
@@ -2104,8 +2135,11 @@
       s.querySelectorAll('.pay,.other').forEach((b) => { b.hidden = true; });
       const status = s.querySelector('.pay-status');
       status.hidden = false;
-      status.className = 'pay-status';
-      status.textContent = msg('firstOfferConfirm', 'Confirm in Sidecar to turn this on.');
+      const waitText = msg('firstOfferConfirm', 'Open Sidecar to confirm.');
+      status.className = 'pay-status wait';
+      status.textContent = waitText;
+      status.setAttribute('data-text', waitText);
+      offerWaiting = true;
       s.querySelector('.cancel').textContent = msg('firstOfferClose', 'Close');
     });
     s.querySelector('.cancel').addEventListener('click', dismiss);
@@ -2190,6 +2224,14 @@
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
       if ('weblnTakeover' in msg) tellProviderWeblnTakeover(msg.weblnTakeover === true);
       scanForInvoice();
+    } else if (msg.event === 'payanywhere-answered') {
+      // Either answer from the panel ends the wait: the card leaves with the card's own fade,
+      // then the page is read again, which now shows the pill (turned on) or nothing (not now).
+      if (msg.use === true) pillAnywhere = true;
+      if (!(offerUp && offerWaiting && cardHost)) { scanForInvoice(); return; }
+      offerWaiting = false;
+      const leaving = cardHost;
+      offerFade(() => { if (cardHost === leaving) removeCard(); scanForInvoice(); });
     } else if (msg.event === 'autopaying') {
       // An auto-zap is going out for this invoice. There is no action to take, which is
       // exactly why it belongs in the corner rather than on a card: money moving with

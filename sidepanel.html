@@ -241,8 +241,6 @@
     <div id="interrupted-banner" class="interrupted-banner hidden"></div>
     <!-- Offer to answer Lightning where another wallet extension already does (#501). -->
     <div id="webln-offer" class="webln-offer hidden"></div>
-    <!-- The question behind the pay card's "Pay on any page": confirmed here, never on the page. -->
-    <div id="payanywhere-ask" class="webln-offer hidden"></div>
 
     <main class="content">
       <!-- Accounts -->
@@ -1004,6 +1002,26 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
     </button>
     <iframe id="rider-frame" title="Relay Rider"></iframe>
+  </div>
+
+  <!-- The question behind the pay card's "Pay on any page": confirmed here, never on the
+       page. Drawn as an approval, over whatever is open, because a page raises it and the
+       person can be anywhere in the panel. Before #view-approval so a signing request
+       still sits on top. -->
+  <div id="view-payanywhere" class="approval-overlay hidden">
+    <div class="approval-card">
+      <div class="approval-scroll">
+        <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
+        <div class="approval-host" id="payanywhere-host"></div>
+        <div class="approval-ask" id="payanywhere-text"></div>
+      </div>
+      <div class="approval-footer">
+        <div class="approval-actions">
+          <button class="primary" id="payanywhere-on" data-i18n="Turn on">Turn on</button>
+          <button class="ghost" id="payanywhere-later" data-i18n="Not now">Not now</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ===== Signing approval (inline, replaces the popup when the panel is open) ===== -->
