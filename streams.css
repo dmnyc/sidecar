@@ -614,8 +614,7 @@ html.stream-about-active #view-main { justify-content:flex-end; }
 .stream-top-zappers[hidden] { display:none; }
 .stream-top-zapper { display:flex; align-items:center; justify-content:center; gap:4px; flex:0 0 auto; min-width:0; white-space:nowrap; padding:5px 2px; background:transparent; border:0; color:var(--gold); font-size:12px; }
 .stream-top-zapper:hover,.stream-top-zapper:focus-visible { color:var(--text); }
-.stream-top-zapper img,.stream-top-initial { width:22px; height:22px; border-radius:50% !important; object-fit:cover; flex-shrink:0; }
-.stream-top-initial { display:grid; place-items:center; background:var(--velvet-2); color:var(--text); }
+.stream-top-zapper img { width:22px; height:22px; border-radius:50% !important; object-fit:cover; flex-shrink:0; }
 .stream-bookmark-backup { margin-block:12px 0; padding-block:12px 0; border-top:1px solid var(--border); display:grid; gap:6px; }
 .stream-bookmark-backup[hidden] { display:none; }
 .stream-bookmark-backup p { margin:0; font-size:12px; color:var(--muted); }

@@ -107,20 +107,6 @@ html { scroll-behavior: smooth; }
   border: 1px solid var(--border);
 }
 
-.shot-glyph {
-  font-size: 30px;
-  color: var(--faint);
-  line-height: 1;
-}
-
-.shot-label {
-  font-size: 12.5px;
-  color: var(--faint);
-  letter-spacing: 0.02em;
-  padding: 0 20px;
-  text-align: center;
-}
-
 .shot figcaption {
   margin-top: 10px;
   font-size: 12.5px;

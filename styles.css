@@ -2400,8 +2400,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .backup-status.done { color: var(--gold); }
-.backup-status .backup-check { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; }
-.backup-status-time { color: var(--faint); margin-top: 1px; }
 /* A backup that exists but holds a different wallet — the reassuring gold ✓ would
    be exactly wrong here, so it reads as a warning instead. */
 .backup-status.warn { color: var(--warn); }
@@ -2478,7 +2476,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-item.bm-missing.bm-confirming { opacity: 1; }
 .bm-item.bm-missing.bm-confirming .bm-main { opacity: 0.55; }
 .bm-item.bm-missing .bm-snippet { font-family: var(--font-mono); font-size: 11.5px; }
-.bm-missing-head { font-size: 11px; color: var(--faint); letter-spacing: 0.03em; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border); }
 
 /* data recovery modal (Lazarus) */
 .modal .recovery-modal .actions { margin-top: 22px; }
