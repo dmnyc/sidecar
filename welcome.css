@@ -499,18 +499,6 @@ body {
 .helpnav-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .helpnav-burger { display: none; }
 
-.helpnav-links {
-  display: flex;
-  gap: 4px;
-  /* nowrap: above the burger breakpoint this row must stay one line. Wrapping was
-     what produced the two-row nav — and since the burger now takes over before the
-     row can overflow, wrap has nothing left to do but hide a layout problem. */
-  flex-wrap: nowrap;
-  flex: 1;
-  min-width: 0;
-}
-
-.helpnav-links a,
 .helpnav-pages a {
   padding: 6px 12px;
   border-radius: 999px;
@@ -522,10 +510,8 @@ body {
   transition: color 0.15s, background 0.15s;
 }
 
-.helpnav-links a:hover,
 .helpnav-pages a:hover { color: var(--text-2); }
 
-.helpnav-links a.active,
 .helpnav-pages a.active {
   background: rgba(167, 139, 250, 0.14);
   color: var(--lav);
@@ -654,12 +640,10 @@ body {
     backdrop-filter: blur(10px);
   }
   .helpnav-toggle:checked ~ .helpnav-menu { display: flex; }
-  .helpnav-links,
   .helpnav-pages {
     display: flex; flex-direction: column; align-items: stretch;
     flex: none; gap: 2px; margin: 0; padding: 0; border: none;
   }
-  .helpnav-links a,
   .helpnav-pages a,
   .helpnav-guide { padding: 11px 12px; font-size: 15px; border-radius: 10px; }
 }
