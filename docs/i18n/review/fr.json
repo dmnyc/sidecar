@@ -3438,22 +3438,6 @@
     },
     {
       "file": "locales/fr.json",
-      "key": "Never",
-      "english": "Never",
-      "translation": "Jamais",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/fr.json",
-      "key": "After 1 minute",
-      "english": "After 1 minute",
-      "translation": "Après 1 minute",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/fr.json",
       "key": "After 5 minutes",
       "english": "After 5 minutes",
       "translation": "Après 5 minutes",
@@ -3470,6 +3454,14 @@
     },
     {
       "file": "locales/fr.json",
+      "key": "After 30 minutes",
+      "english": "After 30 minutes",
+      "translation": "Après 30 minutes",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/fr.json",
       "key": "After 1 hour",
       "english": "After 1 hour",
       "translation": "Après 1 heure",
@@ -3478,9 +3470,33 @@
     },
     {
       "file": "locales/fr.json",
-      "key": "Even on Never, your PIN is asked once per browser session.",
-      "english": "Even on Never, your PIN is asked once per browser session.",
-      "translation": "Même avec Jamais, votre code PIN est demandé une fois par session du navigateur.",
+      "key": "After 8 hours",
+      "english": "After 8 hours",
+      "translation": "Après 8 heures",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/fr.json",
+      "key": "After 24 hours",
+      "english": "After 24 hours",
+      "translation": "Après 24 heures",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/fr.json",
+      "key": "When browser closes",
+      "english": "When browser closes",
+      "translation": "À la fermeture du navigateur",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/fr.json",
+      "key": "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.",
+      "english": "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.",
+      "translation": "Se verrouille après le délai choisi si rien n’a été signé, approuvé ou écrit dans le panneau. Votre code PIN est requis une fois par session du navigateur.",
       "reviewed": false,
       "notes": ""
     },
