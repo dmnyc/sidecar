@@ -249,8 +249,8 @@
          it there is no window.nostr anywhere and the signer looks dead. Chrome grants
          at install, so this only shows there if the user restricted site access. -->
     <div id="host-perm-banner" class="host-perm-banner hidden">
-      <div class="host-perm-msg"><strong>Sidecar can't see websites yet.</strong> Grant site access so Nostr apps can use your signer.</div>
-      <button id="host-perm-grant-btn" class="host-perm-grant-btn">Grant access</button>
+      <div class="host-perm-msg"><strong data-i18n="Sidecar can&#x27;t see websites yet.">Sidecar can't see websites yet.</strong> <span data-i18n="Grant site access so Nostr apps can use your signer.">Grant site access so Nostr apps can use your signer.</span></div>
+      <button id="host-perm-grant-btn" class="host-perm-grant-btn" data-i18n="Grant access">Grant access</button>
     </div>
     <div id="post-banner" class="post-banner hidden"></div>
     <!-- Offer to reload the open Nostr site so an account switch takes effect there. -->
@@ -264,11 +264,11 @@
       <!-- Accounts -->
       <div class="tabview" id="tab-accounts">
         <div class="active-account" id="active-account"></div>
-        <h2 id="accounts-heading">Accounts</h2>
+        <h2 id="accounts-heading" data-i18n="Accounts">Accounts</h2>
         <div id="account-list" class="list"></div>
         <div class="add-actions">
-          <button class="secondary" id="add-generate">Generate new</button>
-          <button class="secondary" id="add-import">Import nsec</button>
+          <button class="secondary" id="add-generate" data-i18n="Generate new">Generate new</button>
+          <button class="secondary" id="add-import" data-i18n="Import nsec">Import nsec</button>
         </div>
         <button class="add-account-link hidden" id="add-account-link">
           <!-- Same geometry as ICONS.plus in sidepanel.js, which the account
@@ -277,11 +277,11 @@
           <span class="add-account-badge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </span>
-          <span>Add account</span>
+          <span data-i18n="Add account">Add account</span>
         </button>
         <div class="explore-link-wrap">
-          <a class="explore-link" id="explore-apps-link" href="#">Explore Nostr apps →</a>
-          <a class="explore-link share-link" id="share-sidecar-link" href="#"><span>Share Sidecar with a friend</span></a>
+          <a class="explore-link" id="explore-apps-link" href="#" data-i18n="Explore Nostr apps →">Explore Nostr apps →</a>
+          <a class="explore-link share-link" id="share-sidecar-link" href="#"><span data-i18n="Share Sidecar with a friend">Share Sidecar with a friend</span></a>
         </div>
         <!-- On this day: filled by renderOnThisDay, and left hidden on any date with
              nothing written for it. See ON_THIS_DAY in sidepanel.js. -->
@@ -290,16 +290,16 @@
 
       <!-- Activity: signing history + per-site permission tiers -->
       <div class="tabview hidden" id="tab-activity">
-        <h2>Activity</h2>
+        <h2 data-i18n="Activity">Activity</h2>
         <div class="modal-tabs" id="activity-subtabs">
-          <button class="modal-tab active" data-subtab="sites">Connected sites</button>
-          <button class="modal-tab" data-subtab="log">Recent activity</button>
+          <button class="modal-tab active" data-subtab="sites" data-i18n="Connected sites">Connected sites</button>
+          <button class="modal-tab" data-subtab="log" data-i18n="Recent activity">Recent activity</button>
         </div>
         <div class="setting activity-pane" id="activity-pane-sites">
-          <p class="hint">Each site stays with the account it signed in with. Tap Use, then sign in again to move one.</p>
+          <p class="hint" data-i18n="Each site stays with the account it signed in with. Tap Use, then sign in again to move one.">Each site stays with the account it signed in with. Tap Use, then sign in again to move one.</p>
           <input type="text" class="filter-input hidden" id="sites-filter" placeholder="Filter by site…" />
           <div id="sites-list" class="list flat"></div>
-          <button class="ghost show-more-btn hidden" id="sites-more">Show more</button>
+          <button class="ghost show-more-btn hidden" id="sites-more" data-i18n="Show more">Show more</button>
           <!-- Bulk sibling of each row's "Forget site": erase every site record at
                once — account pairings, permission tiers, shared-identity history,
                and the site rows in Recent activity. Built by renderActivity only
@@ -309,8 +309,8 @@
         <div class="setting activity-pane hidden" id="activity-pane-log">
           <input type="text" class="filter-input hidden" id="activity-filter" placeholder="Filter by site…" />
           <div id="activity-list" class="list flat"></div>
-          <button class="ghost show-more-btn hidden" id="activity-more">Show more</button>
-          <button class="ghost" id="activity-clear">Clear history</button>
+          <button class="ghost show-more-btn hidden" id="activity-more" data-i18n="Show more">Show more</button>
+          <button class="ghost" id="activity-clear" data-i18n="Clear history">Clear history</button>
         </div>
       </div>
 
@@ -329,7 +329,7 @@
       </div>
     </main>
 
-    <div id="first-post-balloon" class="first-post-balloon hidden">Try the composer →</div>
+    <div id="first-post-balloon" class="first-post-balloon hidden" data-i18n="Try the composer →">Try the composer →</div>
     <div id="compose-menu" class="t-dropdown" data-origin="bottom-right" hidden>
       <button id="compose-note-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><path d="m16 8-14 14m15.5-7H9"/></svg><span data-i18n="Compose a note">Compose a note</span></button>
       <button id="comment-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg><span data-i18n="Comment on this page">Comment on this page</span></button>
@@ -361,7 +361,7 @@
     <div id="mining-status" class="mining-status hidden">
       <span class="mining-status-glyph" id="mining-status-glyph" aria-hidden="true"></span>
       <span class="mining-status-main">
-        <span class="mining-status-line" id="mining-status-line">Mining</span>
+        <span class="mining-status-line" id="mining-status-line" data-i18n="Mining">Mining</span>
         <span class="mining-status-who" id="mining-status-who"></span>
       </span>
       <button type="button" id="mining-status-stop" class="mining-status-stop" data-i18n="Stop">Stop</button>
@@ -413,12 +413,12 @@
   <section id="view-profile-edit" class="hidden">
     <header class="topbar">
       <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
-      <button id="profile-edit-close" class="icon-btn" title="Close">
+      <button id="profile-edit-close" class="icon-btn" title="Close" data-i18n-title="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </header>
     <main class="content">
-      <h2>Edit profile</h2>
+      <h2 data-i18n="Edit profile">Edit profile</h2>
       <div id="profile-edit-body"></div>
     </main>
   </section>
@@ -872,7 +872,7 @@
                  (nip65-only-scope): "Bootstrap relays for {{name}}", one sentence, so a
                  language can order it its own way. With more than one account it is
                  clear these switches are not global. -->
-            <h3 id="nip65-only-scope">Bootstrap relays</h3>
+            <h3 id="nip65-only-scope" data-i18n="Bootstrap relays">Bootstrap relays</h3>
             <p class="hint" data-i18n="Used to find your relay list, and as a fallback if it cannot be reached.">Used to find your relay list, and as a fallback if it cannot be reached.</p>
             <!-- No second hint. "Per account" is said by the scope beside the switch, and what
                  off means by the switch that appears under it. The discovery fetch still
