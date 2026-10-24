@@ -1927,5 +1927,17 @@
   "Enter stream URL": "Digitar URL da transmissão",
   "After 30 minutes": "Após 30 minutos",
   "When browser closes": "Ao fechar o navegador",
-  "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.": "Bloqueia após o tempo selecionado sem nada assinado, aprovado ou escrito no painel. Seu PIN é necessário uma vez por sessão do navegador."
+  "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.": "Bloqueia após o tempo selecionado sem nada assinado, aprovado ou escrito no painel. Seu PIN é necessário uma vez por sessão do navegador.",
+  "Switch account": "Trocar de conta",
+  "Find a profile or note": "Encontrar um perfil ou uma nota",
+  "Your bookmarks": "Seus favoritos",
+  "Help & guides": "Ajuda e guias",
+  "Lock": "Bloquear",
+  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr ou nome de usuário",
+  "Name search scope": "Escopo da busca por nome",
+  "Close search": "Fechar busca",
+  "Filter by site…": "Filtrar por site…",
+  "Restart auto-sign timer": "Reiniciar o temporizador de assinatura automática",
+  "Restart timer": "Reiniciar temporizador",
+  "End auto-sign": "Encerrar a assinatura automática"
 }

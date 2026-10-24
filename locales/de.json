@@ -1866,5 +1866,17 @@
   "Enter stream URL": "Stream-URL eingeben",
   "After 30 minutes": "Nach 30 Minuten",
   "When browser closes": "Wenn der Browser geschlossen wird",
-  "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.": "Sperrt nach der gewählten Zeit, wenn im Panel nichts signiert, genehmigt oder geschrieben wurde. Deine PIN ist einmal pro Browsersitzung erforderlich."
+  "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.": "Sperrt nach der gewählten Zeit, wenn im Panel nichts signiert, genehmigt oder geschrieben wurde. Deine PIN ist einmal pro Browsersitzung erforderlich.",
+  "Switch account": "Konto wechseln",
+  "Find a profile or note": "Profil oder Notiz finden",
+  "Your bookmarks": "Deine Lesezeichen",
+  "Help & guides": "Hilfe & Anleitungen",
+  "Lock": "Sperren",
+  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr oder Benutzername",
+  "Name search scope": "Suchbereich für Namen",
+  "Close search": "Suche schließen",
+  "Filter by site…": "Nach Website filtern…",
+  "Restart auto-sign timer": "Timer für automatisches Signieren neu starten",
+  "Restart timer": "Timer neu starten",
+  "End auto-sign": "Automatisches Signieren beenden"
 }
