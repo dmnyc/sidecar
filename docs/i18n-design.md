@@ -1,15 +1,15 @@
 # Multilingual support — design
 
-Status (October 8, 2026): infrastructure, first-run/security screens, and the
-panel-area source integrations are present in the `feat/streaming-video`
-worktree. Source coverage and runtime/layout verification are still in progress.
-The extractor currently finds 1,762 keys, including streaming UI. German (de),
-Spanish (es), French (fr), and Brazilian Portuguese (pt-BR) now have complete
-draft app and browser-message catalogs and are registered for development review.
-European Portuguese (pt-PT) is deferred to a future phase. en-XA and en-XB are
-development tools. Native security reviews, full extension layout acceptance,
-and the guide release-scope decision remain open. The full guide is still English,
-with a translated notice. Catalog completeness alone is not release approval.
+Status (October 24, 2026): the language work lives on `feat/languages`, rebased onto
+`main` after 1.16.0 shipped. The extractor finds 1,817 keys, including the streaming
+UI and everything 1.16 added. German (de), Spanish (es), French (fr), and Brazilian
+Portuguese (pt-BR) have complete draft app and browser-message catalogs, and the
+coverage gate (`node scripts/i18n-coverage.mjs --check`) passes with no missing,
+invalid or unknown entries. European Portuguese (pt-PT) is deferred to a future
+phase. en-XA and en-XB are development tools. Native security reviews, full
+extension layout acceptance in the four languages, and the guide release-scope
+decision remain open. The full guide is still English, with a translated notice.
+Catalog completeness alone is not release approval.
 
 The observations in §1 and the Jumble comparison are the original design
 baseline, not a description of the current worktree. §6 records the implemented

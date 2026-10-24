@@ -9,6 +9,11 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [Unreleased]
+
+### Added
+- **Sidecar in German, Spanish, French and Brazilian Portuguese.** Settings → Appearance has a **Language** choice, set to follow the browser until you pick one. It changes the panel, the approval screens, the welcome page, the composer, the wallet pages and the QR scanner, and numbers, dates and “5m ago” follow the language you chose. The pay pill and card on a web page follow the browser’s language instead, so a site learns nothing new from them. The help guide is still English, and says so in your language.
+
 ## [1.16.6] — 2026-11-03
 
 ### Added

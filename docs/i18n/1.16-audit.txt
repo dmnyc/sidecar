@@ -211,3 +211,28 @@ October 8 launch-catalog pass (supersedes the no-catalog checkpoints above):
 
 - Final focused locale/guide suite: 59/59 passed; git diff --check passed.
 - Temporary browser preview and localhost server were closed after verification.
+
+October 24 rebase onto main (1.16.0 shipped; the work is now 1.17's):
+- Replayed the 13 October integration snapshot (wip/i18n-2026-10-13) onto main as
+  feat/languages, in its own worktree. Nine files conflicted; every conflict was a
+  release copy that had since shipped on main in final form, resolved to main's
+  side, except three sidepanel.js hunks and the auto-lock hint, where main's newer
+  text was kept and the snapshot's t()/tSec() wrapping applied on top.
+- Main had moved 18 commits (streaming lazy-load, mute/follow from bell and search,
+  auto-lock options, the batch-signing note, app directory). All of their strings
+  were already wrapped; the catalogs were 36-37 entries short per language and
+  carried 9 keys no code used. Both reconciled. Twenty data-i18n attributes the
+  Activity, Accounts and banner markup had lost on main were restored.
+- A source scan found twelve attribute strings in sidepanel.html that had never
+  been wired (toolbar tooltips, search bar, site filters, auto-sign timer controls).
+  Wired and translated. The remaining unwired literals are deliberate: language
+  names in themselves, theme/client/app/wallet names, the product name, developer
+  console output, and the literary loading quotes (a maintainer decision).
+- Coverage gate: 1,817 base keys; de 1,880/1,880, es/fr/pt-BR 1,941/1,941 entries;
+  0 missing, 0 invalid, 0 unknown. Browser messages: 32 keys in all five locales,
+  placeholders matching. Review packets regenerated (492 entries per language).
+- Full suite on the branch: 2,953/2,953 passed.
+- Nothing pushed, no pull request opened. The six held pull requests (#431, #435,
+  #436, #438, #439, #440) are superseded by this branch and await the maintainer.
+- Still open, as before: native review of the security text in each language, the
+  guide decision, and layout acceptance in the installed extension.
