@@ -5618,6 +5618,10 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    in a capsule on the folder's corner. The author line gives up the width it covers. */
 .compose-drafts-btn { right: 48px; }
 .compose-drafts-btn svg { width: 17px; height: 17px; display: block; }
+/* The composer's New site, in the same corner one slot further out — the drafts folder
+   sits between it and the close box. Icon only, same .modal-x metrics. */
+.compose-newsite-btn { right: 70px; }
+.compose-newsite-btn svg { width: 17px; height: 17px; display: block; }
 .compose-drafts-count {
   position: absolute; top: 0; right: -2px; min-width: 15px; height: 15px; padding: 0 4px;
   box-sizing: border-box; border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 15px;
@@ -5929,6 +5933,201 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .poll-ends-select, .poll-ends-custom { width: 100%; }
 .poll-ends-custom { margin-top: 6px; }
 .poll-ends-note { margin-top: 6px; }
+
+/* ===== the site editor (compose tab only — a site is not written in 360px) ===== */
+/* Same shell the poll editor wears: one bordered form below the toolbar row, theme
+   variables throughout, so a site editor in Nixie reads like everything else in Nixie. */
+.site-editor {
+  margin-top: 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: var(--sheen);
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.site-meta-row { display: flex; align-items: center; gap: 8px; }
+.site-meta-label {
+  flex-shrink: 0;
+  width: 52px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.site-name-input, .site-title-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.site-name-input:focus, .site-title-input:focus { outline: none; border-color: var(--gold-soft); }
+.site-name-input:disabled { opacity: 0.6; cursor: default; }
+/* The name's hint is the address being built, so it sits as a suffix would. Red is
+   for "this cannot be an address", not for empty — an empty name is the root site. */
+.site-name-hint {
+  flex-shrink: 0;
+  max-width: 45%;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono, ui-monospace, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.site-name-hint.site-name-bad, .site-name-input.site-name-bad { border-color: var(--red); }
+.site-name-hint.site-name-bad { color: var(--red); font-family: inherit; }
+/* Page tabs: the editor's own tab row. A tab rewrites itself into "Remove?" rather
+   than carrying a second confirm chrome, the saved-draft trash's two taps at tab size. */
+.site-page-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.site-page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 160px;
+  height: 28px;
+  padding: 0 9px;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.site-page-tab:hover { color: var(--text); border-color: var(--border-strong); }
+.site-page-tab.active {
+  color: var(--text);
+  border-color: var(--gold-soft);
+  background: var(--hover-soft);
+}
+/* The armed tab's question reads in red, like every destructive confirm. */
+.site-page-tab.confirming { border-color: var(--red); }
+.site-page-tab.confirming .site-page-label { color: var(--red); }
+.site-page-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* flex-shrink: 0 on purpose: the trash keeps its metrics and the label truncates. */
+.site-page-x {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.site-page-x:hover { color: var(--red); }
+.site-page-x svg { width: 12px; height: 12px; display: block; }
+/* Both add-buttons keep their own width: a lone Media button, or Page beside two
+   tabs, is not a bar to be stretched across the card. Outranks the sheet's
+   flex: 1 1 0 for toolbar buttons (the note composer's equal-width row). */
+.compose-sheet .compose-actions-site .compose-add,
+.compose-sheet .site-page-add { flex: 0 0 auto; min-width: 0; width: auto; }
+.site-page-add { flex-shrink: 0; }
+.site-page-title-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  font-size: 13.5px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.site-page-title-input:focus { outline: none; border-color: var(--gold-soft); }
+/* The page itself: monospace, because Markdown is source, not prose. Grows with the
+   card; the card scrolls, the page inside it does not fight the footer for room. */
+.site-page-body {
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  padding: 9px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.site-page-body:focus { outline: none; border-color: var(--gold-soft); }
+/* The Preview tab's frame: the published document itself, sandboxed to no script and
+   no origin. Full height of the preview pane, on the card's own background. */
+.site-preview-frame {
+  width: 100%;
+  height: min(70vh, 620px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  .site-preview-frame { background: #1d1e20; }
+}
+/* In site mode the toolbar row carries Media alone; left-aligned like the note's. */
+.compose-actions-site { justify-content: flex-start; }
+
+/* ===== published sites, in the panel's Saved list ===== */
+/* One row per site, the connected-site row's anatomy: content and inline icon actions
+   on top, and a destructive confirm that takes its own full-width row below. */
+.published-sites { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.published-sites h3 { margin: 0 0 2px; }
+.published-site {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.published-site-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+.published-site-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.published-site-url {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: var(--mono, ui-monospace, monospace);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.published-site .item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.published-site-top { display: flex; align-items: center; gap: 8px; width: 100%; }
+.published-site-top .published-site-open { flex: 1; min-width: 0; }
+/* The full-width confirm row, exactly the connected-site row's second line. */
+.published-site .site-controls { margin-top: 8px; }
 
 /* The choices as they will read, in the Preview tab. The editor cannot show this: there
    the options are input boxes and a blank trailing row looks like a choice. */

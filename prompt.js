@@ -105,6 +105,7 @@
     const asks = {
       getPublicKey: tSec('wants to see your public key (npub)'),
       signEvent: tSec('wants to sign an event with your key'),
+      sitePublish: tSec('asks to publish a website in your name'),
       getRelays: tSec('wants to read your relay list'),
       'nip04.encrypt': tSec('wants to encrypt a message (NIP-04)'),
       'nip04.decrypt': tSec('wants to decrypt a message (NIP-04)'),
@@ -147,6 +148,15 @@
     return I18N.fmtNum(Number(n));
   }
 
+  // Bytes for the publish card's size row: one number and a unit, exact under 1 MB.
+  // The card is describing a quantity, not measuring one — no decimals above it.
+  function fmtBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return I18N.fmtNum(n) + ' B';
+    if (n < 1024 * 1024) return I18N.fmtNum(Math.round(n / 1024)) + ' KB';
+    return I18N.fmtNum(Math.round(n / (1024 * 1024))) + ' MB';
+  }
+
   // Human-readable labels for the event kinds sites most commonly ask Sidecar to
   // sign (not exhaustive — see https://nips.nostr.com for the full registry).
   // Built when drawn, not at load, so a translation that arrives after load is the
@@ -168,7 +178,8 @@
       10007: tSec('Search relays list'), 10008: tSec('Profile badges'), 10009: tSec('Groups list'),
       10012: tSec('Favorite relays list'), 10015: tSec('Interests list'), 10020: tSec('Media follows'),
       10030: tSec('Emoji list'), 10040: tSec('Trust provider list'), 10044: tSec('DM encryption key'), 10050: tSec('DM relay list'),
-      10063: tSec('Blossom server list'),
+      5128: tSec('Site snapshot'), 10063: tSec('Blossom server list'),
+      15128: tSec('Site manifest'), 35128: tSec('Named site manifest'),
       13194: tSec('Wallet info'), 22242: tSec('Relay auth'), 23194: tSec('Wallet request'), 23195: tSec('Wallet response'),
       24133: tSec('Remote signing handshake'), 24242: tSec('Blossom authorization'), 27235: tSec('HTTP auth'),
       30000: tSec('Follow set'), 30002: tSec('Relay set'), 30003: tSec('Bookmark set'), 30004: tSec('Curation set'),
@@ -504,6 +515,39 @@
         row(tSec('To'), peerLabel()) +
         (plain ? row(tSec('Sealing'), clampText(plain, 220), 'prose sealed') : '');
       els.preview.classList.remove('hidden');
+    } else if (data.method === 'sitePublish') {
+      // ONE CARD PER PUBLISH (#530). The plan was built by Sidecar's own composer and
+      // validated in the background; every row here is that plan. The Allow click does
+      // not sign the site — it opens a short-lived session the publish signs under —
+      // so the card says what the session may sign, which is this list and nothing else.
+      const plan = data.params || {};
+      const rows = [];
+      rows.push(row(tSec('Site'), plan.name || tSec('Your root site')));
+      if (plan.unpublish) {
+        rows.push(row(tSec('Action'), tSec('Unpublish — replace the manifest with an empty one and ask relays to delete the old events')));
+      } else {
+        rows.push(row(tSec('Files'), tSec('{{count}} files · {{size}}', { count: I18N.fmtNum(plan.fileCount || 0), size: fmtBytes(plan.totalBytes || 0) })));
+        const changes = [];
+        if ((plan.added || []).length) changes.push(tSec('{{count}} added', { count: I18N.fmtNum(plan.added.length) }));
+        if ((plan.changed || []).length) changes.push(tSec('{{count}} changed', { count: I18N.fmtNum(plan.changed.length) }));
+        if ((plan.removed || []).length) changes.push(tSec('{{count}} removed', { count: I18N.fmtNum(plan.removed.length) }));
+        if (changes.length) rows.push(row(tSec('Changes'), changes.join(' · ')));
+        if (plan.replaces) rows.push(row(tSec('Replaces'), tSec('the manifest already on your relays')));
+      }
+      if ((plan.servers || []).length) {
+        rows.push(row(tSec('Servers'), plan.servers.slice(0, 2).map((s) => truncMid(String(s).replace(/^https:\/\//, ''), 20, 8)).join(', ')));
+      }
+      const kinds = plan.kinds || [];
+      if (kinds.length) rows.push(row(tSec('Signs'), kinds.map(kindLabel).join(', ')));
+      els.preview.innerHTML = rows.join('');
+      // Unpublish is honest about what it cannot do: no relay guarantee forgets on request.
+      if (plan.unpublish) {
+        const warn = document.createElement('div');
+        warn.className = 'kind-warn';
+        warn.textContent = tSec('Unpublishing is not deletion. Relays and caches may keep copies of the site.');
+        els.preview.appendChild(warn);
+      }
+      els.preview.classList.remove('hidden');
     }
   }
 
@@ -763,6 +807,14 @@
     if (data.needUnlock && !data.needApproval) {
       els.allow.textContent = t('Unlock & continue');
       els.trust.classList.add('hidden');
+    }
+
+    // A publish is asked by Sidecar's own composer, and "Trust sidecar" is a sentence
+    // with no meaning: the card approves ONE plan, and every later publish shows its
+    // own card. Nothing here may stand.
+    if (data.method === 'sitePublish') {
+      els.trust.classList.add('hidden');
+      els.allow.textContent = t('Approve');
     }
   }
 

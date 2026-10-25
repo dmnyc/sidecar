@@ -394,6 +394,9 @@ window.SidecarCore = (function () {
       resolveClient, showPostCountdown, splitGlyphs, ironDiceStyle,
       resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
       powSetting, postCountdownSetting,
+      // The nsite publisher reads the account's Blossom server list through this
+      // same lookup, so discovery, its cache and its relay policy stay one thing.
+      fetchBlossomServers,
       // The panel calls these directly as well as through renderNotePreview: the about
       // box resolves its own mentions, a quote preview needs embedRef, a reply's context
       // strip renders with renderNoteText, the web-comment sheet draws its own link card,
@@ -1991,39 +1994,60 @@ window.SidecarCore = (function () {
   // and the two paints, since adding media has to re-run the either-or from outside.
   // ---- saved drafts, listed ----
   //
-  // One account holds a note draft and a reply draft per note it is answering. Both
-  // composers list the others the same way, from here: the tab under its Saved drafts tab,
-  // the panel behind the folder in its corner.
+  // One account holds a note draft and a reply draft per note it is answering, plus a
+  // working copy per site it edits. All three composers list the others the same way,
+  // from here: the tab under its Saved drafts tab, the panel behind the folder in its
+  // corner. A site slot (`pubkey|site:<name-or-root>`) is listed like the rest because
+  // a site, unlike a note, is never consumed by publishing — the list is how you get
+  // back to it.
   //
   // ONLY DRAFTS WITH SOMETHING IN THEM. A reply keeps its slot while empty because the
   // slot holds the target, but an empty slot is nothing to go back to.
   function draftHasContent(d) {
     return !!(d && ((d.text && d.text.trim()) || (d.media && d.media.length)
-      || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))));
+      || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))
+      || (d.site && d.site.pages && d.site.pages.some((p) => p && p.md && p.md.trim()))));
   }
-  // Every draft of this account but the one on screen, the note first and then replies
-  // newest first. `replyId` is the note a reply answers, or null for the note draft.
+  // Every draft of this account but the one on screen, notes first, then replies and
+  // sites newest first. `currentKey` is the slot to leave out.
   function otherDraftEntries(all, pubkey, currentKey) {
     return Object.keys(all || {})
-      .filter((k) => k !== currentKey && (k === pubkey || k.startsWith(pubkey + '|r:'))
+      .filter((k) => k !== currentKey && (k === pubkey || k.startsWith(pubkey + '|r:') || k.startsWith(pubkey + '|site:'))
         && draftHasContent(all[k]))
       .map((k) => ({
-        key: k, draft: all[k], reply: k !== pubkey,
-        replyId: k === pubkey ? null : k.slice(k.indexOf('|r:') + 3),
+        key: k, draft: all[k],
+        kind: k.startsWith(pubkey + '|site:') ? 'site' : (k !== pubkey ? 'reply' : 'note'),
+        reply: k !== pubkey && !k.startsWith(pubkey + '|site:'),
+        replyId: (k !== pubkey && !k.startsWith(pubkey + '|site:')) ? k.slice(k.indexOf('|r:') + 3) : null,
+        siteId: k.startsWith(pubkey + '|site:') ? k.slice(k.indexOf('|site:') + 6) : null,
       }))
-      .sort((a, b) => (a.reply - b.reply) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
+      .sort((a, b) => (a.kind === 'note' ? -1 : 0) - (b.kind === 'note' ? -1 : 0) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
   }
   function draftSnippet(d) {
     const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
     if (text) return text;
+    // A site says which of its pages carry words, because that is the one thing its
+    // row needs to answer before you open it.
+    if (d.site && d.site.pages) {
+      const written = d.site.pages.filter((p) => p && p.md && p.md.trim());
+      if (written.length) {
+        const first = written[0].md.replace(/\s+/g, ' ').trim();
+        return written.length > 1 ? tn('{{count}} pages · {{first}}…', '{{count}} pages · {{first}}…', written.length, { first: first.slice(0, 40) })
+          : first.slice(0, 60);
+      }
+    }
     // A poll with its options typed and no question yet still says what it is.
     const opts = (d.poll && d.poll.options || []).map((o) => (o || '').trim()).filter(Boolean);
     if (opts.length) return opts.join(' · ');
     if (d.media && d.media.length) return tn('{{count}} attachment', '{{count}} attachments', d.media.length);
     return '';
   }
-  // What a row is called: a reply, a poll, or the note.
+  // What a row is called: a reply, a site, a poll, or the note.
   function draftKindLabel(entry, name) {
+    if (entry.kind === 'site') {
+      const s = entry.draft.site || {};
+      return s.title || (s.name ? t('Site {{name}}', { name: s.name }) : t('Your root site'));
+    }
     if (entry.reply) return name ? t('Reply to {{name}}', { name }) : t('Reply');
     return entry.draft.poll ? t('Your poll') : t('Your note');
   }

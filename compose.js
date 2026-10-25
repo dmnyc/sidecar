@@ -25,6 +25,9 @@
   const $ = (id) => document.getElementById(id);
 
   const BG_TIMEOUT_MS = 15000;
+  // Under the background's own half-hour for a publish card (SITE_PUBLISH_TTL), with
+  // slack for the reply to make it home.
+  const SITE_PUBLISH_WAIT_MS = 31 * 60 * 1000;
 
   // Lifted from the panel unchanged. A page that talks to the worker needs exactly this
   // much: a timeout, lastError read inside the callback, and a synchronous throw caught
@@ -74,7 +77,7 @@
 
   // ---- state ----
   let state = null;
-  let draft = { text: '', media: [], poll: null };
+  let draft = { text: '', media: [], poll: null, site: null };
   let dkey = null;
   let saveTimer = null;
   let posting = false;
@@ -414,6 +417,34 @@
     shortNpub,
   });
 
+  // ---- the nsite publisher, over the same plumbing ----
+  //
+  // A site is a composer mode, and its publisher is the composer's own plumbing:
+  // background messages through call(), the relay pool, the shared Blossom server
+  // lookup. What it never gets is SIDECAR_OWNER_SIGN. Every signature a publish
+  // makes goes through nsite's siteSign — the session signer the approval card
+  // opened — so the one approval scopes every signature, not just the first.
+  const NS = window.SidecarNsite;
+  const nsite = NS.install({
+    call,
+    // THE APPROVAL ASK WAITS FOR A PERSON. call's budget is seconds because a dead
+    // worker should say so fast; a publish card is read for as long as it takes, and
+    // the queue holds the entry for half an hour to match.
+    callLong: (message) => bg(message, SITE_PUBLISH_WAIT_MS),
+    activePubkey: () => state.activePubkey,
+    fetchBlossomServers: composer.fetchBlossomServers,
+    relayUrls,
+    poolQuerySync: (relays, filter, params) => pool().querySync(relays, filter, params),
+    hasServerList: async (pubkey) => {
+      const ev = await pool().get(await relayUrls(false), { kinds: [NS.SERVER_LIST_KIND], authors: [pubkey] });
+      return !!ev;
+    },
+    targetRelays,
+    publishToRelays: (relays, events) => events.flatMap((ev) => pool().publish(relays, ev)),
+    siteSign: async (session, event) =>
+      call({ type: 'SIDECAR_SITE_SIGN', session, event, expectedPubkey: state.activePubkey }),
+  });
+
   // ---- the draft, shared with the panel ----
   function loadDraft() {
     return call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })
@@ -430,7 +461,8 @@
     // dropping it because the caption had not been written is the kind of thing that makes
     // a draft store worse than none.
     const hasContent = !!((draft.text && draft.text.trim()) || (draft.media && draft.media.length)
-      || (draft.poll && draft.poll.options && draft.poll.options.some((o) => o.trim())));
+      || (draft.poll && draft.poll.options && draft.poll.options.some((o) => o.trim()))
+      || (draft.site && draft.site.pages && draft.site.pages.some((p) => p && p.md && p.md.trim())));
     if (hasContent) {
       all[dkey] = { ...(all[dkey] || {}), text: draft.text, media: draft.media, savedAt: Date.now() };
       // Written back on every save. The spread above preserves it when it is already
@@ -439,6 +471,11 @@
       if (replyTo) all[dkey].replyTo = replyTo;
       if (draft.poll) all[dkey].poll = draft.poll;
       else if (all[dkey]) delete all[dkey].poll;
+      // A SITE'S WORKING COPY rides in its own field, whole: pages, their titles and
+      // the site's name. It holds page text only — the files themselves live on
+      // Blossom once published — so the encrypted store is carrying words, not blobs.
+      if (draft.site) all[dkey].site = draft.site;
+      else if (all[dkey]) delete all[dkey].site;
       // The difficulty travels with the note, the same as the text does, so cancelling out
       // of this tab and reopening the panel's composer finds the rung still chosen.
       if (draft.pow) all[dkey].pow = draft.pow;
@@ -488,8 +525,12 @@
   // THE DRAFT SLOT THIS TAB OWNS. A reply lives in its own slot, keyed by the note it
   // answers, exactly as the panel keys it: one account can hold a plain draft and a
   // reply to each of several notes at once, and they must not overwrite each other.
+  // A site draft lives in its own family too, keyed by the site name it edits —
+  // 'root' for the account's root site — because a site, unlike a note, is never
+  // consumed by publishing and must stay where the Saved list can find it again.
   // Mirrors draftKey() in sidepanel.js; pinned to it by test.
   function slotFor(pubkey) {
+    if (siteId != null) return pubkey + '|site:' + siteId;
     return replyId ? pubkey + '|r:' + replyId : pubkey;
   }
 
@@ -505,6 +546,19 @@
       return /^[0-9a-f]{64}$/i.test(v) ? v.toLowerCase() : null;
     } catch (_) { return null; }
   })();
+
+  // WHICH SITE THIS TAB EDITS, or null for a note or reply. 'root' is the account's
+  // root site (kind 15128, no name); anything else is a named site (35128), validated
+  // by the same rule the manifest builder enforces, because this string goes into a
+  // draft key. Seeds the draft's own name once, at load.
+  let siteId = (() => {
+    try {
+      const v = new URLSearchParams(location.search).get('site') || '';
+      if (!v) return null;
+      return v === 'root' ? 'root' : (NS.isValidSiteName(v) ? v : null);
+    } catch (_) { return null; }
+  })();
+  const isSiteMode = () => siteId != null;
 
   // The note being answered, drawn above the tabs. Deliberately NOT the panel's
   // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
@@ -633,6 +687,9 @@
     if (!box) return;
     box.innerHTML = '';
     if (!devBuild) { box.classList.add('hidden'); return; }
+    // A site publishes its own kinds under its own approval; the dev fixtures are
+    // note machinery and have nothing to say over a site editor.
+    if (draft.site) { box.classList.add('hidden'); return; }
     // A comment needs something to comment on, so 1111 goes back to Automatic when the
     // reply does.
     if (!replyTo && devKind === SC.WEB_COMMENT_KIND) devKind = 0;
@@ -813,7 +870,7 @@
     pane.append(SC.buildSavedDraftList({
       entries: others,
       nameFor: (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null),
-      onPick: (entry) => switchToDraft(entry.replyId),
+      onPick: (entry) => entry.kind === 'site' ? switchToDraft(null, entry.siteId) : switchToDraft(entry.replyId),
       onDelete: async (entry) => {
         // A pending save writes the whole store back, so it lands first rather than
         // putting the deleted draft back a moment later.
@@ -832,6 +889,16 @@
   // switch, so it starts over on the requested draft, the same way "Write another" does;
   // switching would repaint an editor that is gone and fail without a word.
   function handleComposeOpen(msg) {
+    // A site handoff names the slot, not a note id.
+    if (typeof msg.siteId === 'string' && (msg.siteId === 'root' || NS.isValidSiteName(msg.siteId))) {
+      if (receiptShown) {
+        location.replace(location.pathname + '?site=' + encodeURIComponent(msg.siteId));
+        return;
+      }
+      if (msg.siteId === siteId) return; // already here
+      switchToDraft(null, msg.siteId).catch(() => {});
+      return;
+    }
     const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
       ? msg.replyId.toLowerCase() : null;
     if (receiptShown) {
@@ -847,7 +914,33 @@
   // The one way this tab moves between drafts, for a chip and for the panel's message
   // alike. Leaving a reply with something in it says where it went, since the editor it
   // was in is about to show something else.
-  async function switchToDraft(want) {
+  //
+  // CHANGING MODE IS A RELOAD. This tab builds ONE editor at boot — the mention editor
+  // for notes, the site editor for sites — and a site editor rebuilt into a note editor
+  // mid-flight is surgery this page does not survive gracefully. The address carries the
+  // target, so one reload lands on the right editor over the right slot; compose-boot
+  // holds the paint while it loads, so the move reads as a switch, not a flash.
+  async function switchToDraft(want, wantSite) {
+    const modeChanges = (wantSite != null) !== isSiteMode();
+    if (modeChanges) {
+      await flushDraft();
+      const q = wantSite != null
+        ? '?site=' + encodeURIComponent(wantSite)
+        : (want ? '?reply=' + want : '');
+      location.replace(location.pathname + q);
+      return;
+    }
+    if (wantSite != null) {
+      if (busy() || wantSite === siteId) return;
+      await flushDraft();
+      siteId = wantSite;
+      try {
+        history.replaceState(null, '', location.pathname + '?site=' + encodeURIComponent(siteId));
+      } catch (_) {}
+      await reopenDraft();
+      showTab('write');
+      return;
+    }
     if (busy() || want === replyId) return;
     const leavingReply = !!replyTo && draftHasContent(draft);
     await flushDraft();
@@ -874,6 +967,11 @@
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
     draft.poll = (saved && saved.poll) || null;
+    // THE SITE COMES OFF THE SLOT, or starts empty. The URL's ?site= seeds the name
+    // once, so a tab opened from the panel's site list edits the site it named even
+    // when the slot has never been saved.
+    draft.site = (saved && saved.site) || (isSiteMode() ? NS.newSiteDraft(siteId === 'root' ? '' : siteId, '') : null);
+    if (siteEditor) { siteEditor.paint(); siteEditor.loadPage(); }
     if (pollEditor) pollEditor.paint();
     paintReplyTarget();
     closeAltEditor();
@@ -932,6 +1030,10 @@
     // one note from two accounts is two drafts, and the new account may not have one.
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
     draft.poll = (saved && saved.poll) || null;
+    // A site is keyed to the account like any other draft, so the account switch
+    // lands on the new account's copy of the same site (usually a blank one).
+    draft.site = (saved && saved.site) || (isSiteMode() ? NS.newSiteDraft(siteId === 'root' ? '' : siteId, '') : null);
+    if (siteEditor) siteEditor.paint();
     if (pollEditor) pollEditor.paint();
     paintReplyTarget();
     // The row edits a slot of the PREVIOUS account's draft, which was just swapped
@@ -950,6 +1052,17 @@
   }
 
   function paintCount() {
+    // A site counts its written pages, not characters: the number that answers "is
+    // this done" for a note answers nothing about a site with a 40-page draft.
+    if (draft.site) {
+      const pages = (draft.site.pages || []).filter((p) => p && p.md && p.md.trim()).length;
+      const total = (draft.site.pages || []).length;
+      $('compose-count').textContent = total
+        ? tn('{{count}} of {{total}} pages written', '{{count}} of {{total}} pages written', pages, { total: I18N.fmtNum(total) })
+        : '';
+      paintPostButton();
+      return;
+    }
     const n = (draft.text || '').trim().length;
     $('compose-count').textContent = n ? n + (n === 1 ? ' character' : ' characters') : '';
     // Media alone is a postable note, the same as in the panel: an image with no caption
@@ -972,6 +1085,11 @@
     // worse a mine, against a store that cannot sign is a minute spent on nothing: that
     // is what pressing Post used to buy, and it is the reason the button went inert.
     if (state && state.locked) return;
+    // A PUBLISH HAS NO COUNTDOWN. Its second look is the approval card itself — a
+    // deliberate, dismissible, signed-in-advance review of exactly what will go out —
+    // and a countdown over a card that can still refuse the publish would be a
+    // second opinion about a decision that has not been made yet.
+    if (draft.site) { doPost(); return; }
     const text = (draft.text || '').trim();
     if (!text && !draft.media.length) return;
     // THIS NOTE WENT OUT ALREADY, AND ASKS ONCE BEFORE IT GOES AGAIN, as in the panel:
@@ -1048,6 +1166,9 @@
 
   async function doPost() {
     if (posting) return;
+    // A site publishes through its own flow — approval, uploads, manifest, gateway —
+    // and keeps its draft: a site is never consumed by publishing, the way a note is.
+    if (draft.site) return publishSite();
     // A bare reference becomes its nostr: form first, so it tags and renders (core).
     const text = SC.linkBareRefs((draft.text || '').trim(), NT);
     // Media alone is a postable note: the URLs live in the media slot, not in the
@@ -1188,6 +1309,82 @@
     paintSavedDrafts();
   }
 
+  // ---- the publish: one approval, then the whole site ----
+  //
+  // Everything with a network or a signature in it lives in nsite.js; this is the
+  // editor's side of it: the status line, the errors, and the receipt. Unlike a note,
+  // a publish CONSUMES NOTHING — the draft stays, marked with the manifest it made
+  // live, which is also what locks the site's name against a quiet re-address.
+  async function publishSite() {
+    if (posting) return;
+    if (!NS.siteDraftIsPostable(draft.site)) return;
+    posting = true;
+    paintCount();
+    $('compose-drafts-btn').classList.add('hidden');
+    const status = $('compose-status');
+    try {
+      const result = await nsite.publish(draft.site, (s) => { status.textContent = s; });
+      draft.site.baseId = result.manifest.id;
+      await flushDraft();
+      siteEditor.paint();
+      status.textContent = '';
+      await showSitePosted(result);
+    } catch (e) {
+      status.textContent = '';
+      // Same lock as the note path, same reasoning: a step, not a failure, and the
+      // draft is already safe on both counts.
+      if (/is locked/i.test(e.message || '')) {
+        if (state) state.locked = true;
+        toast(t('Sidecar is locked. Unlock it, then press Publish again.'), 'error');
+      } else toast(e.message || t('Could not publish the site'), 'error');
+    }
+    posting = false;
+    paintCount();
+    paintLocked();
+    paintSavedDrafts();
+  }
+
+  // WHAT THE PAGE BECOMES ONCE THE MANIFEST IS OUT. Same shape as the note's receipt —
+  // a tab has nothing underneath it — but the link is the site's own gateway address,
+  // and "not confirmed yet" is a real outcome: the manifest is out either way, and a
+  // gateway that has not noticed is a delay, not a failure.
+  async function showSitePosted(result) {
+    const sheet = document.querySelector('.compose-sheet');
+    receiptShown = true;
+    try { history.replaceState(null, '', location.pathname + location.search + '#done'); } catch (_) {}
+    sheet.innerHTML = '';
+    sheet.classList.remove('is-mining');
+    sheet.classList.add('compose-done');
+    const mark = h('span', { className: 'compose-done-mark' });
+    mark.append(icon('check'));
+    sheet.append(
+      mark,
+      h('h2', { className: 'compose-done-title', textContent: t('Your site is published.') }),
+      h('p', {
+        className: 'compose-done-sub',
+        textContent: result.live
+          ? t('Live at your gateway. The address is yours; share it anywhere.')
+          : t('The manifest is out. If the gateway has not picked it up yet, give it a minute.'),
+      })
+    );
+    const row = h('div', { className: 'compose-done-actions' });
+    const open = document.createElement('a');
+    open.className = 'primary compose-done-open';
+    open.href = result.url;
+    open.target = '_blank';
+    open.rel = 'noreferrer noopener';
+    open.textContent = t('Open your site');
+    row.append(open);
+    const again = h('button', { className: 'mini ghost', type: 'button', textContent: t('Keep editing') });
+    // Back to the same slot: a site is never finished the way a note is.
+    again.addEventListener('click', () => window.location.replace(location.pathname + '?site=' + encodeURIComponent(siteId || 'root')));
+    row.append(again);
+    sheet.append(row);
+    const done = h('button', { className: 'compose-cancel', type: 'button', textContent: t('Close this tab') });
+    done.addEventListener('click', () => window.close());
+    sheet.append(done);
+  }
+
   // ---- what the one button currently is ----
   //
   // There is exactly one primary control on this page, so it has to say which of the
@@ -1213,6 +1410,17 @@
       post.textContent = t('Unlock to post');
       post.className = 'secondary compose-post';
       post.disabled = true;
+      return;
+    }
+    // A SITE PUBLISHES, IT DOES NOT POST, and says so in the one word that separates
+    // them. Postable needs the entry page written; everything else is the approval
+    // card's business.
+    if (draft.site) {
+      post.textContent = repeatAsked ? t('Publish it again?') : t('Publish');
+      post.className = 'primary compose-post';
+      post.disabled = posting || !NS.siteDraftIsPostable(draft.site)
+        || !NS.isValidSiteName(NS.normalizeSiteName(draft.site.name));
+      if (repeatAsked && Date.now() < repeatHoldUntil) post.disabled = true;
       return;
     }
     post.textContent = repeatAsked ? t('Post it again?') : replyTo ? t('Reply') : t('Post');
@@ -1592,6 +1800,248 @@
   // Set by buildToolbar: closes the GIF picker, which sits outside the toolbar row.
   let closeGifPicker = () => {};
 
+  // ---- the site editor ----
+  //
+  // A site is pages of Markdown with titles, rendered through nsite.js's template at
+  // publish. The editor is deliberately plain — name, title, one row of page tabs, one
+  // textarea at a time — because the whole reason it lives in this tab is that a page
+  // wants room to be read back. Preview renders what will actually go out: the full
+  // document, template and nav and all, sanitized, in a sandboxed iframe (no script,
+  // no same-origin), because an extension page's CSP rightly forbids doing anything
+  // else with authored markup.
+  //
+  // paint() rebuilds the STRUCTURE (tabs, fields' values); the textarea writes
+  // straight into the draft as it types, so typing never repaints and never loses
+  // a caret. Page slugs follow their titles — a site's addresses are derived, not
+  // authored, which is what keeps two pages from colliding or 404ing.
+  let siteEditor = null;
+  function buildSiteEditor() {
+    const wrap = h('div', { className: 'site-editor' });
+    const err = $('compose-err');
+
+    // The site's name makes it a named site (kind 35128) at
+    // <pubkeyB36><name>.nsite.lol; empty is the root site (15128) at
+    // <pubkeyB36>.nsite.lol. Locked once something has been published under it:
+    // a different name is a different site, and quietly switching would orphan
+    // the one at the old address.
+    const nameInput = h('input', {
+      className: 'site-name-input', type: 'text', spellcheck: 'false',
+      placeholder: t('site-name (optional)'),
+    });
+    const nameHint = h('span', { className: 'site-name-hint' });
+    const nameRow = h('div', { className: 'site-meta-row' }, [
+      h('label', { className: 'site-meta-label', textContent: t('Address') }),
+      nameInput, nameHint,
+    ]);
+    nameInput.addEventListener('input', () => {
+      draft.site.name = nameInput.value.toLowerCase();
+      paintName();
+      scheduleSave();
+      paintCount();
+    });
+    function paintName() {
+      const name = NS.normalizeSiteName(draft.site.name);
+      const valid = !name || NS.isValidSiteName(name);
+      nameHint.textContent = valid
+        ? (name ? '.' + name + '.nsite.lol' : '.nsite.lol')
+        : t('Lowercase letters, digits and dashes — up to 13.');
+      nameHint.classList.toggle('site-name-bad', !valid);
+      nameInput.classList.toggle('site-name-bad', !valid);
+    }
+
+    const titleInput = h('input', {
+      className: 'site-title-input', type: 'text',
+      placeholder: t('Site title (optional)'),
+    });
+    titleInput.addEventListener('input', () => {
+      draft.site.title = titleInput.value;
+      scheduleSave();
+    });
+    const titleRow = h('div', { className: 'site-meta-row' }, [
+      h('label', { className: 'site-meta-label', textContent: t('Title') }),
+      titleInput,
+    ]);
+
+    // One row of page tabs. The entry page is always first and never removable; the
+    // rest remove with a two-tap confirm on the tab itself, the saved-draft trash's
+    // rewrite-its-own-row rule at tab size.
+    const tabsRow = h('div', { className: 'site-page-tabs' });
+    const addPageBtn = h('button', { className: 'mini compose-add site-page-add', type: 'button' });
+    addPageBtn.append(icon('plus'), h('span', { textContent: t('Page') }));
+    addPageBtn.addEventListener('click', () => {
+      const page = { slug: NS.normalizePageSlug(nextPageName(draft.site), new Set()), title: '', md: '' };
+      draft.site.pages.push(page);
+      draft.site.active = draft.site.pages.length - 1;
+      removeArm = -1;
+      scheduleSave();
+      paint();
+      loadPage();
+      pageTitleInput.focus();
+    });
+    let removeArm = -1; // the tab whose label currently reads "Remove?"
+    let removeTimer = null;
+    function paintTabs() {
+      tabsRow.innerHTML = '';
+      (draft.site.pages || []).forEach((page, i) => {
+        const tab = h('button', {
+          className: 'site-page-tab'
+            + (i === draft.site.active ? ' active' : '')
+            + (i === removeArm ? ' confirming' : ''),
+          type: 'button',
+        });
+        const label = h('span', { className: 'site-page-label', textContent: i === removeArm ? t('Remove?') : (page.title || page.slug) });
+        tab.append(label);
+        // THE TRASH ARMS, THE TAB CONFIRMS. First tap on the ✕ rewrites the tab into
+        // the question, the saved-draft row's two taps at tab size; a tap anywhere
+        // else on the tabs puts it back. The entry page has no ✕: a site without
+        // index.html is not a site.
+        if (i > 0 && i !== removeArm) {
+          const x = h('span', { className: 'site-page-x', title: t('Remove page'), role: 'button', tabindex: '0' });
+          x.append(icon('trash'));
+          x.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeArm = i;
+            clearTimeout(removeTimer);
+            paintTabs();
+            removeTimer = setTimeout(() => { removeArm = -1; paintTabs(); }, 4000);
+          });
+          tab.append(x);
+        }
+        tab.addEventListener('click', () => {
+          if (i === removeArm) {
+            removeArm = -1;
+            clearTimeout(removeTimer);
+            draft.site.pages.splice(i, 1);
+            if (draft.site.active >= draft.site.pages.length) draft.site.active = draft.site.pages.length - 1;
+            scheduleSave();
+            paint();
+            loadPage();
+            paintCount();
+            return;
+          }
+          if (i === draft.site.active) return;
+          removeArm = -1;
+          clearTimeout(removeTimer);
+          draft.site.active = i;
+          paintTabs();
+          loadPage();
+        });
+        tabsRow.append(tab);
+      });
+      tabsRow.append(addPageBtn);
+    }
+    // A page with no title yet is named for where it will sit.
+    function nextPageName(site) {
+      const n = site.pages.length + 1;
+      return 'page-' + n;
+    }
+
+    const pageTitleInput = h('input', {
+      className: 'site-page-title-input', type: 'text',
+      placeholder: t('Page title'),
+    });
+    pageTitleInput.addEventListener('input', () => {
+      const page = draft.site.pages[draft.site.active];
+      if (!page) return;
+      page.title = pageTitleInput.value;
+      // The slug follows the title until it has a reason not to; index stays index.
+      page.slug = draft.site.active === 0
+        ? 'index'
+        : NS.normalizePageSlug(page.title || 'page-' + (draft.site.active + 1),
+          new Set(draft.site.pages.filter((_, j) => j !== draft.site.active).map((p) => p.slug)));
+      paintTabs();
+      scheduleSave();
+    });
+
+    const pageBody = h('textarea', {
+      className: 'site-page-body', spellcheck: 'true',
+      placeholder: t('Write this page in Markdown…'),
+    });
+    pageBody.addEventListener('input', () => {
+      const page = draft.site.pages[draft.site.active];
+      if (!page) return;
+      page.md = pageBody.value;
+      scheduleSave();
+      paintCount();
+    });
+    // An image on the clipboard uploads through the same Blossom path the Media
+    // button uses, and lands as Markdown at the caret.
+    pageBody.addEventListener('paste', (e) => {
+      const images = Array.from((e.clipboardData && e.clipboardData.items) || [])
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      if (!images.length) return;
+      e.preventDefault();
+      uploadFiles(images);
+    });
+
+    wrap.append(nameRow, titleRow, tabsRow, pageTitleInput, pageBody);
+
+    function loadPage() {
+      const page = draft.site.pages[draft.site.active] || draft.site.pages[0];
+      pageTitleInput.value = page ? page.title : '';
+      pageBody.value = page ? page.md : '';
+    }
+    function paint() {
+      paintTabs();
+      paintName();
+      titleInput.value = draft.site.title || '';
+      // Published under this address, the name locks: a different name is a
+      // different site, and the old one would keep standing at the old one.
+      nameInput.disabled = !!draft.site.baseId;
+      if (draft.site.baseId) {
+        nameHint.textContent = t('Published. The address is fixed; a new name makes a new site.');
+        nameHint.classList.remove('site-name-bad');
+        nameInput.classList.remove('site-name-bad');
+      }
+    }
+    // At the caret, as the Media upload lands. Videos have no Markdown; the input
+    // filter and this insert both decline them rather than writing a dead link.
+    function insertImage(url, isVideo) {
+      if (isVideo) {
+        toast(t('Site pages take images; videos stay on the notes.'), 'error');
+        return;
+      }
+      const page = draft.site.pages[draft.site.active];
+      if (!page) return;
+      const at = pageBody.selectionStart == null ? page.md.length : pageBody.selectionStart;
+      const head = page.md.slice(0, at);
+      const tail = page.md.slice(at);
+      const nl = (head && !head.endsWith('\n')) ? '\n' : '';
+      const md = nl + '![](' + url + ')\n';
+      page.md = head + md + tail;
+      pageBody.value = page.md;
+      scheduleSave();
+      paintCount();
+    }
+    // What Preview shows: the whole document — template, nav, sanitized body — as
+    // the gateway will serve it, in an iframe that cannot run what it shows.
+    function renderPreview(pane) {
+      pane.innerHTML = '';
+      let files;
+      try {
+        files = NS.renderSiteFiles(draft.site, window.DOMPurify && window.DOMPurify.sanitize.bind(window.DOMPurify));
+      } catch (e) {
+        err.textContent = e.message;
+        pane.append(h('p', { className: 'hint', textContent: e.message }));
+        return;
+      }
+      const page = files.find((f) => f.slug === draft.site.pages[draft.site.active].slug) || files[0];
+      const frame = h('iframe', {
+        className: 'site-preview-frame',
+        // No scripts, no same-origin, no forms: a preview is pictures and text.
+        sandbox: '',
+        title: t('Site preview'),
+      });
+      // srcdoc, not src: nothing is fetched to show the author their own words.
+      frame.setAttribute('srcdoc', page.html);
+      pane.append(frame);
+    }
+    siteEditor = { wrap, paint, loadPage, insertImage, renderPreview, pageBody };
+    return siteEditor;
+  }
+
   // ---- the toolbar: media, a poll, and a proof of work for this note ----
   function buildToolbar() {
     const row = $('compose-actions');
@@ -1609,7 +2059,9 @@
       if (file) await uploadFiles([file]);
       fileInput.value = '';
     });
-    // The Media button and a pasted image take the one path.
+    // The Media button and a pasted image take the one path. In site mode the same
+    // button uploads through the same Blossom path and inserts a Markdown image at
+    // the caret instead: an attachment slot belongs to a note, and a site page is prose.
     uploadFiles = async (files) => {
       err.textContent = '';
       addBtn.disabled = true;
@@ -1624,6 +2076,10 @@
       try {
         for (const file of files) {
           const url = await composer.uploadMedia(file, state.activePubkey);
+          if (draft.site) {
+            siteEditor.insertImage(url, file.type.startsWith('video/'));
+            continue;
+          }
           // Into the media slot only. The URL is appended to the content at publish
           // (SC.composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
@@ -1696,6 +2152,14 @@
       mediaBtn: () => addBtn,
       gif: () => gifPicker,
     });
+    // A SITE CARRIES ONLY MEDIA. A poll is a note's shape, proof of work is a note's
+    // ladder, and a GIF picker pastes hosted URLs into prose that publishes as-is;
+    // the site editor builds its own toolbar and takes the upload button alone.
+    if (draft.site) {
+      row.append(addBtn, fileInput);
+      row.classList.add('compose-actions-site');
+      return;
+    }
     row.append(addBtn, gifPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
     // Below the toolbar rather than inside it: the editor is a form, and the row is a
     // row of buttons.
@@ -1739,6 +2203,9 @@
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
       if (which !== 'preview') return;
+      // A SITE PREVIEWS ITSELF: the whole published document, not a note renderer's
+      // approximation of one page of it.
+      if (draft.site) { siteEditor.renderPreview(pane); return; }
       pane.innerHTML = '';
       // What will actually go out: the prose and, appended at the end, the
       // attachments — the preview and the published note are rendered from the one
@@ -1791,6 +2258,16 @@
     // plain note, which is the safe direction to fail: a note that should have been a
     // reply is visible, a reply silently published as a note is not.
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
+    // Same for the site: the slot carries it; the URL only names the slot. A site
+    // draft with nothing in it yet is still a site — it has a name to publish under,
+    // which a blank note does not need.
+    draft.site = (saved && saved.site) || (isSiteMode() ? NS.newSiteDraft(siteId === 'root' ? '' : siteId, '') : null);
+    if (draft.site) {
+      $('compose-reply-target').classList.add('hidden');
+      // Dev fixtures author notes; a site publishes its own kinds and has no use
+      // for a kind selector over it.
+      document.getElementById('compose-dev').classList.add('hidden');
+    }
     paintReplyTarget();
     initDevControls(settings);
     paintSavedDrafts();
@@ -1801,6 +2278,13 @@
     // expanded here arrives whole. Painted after buildToolbar has made the editor.
     draft.poll = (saved && saved.poll) || null;
 
+    if (draft.site) {
+      siteEditor = buildSiteEditor();
+      $('compose-slot').append(siteEditor.wrap);
+      buildToolbar();
+      siteEditor.paint();
+      siteEditor.loadPage();
+    } else {
     editorApi = composer.createMentionEditor({
       placeholder: t('What’s on your mind?'),
       onChange: (text) => {
@@ -1850,6 +2334,7 @@
       if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
       uploadFiles(images);
     });
+    } // end of the note-editor branch (a site tab builds its own editor above)
     // After the toolbar, because that is what builds the poll editor: a poll restored
     // from the slot above has nothing to paint into until it exists.
     paintCount();
@@ -1863,7 +2348,8 @@
     buildTabs();
     renderThumbs();
     paintCount();
-    editorApi.focus();
+    if (editorApi) editorApi.focus();
+    else siteEditor.pageBody.focus();
 
     $('compose-post').addEventListener('click', () => {
       if (mining) return composer.powCancel();

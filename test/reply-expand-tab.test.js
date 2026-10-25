@@ -52,7 +52,8 @@ function panelKey(pubkey, replyTo) {
 
 function pageKey(pubkey, replyId) {
   const src = page.match(/function slotFor\(pubkey\)[\s\S]*?\n  \}/)[0];
-  const c = { replyId }; c.globalThis = c; vm.createContext(c);
+  // slotFor also reads the site slot's key (siteId), which a reply tab does not have.
+  const c = { replyId, siteId: null }; c.globalThis = c; vm.createContext(c);
   vm.runInContext(src + ';globalThis.f = slotFor;', c);
   return c.f(pubkey);
 }
@@ -67,6 +68,10 @@ test('THE TWO ENDS NAME THE SAME DRAFT SLOT', () => {
   assert.equal(pageKey(ME, null), panelKey(ME, null));
   // Replying to two different notes is two slots, from the same account.
   assert.notEqual(pageKey(ME, 'd'.repeat(64)), pageKey(ME, 'e'.repeat(64)));
+  // Site slots are their own family (`|site:`), and the panel builds the key with the
+  // same shape when it hands a site to the tab (handSiteToTab).
+  assert.match(page, /siteId != null\) return pubkey \+ '\|site:' \+ siteId/);
+  assert.match(panel, /'\|site:' \+ wantSite/);
 });
 
 test('THE TAB AND THE PANEL BUILD IDENTICAL THREADING', () => {
@@ -193,18 +198,20 @@ test('AN OPEN TAB IS TOLD TO SWITCH, BECAUSE IT CANNOT BE NAVIGATED', () => {
   // So the panel sends, and the tab re-keys itself.
   assert.match(panel, /SIDECAR_COMPOSE_OPEN/);
   assert.match(page, /msg\.type === 'SIDECAR_COMPOSE_OPEN'/);
-  // Validated on arrival as well as in the URL: a message is another way in.
+  // Validated on arrival as well as in the URL: a message is another way in. The site
+  // handoff names its slot the same way, validated by the same rule the URL's is.
   assert.match(page, /msg\.type === 'SIDECAR_COMPOSE_OPEN'\) \{\s*handleComposeOpen\(msg\);/);
   const handler = page.slice(page.indexOf('function handleComposeOpen('));
-  assert.match(handler.slice(0, 900), /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(msg\.replyId\)/);
+  assert.match(handler.slice(0, 2000), /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(msg\.replyId\)/);
+  assert.match(handler.slice(0, 2000), /NS\.isValidSiteName\(msg\.siteId\)/);
   // The open draft is written back before the key moves, or the text on screen lands in
   // the slot it was not typed in.
   // Through switchToDraft, the one path a draft chip takes too.
-  assert.match(handler.slice(0, 900), /switchToDraft\(want\)/);
+  assert.match(handler.slice(0, 2000), /switchToDraft\(want\)/);
   const sw = page.slice(page.indexOf('async function switchToDraft'));
-  assert.match(sw.slice(0, 900), /await flushDraft\(\);\s*replyId = want;[\s\S]*await reopenDraft\(\);/);
+  assert.match(sw.slice(0, 1800), /await flushDraft\(\);\s*replyId = want;[\s\S]*await reopenDraft\(\);/);
   // And a message naming the draft already open does nothing.
-  assert.match(handler.slice(0, 900), /if \(want === replyId\) return;/);
+  assert.match(handler.slice(0, 2000), /if \(want === replyId\) return;/);
 
   // replyId has to be reassignable for any of that to work.
   assert.match(page, /let replyId = \(\(\) => \{/);

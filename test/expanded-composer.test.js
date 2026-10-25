@@ -44,19 +44,24 @@ test('THE DRAFT IS SHARED, NOT HANDED OVER', () => {
   assert.match(panelBare, /const draftKey = \(pubkey, replyTo\) =>/);
 
   // THE URL NAMES A SLOT, IT NEVER CARRIES CONTENT. It gained ?reply=<id> when replies
-  // learned to expand, and an id is a pointer into the same store both ends read. The
-  // rule that matters is unchanged: nothing anybody typed goes in a URL, where it would
-  // sit in history, in the omnibox, and in whatever logs a URL reaches.
+  // learned to expand, and an id is a pointer into the same store both ends read. It
+  // gained ?site=<name-or-root> when sites did (#530): the site name is the pointer,
+  // and the tab validates it by the site-name rule before it becomes a draft key.
+  // The rule that matters is unchanged: nothing anybody typed goes in a URL, where it
+  // would sit in history, in the omnibox, and in whatever logs a URL reaches.
   // The query is appended to the RESOLVED url, not passed to getURL inside the path:
   // getURL takes a path and what it does with a "?" in one is not worth discovering
   // from a bug report.
   assert.match(panelBare, /chrome\.runtime\.getURL\('compose\.html'\)\s*\n?\s*\+ \(wantId \? '\?reply=' \+ encodeURIComponent\(wantId\) : ''\)/);
   const q = panelBare.match(/'\?([a-z]+)=' \+ encodeURIComponent/g) || [];
-  assert.deepEqual([...new Set(q)], ["'?reply=' + encodeURIComponent"],
-    'a second query parameter appeared; check it is a pointer and not content');
-  // And what comes back off it is validated as an id before it becomes a storage key.
+  assert.deepEqual([...new Set(q)].sort(), ["'?reply=' + encodeURIComponent", "'?site=' + encodeURIComponent"].sort(),
+    'a new query parameter appeared; check it is a pointer and not content');
+  // And what comes back off it is validated before it becomes a storage key: the reply
+  // id as an event id, the site name by the rule the manifest builder enforces.
   assert.match(pageBare, /\/\^\[0-9a-f\]\{64\}\$\/i\.test\(v\)/,
     'the reply id is used unvalidated, so any string could become a draft key');
+  assert.match(pageBare, /NS\.isValidSiteName\(v\)/,
+    'the site name is used unvalidated, so any string could become a draft key');
 });
 
 test('THE DRAFT IS CLEARED ONLY AFTER THE NOTE IS OUT', () => {
@@ -665,9 +670,11 @@ test('media is content on its own', () => {
   // Post, Stop mining or Unlock to post right now.
   assert.match(bare, /post\.disabled = posting \|\| \(!n && !draft\.media\.length\);/);
   // A poll with options typed and no question yet is also work worth keeping, so the
-  // clause grew a third arm rather than changing meaning.
+  // clause grew a third arm rather than changing meaning. A site with a written page
+  // is the same shape of work, and grew the fourth.
   assert.match(bare, /const hasContent = !!\(\(draft\.text && draft\.text\.trim\(\)\) \|\| \(draft\.media && draft\.media\.length\)/);
-  assert.match(bare, /\|\| \(draft\.poll && draft\.poll\.options && draft\.poll\.options\.some\(\(o\) => o\.trim\(\)\)\)\);/);
+  assert.match(bare, /\|\| \(draft\.poll && draft\.poll\.options && draft\.poll\.options\.some\(\(o\) => o\.trim\(\)\)\)/);
+  assert.match(bare, /\|\| \(draft\.site && draft\.site\.pages && draft\.site\.pages\.some\(\(p\) => p && p\.md && p\.md\.trim\(\)\)\)\);/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.media\)\) draft\.media = saved\.media;/);
   // And the empty prose of a media-only note is not a reason to stop either: the URL
   // lives in the media slot now, so "no text" no longer means "no note".

@@ -13331,6 +13331,8 @@
 
   // The editor itself lives in composer-core.js so the expanded composer page can build
   // one. Its collaborators do not: they are this panel's, so they are handed in here.
+  // The nsite publisher reads the account's Blossom server list through this same
+  // lookup, so discovery, its cache and its relay policy stay one thing.
   const {
     serializeEditor, hydrateEditorFromText, createMentionEditor,
     renderNotePreview, uploadMedia, minePow, powCancel, resolveClient,
@@ -13338,7 +13340,7 @@
     resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
     powSetting, postCountdownSetting,
     renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
-    paintCountdownNum,
+    paintCountdownNum, fetchBlossomServers,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
@@ -13355,6 +13357,32 @@
       // exactly the kind of thing that setting is for.
       reduceBalanceMotion: () => reduceBalanceMotion,
     });
+
+  // ---- the nsite publisher, for the panel's side of a site ----
+  //
+  // The panel never authors a site — the panel is 360px and a page wants room — but it
+  // is where sites are listed, opened, and unpublished, and unpublishing signs through
+  // the same session signer the composer's publish does. Installed over the panel's own
+  // plumbing for exactly that one flow.
+  const NS = window.SidecarNsite;
+  const nsite = NS.install({
+    call,
+    // The unpublish ask waits for a person, same as the composer's publish does:
+    // the queue holds the card for half an hour, so the caller's budget matches.
+    callLong: (message) => bg(message, 31 * 60 * 1000),
+    activePubkey: () => state.activePubkey,
+    fetchBlossomServers,
+    relayUrls,
+    poolQuerySync,
+    hasServerList: async (pubkey) => {
+      const ev = await poolGet(await relayUrls(false), { kinds: [NS.SERVER_LIST_KIND], authors: [pubkey] });
+      return !!ev;
+    },
+    targetRelays: postRelays,
+    publishToRelays: (relays, events) => events.flatMap((ev) => poolPublish(relays, ev)),
+    siteSign: async (session, event) =>
+      call({ type: 'SIDECAR_SITE_SIGN', session, event, expectedPubkey: state.activePubkey }),
+  });
 
   // ---- composer draft autosave (per account, encrypted at rest) ----
   // Routed through the background's secret store (audit M5/S1): the draft text
@@ -13638,10 +13666,14 @@
       // something else". Without this, expanding a reply while a plain note sat in the
       // tab focused that tab and showed the wrong draft, silently.
       let replyId = null;
-      try { replyId = new URL(found.documentUrl).searchParams.get('reply') || null; } catch (_) {}
+      let siteId = null;
+      try {
+        replyId = new URL(found.documentUrl).searchParams.get('reply') || null;
+        siteId = new URL(found.documentUrl).searchParams.get('site') || null;
+      } catch (_) {}
       // A tab that posted says so in its address (compose.js showPosted): what it holds is
       // a receipt, not a draft.
-      return { ...found, replyId, done: /#done$/.test(found.documentUrl) };
+      return { ...found, replyId, siteId, done: /#done$/.test(found.documentUrl) };
     } catch (_) {
       // An older Chrome without getContexts, or a call that threw. Falling through to
       // opening the panel composer is the safe direction: the draft store is the same
@@ -13707,6 +13739,35 @@
     // to find out from a bug report.
     const url = chrome.runtime.getURL('compose.html')
       + (wantId ? '?reply=' + encodeURIComponent(wantId) : '');
+    chrome.tabs.create({ url });
+  }
+
+  // HANDING A SITE TO THE TAB, from the Saved list's site rows and New site. Same four
+  // needs as handOffToTab, with the site draft seeded when the slot is brand new: a
+  // site tab opened cold still needs the name it was opened for.
+  async function handSiteToTab(wantSite) {
+    const dkey = state.activePubkey + '|site:' + wantSite;
+    const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+    if (!all[dkey]) {
+      all[dkey] = {
+        text: '', media: [], savedAt: Date.now(),
+        site: NS.newSiteDraft(wantSite === 'root' ? '' : wantSite, ''),
+      };
+    }
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    const open = await liveComposeTab();
+    if (open) {
+      try {
+        const holdsIt = !open.done && (open.siteId || null) === wantSite;
+        if (!holdsIt) {
+          chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', siteId: wantSite }).catch(() => {});
+        }
+        await chrome.tabs.update(open.tabId, { active: true });
+        await chrome.windows.update(open.windowId, { focused: true });
+      } catch (_) {}
+      return;
+    }
+    const url = chrome.runtime.getURL('compose.html') + '?site=' + encodeURIComponent(wantSite);
     chrome.tabs.create({ url });
   }
 
@@ -13965,6 +14026,13 @@
       closeX.addEventListener('click', closeModal);
       modal.append(closeX);
       if (!withDrafts) return;
+      // NEW SITE, beside the drafts folder. The one always-visible way into site
+      // authoring from the panel: a site with no working copy yet would otherwise
+      // be unreachable until something else had already made the folder show.
+      const newBtn = h('button', { className: 'modal-x compose-newsite-btn', type: 'button', title: t('New site') });
+      newBtn.append(icon('globe'));
+      newBtn.addEventListener('click', () => { showNewSite(); });
+      modal.append(newBtn);
       const count = h('span', { className: 'compose-drafts-count' });
       count.setAttribute('aria-hidden', 'true');
       const btn = h('button', { className: 'modal-x compose-drafts-btn hidden', type: 'button', title: t('Saved drafts') });
@@ -13982,34 +14050,159 @@
       }).catch(() => {});
     }
 
+    // The new-site ask, in place of the editor: a name (or none, for the root site),
+    // and the tab takes it from there. Rule 2 of the narrow-panel rules: the words
+    // and the button take the full width below the field, not a place beside it.
+    function showNewSite() {
+      stopCountdown();
+      modal.innerHTML = '';
+      modal.classList.remove('has-drafts-btn');
+      addCorner(false);
+      const input = h('input', {
+        className: 'status-input site-name-input', type: 'text', spellcheck: 'false',
+        placeholder: t('site-name (optional)'),
+      });
+      const hint = h('p', { className: 'hint site-name-hint' });
+      const paintHint = () => {
+        const name = NS.normalizeSiteName(input.value);
+        hint.textContent = !name
+          ? t('No name publishes your root site.')
+          : NS.isValidSiteName(name)
+            ? t('This site will live at {{host}}.', { host: NS.pubkeyB36(state.activePubkey) + name + '.nsite.lol' })
+            : t('Lowercase letters, digits and dashes — up to 13.');
+      };
+      input.addEventListener('input', paintHint);
+      paintHint();
+      const start = h('button', { className: 'primary', textContent: t('Start your site') });
+      start.addEventListener('click', async () => {
+        const name = NS.normalizeSiteName(input.value);
+        if (name && !NS.isValidSiteName(name)) { hint.textContent = t('Lowercase letters, digits and dashes — up to 13.'); return; }
+        closeModal();
+        handSiteToTab(name || 'root');
+      });
+      modal.append(
+        h('h3', { textContent: t('New site') }),
+        h('p', { className: 'hint', textContent: t('A few Markdown pages, published to your Blossom servers and served at a gateway. Written in the full-size composer.') }),
+        input, hint,
+        h('div', { className: 'actions' }, [start]),
+      );
+      input.focus();
+    }
+
     // The list, in place of the editor, with a way back to it. The draft on screen is
     // saved before it goes, because the list is built from the store.
     async function showSavedDrafts() {
       await flushDraftNow();
       const entries = await draftsToList();
-      if (!entries.length) { showEditor(); return; }
+      const published = await publishedSites().catch(() => []);
+      if (!entries.length && !published.length) { showEditor(); return; }
       stopCountdown();
       modal.innerHTML = '';
       modal.classList.remove('has-drafts-btn');
       addCorner(false);
       const back = h('button', { className: 'ghost', textContent: t('Back to your draft') });
       back.addEventListener('click', () => showEditor());
-      modal.append(
-        h('h3', { textContent: t('Saved drafts') }),
-        buildSavedDraftList({
-          entries,
-          nameFor: (pk) => Promise.resolve(notifAuthorName(pk)),
-          onPick: (entry) => switchToSavedDraft(entry),
-          onDelete: async (entry) => {
-            const now = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-            delete now[entry.key];
-            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: now });
-            toast(t('Draft deleted.'), 'success');
-            showSavedDrafts();
-          },
-        }),
-        h('div', { className: 'actions' }, [back]),
+      if (entries.length) {
+        modal.append(
+          h('h3', { textContent: t('Saved drafts') }),
+          buildSavedDraftList({
+            entries,
+            nameFor: (pk) => Promise.resolve(notifAuthorName(pk)),
+            onPick: (entry) => switchToSavedDraft(entry),
+            onDelete: async (entry) => {
+              const now = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+              delete now[entry.key];
+              await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: now });
+              toast(t('Draft deleted.'), 'success');
+              showSavedDrafts();
+            },
+          }),
+        );
+      }
+      if (published.length) modal.append(buildPublishedSites(published));
+      modal.append(h('div', { className: 'actions' }, [back]));
+    }
+
+    // The account's published sites, newest manifest per name from its own relays.
+    // THE MANIFEST IS THE SOURCE OF TRUTH, so this list survives a lost local store:
+    // what it costs is unsaved edits, never the site itself.
+    async function publishedSites() {
+      const pk = state.activePubkey;
+      const events = await poolQuerySync(
+        await relayUrls(false),
+        { kinds: [NS.MANIFEST_KIND, NS.NAMED_MANIFEST_KIND], authors: [pk] },
       );
+      const best = new Map(); // site name ('' for the root site) → newest manifest
+      for (const ev of events || []) {
+        if (!ev || ev.pubkey !== pk) continue;
+        const name = NS.manifestNameOf(ev);
+        const prev = best.get(name);
+        if (!prev || ev.created_at > prev.created_at) best.set(name, ev);
+      }
+      return [...best.values()].sort((a, b) =>
+        String(NS.manifestNameOf(b) || '').localeCompare(String(NS.manifestNameOf(a) || '')));
+    }
+
+    // One published site's row and its controls. THE ROW-CONTROLS RULE, published-site
+    // edition: Open and Edit are icon buttons in the inline slot; Unpublish is a
+    // destructive action with words, so its confirm takes the full-width row below the
+    // content and says what it cannot promise — relays may keep copies.
+    function buildPublishedSites(events) {
+      const wrap = h('div', { className: 'published-sites' });
+      wrap.append(h('h3', { textContent: t('Your sites') }));
+      for (const ev of events) {
+        const name = NS.manifestNameOf(ev) || '';
+        const title = NS.manifestTitleOf(ev);
+        let url = '';
+        try { url = NS.gatewayUrl(ev.pubkey, name); } catch (_) {}
+        const row = h('div', { className: 'published-site' });
+        const text = h('button', { className: 'published-site-open', type: 'button', title: t('Edit this site') }, [
+          h('span', { className: 'published-site-name', textContent: title || (name ? name : t('Your root site')) }),
+          h('span', { className: 'published-site-url', textContent: url.replace(/^https:\/\//, '') }),
+        ]);
+        text.addEventListener('click', () => { switchingDraft = true; closeModal(); handSiteToTab(name || 'root'); });
+        const actions = h('div', { className: 'item-actions' });
+        const open = h('a', { className: 'icon-btn', href: url, target: '_blank', rel: 'noreferrer noopener', title: t('Open site'), 'aria-label': t('Open site') });
+        open.append(icon('external'));
+        const rm = h('button', { className: 'icon-btn', type: 'button', title: t('Unpublish'), 'aria-label': t('Unpublish') });
+        rm.append(icon('trash'));
+        actions.append(open, rm);
+        // The confirm lives in its own full-width row under the content, the
+        // connected-site grammar: content on top, controls stretched beneath.
+        const controls = h('div', { className: 'site-controls hidden' });
+        const armUnpublish = () => {
+          actions.classList.add('hidden');
+          controls.innerHTML = '';
+          const msg = h('span', { className: 'confirm-msg', textContent: t('Unpublish this site? Relays may keep copies.') });
+          const yes = h('button', { className: 'mini del-confirm', textContent: t('Unpublish') });
+          const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
+          no.addEventListener('click', () => {
+            controls.innerHTML = '';
+            controls.classList.add('hidden');
+            actions.classList.remove('hidden');
+          });
+          yes.addEventListener('click', async () => {
+            yes.disabled = true;
+            msg.textContent = t('Publishing an empty manifest…');
+            try {
+              await nsite.unpublish(name, (s) => { msg.textContent = s; });
+              toast(t('The site is unpublished. Gateways may take a minute to notice.'), 'success');
+              controls.classList.add('hidden');
+              showSavedDrafts();
+            } catch (e) {
+              msg.textContent = e.message || t('Could not unpublish');
+              yes.disabled = false;
+            }
+          });
+          controls.append(msg, yes, no);
+          controls.classList.remove('hidden');
+        };
+        rm.addEventListener('click', armUnpublish);
+        const top = h('div', { className: 'published-site-top' }, [text, actions]);
+        row.append(top, controls);
+        wrap.append(row);
+      }
+      return wrap;
     }
 
     // Another draft, in this composer. The slot is fixed for a composer's whole session
@@ -14018,6 +14211,14 @@
     // twice. The close handler skips its save and the way back, both of which belong to
     // the draft being left.
     async function switchToSavedDraft(entry) {
+      // A SITE OPENS IN THE TAB, never in this composer: the panel is 360px and a page
+      // wants room to be read back. Same handoff Expand uses.
+      if (entry.kind === 'site') {
+        switchingDraft = true;
+        closeModal();
+        handSiteToTab(entry.siteId || 'root');
+        return;
+      }
       // A REPLY SAVED WITHOUT ITS TARGET, by a version from before drafts carried one.
       // Opened as it stands it would open the NOTE draft, since the slot is chosen from
       // the target, so the note it answers is looked up by id first. Not found, it stays
@@ -18711,6 +18912,14 @@
   let nwcNotifSub = null; // NIP-47 notification subscription handle
   let nwcPollTimer = null; // fallback balance polling interval
   const fmtSats = (n) => I18N.fmtNum(Math.round(n));
+  // Bytes for the publish card's size row, word for word the number prompt.js's
+  // fmtBytes draws: one number and a unit, exact under 1 MB, rounded above it.
+  const fmtApprovalBytes = (n) => {
+    n = Number(n) || 0;
+    if (n < 1024) return I18N.fmtNum(n) + ' B';
+    if (n < 1024 * 1024) return I18N.fmtNum(Math.round(n / 1024)) + ' KB';
+    return I18N.fmtNum(Math.round(n / (1024 * 1024))) + ' MB';
+  };
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
   // ---- balance denomination (sats → BTC → fiat, cycled by tapping the balance) ----
@@ -23162,6 +23371,7 @@
     const asks = {
       getPublicKey: tSec('wants to see your public key (npub)'),
       signEvent: tSec('wants to sign an event with your key'),
+      sitePublish: tSec('asks to publish a website in your name'),
       getRelays: tSec('wants to read your relay list'),
       'nip04.encrypt': tSec('wants to encrypt a message (NIP-04)'),
       'nip04.decrypt': tSec('wants to decrypt a message (NIP-04)'),
@@ -23219,7 +23429,8 @@
       10007: tSec('Search relays list'), 10008: tSec('Profile badges'), 10009: tSec('Groups list'),
       10012: tSec('Favorite relays list'), 10015: tSec('Interests list'), 10020: tSec('Media follows'),
       10030: tSec('Emoji list'), 10040: tSec('Trust provider list'), 10044: tSec('DM encryption key'), 10050: tSec('DM relay list'),
-      10063: tSec('Blossom server list'),
+      5128: tSec('Site snapshot'), 10063: tSec('Blossom server list'),
+      15128: tSec('Site manifest'), 35128: tSec('Named site manifest'),
       13194: tSec('Wallet info'), 22242: tSec('Relay auth'), 23194: tSec('Wallet request'), 23195: tSec('Wallet response'),
       24133: tSec('Remote signing handshake'), 24242: tSec('Blossom authorization'), 27235: tSec('HTTP auth'),
       30000: tSec('Follow set'), 30002: tSec('Relay set'), 30003: tSec('Bookmark set'), 30004: tSec('Curation set'),
@@ -23505,6 +23716,30 @@
         ]));
       }
       if (ev.content || unreadable) appendEventContent(box, ev);
+    } else if (data.method === 'sitePublish') {
+      // ONE CARD PER PUBLISH (#530). Same rows, word for word, as prompt.js's
+      // sitePublish branch — the two surfaces must describe one click identically.
+      const plan = data.params || {};
+      box.append(row(tSec('Site'), plan.name || tSec('Your root site')));
+      if (plan.unpublish) {
+        box.append(row(tSec('Action'), tSec('Unpublish — replace the manifest with an empty one and ask relays to delete the old events')));
+      } else {
+        box.append(row(tSec('Files'), tSec('{{count}} files · {{size}}', { count: I18N.fmtNum(plan.fileCount || 0), size: fmtApprovalBytes(plan.totalBytes || 0) })));
+        const changes = [];
+        if ((plan.added || []).length) changes.push(tSec('{{count}} added', { count: I18N.fmtNum(plan.added.length) }));
+        if ((plan.changed || []).length) changes.push(tSec('{{count}} changed', { count: I18N.fmtNum(plan.changed.length) }));
+        if ((plan.removed || []).length) changes.push(tSec('{{count}} removed', { count: I18N.fmtNum(plan.removed.length) }));
+        if (changes.length) box.append(row(tSec('Changes'), changes.join(' · ')));
+        if (plan.replaces) box.append(row(tSec('Replaces'), tSec('the manifest already on your relays')));
+      }
+      if ((plan.servers || []).length) {
+        box.append(row(tSec('Servers'), plan.servers.slice(0, 2).map((s) => truncMid(String(s).replace(/^https:\/\//, ''), 20, 8)).join(', ')));
+      }
+      const kinds = plan.kinds || [];
+      if (kinds.length) box.append(row(tSec('Signs'), kinds.map(approvalKindLabel).join(', ')));
+      if (plan.unpublish) {
+        box.append(h('div', { className: 'kind-warn', textContent: tSec('Unpublishing is not deletion. Relays and caches may keep copies of the site.') }));
+      }
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(peerRow(tSec('From'), data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
@@ -23959,6 +24194,14 @@
     // rather than over-promise (must run after the payment/unlock branches
     // above, which otherwise re-show it).
     if (data.sharedIdentity) hide(trust);
+
+    // A publish is asked by Sidecar's own composer, and "Trust sidecar" is a sentence
+    // with no meaning: the card approves ONE plan, and every later publish shows its
+    // own card. Same words as prompt.js's card, so the two surfaces read as one.
+    if (data.method === 'sitePublish') {
+      allow.textContent = tSec('Approve');
+      hide(trust);
+    }
 
     // Batch: a burst of same-site/same-account/same-kind content signs (e.g.
     // Primal's app-data sync) collapses into one "Allow all (N)" so the user
