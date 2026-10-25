@@ -252,8 +252,8 @@ October 24, later: rebased onto origin/main at 1.16.1 (89b8c0a):
   removed. The free-identifier guard then caught the kind-grant row (#511) reading the
   retired KIND_NAMES map; it now uses the translated activityKindName() with the
   "kind {{kind}}" fallback and a "{{kind}} · “{{d}}”" template, so each language sets
-  its own quote marks. Coverage gate: 1,844 base keys; de 1,907/1,907, es/fr/pt-BR
-  1,968/1,968; 0 missing, 0 invalid, 0 unknown. Browser messages unchanged at 32.
+  its own quote marks. Coverage gate, with the stream box placeholder wired too: 1,845 base keys;
+  de 1,908/1,908, es/fr/pt-BR 1,969/1,969; 0 missing, 0 invalid, 0 unknown. Browser messages unchanged at 32.
 - Review packets regenerated: 499 entries per language; the additions are the two
   kind-grant sentences, "kind {{kind}}", the grant-row template, "Always allow this
   event type for this site", "Make default Lightning wallet" and its hint. All still

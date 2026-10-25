@@ -1966,5 +1966,6 @@
   "Sidecar becomes the default wallet on web pages, ahead of any other. Open pages need a reload.": "Sidecar devient le portefeuille par défaut sur les pages web, avant tout autre. Les pages ouvertes doivent être rechargées.",
   "Always allow this event type for this site": "Toujours autoriser ce type d’événement pour ce site",
   "Search apps": "Rechercher des applications",
-  "{{kind}} · “{{d}}”": "{{kind}} · « {{d}} »"
+  "{{kind}} · “{{d}}”": "{{kind}} · « {{d}} »",
+  "https://…/live.m3u8 or naddr1…": "https://…/live.m3u8 ou naddr1…"
 }
