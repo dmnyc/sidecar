@@ -225,7 +225,8 @@ function apps() {
     url: 'https://plebsvszombies.cc',
     domain: 'plebsvszombies.cc',
     cat: 'tools',
-    flush: true,
+    // The site's favicon is an SVG only, which the favicon service does not return, so it is bundled.
+    icon: 'icons/apps/plebs-vs-zombies.svg',
     desc: t('A gamified Nostr follow manager: cull your zombie followers and keep your network alive.'),
   },
   {
@@ -503,6 +504,16 @@ function apps() {
     // Transparent mark, so it takes the framed treatment rather than flush.
     icon: 'icons/apps/anagram.png',
     desc: t('Private messaging and calls over Nostr.'),
+  },
+  {
+    name: 'Nostr Vault',
+    url: 'https://nostrvault.app',
+    domain: 'nostrvault.app',
+    cat: 'social',
+    // An opaque dark square that fills its frame, so flush.
+    icon: 'icons/apps/nostr-vault.png',
+    flush: true,
+    desc: t('A Nostr client built on your web of trust: each feed shows accounts your circle vouches for.'),
   },
   {
     name: 'Armada',
