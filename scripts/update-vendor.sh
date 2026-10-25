@@ -22,6 +22,7 @@ HLS_VERSION=1.7.3
 NOSTR_TOOLS_VERSION=2.23.11
 JSQR_VERSION=1.4.0
 QRCODE_GENERATOR_VERSION=2.0.4
+DOMPURIFY_VERSION=3.4.17
 ESBUILD_VERSION=0.28.1
 UNICODE_EMOJI_JSON_VERSION=0.9.0
 EMOJIBASE_DATA_VERSION=17.0.0
@@ -59,6 +60,7 @@ fetch nostr-tools "$NOSTR_TOOLS_VERSION"
 fetch hls.js "$HLS_VERSION"
 fetch jsqr "$JSQR_VERSION"
 fetch qrcode-generator "$QRCODE_GENERATOR_VERSION"
+fetch dompurify "$DOMPURIFY_VERSION"
 fetch unicode-emoji-json "$UNICODE_EMOJI_JSON_VERSION"
 fetch emojibase-data "$EMOJIBASE_DATA_VERSION"
 
@@ -67,6 +69,7 @@ cp nostr-tools/lib/nostr.bundle.js "$STAGE/nostr-tools.js"
 cp hls.js/dist/hls.js "$STAGE/hls.js"
 cp jsqr/dist/jsQR.js "$STAGE/jsqr.js"
 cp qrcode-generator/dist/qrcode.js "$STAGE/qrcode-generator.js"
+cp dompurify/dist/purify.js "$STAGE/dompurify.js"
 
 # emoji-data.js is REDUCED rather than copied, which makes it the second built
 # bundle here. It is also the one JOIN: names come from unicode-emoji-json, search
@@ -140,7 +143,7 @@ npx esbuild entry.js --bundle --format=iife --global-name=SidecarNip49 \
 # Hash the staged bundles with bare filenames (the shape CI verifies from the
 # repo root), then gate on a diff against what's committed.
 cd "$STAGE"
-sha256sum nostr-tools.js nip49.js jsqr.js qrcode-generator.js emoji-data.js hls.js > "$WORK/vendor-hashes.new"
+sha256sum nostr-tools.js nip49.js jsqr.js qrcode-generator.js dompurify.js emoji-data.js hls.js > "$WORK/vendor-hashes.new"
 if [ -f "$ROOT/scripts/vendor-hashes.sha256" ] &&
    ! diff -u "$ROOT/scripts/vendor-hashes.sha256" "$WORK/vendor-hashes.new"; then
   if [ "$ACCEPT_HASH_CHANGE" -ne 1 ]; then
@@ -158,7 +161,7 @@ fi
 cd "$ROOT"
 cp "$WORK/vendor-hashes.new" scripts/vendor-hashes.sha256
 cp "$STAGE/nostr-tools.js" "$STAGE/nip49.js" "$STAGE/jsqr.js" "$STAGE/qrcode-generator.js" \
-   "$STAGE/emoji-data.js" "$STAGE/hls.js" .
+   "$STAGE/dompurify.js" "$STAGE/emoji-data.js" "$STAGE/hls.js" .
 echo
 echo "Vendored bundles refreshed. Recorded hashes:"
 cat scripts/vendor-hashes.sha256

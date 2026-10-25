@@ -1,7 +1,7 @@
 # Vendored code provenance
 
 Sidecar has no build step: what ships is what's committed. Third-party code is
-vendored as six bundled files, each traceable to official artifacts published
+vendored as seven bundled files, each traceable to official artifacts published
 on registry.npmjs.org. This file records exactly where each bundle comes from so
 that anyone can re-derive and verify them — no trust in this repo required.
 
@@ -26,6 +26,7 @@ and rewrites the hash file. After running it against a clean checkout,
 | `nip49.js` | built from `nostr-tools@2.23.11` (see below) | — (reproducible local build) | Unlicense (+ MIT deps) | `bf2f461cfc78120933e1a745697f7a5cc735d535353b38fbba2dbeb96231fd6a` |
 | `jsqr.js` | [`jsqr@1.4.0`](https://www.npmjs.com/package/jsqr/v/1.4.0) | `dist/jsQR.js` (byte-exact) | Apache-2.0 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` |
 | `qrcode-generator.js` | [`qrcode-generator@2.0.4`](https://www.npmjs.com/package/qrcode-generator/v/2.0.4) | `dist/qrcode.js` (byte-exact) | MIT | `79ec86f82856005b1c887905cfccfcfbec3821ca61c7fd5a952faa5f778f791c` |
+| `dompurify.js` | [`dompurify@3.4.17`](https://www.npmjs.com/package/dompurify/v/3.4.17) | `dist/purify.js` (byte-exact) | MPL-2.0 OR Apache-2.0 | `a7b6dc750251c79c95592d6abf8908bcecb51319b0b5c4194b82222566ed29b9` |
 | `emoji-data.js` | [`unicode-emoji-json@0.9.0`](https://www.npmjs.com/package/unicode-emoji-json/v/0.9.0) + [`emojibase-data@17.0.0`](https://www.npmjs.com/package/emojibase-data/v/17.0.0) | `data-by-group.json` + `en/compact.json` (reduced and joined, see below) | MIT | `b031347618b2b5cb9e1ac505b4ebacb4ed067e33a4a11b700755786ebeff11c5` |
 
 All licenses are permissive and compatible with this repository's MIT license.
