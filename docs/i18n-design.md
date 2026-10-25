@@ -1,8 +1,8 @@
 # Multilingual support — design
 
 Status (October 24, 2026): the language work lives on `feat/languages`, rebased onto
-`main` after 1.16.0 shipped. The extractor finds 1,817 keys, including the streaming
-UI and everything 1.16 added. German (de), Spanish (es), French (fr), and Brazilian
+`main` at 1.16.1. The extractor finds 1,844 keys, including the streaming UI and
+everything 1.16.0 and 1.16.1 added. German (de), Spanish (es), French (fr), and Brazilian
 Portuguese (pt-BR) have complete draft app and browser-message catalogs, and the
 coverage gate (`node scripts/i18n-coverage.mjs --check`) passes with no missing,
 invalid or unknown entries. European Portuguese (pt-PT) is deferred to a future

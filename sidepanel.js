@@ -12174,7 +12174,8 @@
       wrap.append(h('div', { className: 'kind-grants-title', textContent: t('Signs without asking:') }));
       for (const g of grants) {
         const line = h('div', { className: 'kind-grant' });
-        const label = (KIND_NAMES[g.kind] || 'kind ' + g.kind) + (g.d ? ' · “' + g.d + '”' : '');
+        const kindName = activityKindName(g.kind) || tSec('kind {{kind}}', { kind: I18N.fmtNum(g.kind) });
+        const label = g.d ? tSec('{{kind}} · “{{d}}”', { kind: kindName, d: g.d }) : kindName;
         line.append(h('span', { className: 'kind-grant-label', textContent: label }));
         line.append(iconButton(t('Stop always signing this'), 'x', async () => {
           await call({ type: 'SIDECAR_REMOVE_KIND_GRANT', host, kind: g.kind, d: g.d });

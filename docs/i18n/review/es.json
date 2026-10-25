@@ -70,9 +70,57 @@
     },
     {
       "file": "locales/es.json",
+      "key": "Sending payment",
+      "english": "Sending payment",
+      "translation": "Enviando pago",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Payment sent",
+      "english": "Payment sent",
+      "translation": "Pago enviado",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Payment failed",
+      "english": "Payment failed",
+      "translation": "El pago falló",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
       "key": "That looks like a secret key. For safety, paste your nsec only into the key import field.",
       "english": "That looks like a secret key. For safety, paste your nsec only into the key import field.",
       "translation": "Eso parece una clave secreta. Por seguridad, pega tu nsec únicamente en el campo de importación de claves.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Zapping {{amount}} sats",
+      "english": "Zapping {{amount}} sats",
+      "translation": "Enviando un zap de {{amount}} sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Sending {{amount}} sats",
+      "english": "Sending {{amount}} sats",
+      "translation": "Enviando {{amount}} sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Sent {{amount}} sats",
+      "english": "Sent {{amount}} sats",
+      "translation": "{{amount}} sats enviados",
       "reviewed": false,
       "notes": ""
     },
@@ -257,14 +305,6 @@
       "key": "Sending…",
       "english": "Sending…",
       "translation": "Enviando…",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/es.json",
-      "key": "Zapping {{amount}} sats",
-      "english": "Zapping {{amount}} sats",
-      "translation": "Enviando un zap de {{amount}} sats",
       "reviewed": false,
       "notes": ""
     },
@@ -697,6 +737,22 @@
       "key": "HTTP auth",
       "english": "HTTP auth",
       "translation": "autenticación HTTP",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "kind {{kind}}",
+      "english": "kind {{kind}}",
+      "translation": "tipo {{kind}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "{{kind}} · “{{d}}”",
+      "english": "{{kind}} · “{{d}}”",
+      "translation": "{{kind}} · «{{d}}»",
       "reviewed": false,
       "notes": ""
     },
@@ -1430,22 +1486,6 @@
     },
     {
       "file": "locales/es.json",
-      "key": "Sending {{amount}} sats",
-      "english": "Sending {{amount}} sats",
-      "translation": "Enviando {{amount}} sats",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/es.json",
-      "key": "Sending payment",
-      "english": "Sending payment",
-      "translation": "Enviando pago",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/es.json",
       "key": "{{amount}} sats only",
       "english": "{{amount}} sats only",
       "translation": "Solo {{amount}} sats",
@@ -1657,22 +1697,6 @@
       "key": "Enter a BOLT11 invoice (lnbc…) or a lightning address.",
       "english": "Enter a BOLT11 invoice (lnbc…) or a lightning address.",
       "translation": "Introduce una factura BOLT11 (lnbc…) o una dirección Lightning.",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/es.json",
-      "key": "Sent {{amount}} sats",
-      "english": "Sent {{amount}} sats",
-      "translation": "{{amount}} sats enviados",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/es.json",
-      "key": "Payment sent",
-      "english": "Payment sent",
-      "translation": "Pago enviado",
       "reviewed": false,
       "notes": ""
     },
@@ -3022,6 +3046,22 @@
     },
     {
       "file": "locales/es.json",
+      "key": "Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.",
+      "english": "Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.",
+      "translation": "Sidecar firmará los futuros eventos de tipo {{kind}} llamados «{{d}}» de {{host}} como {{account}} sin preguntar, hasta que lo quites en la pestaña Actividad.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.",
+      "english": "Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.",
+      "translation": "Sidecar firmará los futuros eventos de tipo {{kind}} de {{host}} como {{account}} sin preguntar, hasta que lo quites en la pestaña Actividad.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
       "key": "Approving this often? Trust {{host}} to stop being asked.",
       "english": "Approving this often? Trust {{host}} to stop being asked.",
       "translation": "¿Lo apruebas a menudo? Confía en {{host}} para dejar de recibir preguntas.",
@@ -3190,14 +3230,6 @@
     },
     {
       "file": "locales/es.json",
-      "key": "Payment failed",
-      "english": "Payment failed",
-      "translation": "El pago falló",
-      "reviewed": false,
-      "notes": ""
-    },
-    {
-      "file": "locales/es.json",
       "key": "Payment failed: {{reason}}",
       "english": "Payment failed: {{reason}}",
       "translation": "El pago falló: {{reason}}",
@@ -3345,6 +3377,22 @@
       "key": "Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.",
       "english": "Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.",
       "translation": "Muestra un botón flotante «Pagar con Sidecar» cuando una página muestra una factura Lightning.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Make default Lightning wallet",
+      "english": "Make default Lightning wallet",
+      "translation": "Establecer como billetera Lightning predeterminada",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Sidecar becomes the default wallet on web pages, ahead of any other. Open pages need a reload.",
+      "english": "Sidecar becomes the default wallet on web pages, ahead of any other. Open pages need a reload.",
+      "translation": "Sidecar pasa a ser la billetera predeterminada en las páginas web, por delante de cualquier otra. Las páginas abiertas necesitan recargarse.",
       "reviewed": false,
       "notes": ""
     },
@@ -3593,6 +3641,14 @@
       "key": "Offer Sidecar on sites like this",
       "english": "Offer Sidecar on sites like this",
       "translation": "Ofrecer Sidecar en sitios como este",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/es.json",
+      "key": "Always allow this event type for this site",
+      "english": "Always allow this event type for this site",
+      "translation": "Permitir siempre este tipo de evento para este sitio",
       "reviewed": false,
       "notes": ""
     },

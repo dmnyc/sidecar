@@ -236,3 +236,28 @@ October 24 rebase onto main (1.16.0 shipped; the work is now 1.17's):
   #436, #438, #439, #440) are superseded by this branch and await the maintainer.
 - Still open, as before: native review of the security text in each language, the
   guide decision, and layout acceptance in the installed extension.
+
+October 24, later: rebased onto origin/main at 1.16.1 (89b8c0a):
+- The local main the morning's work was built on was 19 commits behind origin/main
+  (#501, #515, #517-#519, #521-#522, #524-#529, #531). Rebased feat/languages onto
+  origin/main; the pre-rebase branch is kept as backup/languages-pre-rebase-2026-10-24.
+- Five hunks in sidepanel.js and one test file conflicted, all from the one payment
+  bar (#512): main's beginPaymentFlight/settle structure kept, with tSec('Paying…')
+  and t('Could not pay that offer.') wrapping added where it had none, and the
+  snapshot's "Thank you! Zapped" toast dropped because the bar now says Zapped.
+  The CHANGELOG conflict placed the Unreleased entry above the new 1.16.1 section.
+- Catalogs: 35 entries added per language (kind grants, the batch note, pay-from-
+  another-account, the default Lightning wallet setting, the stream address box,
+  the Welcome search, six reworded and six new app descriptions), 9 dead keys
+  removed. The free-identifier guard then caught the kind-grant row (#511) reading the
+  retired KIND_NAMES map; it now uses the translated activityKindName() with the
+  "kind {{kind}}" fallback and a "{{kind}} · “{{d}}”" template, so each language sets
+  its own quote marks. Coverage gate: 1,844 base keys; de 1,907/1,907, es/fr/pt-BR
+  1,968/1,968; 0 missing, 0 invalid, 0 unknown. Browser messages unchanged at 32.
+- Review packets regenerated: 499 entries per language; the additions are the two
+  kind-grant sentences, "kind {{kind}}", the grant-row template, "Always allow this
+  event type for this site", "Make default Lightning wallet" and its hint. All still
+  unreviewed.
+- Full suite on the rebased branch: 3,086/3,086 passed.
+- Still open: native review, the guide decision, layout acceptance in the installed
+  extension. Nothing pushed; no pull request.
