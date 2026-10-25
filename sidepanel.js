@@ -14164,9 +14164,36 @@
         const actions = h('div', { className: 'item-actions' });
         const open = h('a', { className: 'icon-btn', href: url, target: '_blank', rel: 'noreferrer noopener', title: t('Open site'), 'aria-label': t('Open site') });
         open.append(icon('external'));
+        const versionsBtn = h('button', { className: 'icon-btn', type: 'button', title: t('Versions'), 'aria-label': t('Versions'), 'aria-expanded': 'false' });
+        versionsBtn.append(icon('reload'));
         const rm = h('button', { className: 'icon-btn', type: 'button', title: t('Unpublish'), 'aria-label': t('Unpublish') });
         rm.append(icon('trash'));
-        actions.append(open, rm);
+        actions.append(open, versionsBtn, rm);
+        // The versions list takes its own full-width row under the content, queried
+        // the first time it is asked for and kept until the list is rebuilt.
+        const versions = h('div', { className: 'site-versions hidden' });
+        let loaded = false;
+        versionsBtn.addEventListener('click', async () => {
+          const show = versions.classList.contains('hidden');
+          versions.classList.toggle('hidden', !show);
+          versionsBtn.setAttribute('aria-expanded', String(show));
+          if (!show || loaded) return;
+          versions.innerHTML = '';
+          versions.append(h('p', { className: 'hint', textContent: t('Looking for snapshots…') }));
+          try {
+            const snaps = await siteVersions(ev, name);
+            loaded = true;
+            versions.innerHTML = '';
+            if (!snaps.length) {
+              versions.append(h('p', { className: 'hint', textContent: t('No earlier snapshots on the relays.') }));
+              return;
+            }
+            for (const snap of snaps) versions.append(versionRow(snap, ev, name));
+          } catch (_) {
+            versions.innerHTML = '';
+            versions.append(h('p', { className: 'hint', textContent: t('The relays had no answer for snapshots.') }));
+          }
+        });
         // The confirm lives in its own full-width row under the content, the
         // connected-site grammar: content on top, controls stretched beneath.
         const controls = h('div', { className: 'site-controls hidden' });
@@ -14199,10 +14226,82 @@
         };
         rm.addEventListener('click', armUnpublish);
         const top = h('div', { className: 'published-site-top' }, [text, actions]);
-        row.append(top, controls);
+        row.append(top, versions, controls);
         wrap.append(row);
       }
       return wrap;
+    }
+
+    // The snapshots of one site, newest first, from the account's own relays. A
+    // publish files one 5128 per save, so the list is the site's history; the live
+    // manifest itself is not in it (its content is what the row above edits).
+    async function siteVersions(manifestEv, name) {
+      const pk = state.activePubkey;
+      const events = await poolQuerySync(
+        await relayUrls(false), { kinds: [NS.SNAPSHOT_KIND], authors: [pk] },
+      );
+      return (events || [])
+        .filter((s) => NS.snapshotIsFor(s, pk, name) && s.id !== manifestEv.id)
+        .sort((a, b) => b.created_at - a.created_at)
+        .slice(0, 10);
+    }
+
+    // One snapshot's row: when it was saved, how many files, and Restore. Restoring
+    // fetches the pages from the snapshot's servers and reads them back to Markdown —
+    // the site was written by this template, so the round trip loses punctuation
+    // nuance, not pages — and opens the working copy in the tab. The address stays
+    // locked: the site exists at it, whichever version is on screen.
+    function versionRow(snap, manifestEv, name) {
+      const files = NS.manifestFilesOf(snap);
+      const row = h('div', { className: 'site-version' });
+      const label = h('span', { className: 'site-version-when' }, [
+        h('span', { textContent: I18N.fmtDate(snap.created_at * 1000) }),
+        h('span', { className: 'site-version-count', textContent: tn('{{count}} file', '{{count}} files', files.length) }),
+      ]);
+      const restore = h('button', { className: 'mini', type: 'button', textContent: t('Restore') });
+      restore.addEventListener('click', async () => {
+        restore.disabled = true;
+        restore.textContent = t('Fetching…');
+        try {
+          const siteDraft = await restoreSnapshot(snap, manifestEv, name);
+          const dkey = state.activePubkey + '|site:' + (name || 'root');
+          const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+          all[dkey] = { text: '', media: [], savedAt: Date.now(), site: siteDraft };
+          await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+          switchingDraft = true;
+          closeModal();
+          handSiteToTab(name || 'root');
+        } catch (e) {
+          toast(e.message || t('Could not restore that version'), 'error');
+          restore.disabled = false;
+          restore.textContent = t('Restore');
+        }
+      });
+      row.append(label, restore);
+      return row;
+    }
+
+    async function restoreSnapshot(snap, manifestEv, name) {
+      const servers = [...NS.manifestServersOf(snap), ...NS.manifestServersOf(manifestEv)];
+      if (!servers.length) throw new Error(t('The snapshot names no Blossom servers.'));
+      const pages = [];
+      for (const f of NS.manifestFilesOf(snap)) {
+        if (!/\.html$/.test(f.path)) continue; // assets were uploaded by URL and are already referenced
+        let html = null;
+        for (const s of servers) {
+          try {
+            const resp = await fetch(s + '/' + f.hash, { signal: AbortSignal.timeout(15000) });
+            if (!resp.ok) continue;
+            html = await resp.text();
+            break;
+          } catch (_) { /* the next server tries */ }
+        }
+        if (html == null) throw new Error(t('No server had {{file}}.', { file: f.path }));
+        const slug = f.path === '/index.html' ? 'index' : decodeURIComponent(f.path.replace(/^\//, '').replace(/\.html$/, ''));
+        pages.push({ slug, title: slug === 'index' ? '' : slug, md: NS.htmlToMarkdown(html) });
+      }
+      if (!pages.some((p) => p.slug === 'index')) throw new Error(t('The snapshot has no index page.'));
+      return { name: name || '', title: NS.manifestTitleOf(manifestEv), pages, baseId: manifestEv.id };
     }
 
     // Another draft, in this composer. The slot is fixed for a composer's whole session

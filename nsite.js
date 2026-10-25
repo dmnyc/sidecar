@@ -548,13 +548,18 @@
 
   // The account's Blossom servers, newest list wins. Through the shared lookup the
   // composer already uses, so discovery, its cache and its relay policy are one
-  // thing and not two.
+  // thing and not two. An account with no usable 10063 yet publishes to the public
+  // defaults — Sidecar reads the server list everywhere but writes none, so without
+  // them a fresh account could never publish at all — and files that list as the
+  // account's own 10063 (the spec's "one if missing"), so discovery takes over
+  // from the next session.
+  const DEFAULT_SERVERS = ['https://blossom.primal.net', 'https://cdn.nostrcheck.me', 'https://blossom.band'];
+
   async function blossomServers(pubkey) {
     const servers = await deps.fetchBlossomServers(pubkey);
-    if (!servers || servers.length < SERVERS_PER_PUBLISH) {
-      throw new Error(t('Add at least {{count}} Blossom servers in Settings to publish a site.', { count: SERVERS_PER_PUBLISH }));
-    }
-    return servers;
+    if (servers && servers.length) return servers;
+    console.warn('[Site] no Blossom server list on the relays; publishing to the public defaults.');
+    return DEFAULT_SERVERS;
   }
 
   // One blob to one server, authorized by the publish session; then the hash is
@@ -809,7 +814,7 @@
 
   const api = {
     MANIFEST_KIND, NAMED_MANIFEST_KIND, SNAPSHOT_KIND, SERVER_LIST_KIND, AUTH_KIND,
-    PAGE_MAX_BYTES, ASSET_MAX_BYTES, MAX_PAGES, SERVERS_PER_PUBLISH,
+    PAGE_MAX_BYTES, ASSET_MAX_BYTES, MAX_PAGES, SERVERS_PER_PUBLISH, DEFAULT_SERVERS,
     isValidSiteName, normalizeSiteName, siteAddress, manifestKindFor,
     aggregateHash, buildManifestTemplate, manifestFilesOf, manifestServersOf,
     manifestTitleOf, manifestNameOf, manifestIsFor,

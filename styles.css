@@ -6128,6 +6128,29 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .published-site-top .published-site-open { flex: 1; min-width: 0; }
 /* The full-width confirm row, exactly the connected-site row's second line. */
 .published-site .site-controls { margin-top: 8px; }
+/* The versions list: its own full-width row under the content, one line per
+   snapshot — when it was saved, how many files, and the Restore that takes it. */
+.site-versions { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.site-versions .hint { margin: 0; }
+.site-version {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+.site-version-when {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.site-version-count { color: var(--muted); font-size: 11.5px; }
 
 /* The choices as they will read, in the Preview tab. The editor cannot show this: there
    the options are input boxes and a blank trailing row looks like a choice. */

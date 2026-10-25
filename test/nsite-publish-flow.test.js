@@ -19,7 +19,7 @@ const S1 = 'https://blossom-one.example';
 const S2 = 'https://blossom-two.example';
 const RELAYS = ['wss://relay.example'];
 
-function harness({ currentManifest = null, approve = true } = {}) {
+function harness({ currentManifest = null, approve = true, servers = [S1, S2], hasServerList = true } = {}) {
   const NS = { ctx: null };
   const SPctx = { console };
   SPctx.self = SPctx;
@@ -84,10 +84,10 @@ function harness({ currentManifest = null, approve = true } = {}) {
       throw new Error('unexpected call ' + message.type);
     },
     activePubkey: () => ALICE,
-    fetchBlossomServers: async () => [S1, S2],
+    fetchBlossomServers: async () => servers,
     relayUrls: async () => RELAYS,
     poolQuerySync: async () => (currentManifest ? [currentManifest] : []),
-    hasServerList: async () => true,
+    hasServerList: async () => hasServerList,
     targetRelays: async () => RELAYS,
     publishToRelays: (relays, events) => {
       published.push(...events);
@@ -211,4 +211,20 @@ test('a page over the cap is refused before any approval is asked', async () => 
   const big = { ...draft, pages: [{ slug: 'index', title: '', md: 'x'.repeat(h.nsite.PAGE_MAX_BYTES) }] };
   await assert.rejects(() => h.nsite.publish(big, () => {}), /1 MB page limit/);
   assert.equal(h.state.signed.length, 0);
+});
+
+test('an account with no 10063 yet publishes to the public defaults and files them', async () => {
+  const h = harness({ servers: [], hasServerList: false });
+  const result = await h.nsite.publish(draft, () => {});
+  // Manifest, snapshot, and the server list the account was missing — nothing else.
+  const kinds = h.state.signed.filter((e) => e.kind !== 24242).map((e) => e.kind);
+  assert.deepEqual(kinds, [35128, 5128, 10063]);
+  const list = h.state.signed.find((e) => e.kind === 10063);
+  const named = list.tags.filter((t) => t[0] === 'server').map((t) => t[1]).join();
+  assert.equal(named, h.nsite.DEFAULT_SERVERS.slice(0, 2).join(),
+    'the 10063 records the servers this publish actually used');
+  // And the manifest names them too, so gateways know where to read.
+  const manifest = h.state.signed.find((e) => e.kind === 35128);
+  assert.equal(manifest.tags.filter((t) => t[0] === 'server').length, 2);
+  assert.equal(result.manifest, manifest);
 });
