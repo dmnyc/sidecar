@@ -30,6 +30,7 @@
       "nwc-client.js",
       "relax-grants.js",
       "kind-grants.js",
+      "site-publish.js",
       "replaceable-baseline.js",
       "zap-requests.js",
       "relay-policy.js",

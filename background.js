@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
+  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'site-publish.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -25,6 +25,7 @@ const BUDGETS = self.SidecarBudgets;
 const NWC = self.SidecarNWC;
 const RELAX = self.SidecarRelax;
 const KINDS = self.SidecarKindGrants;
+const SITEPUB = self.SidecarSitePublish;
 const BASELINE = self.SidecarBaseline;
 const ZAPREQ = self.SidecarZapRequests;
 
@@ -515,6 +516,12 @@ let panelPort = null;           // the side panel's long-lived port while it's o
 let panelWindowId = null;       // the browser window the open panel lives in (window-correct routing)
 let graceTimer = null;          // panel-disconnect grace before falling back to a popup
 const REQUEST_TTL = 175000;     // < content.js's 180s page timeout, so we never surface a dead request
+// A publish card reviews a WHOLE SITE, and its requester — the composer tab — sits
+// in a synchronous wait for the decision. Three minutes of reading a file list is
+// not a budget anyone sensible would set, so a publish entry lives for half an hour.
+// The queue's own keepalive alarm covers the wait (ensureKeepalive runs while any
+// entry is live), and the composer's approval call carries a matching budget.
+const SITE_PUBLISH_TTL = 30 * 60 * 1000;
 const TOMBSTONE_TTL = 600000;   // interrupted tombstones self-clear after 10 min
 // How long the panel gets to confirm it actually PUT THE APPROVAL ON SCREEN.
 //
@@ -760,7 +767,8 @@ function openPrompt(data, originWindowId) {
     const ev = data.method === 'signEvent' ? (data.params && (data.params.event || data.params)) : null;
     queue.push({
       id, host: data.host, method: data.method, scope: data.scope || 'nostr',
-      kind: ev ? ev.kind : null, data, ts: now, deadline: now + REQUEST_TTL,
+      kind: ev ? ev.kind : null, data, ts: now,
+      deadline: now + (data.method === 'sitePublish' ? SITE_PUBLISH_TTL : REQUEST_TTL),
       state: 'queued', display: 'none',
       // The window the requesting page lives in, so the approval surfaces on the
       // window the user is actually looking at (see driveOnce). undefined ⇒ unknown.
@@ -3622,6 +3630,10 @@ async function lockKeystore(auto = false) {
   // Same reasoning for pending zap requests: they authorize a payment to go out with
   // no prompt, so a locked keystore must not leave any of them spendable.
   ZAPREQ.clear().catch(() => {});
+  // And the site-publishing sessions (#530): every signature they authorize needs
+  // the key, so with the key gone a live session is an invitation to fail mid-publish.
+  // The composer sees "Publish session not found" and asks again.
+  SITEPUB.endAll();
   // And the WebLN read grants: they are consent to query the wallet, which only
   // means anything while unlocked. Clearing them means the next balance read
   // after a re-unlock asks again.
@@ -3911,6 +3923,7 @@ async function handleControl(message, sender, sendResponse) {
         await PERMS.clearAccount(message.pubkey);
         await BUDGETS.clearAccount(message.pubkey);
         await KINDS.clearAccount(message.pubkey); // and its standing per-kind grants
+        SITEPUB.endForAccount(message.pubkey); // and any site-publish session it holds
         await clearSiteAccountsForPubkey(message.pubkey);
         await BASELINE.forget(message.pubkey); // don't leave overwrite baselines behind
         await new Promise((r) => chrome.storage.local.remove('sidecar_reaction_use:' + message.pubkey, r)); // its quick-reaction row
@@ -4003,6 +4016,58 @@ async function handleControl(message, sender, sendResponse) {
         if (result && result.kind === 10002) await rememberSignedRelayList(result);
         break;
       }
+
+      // ---- site publishing (#530): one approval per publish ----
+      // The composer's nsite module builds the plan; this validates it, shows it on
+      // the ordinary approval pipeline (panel card or popup, wherever one shows),
+      // and mints the short-lived signing session the individual signatures ride
+      // under. The trust model lives in site-publish.js's header: account-, hash-,
+      // kind- and time-scoped, nothing remembered once the publish ends.
+      case 'SIDECAR_SITE_PUBLISH': {
+        const pubkey = await KS.getActivePubkey();
+        if (message.expectedPubkey && message.expectedPubkey !== pubkey) throw new Error('Account changed');
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        const planErr = SITEPUB.validatePlan(message.plan);
+        if (planErr) throw new Error('Refusing this publish plan: ' + planErr);
+        const st = await KS.getState();
+        const acct = st.accounts.find((a) => a.pubkey === pubkey);
+        const promptSettings = (await sget('sidecar_settings')).sidecar_settings || {};
+        const decision = await openPrompt({
+          host: 'sidecar',
+          method: 'sitePublish',
+          params: message.plan,
+          activePubkey: pubkey,
+          npub: self.NostrTools.nip19.npubEncode(pubkey),
+          accountName: (acct && acct.name) || '',
+          accountPicture: (acct && acct.picture) || '',
+          needUnlock: false, // checked above: a locked keystore refuses before a card exists
+          needApproval: true, // always: this card is the feature, never auto-answered
+          theme: SidecarSeasons.resolve(promptSettings, pubkey)
+            || (promptSettings.themeBy && promptSettings.themeBy[pubkey])
+            || promptSettings.theme || 'speakeasy',
+        }, originWindowId);
+        if (decision.action !== 'once') {
+          throw new Error(decision.reason === 'timeout'
+            ? 'The publish approval timed out. Press Publish to ask again.'
+            : 'You rejected this publish');
+        }
+        const session = SITEPUB.begin(pubkey, message.plan);
+        result = { id: session.id, expiresAt: session.expiresAt };
+        break;
+      }
+      case 'SIDECAR_SITE_SIGN': {
+        if (KS.isLocked()) throw new Error('Keystore is locked');
+        const session = SITEPUB.get(message.session && message.session.id);
+        const why = SITEPUB.check(session, message.event, message.expectedPubkey);
+        if (why) throw new Error(why);
+        result = await KS.ownerSign(message.event, session.pubkey);
+        break;
+      }
+      case 'SIDECAR_SITE_PUBLISH_END':
+        // The composer releases the session once the publish settled, whichever way.
+        if (message.session && message.session.id) SITEPUB.end(message.session.id);
+        result = true;
+        break;
       case 'SIDECAR_OWNER_ENCRYPT': {
         if (KS.isLocked()) throw new Error('Keystore is locked');
         const pk = await KS.getActivePubkey();
