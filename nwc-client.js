@@ -307,5 +307,21 @@
     };
   }
 
-  root.SidecarNWC = { makeClient, setControlRelays, probeRelay };
+  // A wallet that answers by waking a phone with a push. Every request it receives, a plain
+  // balance read included, raises a visible alert on the device ("Processing wallet request"),
+  // so a client that polls it fills the lock screen. The relay path and the Lightning address
+  // are what a Blitz connection string carries; its wallet pubkey is left out because nothing
+  // says it is shared between accounts. A false positive only means Sidecar polls less.
+  function wakesByPush(connectionString) {
+    try {
+      const q = new URLSearchParams(String(connectionString || '').split('#')[0].split('?')[1] || '');
+      for (const relay of q.getAll('relay')) {
+        const u = new URL(relay);
+        if (u.hostname === 'relay.getalbypro.com' && /^\/blitz(\/|$)/.test(u.pathname)) return true;
+      }
+      return (q.get('lud16') || '').toLowerCase().endsWith('@blitzwalletapp.com');
+    } catch (_) { return false; }
+  }
+
+  root.SidecarNWC = { makeClient, setControlRelays, probeRelay, wakesByPush };
 })(typeof self !== 'undefined' ? self : this);

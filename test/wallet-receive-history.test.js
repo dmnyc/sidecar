@@ -11,7 +11,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
-const at = source.indexOf('  function startWalletMonitor(client) {');
+const at = source.indexOf('  function startWalletMonitor(client, connection) {');
 const fn = source.slice(at, source.indexOf('  // Build (or reuse) the NWC client', at));
 
 function monitor({ locked = false } = {}) {
@@ -20,12 +20,13 @@ function monitor({ locked = false } = {}) {
   const ctx = {
     state: { locked }, nwcNotifSub: null, nwcPollTimer: null,
     stopWalletMonitor() {}, setInterval: () => 1, clearInterval() {},
+    window: { SidecarNWC: { wakesByPush: () => false } }, balanceOnScreen: () => true, NWC_POLL_MS: 60000,
     refreshWalletBalance: () => calls.push('balance'), refreshTransactionList: () => calls.push('list'),
     toast: (m) => toasts.push(m), t: (x, v) => (v ? x.replace('{{amount}}', v.amount) : x), fmtSats: String, msatToSat: (m) => m / 1000,
   };
   vm.createContext(ctx);
   vm.runInContext(fn, ctx);
-  ctx.startWalletMonitor({ subscribeNotifications: (cb) => { push = cb; return { close() {} }; } });
+  ctx.startWalletMonitor({ subscribeNotifications: (cb) => { push = cb; return { close() {} }; } }, 'nostr+walletconnect://w?relay=wss%3A%2F%2Fr.example&secret=s');
   return { calls, toasts, push: (type, amount) => push({ notification_type: type, notification: { amount } }) };
 }
 

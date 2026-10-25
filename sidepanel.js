@@ -18710,6 +18710,7 @@
   let nwcConn = null; // the connection string it was built from — see ensureNwc
   let nwcNotifSub = null; // NIP-47 notification subscription handle
   let nwcPollTimer = null; // fallback balance polling interval
+  let nwcQuiet = false; // the wallet wakes a phone per request: never poll it, see startWalletMonitor
   const fmtSats = (n) => I18N.fmtNum(Math.round(n));
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
@@ -19694,6 +19695,12 @@
   // the setting is on, an account is active, and a wallet is connected. Paints
   // the shared balanceCache instantly, then fetches fresh if it's empty or stale
   // (>60s) for this account.
+  // A figure on screen is refetched once it is a minute old, except for a wallet that wakes a
+  // phone per request: that one is read only when there is nothing to show.
+  function pinnedNeedsFetch(cached, ts) {
+    return !cached || (!nwcQuiet && (!ts || Date.now() - ts > 60000));
+  }
+
   async function renderPinnedBalanceBar() {
     const bar = $('pinned-balance');
     if (!bar) return;
@@ -19713,8 +19720,7 @@
     const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     if (cached) paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
     else amt.textContent = '···';
-    const stale = !cached || !balanceCache.ts || Date.now() - balanceCache.ts > 60000;
-    if (stale) {
+    if (pinnedNeedsFetch(cached, balanceCache && balanceCache.ts)) {
       try {
         const client = await ensureNwc();
         if (client) {
@@ -20049,8 +20055,21 @@
     if (nwcPollTimer) { clearInterval(nwcPollTimer); nwcPollTimer = null; }
   }
 
-  function startWalletMonitor(client) {
+  // Whether a balance is in front of the user: the panel is showing, and either the Wallet
+  // tab or the pinned bar is. A poll for a figure nobody can see is a request for nothing.
+  function balanceOnScreen() {
+    if (document.visibilityState !== 'visible') return false;
+    const tab = document.querySelector('.tab.active');
+    if (tab && tab.dataset.tab === 'wallet') return true;
+    const bar = $('pinned-balance');
+    return !!bar && !bar.classList.contains('hidden');
+  }
+
+  const NWC_POLL_MS = 60000;
+
+  function startWalletMonitor(client, connection) {
     stopWalletMonitor();
+    nwcQuiet = window.SidecarNWC.wakesByPush(connection);
     // Push: listen for NIP-47 kind:23196 payment notifications.
     nwcNotifSub = client.subscribeNotifications((payload) => {
       if (!state || state.locked) return;
@@ -20067,10 +20086,15 @@
         }
       }
     });
-    // Fallback: poll every 30s for wallets that don't send notifications.
-    nwcPollTimer = setInterval(() => {
-      if (state && !state.locked) refreshWalletBalance();
-    }, 30000);
+    // Fallback: poll for wallets that don't send notifications, and only while a balance is
+    // showing. Not at all for a wallet that wakes a phone per request: there every poll is a
+    // lock-screen alert (nine in three minutes at the old 30s), so its balance is read when the
+    // panel opens, after a payment, and when the user taps refresh.
+    if (!nwcQuiet) {
+      nwcPollTimer = setInterval(() => {
+        if (state && !state.locked && balanceOnScreen()) refreshWalletBalance();
+      }, NWC_POLL_MS);
+    }
   }
 
   // Build (or reuse) the NWC client for the active account from its stored string.
@@ -20097,7 +20121,7 @@
     nwc = window.SidecarNWC.makeClient(connection);
     nwcPubkey = pk;
     nwcConn = connection;
-    startWalletMonitor(nwc);
+    startWalletMonitor(nwc, connection);
     return nwc;
   }
 
