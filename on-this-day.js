@@ -1025,6 +1025,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-02': [
     { year: 1920, text: "KDKA in Pittsburgh read out the presidential election returns, the first commercial radio broadcast." },
+    { year: 1936, text: "The BBC began a regular public television service from Alexandra Palace in London, among the first in the world." }, // Wikipedia, BBC Television
   ],
   '11-03': [
     { year: 1903, text: "Panama declared its independence from Colombia, clearing the way for a US-built canal." }, // supported by the US
@@ -1038,9 +1039,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-06': [
     { year: 1860, text: "Abraham Lincoln was elected president of the United States." },
+    { year: 1869, text: "Rutgers and Princeton played the first intercollegiate football game, and Rutgers won, 6 to 4." }, // Wikipedia, 1869 college football season
   ],
   '11-07': [
     { year: 1917, text: "Bolsheviks seized power in Petrograd, beginning the Russian October Revolution." }, // Julian calendar Oct 25
+    { year: 1940, text: "The Tacoma Narrows Bridge, four months old, twisted in a steady wind and collapsed into Puget Sound." }, // Wikipedia, Tacoma Narrows Bridge (1940)
   ],
   '11-08': [
     { year: 1895, text: "Wilhelm Rontgen noticed a screen glowing across his darkened lab, and discovered X-rays." },

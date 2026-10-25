@@ -9,6 +9,19 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.16.2] — 2026-10-25
+
+### Added
+- **Blitz and LNbits join the wallet directory,** and Blitz sits under a new **Spark** filter. A Spark wallet is self-custodial on the Spark layer 2: you hold a key and can exit to Bitcoin.
+
+### Changed
+- **The panel opens lighter.** The 1.65 MB video-player library loads on the first livestream you play, not every time the panel opens. A plain video link never loads it, and a failed load is retried on the next play.
+- **The account Overview folds while the video player is open,** so more of the panel shows beside it, and returns as you had it when the player closes. Opening it by hand beside a video is honored.
+- **The wallet balance refreshes every minute, not every 30 seconds,** and only while a balance is showing.
+
+### Fixed
+- **A Blitz wallet no longer fills your lock screen with alerts.** Blitz answers every wallet request with a push to the phone, so Sidecar's balance polling raised an alert every half minute. Sidecar now recognizes a Blitz connection and never polls it. Its balance is read when the panel opens, after a payment, and when you tap refresh.
+
 ## [1.16.1] — 2026-10-21
 
 ### Added

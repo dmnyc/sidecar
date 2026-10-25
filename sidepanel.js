@@ -278,6 +278,11 @@
     // Education of Henry Adams (printed 1907, published 1918), chapter VII.
     { text: 'Hope is the thing with feathers that perches in the soul, and sings the tune without the words, and never stops at all.', who: 'Emily Dickinson, 1891' },
     { text: 'A friend in power is a friend lost.', who: 'Henry Adams, 1907' },
+    // 1.16.2. Checked against the Project Gutenberg texts: The Adventures of Sherlock
+    // Holmes (1892), "A Scandal in Bohemia"; and Little Women (1868), as printed there,
+    // with the contraction, not "I am."
+    { text: 'You see, but you do not observe. The distinction is clear.', who: 'Arthur Conan Doyle, 1892' },
+    { text: 'I’m not afraid of storms, for I’m learning how to sail my ship.', who: 'Louisa May Alcott, 1868' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
