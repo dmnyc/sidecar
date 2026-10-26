@@ -64,7 +64,7 @@ test('THE DRAFT IS CLEARED ONLY AFTER THE NOTE IS OUT', () => {
   // the relays rejected it, and the text is gone too.
   const post = bare.slice(bare.indexOf('async function doPost()'));
   const body = post.slice(0, post.indexOf('\n  }'));
-  const publishAt = body.indexOf('pool().publish(');
+  const publishAt = body.indexOf('SC.publishToRelays(');
   const clearAt = body.indexOf("draft.text = '';");
   assert.ok(publishAt > -1 && clearAt > -1, 'could not find the publish or the clear');
   assert.ok(publishAt < clearAt, 'the draft is cleared before the publish resolves');
@@ -81,10 +81,16 @@ test('THE PAGE DOES NOT GUESS WHERE TO PUBLISH', () => {
   assert.match(panelBare, /relays = await postRelays\(\)/);
   assert.match(panelBare, /all\[dkey\]\.expandRelays = relays;/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.expandRelays\)\) handoverRelays = saved\.expandRelays;/);
-  // A page opened cold still works, on the configured write list, which is the panel's own
-  // fallback when an account has declared nothing.
+  // The page still does not re-derive the rule. It asks the worker, which answers by
+  // relay-policy.js, the rule the panel posts by (declared relays, plus the bootstrap set
+  // unless the account turned it off, and nothing for NIP-65-only with no list), and merges
+  // what the panel handed over. It no longer falls back to Settings' configured list: that
+  // fallback is what sent a reply to four default relays and never to the account's own.
   const fn = bare.slice(bare.indexOf('async function targetRelays()'));
-  assert.match(fn.slice(0, fn.indexOf('\n  }')), /return relayUrls\(true\);/);
+  const targetBody = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(targetBody, /type: 'SIDECAR_GET_ACCOUNT_RELAYS'/);
+  assert.match(targetBody, /if \(handoverRelays && handoverRelays\.length\) add\(handoverRelays\);/);
+  assert.doesNotMatch(targetBody, /relayUrls\(/, 'targetRelays fell back to the configured list again');
 
   // READING IS NOT PUBLISHING. relayUrls(false) means every configured relay, read-only
   // ones included, which is what the core asks for when it looks up a profile, an embed
@@ -728,18 +734,18 @@ test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
   // The panel drops a banner because its composer is a modal that closes onto a whole
   // app. A tab has nothing underneath it: the card IS the page, and leaving an empty
   // editor sitting there reads as a note lost rather than published.
-  assert.match(bare, /await showPosted\(signed, ok, what\)/);
+  assert.match(bare, /await showPosted\(signed, report, what\)/);
   const fn = bare.slice(bare.indexOf('async function showPosted('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /sheet\.innerHTML = '';/);
   // Named for what went out: a poll, a reply, or a note.
   assert.match(body, /t\('Your poll is live\.'\)[\s\S]*t\('Your reply is live\.'\)[\s\S]*t\('Your note is live\.'\)/);
-  assert.match(body, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', relayCount\)/);
+  assert.match(body, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', report\.accepted\.length\)/);
 
   // Only after the publish resolved. A receipt for a note no relay took is a lie.
   const post = bare.slice(bare.indexOf('async function doPost()'));
   const pbody = post.slice(0, post.indexOf('\n  }'));
-  assert.ok(pbody.indexOf('pool().publish(') < pbody.indexOf('showPosted('));
+  assert.ok(pbody.indexOf('SC.publishToRelays(') < pbody.indexOf('showPosted('));
 });
 
 test('the receipt links to the note, in the client this ACCOUNT chose', () => {
@@ -750,7 +756,7 @@ test('the receipt links to the note, in the client this ACCOUNT chose', () => {
   const fn = bare.slice(bare.indexOf('async function showPosted('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /composer\.resolveClient\(settings, signed\.pubkey \|\| state\.activePubkey\)/);
-  assert.match(body, /client\.url\(await neventFor\(signed\)\)/);
+  assert.match(body, /client\.url\(await neventFor\(signed, report\.accepted\)\)/);
   assert.match(body, /open\.target = '_blank'/);
   assert.match(body, /open\.rel = 'noreferrer noopener'/);
   // A failure to work out the link leaves the receipt without one rather than breaking it.

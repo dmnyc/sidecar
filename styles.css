@@ -3517,6 +3517,18 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-done-mark svg { width: 26px; height: 26px; }
 .compose-done-title { margin: 6px 0 0; font-size: 20px; }
 .compose-done-sub { margin: 0; color: var(--muted); font-size: 13px; }
+/* The relay answer, collapsed: the count is the summary, the relays that took it and the ones
+   that did not are inside. No transition, so there is nothing for reduce-motion to switch off. */
+.compose-done-relays { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+.compose-done-relays summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px; }
+.compose-done-relays summary::-webkit-details-marker { display: none; }
+.compose-done-relays summary::after {
+  content: ''; width: 6px; height: 6px; margin-top: -3px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg);
+}
+.compose-done-relays[open] summary::after { margin-top: 3px; transform: rotate(-135deg); }
+.compose-done-relays summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
+.compose-done-relays p { margin: 6px 0 0; }
 .compose-done-actions {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
   gap: 10px; margin-top: 14px;
