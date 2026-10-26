@@ -5200,6 +5200,34 @@
     return ((ev && ev.tags) || []).filter((t) => t[0] === 'relay' && t[1]).map((t) => t[1]);
   }
 
+  // NIP-88 SAYS WHERE A BALLOT GOES, AND THE BIG CLIENTS DO NOT SEND IT THERE. The spec:
+  // "The responses are meant to be published to the relays specified in the poll event."
+  // The practice, measured on a live poll in October 2026 — 12 ballots, of which 10 sat
+  // on relay.primal.net, 6 on relay.damus.io and 4 on relay.snort.social, none of which
+  // the poll or its author named, while the poll's own four relays between them held 4.
+  // Those three are the backends Primal, Damus and Snort file their users' votes with;
+  // nos.lol is the largest general relay, where the smaller clients' ballots land. A
+  // count asked only of the poll's relays is a subset of the real one on every poll,
+  // by construction, which is why every other client shows more votes than this panel.
+  //
+  // Asked for kind:1018 ballots by poll id, and for nothing else. The tally still
+  // applies every rule to what comes back — one ballot per pubkey, nothing past endsAt —
+  // so a relay here can surface a voter, but cannot invent one.
+  const POLL_VOTE_DISCOVERY_RELAYS = [
+    'wss://relay.primal.net',
+    'wss://relay.damus.io',
+    'wss://relay.snort.social',
+    'wss://nos.lol',
+  ];
+
+  // The full set a vote query is sent to: the poll's own relays first — a compliant
+  // ballot is there, and those are the relays likeliest to answer — then this account's,
+  // then the discovery set. Pure, so the two surfaces that count votes, the list and the
+  // results sheet, ask the same universe and cannot drift apart.
+  function pollVoteQueryUrls(pollUrls, accountUrls) {
+    return [...new Set([...(pollUrls || []), ...(accountUrls || []), ...POLL_VOTE_DISCOVERY_RELAYS])];
+  }
+
   // COUNTING IS THE PART WITH RULES, so all of them live here rather than in the view.
   // Given a poll and every kind:1018 seen for it, this returns the counts the poll
   // actually has. Four rules, each of which changes the number:
@@ -15834,20 +15862,16 @@
     // so a vote is still only counted against a poll that was open when it was cast.
     let votes = [];
     try {
-      const urls = [
-        ...new Set([
-          ...polls.flatMap((ev) => pollRelayTags(ev)),
-          ...(await pollReadRelays(active.pubkey)),
-        ]),
-      ];
-      if (urls.length) {
-        votes =
-          (await poolQuerySync(
-            urls,
-            { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
-            { maxWait: 8000 }
-          )) || [];
-      }
+      const urls = pollVoteQueryUrls(
+        polls.flatMap((ev) => pollRelayTags(ev)),
+        await pollReadRelays(active.pubkey)
+      );
+      votes =
+        (await poolQuerySync(
+          urls,
+          { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
+          { maxWait: 8000 }
+        )) || [];
     } catch (_) {}
     // The cache is written even if the sheet has gone, since the answer is about the
     // account rather than about this list, and it is what the next open paints from.
@@ -15925,13 +15949,13 @@
   }
 
   // Votes live wherever the poll said they should, which is not necessarily where this
-  // account reads. Both sets are asked, deduped, because a poll written by another
-  // client names its own relays and ignoring them is how a real count comes back empty.
+  // account reads — and, since the big clients file ballots with their own backends,
+  // not necessarily there either. All three layers are asked, deduped, because a poll
+  // written by another client names its own relays and ignoring them is how a real
+  // count comes back empty; see POLL_VOTE_DISCOVERY_RELAYS for the third layer.
   async function fetchPollVotes(pollEv) {
     const endsAt = pollEndsAt(pollEv);
-    const mine = await pollReadRelays(state.activePubkey);
-    const urls = [...new Set([...pollRelayTags(pollEv), ...mine])];
-    if (!urls.length) return [];
+    const urls = pollVoteQueryUrls(pollRelayTags(pollEv), await pollReadRelays(state.activePubkey));
     const filter = { kinds: [POLL_RESPONSE_KIND], '#e': [pollEv.id] };
     // Asked for as well as enforced in the tally. The filter saves pulling ballots that
     // can never count; tallyPollVotes drops them again because a relay is free to
