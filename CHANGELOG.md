@@ -9,6 +9,27 @@ Update that section alongside this file as part of every release.
 
 ## [Unreleased]
 
+## [1.16.3] — 2026-10-26
+
+### Added
+- **Copy a poll’s event ID, link or JSON.** The poll results sheet has a ⋮ at the end of the question, the same menu a notification row carries.
+- **Nostr Vault joins the app directory.**
+
+### Changed
+- **Poll results find more votes.** The clients most people vote from file ballots on their own relays rather than the ones the poll names, so Sidecar also asks four large public relays for them.
+
+### Fixed
+- **Notes and replies from the full-size composer reach your own relays.** It posted to Sidecar’s default relays when the panel had not handed it your relay list, and counted a relay it could not reach as published. It now posts to the relays your account names, counts only the ones that accepted the note, and “Published to N relays.” opens onto which relays accepted it and why the others did not. Highlights post the same way, and a relay that asks for sign-in gets one.
+- **The “your note is live” link points at relays that have the note,** in the composer tab and the panel, and the panel’s banner shows the same relay row when some relays refused it.
+- **A wallet that lists a primal.net relay among others can be connected.** Only Primal’s own connection strings are refused now.
+- **The Plebs vs Zombies icon shows again** in the app directory.
+
+### Removed
+- **Seven unused CSS rules.**
+
+### Documentation
+- **Why cashu.me is not listed as a wallet** is recorded in WALLET_BACKENDS.md: its wallet answers only while its app is open.
+
 ## [1.16.2] — 2026-10-25
 
 ### Added
