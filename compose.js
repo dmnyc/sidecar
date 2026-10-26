@@ -159,10 +159,30 @@
     }
     return _pool;
   }
+  // WHERE A NOTE GOES: the account's own relays, by the rule the panel and the NIP-07
+  // getRelays() answer use (declared first, then the bootstrap set unless the account turned
+  // it off), plus whatever the panel worked out when it handed the draft over. This used to
+  // be the handover alone and, when the panel had none, Settings' bootstrap relays, which
+  // ignore the account's declared list: a reply went to four default relays and never to the
+  // six the account names, and nothing said so. The two sources are merged, not chosen
+  // between, because the handover can be a stale answer and the worker's last-known list can
+  // be behind: a relay either one names is a relay the account asked for. Nothing falls back
+  // to Settings' map any more; an account that resolves to no relay gets the "No relays
+  // configured" refusal rather than a post that quietly went somewhere else.
   async function targetRelays() {
-    if (handoverRelays && handoverRelays.length) return handoverRelays;
-    return relayUrls(true);
+    const out = [];
+    const add = (urls) => { for (const u of urls || []) if (u && !out.includes(u)) out.push(u); };
+    try {
+      const map = await call({ type: 'SIDECAR_GET_ACCOUNT_RELAYS', pubkey: state && state.activePubkey });
+      add(Object.keys(map || {}).filter((u) => map[u] && map[u].write !== false));
+    } catch (_) { /* the handover below may still answer */ }
+    if (handoverRelays && handoverRelays.length) add(handoverRelays);
+    return out;
   }
+
+  // A relay that wants a signed AUTH gets one, the way the panel signs it. Only for the relays a
+  // post goes to, which are the account's own; the pool's lookups never carry this.
+  const signAuth = (template) => call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
 
   // READING IS NOT PUBLISHING, and conflating the two cost the uploader its Blossom
   // server. relayUrls(false) means every configured relay, read-only ones included, and
@@ -1132,8 +1152,11 @@
       status.textContent = t('Publishing…');
       const relays = await targetRelays();
       if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
-      const results = await Promise.allSettled(pool().publish(relays, signed));
-      const ok = results.filter((r) => r.status === 'fulfilled').length;
+      // WHO TOOK IT, not who did not hard-refuse: an unreachable relay is not a success.
+      const report = await SC.publishToRelays({
+        pool: pool(), relays, signed, params: { onauth: signAuth }, normalize: (u) => NT.utils.normalizeURL(u),
+      });
+      const ok = report.accepted.length;
       if (!ok) throw new Error(t('No relay accepted the note. It is still saved as a draft.'));
       // The draft goes only once the note is actually out. A cleared draft plus a failed
       // publish is the one outcome worth engineering against.
@@ -1161,7 +1184,7 @@
       editorSetText('');
       renderThumbs();
       status.textContent = '';
-      await showPosted(signed, ok, what);
+      await showPosted(signed, report, what);
     } catch (e) {
       status.textContent = '';
       // A stop is the user's own decision, and the editor coming back is the answer.
@@ -1350,13 +1373,41 @@
   //
   // A LINK, because Sidecar is a companion and not a client. It cannot show you the note
   // in a thread with its replies, and the client this account already chose can.
-  async function neventFor(signed) {
-    let relays = [];
-    try { relays = (await targetRelays()).slice(0, 2); } catch (_) {}
+  // The hints are relays that TOOK the note. They used to be the first two configured, taken or
+  // not, so a link could send a client to a relay that never had it.
+  async function neventFor(signed, accepted) {
+    let relays = (accepted || []).slice(0, 2);
+    if (!relays.length) { try { relays = (await targetRelays()).slice(0, 2); } catch (_) {} }
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
-  async function showPosted(signed, relayCount, what) {
+  // The relays that did not take it, one sentence per reason, the biggest group first and no
+  // more than three. One template per sentence so a translation can order the words; the hosts
+  // and the relay's own words go in as values.
+  function refusalLines(failed) {
+    const sentence = {
+      timeout: (v) => t('{{hosts}} timed out.', v),
+      connect: (v) => t('Could not reach {{hosts}}.', v),
+      payment: (v) => t('{{hosts}} asked for payment.', v),
+      auth: (v) => t('{{hosts}} asked for sign-in.', v),
+      rate: (v) => t('{{hosts}} rate-limited the post.', v),
+      refused: (v) => (v.text ? t('Refused by {{hosts}}: {{text}}', v) : t('Refused by {{hosts}}.', v)),
+      other: (v) => t('{{hosts}} refused: {{text}}', v),
+    };
+    return SC.groupRefusals(failed).slice(0, 3).map((g) => {
+      const shown = g.hosts.slice(0, 3).join(', ') + (g.hosts.length > 3 ? ' +' + (g.hosts.length - 3) : '');
+      return (sentence[g.code] || sentence.other)({ hosts: shown, text: (g.text || '').slice(0, 80) });
+    });
+  }
+
+  // The same, for the relays that DID take it, said once, so the row opens onto the whole answer.
+  function acceptedLine(accepted) {
+    const hosts = (accepted || []).map((u) => { try { return new URL(u).host; } catch (_) { return String(u); } });
+    const shown = hosts.slice(0, 4).join(', ') + (hosts.length > 4 ? ' +' + (hosts.length - 4) : '');
+    return t('Accepted it: {{hosts}}.', { hosts: shown });
+  }
+
+  async function showPosted(signed, report, what) {
     const sheet = document.querySelector('.compose-sheet');
     // THE ADDRESS SAYS SO. The panel cannot ask a tab anything without the "tabs"
     // permission, but getContexts reports each document's URL, fragment and all, so a
@@ -1372,7 +1423,7 @@
       // The account that SIGNED it, not whatever is active by the time this paints. They
       // can differ if the panel switched while the tab was open.
       const client = composer.resolveClient(settings, signed.pubkey || state.activePubkey);
-      href = client.url(await neventFor(signed));
+      href = client.url(await neventFor(signed, report.accepted));
       label = client.label;
     } catch (_) { /* no link is better than a broken one */ }
 
@@ -1387,11 +1438,27 @@
       mark,
       h('h2', { className: 'compose-done-title', textContent: what === 'poll' ? t('Your poll is live.')
         : what === 'reply' ? t('Your reply is live.') : t('Your note is live.') }),
-      h('p', {
+      // Every relay took it: said plainly. When one did not, the row below is the answer: the
+      // count, opening onto the detail.
+      ...(report.failed.length ? [] : [h('p', {
         className: 'compose-done-sub',
-        textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', relayCount),
-      })
+        textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', report.accepted.length),
+      })])
     );
+    // ONE ROW THAT OPENS, not a line per refusal. A receipt with three sentences of relay
+    // trouble under "Your reply is live." read as an alarm; "Published to N relays." is the
+    // answer and the detail is one tap away. A native details element, so the keyboard and screen readers
+    // already know how to open it.
+    if (report.failed.length) {
+      const lines = [acceptedLine(report.accepted), ...refusalLines(report.failed)];
+      sheet.append(h('details', { className: 'compose-done-relays' }, [
+        // The plain sentence, with the count of the relays that took it; what did not is inside.
+        h('summary', {
+          textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', report.accepted.length),
+        }),
+        ...lines.map((line) => h('p', { textContent: line })),
+      ]));
+    }
 
     const row = h('div', { className: 'compose-done-actions' });
     if (href) {
