@@ -17737,8 +17737,24 @@
     const list = h('div', { className: 'list flat nip65-list' });
     const warn = h('p', { className: 'hint warn nip65-warn' });
     const addInput = h('input', { type: 'text', placeholder: 'wss://relay.example.com' });
-    const addBtn = h('button', { className: 'secondary', textContent: 'Add' });
+    const addBtn = h('button', { className: 'secondary', textContent: t('Add') });
     const err = h('div', { className: 'error' });
+
+    // "Add anyway?" for a relay that failed the add-time probe. The message on its own
+    // full-width line, the answers stretched beneath — a question with words never
+    // shares the input's line in a panel this narrow (same shape as .site-item +
+    // .site-controls). Hidden until a probe fails; see the Add handler below.
+    const addConfirmMsg = h('p', { className: 'confirm-msg' });
+    const addConfirmRow = h('div', { className: 'relay-add-confirm' }, [
+      addConfirmMsg,
+      h('div', { className: 'relay-add-confirm-actions' }, [
+        h('button', { className: 'secondary', textContent: t('Add anyway') }),
+        h('button', { className: 'ghost', textContent: t('Cancel') }),
+      ]),
+    ]);
+    addConfirmRow.hidden = true;
+    const [addConfirmYes, addConfirmNo] = addConfirmRow.querySelectorAll('button');
+
     const publishBtn = h('button', { className: 'primary', textContent: 'Publish relay list' });
 
     // MANUAL, NEVER ON RENDER. Probing opens a socket to every relay in the list; doing
@@ -17762,6 +17778,7 @@
       list,
       warn,
       h('div', { className: 'row-actions' }, [addInput, addBtn]),
+      addConfirmRow,
       err,
       h('div', { className: 'actions nip65-check-row' }, [checkBtn]),
       h('div', { className: 'actions nip65-publish' }, [publishBtn])
@@ -17955,17 +17972,74 @@
       updateWarn();
     }
 
-    addBtn.addEventListener('click', () => {
-      let url = addInput.value.trim();
-      if (!url) return;
-      if (!/^wss?:\/\//i.test(url)) url = 'wss://' + url;
-      url = url.replace(/\/+$/, ''); // drop trailing slash so wss://x and wss://x/ dedupe
-      if (!/^wss?:\/\/[^/]+/i.test(url)) { err.textContent = "That doesn't look like a relay URL."; return; }
-      if (relayList.some((r) => r.url === url)) { addInput.value = ''; return; }
+    // Adding a relay: normalize what was typed, then ask the relay itself before it
+    // joins the list — the same shape as the Settings relay list's Add. https:// becomes
+    // wss:// rather than the mangled entry the old prefix-only code produced, and a
+    // relay that fails the probe gets its own "Add anyway?" row below the input.
+    //
+    // The relay whose probe failed, kept between the question and the answer so "Add
+    // anyway" adds exactly what was probed, even if the field has been edited since.
+    let addPending = '';
+
+    addBtn.addEventListener('click', async () => {
+      const RH = self.SidecarRelayHealth;
+      // The module is on every panel load; without it Add does nothing, like Check.
+      if (!RH) return;
+      if (!addInput.value.trim()) return;
+      addPending = '';
+      addConfirmRow.hidden = true;
       err.textContent = '';
-      relayList.push({ url, read: true, write: true });
+
+      const n = RH.normalizeRelayUrl(addInput.value);
+      if (!n.ok) { err.textContent = t("That doesn't look like a relay URL."); return; }
+      // The clamped value, written back into the field — a silent change to what was
+      // typed would sit on screen looking like what the user entered (see default-zap).
+      addInput.value = n.url;
+      if (relayList.some((r) => r.url === n.url)) { addInput.value = ''; return; }
+
+      addBtn.disabled = true;
+      addBtn.textContent = t('Checking…');
+      let p = null;
+      try { p = await RH.probe(n.url, null, {}); } catch (_) {} // a probe that throws reads as unreachable
+      addBtn.disabled = false;
+      addBtn.textContent = t('Add');
+
+      // What the probe said becomes the row's verdict the moment it is added — an
+      // "Add anyway" relay whose row says nothing would read as one that passed.
+      if (p) health.set(n.url, Object.assign({ url: n.url, probe: p, nip11: { ok: false } }, RH.classify(p)));
+
+      if (p && !RH.blocksAdd(p)) {
+        relayList.push({ url: n.url, read: true, write: true });
+        addInput.value = '';
+        renderRows();
+        return;
+      }
+      addPending = n.url;
+      addConfirmMsg.textContent = p && p.up
+        ? t('{{url}} is up but not answering requests. Add it anyway?', { url: n.url })
+        : t("Couldn't reach {{url}}. Add it anyway?", { url: n.url });
+      addConfirmRow.hidden = false;
+    });
+
+    // A field edit means the question on screen is about a URL that is no longer in the
+    // field; "Add anyway" must not add something other than what the user is looking at.
+    addInput.addEventListener('input', () => {
+      if (addConfirmRow.hidden) return;
+      addPending = '';
+      addConfirmRow.hidden = true;
+    });
+
+    addConfirmYes.addEventListener('click', () => {
+      if (!addPending) { addConfirmRow.hidden = true; return; }
+      relayList.push({ url: addPending, read: true, write: true });
+      addPending = '';
+      addConfirmRow.hidden = true;
       addInput.value = '';
       renderRows();
+    });
+    addConfirmNo.addEventListener('click', () => {
+      addPending = '';
+      addConfirmRow.hidden = true;
     });
 
     publishBtn.addEventListener('click', async () => {
@@ -23513,18 +23587,81 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapDailyMaxSats: daily } });
   });
 
-  $('relay-add').addEventListener('click', async () => {
-    const input = $('relay-input');
-    let url = input.value.trim();
-    if (!url) return;
-    if (!/^wss?:\/\//.test(url)) url = 'wss://' + url;
+  // Adding a relay to the Settings list: normalize what was typed, then ask the relay
+  // itself before saving it. The same shape as the Profile tab's NIP-65 editor — the
+  // address bar's https://relay.nostr.build becomes wss://relay.nostr.build instead of
+  // the mangled entry the old prefix-only code produced, and a relay that fails the
+  // probe gets an "Add anyway?" question on its own row, because a relay the app cannot
+  // reach is notes it cannot publish.
+  //
+  // The relay whose probe failed, kept between the question and the answer so "Add
+  // anyway" saves exactly what was probed, even if the field has been edited since.
+  let relayAddPending = '';
+  const relayAddConfirm = $('relay-add-confirm');
+  const relayAddMsg = $('relay-add-confirm-msg');
+
+  function hideRelayAddConfirm() {
+    relayAddPending = '';
+    relayAddConfirm.classList.add('hidden');
+  }
+
+  async function saveRelayAdd(url) {
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
     relays[url] = { read: true, write: true };
     await call({ type: 'SIDECAR_SET_RELAYS', relays });
     refreshAuthRelays().catch(() => {});
-    input.value = '';
+    $('relay-input').value = '';
+    hideRelayAddConfirm();
     renderSettings();
+  }
+
+  // A field edit means the pending question is about a URL that is no longer on screen;
+  // leaving it up would let "Add anyway" add something other than what the user is now
+  // looking at.
+  $('relay-input').addEventListener('input', () => {
+    $('relay-add-error').textContent = '';
+    hideRelayAddConfirm();
   });
+
+  $('relay-add').addEventListener('click', async () => {
+    const input = $('relay-input');
+    const addBtn = $('relay-add');
+    if (addBtn.disabled) return; // a probe from the previous click is still out
+    if (!input.value.trim()) return;
+    $('relay-add-error').textContent = '';
+    hideRelayAddConfirm();
+
+    const RH = self.SidecarRelayHealth;
+    if (!RH) return; // the module is on every panel load; without it Add does nothing, like Check
+    const n = RH.normalizeRelayUrl(input.value);
+    if (!n.ok) { $('relay-add-error').textContent = t("That doesn't look like a relay URL."); return; }
+    // The clamped value, written back into the field — a silent change to what was
+    // typed would sit on screen looking like what the user entered (see default-zap).
+    input.value = n.url;
+
+    const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
+    if (relays[n.url]) { input.value = ''; return; } // already saved, silently like the NIP-65 editor
+
+    addBtn.disabled = true;
+    addBtn.textContent = t('Checking…');
+    let p = null;
+    try { p = await RH.probe(n.url, null, {}); } catch (_) {} // a probe that throws reads as unreachable
+    addBtn.disabled = false;
+    addBtn.textContent = t('Add');
+
+    if (p && !RH.blocksAdd(p)) { await saveRelayAdd(n.url); return; }
+    relayAddPending = n.url;
+    relayAddMsg.textContent = p && p.up
+      ? t('{{url}} is up but not answering requests. Add it anyway?', { url: n.url })
+      : t("Couldn't reach {{url}}. Add it anyway?", { url: n.url });
+    relayAddConfirm.classList.remove('hidden');
+  });
+
+  $('relay-add-anyway').addEventListener('click', () => {
+    if (relayAddPending) saveRelayAdd(relayAddPending);
+    else hideRelayAddConfirm();
+  });
+  $('relay-add-cancel').addEventListener('click', hideRelayAddConfirm);
 
   if (typeof chrome.runtime.requestUpdateCheck === 'function') {
     $('check-update-btn').addEventListener('click', () => {
