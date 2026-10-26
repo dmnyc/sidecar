@@ -16191,6 +16191,23 @@
     }
   }
 
+  // THE POLL'S OWN ⋮: the event rather than its votes, so its id, a link and the JSON, from
+  // the same menu every notification row carries (without the npub row: the author is not
+  // what anyone opens a tally to copy), and in the same place:
+  // beside the poll itself, at the end of its question line. Not in the sheet's corners,
+  // which are the two exits and are what the heading is centered between. Icon only in that
+  // slot (the question truncates beside it, never the button); its rows open under the
+  // question at full width, because each one has words. Added once the poll is in hand, and
+  // once only, since Refresh runs the load again.
+  function attachPollMenu(questionRow, pollEv, link) {
+    if (!pollEv || questionRow.querySelector('.notif-more-btn')) return null;
+    const menu = buildEventMenu(pollEv, link || null, { npubOf: null });
+    menu.panel.classList.add('poll-more-menu');
+    questionRow.append(menu.btn);
+    questionRow.after(menu.panel);
+    return menu;
+  }
+
   // `poll` is either the event or an id to go and find. A vote notification only
   // carries the id, and refusing to open without the whole event would make the row it
   // came from a dead end.
@@ -16222,12 +16239,14 @@
 
       modal.append(h('h3', { textContent: 'Poll results' }));
       const question = h('p', { className: 'poll-result-question' });
+      // The question's line, with room at its end for the poll's ⋮.
+      const questionRow = h('div', { className: 'poll-question-row' }, [question]);
       const body = h('div', { className: 'poll-result-body' });
       body.append(waitingRow('Counting votes…'));
       const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
       const openOut = h('button', { className: 'ghost hidden' });
       const actions = h('div', { className: 'actions' }, [recount, openOut]);
-      modal.append(question, body, actions);
+      modal.append(questionRow, body, actions);
 
       let pollEv = typeof poll === 'string' ? null : poll;
 
@@ -16254,14 +16273,16 @@
           // two different places. Null when settings could not be read, which the rows
           // read as "no link" rather than guessing at a URL.
           let client = null;
+          let url = null;
           try {
             const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
             client = resolveClient(settings, state.activePubkey);
-            const url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
+            url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
             openOut.textContent = 'Open in ' + client.label;
             openOut.classList.remove('hidden');
             openOut.onclick = () => openInClient(url);
           } catch (_) {}
+          attachPollMenu(questionRow, pollEv, url);
           body.innerHTML = '';
           body.append(waitingRow('Counting votes…'));
           const votes = await fetchPollVotes(pollEv);

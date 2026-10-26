@@ -5686,6 +5686,15 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .notif-more-item svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--muted); }
 .notif-more-item span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notif-more-item:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
+/* The poll results sheet's ⋮, at the end of the question's line as it sits in a
+   notification row: the question takes the width and wraps, the button keeps its size.
+   Its rows open under the question, with nothing to indent past. */
+.poll-question-row { display: flex; align-items: flex-start; gap: 8px; }
+.poll-question-row .poll-result-question { flex: 1; min-width: 0; }
+/* Nudged right so its dots sit in the same column as the close box's X above (measured:
+   2.5px short of the X's center at the sheet's 22px padding). */
+.poll-question-row .notif-more-btn { margin-top: 3px; margin-right: -2.5px; }
+.notif-more.poll-more-menu { margin: 0 0 10px; }
 .notif-more-item:hover svg { color: var(--gold); }
 .notif-more-item.armed, .notif-more-item.armed svg { color: var(--red); }
 .notif-more-item:disabled { opacity: 0.6; cursor: default; }
