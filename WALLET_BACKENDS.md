@@ -285,6 +285,40 @@ untrusted transport and validates the chain from the ICANN root down, which is a
 goes. That is a real decision, not a detail, and it is the reason this is a separate
 piece of work rather than a footnote.
 
+### cashu.me (the Cashu Wallet app) as an NWC wallet: rejected, it only answers while the app is open
+
+*Assessed 2026-10-25, against `cashubtc/wallet` (the native iOS and Android app) as it
+stood that day.*
+
+The app can hand out a `nostr+walletconnect://` string, and Sidecar parses it. It does not
+work: a request from Sidecar times out unless the wallet app is open in the foreground.
+That was the observed result on the day, and the source explains it.
+
+The NWC service is CDK's `NwcService`, started by `NWCManager` (iOS) and `NwcManager`
+(Android) when the app launches with NWC enabled, inside the app's own process. It listens
+on the user's shared Nostr relay list. Nothing wakes it: the repository has no
+`BGTaskScheduler`, `ForegroundService`, `WorkManager` or `UIBackgroundModes` at all. NWC is
+a request and a reply, so a request sent while the app is closed or suspended is never
+seen, and Sidecar's 30-second wait ends in a timeout.
+
+The string lists `relay.primal.net` among its relays only because that relay is in the app's
+default list. It is not a Primal wallet, so a check that refuses every string with a
+primal.net relay refuses it for the wrong reason.
+
+**The test this sets for any phone wallet:** does something wake it per request? Blitz
+passes, because its backend pushes to the phone for every request (which is also why
+Sidecar never polls it; see the 1.16.2 changelog). Alby Hub, Rizful and Coinos pass by
+running on a server. Zeus has a background path (an Android foreground service, and
+background monitoring on iOS), and Minibits wakes by push with a foreground-service
+fallback; both were read in source on the same day, and how reliable either is under each
+OS's limits was not measured. A wallet that serves NWC only from an open app does not
+pass, however cleanly its string parses. The web version of the Cashu wallet is a page in a browser tab
+and so could not do better; that one was not tested.
+
+Not listed in the wallet directory. **Reopen if** the app gains a push or background path
+for NWC, or Cashu offers a hosted NWC service; check the repository for either before
+quoting this verdict.
+
 ## Still open
 
 ### CLINK: worth watching, and cheaper than this file used to claim
