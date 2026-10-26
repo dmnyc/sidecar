@@ -740,7 +740,9 @@ test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
   assert.match(body, /sheet\.innerHTML = '';/);
   // Named for what went out: a poll, a reply, or a note.
   assert.match(body, /t\('Your poll is live\.'\)[\s\S]*t\('Your reply is live\.'\)[\s\S]*t\('Your note is live\.'\)/);
-  assert.match(body, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', report\.accepted\.length\)/);
+  // The count and the row that opens on refusals are the shared core's, drawn the same in the panel.
+  assert.match(body, /SC\.relayReportNode\(report, 'compose-done-sub'\)/);
+  assert.match(core, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', report\.accepted\.length\)/);
 
   // Only after the publish resolved. A receipt for a note no relay took is a lie.
   const post = bare.slice(bare.indexOf('async function doPost()'));

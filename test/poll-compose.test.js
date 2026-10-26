@@ -411,9 +411,11 @@ test('A POLL BANNER STACKS, BECAUSE TWO WORDED ACTIONS DO NOT SHARE A ROW', () =
   // full-width row below the content.
   const fn = bare.slice(bare.indexOf('async function showPostBanner'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
+  // A poll stacks, and so does a note some relays refused, which adds the relay row (with
+  // words) under the message: the same rule, for the same reason.
   assert.match(
     body,
-    /banner\.classList\.toggle\('post-banner-stacked', isPoll\)/,
+    /banner\.classList\.toggle\('post-banner-stacked', isPoll \|\| partial\)/,
     'a poll banner must become a column rather than a longer row'
   );
   assert.match(body, /className: 'post-banner-head' \}, \[msg, close\]/, 'the message keeps its own line');

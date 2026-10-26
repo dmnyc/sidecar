@@ -3526,6 +3526,9 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-done-relays[open] summary::after { margin-top: 3px; transform: rotate(-135deg); }
 .compose-done-relays summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
 .compose-done-relays p { margin: 6px 0 0; }
+/* The same row in the panel's post banner: left-aligned under the message, the stacked
+   banner's full width, the way its other rows sit. */
+.post-banner-relays { margin: 2px 0 4px; text-align: left; }
 .compose-done-actions {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
   gap: 10px; margin-top: 14px;

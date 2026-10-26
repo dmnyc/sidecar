@@ -1381,32 +1381,6 @@
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
-  // The relays that did not take it, one sentence per reason, the biggest group first and no
-  // more than three. One template per sentence so a translation can order the words; the hosts
-  // and the relay's own words go in as values.
-  function refusalLines(failed) {
-    const sentence = {
-      timeout: (v) => t('{{hosts}} timed out.', v),
-      connect: (v) => t('Could not reach {{hosts}}.', v),
-      payment: (v) => t('{{hosts}} asked for payment.', v),
-      auth: (v) => t('{{hosts}} asked for sign-in.', v),
-      rate: (v) => t('{{hosts}} rate-limited the post.', v),
-      refused: (v) => (v.text ? t('Refused by {{hosts}}: {{text}}', v) : t('Refused by {{hosts}}.', v)),
-      other: (v) => t('{{hosts}} refused: {{text}}', v),
-    };
-    return SC.groupRefusals(failed).slice(0, 3).map((g) => {
-      const shown = g.hosts.slice(0, 3).join(', ') + (g.hosts.length > 3 ? ' +' + (g.hosts.length - 3) : '');
-      return (sentence[g.code] || sentence.other)({ hosts: shown, text: (g.text || '').slice(0, 80) });
-    });
-  }
-
-  // The same, for the relays that DID take it, said once, so the row opens onto the whole answer.
-  function acceptedLine(accepted) {
-    const hosts = (accepted || []).map((u) => { try { return new URL(u).host; } catch (_) { return String(u); } });
-    const shown = hosts.slice(0, 4).join(', ') + (hosts.length > 4 ? ' +' + (hosts.length - 4) : '');
-    return t('Accepted it: {{hosts}}.', { hosts: shown });
-  }
-
   async function showPosted(signed, report, what) {
     const sheet = document.querySelector('.compose-sheet');
     // THE ADDRESS SAYS SO. The panel cannot ask a tab anything without the "tabs"
@@ -1438,27 +1412,10 @@
       mark,
       h('h2', { className: 'compose-done-title', textContent: what === 'poll' ? t('Your poll is live.')
         : what === 'reply' ? t('Your reply is live.') : t('Your note is live.') }),
-      // Every relay took it: said plainly. When one did not, the row below is the answer: the
-      // count, opening onto the detail.
-      ...(report.failed.length ? [] : [h('p', {
-        className: 'compose-done-sub',
-        textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', report.accepted.length),
-      })])
+      // "Published to N relays.", and when not every relay accepted it, a row that opens onto
+      // which did and why the others did not. The panel's banner draws the same thing.
+      SC.relayReportNode(report, 'compose-done-sub')
     );
-    // ONE ROW THAT OPENS, not a line per refusal. A receipt with three sentences of relay
-    // trouble under "Your reply is live." read as an alarm; "Published to N relays." is the
-    // answer and the detail is one tap away. A native details element, so the keyboard and screen readers
-    // already know how to open it.
-    if (report.failed.length) {
-      const lines = [acceptedLine(report.accepted), ...refusalLines(report.failed)];
-      sheet.append(h('details', { className: 'compose-done-relays' }, [
-        // The plain sentence, with the count of the relays that took it; what did not is inside.
-        h('summary', {
-          textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', report.accepted.length),
-        }),
-        ...lines.map((line) => h('p', { textContent: line })),
-      ]));
-    }
 
     const row = h('div', { className: 'compose-done-actions' });
     if (href) {

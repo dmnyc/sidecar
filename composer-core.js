@@ -3421,6 +3421,51 @@ window.SidecarCore = (function () {
     return [...groups.values()].sort((a, b) => b.hosts.length - a.hosts.length);
   }
 
+  // ---- the relay answer after a post, in words: one copy for the tab's receipt and the panel's
+  // banner, so the two cannot describe the same publish differently ----
+  //
+// The relays that did not take it, one sentence per reason, the biggest group first and no
+  // more than three. One template per sentence so a translation can order the words; the hosts
+  // and the relay's own words go in as values.
+  function refusalLines(failed) {
+    const sentence = {
+      timeout: (v) => t('{{hosts}} timed out.', v),
+      connect: (v) => t('Could not reach {{hosts}}.', v),
+      payment: (v) => t('{{hosts}} asked for payment.', v),
+      auth: (v) => t('{{hosts}} asked for sign-in.', v),
+      rate: (v) => t('{{hosts}} rate-limited the post.', v),
+      refused: (v) => (v.text ? t('Refused by {{hosts}}: {{text}}', v) : t('Refused by {{hosts}}.', v)),
+      other: (v) => t('{{hosts}} refused: {{text}}', v),
+    };
+    return groupRefusals(failed).slice(0, 3).map((g) => {
+      const shown = g.hosts.slice(0, 3).join(', ') + (g.hosts.length > 3 ? ' +' + (g.hosts.length - 3) : '');
+      return (sentence[g.code] || sentence.other)({ hosts: shown, text: (g.text || '').slice(0, 80) });
+    });
+  }
+
+  // The same, for the relays that DID take it, said once, so the row opens onto the whole answer.
+  function acceptedLine(accepted) {
+    const hosts = (accepted || []).map((u) => { try { return new URL(u).host; } catch (_) { return String(u); } });
+    const shown = hosts.slice(0, 4).join(', ') + (hosts.length > 4 ? ' +' + (hosts.length - 4) : '');
+    return t('Accepted it: {{hosts}}.', { hosts: shown });
+  }
+
+
+  // "Published to N relays." When every relay accepted it, that line alone (plainClass names its
+  // style in the page that asked). When one did not, the same line is the summary of a row that
+  // opens onto which relays accepted it and why the others did not. ONE ROW THAT OPENS, not a
+  // line per refusal: three sentences of relay trouble under "Your reply is live." read as an
+  // alarm, and a native details element is one the keyboard and screen readers already open.
+  function relayReportNode(report, plainClass) {
+    const summary = tn('Published to {{count}} relay.', 'Published to {{count}} relays.', report.accepted.length);
+    if (!report.failed.length) return h('p', { className: plainClass || '', textContent: summary });
+    const lines = [acceptedLine(report.accepted), ...refusalLines(report.failed)];
+    return h('details', { className: 'compose-done-relays' }, [
+      h('summary', { textContent: summary }),
+      ...lines.map((line) => h('p', { textContent: line })),
+    ]);
+  }
+
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
@@ -3448,5 +3493,6 @@ window.SidecarCore = (function () {
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
     publishFailed, publishRefusal, publishToRelays, groupRefusals, PUBLISH_CAP_MS,
+    refusalLines, acceptedLine, relayReportNode,
   };
 })();

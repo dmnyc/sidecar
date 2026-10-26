@@ -4983,7 +4983,10 @@
     ]);
   }
 
-  async function publishToRelays(relays, signed) {
+  // `report`, when a caller passes one, is filled with which relays accepted the event and why
+  // the others did not, in the shape the shared core's relayReportNode reads: { accepted,
+  // failed, total }. The return value stays the count every other caller already reads.
+  async function publishToRelays(relays, signed, report) {
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     // Dedupe the way the pool will. A plain Set over the raw strings keeps
     // 'wss://nos.lol' and 'wss://nos.lol/' as two entries, but SimplePool normalizes
@@ -5016,6 +5019,14 @@
       resetPoolRelays(targets.filter((_, i) => publishFailed(results[i])));
     }
 
+    if (report) {
+      const SCore = window.SidecarCore;
+      report.accepted = targets.filter((_, i) => !publishFailed(results[i]));
+      report.failed = targets
+        .map((url, i) => (publishFailed(results[i]) ? { url, ...SCore.publishRefusal(results[i]) } : null))
+        .filter(Boolean);
+      report.total = targets.length;
+    }
     if (!ok) {
       throw new Error(publishFailureMessage(targets, results));
     }
@@ -5083,8 +5094,8 @@
   }
 
   // Publish an already-signed event to the account's write relays (NIP-65 → configured).
-  async function publishSigned(signed) {
-    return publishToRelays(await postRelays(), signed);
+  async function publishSigned(signed, report) {
+    return publishToRelays(await postRelays(), signed, report);
   }
 
   // ---- web comments (NIP-22 kind 1111 over a NIP-73 "web" target) -------------
@@ -13240,9 +13251,11 @@
     }
   }
 
-  async function neventFor(signed) {
-    let relays = [];
-    try { relays = (await postRelays()).slice(0, 2); } catch (_) {}
+  // The hints are relays that ACCEPTED the note. They were the first two write relays, accepted
+  // or not, so the banner's link could send a client first to a relay that had refused it.
+  async function neventFor(signed, accepted) {
+    let relays = (accepted || []).slice(0, 2);
+    if (!relays.length) { try { relays = (await postRelays()).slice(0, 2); } catch (_) {} }
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
@@ -13253,11 +13266,11 @@
     if (banner) hide(banner);
   }
 
-  async function showPostBanner(signed, isReply) {
+  async function showPostBanner(signed, isReply, report) {
     const banner = $('post-banner');
     if (!banner) return;
     let nevent;
-    try { nevent = await neventFor(signed); } catch (_) { return; }
+    try { nevent = await neventFor(signed, report && report.accepted); } catch (_) { return; }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     // The account that just signed the note, not whatever is active by the time the
     // banner paints — they can differ if the user switches while it is up.
@@ -13293,9 +13306,27 @@
     // and the two actions share the row beneath. They wrap to a row each if they cannot
     // both fit, which happens below about a 310px panel with the longest client name,
     // rather than running out past the border.
-    banner.classList.toggle('post-banner-stacked', isPoll);
-    if (!isPoll) {
+    // WHEN NOT EVERY RELAY ACCEPTED IT, the shared row from the tab's receipt goes under the
+    // message: "Published to N relays.", opening onto which accepted it and why the others did
+    // not. A row with words, so it takes the stacked layout's full width; the banner also stops
+    // counting down once it is opened, so it does not vanish while it is being read.
+    const partial = !!(report && report.failed && report.failed.length);
+    const relaysRow = partial ? window.SidecarCore.relayReportNode(report) : null;
+    if (relaysRow) {
+      relaysRow.classList.add('post-banner-relays');
+      relaysRow.addEventListener('toggle', () => {
+        if (relaysRow.open && _postBannerTimer) { clearTimeout(_postBannerTimer); _postBannerTimer = null; }
+      });
+    }
+    banner.classList.toggle('post-banner-stacked', isPoll || partial);
+    if (!isPoll && !partial) {
       banner.append(msg, open, close);
+    } else if (!isPoll) {
+      banner.append(
+        h('div', { className: 'post-banner-head' }, [msg, close]),
+        relaysRow,
+        h('div', { className: 'post-banner-actions' }, [open])
+      );
     } else {
       // The results sheet first: it is the thing just made, and the one view the web
       // client link cannot stand in for.
@@ -13306,6 +13337,7 @@
       });
       banner.append(
         h('div', { className: 'post-banner-head' }, [msg, close]),
+        ...(relaysRow ? [relaysRow] : []),
         h('div', { className: 'post-banner-actions' }, [results, open])
       );
     }
@@ -14287,7 +14319,9 @@
         toSign = rest;
       }
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: toSign, expectedPubkey: pubkey });
-      await publishSigned(signed);
+      // Which relays accepted it, for the banner. Set here, read by finishPublish.
+      lastPublishReport = {};
+      await publishSigned(signed, lastPublishReport);
       return signed;
     }
 
@@ -15021,6 +15055,7 @@
       editor.focus();
     }
 
+    let lastPublishReport = null; // the relays that accepted the last publish, from doPublish
     // Publish the note and finish (clear draft, close, banner) — shared by the
     // countdown's auto/now fire and the immediate (countdown-off) post path.
     async function finishPublish() {
@@ -15047,7 +15082,7 @@
         if (miningStatus) postedMinimizedMine(); else endMinimizedMine();
         closeModal();
         toast(signed.kind === POLL_KIND ? t('Poll published') : replyTo ? t('Reply published') : t('Note published'), 'success');
-        showPostBanner(signed, !!replyTo);
+        showPostBanner(signed, !!replyTo, lastPublishReport);
       } catch (e) {
         // BACK TO THE EDITOR WITH THE TEXT INTACT, whether the mine failed, the signer
         // refused or every relay did. draft is untouched on all three paths and was just
