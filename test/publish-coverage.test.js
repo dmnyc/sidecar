@@ -176,7 +176,7 @@ test('with the worker unreachable the handover still answers, and nothing falls 
 
 test('the link hints the relays that took the note, not the first two configured', async () => {
   const at = tab.indexOf('  async function neventFor(signed, accepted)');
-  const end = tab.indexOf('  // The relays that did not take it, one sentence');
+  const end = tab.indexOf('  async function showPosted(');
   assert.ok(at !== -1 && end !== -1, 'neventFor is gone from compose.js');
   let encoded;
   const ctx = {

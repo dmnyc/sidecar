@@ -26,6 +26,19 @@ function lift(src, decl) {
   throw new Error('unbalanced ' + decl);
 }
 
+// The relay row is the shared core's now (the panel's banner draws it too), so the receipt's
+// tests run the real one, built with whatever h, t and tn the test hands it.
+const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
+function coreReport(h, t, tn) {
+  const ctx = vm.createContext({ h, t, tn, URL });
+  vm.runInContext([
+    lift(core, 'function groupRefusals('), lift(core, 'function refusalLines('),
+    lift(core, 'function acceptedLine('), lift(core, 'function relayReportNode('),
+    'this.relayReportNode = relayReportNode;',
+  ].join('\n'), ctx);
+  return ctx.relayReportNode;
+}
+
 const X = 'a'.repeat(64);
 const Y = 'b'.repeat(64);
 
@@ -137,7 +150,6 @@ test('showPosted runs: the receipt paints and the tab marks itself', async () =>
     call: async () => ({}),
     composer: { resolveClient: () => ({ url: (n) => 'https://client.example/' + n, label: 'Client' }) },
     neventFor: async () => 'nevent1abc',
-    SC: { groupRefusals: (failed) => failed.map((f) => ({ code: f.code, text: f.text, hosts: [f.url.replace('wss://', '')] })) },
     h: (tag, props, kids) => { const e = mk(); Object.assign(e, props || {}); if (kids) e.append(...kids); return e; },
     icon: () => mk(),
     t: (s, v) => (v ? s.replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]) : s),
@@ -146,7 +158,8 @@ test('showPosted runs: the receipt paints and the tab marks itself', async () =>
     location: { pathname: '/compose.html', search: '' },
     history: { replaceState: (a, b, url) => urls.push(url) },
   });
-  vm.runInContext(lift(compose, 'function refusalLines(') + '\n' + lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
+  ctx.SC = { relayReportNode: coreReport(ctx.h, ctx.t, ctx.tn) };
+  vm.runInContext(lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
   const four = ['wss://a', 'wss://b', 'wss://c', 'wss://d'];
   await ctx.f({ pubkey: 'pk', kind: 1 }, { accepted: four, failed: [], total: 4 }, 'note');
   assert.deepEqual(urls, ['/compose.html#done'], 'the tab marked its address');
@@ -175,11 +188,6 @@ test('showPosted says how many took it, and names the relays that did not', asyn
     composer: { resolveClient: () => ({ url: (n) => 'https://client.example/' + n, label: 'Client' }) },
     neventFor: async () => 'nevent1abc',
     URL,
-    SC: { groupRefusals: (failed) => {
-      const by = new Map();
-      for (const f of failed) { const g = by.get(f.code) || { code: f.code, text: f.text, hosts: [] }; g.hosts.push(f.url.replace('wss://', '')); by.set(f.code, g); }
-      return [...by.values()];
-    } },
     h: (tag, props, kids) => { const e = mk(); e.tag = tag; Object.assign(e, props || {}); if (kids) e.append(...kids); return e; },
     icon: () => mk(),
     t: fill,
@@ -188,7 +196,8 @@ test('showPosted says how many took it, and names the relays that did not', asyn
     location: { pathname: '/compose.html', search: '' },
     history: { replaceState() {} },
   });
-  vm.runInContext(lift(compose, 'function refusalLines(') + '\n' + lift(compose, 'function acceptedLine(') + '\n' + lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
+  ctx.SC = { relayReportNode: coreReport(ctx.h, ctx.t, ctx.tn) };
+  vm.runInContext(lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
   await ctx.f({ pubkey: 'pk', kind: 1 }, {
     accepted: ['wss://snort'],
     failed: [
@@ -235,12 +244,13 @@ test('when every relay took it there is no row to open, just the plain count', a
     document: { querySelector: () => sheet, createElement: () => mk() },
     state: { activePubkey: 'pk' }, call: async () => ({}),
     composer: { resolveClient: () => ({ url: (n) => 'https://client.example/' + n, label: 'Client' }) },
-    neventFor: async () => 'nevent1abc', SC: { groupRefusals: () => [] },
+    neventFor: async () => 'nevent1abc',
     h: (tag, props, kids) => { const e = mk(); e.tag = tag; Object.assign(e, props || {}); if (kids) e.append(...kids); return e; },
     icon: () => mk(), t: fill, tn: (one, other, n) => fill(n === 1 ? one : other, { count: n }),
     window: { location: { replace() {} } }, location: { pathname: '/compose.html', search: '' }, history: { replaceState() {} },
   });
-  vm.runInContext(lift(compose, 'function refusalLines(') + '\n' + lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
+  ctx.SC = { relayReportNode: coreReport(ctx.h, ctx.t, ctx.tn) };
+  vm.runInContext(lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
   await ctx.f({ pubkey: 'pk', kind: 1 }, { accepted: ['wss://a', 'wss://b'], failed: [], total: 2 }, 'note');
   const said = sheet.children.map((k) => k.textContent).filter(Boolean);
   assert.ok(said.includes('Published to 2 relays.'), JSON.stringify(said));
