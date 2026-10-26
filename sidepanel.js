@@ -19879,14 +19879,20 @@
   // Primal's wallet is Spark-based and only works inside Primal's own apps, over their
   // own nostrconnect session — the NWC string it hands out (routed through a primal.net
   // relay) can't be driven as a standalone NWC wallet, so a getInfo round-trip just
-  // hangs. Detect it from the relay host and reject up front with a clear reason.
+  // hangs. Detect it and reject up front with a clear reason. A primal.net relay alone
+  // is not the sign: other wallets list it among several, and Sidecar talks to the
+  // first. Primal's own string has a primal.net Lightning address, or no relay but
+  // primal.net.
   function isPrimalNwc(connection) {
     try {
       const q = connection.split('?')[1];
       if (!q) return false;
-      return new URLSearchParams(q).getAll('relay').some((r) => {
+      const params = new URLSearchParams(q);
+      if (/@primal\.net$/i.test((params.get('lud16') || '').trim())) return true;
+      const relays = params.getAll('relay').map((r) => String(r).trim()).filter(Boolean);
+      return relays.length > 0 && relays.every((r) => {
         let host;
-        try { host = new URL(r).hostname; } catch (_) { host = String(r); }
+        try { host = new URL(r).hostname; } catch (_) { host = r; }
         return /(^|\.)primal\.net$/i.test(host);
       });
     } catch (_) { return false; }
