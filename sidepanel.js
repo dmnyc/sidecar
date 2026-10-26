@@ -283,6 +283,10 @@
     // with the contraction, not "I am."
     { text: 'You see, but you do not observe. The distinction is clear.', who: 'Arthur Conan Doyle, 1892' },
     { text: 'I’m not afraid of storms, for I’m learning how to sail my ship.', who: 'Louisa May Alcott, 1868' },
+    // 1.16.3. Checked against the Project Gutenberg texts: War Is Kind (1899), the poem's
+    // line breaks run together; and The House of the Seven Gables (1851).
+    { text: 'A man said to the universe: “Sir, I exist!” “However,” replied the universe, “The fact has not created in me a sense of obligation.”', who: 'Stephen Crane, 1899' },
+    { text: 'Life is made up of marble and mud.', who: 'Nathaniel Hawthorne, 1851' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
