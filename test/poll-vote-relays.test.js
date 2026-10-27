@@ -61,6 +61,22 @@ test('the measured carriers are in the discovery set', () => {
   assert.equal(new Set(POLL_VOTE_DISCOVERY_RELAYS).size, POLL_VOTE_DISCOVERY_RELAYS.length, 'no duplicates');
 });
 
+test('voters whose ballots sit only on relay.ditto.pub are asked for', () => {
+  // The second measured poll: 23 voters, two of them only on relay.ditto.pub and
+  // relay.nostr.net. Neither relay was named by the poll or the account, and without
+  // those two voters the panel showed the losing option ahead.
+  const pollRelays = ['wss://relay.azzamo.net', 'wss://nostr.wine', 'wss://nostr.land'];
+  const accountRelays = ['wss://relay.primal.net', 'wss://nos.lol'];
+  const asked = new Set(plain(pollVoteQueryUrls(pollRelays, accountRelays)));
+  const onlyThere = [
+    ['wss://relay.nostr.net', 'wss://relay.ditto.pub'],
+    ['wss://relay.nostr.net', 'wss://relay.ditto.pub'],
+  ];
+  for (const carriers of onlyThere) {
+    assert.ok(carriers.some((url) => asked.has(url)), 'a relay holding this ballot is asked');
+  }
+});
+
 test('a relay named by both the poll and the discovery set is asked once', () => {
   const urls = plain(pollVoteQueryUrls(['wss://relay.primal.net', 'wss://poll.example'], []));
   assert.equal(urls.filter((u) => u === 'wss://relay.primal.net').length, 1, 'deduped');

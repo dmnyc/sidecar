@@ -5225,6 +5225,10 @@
   // count asked only of the poll's relays is a subset of the real one on every poll,
   // by construction, which is why every other client shows more votes than this panel.
   //
+  // relay.ditto.pub joined after a second poll, measured the same month: 23 voters, two
+  // of whose ballots sat on no relay this list or the poll named. Without them this
+  // panel showed the losing option ahead. relay.ditto.pub held every ballot on that poll.
+  //
   // Asked for kind:1018 ballots by poll id, and for nothing else. The tally still
   // applies every rule to what comes back — one ballot per pubkey, nothing past endsAt —
   // so a relay here can surface a voter, but cannot invent one.
@@ -5233,6 +5237,7 @@
     'wss://relay.damus.io',
     'wss://relay.snort.social',
     'wss://nos.lol',
+    'wss://relay.ditto.pub',
   ];
 
   // The full set a vote query is sent to: the poll's own relays first — a compliant
