@@ -62,10 +62,10 @@ const WALLETS = [
 ];
 
 const CAT_LABELS = {
-  custodial: 'Custodial',
   selfcustodial: 'Self-custodial',
-  spark: 'Spark',
+  custodial: 'Custodial',
   ecash: 'Ecash',
+  spark: 'Spark',
 };
 
 function faviconUrl(domain) {
