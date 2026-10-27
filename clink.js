@@ -7,8 +7,9 @@
 // is LNURL-pay with a relay where the web server would be.
 //
 // Spec: https://github.com/shocknet/CLINK/blob/main/specs/clink-offers.md
-// Still an open NIP (nostr-protocol/nips#1529) rather than a merged one, which is why
-// kind 21001 is written out here rather than taken from nostr-tools' kinds.
+// CLINK never became a NIP: the PR (nostr-protocol/nips#1529) was closed unmerged in
+// June 2025, and the spec's home is the shocknet/CLINK repo instead. Kind 21001 is still
+// written out here rather than taken from nostr-tools' kinds, which have no case for it.
 //
 // ITS OWN FILE, like nwc-client.js and ws-guard.js, because it is a protocol client and
 // not panel furniture. It holds no key and opens no socket: whichever page installs it
@@ -183,12 +184,35 @@ window.SidecarCLINK = (function () {
 
   async function requestInvoice(offer, opts) {
     const options = opts || {};
+    try {
+      return await askOnce(offer, options);
+    } catch (e) {
+      // MOVED OFFERS. Code 3 may carry `latest` — a fresh noffer1… from the answering
+      // service. Follow it once, in memory: the retry is this exchange's business, and
+      // nothing rewrites the profile the offer was read from, which is a stranger's.
+      if (e && e.clinkMoved && e.clinkLatest && !options.followedLatest) {
+        let fresh = null;
+        try { fresh = decodeNoffer(e.clinkLatest); } catch (_) { fresh = null; }
+        if (fresh) return askOnce(fresh, Object.assign({}, options, { followedLatest: true }));
+      }
+      throw e;
+    }
+  }
+
+  // One attempt: subscribe, publish, wait. Only the wrapper above may follow a code-3
+  // successor, so a chain of "moved" answers cannot keep the payer walking.
+  async function askOnce(offer, options) {
     const me = await deps.mePubkey();
     if (!me) throw new Error('No active Sidecar account');
 
     const payload = { offer: offer.offerId };
     if (options.amountSats > 0) payload.amount_sats = Math.floor(options.amountSats);
     if (options.description) payload.description = options.description;
+    // A zap, when the payer has one: the stringified kind 9734 the service validates,
+    // commits to the invoice and settles with a 9735 receipt. Absent, the spec says the
+    // request is an ordinary payment, so neither field ever goes out empty.
+    if (typeof options.zap === 'string' && options.zap) payload.zap = options.zap;
+    if (options.payerData && typeof options.payerData === 'object') payload.payer_data = options.payerData;
 
     const content = await deps.encrypt(offer.pubkey, JSON.stringify(payload));
     const event = await deps.sign({
@@ -252,6 +276,12 @@ window.SidecarCLINK = (function () {
           const e = new Error(String(parsed.error || 'The offer refused the request'));
           e.clinkCode = parsed.code;
           e.clinkRange = parsed.range;
+          // Code 3 can name a successor. Kept on the error for the wrapper to decide on:
+          // nothing downstream of this subscription follows a stranger's pointer itself.
+          if (parsed.code === 3 && typeof parsed.latest === 'string' && parsed.latest) {
+            e.clinkMoved = true;
+            e.clinkLatest = parsed.latest;
+          }
           finish(reject, e);
         }
       });

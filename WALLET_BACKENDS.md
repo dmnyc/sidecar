@@ -321,9 +321,11 @@ quoting this verdict.
 
 ## Still open
 
-### CLINK: worth watching, and cheaper than this file used to claim
+### CLINK: the payer side shipped, the rest is assessed and parked
 
-*Assessed 2026-07-28. Corrected 2026-09-18 after reading a working implementation.*
+*Assessed 2026-07-28. Corrected 2026-09-18 after reading a working implementation.
+Corrected 2026-10-27: the payer side shipped in #359, and the spec's NIP status was
+wrong in both earlier entries.*
 
 [CLINK](https://clinkme.dev/) (Common Lightning Interface for Nostr Keys, by ShockNet)
 defines Nostr-native Lightning offers (`noffer`) and debits (`ndebit`), with
@@ -351,17 +353,28 @@ extension asleep in a side panel cannot be that. So CLINK makes Sidecar a better
 wallet that is already connected. Nobody should expect it to deliver the built-in
 Lightning address that the constraint at the top of this file rules out.
 
-**The shape worth adopting, if it is adopted.** Recognize a `noffer` on the profile
-sheet and pay it through the existing wallet path, which is contained and reuses what
-is there. `zapcooking` also parses noffers out of note content and bios and renders pay
+**The shape that shipped.** A `noffer` on the profile sheet is recognized and paid
+through the existing wallet path, which is the contained version this entry argued for.
+`zapcooking` also parses noffers out of note content and bios and renders pay
 buttons inline; that is the part to leave alone, because rendering payment affordances
 inside note text is client work and Sidecar hands off.
 
-**Still held, for reasons that have not changed.** The specification is an
-[open PR](https://github.com/nostr-protocol/nips/pull/1529) rather than a merged NIP,
-and wallet-side support is thin enough that a user could go months without meeting a
-noffer. Cheap to add alongside NWC once that changes. The point of this correction is
-that when it does change, the work is smaller than it looked.
+**Where it stands.** The payer side of Offers shipped in #359: a `noffer1…` on a profile
+is payable from the connected wallet, and Sidecar carries its own offer under `noffer`.
+The spec never became a NIP — the PR ([nostr-protocol/nips#1529](https://github.com/nostr-protocol/nips/pull/1529))
+was closed unmerged in June 2025, its home the [shocknet/CLINK](https://github.com/shocknet/CLINK)
+repo instead — so "cheap to add once it changes" was the wrong gate twice over: the spec
+was never moving to the NIPs repo, and the work did not need it to.
+
+**Debits are assessed and parked, not declined.** Kind 21002 as a second, spend-only
+connection passes every test in this file — no API key, no funds held, no WASM, Firefox
+identical, a few hundred lines over protocol code Sidecar already owns — and is held on
+a product question, not a technical one: CLINK has no account query in any of its five
+specs, so a Debits connection buys no balance, no history and no receive. The full
+costing, including what is not reopenable (the native kind 21000 backend; the Enroll
+quick start), lives in `docs/lightning-pub-shockwallet-integration.md`, tracked in
+issue #551. One thing this entry keeps from its earlier self: wallet-side support is
+thin, which is why the park is measured in users, not weeks.
 
 ## Bitcoin Connect — nothing to add, on either side
 
