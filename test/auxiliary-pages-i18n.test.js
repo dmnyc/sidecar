@@ -16,10 +16,10 @@ test('wallet catalog waits for its locale and translates descriptions and contro
  assert.equal(f.get('grid').children.length,0);
  f.ctx.SidecarI18n.setLocale('en-XB',[{'Get this wallet →':'Wallet action translated','Custodial':'Custody translated'}]);
  f.release();await new Promise(resolve=>setImmediate(resolve));
- assert.equal(f.get('grid').children.length,6);
+ assert.equal(f.get('grid').children.length,8);
  const cards=f.get('grid').children;
  assert.ok(cards.every(card=>card.children.at(-1).textContent==='Wallet action translated'));
- assert.equal(cards[2].children[1].textContent,'Custody translated');
+ assert.equal(cards[3].children[1].textContent,'Custody translated');
  assert.equal(cards[0].children[0].children[1].children[0].textContent,'Alby Hub');
 });
 test('QR scanner waits for translations before requesting the camera and translates denial',async()=>{
