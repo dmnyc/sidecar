@@ -18,6 +18,11 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Fixed
 - **The notifications sheet no longer opens empty when you open it right after the panel loads.** The notes were arriving a moment after the refresh icon stopped spinning, and only closing and reopening the sheet showed them. It now waits for them.
 - **Restoring from the encrypted backup sheet’s PDF file works.** The sheet sets its key on two lines, and the reader took only the first, so the import failed with “Incorrect password, or not a valid ncryptsec key.” It now reads both lines, and a key copied from the sheet in two pieces pastes into the import field as one. Sheets you already printed or saved are read the same way.
+- **Zapping a profile that carries a CLINK offer is a real zap now.** The offer panel asked for and paid the invoice without a signed zap request, so the service could only treat the payment as spontaneous: sats arrived and no kind 9735 receipt was ever published, and no client showed a zap. It now sends the same signed 9734 the lightning-address path does, naming the payer, and the offer handoff on a comment sheet carries the same disclosure the zap handoff has — another wallet scanning the QR pays the author, but only this panel's payment zaps the comment.
+- **A moved CLINK offer is followed once instead of failing.** Error code 3 may carry `latest`, a fresh `noffer1…` string; Sidecar now retries against it without rewriting the stranger's profile, refuses a successor that does not decode, and never follows a chain longer than one.
+
+### Documentation
+- **The CLINK entry in `WALLET_BACKENDS.md` records what actually happened.** The spec never became a NIP — the PR was closed unmerged in June 2025 — and the payer side shipped in #359 rather than staying held; the lightning.pub / ShockWallet assessment behind it now ships with the repo as `docs/lightning-pub-shockwallet-integration.md`, with CLINK Debits parked and tracked in #551.
 
 ## [1.16.5] — 2026-11-01
 

@@ -41,7 +41,58 @@ const OFFER = {
   offerId: 'tip-jar',
   pricingType: 'spontaneous',
 };
+// Where a code-3 reply says the offer went. Built as a real string because the decoder
+// is the gate the retry walks through.
+const FRESH = {
+  pubkey: 'ab'.repeat(32),
+  relay: 'wss://relay.example.com',
+  offerId: 'fresh-jar',
+};
 const ME = '1111111111111111111111111111111111111111111111111111111111111111';
+
+// bech32 encode, test-side. clink.js only decodes, so a noffer for the moved-offer reply
+// has to be built here: plain bech32, checksum constant 1, the TLVs in the spec's order.
+const B32 = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+function bech32Polymod(values) {
+  const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  let chk = 1;
+  for (const v of values) {
+    const top = chk >> 25;
+    chk = ((chk & 0x1ffffff) << 5) ^ v;
+    for (let i = 0; i < 5; i++) if ((top >> i) & 1) chk ^= GEN[i];
+  }
+  return chk;
+}
+function toWords(bytes) {
+  const words = [];
+  let acc = 0;
+  let bits = 0;
+  for (const b of bytes) {
+    acc = (acc << 8) | b;
+    bits += 8;
+    while (bits >= 5) { bits -= 5; words.push((acc >> bits) & 31); }
+  }
+  if (bits > 0) words.push((acc << (5 - bits)) & 31);
+  return words;
+}
+const hexToBytes = (h) => new Uint8Array(h.match(/../g).map((b) => parseInt(b, 16)));
+const utf8Bytes = (s) => new TextEncoder().encode(s);
+function encodeNoffer({ pubkey, relay, offerId }) {
+  const bytes = [];
+  for (const [type, value] of [[0, hexToBytes(pubkey)], [1, utf8Bytes(relay)], [2, utf8Bytes(offerId)]]) {
+    bytes.push(type, value.length, ...value);
+  }
+  const hrp = 'noffer';
+  const data = toWords(Uint8Array.from(bytes));
+  const hrpExp = [];
+  for (const ch of hrp) hrpExp.push(ch.charCodeAt(0) >> 5);
+  hrpExp.push(0);
+  for (const ch of hrp) hrpExp.push(ch.charCodeAt(0) & 31);
+  const chk = bech32Polymod(hrpExp.concat(data, [0, 0, 0, 0, 0, 0])) ^ 1;
+  const cs = [0, 1, 2, 3, 4, 5].map((i) => (chk >> 5 * (5 - i)) & 31);
+  return hrp + '1' + data.concat(cs).map((w) => B32[w]).join('');
+}
+const FRESH_STRING = encodeNoffer(FRESH);
 
 // A service that answers however the test tells it to, recording what it was asked.
 function harness(reply, opts) {
@@ -65,8 +116,13 @@ function harness(reply, opts) {
       log.order.push('publish');
       log.published.push({ relay, event });
       if (options.publishThrows) throw new Error('relay refused');
-      // The service answers on the next turn, the way a real one would.
+      if (options.replyFor) {
+        const ev = options.replyFor(log.published.length);
+        if (ev) setTimeout(() => deliver && deliver(ev), 0);
+        return;
+      }
       if (reply === undefined) return;
+      // The service answers on the next turn, the way a real one would.
       // An array delivers several, in order, the way a busy relay would.
       for (const [i, ev] of [].concat(reply).entries()) {
         setTimeout(() => deliver && deliver(ev), i);
@@ -133,6 +189,76 @@ test('a typed refusal comes back as a sentence, not a timeout', async () => {
     api.requestInvoice(OFFER, { amountSats: 1 }),
     (e) => e.message === 'Amount below the minimum' && e.clinkCode === 4 && e.clinkRange.min === 100
   );
+});
+
+test('A ZAP REQUEST RIDES IN THE PAYLOAD WHEN THE PAYER HAS ONE', async () => {
+  // The bolt opened the panel, so the payment is a zap: the stringified kind 9734 goes
+  // to the service, which commits it to the invoice and settles it with a 9735 receipt
+  // on Nostr. Without it the spec says the request is treated as a spontaneous payment —
+  // sats arrive and nothing is ever published.
+  const zap = JSON.stringify({ kind: 9734, tags: [['p', 'a'.repeat(64)], ['relays', 'wss://r.example.com']] });
+  const { api, log } = harness({ pubkey: OFFER.pubkey, content: 'sealed:{"bolt11":"lnbc1"}' });
+  await api.requestInvoice(OFFER, { amountSats: 21, zap, payerData: { pubkey: ME } });
+  assert.equal(log.encrypted[0].peer, OFFER.pubkey);
+  assert.deepEqual(JSON.parse(log.encrypted[0].plaintext),
+    { offer: 'tip-jar', amount_sats: 21, zap, payer_data: { pubkey: ME } });
+
+  // And an ordinary ask stays ordinary: no zap, no payer block, no empty fields.
+  const { api: plain, log: plainLog } = harness({ pubkey: OFFER.pubkey, content: 'sealed:{"bolt11":"lnbc1"}' });
+  await plain.requestInvoice(OFFER, { amountSats: 21 });
+  assert.deepEqual(JSON.parse(plainLog.encrypted[0].plaintext), { offer: 'tip-jar', amount_sats: 21 });
+});
+
+test('CODE 3 WITH A SUCCESSOR RETRIES ONCE AGAINST THE FRESH OFFER', async () => {
+  // An expired or moved offer may carry `latest` — a fresh noffer string. Follow it once,
+  // in memory: the stranger's profile is theirs, and nothing rewrites what it carries.
+  const moved = { pubkey: OFFER.pubkey, content: 'sealed:{"error":"Offer has been replaced or moved.","code":3,"latest":"' + FRESH_STRING + '"}' };
+  const paid = { pubkey: FRESH.pubkey, content: 'sealed:{"bolt11":"lnbc-fresh"}' };
+  const { api, log } = harness(undefined, { replyFor: (n) => (n === 1 ? moved : paid) });
+  const res = await api.requestInvoice(OFFER, { amountSats: 21, timeoutMs: 500 });
+  assert.equal(res.bolt11, 'lnbc-fresh');
+  // The follow is the fresh offer's own exchange: its relay, its id, addressed to its
+  // service, under a fresh signature — the first request is not replayed.
+  assert.deepEqual(log.relays, [OFFER.relay, FRESH.relay]);
+  assert.deepEqual(JSON.parse(log.encrypted[1].plaintext), { offer: 'fresh-jar', amount_sats: 21 });
+  assert.equal(JSON.stringify(log.published[1].event.tags),
+    JSON.stringify([['p', FRESH.pubkey], ['clink_version', '1']]));
+  // Each attempt holds its own subscription, and neither outlives its answer.
+  assert.equal(log.closed, 2);
+});
+
+test('CODE 3 WITHOUT A SUCCESSOR IS A DEAD END, NOT A RETRY', async () => {
+  // Without `latest` the spec says the offer is permanently expired. There is nowhere to
+  // go, so asking twice would only wait out a second timeout to land on the same answer.
+  const expired = { pubkey: OFFER.pubkey, content: 'sealed:{"error":"Offer has expired.","code":3}' };
+  const { api, log } = harness(expired);
+  await assert.rejects(api.requestInvoice(OFFER, { amountSats: 21 }),
+    (e) => e.clinkCode === 3 && /expired/.test(e.message));
+  assert.equal(log.published.length, 1);
+});
+
+test('A SUCCESSOR THAT DOES NOT DECODE IS THE EXPIRY IT RODE IN ON', async () => {
+  // `latest` comes from the answering service and is a string somebody else chose. It
+  // gets decoded like any other noffer or not followed at all.
+  const junk = { pubkey: OFFER.pubkey, content: 'sealed:{"error":"Moved.","code":3,"latest":"noffer1notreal"}' };
+  const { api, log } = harness(junk);
+  await assert.rejects(api.requestInvoice(OFFER, { amountSats: 21 }), (e) => e.clinkCode === 3);
+  assert.equal(log.published.length, 1);
+});
+
+test('THE FOLLOW HAPPENS ONCE: A CHAIN OF SUCCESSORS IS NOT A PATH TO WALK', async () => {
+  // Every answer in the chain names another successor. Two asks is the whole budget:
+  // a service that keeps saying "moved" does not get to keep the payer walking.
+  const movedFrom = (from) => ({
+    pubkey: from,
+    content: 'sealed:{"error":"Moved.","code":3,"latest":"' + FRESH_STRING + '"}',
+  });
+  const { api, log } = harness(undefined, {
+    replyFor: (n) => (n === 1 ? movedFrom(OFFER.pubkey) : movedFrom(FRESH.pubkey)),
+  });
+  await assert.rejects(api.requestInvoice(OFFER, { amountSats: 21, timeoutMs: 500 }),
+    (e) => e.clinkCode === 3);
+  assert.equal(log.published.length, 2);
 });
 
 test('a service that never answers gives up, and says which end was quiet', async () => {
@@ -235,6 +361,33 @@ test('the wallet is checked before a stranger is asked for an invoice', () => {
   // cannot tell a wallet that is offline from a relay that is.
   assert.match(body, /offerPay\.textContent = 'Asking…'/);
   assert.match(body, /offerPay\.textContent = 'Paying…'/);
+});
+
+test('paying an offer is a zap: the signed 9734 rides in the request', () => {
+  // The bolt opened this panel, so the payment carries the same signed kind 9734 the
+  // lightning-address path sends. Without it the offer payment is spontaneous only:
+  // sats land and no receipt is ever published, so no client shows a zap.
+  const fn = bare.slice(bare.indexOf("offerPay.addEventListener('click'"));
+  const body = fn.slice(0, fn.indexOf('\n      });'));
+  assert.ok(body.indexOf('makeZapRequest') < body.indexOf('clink.requestInvoice'),
+    'the zap request is built before the invoice is asked for');
+  assert.match(body, /type: 'SIDECAR_OWNER_SIGN', event: zapTemplate, expectedPubkey: state\.activePubkey/,
+    'the 9734 is signed through the guarded owner path');
+  assert.match(body, /zap: JSON\.stringify\(signed\)/);
+  assert.match(body, /payerData: \{ pubkey: state\.activePubkey \}/);
+  // The receipt goes where the service can publish it: the offer's own relay first,
+  // then the recipient's, theirs and not ours — the same rule as the address path.
+  assert.match(body, /\[offerData\.relay\]\.concat\(await readRelayUrls\(pubkey\)\)/);
+});
+
+test('the offer handoff carries the comment disclosure the zap handoff has', () => {
+  // On a comment sheet the QR hands a stranger's wallet the raw offer: it pays the
+  // author, and only this panel's own payment is a zap on the comment. Same sentence,
+  // same place, because it is the same nuance.
+  assert.match(bare, /if \(options\?\.chatEvent\) offerFormHandoff\.append\(h\('p', \{ className: 'hint zap-pay-note', textContent: t\('Scan or copy sends a payment to the author, not a zap on this comment\.'\) \}\)\)/);
+  const open = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
+  const body = open.slice(0, open.indexOf('\n      }'));
+  assert.match(body, /options\?\.chatEvent \? \{ note: t\('Scan or copy sends a payment to the author, not a zap on this comment\.'\) \} : undefined/);
 });
 
 test('a fixed offer is not asked for an amount it already knows', () => {
