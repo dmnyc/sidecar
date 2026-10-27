@@ -5,9 +5,9 @@ and [Semantic Versioning](https://semver.org/).
 
 Release practice: the latest release's highlights are also summarized in-app, in the help
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
-Update that section alongside this file as part of every release.
-
-## [Unreleased]
+Update that section alongside this file as part of every release. The newest heading is
+always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
+has entries, and that heading becomes the version heading when the release is cut.
 
 ## [1.16.3] — 2026-10-26
 
