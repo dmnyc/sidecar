@@ -320,7 +320,7 @@
       "file": "locales/es.json",
       "key": "Repost",
       "english": "Repost",
-      "translation": "Compartir",
+      "translation": "Republicar",
       "reviewed": false,
       "notes": ""
     },
@@ -3432,7 +3432,7 @@
       "file": "locales/es.json",
       "key": "Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day.",
       "english": "Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day.",
-      "translation": "Los zaps bajo estos límites no necesitan aprobación. Máximo de 1.000 sats por zap y 100.000 al día.",
+      "translation": "Los zaps bajo estos límites no necesitan aprobación. Máximo de 1000 sats por zap y 100 000 al día.",
       "reviewed": false,
       "notes": ""
     },
@@ -3600,7 +3600,7 @@
       "file": "locales/es.json",
       "key": "Erases every account, key and wallet on this device. Cannot be undone — back up your nsecs first.",
       "english": "Erases every account, key and wallet on this device. Cannot be undone — back up your nsecs first.",
-      "translation": "Borra todas las cuentas, claves y billeteras de este dispositivo. No se puede deshacer: guarda primero tus nsecs.",
+      "translation": "Borra todas las cuentas, claves y billeteras de este dispositivo. No se puede deshacer: haz primero una copia de seguridad de tus nsecs.",
       "reviewed": false,
       "notes": ""
     },

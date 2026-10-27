@@ -1144,7 +1144,7 @@
       "file": "locales/de.json",
       "key": "Sidecar’s wipe check flagged this restore.",
       "english": "Sidecar’s wipe check flagged this restore.",
-      "translation": "Die Löschprüfung von Sidecar hat diese Wiederherstellung als riskant eingestuft.",
+      "translation": "Die Löschprüfung von Sidecar hat diese Wiederherstellung markiert.",
       "reviewed": false,
       "notes": ""
     },
@@ -1344,7 +1344,7 @@
       "file": "locales/de.json",
       "key": "This string can spend from your wallet up to its limits. Store it safely and never share it.",
       "english": "This string can spend from your wallet up to its limits. Store it safely and never share it.",
-      "translation": "Mit dieser Zeichenfolge kann bis zu ihren Limits Geld aus deiner Wallet ausgegeben werden. Bewahre sie sicher auf und teile sie niemals.",
+      "translation": "Mit dieser Zeichenfolge kann Geld aus deiner Wallet ausgegeben werden, bis die festgelegten Limits erreicht sind. Bewahre sie sicher auf und teile sie niemals.",
       "reviewed": false,
       "notes": ""
     },
@@ -2072,7 +2072,7 @@
       "file": "locales/de.json",
       "key": "Request to vanish",
       "english": "Request to vanish",
-      "translation": "Anfrage zum Verschwinden",
+      "translation": "Anfrage zum vollständigen Löschen (Request to Vanish)",
       "reviewed": false,
       "notes": ""
     },
@@ -2584,7 +2584,7 @@
       "file": "locales/de.json",
       "key": "Calendar RSVP",
       "english": "Calendar RSVP",
-      "translation": "Kalenderzusage",
+      "translation": "Kalender-Rückmeldung",
       "reviewed": false,
       "notes": ""
     },
@@ -3048,7 +3048,7 @@
       "file": "locales/de.json",
       "key": "Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.",
       "english": "Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.",
-      "translation": "Sidecar signiert künftige Ereignisse vom Typ {{kind}} mit dem Namen „{{d}}“ von {{host}} als {{account}} ohne Nachfrage, bis du dies im Tab „Aktivität“ entfernst.",
+      "translation": "Sidecar signiert künftige Ereignisse der Art {{kind}} mit dem Namen „{{d}}“ von {{host}} als {{account}} ohne Nachfrage, bis du dies im Tab „Aktivität“ entfernst.",
       "reviewed": false,
       "notes": ""
     },
@@ -3056,7 +3056,7 @@
       "file": "locales/de.json",
       "key": "Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.",
       "english": "Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.",
-      "translation": "Sidecar signiert künftige Ereignisse vom Typ {{kind}} von {{host}} als {{account}} ohne Nachfrage, bis du dies im Tab „Aktivität“ entfernst.",
+      "translation": "Sidecar signiert künftige Ereignisse der Art {{kind}} von {{host}} als {{account}} ohne Nachfrage, bis du dies im Tab „Aktivität“ entfernst.",
       "reviewed": false,
       "notes": ""
     },
@@ -3754,7 +3754,7 @@
       "key": "extDescription",
       "english": "A multi-account NIP-07 Nostr signer with a built-in Lightning wallet, in your browser sidebar.",
       "context": "One line under the name in the browser's extension list and the store listings. Keep \"NIP-07\", \"Nostr\" and \"Lightning\" as written.",
-      "translation": "Ein NIP-07-Nostr-Signer für mehrere Konten mit integriertem Lightning-Wallet in der Seitenleiste deines Browsers.",
+      "translation": "Ein NIP-07-Nostr-Signer für mehrere Konten mit integrierter Lightning-Wallet in der Seitenleiste deines Browsers.",
       "reviewed": false,
       "notes": ""
     },
@@ -3979,7 +3979,7 @@
       "key": "cardAwaiting",
       "english": "Approve it in Sidecar to send it. Nothing has left your wallet yet.",
       "context": "Status under the button while waiting for approval. Must stay clear that nothing has been paid yet.",
-      "translation": "Bestätige in Sidecar, um die Zahlung zu senden. Dein Wallet wurde noch nicht belastet.",
+      "translation": "Bestätige in Sidecar, um die Zahlung zu senden. Aus deiner Wallet ist noch nichts abgeflossen.",
       "reviewed": false,
       "notes": ""
     },
@@ -4006,7 +4006,7 @@
       "key": "cardOtherWallet",
       "english": "Open in another wallet",
       "context": "On the pay card: hands the invoice to whichever Lightning app is registered on this computer instead of paying with Sidecar.",
-      "translation": "In einem anderen Wallet öffnen",
+      "translation": "In einer anderen Wallet öffnen",
       "reviewed": false,
       "notes": ""
     },

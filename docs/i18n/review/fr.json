@@ -1024,7 +1024,7 @@
       "file": "locales/fr.json",
       "key": "This version changes {{fields}}.",
       "english": "This version changes {{fields}}.",
-      "translation": "Cette version modifie {{fields}}.",
+      "translation": "Cette version modifie ces champs : {{fields}}.",
       "reviewed": false,
       "notes": ""
     },
@@ -1032,7 +1032,7 @@
       "file": "locales/fr.json",
       "key": "This version adds {{fields}}.",
       "english": "This version adds {{fields}}.",
-      "translation": "Cette version ajoute {{fields}}.",
+      "translation": "Cette version ajoute ces champs : {{fields}}.",
       "reviewed": false,
       "notes": ""
     },
@@ -1040,7 +1040,7 @@
       "file": "locales/fr.json",
       "key": "This version removes {{fields}}.",
       "english": "This version removes {{fields}}.",
-      "translation": "Cette version supprime {{fields}}.",
+      "translation": "Cette version supprime ces champs : {{fields}}.",
       "reviewed": false,
       "notes": ""
     },
@@ -1384,7 +1384,7 @@
       "file": "locales/fr.json",
       "key": "{{left}} of {{budget}} sats left today",
       "english": "{{left}} of {{budget}} sats left today",
-      "translation": "{{left}} sats sur {{budget}} restants aujourd’hui",
+      "translation": "{{left}} sur {{budget}} sats restants aujourd’hui",
       "reviewed": false,
       "notes": ""
     },
@@ -3264,7 +3264,7 @@
       "file": "locales/fr.json",
       "key": "Clears {{name}}’s {{fields}}.",
       "english": "Clears {{name}}’s {{fields}}.",
-      "translation": "Efface {{fields}} de {{name}}.",
+      "translation": "Efface ces champs du profil de {{name}} : {{fields}}.",
       "reviewed": false,
       "notes": ""
     },
@@ -3272,7 +3272,7 @@
       "file": "locales/fr.json",
       "key": "Clears your {{fields}}.",
       "english": "Clears your {{fields}}.",
-      "translation": "Efface vos {{fields}}.",
+      "translation": "Efface ces champs de votre profil : {{fields}}.",
       "reviewed": false,
       "notes": ""
     },

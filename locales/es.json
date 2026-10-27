@@ -177,8 +177,8 @@
   "Collapse": "Contraer",
   "Reply": "Responder",
   "Reacted {{reaction}}": "Reaccionaste con {{reaction}}",
-  "Repost or quote": "Compartir o citar",
-  "Repost": "Compartir",
+  "Repost or quote": "Republicar o citar",
+  "Repost": "Republicar",
   "Quote": "Citar",
   "Reposted": "Compartida",
   "Bookmark": "Guardar",
@@ -1781,7 +1781,7 @@
   "Offered as a preset wherever you send a zap. Set for the account you are in.": "Se ofrece como opción al enviar un zap. Se configura para la cuenta actual.",
   "sats": "sats",
   "Auto Zaps": "Zaps automáticos",
-  "Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day.": "Los zaps bajo estos límites no necesitan aprobación. Máximo de 1.000 sats por zap y 100.000 al día.",
+  "Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day.": "Los zaps bajo estos límites no necesitan aprobación. Máximo de 1000 sats por zap y 100 000 al día.",
   "Enable Auto Zaps": "Activar zaps automáticos",
   "Max per zap": "Máximo por zap",
   "Max per day": "Máximo al día",
@@ -1815,7 +1815,7 @@
   "Test locale file (en-XB)": "Archivo de idioma de prueba (en-XB)",
   "Pretend today is": "Simular la fecha de hoy",
   "Danger zone": "Zona de peligro",
-  "Erases every account, key and wallet on this device. Cannot be undone — back up your nsecs first.": "Borra todas las cuentas, claves y billeteras de este dispositivo. No se puede deshacer: guarda primero tus nsecs.",
+  "Erases every account, key and wallet on this device. Cannot be undone — back up your nsecs first.": "Borra todas las cuentas, claves y billeteras de este dispositivo. No se puede deshacer: haz primero una copia de seguridad de tus nsecs.",
   "Reset Sidecar": "Restablecer Sidecar",
   "wants to…": "quiere…",
   "Not the right account?": "¿No es la cuenta correcta?",
@@ -1979,5 +1979,7 @@
   "Custodial web wallet. Turn on NWC in settings.": "Billetera web con custodia. Activa NWC en los ajustes.",
   "Mobile wallet on the Spark layer 2. Create an NWC connection with a budget.": "Billetera móvil en la capa 2 Spark. Crea una conexión NWC con un presupuesto.",
   "Cashu ecash mobile wallet. Create an NWC string in the app.": "Billetera móvil de dinero electrónico Cashu. Crea una cadena NWC en la app.",
-  "{{selfcustodial}} means you hold your own keys. {{custodial}} wallets hold your funds for you (easiest to start). {{ecash}} wallets use Cashu tokens, with the funds held by a mint. {{spark}} wallets run on the Spark layer 2: you hold a key, but moving funds relies on Spark’s operators.": "{{selfcustodial}} significa que conservas tus propias claves. Las billeteras {{custodial}} guardan tus fondos por ti (la opción más sencilla para empezar). Las billeteras {{ecash}} usan tokens de Cashu, con los fondos en manos de una mint. Las billeteras {{spark}} funcionan sobre la capa 2 Spark: conservas una clave, pero mover fondos depende de los operadores de Spark."
+  "{{selfcustodial}} means you hold your own keys. {{custodial}} wallets hold your funds for you (easiest to start). {{ecash}} wallets use Cashu tokens, with the funds held by a mint. {{spark}} wallets run on the Spark layer 2: you hold a key, but moving funds relies on Spark’s operators.": "{{selfcustodial}} significa que conservas tus propias claves. Las billeteras {{custodial}} guardan tus fondos por ti (la opción más sencilla para empezar). Las billeteras {{ecash}} usan tokens de Cashu, con los fondos en manos de una mint. Las billeteras {{spark}} funcionan sobre la capa 2 Spark: conservas una clave, pero mover fondos depende de los operadores de Spark.",
+  "These translations are drafts. Spotted a mistake? {{link}}": "Estas traducciones son borradores. ¿Has visto un error? {{link}}",
+  "Tell us on GitHub": "Cuéntanoslo en GitHub"
 }

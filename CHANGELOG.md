@@ -12,7 +12,7 @@ has entries, and that heading becomes the version heading when the release is cu
 ## [Unreleased]
 
 ### Added
-- **Sidecar in German, Spanish, French and Brazilian Portuguese.** Settings → Appearance has a **Language** choice, set to follow the browser until you pick one. It changes the panel, the approval screens, the welcome page, the composer, the wallet pages and the QR scanner, and numbers, dates and “5m ago” follow the language you chose. The pay pill and card on a web page follow the browser’s language instead, so a site learns nothing new from them. The help guide is still English, and says so in your language.
+- **Sidecar in German, Spanish, French and Brazilian Portuguese.** Settings → Appearance has a **Language** choice, set to follow the browser until you pick one. It changes the panel, the approval screens, the welcome page, the composer, the wallet pages and the QR scanner, and numbers, dates and “5m ago” follow the language you chose. The pay pill and card on a web page follow the browser’s language instead, so a site learns nothing new from them. The help guide is still English, and says so in your language. The translations are drafts that no native speaker has read yet; Settings says so and links to GitHub for corrections.
 
 ## [1.16.6] — 2026-11-03
 

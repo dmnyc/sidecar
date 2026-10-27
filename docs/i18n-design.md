@@ -6,10 +6,13 @@ everything 1.16.0 through 1.16.3 added. German (de), Spanish (es), French (fr), 
 Portuguese (pt-BR) have complete draft app and browser-message catalogs, and the
 coverage gate (`node scripts/i18n-coverage.mjs --check`) passes with no missing,
 invalid or unknown entries. European Portuguese (pt-PT) is deferred to a future
-phase. en-XA and en-XB are development tools. Native security reviews, full
-extension layout acceptance in the four languages, and the guide release-scope
-decision remain open. The full guide is still English, with a translated notice.
-Catalog completeness alone is not release approval.
+phase. en-XA and en-XB are development tools. The four catalogs are model drafts
+and no native speaker has read them. On October 27, 2026 the maintainer decided
+to ship them that way and to accept corrections from users afterward (§3.7), and
+Settings → Appearance says so beside the Language choice. Full extension layout
+acceptance in the four languages and the guide release-scope decision remain
+open. The full guide is still English, with a translated notice. Catalog
+completeness is not evidence that the translations are right.
 
 The observations in §1 and the Jumble comparison are the original design
 baseline, not a description of the current worktree. §6 records the implemented
@@ -250,10 +253,14 @@ The service worker has no DOM, but produces user-visible text in three ways.
 - Keep amounts, hosts, pubkeys and kind numbers outside the translated text, as
   interpolated values formatted by code.
 - Always show the kind number next to its translated name.
-- Require a native-speaker review of `prompt.js` and unlock/backup strings
-  before a language ships. Mark these keys in the locale files (e.g. a
-  `security-critical` list the coverage test knows about) so a reviewer can find
-  them.
+- Native-speaker review of `prompt.js` and unlock/backup strings was the rule
+  before a language ships. Mark these keys so a reviewer can find them (the
+  packets in `docs/i18n/review/` do, and the coverage test knows the list).
+  **1.17 ships without that review** (decision of October 27, 2026: no
+  translator is available). Instead, a model re-read every packet entry for
+  meaning errors, the strings stay literal rather than idiomatic, and users'
+  corrections are accepted later. The packets stay `reviewed: false` until a
+  person has read them.
 
 ### 3.8 Layout and typography
 

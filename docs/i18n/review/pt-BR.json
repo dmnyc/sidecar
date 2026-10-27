@@ -568,7 +568,7 @@
       "file": "locales/pt-BR.json",
       "key": "Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.",
       "english": "Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.",
-      "translation": "Anote ou salve em um gerenciador de senhas antes de continuar. {{warning}}. Somente uma cópia de segurança separada das suas chaves permite recuperar suas contas.",
+      "translation": "Anote ou salve em um gerenciador de senhas antes de continuar — {{warning}}. Somente uma cópia de segurança separada das suas chaves permite recuperar suas contas.",
       "reviewed": false,
       "notes": ""
     },
@@ -2288,7 +2288,7 @@
       "file": "locales/pt-BR.json",
       "key": "Media follows",
       "english": "Media follows",
-      "translation": "Assinaturas de mídia",
+      "translation": "Seguidos de mídia",
       "reviewed": false,
       "notes": ""
     },
@@ -2592,7 +2592,7 @@
       "file": "locales/pt-BR.json",
       "key": "Handler recommendation",
       "english": "Handler recommendation",
-      "translation": "Recomendação de manipulador",
+      "translation": "Recomendação de aplicativo",
       "reviewed": false,
       "notes": ""
     },
@@ -2600,7 +2600,7 @@
       "file": "locales/pt-BR.json",
       "key": "Handler info",
       "english": "Handler info",
-      "translation": "Informações do manipulador",
+      "translation": "Informações do aplicativo",
       "reviewed": false,
       "notes": ""
     },

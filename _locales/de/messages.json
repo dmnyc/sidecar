@@ -4,7 +4,7 @@
     "description": "The extension's name, as the browser and the add-on stores show it. Keep \"Sidecar\" untranslated; the part after the bar may be translated."
   },
   "extDescription": {
-    "message": "Ein NIP-07-Nostr-Signer für mehrere Konten mit integriertem Lightning-Wallet in der Seitenleiste deines Browsers.",
+    "message": "Ein NIP-07-Nostr-Signer für mehrere Konten mit integrierter Lightning-Wallet in der Seitenleiste deines Browsers.",
     "description": "One line under the name in the browser's extension list and the store listings. Keep \"NIP-07\", \"Nostr\" and \"Lightning\" as written."
   },
   "actionTitle": {
@@ -156,7 +156,7 @@
     "description": "The pay button while Sidecar asks for approval."
   },
   "cardAwaiting": {
-    "message": "Bestätige in Sidecar, um die Zahlung zu senden. Dein Wallet wurde noch nicht belastet.",
+    "message": "Bestätige in Sidecar, um die Zahlung zu senden. Aus deiner Wallet ist noch nichts abgeflossen.",
     "description": "Status under the button while waiting for approval. Must stay clear that nothing has been paid yet."
   },
   "cardTryAgain": {
@@ -168,7 +168,7 @@
     "description": "Shown when a payment fails with no reason given."
   },
   "cardOtherWallet": {
-    "message": "In einem anderen Wallet öffnen",
+    "message": "In einer anderen Wallet öffnen",
     "description": "On the pay card: hands the invoice to whichever Lightning app is registered on this computer instead of paying with Sidecar."
   },
   "cardOfferEyebrow": {

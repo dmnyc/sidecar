@@ -26003,6 +26003,11 @@
     for (const l of langs) select.append(h('option', { value: l.code, textContent: l.name }));
     select.value = langs.some((l) => l.code === current) ? current : 'auto';
     select.addEventListener('change', () => setLanguage(select.value));
+    // The translations are drafts with no native review behind them, so say so, and say where a
+    // correction goes. The link is built here, not in the catalogs, which never carry markup.
+    const report = h('a', { className: 'explore-link', href: '#', textContent: t('Tell us on GitHub') });
+    report.addEventListener('click', (e) => { e.preventDefault(); chrome.tabs.create({ url: 'https://github.com/dmnyc/sidecar/issues' }); });
+    $('language-setting').append(h('p', { className: 'hint' }, I18N.fill(t('These translations are drafts. Spotted a mistake? {{link}}'), { link: report })));
     show($('language-setting'));
   }
   function applyDevBadge(on) {

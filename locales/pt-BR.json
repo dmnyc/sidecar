@@ -294,7 +294,7 @@
   "I've saved it": "Já salvei",
   "OK, got it": "OK, entendi",
   "This PIN can't be recovered": "Este PIN não pode ser recuperado",
-  "Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.": "Anote ou salve em um gerenciador de senhas antes de continuar. {{warning}}. Somente uma cópia de segurança separada das suas chaves permite recuperar suas contas.",
+  "Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.": "Anote ou salve em um gerenciador de senhas antes de continuar — {{warning}}. Somente uma cópia de segurança separada das suas chaves permite recuperar suas contas.",
   "Save your PIN somewhere safe": "Guarde seu PIN em um lugar seguro",
   "it can't be recovered": "ele não pode ser recuperado",
   "Auto-lock settings": "Configurações de bloqueio automático",
@@ -1104,7 +1104,7 @@
   "Groups list": "Lista de grupos",
   "Favorite relays list": "Lista de relays favoritos",
   "Interests list": "Lista de interesses",
-  "Media follows": "Assinaturas de mídia",
+  "Media follows": "Seguidos de mídia",
   "Emoji list": "Lista de emojis",
   "Trust provider list": "Lista de provedores de confiança",
   "Blossom server list": "Lista de servidores Blossom",
@@ -1142,8 +1142,8 @@
   "Calendar event (time)": "Evento de calendário (hora)",
   "Calendar": "Calendário",
   "Calendar RSVP": "Confirmação de presença",
-  "Handler recommendation": "Recomendação de manipulador",
-  "Handler info": "Informações do manipulador",
+  "Handler recommendation": "Recomendação de aplicativo",
+  "Handler info": "Informações do aplicativo",
   "Video (addressable)": "Vídeo (endereçável)",
   "Short video (addressable)": "Vídeo curto (endereçável)",
   "Community definition": "Definição de comunidade",
@@ -1979,5 +1979,7 @@
   "Custodial web wallet. Turn on NWC in settings.": "Carteira web com custódia. Ative o NWC nas configurações.",
   "Mobile wallet on the Spark layer 2. Create an NWC connection with a budget.": "Carteira móvel na camada 2 Spark. Crie uma conexão NWC com um orçamento.",
   "Cashu ecash mobile wallet. Create an NWC string in the app.": "Carteira móvel de dinheiro eletrônico Cashu. Crie uma string NWC no app.",
-  "{{selfcustodial}} means you hold your own keys. {{custodial}} wallets hold your funds for you (easiest to start). {{ecash}} wallets use Cashu tokens, with the funds held by a mint. {{spark}} wallets run on the Spark layer 2: you hold a key, but moving funds relies on Spark’s operators.": "{{selfcustodial}} significa que você mantém suas próprias chaves. Carteiras {{custodial}} guardam seus fundos por você (mais fácil para começar). Carteiras {{ecash}} usam tokens Cashu, com os fundos mantidos por uma mint. Carteiras {{spark}} funcionam na camada 2 Spark: você mantém uma chave, mas movimentar fundos depende dos operadores da Spark."
+  "{{selfcustodial}} means you hold your own keys. {{custodial}} wallets hold your funds for you (easiest to start). {{ecash}} wallets use Cashu tokens, with the funds held by a mint. {{spark}} wallets run on the Spark layer 2: you hold a key, but moving funds relies on Spark’s operators.": "{{selfcustodial}} significa que você mantém suas próprias chaves. Carteiras {{custodial}} guardam seus fundos por você (mais fácil para começar). Carteiras {{ecash}} usam tokens Cashu, com os fundos mantidos por uma mint. Carteiras {{spark}} funcionam na camada 2 Spark: você mantém uma chave, mas movimentar fundos depende dos operadores da Spark.",
+  "These translations are drafts. Spotted a mistake? {{link}}": "Estas traduções são rascunhos. Encontrou um erro? {{link}}",
+  "Tell us on GitHub": "Conte para nós no GitHub"
 }
