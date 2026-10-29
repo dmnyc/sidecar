@@ -60,16 +60,24 @@ It is a copy-and-prune, not a build:
    `test/`, `docs/`, `.claude/`, and the top-level Markdown files
    (`README.md`, `CHANGELOG.md`, `PRIVACY.md`, and the rest), plus
    `package.json`.
-3. `version.js` is generated — a single line recording the version and commit,
+3. Seasonal editions' art is pruned by the calendar. An edition's art
+   (`themes/<key>-*`) ships only in a release tagged inside its window, read
+   from the tag's own `seasons.js` against the tag's own commit date (UTC), so
+   this step is as deterministic as every other. The edition's stylesheet
+   (`themes/<key>.css`) stays: the gallery offers an edition only inside its
+   window, so nothing in a stripped package references the missing files.
+   Files are deleted, never modified — the byte-identity claim below still
+   holds for everything that ships.
+4. `version.js` is generated — a single line recording the version and commit,
    shown in the About dialog. It is the only generated first-party file.
-4. `manifest.json` is reduced to one browser's keys. The repository keeps the
+5. `manifest.json` is reduced to one browser's keys. The repository keeps the
    union of both browsers' manifest keys so the extension can be loaded unpacked
    in either browser without a build step. At package time the Firefox zip drops
    `side_panel`, `minimum_chrome_version`, `externally_connectable`, the
    `sidePanel` permission, and `background.service_worker`; the Chrome zip drops
    `sidebar_action`, `browser_specific_settings`, and `background.scripts`. No
    other file is modified.
-5. The result is zipped.
+6. The result is zipped.
 
 No file contents are otherwise transformed. Every `.js` file in the package is
 byte-identical to the same file in this repository at the tag, except

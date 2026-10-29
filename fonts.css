@@ -37,6 +37,7 @@
                  + Crimson Pro      old-style serif               the red faience tablet
      Sleepy Hollow IM FELL English SC 17th-c. book type, small caps  the title page of the tale
                  + Cormorant figures lining old-style figures      the balance (unicode-range)
+     Phantom Bouquet Sorts Mill Goudy  Goudy Oldstyle revival (1915) the pressed-flower book
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -561,4 +562,19 @@
   font-display: swap;
   src: url('fonts/cormorant-garamond-var.woff2') format('woff2-variations');
   unicode-range: U+0030-0039, U+002C, U+002E, U+00A0, U+202F;
+}
+
+/* Phantom Bouquet, the November special edition (seasons.js). Sorts Mill Goudy, Barry
+   Schwartz's revival of Frederic Goudy's Goudy Oldstyle (SIL OFL 1.1 with no Reserved
+   Font Name — see fonts/OFL-SortsMillGoudy.txt); the unmodified TTF from the Google
+   Fonts repository (ofl/sortsmillgoudy, sourced from The League of Moveable Type). One
+   weight, declared across 400 to 700 so the panel's bold display rules use it as it is
+   rather than synthesizing a bold. Its figures are old-style, which suits the face and
+   the period; the balance is large enough that they read. */
+@font-face {
+  font-family: 'Sorts Mill Goudy';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/sorts-mill-goudy.ttf') format('truetype');
 }

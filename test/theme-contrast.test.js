@@ -409,6 +409,10 @@ const FLOORS = {
   // all three is the lighter card; --gold is the moon's rim, the accent ink, and the
   // pumpkin is a fill only.
   'sleepy-hollow': { '--muted': 7.13, '--faint': 4.39, '--gold': 9.70 },
+  // Phantom Bouquet clears AA on all five inks, for the paper themes' reason: linen is the
+  // field and the cards are ivory. The worst surface for all three is --bg-2, the deeper
+  // linen; --gold is the madder (5.46), and the plum balance is a `color:` only.
+  'phantom-bouquet': { '--muted': 6.44, '--faint': 5.23, '--gold': 5.46 },
 };
 
 for (const theme of THEMES) {
