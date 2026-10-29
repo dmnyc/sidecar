@@ -120,12 +120,14 @@ test('the drifting leaves stand down under either reduce-motion setting', () => 
 
 test('every drifting leaf has its sprite, and no sprite is left without a leaf', () => {
   const css = fs.readFileSync(path.join(ROOT, 'themes', 'phantom-bouquet.css'), 'utf8');
-  const named = [...css.matchAll(/url\((phantom-bouquet-drift-\d+\.avif)\)/g)].map((m) => m[1]).sort();
+  // A sprite may carry more than one leaf (the last few are the first ones turned over).
+  const leaves = [...css.matchAll(/url\((phantom-bouquet-drift-\d+\.avif)\)/g)].map((m) => m[1]);
+  const named = [...new Set(leaves)].sort();
   const shipped = fs.readdirSync(path.join(ROOT, 'themes')).filter((f) => /^phantom-bouquet-drift-\d+\.avif$/.test(f)).sort();
   assert.ok(named.length >= 5, 'the lock screen lost its leaves');
   assert.deepEqual(named, shipped);
   // sidepanel.html carries the elements the leaves ride on.
   const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
   const slots = (html.match(/<div class="lock-leaves"[^>]*>(.*?)<\/div>/) || [, ''])[1].match(/<i><\/i>/g) || [];
-  assert.ok(slots.length >= named.length, 'fewer .lock-leaves slots than drifting leaves');
+  assert.ok(slots.length >= leaves.length, 'fewer .lock-leaves slots than drifting leaves');
 });

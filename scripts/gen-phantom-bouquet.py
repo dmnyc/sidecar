@@ -352,9 +352,7 @@ WHITE_WIDE = (900, 800, [
 # the stylesheet can turn it in the plane and the container's one drop-shadow falls the
 # same way for all of them as they turn (phantom-bouquet.css). On the same scale as every
 # other leaf; while they fall these are the only leaves on the lock screen, and the
-# floor plate stands down for them. Sixteen, half of them ivory and half dyed, and no two
-# alike: where a species and dye come round again, it is the next leaf of its kind,
-# turned over and a few percent larger or smaller. (leaf, size, dye, flip)
+# floor plate stands down for them. (leaf, size, dye, flip)
 DRIFT = [
     ('maple', 1.0, None, False),
     ('cordate', 1.0, 'madder', False),
@@ -364,14 +362,6 @@ DRIFT = [
     ('ovate', 1.0, 'plum', True),
     ('maple', 1.0, 'rust', True),
     ('cordate', 1.0, None, True),
-    ('serrate', 1.0, None, True),
-    ('oak', 0.96, 'olive', False),
-    ('ovate', 1.0, None, False),
-    ('lanceolate', 0.97, 'madder', True),
-    ('maple', 0.95, None, True),
-    ('cordate', 1.03, 'ochre', False),
-    ('ovate', 0.97, 'rust', False),
-    ('lanceolate', 1.04, None, True),
 ]
 
 
