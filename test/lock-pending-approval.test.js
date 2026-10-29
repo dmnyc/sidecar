@@ -159,3 +159,25 @@ test('the popup changes nothing when its entry is gone, the worker is silent, or
   assert.equal(other.pinShown, false);
   assert.equal(other.asked.length, 0, 'only the lock asks the worker');
 });
+
+// ---- a request nobody answered in time is not a rejection --------------------------
+//
+// A card left open past REQUEST_TTL expires in the worker, and the page used to hear
+// "You rejected this request" for it. These run the real expiry and the real error.
+test('an expired request tells the page it timed out; a real reject still says rejected', () => {
+  const resolved = [];
+  const ctx = vm.createContext({
+    queue: [{ id: 'r1' }], callbacks: new Map([['r1', { settled: false, resolve: (d) => resolved.push(d) }]]),
+    Error,
+  });
+  vm.runInContext(lift(bg, 'function expireEntry(') + '\n' + lift(bg, 'function rejectionError(') +
+    '\nthis.expireEntry = expireEntry; this.rejectionError = rejectionError;', ctx);
+  ctx.expireEntry('r1', 'timeout');
+  assert.equal(resolved[0].action, 'reject');
+  assert.match(ctx.rejectionError(resolved[0]).message, /timed out/);
+  assert.equal(ctx.rejectionError({ action: 'reject' }).message, 'You rejected this request');
+  // Both reject paths, signing and payments, go through it.
+  const code = bg.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.equal((code.match(/throw rejectionError\(decision\)/g) || []).length, 2);
+  assert.doesNotMatch(code, /throw new Error\('You rejected this request'\)/, 'a path still claims every reject was the user');
+});

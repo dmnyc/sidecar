@@ -862,6 +862,16 @@ function panelServesWindow(originWindowId) {
   return panelWindowId === originWindowId;
 }
 
+// What a page hears when its request ends without a yes. A request nobody answered in time
+// is not one the user turned down: saying "You rejected this request" for it told a site,
+// and anyone reading its console, that a card left open over a coffee had been refused.
+// English, like every error a page receives (apps match on them).
+function rejectionError(decision) {
+  return new Error(decision && decision.reason === 'timeout'
+    ? 'The request timed out waiting for approval in Sidecar'
+    : 'You rejected this request');
+}
+
 // ---- T6: expire a request past its deadline (or drop a stale tombstone) ----
 function expireEntry(id, reason) {
   const i = queue.findIndex((e) => e.id === id);
@@ -1862,7 +1872,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
       }, originWindowId);
-      if (decision.action === 'reject') throw new Error('You rejected this request');
+      if (decision.action === 'reject') throw rejectionError(decision);
 
       // Resolve a chosen switch-to account BEFORE block/trust, so those apply to
       // the account actually signing, not the one the prompt originally opened with.
@@ -2207,7 +2217,7 @@ async function weblnReadGate(host, method, pubkey, originWindowId) {
     needUnlock: KS.isLocked(),
     needApproval: true,
   }, originWindowId);
-  if (decision.action === 'reject') throw new Error('You rejected this request');
+  if (decision.action === 'reject') throw rejectionError(decision);
   if (decision.action === 'trust') await PERMS.setLevel(pubkey, host, 'trusted');
   if (KS.isLocked()) throw new Error('Keystore is locked');
   await grantWeblnRead(host, pubkey);

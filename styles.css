@@ -4645,6 +4645,15 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   max-width: 340px;
   pointer-events: none;
 }
+/* WHILE AN APPROVAL CARD IS UP, TOASTS GO TO THE TOP. 92px off the floor is where the
+   card keeps its buttons, and a toast is tappable, so one landing there ("Locked due to
+   inactivity", fired by the very lock that gives the card its PIN field) sat on Trust this
+   site and took the tap meant for it. The card's header is the only part that can be
+   covered without hiding a decision. */
+html:has(#view-approval:not(.hidden)) .toasts {
+  bottom: auto;
+  top: 14px;
+}
 .toast {
   display: flex;
   align-items: center;
