@@ -1420,6 +1420,13 @@ window.SidecarCore = (function () {
   // is which key to leave OUT of the p tags.
   const WEB_COMMENT_KIND = 1111;
 
+  // The kind a reply to this event goes out as: 1111 under a comment, 1 otherwise. Asked
+  // of replyTags itself rather than restated, so the label that announces it cannot
+  // drift from what is published.
+  function replyKind(target) {
+    return target ? replyTags(target, '').kind : null;
+  }
+
   function replyTags(target, selfPubkey) {
     const tags = [];
     const tgTags = (target && target.tags) || [];
@@ -3330,6 +3337,135 @@ window.SidecarCore = (function () {
     };
   };
 
+  // ---- publishing: who took the note, and who did not ---------------------------------
+  //
+  // THE SAME RULE AS sidepanel.js publishToRelays, for the pages that are not the panel.
+  // The tab composer and the highlight popup counted every relay that did not hard-reject
+  // as a success, and SimplePool.publish() RESOLVES, with the text "connection failure:
+  // …", for a relay it could not reach. A note reached one relay out of nine and read
+  // "Published to 9 relays." test/publish-parity.test.js holds the two copies to the same
+  // answer; change one, change the other.
+  const PUBLISH_CAP_MS = 12000;
+  const publishFailed = (r) =>
+    r.status === 'rejected' ||
+    (typeof r.value === 'string' && r.value.startsWith('connection failure:'));
+
+  // A relay that never answers cannot hold the post hostage: counted as failed after the cap.
+  function capPublish(p, ms) {
+    let timer;
+    return Promise.race([
+      p,
+      new Promise((res) => { timer = setTimeout(() => res('connection failure: no answer within ' + Math.round(ms / 1000) + 's'), ms); }),
+    ]).finally(() => clearTimeout(timer));
+  }
+
+  // Why a relay did not take it, as a CODE the page words in the reader's language, plus the
+  // relay's own text when nothing here names the reason. Order matters: a refusal that
+  // mentions payment is a payment refusal even though it also says "restricted".
+  function publishRefusal(r) {
+    const raw = r.status === 'rejected'
+      ? (r.reason && r.reason.message) || String(r.reason || 'rejected')
+      : String(r.value || 'refused');
+    const text = raw.replace(/^connection failure:\s*/i, '').trim();
+    if (/timed?\s*out|no answer/i.test(raw)) return { code: 'timeout', text };
+    if (/connection failure|failed to connect|websocket/i.test(raw)) return { code: 'connect', text };
+    if (/pay|paid|subscri|invoice|member/i.test(raw)) return { code: 'payment', text };
+    if (/auth/i.test(raw)) return { code: 'auth', text };
+    if (/rate|too many|slow down/i.test(raw)) return { code: 'rate', text };
+    if (/blocked|restricted|not allowed|forbidden|denied|banned|whitelist|allowlist/i.test(raw)) return { code: 'refused', text };
+    return { code: 'other', text: text.slice(0, 60) };
+  }
+
+  // Publish to every relay, then say which took it. Like the panel: each relay answers in time
+  // or counts as failed, and when NOTHING took it the sockets are dropped and it is tried
+  // once more (nothing landed, so nothing can be duplicated). A partial success resets only
+  // the relays that failed, so a wedged one does not poison the next post.
+  //   pool     a SimplePool
+  //   relays   the URLs to publish to
+  //   params   passed to pool.publish (an onauth, so a relay that wants a signed AUTH gets one)
+  //   normalize  URL normalizer; the pool rejects a second spelling of one relay as a duplicate
+  // Returns { accepted: [url], failed: [{ url, code, text }], total }.
+  async function publishToRelays({ pool, relays, signed, params, capMs = PUBLISH_CAP_MS, normalize = (u) => u }) {
+    const targets = [...new Set(relays.map((u) => { try { return normalize(u); } catch (_) { return u; } }))];
+    const run = async () => Promise.allSettled(pool.publish(targets, signed, params).map((p) => capPublish(p, capMs)));
+    let results = await run();
+    let ok = results.filter((r) => !publishFailed(r)).length;
+    if (!ok) {
+      try { pool.close(targets); } catch (_) {}
+      results = await run();
+      ok = results.filter((r) => !publishFailed(r)).length;
+    } else if (results.some(publishFailed)) {
+      try { pool.close(targets.filter((_, i) => publishFailed(results[i]))); } catch (_) {}
+    }
+    const accepted = [];
+    const failed = [];
+    results.forEach((r, i) => {
+      if (publishFailed(r)) failed.push({ url: targets[i], ...publishRefusal(r) });
+      else accepted.push(targets[i]);
+    });
+    return { accepted, failed, total: targets.length };
+  }
+
+  // The failed relays grouped by reason, biggest group first: [{ code, text, hosts: [host] }].
+  function groupRefusals(failed) {
+    const hostOf = (u) => { try { return new URL(u).host; } catch (_) { return String(u).replace(/^wss?:\/\//, '').replace(/\/$/, ''); } };
+    const groups = new Map();
+    for (const f of failed) {
+      // A refusal we cannot name more precisely keeps the relay's own words, and relays that said
+      // different things are different groups.
+      const keepsText = f.code === 'other' || f.code === 'refused';
+      const key = keepsText ? f.code + ':' + f.text : f.code;
+      if (!groups.has(key)) groups.set(key, { code: f.code, text: keepsText ? f.text : '', hosts: [] });
+      groups.get(key).hosts.push(hostOf(f.url));
+    }
+    return [...groups.values()].sort((a, b) => b.hosts.length - a.hosts.length);
+  }
+
+  // ---- the relay answer after a post, in words: one copy for the tab's receipt and the panel's
+  // banner, so the two cannot describe the same publish differently ----
+  //
+// The relays that did not take it, one sentence per reason, the biggest group first and no
+  // more than three. One template per sentence so a translation can order the words; the hosts
+  // and the relay's own words go in as values.
+  function refusalLines(failed) {
+    const sentence = {
+      timeout: (v) => t('{{hosts}} timed out.', v),
+      connect: (v) => t('Could not reach {{hosts}}.', v),
+      payment: (v) => t('{{hosts}} asked for payment.', v),
+      auth: (v) => t('{{hosts}} asked for sign-in.', v),
+      rate: (v) => t('{{hosts}} rate-limited the post.', v),
+      refused: (v) => (v.text ? t('Refused by {{hosts}}: {{text}}', v) : t('Refused by {{hosts}}.', v)),
+      other: (v) => t('{{hosts}} refused: {{text}}', v),
+    };
+    return groupRefusals(failed).slice(0, 3).map((g) => {
+      const shown = g.hosts.slice(0, 3).join(', ') + (g.hosts.length > 3 ? ' +' + (g.hosts.length - 3) : '');
+      return (sentence[g.code] || sentence.other)({ hosts: shown, text: (g.text || '').slice(0, 80) });
+    });
+  }
+
+  // The same, for the relays that DID take it, said once, so the row opens onto the whole answer.
+  function acceptedLine(accepted) {
+    const hosts = (accepted || []).map((u) => { try { return new URL(u).host; } catch (_) { return String(u); } });
+    const shown = hosts.slice(0, 4).join(', ') + (hosts.length > 4 ? ' +' + (hosts.length - 4) : '');
+    return t('Accepted it: {{hosts}}.', { hosts: shown });
+  }
+
+
+  // "Published to N relays." When every relay accepted it, that line alone (plainClass names its
+  // style in the page that asked). When one did not, the same line is the summary of a row that
+  // opens onto which relays accepted it and why the others did not. ONE ROW THAT OPENS, not a
+  // line per refusal: three sentences of relay trouble under "Your reply is live." read as an
+  // alarm, and a native details element is one the keyboard and screen readers already open.
+  function relayReportNode(report, plainClass) {
+    const summary = tn('Published to {{count}} relay.', 'Published to {{count}} relays.', report.accepted.length);
+    if (!report.failed.length) return h('p', { className: plainClass || '', textContent: summary });
+    const lines = [acceptedLine(report.accepted), ...refusalLines(report.failed)];
+    return h('details', { className: 'compose-done-relays' }, [
+      h('summary', { textContent: summary }),
+      ...lines.map((line) => h('p', { textContent: line })),
+    ]);
+  }
+
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
@@ -3346,7 +3482,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
@@ -3356,5 +3492,7 @@ window.SidecarCore = (function () {
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
+    publishFailed, publishRefusal, publishToRelays, groupRefusals, PUBLISH_CAP_MS,
+    refusalLines, acceptedLine, relayReportNode,
   };
 })();

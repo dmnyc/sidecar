@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "default_locale": "en",
-  "version": "1.16.0",
+  "version": "1.16.3",
   "minimum_chrome_version": "114",
   "description": "__MSG_extDescription__",
   "permissions": [
@@ -29,6 +29,7 @@
       "wallet-budgets.js",
       "nwc-client.js",
       "relax-grants.js",
+      "kind-grants.js",
       "replaceable-baseline.js",
       "zap-requests.js",
       "relay-policy.js",

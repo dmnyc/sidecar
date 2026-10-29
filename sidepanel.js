@@ -273,6 +273,20 @@
     // 1.15.8. Checked against the Project Gutenberg text of Strange Case of Dr Jekyll and
     // Mr Hyde (1886), Henry Jekyll's statement.
     { text: 'Man is not truly one, but truly two.', who: 'Robert Louis Stevenson, 1886' },
+    // 1.16.1. Checked against the Project Gutenberg texts: Poems by Emily Dickinson,
+    // Second Series (1891), "Hope," its first stanza, which runs on past "all"; and The
+    // Education of Henry Adams (printed 1907, published 1918), chapter VII.
+    { text: 'Hope is the thing with feathers that perches in the soul, and sings the tune without the words, and never stops at all.', who: 'Emily Dickinson, 1891' },
+    { text: 'A friend in power is a friend lost.', who: 'Henry Adams, 1907' },
+    // 1.16.2. Checked against the Project Gutenberg texts: The Adventures of Sherlock
+    // Holmes (1892), "A Scandal in Bohemia"; and Little Women (1868), as printed there,
+    // with the contraction, not "I am."
+    { text: 'You see, but you do not observe. The distinction is clear.', who: 'Arthur Conan Doyle, 1892' },
+    { text: 'I’m not afraid of storms, for I’m learning how to sail my ship.', who: 'Louisa May Alcott, 1868' },
+    // 1.16.3. Checked against the Project Gutenberg texts: War Is Kind (1899), the poem's
+    // line breaks run together; and The House of the Seven Gables (1851).
+    { text: 'A man said to the universe: “Sir, I exist!” “However,” replied the universe, “The fact has not created in me a sense of obligation.”', who: 'Stephen Crane, 1899' },
+    { text: 'Life is made up of marble and mud.', who: 'Nathaniel Hawthorne, 1851' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
@@ -560,10 +574,9 @@
   // otherwise the outgoing toast's timer would later remove its replacement.
   const _toastTimers = new WeakMap();
   // 'progress' is the third kind and the odd one: it does NOT expire, and the caller is
-  // expected to close it when whatever it describes finishes. It exists because a panel
-  // payment has no other in-flight surface. The page gets a corner indicator from the
-  // content script, and the panel's own bottom-right corner belongs to the compose FAB,
-  // so the toast stack is the one place a "still happening" line can live here.
+  // expected to close it when whatever it describes finishes. It once carried every
+  // panel payment; the payment bar (#495) owns that job now, so no current caller
+  // passes it — the kind stays only as part of the helper's shape.
   //
   // Returns the element either way, with .close() on it, so a caller holding a progress
   // toast can retire it through the same fade the timer would have used.
@@ -611,6 +624,116 @@
       dismiss();
     });
     return t;
+  }
+
+  // ---- one payment status bar (#495) ----
+  // Every payment path in the panel — stream and profile zaps, bell zaps, the Send
+  // form, offer payments, the creator zap — and every website payment the worker
+  // makes lands in ONE minimized bar at the foot of the panel, built like the mining
+  // bar: one lifecycle (Zapping → Zapped / Failed), one place to look, and no sheet
+  // that has to stay open while the money moves. A payment cannot be cancelled once
+  // it is sent, so unlike the mine there is no Stop; tapping the bar dismisses only
+  // a finished result, never a live one.
+  const paymentFlights = new Map(); // seq -> { label, sub } — payments in the air
+  let paymentSeq = 0;
+  let paymentResult = null;         // { ok, line, sub } — lingers after the last flight
+  let paymentResultTimer = null;
+
+  // Start a flight. Returns a handle whose settle(ok, line, sub) ends it: the line
+  // becomes the bar's short result (green check, or the red alert with the failure's
+  // own message beneath it) and lingers a moment, like the mining bar's "Posted.".
+  function beginPaymentFlight(label, sub) {
+    const id = ++paymentSeq;
+    paymentFlights.set(id, { label: label || t('Sending payment'), sub: sub || '' });
+    // A fresh flight replaces a lingering result — the bar is about what is
+    // happening now, and a result still standing when new money moves is stale.
+    if (paymentResultTimer) { clearTimeout(paymentResultTimer); paymentResultTimer = null; }
+    paymentResult = null;
+    renderPaymentStatus();
+    return {
+      settle(ok, line, sub) {
+        if (!paymentFlights.delete(id)) return;
+        showPaymentResult(ok, line, sub);
+      },
+    };
+  }
+
+  function showPaymentResult(ok, line, sub) {
+    paymentResult = {
+      ok: !!ok,
+      line: line || (ok ? t('Payment sent') : t('Payment failed')),
+      sub: sub || '',
+    };
+    if (paymentResultTimer) clearTimeout(paymentResultTimer);
+    // A failure lingers longer than a success: it is the one thing that may need
+    // reading, and unlike a success it does not announce itself a second way.
+    paymentResultTimer = setTimeout(endPaymentResult, paymentResult.ok ? 3500 : 8000);
+    renderPaymentStatus();
+  }
+
+  function endPaymentResult() {
+    paymentResultTimer = null;
+    paymentResult = null;
+    renderPaymentStatus();
+  }
+
+  // The bar lives at the foot of the main view. When another surface owns the panel
+  // (an approval card, the lock screen), a failure would land where nobody is
+  // looking, so it toasts as well; from the main view the bar IS the announcement.
+  function surfacePaymentFailure(message) {
+    if (!message) return;
+    const view = document.getElementById('view-main');
+    if (view && view.classList.contains('hidden')) toast(message, 'error');
+  }
+
+  // Website payments arrive as worker events with no handle, so a settle retires the
+  // oldest flight (a boost is several keysends back to back, started and settled in
+  // order). A settle with no flight at all is still news — the panel may have been
+  // reloaded mid-payment — so it shows as a bare result.
+  function settleWebsitePayment(ok, line, sub) {
+    if (paymentFlights.size) paymentFlights.delete(paymentFlights.keys().next().value);
+    showPaymentResult(ok, line, sub);
+    if (!ok) surfacePaymentFailure(sub || line);
+  }
+
+  function renderPaymentStatus() {
+    const bar = document.getElementById('payment-status');
+    const view = document.getElementById('view-main');
+    if (!bar) return;
+    const flightCount = paymentFlights.size;
+    if (!flightCount && !paymentResult) {
+      bar.classList.add('hidden');
+      if (view) view.classList.remove('payment-active'); // drop the FAB lift
+      return;
+    }
+    bar.classList.remove('hidden');
+    if (view) view.classList.add('payment-active');
+    const glyph = document.getElementById('payment-status-glyph');
+    const line = document.getElementById('payment-status-line');
+    const sub = document.getElementById('payment-status-sub');
+    const count = document.getElementById('payment-status-count');
+    // A failure's message may run to a second line; see .payment-status.is-failed.
+    bar.classList.toggle('is-failed', !flightCount && !!paymentResult && !paymentResult.ok);
+    glyph.className = 'payment-status-glyph';
+    glyph.textContent = '';
+    if (flightCount) {
+      // The newest flight's line; older ones stand behind it as the count chip.
+      const newest = [...paymentFlights.values()][flightCount - 1];
+      glyph.append(h('span', { className: 'toast-spin' })); // the shared spinner idiom
+      line.textContent = newest.label;
+      sub.textContent = newest.sub;
+    } else if (paymentResult) {
+      glyph.append(icon(paymentResult.ok ? 'check' : 'alert'));
+      if (!paymentResult.ok) glyph.classList.add('bad');
+      line.textContent = paymentResult.line;
+      sub.textContent = paymentResult.sub;
+    }
+    if (flightCount > 1) {
+      count.textContent = t('{{count}} in flight', { count: I18N.fmtNum(flightCount) });
+      count.classList.remove('hidden');
+    } else {
+      count.classList.add('hidden');
+    }
   }
 
   // ---- lightning strike (zap sent) ----
@@ -948,6 +1071,27 @@
     if (msg.event === 'notePublished' && msg.pubkey && msg.id) {
       if (msg.kind === WEB_COMMENT_KIND) rememberOwnComment(msg.pubkey, msg.id);
       else rememberOwnNote(msg.pubkey, msg.id);
+      return;
+    }
+    // A WEBSITE PAYMENT IN THE AIR (#495). The worker broadcasts the moment an
+    // authorized website payment starts moving and when it settles, so the payment
+    // bar shows the whole flight — not only the walletChanged refresh after the
+    // money landed. The bar line is generic on purpose: the worker knows the amount
+    // and the host, and says exactly that much.
+    if (msg.event === 'paymentStarted') {
+      const line = msg.sats != null
+        ? (msg.zap ? tSec('Zapping {{amount}} sats', { amount: fmtSats(msg.sats) })
+                   : tSec('Sending {{amount}} sats', { amount: fmtSats(msg.sats) }))
+        : tSec('Sending payment');
+      beginPaymentFlight(line, msg.host || '');
+      return;
+    }
+    if (msg.event === 'paymentSettled') {
+      settleWebsitePayment(
+        msg.ok === true,
+        msg.ok === true && msg.sats != null ? tSec('Sent {{amount}} sats', { amount: fmtSats(msg.sats) }) : undefined,
+        msg.ok === true ? '' : (msg.error || '')
+      );
       return;
     }
     if (msg.event === 'walletChanged' && state && !state.locked) {
@@ -2760,15 +2904,14 @@
           });
           const paying = sats || offerData.price || 0;
           offerPay.textContent = 'Paying…';
-          flight = toast(paying ? 'Paying ' + fmtSats(paying) + ' sats' : 'Paying', 'progress');
+          flight = beginPaymentFlight(paying ? tSec('Paying {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paying'));
           await client.payInvoice(bolt11);
-          if (flight) flight.close();
-          toast(paying ? 'Paid ' + fmtSats(paying) + ' sats' : 'Paid', 'success');
+          if (flight) flight.settle(true, paying ? tSec('Paid {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paid'));
           lightningStrike();
           closeModal();
           return;
         } catch (e) {
-          if (flight) flight.close();
+          if (flight) flight.settle(false, null, e.message || 'Could not pay that offer.');
           offerErr.textContent = e.message || 'Could not pay that offer.';
         }
         offerPay.disabled = false;
@@ -2826,8 +2969,9 @@
         send.textContent = 'Sending…';
         // The panel path people actually reach. This sheet is dismissible mid-zap, so a
         // disabled button inside it was never an in-flight indicator: close the sheet and
-        // there was nothing at all until the toast. Same progress toast the Send modal
-        // uses, started once the invoice exists and the payment is genuinely going out.
+        // there was nothing at all until the toast. Same start point as the Send modal:
+        // the bar takes over once the invoice exists and the payment is genuinely going
+        // out, and it stays up wherever the user goes — sheet closed or not.
         let flight = null;
         try {
           const client = await ensureNwc();
@@ -2840,7 +2984,7 @@
             streamEvent: options?.streamEvent,
             event: options?.chatEvent,
           });
-          flight = toast('Zapping ' + fmtSats(sats) + ' sats', 'progress');
+          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           putAwayPaidSheet(zapForm);
           const res = await client.payInvoice(invoice);
           // NWC history keeps the amount and nothing else, so an outgoing zap
@@ -2859,19 +3003,18 @@
             comment: note.value.trim(),
             feeMsat: res && res.fees_paid,
           });
-          flight.close();
+          flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike(); // only once it settles
-          toast(tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }), 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
           note.value = '';
         } catch (e) {
-          // Toasted as well as written inline, for the same reason the Send modal does it:
-          // this sheet is dismissible mid-payment, and zapErr goes with it. Success
-          // already toasted, so without this a zap that worked was announced and a zap
-          // that failed was silent, which is the wrong way round.
-          if (flight) flight.close();
-          toast(e.message, 'error');
+          // The bar is the announcement — this sheet is dismissible mid-payment, and
+          // zapErr goes with it. When another surface owns the panel the bar would
+          // land unseen, so the failure toasts too (see surfacePaymentFailure);
+          // the inline line still serves whoever never left the sheet.
+          if (flight) flight.settle(false, null, e.message);
+          surfacePaymentFailure(e.message);
           zapErr.textContent = e.message;
         } finally {
           send.disabled = false;
@@ -4393,9 +4536,27 @@
   const ACCOUNT_STATS_OPEN_MAX = 3;
   // Whether the panel has shown the active account once since it opened (revealActiveAccount).
   let _activeRevealedOnOpen = false;
-  const accountStatsOpen = () => (accountStatsExpanded == null
+  // While the video player is open the overview stays closed, so more of the panel shows
+  // beside it. Held apart from accountStatsExpanded, which is the person's own choice and
+  // comes back when the player closes; opening the drawer by hand ends the hold.
+  let statsCollapsedForPlayer = false;
+  const accountStatsOpen = () => (statsCollapsedForPlayer ? false : accountStatsExpanded == null
     ? ((state && state.accounts) || []).length <= ACCOUNT_STATS_OPEN_MAX
     : accountStatsExpanded);
+  // The drawer on screen, so the player opening or closing can fold it without a rebuild.
+  let accountStatsSync = null;
+  (() => {
+    const dock = $('stream-dock');
+    if (!dock) return;
+    let playing = dock.classList.contains('stream-playing');
+    new MutationObserver(() => {
+      const now = dock.classList.contains('stream-playing');
+      if (now === playing) return;
+      playing = now;
+      statsCollapsedForPlayer = now;
+      if (accountStatsSync) accountStatsSync();
+    }).observe(dock, { attributes: true, attributeFilter: ['class'] });
+  })();
   // The overview's "the network is back, retry what failed", for the one overview on
   // screen. A single listener and a slot rather than a listener per render: the drawer is
   // rebuilt on every renderMain, and each rebuild adding its own would pile up closures
@@ -4826,7 +4987,10 @@
     ]);
   }
 
-  async function publishToRelays(relays, signed) {
+  // `report`, when a caller passes one, is filled with which relays accepted the event and why
+  // the others did not, in the shape the shared core's relayReportNode reads: { accepted,
+  // failed, total }. The return value stays the count every other caller already reads.
+  async function publishToRelays(relays, signed, report) {
     if (!relays.length) throw new Error('No relays configured (add some in Settings)');
     // Dedupe the way the pool will. A plain Set over the raw strings keeps
     // 'wss://nos.lol' and 'wss://nos.lol/' as two entries, but SimplePool normalizes
@@ -4859,6 +5023,14 @@
       resetPoolRelays(targets.filter((_, i) => publishFailed(results[i])));
     }
 
+    if (report) {
+      const SCore = window.SidecarCore;
+      report.accepted = targets.filter((_, i) => !publishFailed(results[i]));
+      report.failed = targets
+        .map((url, i) => (publishFailed(results[i]) ? { url, ...SCore.publishRefusal(results[i]) } : null))
+        .filter(Boolean);
+      report.total = targets.length;
+    }
     if (!ok) {
       throw new Error(publishFailureMessage(targets, results));
     }
@@ -4926,8 +5098,8 @@
   }
 
   // Publish an already-signed event to the account's write relays (NIP-65 → configured).
-  async function publishSigned(signed) {
-    return publishToRelays(await postRelays(), signed);
+  async function publishSigned(signed, report) {
+    return publishToRelays(await postRelays(), signed, report);
   }
 
   // ---- web comments (NIP-22 kind 1111 over a NIP-73 "web" target) -------------
@@ -5041,6 +5213,39 @@
 
   function pollRelayTags(ev) {
     return ((ev && ev.tags) || []).filter((t) => t[0] === 'relay' && t[1]).map((t) => t[1]);
+  }
+
+  // NIP-88 SAYS WHERE A BALLOT GOES, AND THE BIG CLIENTS DO NOT SEND IT THERE. The spec:
+  // "The responses are meant to be published to the relays specified in the poll event."
+  // The practice, measured on a live poll in October 2026 — 12 ballots, of which 10 sat
+  // on relay.primal.net, 6 on relay.damus.io and 4 on relay.snort.social, none of which
+  // the poll or its author named, while the poll's own four relays between them held 4.
+  // Those three are the backends Primal, Damus and Snort file their users' votes with;
+  // nos.lol is the largest general relay, where the smaller clients' ballots land. A
+  // count asked only of the poll's relays is a subset of the real one on every poll,
+  // by construction, which is why every other client shows more votes than this panel.
+  //
+  // relay.ditto.pub joined after a second poll, measured the same month: 23 voters, two
+  // of whose ballots sat on no relay this list or the poll named. Without them this
+  // panel showed the losing option ahead. relay.ditto.pub held every ballot on that poll.
+  //
+  // Asked for kind:1018 ballots by poll id, and for nothing else. The tally still
+  // applies every rule to what comes back — one ballot per pubkey, nothing past endsAt —
+  // so a relay here can surface a voter, but cannot invent one.
+  const POLL_VOTE_DISCOVERY_RELAYS = [
+    'wss://relay.primal.net',
+    'wss://relay.damus.io',
+    'wss://relay.snort.social',
+    'wss://nos.lol',
+    'wss://relay.ditto.pub',
+  ];
+
+  // The full set a vote query is sent to: the poll's own relays first — a compliant
+  // ballot is there, and those are the relays likeliest to answer — then this account's,
+  // then the discovery set. Pure, so the two surfaces that count votes, the list and the
+  // results sheet, ask the same universe and cannot drift apart.
+  function pollVoteQueryUrls(pollUrls, accountUrls) {
+    return [...new Set([...(pollUrls || []), ...(accountUrls || []), ...POLL_VOTE_DISCOVERY_RELAYS])];
   }
 
   // COUNTING IS THE PART WITH RULES, so all of them live here rather than in the view.
@@ -8315,6 +8520,10 @@
         if (!zapGate.pass(sats)) return;
         send.disabled = true;
         send.textContent = t('Sending…');
+        // One payment bar for every path (#495): this sheet used to have only the
+        // disabled button as its pending indicator, and an inline-only failure. The
+        // bar starts once the invoice exists and the payment is genuinely going out.
+        let flight = null;
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
@@ -8328,6 +8537,7 @@
             recipientPubkey: who,
             event: ev,
           });
+          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           const res = await client.payInvoice(invoice);
           await savePayMeta(invoice, {
             zapPubkey: who,
@@ -8335,12 +8545,14 @@
             comment: comment.value.trim(),
             feeMsat: res && res.fees_paid,
           });
+          flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike();
-          toast(tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }), 'success');
           zapForm.classList.add('hidden');
           amount.value = '';
           comment.value = '';
         } catch (e2) {
+          if (flight) flight.settle(false, null, e2.message);
+          surfacePaymentFailure(e2.message);
           err.textContent = e2.message;
         } finally {
           send.disabled = false;
@@ -9270,11 +9482,18 @@
     chev.classList.add('account-stats-chevron');
     if (!open) chev.style.transform = 'rotate(-90deg)';
     header.append(chev, document.createTextNode('Overview'));
+    // Draw the drawer as accountStatsOpen() says now, loading its numbers the first time it opens.
+    const applyOpen = () => {
+      const now = accountStatsOpen();
+      drawer.classList.toggle('collapsed', !now);
+      chev.style.transform = now ? '' : 'rotate(-90deg)';
+      if (now && !drawer.dataset.loaded) loadStats();
+    };
+    accountStatsSync = () => { if (drawer.isConnected) applyOpen(); };
     header.addEventListener('click', () => {
-      accountStatsExpanded = !accountStatsOpen();
-      drawer.classList.toggle('collapsed', !accountStatsExpanded);
-      chev.style.transform = accountStatsExpanded ? '' : 'rotate(-90deg)';
-      if (accountStatsExpanded && !drawer.dataset.loaded) loadStats();
+      accountStatsExpanded = drawer.classList.contains('collapsed');
+      statsCollapsedForPlayer = false;
+      applyOpen();
     });
 
     const body = document.createElement('div');
@@ -11174,6 +11393,7 @@
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('paypill-anywhere-toggle').checked = settings.payPillAnywhere === true; // default off
+    $('webln-takeover-toggle').checked = settings.weblnTakeover === true; // default off (#501)
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     // The way back from "Don't show this again": clears both flags in the local
@@ -11410,7 +11630,7 @@
   };
 
 
-  function siteRow(host, level, boundPk, authorizedPks, onForget) {
+  function siteRow(host, level, boundPk, authorizedPks, onForget, grants) {
     const boundAcct = boundPk ? state.accounts.find((a) => a.pubkey === boundPk) : null;
     const isActiveBound = boundPk && boundPk === state.activePubkey;
     // 2+ accounts have signed in here — a multi-login client (Jumble, YakiHonne,
@@ -11437,6 +11657,26 @@
       manage.addEventListener('click', () => sharedSiteModal(host, authorizedPks));
       shared.append(manage);
       main.append(shared);
+    }
+    // Standing per-kind grants (#482): what this site signs without asking.
+    // The account axis is the row's own "Signs in as" line above — the list
+    // shows the active account's grants, the identity this pane manages. One
+    // tap on ✕ revokes; the worst case is the site asking again.
+    if (grants && grants.length) {
+      const wrap = h('div', { className: 'kind-grants' });
+      wrap.append(h('div', { className: 'kind-grants-title', textContent: t('Signs without asking:') }));
+      for (const g of grants) {
+        const line = h('div', { className: 'kind-grant' });
+        const label = (KIND_NAMES[g.kind] || 'kind ' + g.kind) + (g.d ? ' · “' + g.d + '”' : '');
+        line.append(h('span', { className: 'kind-grant-label', textContent: label }));
+        line.append(iconButton(t('Stop always signing this'), 'x', async () => {
+          await call({ type: 'SIDECAR_REMOVE_KIND_GRANT', host, kind: g.kind, d: g.d });
+          line.remove();
+          if (!wrap.querySelector('.kind-grant')) wrap.remove();
+        }));
+        wrap.append(line);
+      }
+      main.append(wrap);
     }
     row.append(main);
 
@@ -11667,23 +11907,33 @@
   let sitesShownN = 0;
   let logShownN = 0;
   async function renderActivity() {
-    const [perms, bindings, authorized, log] = await Promise.all([
+    const [perms, bindings, authorized, log, kindGrants] = await Promise.all([
       call({ type: 'SIDECAR_GET_PERMISSIONS' }),
       call({ type: 'SIDECAR_GET_SITE_BINDINGS' }),
       call({ type: 'SIDECAR_GET_SITE_AUTHORIZED' }),
       call({ type: 'SIDECAR_GET_ACTIVITY' }),
+      call({ type: 'SIDECAR_GET_KIND_GRANTS' }),
     ]);
+    // Standing per-kind grants (#482) grouped by host, so each site row can
+    // show — and revoke — what that site always signs without asking.
+    const grantsByHost = {};
+    for (const g of kindGrants || []) {
+      (grantsByHost[g.host] || (grantsByHost[g.host] = [])).push(g);
+    }
     const sites = $('sites-list');
     const sitesFilter = $('sites-filter');
     const sitesMore = $('sites-more');
     // Union of the active account's permissioned hosts and every bound host, so
     // a site pinned to a different account still shows up (and can be switched).
-    // Ordered by most-recently-used first (per the activity log, which is already
-    // newest-first) so an active site isn't buried pages deep behind stale ones;
-    // sites with no logged activity yet sort after, alphabetically among themselves.
+    // Hosts whose only record is a standing per-kind grant (#482) join too —
+    // otherwise a grant on an otherwise-unrecorded site would be invisible and
+    // irrevocable. Ordered by most-recently-used first (per the activity log,
+    // which is already newest-first) so an active site isn't buried pages deep
+    // behind stale ones; sites with no logged activity yet sort after,
+    // alphabetically among themselves.
     const lastUsed = new Map();
     for (const e of log) if (e.host && !lastUsed.has(e.host)) lastUsed.set(e.host, e.ts);
-    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings)])].sort((a, b) => {
+    const hosts = [...new Set([...Object.keys(perms), ...Object.keys(bindings), ...Object.keys(grantsByHost)])].sort((a, b) => {
       const ta = lastUsed.get(a), tb = lastUsed.get(b);
       if (ta != null && tb != null) return tb - ta;
       if (ta != null) return -1;
@@ -11727,7 +11977,7 @@
         const renderSitesPage = () => {
           const target = Math.min(Math.max(SITES_PAGE, sitesShownN), filtered.length);
           filtered.slice(shownSites, target).forEach((host) =>
-            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null, onSiteForgotten))
+            sites.append(siteRow(host, perms[host] ? perms[host].level : 'ask', bindings[host] || null, authorized[host] || null, onSiteForgotten, grantsByHost[host] || null))
           );
           shownSites = target;
           sitesShownN = target;
@@ -13010,9 +13260,11 @@
     }
   }
 
-  async function neventFor(signed) {
-    let relays = [];
-    try { relays = (await postRelays()).slice(0, 2); } catch (_) {}
+  // The hints are relays that ACCEPTED the note. They were the first two write relays, accepted
+  // or not, so the banner's link could send a client first to a relay that had refused it.
+  async function neventFor(signed, accepted) {
+    let relays = (accepted || []).slice(0, 2);
+    if (!relays.length) { try { relays = (await postRelays()).slice(0, 2); } catch (_) {} }
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
@@ -13023,11 +13275,11 @@
     if (banner) hide(banner);
   }
 
-  async function showPostBanner(signed, isReply) {
+  async function showPostBanner(signed, isReply, report) {
     const banner = $('post-banner');
     if (!banner) return;
     let nevent;
-    try { nevent = await neventFor(signed); } catch (_) { return; }
+    try { nevent = await neventFor(signed, report && report.accepted); } catch (_) { return; }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     // The account that just signed the note, not whatever is active by the time the
     // banner paints — they can differ if the user switches while it is up.
@@ -13063,9 +13315,27 @@
     // and the two actions share the row beneath. They wrap to a row each if they cannot
     // both fit, which happens below about a 310px panel with the longest client name,
     // rather than running out past the border.
-    banner.classList.toggle('post-banner-stacked', isPoll);
-    if (!isPoll) {
+    // WHEN NOT EVERY RELAY ACCEPTED IT, the shared row from the tab's receipt goes under the
+    // message: "Published to N relays.", opening onto which accepted it and why the others did
+    // not. A row with words, so it takes the stacked layout's full width; the banner also stops
+    // counting down once it is opened, so it does not vanish while it is being read.
+    const partial = !!(report && report.failed && report.failed.length);
+    const relaysRow = partial ? window.SidecarCore.relayReportNode(report) : null;
+    if (relaysRow) {
+      relaysRow.classList.add('post-banner-relays');
+      relaysRow.addEventListener('toggle', () => {
+        if (relaysRow.open && _postBannerTimer) { clearTimeout(_postBannerTimer); _postBannerTimer = null; }
+      });
+    }
+    banner.classList.toggle('post-banner-stacked', isPoll || partial);
+    if (!isPoll && !partial) {
       banner.append(msg, open, close);
+    } else if (!isPoll) {
+      banner.append(
+        h('div', { className: 'post-banner-head' }, [msg, close]),
+        relaysRow,
+        h('div', { className: 'post-banner-actions' }, [open])
+      );
     } else {
       // The results sheet first: it is the thing just made, and the one view the web
       // client link cannot stand in for.
@@ -13076,6 +13346,7 @@
       });
       banner.append(
         h('div', { className: 'post-banner-head' }, [msg, close]),
+        ...(relaysRow ? [relaysRow] : []),
         h('div', { className: 'post-banner-actions' }, [results, open])
       );
     }
@@ -13467,13 +13738,26 @@
       // tab focused that tab and showed the wrong draft, silently.
       let replyId = null;
       try { replyId = new URL(found.documentUrl).searchParams.get('reply') || null; } catch (_) {}
-      return { ...found, replyId };
+      // A tab that posted says so in its address (compose.js showPosted): what it holds is
+      // a receipt, not a draft.
+      return { ...found, replyId, done: /#done$/.test(found.documentUrl) };
     } catch (_) {
       // An older Chrome without getContexts, or a call that threw. Falling through to
       // opening the panel composer is the safe direction: the draft store is the same
       // either way, and refusing to open a composer at all would be worse than a race.
       return null;
     }
+  }
+
+  // Whether the open compose tab is editing THIS draft. A tab on its receipt is editing
+  // nothing: treating it as an open composer refused every new note and reply until it
+  // was closed.
+  function composeTabHoldsDraft(open, wantId) {
+    return !!open && !open.done && open.replyId === wantId;
+  }
+  // Whether the open tab has to be pointed at another draft first.
+  function composeTabNeedsSwitch(open, wantId) {
+    return !!open && (open.done || open.replyId !== wantId);
   }
 
   // HANDING A DRAFT TO THE TAB, from Expand and from the always-expanded setting alike.
@@ -13509,7 +13793,7 @@
         // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the "tabs"
         // permission, which this extension does not ask for, and chrome.tabs.update
         // fails silently without it.
-        if (open.replyId !== wantId) {
+        if (composeTabNeedsSwitch(open, wantId)) {
           chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId }).catch(() => {});
         }
         await chrome.tabs.update(open.tabId, { active: true });
@@ -13552,7 +13836,7 @@
     {
       const wantId = (opts && opts.replyTo && opts.replyTo.id) || null;
       const open = await liveComposeTab();
-      if (open && open.replyId === wantId) {
+      if (composeTabHoldsDraft(open, wantId)) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
         try {
@@ -13858,6 +14142,14 @@
     //
     // The countdown is the LAST thing you see before it publishes, and a reply read
     // without its parent is the one that goes out saying the wrong thing.
+    // "kind 1" or "kind 1111" beside the label. The dev selector can choose the kind
+    // instead of inheriting it, so it repaints this too.
+    let replyKindEl = null;
+    function paintReplyKind() {
+      if (!replyKindEl || !replyTo) return;
+      const kind = isDevBuild() && devKindEnabled && devKind ? devKind : window.SidecarCore.replyKind(replyTo);
+      replyKindEl.textContent = t('kind {{kind}}', { kind });
+    }
     function buildReplyBlock() {
       if (!replyTo) return null;
       const block = h('div', { className: 'reply-target' });
@@ -13889,7 +14181,9 @@
       const full = replyTo.content || '';
       renderNoteText(body, full, 240);
       makeMediaExpandable(block, body);
-      block.append(who, body);
+      replyKindEl = h('span', { className: 'reply-target-kind' });
+      paintReplyKind();
+      block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Replying to') }), replyKindEl]), who, body);
 
       // READING THE REST OF WHAT YOU ARE ANSWERING.
       //
@@ -14034,7 +14328,9 @@
         toSign = rest;
       }
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: toSign, expectedPubkey: pubkey });
-      await publishSigned(signed);
+      // Which relays accepted it, for the banner. Set here, read by finishPublish.
+      lastPublishReport = {};
+      await publishSigned(signed, lastPublishReport);
       return signed;
     }
 
@@ -14149,7 +14445,7 @@
           ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
           : t('Dev build only. Automatic preserves the kind of the event you answer.');
       };
-      select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+      select.addEventListener('change', () => { devKind = Number(select.value); paint(); paintReplyKind(); });
       paint();
       return h('div', { className: 'compose-dev-kind' }, [
         h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
@@ -14176,7 +14472,7 @@
         onChange: (text) => {
           draft.text = text;
           // An edit makes it a different note, so the repeat question no longer applies.
-          if (repeatAsked) { repeatAsked = null; post.textContent = t('Post'); err.textContent = ''; }
+          if (repeatAsked) { repeatAsked = null; post.textContent = replyTo ? t('Reply') : t('Post'); err.textContent = ''; }
           updatePostState();
           scheduleSave();
         },
@@ -14627,7 +14923,7 @@
       const paintEitherOr = pollEditor.paintEitherOr;
 
       const err = h('div', { className: 'error' });
-      const post = h('button', { className: 'primary', textContent: t('Post') });
+      const post = h('button', { className: 'primary', textContent: replyTo ? t('Reply') : t('Post') });
       function updatePostState() {
         // The tab composes a note. A poll is a different kind with its own editor, so
         // once one is open the way out of the panel goes away rather than quietly
@@ -14768,6 +15064,7 @@
       editor.focus();
     }
 
+    let lastPublishReport = null; // the relays that accepted the last publish, from doPublish
     // Publish the note and finish (clear draft, close, banner) — shared by the
     // countdown's auto/now fire and the immediate (countdown-off) post path.
     async function finishPublish() {
@@ -14794,7 +15091,7 @@
         if (miningStatus) postedMinimizedMine(); else endMinimizedMine();
         closeModal();
         toast(signed.kind === POLL_KIND ? t('Poll published') : replyTo ? t('Reply published') : t('Note published'), 'success');
-        showPostBanner(signed, !!replyTo);
+        showPostBanner(signed, !!replyTo, lastPublishReport);
       } catch (e) {
         // BACK TO THE EDITOR WITH THE TEXT INTACT, whether the mine failed, the signer
         // refused or every relay did. draft is untouched on all three paths and was just
@@ -15609,20 +15906,16 @@
     // so a vote is still only counted against a poll that was open when it was cast.
     let votes = [];
     try {
-      const urls = [
-        ...new Set([
-          ...polls.flatMap((ev) => pollRelayTags(ev)),
-          ...(await pollReadRelays(active.pubkey)),
-        ]),
-      ];
-      if (urls.length) {
-        votes =
-          (await poolQuerySync(
-            urls,
-            { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
-            { maxWait: 8000 }
-          )) || [];
-      }
+      const urls = pollVoteQueryUrls(
+        polls.flatMap((ev) => pollRelayTags(ev)),
+        await pollReadRelays(active.pubkey)
+      );
+      votes =
+        (await poolQuerySync(
+          urls,
+          { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
+          { maxWait: 8000 }
+        )) || [];
     } catch (_) {}
     // The cache is written even if the sheet has gone, since the answer is about the
     // account rather than about this list, and it is what the next open paints from.
@@ -15700,13 +15993,13 @@
   }
 
   // Votes live wherever the poll said they should, which is not necessarily where this
-  // account reads. Both sets are asked, deduped, because a poll written by another
-  // client names its own relays and ignoring them is how a real count comes back empty.
+  // account reads — and, since the big clients file ballots with their own backends,
+  // not necessarily there either. All three layers are asked, deduped, because a poll
+  // written by another client names its own relays and ignoring them is how a real
+  // count comes back empty; see POLL_VOTE_DISCOVERY_RELAYS for the third layer.
   async function fetchPollVotes(pollEv) {
     const endsAt = pollEndsAt(pollEv);
-    const mine = await pollReadRelays(state.activePubkey);
-    const urls = [...new Set([...pollRelayTags(pollEv), ...mine])];
-    if (!urls.length) return [];
+    const urls = pollVoteQueryUrls(pollRelayTags(pollEv), await pollReadRelays(state.activePubkey));
     const filter = { kinds: [POLL_RESPONSE_KIND], '#e': [pollEv.id] };
     // Asked for as well as enforced in the tally. The filter saves pulling ballots that
     // can never count; tallyPollVotes drops them again because a relay is free to
@@ -15942,6 +16235,23 @@
     }
   }
 
+  // THE POLL'S OWN ⋮: the event rather than its votes, so its id, a link and the JSON, from
+  // the same menu every notification row carries (without the npub row: the author is not
+  // what anyone opens a tally to copy), and in the same place:
+  // beside the poll itself, at the end of its question line. Not in the sheet's corners,
+  // which are the two exits and are what the heading is centered between. Icon only in that
+  // slot (the question truncates beside it, never the button); its rows open under the
+  // question at full width, because each one has words. Added once the poll is in hand, and
+  // once only, since Refresh runs the load again.
+  function attachPollMenu(questionRow, pollEv, link) {
+    if (!pollEv || questionRow.querySelector('.notif-more-btn')) return null;
+    const menu = buildEventMenu(pollEv, link || null, { npubOf: null });
+    menu.panel.classList.add('poll-more-menu');
+    questionRow.append(menu.btn);
+    questionRow.after(menu.panel);
+    return menu;
+  }
+
   // `poll` is either the event or an id to go and find. A vote notification only
   // carries the id, and refusing to open without the whole event would make the row it
   // came from a dead end.
@@ -15973,12 +16283,14 @@
 
       modal.append(h('h3', { textContent: 'Poll results' }));
       const question = h('p', { className: 'poll-result-question' });
+      // The question's line, with room at its end for the poll's ⋮.
+      const questionRow = h('div', { className: 'poll-question-row' }, [question]);
       const body = h('div', { className: 'poll-result-body' });
       body.append(waitingRow('Counting votes…'));
       const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
       const openOut = h('button', { className: 'ghost hidden' });
       const actions = h('div', { className: 'actions' }, [recount, openOut]);
-      modal.append(question, body, actions);
+      modal.append(questionRow, body, actions);
 
       let pollEv = typeof poll === 'string' ? null : poll;
 
@@ -16005,14 +16317,16 @@
           // two different places. Null when settings could not be read, which the rows
           // read as "no link" rather than guessing at a URL.
           let client = null;
+          let url = null;
           try {
             const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
             client = resolveClient(settings, state.activePubkey);
-            const url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
+            url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
             openOut.textContent = 'Open in ' + client.label;
             openOut.classList.remove('hidden');
             openOut.onclick = () => openInClient(url);
           } catch (_) {}
+          attachPollMenu(questionRow, pollEv, url);
           body.innerHTML = '';
           body.append(waitingRow('Counting votes…'));
           const votes = await fetchPollVotes(pollEv);
@@ -18515,6 +18829,7 @@
   let nwcConn = null; // the connection string it was built from — see ensureNwc
   let nwcNotifSub = null; // NIP-47 notification subscription handle
   let nwcPollTimer = null; // fallback balance polling interval
+  let nwcQuiet = false; // the wallet wakes a phone per request: never poll it, see startWalletMonitor
   const fmtSats = (n) => I18N.fmtNum(Math.round(n));
   const msatToSat = (m) => Math.floor((m || 0) / 1000);
 
@@ -19499,6 +19814,12 @@
   // the setting is on, an account is active, and a wallet is connected. Paints
   // the shared balanceCache instantly, then fetches fresh if it's empty or stale
   // (>60s) for this account.
+  // A figure on screen is refetched once it is a minute old, except for a wallet that wakes a
+  // phone per request: that one is read only when there is nothing to show.
+  function pinnedNeedsFetch(cached, ts) {
+    return !cached || (!nwcQuiet && (!ts || Date.now() - ts > 60000));
+  }
+
   async function renderPinnedBalanceBar() {
     const bar = $('pinned-balance');
     if (!bar) return;
@@ -19518,8 +19839,7 @@
     const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     if (cached) paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
     else amt.textContent = '···';
-    const stale = !cached || !balanceCache.ts || Date.now() - balanceCache.ts > 60000;
-    if (stale) {
+    if (pinnedNeedsFetch(cached, balanceCache && balanceCache.ts)) {
       try {
         const client = await ensureNwc();
         if (client) {
@@ -19648,14 +19968,20 @@
   // Primal's wallet is Spark-based and only works inside Primal's own apps, over their
   // own nostrconnect session — the NWC string it hands out (routed through a primal.net
   // relay) can't be driven as a standalone NWC wallet, so a getInfo round-trip just
-  // hangs. Detect it from the relay host and reject up front with a clear reason.
+  // hangs. Detect it and reject up front with a clear reason. A primal.net relay alone
+  // is not the sign: other wallets list it among several, and Sidecar talks to the
+  // first. Primal's own string has a primal.net Lightning address, or no relay but
+  // primal.net.
   function isPrimalNwc(connection) {
     try {
       const q = connection.split('?')[1];
       if (!q) return false;
-      return new URLSearchParams(q).getAll('relay').some((r) => {
+      const params = new URLSearchParams(q);
+      if (/@primal\.net$/i.test((params.get('lud16') || '').trim())) return true;
+      const relays = params.getAll('relay').map((r) => String(r).trim()).filter(Boolean);
+      return relays.length > 0 && relays.every((r) => {
         let host;
-        try { host = new URL(r).hostname; } catch (_) { host = String(r); }
+        try { host = new URL(r).hostname; } catch (_) { host = r; }
         return /(^|\.)primal\.net$/i.test(host);
       });
     } catch (_) { return false; }
@@ -19854,8 +20180,21 @@
     if (nwcPollTimer) { clearInterval(nwcPollTimer); nwcPollTimer = null; }
   }
 
-  function startWalletMonitor(client) {
+  // Whether a balance is in front of the user: the panel is showing, and either the Wallet
+  // tab or the pinned bar is. A poll for a figure nobody can see is a request for nothing.
+  function balanceOnScreen() {
+    if (document.visibilityState !== 'visible') return false;
+    const tab = document.querySelector('.tab.active');
+    if (tab && tab.dataset.tab === 'wallet') return true;
+    const bar = $('pinned-balance');
+    return !!bar && !bar.classList.contains('hidden');
+  }
+
+  const NWC_POLL_MS = 60000;
+
+  function startWalletMonitor(client, connection) {
     stopWalletMonitor();
+    nwcQuiet = window.SidecarNWC.wakesByPush(connection);
     // Push: listen for NIP-47 kind:23196 payment notifications.
     nwcNotifSub = client.subscribeNotifications((payload) => {
       if (!state || state.locked) return;
@@ -19872,10 +20211,15 @@
         }
       }
     });
-    // Fallback: poll every 30s for wallets that don't send notifications.
-    nwcPollTimer = setInterval(() => {
-      if (state && !state.locked) refreshWalletBalance();
-    }, 30000);
+    // Fallback: poll for wallets that don't send notifications, and only while a balance is
+    // showing. Not at all for a wallet that wakes a phone per request: there every poll is a
+    // lock-screen alert (nine in three minutes at the old 30s), so its balance is read when the
+    // panel opens, after a payment, and when the user taps refresh.
+    if (!nwcQuiet) {
+      nwcPollTimer = setInterval(() => {
+        if (state && !state.locked && balanceOnScreen()) refreshWalletBalance();
+      }, NWC_POLL_MS);
+    }
   }
 
   // Build (or reuse) the NWC client for the active account from its stored string.
@@ -19902,7 +20246,7 @@
     nwc = window.SidecarNWC.makeClient(connection);
     nwcPubkey = pk;
     nwcConn = connection;
-    startWalletMonitor(nwc);
+    startWalletMonitor(nwc, connection);
     return nwc;
   }
 
@@ -21364,13 +21708,15 @@
       // a "Keep browsing" button under a block explaining that the payment was still
       // going. Once a payment in flight had an indicator of its own there was nothing left
       // for that sentence to tell anyone, so the modal simply leaves when the payment
-      // does, and the progress toast carries the rest.
+      // does, and the payment bar carries the rest.
       //
       // Unlike the page card, there is no approval prompt behind this: the panel holds its
       // own NWC client and pressing Pay IS the authorization. So the moment it closes is
       // the moment the money is genuinely moving, and nothing here has to hedge.
       function beginFlight(sats) {
-        return toast(sats != null ? tSec('Sending {{amount}} sats', { amount: fmtSats(sats) }) : tSec('Sending payment'), 'progress');
+        return beginPaymentFlight(
+          sats != null ? tSec('Sending {{amount}} sats', { amount: fmtSats(sats) }) : tSec('Sending payment')
+        );
       }
 
       // The recipient card: who the address resolved to, and on what terms.
@@ -21567,7 +21913,7 @@
         err.textContent = '';
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
-        let flight = null; // the progress toast, once the payment is past the point of return
+        let flight = null; // the payment bar's flight handle, once past the point of return
         try {
           let invoice = val;
           let paySats = null;     // what is being sent, for the toasts
@@ -21614,8 +21960,8 @@
           }
           // Everything that could still fail back INTO this form has happened: a bad
           // address, an out-of-range amount, a server that would not issue an invoice.
-          // Past here the payment is going out, so the form stops being the right place to
-          // stand and the toast takes over.
+          // Past here the payment is going out, so the form stops being the right place
+          // to stand and the payment bar takes over.
           flight = beginFlight(paySats);
           closeModal();
           const res = await client.payInvoice(invoice, amountMsat);
@@ -21625,26 +21971,27 @@
           // Always, not only when there is a note or a fee to keep: the record is also
           // how the card knows this invoice was paid if it is pasted again.
           await savePayMeta(invoice, { address, comment: note, feeMsat, paid: true });
-          flight.close();
-          lightningStrike(); // only after the payment actually settles
-          // Lead with the amount — "Payment sent" alone doesn't tell you what left.
-          // A pasted BOLT11 carries its own amount; a lightning address took one from
-          // the field above. An amountless invoice leaves us nothing honest to state,
-          // so it falls back to the bare confirmation rather than guessing.
-          toast(
+          // The bar's result line is the confirmation — amount when there is one to
+          // state honestly, the fee with it. A pasted BOLT11 carries its own amount;
+          // an amountless invoice leaves nothing to state, so it falls back to the
+          // bare "Payment sent" rather than guessing.
+          flight.settle(
+            true,
             (paySats != null ? tSec('Sent {{amount}} sats', { amount: fmtSats(paySats) }) : tSec('Payment sent')) +
-              (feeMsat != null ? ' · ' + tSec('fee {{fee}}', { fee: fmtFeeMsat(feeMsat) }) : ''),
-            'success'
+              (feeMsat != null ? ' · ' + tSec('fee {{fee}}', { fee: fmtFeeMsat(feeMsat) }) : '')
           );
+          lightningStrike(); // only after the payment actually settles
           renderWallet();
           renderPinnedBalanceBar();
         } catch (e) {
-          // The toast is the only way a failure reaches anyone once the modal has gone,
-          // which it has for everything after beginFlight. The inline line still serves
-          // whoever is looking at a form that never got that far, and writing it costs
-          // nothing when they are not: err is detached by then, so it is a no-op.
-          if (flight) flight.close();
-          toast(e.message, 'error');
+          // The bar is the only way a failure reaches anyone once the modal has gone,
+          // which it has for everything after beginFlight — unless another surface
+          // (an approval card, the lock screen) owns the panel, in which case the
+          // failure toasts too. The inline line still serves whoever is looking at a
+          // form that never got that far: err is detached by then for the rest, so
+          // writing it is a no-op.
+          if (flight) flight.settle(false, null, e.message);
+          surfacePaymentFailure(e.message);
           err.textContent = e.message;
           pay.disabled = false;
           payGate.paint();
@@ -22231,15 +22578,21 @@
         if (!creatorGate.pass(sats)) return;
         send.disabled = true;
         send.textContent = 'Sending…';
+        // One payment bar for every path (#495): the flight starts once the invoice
+        // exists and the payment is genuinely going out, so a failure before that
+        // still fails back into this form.
+        let flight = null;
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
           const invoice = await lnAddressToInvoice(CREATOR_LN, sats * 1000, message.value.trim() || 'Sidecar zap');
+          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           await client.payInvoice(invoice);
+          flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           closeModal();
           lightningStrike(); // only after the payment actually settles
-          toast('Thank you! Zapped ' + fmtSats(sats) + ' sats', 'success');
         } catch (e) {
+          if (flight) flight.settle(false, null, e.message);
           err.textContent = e.message;
           send.disabled = false;
           creatorGate.paint();
@@ -22378,6 +22731,12 @@
 
   $('paypill-anywhere-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { payPillAnywhere: e.target.checked } });
+  });
+
+  $('webln-takeover-toggle').addEventListener('change', async (e) => {
+    // Rides the live settings push (pushPageSettings) to every open page, so taking
+    // over — or handing the slot back — needs no reload.
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { weblnTakeover: e.target.checked } });
   });
 
   $('clienttag-toggle').addEventListener('change', async (e) => {
@@ -23346,6 +23705,9 @@
   async function renderSharedNote(data) {
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
+    // A payment's switch button is worded by the capsule ("Pay from a different account"); the
+    // shared-identity wording below is for signing.
+    if (isPaymentApproval(data)) return;
     if (!data.sharedIdentity) {
       $('approval-switch-toggle').textContent = tSec('Sign in with a different account');
       return;
@@ -23443,10 +23805,21 @@
     if (actions) actions.classList.toggle('approval-locked', locked);
   }
 
+  // A payment card offers the other accounts that have a wallet to pay from, in place of the
+  // sign-in switcher, which is for logging in as someone else. The card's own account is first.
+  function approvalPayList(data) {
+    return [
+      { pubkey: data.payerPubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
+      ...(data.payFromOptions || []),
+    ];
+  }
+
   function renderApprovalAccountCapsule(data) {
     const payment = isPaymentApproval(data);
-    const list = approvalAccountList(data);
-    const chosen = list.find((a) => a.pubkey === pendingApproval.chosenPubkey) || list[0];
+    const payOptions = payment ? (data.payFromOptions || []) : [];
+    const list = payment && data.payerPubkey ? approvalPayList(data) : approvalAccountList(data);
+    const chosenKey = payment && data.payerPubkey ? pendingApproval.payFrom : pendingApproval.chosenPubkey;
+    const chosen = list.find((a) => a.pubkey === chosenKey) || list[0];
 
     const acct = $('approval-account');
     acct.innerHTML = '';
@@ -23463,9 +23836,24 @@
 
     const toggle = $('approval-switch-toggle');
     const menu = $('approval-switch-menu');
-    const canSwitch = !payment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    const canSwitch = payment
+      ? payOptions.length > 0 && !!data.payerPubkey
+      : Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
     menu.innerHTML = '';
     hide(menu);
+    // The same button serves both cards, so its words follow the card it is on.
+    toggle.textContent = payment ? t('Pay from a different account') : t('Sign in with a different account');
+    // "Use {name} for all further payments on this site": offered once another account is
+    // picked, unticked every time the pick changes, so keeping a site on an account is
+    // always a deliberate tap and never a leftover from an earlier pick.
+    const bind = $('approval-bind-payer');
+    if (payment && pendingApproval.payFrom) {
+      $('approval-bind-payer-label').textContent = t('Use {{name}} for all further payments on this site', { name: chosen.name || shortNpub(chosen.npub) });
+      show(bind);
+    } else {
+      hide(bind);
+      $('approval-bind-payer-box').checked = false;
+    }
     if (!canSwitch) {
       hide(toggle);
       return;
@@ -23503,7 +23891,13 @@
         row.append(c);
       }
       row.addEventListener('click', () => {
-        pendingApproval.chosenPubkey = a.pubkey;
+        if (isPaymentApproval(data) && data.payerPubkey) {
+          // Paying from this account; the card's own account is "no pick".
+          pendingApproval.payFrom = a.pubkey === data.payerPubkey ? null : a.pubkey;
+          $('approval-bind-payer-box').checked = false;
+        } else {
+          pendingApproval.chosenPubkey = a.pubkey;
+        }
         hide(menu);
         renderApprovalAccountCapsule(data);
       });
@@ -23760,6 +24154,30 @@
       hide(relaxRow);
     }
 
+    // "Always allow this event type" (#482): on a single card whose kind a
+    // standing grant may cover, offer the checkbox and say exactly what
+    // ticking it signs from now on — site, account, kind, and the record's
+    // `d` tag when the event carries one. textContent only: host and `d` are
+    // page-controlled. Single cards only — a batch shares its kind but not
+    // necessarily its `d` record, so one checkbox cannot describe what it
+    // would save. Toggled on every render (this card is reused) and unticked
+    // on every fresh card, like the payment offers above.
+    const alwaysKindOffer = $('approval-always-kind-offer');
+    const offerAlwaysKind = !payment && groupN === 1 && data.needApproval && data.canKindGrant;
+    if (offerAlwaysKind) {
+      const kindEv = data.params && (data.params.event || data.params);
+      const kind = kindEv ? kindEv.kind : null;
+      const kindName = approvalKindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      const who = data.accountName || shortNpub(data.npub);
+      $('approval-always-kind-note').textContent = data.kindDTag != null
+        ? tSec('Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
+        : tSec('Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
+      $('approval-always-kind-box').checked = false;
+      show(alwaysKindOffer);
+    } else {
+      hide(alwaysKindOffer);
+    }
+
     // Point at Trust once this site has been approved one-time several times over.
     // textContent, never innerHTML — `host` is attacker-controlled.
     const nudge = $('approval-trust-nudge');
@@ -23776,6 +24194,12 @@
     } else {
       hide(nudge);
     }
+  }
+
+  // The flags a payment card adds to its decision when another account was picked to pay from.
+  function payFromExtra(data, pending, action, keepOnIt) {
+    if (!isPaymentApproval(data) || !data.payerPubkey || !pending.payFrom || action === 'reject') return null;
+    return { payFromPubkey: pending.payFrom, bindPayer: !!keepOnIt };
   }
 
   async function decideApproval(action, opts) {
@@ -23855,10 +24279,22 @@
         $('approval-payanywhere-offer-box').checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
+    // #482: carry the standing per-kind grant with the approval. Only 'once' —
+    // picking Trust chooses the broader tier instead, and the background
+    // re-validates eligibility before writing anything. The box is hidden on
+    // batch cards, so an "Allow all" can never attach a grant.
+    if (pendingApproval && pendingApproval.data && pendingApproval.data.canKindGrant &&
+        action === 'once' && $('approval-always-kind-box').checked) {
+      extra = Object.assign({}, extra, { alwaysKind: true });
+    }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: pendingApproval.chosenPubkey });
     }
+    // A payment from another account than the site's own. The worker re-checks it against
+    // the accounts the card offered; the box is the separate choice to keep the site on it.
+    const payFromFlags = payFromExtra(data, pendingApproval, action, $('approval-bind-payer-box').checked);
+    if (payFromFlags) extra = Object.assign({}, extra, payFromFlags);
     // Batch: an "Allow all (N)" / "Reject all" on a same-kind burst applies the
     // same decision (and account choice) to every grouped request at once. Trust
     // and budget are never batched (they're single-item / payment concerns).
@@ -23899,6 +24335,34 @@
     await bg({ type: 'SIDECAR_REJECT_ALL_PENDING' });
     await refreshApproval();
   });
+  // A WHEEL THE CARD CANNOT USE MUST NOT REACH WHAT IS BEHIND IT. The overlay is a fixed
+  // layer over the panel, and a wheel over any part of it that has nothing to scroll (a
+  // short card, the pinned buttons, the dimmed edge) was handed on as a scroll of the
+  // panel underneath, so the blurred list moved behind a card that stayed put. Modals
+  // lock the page with the modal-open class; the approval does not set that class, which
+  // other code reads as "a modal is open", so the wheel is held here instead.
+  //
+  // True when the wheel should be swallowed: no scroll region between the pointer and the
+  // overlay can still move in the direction asked. A region sitting at its end counts as
+  // unable, otherwise the last notch of a long card would spill into the panel behind.
+  function approvalWheelShouldBeHeld(target, deltaY, overlay, styleOf = (n) => getComputedStyle(n)) {
+    for (let n = target; n; n = n.parentElement) {
+      if (n.scrollHeight > n.clientHeight + 1) {
+        const oy = styleOf(n).overflowY;
+        if (oy === 'auto' || oy === 'scroll') {
+          const room = deltaY < 0
+            ? n.scrollTop > 0
+            : n.scrollTop + n.clientHeight < n.scrollHeight - 1;
+          if (deltaY !== 0 && room) return false;
+        }
+      }
+      if (n === overlay) break;
+    }
+    return true;
+  }
+  $('view-approval').addEventListener('wheel', (e) => {
+    if (approvalWheelShouldBeHeld(e.target, e.deltaY, e.currentTarget)) e.preventDefault();
+  }, { passive: false });
   // Tapping the dimmed backdrop (outside the card) rejects, like closing the popup.
   $('view-approval').addEventListener('click', (e) => {
     if (e.target === $('view-approval')) decideApproval('reject');
@@ -24007,14 +24471,48 @@
     if (note) { note.textContent = t('One tap signs every event listed. A batch never mixes event kinds.'); show(note); }
   }
 
-  // "N more waiting" strip inside the approval card + a Reject all escape hatch.
+  // "N more waiting" strip inside the approval card + a Reject all escape hatch —
+  // and the one line on this screen that answers "why is there a Reject all and no
+  // Approve all" (#502, remedy 1): rejecting is always safe; bulk approving is only
+  // ever offered for a same-kind batch the card lists in full.
   function renderBacklog(waiting) {
     const strip = $('approval-backlog');
     if (!strip) return;
     if (!waiting.length) { hide(strip); return; }
     const count = $('approval-backlog-count');
     count.textContent = tn('{{count}} more request waiting', '{{count}} more requests waiting', waiting.length);
+    const note = $('approval-backlog-note');
+    if (note) { note.textContent = t('Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.'); show(note); }
     show(strip);
+  }
+
+  // "Use Sidecar for Lightning payments?", offered once, where another wallet extension
+  // already answers a page's Lightning calls (#501). It lives here and not on the page
+  // because a page can forge the notice that raises it, and a switch that moves money
+  // must not be one a site can flip. Either button retires it for good.
+  function renderWeblnOffer(host) {
+    const card = $('webln-offer');
+    if (!card) return;
+    if (!host) { hide(card); card.innerHTML = ''; return; }
+    card.innerHTML = '';
+    const msg = h('span', { className: 'webln-offer-msg', textContent: t('Sidecar isn’t set as your default Lightning wallet on {{host}}. Switch?', { host }) });
+    const use = h('button', { className: 'primary', textContent: t('Use Sidecar') });
+    const later = h('button', { className: 'ghost', textContent: t('Not now') });
+    const answer = async (yes) => {
+      renderWeblnOffer('');
+      await bg({ type: 'SIDECAR_WEBLN_OFFER_ANSWER', use: yes });
+      if (yes) { const tgl = $('webln-takeover-toggle'); if (tgl) tgl.checked = true; }
+    };
+    use.addEventListener('click', () => answer(true));
+    later.addEventListener('click', () => answer(false));
+    card.append(msg, h('div', { className: 'webln-offer-controls' }, [use, later]));
+    show(card);
+  }
+  async function refreshWeblnOffer() {
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      renderWeblnOffer(s && s.weblnOfferHost ? s.weblnOfferHost : '');
+    } catch (_) {}
   }
 
   // Requests that were in flight when Sidecar's service worker restarted. Their
@@ -24059,6 +24557,7 @@
     } catch (_) {}
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
+      if (msg && msg.type === 'SIDECAR_WEBLN_OFFER') renderWeblnOffer(String(msg.host || ''));
       if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {
@@ -24072,6 +24571,7 @@
     });
     // Pull authoritative state on (re)connect.
     refreshApproval();
+    refreshWeblnOffer();
   }
   connectApprovalPort();
 

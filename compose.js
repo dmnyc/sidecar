@@ -78,6 +78,8 @@
   let dkey = null;
   let saveTimer = null;
   let posting = false;
+  // The receipt is on screen: the editor is gone and nothing here is a draft any more.
+  let receiptShown = false;
   // The fingerprint Post last asked "again?" about, or null: see reviewThenPost.
   let repeatAsked = null;
   // Until when "Post it again?" stays inert: a beat, so a double-tap or an impatient
@@ -157,10 +159,30 @@
     }
     return _pool;
   }
+  // WHERE A NOTE GOES: the account's own relays, by the rule the panel and the NIP-07
+  // getRelays() answer use (declared first, then the bootstrap set unless the account turned
+  // it off), plus whatever the panel worked out when it handed the draft over. This used to
+  // be the handover alone and, when the panel had none, Settings' bootstrap relays, which
+  // ignore the account's declared list: a reply went to four default relays and never to the
+  // six the account names, and nothing said so. The two sources are merged, not chosen
+  // between, because the handover can be a stale answer and the worker's last-known list can
+  // be behind: a relay either one names is a relay the account asked for. Nothing falls back
+  // to Settings' map any more; an account that resolves to no relay gets the "No relays
+  // configured" refusal rather than a post that quietly went somewhere else.
   async function targetRelays() {
-    if (handoverRelays && handoverRelays.length) return handoverRelays;
-    return relayUrls(true);
+    const out = [];
+    const add = (urls) => { for (const u of urls || []) if (u && !out.includes(u)) out.push(u); };
+    try {
+      const map = await call({ type: 'SIDECAR_GET_ACCOUNT_RELAYS', pubkey: state && state.activePubkey });
+      add(Object.keys(map || {}).filter((u) => map[u] && map[u].write !== false));
+    } catch (_) { /* the handover below may still answer */ }
+    if (handoverRelays && handoverRelays.length) add(handoverRelays);
+    return out;
   }
+
+  // A relay that wants a signed AUTH gets one, the way the panel signs it. Only for the relays a
+  // post goes to, which are the account's own; the pool's lookups never carry this.
+  const signAuth = (template) => call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
 
   // READING IS NOT PUBLISHING, and conflating the two cost the uploader its Blossom
   // server. relayUrls(false) means every configured relay, read-only ones included, and
@@ -419,6 +441,10 @@
       .catch(() => null);
   }
   async function persistDraft() {
+    // A TAB ON ITS RECEIPT HAS NO DRAFT TO KEEP. Its draft is empty, and an empty one
+    // deletes the slot below, which is the slot the panel may just have written for the
+    // next reply to the same note. visibilitychange and beforeunload both land here.
+    if (receiptShown) return;
     const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
     // Media counts as content on its own: an upload with no words yet is still work, and
     // dropping it because the caption had not been written is the kind of thing that makes
@@ -503,10 +529,28 @@
   // The note being answered, drawn above the tabs. Deliberately NOT the panel's
   // buildReplyBlock: that one reaches for five panel-only helpers, and what this needs
   // is a face, a name and the text, all of which this file already knows how to get.
+  // "kind 1" or "kind 1111" in small print beside the label. The dev selector can choose
+  // the kind instead of inheriting it, so it repaints this too: a label that said kind 1
+  // over a kind 1111 reply would be worse than none.
+  function paintReplyKind() {
+    const el = document.querySelector('#compose-reply-target .reply-target-kind');
+    if (!el || !replyTo) return;
+    const kind = devBuild && devOn.kind && devKind ? devKind : SC.replyKind(replyTo);
+    el.textContent = t('kind {{kind}}', { kind });
+  }
+
   function paintReplyTarget() {
     // The dev controls depend on whether this is a reply, and every path that changes
     // that comes through here.
     paintDevControls();
+    // A REPLY SAYS SO IN THREE PLACES, not one: the quote's label below, the editor's
+    // placeholder and the button. The tab used to say "Post" and "What's on your mind?"
+    // over an answered note, which is how a reply got mistaken for a new one. A tab that
+    // lost its target below is still a new note, and says so by keeping all three plain.
+    if (editorApi && editorApi.editor) {
+      editorApi.editor.dataset.placeholder = replyTo ? t('Write your reply…') : t('What’s on your mind?');
+    }
+    paintPostButton();
     const box = document.getElementById('compose-reply-target');
     if (!box) return;
     box.innerHTML = '';
@@ -537,6 +581,11 @@
     box.classList.remove('hidden');
     box.classList.remove('reply-target-lost');
 
+    box.append(h('div', { className: 'reply-target-label' }, [
+      h('span', { textContent: t('Replying to') }),
+      h('span', { className: 'reply-target-kind' }),
+    ]));
+    paintReplyKind();
     const av = h('span', { className: 'avatar reply-target-av' });
     applyAvatar(av, null);
     const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
@@ -632,7 +681,7 @@
         ? t('Nonstandard demo reply: kind 1 answering kind 1111. Some clients may not show it.')
         : t('Dev build only. Automatic preserves the kind of the event you answer.');
     };
-    select.addEventListener('change', () => { devKind = Number(select.value); paint(); });
+    select.addEventListener('change', () => { devKind = Number(select.value); paint(); paintReplyKind(); });
     paint();
     return h('div', { className: 'compose-dev-kind' }, [
       h('label', { htmlFor: 'compose-dev-kind', textContent: t('Demo event kind') }), select, hint,
@@ -797,6 +846,22 @@
       },
     }));
     pane.append(back);
+  }
+
+  // The panel pointing this tab at a draft. A tab showing its receipt has no editor to
+  // switch, so it starts over on the requested draft, the same way "Write another" does;
+  // switching would repaint an editor that is gone and fail without a word.
+  function handleComposeOpen(msg) {
+    const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
+      ? msg.replyId.toLowerCase() : null;
+    if (receiptShown) {
+      location.replace(location.pathname + (want ? '?reply=' + want : ''));
+      return;
+    }
+    if (want === replyId) return;   // already here
+    // Whatever is on screen belongs to the slot it was typed in, so it goes back
+    // there before the key moves. Same rule as the account switch.
+    switchToDraft(want).catch(() => {});
   }
 
   // The one way this tab moves between drafts, for a chip and for the panel's message
@@ -1087,8 +1152,11 @@
       status.textContent = t('Publishing…');
       const relays = await targetRelays();
       if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
-      const results = await Promise.allSettled(pool().publish(relays, signed));
-      const ok = results.filter((r) => r.status === 'fulfilled').length;
+      // WHO TOOK IT, not who did not hard-refuse: an unreachable relay is not a success.
+      const report = await SC.publishToRelays({
+        pool: pool(), relays, signed, params: { onauth: signAuth }, normalize: (u) => NT.utils.normalizeURL(u),
+      });
+      const ok = report.accepted.length;
       if (!ok) throw new Error(t('No relay accepted the note. It is still saved as a draft.'));
       // The draft goes only once the note is actually out. A cleared draft plus a failed
       // publish is the one outcome worth engineering against.
@@ -1116,7 +1184,7 @@
       editorSetText('');
       renderThumbs();
       status.textContent = '';
-      await showPosted(signed, ok, what);
+      await showPosted(signed, report, what);
     } catch (e) {
       status.textContent = '';
       // A stop is the user's own decision, and the editor coming back is the answer.
@@ -1170,7 +1238,7 @@
       post.disabled = true;
       return;
     }
-    post.textContent = repeatAsked ? t('Post it again?') : t('Post');
+    post.textContent = repeatAsked ? t('Post it again?') : replyTo ? t('Reply') : t('Post');
     post.className = 'primary compose-post';
     const n = (draft.text || '').trim().length;
     if (draft.poll) {
@@ -1305,14 +1373,23 @@
   //
   // A LINK, because Sidecar is a companion and not a client. It cannot show you the note
   // in a thread with its replies, and the client this account already chose can.
-  async function neventFor(signed) {
-    let relays = [];
-    try { relays = (await targetRelays()).slice(0, 2); } catch (_) {}
+  // The hints are relays that TOOK the note. They used to be the first two configured, taken or
+  // not, so a link could send a client to a relay that never had it.
+  async function neventFor(signed, accepted) {
+    let relays = (accepted || []).slice(0, 2);
+    if (!relays.length) { try { relays = (await targetRelays()).slice(0, 2); } catch (_) {} }
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
-  async function showPosted(signed, relayCount, what) {
+  async function showPosted(signed, report, what) {
     const sheet = document.querySelector('.compose-sheet');
+    // THE ADDRESS SAYS SO. The panel cannot ask a tab anything without the "tabs"
+    // permission, but getContexts reports each document's URL, fragment and all, so a
+    // marker there is how it learns this tab holds a receipt and not a draft. Without it
+    // the panel treated the receipt as an open composer and sent every new note and reply
+    // to a page that could only show "Your note is live".
+    receiptShown = true;
+    try { history.replaceState(null, '', location.pathname + location.search + '#done'); } catch (_) {}
     let href = null;
     let label = null;
     try {
@@ -1320,7 +1397,7 @@
       // The account that SIGNED it, not whatever is active by the time this paints. They
       // can differ if the panel switched while the tab was open.
       const client = composer.resolveClient(settings, signed.pubkey || state.activePubkey);
-      href = client.url(await neventFor(signed));
+      href = client.url(await neventFor(signed, report.accepted));
       label = client.label;
     } catch (_) { /* no link is better than a broken one */ }
 
@@ -1335,10 +1412,9 @@
       mark,
       h('h2', { className: 'compose-done-title', textContent: what === 'poll' ? t('Your poll is live.')
         : what === 'reply' ? t('Your reply is live.') : t('Your note is live.') }),
-      h('p', {
-        className: 'compose-done-sub',
-        textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', relayCount),
-      })
+      // "Published to N relays.", and when not every relay accepted it, a row that opens onto
+      // which did and why the others did not. The panel's banner draws the same thing.
+      SC.relayReportNode(report, 'compose-done-sub')
     );
 
     const row = h('div', { className: 'compose-done-actions' });
@@ -1833,12 +1909,7 @@
       // is already open on something else. Focusing it without this showed whatever was
       // already here, which is how a reply arrived looking like a blank new note.
       if (msg && msg.type === 'SIDECAR_COMPOSE_OPEN') {
-        const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
-          ? msg.replyId.toLowerCase() : null;
-        if (want === replyId) return;   // already here
-        // Whatever is on screen belongs to the slot it was typed in, so it goes back
-        // there before the key moves. Same rule as the account switch.
-        switchToDraft(want).catch(() => {});
+        handleComposeOpen(msg);
         return;
       }
       if (!msg || msg.type !== 'SIDECAR_EVENT') return;

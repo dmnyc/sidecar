@@ -195,7 +195,8 @@ test('PAYING FROM AN UNBOUND SITE DOES NOT BIND IT, OR IT WOULD STOP BEING UNCON
   assert.ok(pay.indexOf('wasBound') < pay.indexOf('resolveSiteAccount'), 'the binding is read after it could have changed');
   assert.match(pay, /bind: wasBound,/, 'the card path binds whatever it pays');
   const core = lift(background, 'async function payInvoiceLocked(');
-  assert.match(core, /if \(!\(opts && opts\.bind === false\)\) await setSiteAccount\(host, pubkey\);/);
+  // A pick made on the card is bound (or not) when it is approved; any other payment binds here unless told not to.
+  assert.match(core, /if \(!switchedPayer && !\(opts && opts\.bind === false\)\) await setSiteAccount\(host, pubkey\);/);
   // Every other caller keeps binding: WebLN from a client is how a site gets paired.
   assert.doesNotMatch(background.replace(/async function payFromPage\([\s\S]*?\n\}/, ''), /bind: false|bind: wasBound/,
     'another payment path stopped pairing its site');

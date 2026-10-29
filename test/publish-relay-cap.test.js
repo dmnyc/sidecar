@@ -44,7 +44,7 @@ function harness(relayBehaviors) {
     // The cap as written, shortened from 12 seconds so the test does not wait for it.
     panel.match(/const PUBLISH_RELAY_CAP_MS = \d+;/)[0].replace(/\d+/, '50'),
     lift('function capPublish(p)'),
-    lift('async function publishToRelays(relays, signed)'),
+    lift('async function publishToRelays(relays, signed, report)'),
     'globalThis.publish = publishToRelays;',
   ].join('\n'), ctx);
   return { publish: ctx.publish, reset, calls: () => calls };

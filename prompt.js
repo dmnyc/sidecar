@@ -21,6 +21,9 @@
     account: $('account'),
     switchToggle: $('switch-toggle'),
     switchMenu: $('switch-menu'),
+    bindPayer: $('bind-payer'),
+    bindPayerBox: $('bind-payer-box'),
+    bindPayerLabel: $('bind-payer-label'),
     wrongAcct: $('wrong-acct'),
     wrongAcctToggle: $('wrong-acct-toggle'),
     wrongAcctList: $('wrong-acct-list'),
@@ -41,6 +44,9 @@
     autozapOfferLabel: $('autozap-offer-label'),
     payAnywhereOffer: $('payanywhere-offer'),
     payAnywhereOfferBox: $('payanywhere-offer-box'),
+    alwaysKindOffer: $('always-kind-offer'),
+    alwaysKindBox: $('always-kind-box'),
+    alwaysKindNote: $('always-kind-note'),
   };
 
   // Same transport, same reason as sidepanel.js — see the long note on bg() there (#224).
@@ -131,6 +137,7 @@
     els.allow.classList.toggle('secondary', ask);
   }
   let chosenPubkey = null; // login (getPublicKey) prompts only — see canOfferAccountSwitch in background.js
+  let payFrom = null;      // payment prompts only: another account picked to pay from, or null for the card's own
   // Which cut of the placeholder garnish this window is drawing — set once the theme
   // arrives with the request (see the note beside THEMES below). The white default is
   // right until we know otherwise, since Speakeasy is also the fallback theme.
@@ -687,6 +694,24 @@
       });
     }
 
+    // "Always allow this event type" (#482): on a card whose kind a standing
+    // grant may cover, offer the checkbox and say exactly what ticking it
+    // signs from now on — the site, the account, the kind, and the record's
+    // `d` tag when the event carries one. textContent only: host and `d` are
+    // page-controlled. Unticked on every fresh card, and never on a pure
+    // unlock (nothing is being approved there to make standing).
+    if (data.canKindGrant && data.needApproval) {
+      const ev = data.params && (data.params.event || data.params);
+      const kind = ev ? ev.kind : null;
+      const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      const who = data.accountName || shortNpub(data.npub);
+      els.alwaysKindNote.textContent = data.kindDTag != null
+        ? tSec('Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
+        : tSec('Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
+      els.alwaysKindBox.checked = false;
+      els.alwaysKindOffer.classList.remove('hidden');
+    }
+
     // Point at Trust once someone has approved this site several times over. Built with
     // textContent, not innerHTML — `host` is attacker-controlled, and this string is
     // assembled from it.
@@ -811,6 +836,21 @@
   // All accounts selectable in this prompt: the one it opened with, plus (only
   // for a login prompt — see canOfferAccountSwitch in background.js) any
   // others the user could switch to before approving.
+  // A payment card offers the other accounts that have a wallet to pay from, in place of the
+  // sign-in switcher. The card's own account is first.
+  function payList() {
+    return [
+      { pubkey: data.payerPubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
+      ...(data.payFromOptions || []),
+    ];
+  }
+
+  // The flags a payment card adds to its decision when another account was picked to pay from.
+  function payFromExtra(action) {
+    if (!isPayment || !data.payerPubkey || !payFrom || action === 'reject') return null;
+    return { payFromPubkey: payFrom, bindPayer: !!els.bindPayerBox.checked };
+  }
+
   function accountList() {
     return [
       { pubkey: data.activePubkey, npub: data.npub, name: data.accountName, picture: data.accountPicture },
@@ -823,8 +863,9 @@
 
   // Account capsule (pfp + name + npub), matching the side panel's account card.
   function buildAccountCapsule() {
-    const list = accountList();
-    const chosen = list.find((a) => a.pubkey === chosenPubkey) || list[0];
+    const payPick = isPayment && !!data.payerPubkey;
+    const list = payPick ? payList() : accountList();
+    const chosen = list.find((a) => a.pubkey === (payPick ? payFrom : chosenPubkey)) || list[0];
 
     els.account.innerHTML = '';
     const label = document.createElement('div');
@@ -851,7 +892,21 @@
 
     els.switchMenu.innerHTML = '';
     els.switchMenu.classList.add('hidden');
-    const canSwitch = !isPayment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    const canSwitch = payPick
+      ? (data.payFromOptions || []).length > 0
+      : !isPayment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+    // The same button serves both cards, so its words follow the card it is on.
+    if (payPick) els.switchToggle.textContent = t('Pay from a different account');
+    // "Use {name} for all further payments on this site": offered once another account is
+    // picked, unticked every time the pick changes, so keeping a site on an account is
+    // always a deliberate tap.
+    if (payPick && payFrom) {
+      els.bindPayerLabel.textContent = t('Use {{name}} for all further payments on this site', { name: chosen.name || shortNpub(chosen.npub) });
+      els.bindPayer.classList.remove('hidden');
+    } else {
+      els.bindPayer.classList.add('hidden');
+      els.bindPayerBox.checked = false;
+    }
     if (!canSwitch) {
       els.switchToggle.classList.add('hidden');
       return;
@@ -890,7 +945,13 @@
       row.append(av, info);
       if (isChosen) row.insertAdjacentHTML('beforeend', CHECK_SVG);
       row.addEventListener('click', () => {
-        chosenPubkey = a.pubkey;
+        if (isPayment && data.payerPubkey) {
+          // Paying from this account; the card's own account is "no pick".
+          payFrom = a.pubkey === data.payerPubkey ? null : a.pubkey;
+          els.bindPayerBox.checked = false;
+        } else {
+          chosenPubkey = a.pubkey;
+        }
         els.switchMenu.classList.add('hidden');
         buildAccountCapsule();
       });
@@ -1033,6 +1094,12 @@
     if (data.offerPayAnywhere === true && els.payAnywhereOfferBox.checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
+    // #482: carry the standing per-kind grant with the approval. Only 'once'
+    // — picking Trust chooses the broader tier instead, and the background
+    // re-validates eligibility before writing anything.
+    if (data.canKindGrant && action === 'once' && els.alwaysKindBox.checked) {
+      extra = Object.assign({}, extra, { alwaysKind: true });
+    }
     // "Wrong account" escape: carry the account to make active. The background detaches
     // and then throws, so this never signs.
     if (action === 'detach') {
@@ -1046,6 +1113,10 @@
     if (chosenPubkey && chosenPubkey !== data.activePubkey) {
       extra = Object.assign({}, extra, { switchToPubkey: chosenPubkey });
     }
+    // A payment from another account than the site's own. The worker re-checks it against the
+    // accounts the card offered; the box is the separate choice to keep the site on it.
+    const payFromFlags = payFromExtra(action);
+    if (payFromFlags) extra = Object.assign({}, extra, payFromFlags);
 
     const chips = els.relaxRow.querySelectorAll('.relax-chip');
     const setDisabled = (v) => {

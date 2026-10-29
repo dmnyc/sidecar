@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vending Machine">
+  <!-- Modernist: zero radius, ink ground, single accent, flush left. -->
+  <rect width="512" height="512" fill="#201e1d"/>
+  <!-- Equalizer bars, the mark used for "the machine, right now". -->
+  <rect x="96"  y="288" width="44" height="128" fill="#a06cd5"/>
+  <rect x="156" y="208" width="44" height="208" fill="#a06cd5"/>
+  <rect x="216" y="128" width="44" height="288" fill="#f3f2f2"/>
+  <rect x="276" y="240" width="44" height="176" fill="#a06cd5"/>
+  <rect x="336" y="176" width="44" height="240" fill="#a06cd5"/>
+</svg>

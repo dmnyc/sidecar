@@ -988,9 +988,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-23': [
     { year: 1915, text: "Tens of thousands marched up Fifth Avenue in New York demanding the right to vote for women." },
+    { year: 1906, text: "Alberto Santos-Dumont flew more than fifty meters at Bagatelle, outside Paris, the first airplane flight a crowd watched and filmed." }, // Wikipedia, Santos-Dumont 14-bis
   ],
   '10-24': [
     { year: 1901, text: "Annie Edson Taylor went over Niagara Falls in a barrel on her sixty-third birthday, and lived." },
+    { year: 1861, text: "The first transcontinental telegraph was completed, and California's chief justice wired Lincoln from San Francisco." }, // Wikipedia, First transcontinental telegraph
   ],
   '10-25': [
     { year: 1415, text: "An outnumbered English army under Henry V defeated the French in the mud at Agincourt." },
@@ -1008,6 +1010,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '10-29': [
     { year: 1929, text: "The stock market collapsed on Black Tuesday, plunging the nation into the Great Depression." },
+    { year: 1863, text: "Delegates from fourteen states, meeting in Geneva, adopted the resolutions that founded the Red Cross." }, // Wikipedia, International Committee of the Red Cross
   ],
   '10-30': [
     { year: 1938, text: "Orson Welles broadcast The War of the Worlds as a series of news bulletins." },
@@ -1019,9 +1022,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-01': [
     { year: 1512, text: "The ceiling of the Sistine Chapel was opened to the public, painted by Michelangelo." }, // Vatican City
+    { year: 1897, text: "The Library of Congress opened its new building on Capitol Hill to the public." }, // Wikipedia, Thomas Jefferson Building
   ],
   '11-02': [
     { year: 1920, text: "KDKA in Pittsburgh read out the presidential election returns, the first commercial radio broadcast." },
+    { year: 1936, text: "The BBC began a regular public television service from Alexandra Palace in London, among the first in the world." }, // Wikipedia, BBC Television
   ],
   '11-03': [
     { year: 1903, text: "Panama declared its independence from Colombia, clearing the way for a US-built canal." }, // supported by the US
@@ -1035,9 +1040,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-06': [
     { year: 1860, text: "Abraham Lincoln was elected president of the United States." },
+    { year: 1869, text: "Rutgers and Princeton played the first intercollegiate football game, and Rutgers won, 6 to 4." }, // Wikipedia, 1869 college football season
   ],
   '11-07': [
     { year: 1917, text: "Bolsheviks seized power in Petrograd, beginning the Russian October Revolution." }, // Julian calendar Oct 25
+    { year: 1940, text: "The Tacoma Narrows Bridge, four months old, twisted in a steady wind and collapsed into Puget Sound." }, // Wikipedia, Tacoma Narrows Bridge (1940)
   ],
   '11-08': [
     { year: 1895, text: "Wilhelm Rontgen noticed a screen glowing across his darkened lab, and discovered X-rays." },
@@ -1048,12 +1055,14 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-10': [
     { year: 1871, text: "Henry Morton Stanley found David Livingstone near Lake Tanganyika, having searched for months." }, // Ujiji
+    { year: 1951, text: "The mayor of Englewood, New Jersey, dialed Alameda, California, directly: the first coast-to-coast call with no operator." }, // Wikipedia, Direct distance dialing
   ],
   '11-11': [
     { year: 1918, text: "The guns fell silent on the Western Front at eleven in the morning." },
   ],
   '11-12': [
     { year: 1927, text: "The Holland Tunnel opened to traffic, linking New York and New Jersey under the Hudson." },
+    { year: 1892, text: "Pudge Heffelfinger was paid $500 to play one game for Allegheny, the first known professional football player." }, // Wikipedia, Pudge Heffelfinger
   ],
   '11-13': [
     { year: 1940, text: "Walt Disney released Fantasia, introducing stereophonic sound to movie theaters." }, // Fantasound

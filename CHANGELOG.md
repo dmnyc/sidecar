@@ -5,9 +5,69 @@ and [Semantic Versioning](https://semver.org/).
 
 Release practice: the latest release's highlights are also summarized in-app, in the help
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
-Update that section alongside this file as part of every release.
+Update that section alongside this file as part of every release. The newest heading is
+always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
+has entries, and that heading becomes the version heading when the release is cut.
 
-## [Unreleased]
+## [1.16.3] — 2026-10-26
+
+### Added
+- **Copy a poll’s event ID, link or JSON.** The poll results sheet has a ⋮ at the end of the question, the same menu a notification row carries.
+- **Nostr Vault joins the app directory.**
+
+### Changed
+- **Poll results find more votes.** The clients most people vote from file ballots on their own relays rather than the ones the poll names, so Sidecar also asks four large public relays for them.
+
+### Fixed
+- **Notes and replies from the full-size composer reach your own relays.** It posted to Sidecar’s default relays when the panel had not handed it your relay list, and counted a relay it could not reach as published. It now posts to the relays your account names, counts only the ones that accepted the note, and “Published to N relays.” opens onto which relays accepted it and why the others did not. Highlights post the same way, and a relay that asks for sign-in gets one.
+- **The “your note is live” link points at relays that have the note,** in the composer tab and the panel, and the panel’s banner shows the same relay row when some relays refused it.
+- **A wallet that lists a primal.net relay among others can be connected.** Only Primal’s own connection strings are refused now.
+- **The Plebs vs Zombies icon shows again** in the app directory.
+
+### Removed
+- **Seven unused CSS rules.**
+
+### Documentation
+- **Why cashu.me is not listed as a wallet** is recorded in WALLET_BACKENDS.md: its wallet answers only while its app is open.
+
+## [1.16.2] — 2026-10-25
+
+### Added
+- **Blitz and LNbits join the wallet directory,** and Blitz sits under a new **Spark** filter. A Spark wallet is self-custodial on the Spark layer 2: you hold a key and can exit to Bitcoin.
+
+### Changed
+- **The panel opens lighter.** The 1.65 MB video-player library loads on the first livestream you play, not every time the panel opens. A plain video link never loads it, and a failed load is retried on the next play.
+- **The account Overview folds while the video player is open,** so more of the panel shows beside it, and returns as you had it when the player closes. Opening it by hand beside a video is honored.
+- **The wallet balance refreshes every minute, not every 30 seconds,** and only while a balance is showing.
+
+### Fixed
+- **A Blitz wallet no longer fills your lock screen with alerts.** Blitz answers every wallet request with a push to the phone, so Sidecar's balance polling raised an alert every half minute. Sidecar now recognizes a Blitz connection and never polls it. Its balance is read when the panel opens, after a payment, and when you tap refresh.
+
+## [1.16.1] — 2026-10-21
+
+### Added
+- **Always allow an event type for a site.** The approval card for a kind that can carry a standing grant has a checkbox, **Always allow this event type for this site**. Ticking it turns that one approval into a grant: later signing requests of that kind from that site, as the account that approved it, sign without another click. A grant covers one account on one site, and when the event carries a `d` tag it covers that one record rather than the whole kind. It applies to signing only, never to encrypting or decrypting, and a locked Sidecar still asks for your PIN. Profiles, follow and mute lists, relay lists and the other replaceable kinds, deletions, zap requests, relay auth and wallet control never offer the checkbox. The Activity tab lists what each site signs without asking, with a ✕ to revoke, and forgetting a site clears its grants.
+- **A payment card can pay from another account.** A website payment paid from the account the site is bound to, and its card gave no way to change that. The card now lists your other accounts that have a wallet connected; pick one to pay this payment from it. A line under the list, **Use {name} for all further payments on this site**, keeps the site on that account from then on. It is unticked by default and takes effect when you approve, so a payment that fails afterward changes nothing. Silent payments never change account, and keysend and boost cards are unchanged.
+- **One payment bar for every payment.** Zaps from a stream, a profile or a notification, Send, offer payments, and payments started from a website all land in one small bar at the foot of the panel, built like the mining bar: one live line while the payment runs, and a short result when it ends, wherever you have gone in the meantime. No sheet has to stay open while the money moves. A payment on its way cannot be cancelled, so the bar has no Stop button; tapping it dismisses a finished result, never a live one.
+- **Open a stream from its address, and copy one.** The stream box takes an naddr as well as a URL: it looks the announcement up on your relays, waits a moment for more answers, and says so when the address is not a stream or cannot be found. Every stream row and the details header have a copy button under the bookmark that puts the stream’s naddr on the clipboard, so a stream can be sent to someone and opened from the same box. A saved video link has no announcement behind it, so it gets no button.
+- **Use Sidecar for Lightning on pages another wallet claimed.** When another wallet extension answered first, a page’s Lightning payments went to it. A new setting, **Make default Lightning wallet**, off by default, makes Sidecar answer instead, and when Sidecar sees another wallet already holding a page, the panel offers once to switch. Either answer ends the offer; the setting stays in Settings for changing your mind, and it applies when a page loads, so a choice holds across reloads. A page cannot answer for you.
+- **The composer says when it is replying.** In the tab, a reply looked like a new note. The quote block now starts with a **Replying to** label, in the tab and in the panel; the button says Reply for a reply and Post for a note; and the label row ends with KIND 1 or KIND 1111, so you can see which kind the reply will go out as. It is read from the same code that builds the published reply, so it cannot disagree with what is sent.
+- **Search the Welcome directory by word.** A search box sits above the category pills. Every word you type has to appear in a card’s name, address, description or category, in any order and any case, and it works together with the category choice. Escape clears it, and a line says when nothing matches.
+- **Eight new apps in the directory.** Conduit Market and Conduit Merchant Portal under Commerce, The Curious Pair under Media, Anagram and Armada under Social, and zapMeaCoffee for Lightning tips, Magic Internet Math for math courses and Fanfares for selling content for bitcoin. Seven descriptions are shorter, so every card fits in three lines.
+
+### Changed
+- **The help guide opens with two buttons,** Explore apps and Pick a wallet, and has sections on Allow all, why there is a Reject all and no Approve all, and on always allowing an event type.
+- **The Auto-lock hint says what idle means:** nothing signed, approved or written in the panel. The card for a batch of signing requests says that one tap signs every event listed, and the data recovery credit carries the Lazarus wordmark.
+
+### Fixed
+- **A stream’s host shows their own name and picture.** Opening the Past list read every host’s profile through connections of its own, about 150 for twenty rows; relays refused many of them, and a refused lookup read as “no profile,” so a host could appear under a made-up name with the stream’s artwork, and a row could lose its avatar. The list reads its hosts in one batch, 11 connections instead of 153, with pictures in about a second and a half, and asks again for a host nothing answered for.
+- **Allow all no longer covers a profile, a follow list, a mute list, a trust list or a zap request.** A burst of those shared one button, so one tap could sign a replacement follow list the card only previewed as a row, and the overwrite warning never ran for the ones queued behind the first. A zap request’s amount rides in tags a batch row does not show. Each of these kinds now gets its own card, with the warning where it applies, and the batch card says why there is no Approve all.
+- **Typing an email or a Lightning address no longer opens the mention popup.** It opens only when the @ starts a word, the same rule bare npubs follow, so a pick or an eager Enter can no longer splice a mention into the middle of the address.
+- **The post receipt no longer blocks new notes and replies.** After posting from the expanded composer, the “Your note is live” tab stood in the way: Compose focused it instead of opening a new note, and so did replying to a notification. A finished tab now stands aside, restarts on the new draft when you have asked for the expanded composer, and no longer saves an empty draft over the one the panel had just written.
+- **The approval card keeps its scroll to itself.** A wheel over a short card, its pinned buttons or its dimmed edge scrolled the blurred panel behind it, and the card’s last line stayed dimmed even scrolled to the bottom, because its bottom padding was shorter than its fade. Both are fixed in the panel and in the popup window.
+- **A refused payment says why.** An expired invoice is read off the invoice itself, with no wallet call. One that may already be paid is checked with a short read-only lookup, and a refusal the wallet cannot explain reads “The invoice may already be paid or no longer valid.” Every other refusal keeps the wallet’s own words, and the money stayed put either way.
+- **A stream whose announced image fails to load gets a thumbnail again.** The code that set the host’s picture and banner referenced two layers it was never handed, and threw, so nothing showed. The announcement’s own `thumb` tag, the stream’s live frame, is read as well: the order is now image, thumb, banner, then the host’s picture.
+- **Forgetting a site ends its standing approvals.** Removing a site left its 60-second content and decrypt windows and any timed auto-sign grant alive, so a forgotten site could still sign without asking. Removing a site now clears its windows and revokes its grants, and Forget all sites clears every one.
 
 ## [1.16.0] — 2026-10-13
 

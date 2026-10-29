@@ -185,16 +185,18 @@ test('THE PANEL LEAVES WHEN THE PAYMENT DOES', () => {
   // and the moment the modal closes is the moment the money is genuinely moving. Nothing
   // here has to hedge, and once a payment in flight has an indicator of its own there is
   // nothing left for a "Keep browsing" button to tell anyone.
-  assert.doesNotMatch(bare, /Keep browsing/, 'the button is redundant once the toast carries it');
+  assert.doesNotMatch(bare, /Keep browsing/, 'the button is redundant once the bar carries it');
   assert.doesNotMatch(bare, /pay-flight/, 'and so is the block it sat in');
   assert.doesNotMatch(css, /\.pay-flight/, 'the styles went with it');
-  assert.match(bare, /function beginFlight\(sats\)/);
-  assert.match(bare, /toast\(sats != null \? tSec\('Sending \{\{amount\}\} sats', \{ amount: fmtSats\(sats\) \}\) : tSec\('Sending payment'\), 'progress'\)/);
+  const fn = lift(bare, 'function beginFlight(');
+  assert.match(fn, /beginPaymentFlight\(/, 'the Send feeds the one payment bar');
+  assert.match(fn, /tSec\('Sending \{\{amount\}\} sats', \{ amount: fmtSats\(sats\) \}\)/);
+  assert.match(fn, /tSec\('Sending payment'\)/);
 });
 
 test('the modal closes only once nothing can fail back into the form', () => {
   // A bad address, an out-of-range amount or a server that will not issue an invoice all
-  // belong in the form. Closing on the click would throw those into a toast and leave the
+  // belong in the form. Closing on the click would throw those into the bar and leave the
   // person with no field to correct.
   const fn = bare.slice(bare.indexOf("pay.addEventListener('click'"));
   const body = fn.slice(0, fn.indexOf('\n      });'));
@@ -205,60 +207,126 @@ test('the modal closes only once nothing can fail back into the form', () => {
     'the modal has to be gone before the wallet call, not after it');
 });
 
-test('a progress toast does not expire, and both outcomes retire it', () => {
-  // The one toast in the panel with no clock on it. If it ever gets one, a slow payment
-  // goes silent again, which is the complaint #270 opened with.
-  const fn = bare.slice(bare.indexOf('function toast(message, type)'));
-  const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /const holds = type === 'progress';/);
-  assert.match(body, /const hide = holds \? null : setTimeout\(dismiss, 3200\);/, 'the progress toast has a timer');
-  assert.match(body, /t\.close = dismiss;/, 'the caller cannot retire it');
-  assert.match(body, /if \(holds\) t\.appendChild\(h\('span', \{ className: 'toast-spin' \}\)\);/);
-  // Not green and not red: it is neither outcome, and reading it as either is the point.
-  assert.match(css, /\.toast-progress \{[^}]*background: linear-gradient/);
-  assert.doesNotMatch(css.slice(css.indexOf('.toast-progress')), /^[^}]*#176a44/);
+test('EVERY PANEL PAYMENT FEEDS THE BAR, AND NO PATH FEEDS A PROGRESS TOAST', () => {
+  // One lifecycle, one place to look (#495). Each of the five panel payment paths starts
+  // its flight with beginPaymentFlight, and none of them reaches for a 'progress' toast
+  // anymore — two live indicators for one payment is exactly the split attention the bar
+  // exists to end.
+  const paths = [
+    ['CLINK offer pay', "offerPay.addEventListener('click'", 'beginPaymentFlight('],
+    ['profile sheet zap', "send.addEventListener('click'", 'beginPaymentFlight('],
+    ['bell zap', 'function buildZapForm(', 'beginPaymentFlight('],
+    ['Send form', "pay.addEventListener('click'", 'beginFlight('],
+    ['creator zap', "send.addEventListener('click', async () => {", 'beginPaymentFlight('],
+  ];
+  for (const [name, anchor, call] of paths) {
+    const at = name === 'profile sheet zap'
+      ? bare.indexOf(anchor, bare.indexOf('const zapForm = h('))
+      : bare.indexOf(anchor);
+    assert.ok(at > -1, name + ' found');
+    const body = bare.slice(at, bare.indexOf('\n      });', at));
+    assert.match(body, new RegExp(call.replace('(', '\\(')), name + ' feeds the payment bar');
+  }
+  assert.doesNotMatch(bare, /'progress'\)/, 'no panel payment shows a progress toast anymore');
+});
 
+test('the flight starts only once the payment is genuinely going out', () => {
+  // Same rule both surfaces already followed for the toast: a failure that can go back
+  // into a form must not be announced from behind an indicator that says the money is
+  // moving. Started after the invoice exists, before the wallet call.
+  const send = bare.indexOf("send.addEventListener('click'", bare.indexOf('const zapForm = h('));
+  const zapBody = bare.slice(send, bare.indexOf('\n      });', send));
+  assert.ok(zapBody.indexOf('beginPaymentFlight(') > zapBody.indexOf('await zapInvoice('),
+    'the zap bar starts after the invoice exists');
+  assert.ok(zapBody.indexOf('beginPaymentFlight(') < zapBody.indexOf('client.payInvoice('),
+    'the zap bar starts before the wallet call');
+});
+
+test('BOTH OUTCOMES SETTLE THE FLIGHT', () => {
+  // The bar's flight has no clock of its own, so a settled payment must retire it or it
+  // sits there forever — the exact failure the progress toast's contract guarded, one
+  // layer down. Success settles with the amount; failure settles with the error.
   const pay = bare.slice(bare.indexOf("pay.addEventListener('click'"));
   const payBody = pay.slice(0, pay.indexOf('\n      });'));
-  assert.match(payBody, /flight\.close\(\);/, 'a settled payment leaves its toast on screen forever');
-  assert.match(payBody, /if \(flight\) flight\.close\(\);/, 'a failed payment leaves its toast on screen forever');
+  assert.match(payBody, /flight\.settle\(\s*true,/, 'a settled payment leaves its flight on the bar forever');
+  assert.match(payBody, /if \(flight\) flight\.settle\(false, null, e\.message\);/, 'a failed payment leaves its flight on the bar forever');
+  const send = bare.indexOf("send.addEventListener('click'", bare.indexOf('const zapForm = h('));
+  const zapBody = bare.slice(send, bare.indexOf('\n      });', send));
+  assert.match(zapBody, /flight\.settle\(true, tSec\('Zapped \{\{amount\}\} sats'/, 'the zap bar settles with what it zapped');
+  assert.match(zapBody, /if \(flight\) flight\.settle\(false, null, e\.message\);/);
 });
 
-test('THE PROFILE SHEET ZAP GETS THE SAME INDICATOR', () => {
-  // The panel path people actually reach. The sheet is dismissible mid-zap, so a disabled
-  // button inside it was never an in-flight indicator: close the sheet and there was
-  // nothing at all until the toast landed.
-  const at = bare.indexOf("send.addEventListener('click'");
-  const body = bare.slice(at, bare.indexOf('\n      });', at));
-  assert.match(body, /toast\('Zapping ' \+ fmtSats\(sats\) \+ ' sats', 'progress'\)/);
-  // Started after the invoice exists, so an address that will not issue one still errors
-  // into the sheet rather than behind a toast that says the zap is going.
-  assert.ok(body.indexOf('flight = toast(') > body.indexOf('await zapInvoice('),
-    'the indicator starts before there is anything to indicate');
-  assert.ok(body.indexOf('flight = toast(') < body.indexOf('client.payInvoice('));
-  assert.match(body, /flight\.close\(\);\n\s*lightningStrike\(\)/, 'the toast outlives the zap');
-  assert.match(body, /if \(flight\) flight\.close\(\);/, 'a failed zap leaves its toast up');
+test('A FAILED PAYMENT REACHES SOMEONE ON ANOTHER SURFACE', () => {
+  // What makes closing the modal safe — now with the bar's one blind spot closed: the
+  // bar lives at the foot of the main view, so while an approval card or the lock screen
+  // owns the panel, the failure would land where nobody is looking. surfacePaymentFailure
+  // is the bridge: bar line always, toast underneath only when the main view is hidden.
+  const fn = lift(bare, 'function surfacePaymentFailure(');
+  assert.match(fn, /view\.classList\.contains\('hidden'\)/, 'it checks who owns the panel');
+  assert.match(fn, /toast\(message, 'error'\)/, 'and toasts only for them');
+  // The Send catch routes through it, with the inline line still serving whoever never
+  // left the form.
+  const pay = bare.slice(bare.indexOf("pay.addEventListener('click'"));
+  const payBody = pay.slice(0, pay.indexOf('\n      });'));
+  assert.match(payBody, /surfacePaymentFailure\(e\.message\);/);
+  const toastAt = payBody.indexOf('surfacePaymentFailure(');
+  const inlineAt = payBody.indexOf('err.textContent = e.message');
+  assert.ok(toastAt > -1 && inlineAt > toastAt, 'the surface check comes first; the inline line is for whoever never got that far');
+  assert.match(payBody, /pay\.disabled = false;/, 'and the button comes back');
 });
 
-test('A FAILED PAYMENT REACHES SOMEONE WHO LEFT', () => {
-  // What makes closing the modal safe. `err` lives inside it, so once it is gone a failed
-  // payment has no inline line to land on: without the toast it would tell them nothing
-  // at all. Success already toasted, which made the asymmetry worse, since leaving was
-  // rewarded on success and punished on failure.
-  const at = bare.lastIndexOf('} catch (e) {', bare.indexOf('err.textContent = e.message;\n          pay.disabled = false;'));
-  const block = bare.slice(at, bare.indexOf("pay.textContent = 'Pay';", at));
-  assert.match(block, /toast\(e\.message, 'error'\)/, 'a failure has to reach them wherever they are');
-  const toastAt = block.indexOf('toast(e.message');
-  const inlineAt = block.indexOf('err.textContent = e.message');
-  assert.ok(toastAt > -1 && inlineAt > toastAt, 'the toast comes first; the inline line is for whoever never got that far');
-  assert.match(block, /pay\.disabled = false;/, 'and the button comes back');
+test('THE BAR HAS ONE LIFECYCLE AND NO STOP', () => {
+  // "A payment can't be cancelled once it is sent, so there is no Stop button" (#495).
+  // The mining bar it is built like has one; this must not grow one, because a button
+  // that most looks like cancel on a payment is the one thing it definitely is not.
+  const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  const at = html.indexOf('id="payment-status"');
+  const block = html.slice(html.lastIndexOf('<!--', at), html.indexOf('</div>', at));
+  assert.doesNotMatch(block, /<button/, 'no control belongs on a pending payment');
+  assert.match(block, /role="status" aria-live="polite"/, 'a status that changes under you is announced');
+  // Pending shows the shared spinner idiom; a settled result shows the outcome icon.
+  const render = lift(bare, 'function renderPaymentStatus(');
+  assert.match(render, /className: 'toast-spin'/, 'the one spinner idiom, not a new one');
+  assert.match(render, /icon\(paymentResult\.ok \? 'check' : 'alert'\)/, 'the result says which kind it was');
+  assert.match(render, /payment-active/, 'the bar lifts the compose FAB like the mining and relax bars do');
 });
 
-test('the profile sheet zap reports failure the same way', () => {
-  // The other payInvoice call site. It had the same reporting gap: success toasted and
-  // failure wrote into a sheet the user may have closed, so a zap that worked was
-  // announced and a zap that failed was silent.
-  const at = bare.indexOf('zapErr.textContent = e.message');
-  assert.notEqual(at, -1);
-  assert.match(bare.slice(at - 260, at), /toast\(e\.message, 'error'\)/);
+test('website payments ride the bar for their whole flight, not just at settle', () => {
+  // The worker is where a website's sendPayment and every boost leg actually run, so the
+  // panel only knows about them through these broadcasts (#495).
+  const locked = lift(bgCode, 'async function payInvoiceLocked(');
+  const started = locked.indexOf("tellPanelPayment('paymentStarted'");
+  assert.ok(started > -1, 'the invoice path announces the flight');
+  assert.ok(started > locked.indexOf('getSwNwc(pubkey)'), 'a no-wallet refusal never flashes the bar');
+  assert.ok(started < locked.indexOf('payAndConfirm(c,'), 'the bar is up before the wallet call');
+  const failed = locked.indexOf("tellPanelPayment('paymentSettled', { ok: false");
+  assert.ok(failed > started && failed < locked.indexOf('const preimage'),
+    'a failed flight is retired with its error');
+  assert.match(locked, /tellPanelPayment\('paymentSettled', \{ ok: true, sats \}\)/);
+  // A zap says Zapping, any other website payment says Sending — the verb the page pill
+  // already uses for the same distinction.
+  assert.match(locked, /zap: !!zapRecipient/);
+
+  const keysend = lift(bgCode, 'async function payKeysendLocked(');
+  const kStarted = keysend.indexOf("tellPanelPayment('paymentStarted'");
+  assert.ok(kStarted > keysend.indexOf('getSwNwc(pubkey)'), 'the keysend flight starts after the wallet check');
+  assert.ok(kStarted < keysend.indexOf('payAndConfirm(c,'));
+  assert.match(keysend, /tellPanelPayment\('paymentSettled', \{ ok: false, sats: ks\.sats, error: e && e\.message \}\)/,
+    'a failed boost leg is retired with its error');
+  assert.match(keysend, /tellPanelPayment\('paymentSettled', \{ ok: true, sats: ks\.sats \}\)/);
+  // Best-effort by construction: a payment must never fail because no panel was open.
+  const helper = lift(bgCode, 'function tellPanelPayment(');
+  assert.match(helper, /\.catch\(\(\) => \{\}\)/);
+});
+
+test('THE BAR SURVIVES THE STREAM VIEW', () => {
+  // The stream theater hides every child of the main view but the status bars — a zap
+  // from a stream is exactly where a payment and the theater meet, so the bar must be
+  // on the sparing list in both the CSS and the directory-positioning code.
+  const scss = fs.readFileSync(path.join(ROOT, 'streams.css'), 'utf8');
+  const spared = scss.match(/:not\(#payment-status\)/g) || [];
+  assert.ok(spared.length >= 3, 'every hiding selector spares the bar');
+  const sjs = fs.readFileSync(path.join(ROOT, 'streams.js'), 'utf8');
+  assert.equal((sjs.match(/'relax-status','payment-status','mining-status'/g) || []).length, 2,
+    'the directory clears the bar, and observes it');
 });

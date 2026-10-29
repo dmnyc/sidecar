@@ -85,6 +85,16 @@
       return;
     }
 
+    // Another wallet holds window.webln on this page. Carries nothing: the worker takes
+    // the host from this tab's own URL, and what it does with the fact is the panel's
+    // business (an offer the person can accept or wave off, never an action).
+    if (d.kind === 'webln-other-present') {
+      if (weblnOtherTold || !extensionAlive()) return;
+      weblnOtherTold = true;
+      try { chrome.runtime.sendMessage({ type: 'SIDECAR_WEBLN_OTHER_PRESENT' }, () => void chrome.runtime.lastError); } catch (_) {}
+      return;
+    }
+
     if (d.kind !== 'request') return;
     const type = SCOPE_TO_TYPE[d.scope];
     if (!type) return;
@@ -259,6 +269,7 @@
   // passed. The BOLT11's own expiry still applies on top of this; this is only
   // the ceiling on how long a copy counts as a live intent to pay.
   let copiedInvoice = '';
+  let weblnOtherTold = false; // the worker has heard another wallet holds window.webln here
   let copiedAt = 0;
   const COPIED_TTL_MS = 3 * 60 * 1000;
   let escHandler = null;
@@ -2057,6 +2068,14 @@
     scanTimer = setTimeout(scanForInvoice, 400);
   }
 
+  // The page-facing half of "Use Sidecar for Lightning payments" (#501). The MAIN-world
+  // provider cannot read chrome.storage, so this side relays the setting as a config
+  // message. It relays OFF as an explicit false rather than omitting it, so a page
+  // that saw "on" can be corrected without a reload.
+  function tellProviderWeblnTakeover(on) {
+    try { window.postMessage({ ext: 'sidecar', kind: 'config', weblnTakeover: on === true }, '*'); } catch (_) {}
+  }
+
   // React to events pushed from the worker: setting toggle, and payment success
   // (clear the card — the invoice link often lingers after "Paid").
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -2069,6 +2088,7 @@
       if ('payPillAnywhere' in msg) pillAnywhere = msg.payPillAnywhere === true;
       if ('payOfferDismissed' in msg) payOfferDismissed = msg.payOfferDismissed === true;
       if ('autoZapOffer' in msg) autoZapOffer = Number(msg.autoZapOffer) || 0;
+      if ('weblnTakeover' in msg) tellProviderWeblnTakeover(msg.weblnTakeover === true);
       scanForInvoice();
     } else if (msg.event === 'autopaying') {
       // An auto-zap is going out for this invoice. There is no action to take, which is
@@ -2138,6 +2158,7 @@
       pillAnywhere = settings.payPillAnywhere === true;
       payOfferDismissed = settings.payOfferDismissed === true;
       setCardTheme(settings.cardTheme || ''); // same reply carries the palette
+      tellProviderWeblnTakeover(settings.weblnTakeover === true);
       scanForInvoice();
     });
   } catch (_) {}

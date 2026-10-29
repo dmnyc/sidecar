@@ -79,7 +79,7 @@ function apps() {
     cat: 'commerce',
     icon: 'https://geyser.fund/logo-brand.svg',
     flush: true,
-    desc: t('Crowdfunding for Bitcoin and Nostr projects: fundraisers powered by Lightning contributions.'),
+    desc: t('Crowdfunding for Bitcoin and Nostr projects, powered by Lightning contributions.'),
   },
   {
     name: 'Conduit Market',
@@ -198,7 +198,7 @@ function apps() {
     url: 'https://www.wordswithzaps.top',
     domain: 'wordswithzaps.top',
     cat: 'gaming',
-    desc: t('A two-player word game with Lightning stakes: challenge friends and zap your way to victory.'),
+    desc: t('A two-player word game with Lightning stakes: challenge friends and zap to win.'),
   },
   {
     name: 'NostrHub',
@@ -225,7 +225,8 @@ function apps() {
     url: 'https://plebsvszombies.cc',
     domain: 'plebsvszombies.cc',
     cat: 'tools',
-    flush: true,
+    // The site's favicon is an SVG only, which the favicon service does not return, so it is bundled.
+    icon: 'icons/apps/plebs-vs-zombies.svg',
     desc: t('A gamified Nostr follow manager: cull your zombie followers and keep your network alive.'),
   },
   {
@@ -249,7 +250,7 @@ function apps() {
     url: 'https://plebeian.market',
     domain: 'plebeian.market',
     cat: 'commerce',
-    desc: t('A peer-to-peer marketplace on Nostr: buy and sell goods and services for Bitcoin, no middleman.'),
+    desc: t('A peer-to-peer Nostr marketplace: buy and sell for Bitcoin, no middleman.'),
   },
   {
     name: 'SatsList',
@@ -452,7 +453,7 @@ function apps() {
     // like Iris's apple-touch-icon rather than taking the velvet wrap.
     icon: 'https://brainstorm.world/favicon.svg',
     flush: true,
-    desc: t('The Web of Trust layer for Nostr: trust scores built from your own connections, not from an algorithm.'),
+    desc: t('Web of Trust for Nostr: trust scores built from your own connections, not an algorithm.'),
   },
   {
     name: 'NymChat',
@@ -464,7 +465,7 @@ function apps() {
     // icon is opaque and fills its frame — flush.
     icon: 'icons/apps/nym.png',
     flush: true,
-    desc: t('Ephemeral chat over Nostr: geohash channels for whoever is near you, Bluetooth mesh when there is no signal.'),
+    desc: t('Ephemeral chat over Nostr: geohash channels for people near you, and Bluetooth mesh offline.'),
   },
   {
     name: 'Shakespeare',
@@ -474,7 +475,7 @@ function apps() {
     // Serves a clean 192x192 PNG at a stable path; filled square, flush.
     icon: 'https://shakespeare.diy/shakespeare-192x192.png',
     flush: true,
-    desc: t('Describe an app and it builds and publishes it to Nostr, in your browser. Open source, from Soapbox.'),
+    desc: t('Describe an app and it builds and publishes it to Nostr, in your browser. By Soapbox.'),
   },
   {
     name: 'Nostr Protocol Forum',
@@ -484,6 +485,76 @@ function apps() {
     // Transparent 256px mark, so it takes the framed treatment rather than flush.
     icon: 'https://nostr-proto.org/nostr-proto-logo.png',
     desc: t('A forum about Nostr itself, with rooms for the protocol, relays, apps, and help.'),
+  },
+  {
+    name: 'The Curious Pair',
+    url: 'https://curiouspair.net',
+    domain: 'curiouspair.net',
+    cat: 'media',
+    // A squared, opaque mark that fills its frame, so flush.
+    icon: 'icons/apps/curious-pair.svg',
+    flush: true,
+    desc: t('A podcast library made by its listeners: request an episode and the hosts talk it through.'),
+  },
+  {
+    name: 'Anagram',
+    url: 'https://anagram.chat',
+    domain: 'anagram.chat',
+    cat: 'social',
+    // Transparent mark, so it takes the framed treatment rather than flush.
+    icon: 'icons/apps/anagram.png',
+    desc: t('Private messaging and calls over Nostr.'),
+  },
+  {
+    name: 'Nostr Vault',
+    url: 'https://nostrvault.app',
+    domain: 'nostrvault.app',
+    cat: 'social',
+    // An opaque dark square that fills its frame, so flush.
+    icon: 'icons/apps/nostr-vault.png',
+    flush: true,
+    desc: t('A Nostr client built on your web of trust: each feed shows accounts your circle vouches for.'),
+  },
+  {
+    name: 'Armada',
+    url: 'https://armada.buzz/',
+    domain: 'armada.buzz',
+    cat: 'social',
+    // A dark chip inset with margin, not a full-bleed square, so it takes the framed treatment.
+    icon: 'icons/apps/armada.svg',
+    desc: t('Open-source, encrypted Discord alternative: channels, voice and DMs, no host required.'),
+  },
+  {
+    name: 'zapMeaCoffee',
+    url: 'https://zapmeacoffee.com',
+    domain: 'zapmeacoffee.com',
+    cat: 'commerce',
+    // Their mark on their own site: a dark outline bolt (Lucide's `zap`) on a yellow rounded
+    // tile. Their favicon is the bolt alone in black, which disappears on a dark card, so the
+    // tile is drawn too. It fills its frame, so flush.
+    logo: `<svg viewBox="0 0 46 46" aria-hidden="true"><rect width="46" height="46" rx="10" fill="#e8bc5d"/><g transform="translate(12 12) scale(.92)" fill="none" stroke="#2a2620" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></g></svg>`,
+    flush: true,
+    desc: t('Accept Lightning tips from your supporters, with your Nostr profile and a Lightning address.'),
+  },
+  {
+    name: 'Magic Internet Math',
+    url: 'https://magicinternetmath.com',
+    domain: 'magicinternetmath.com',
+    cat: 'other',
+    // Their logo with the wordmark cropped off, so the shape reads at icon size. An opaque dark
+    // square that fills its frame, so flush.
+    icon: 'icons/apps/magic-internet-math.png',
+    flush: true,
+    desc: t('Interactive math courses, from basic algebra to the cryptography behind the internet.'),
+  },
+  {
+    name: 'Fanfares',
+    url: 'https://fanfares.io',
+    domain: 'fanfares.io',
+    cat: 'commerce',
+    // Their 180px touch icon: a rounded square with its own margin, so framed rather than flush.
+    icon: 'https://fanfares.io/apple-touch-icon.png',
+    desc: t('Sell your content for bitcoin: publishing for the internet money era.'),
   },
   ];
 }
@@ -512,6 +583,8 @@ function renderCard(app, labels) {
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
   a.dataset.cat = app.cat;
+  // What a typed word is looked for in: the name, the address, the description and the category.
+  a.dataset.search = [app.name, app.domain, app.desc, labels[app.cat]].join(' ').toLowerCase();
 
   const faviconWrap = document.createElement('div');
   faviconWrap.className = 'favicon-wrap' + (app.flush ? ' flush' : '');
@@ -643,25 +716,48 @@ function renderGrid() {
   renderFooterTips();
 })();
 
-// Category filter
-document.getElementById('filters').addEventListener('click', e => {
-  const btn = e.target.closest('.filter-btn');
-  if (!btn) return;
-  const cat = btn.dataset.cat;
-
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-
+// Category filter and word search, applied together. Every typed word has to appear somewhere in
+// a card (name, address, description, category), in any order and any case.
+let activeCat = 'all';
+let searchWords = [];
+function cardMatches(card, cat, words) {
+  if (cat !== 'all' && card.dataset.cat !== cat) return false;
+  const text = card.dataset.search || '';
+  return words.every(word => text.includes(word));
+}
+function applyFilters() {
+  let shown = 0;
   // :not(.app-slot) so the open slot survives every filter. It has no data-cat, so
   // without this it would vanish the moment anything but All was picked.
   document.querySelectorAll('.card:not(.app-slot)').forEach(card => {
-    if (cat === 'all' || card.dataset.cat === cat) {
-      card.classList.remove('hidden-cat');
-    } else {
-      card.classList.add('hidden-cat');
-    }
+    const match = cardMatches(card, activeCat, searchWords);
+    card.classList.toggle('hidden-cat', !match);
+    if (match) shown++;
   });
+  const none = document.getElementById('no-match');
+  if (none) {
+    none.hidden = shown > 0;
+    none.textContent = shown > 0 ? '' : t('No apps match “{{query}}”. Try fewer words, or a different category.', { query: searchWords.join(' ') });
+  }
+}
+document.getElementById('filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  activeCat = btn.dataset.cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
 });
+const searchBox = document.getElementById('search');
+if (searchBox) {
+  searchBox.addEventListener('input', () => {
+    searchWords = searchBox.value.toLowerCase().split(/\s+/).filter(Boolean);
+    applyFilters();
+  });
+  searchBox.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && searchBox.value) { searchBox.value = ''; searchWords = []; applyFilters(); }
+  });
+}
 
 // First-run nudge: if the panel isn't open yet, show a strip at the top of the
 // page telling the user to pin Sidecar. It shows at most once — closing it or

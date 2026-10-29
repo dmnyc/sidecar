@@ -59,13 +59,13 @@
         <button class="icon-btn" id="stream-refresh" aria-label="Refresh streams" title="Refresh streams" data-i18n-aria-label="Refresh streams" data-i18n-title="Refresh streams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
         <button id="stream-saved-toggle" class="icon-btn" aria-pressed="false" aria-label="Saved streams" title="Saved streams" data-i18n-aria-label="Saved streams" data-i18n-title="Saved streams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg></button>
         <button id="stream-more-toggle" class="ghost" aria-expanded="false" aria-controls="stream-more-list" data-i18n="More" hidden>More</button>
-        <button id="stream-url-toggle" class="ghost" aria-expanded="false" aria-controls="stream-advanced" aria-label="Enter stream URL" data-i18n-aria-label="Enter stream URL" data-i18n="Enter stream URL">Enter stream URL</button>
+        <button id="stream-url-toggle" class="ghost" aria-expanded="false" aria-controls="stream-advanced" aria-label="Open a stream" data-i18n-aria-label="Open a stream" data-i18n="Open a stream">Open a stream</button>
       </div>
       <div id="stream-more-list" hidden></div>
       <div id="stream-advanced" hidden>
       <form id="stream-form" class="stack">
-        <label for="stream-url" data-i18n="Stream URL">Stream URL</label>
-        <input id="stream-url" type="url" placeholder="https://…/live.m3u8" required />
+        <label for="stream-url" data-i18n="Stream link or naddr">Stream link or naddr</label>
+        <input id="stream-url" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://…/live.m3u8 or naddr1…" required />
         <label for="stream-url-name" data-i18n="Name (optional)">Name (optional)</label>
         <input id="stream-url-name" type="text" maxlength="240" />
         <label><input id="stream-url-save" type="checkbox" /> <span data-i18n="Save stream">Save stream</span></label>
@@ -239,6 +239,8 @@
     <div id="reload-banner" class="reload-banner hidden"></div>
     <!-- Requests interrupted by a service-worker restart (honest tombstones). -->
     <div id="interrupted-banner" class="interrupted-banner hidden"></div>
+    <!-- Offer to answer Lightning where another wallet extension already does (#501). -->
+    <div id="webln-offer" class="webln-offer hidden"></div>
 
     <main class="content">
       <!-- Accounts -->
@@ -345,6 +347,23 @@
         <span class="mining-status-who" id="mining-status-who"></span>
       </span>
       <button type="button" id="mining-status-stop" class="mining-status-stop" data-i18n="Stop">Stop</button>
+    </div>
+
+    <!-- One payment bar for every payment path (#495), the mining bar's sibling: a
+         pending payment minimizes here with one live line — Zapping, then Zapped or
+         Failed — and no sheet has to stay open while the money moves. A payment cannot
+         be cancelled once it is sent, so unlike the mine above there is no Stop. Sits
+         above the relax bar: a payment is seconds, a relax window is minutes. Panel-side
+         payments (Send, zaps, offers) feed it directly; website payments ride the
+         paymentStarted / paymentSettled events from the worker. See
+         beginPaymentFlight and renderPaymentStatus in sidepanel.js. -->
+    <div id="payment-status" class="payment-status hidden" role="status" aria-live="polite">
+      <span class="payment-status-glyph" id="payment-status-glyph" aria-hidden="true"></span>
+      <span class="payment-status-main">
+        <span class="payment-status-line" id="payment-status-line"></span>
+        <span class="payment-status-sub" id="payment-status-sub"></span>
+      </span>
+      <span class="payment-status-count hidden" id="payment-status-count"></span>
     </div>
 
     <!-- Persistent bottom status bar, shown only while a relax (auto-sign) window
@@ -699,6 +718,10 @@
             <p class="hint" data-i18n="Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice." data-i18n-review>Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
             <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span data-i18n="Show on Nostr sites">Show on Nostr sites</span></label>
             <label class="toggle-row"><input type="checkbox" id="paypill-anywhere-toggle" /> <span data-i18n="Show on unconnected sites">Show on unconnected sites</span></label>
+            <!-- Off by default: taking Lightning on a page another wallet extension
+                 claimed is the person's own decision, never a silent one (#501). -->
+            <label class="toggle-row"><input type="checkbox" id="webln-takeover-toggle" /> <span data-i18n="Make default Lightning wallet" data-i18n-review>Make default Lightning wallet</span></label>
+            <p class="hint" data-i18n="Sidecar becomes the default wallet on web pages, ahead of any other. Open pages need a reload." data-i18n-review>Sidecar becomes the default wallet on web pages, ahead of any other. Open pages need a reload.</p>
           </div>
 
           <div class="setting">
@@ -986,6 +1009,11 @@
       <div class="approval-account" id="approval-account"></div>
       <button class="approval-switch-toggle hidden" id="approval-switch-toggle" data-i18n="Sign in with a different account" data-i18n-review>Sign in with a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
+      <!-- Payment cards: keep the site on the account picked above, instead of only this payment. -->
+      <div id="approval-bind-payer" class="remember hidden">
+        <label class="check"><input type="checkbox" id="approval-bind-payer-box" />
+        <span id="approval-bind-payer-label"></span></label>
+      </div>
 
       <!-- "Wrong account?" escape. Shown on a content sign whenever there is an account
            the switcher above cannot offer — either because no switcher is showing, or
@@ -1047,6 +1075,18 @@
           <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
         </div>
 
+        <!-- "Always allow this event type" (#482): a standing, revocable grant for one
+             event kind — or, when the event carries a `d` tag, that one record — from this
+             site, signed by the account that granted it. The background offers it
+             (data.canKindGrant) only on kinds a grant may ever cover; the note below names
+             the site, account, kind, and record. Panel twin of the popup's
+             #always-kind-offer; see prompt.html. -->
+        <div id="approval-always-kind-offer" class="remember hidden">
+          <label class="check"><input type="checkbox" id="approval-always-kind-box" />
+          <span data-i18n="Always allow this event type for this site" data-i18n-review>Always allow this event type for this site</span></label>
+          <div id="approval-always-kind-note" class="always-kind-note"></div>
+        </div>
+
         <div id="approval-remember" class="remember hidden">
           <label class="check"><input type="checkbox" id="approval-remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
           <div class="budget-row">
@@ -1082,6 +1122,10 @@
         <div id="approval-backlog" class="approval-backlog hidden">
           <span id="approval-backlog-count"></span>
           <button class="approval-reject-all" id="approval-reject-all" data-i18n="Reject all" data-i18n-review>Reject all</button>
+          <!-- Why no Approve all sits here too (#502): the batch caption beside the
+               member list explains what one tap signs; this one explains the
+               asymmetry itself, where the person looking for the missing button is. -->
+          <p id="approval-backlog-note" class="approval-backlog-note hidden"></p>
         </div>
       </div>
     </div>
@@ -1135,7 +1179,6 @@
        panel destructures it on its first line. Shared with the expanded composer page. -->
   <script src="composer-core.js"></script>
   <script src="sidepanel.js"></script>
-  <script src="hls.js"></script>
   <script src="stream-core.js?v=cocktail-names"></script>
   <script src="stream-chat.js"></script><script src="stream-details.js"></script><script src="streams.js"></script>
 </body>
