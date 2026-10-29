@@ -26,7 +26,9 @@ function element(tag, props = {}, children = []) {
       this.children.splice(at, 0, item);
       item.parent = this;
     },
-    remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); },
+    remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; },
+    // In a document while it hangs from something; loadMore checks it after waiting.
+    get isConnected() { return !!this.parent; },
     addEventListener(name, fn) { this.listeners[name] = fn; },
   };
   const classes = new Set((props.className || '').split(' '));
@@ -38,11 +40,15 @@ function element(tag, props = {}, children = []) {
   return node;
 }
 
-function render(events, offNet) {
+// `cache` stands in for the account's notification cache: what Load more asks for older
+// history through. Absent, there is nothing older to ask for.
+function render(events, offNet, cache) {
   const list = element('div', { className: 'notif-list' });
   const scroll = element('div', {}, [list]);
   const ctx = {
     events, offNet, list, scroll, PAGE: 25,
+    _notifCache: new Map(cache ? [['account', cache]] : []), _muteLists: new Map(),
+    wotSet: null, isMutedNotif: () => false, zapSender: (e) => e.pubkey, self: {},
     h: element, icon: () => element('svg'), pickQuote: () => 'quote',
     emptyQuote: () => element('div', { className: 'empty' }),
     endQuote: () => element('p'),
@@ -56,6 +62,7 @@ function render(events, offNet) {
   const find = (className) => scroll.children.find((n) => n.className === className);
   return { list, scroll, find };
 }
+const tick = () => new Promise((r) => setImmediate(r));
 
 test('cached notifications remain reachable when every sender is outside the network', () => {
   const events = [{ id: 'reply' }, { id: 'reaction' }];
@@ -89,4 +96,42 @@ test('mixed notifications keep the outside-network group after the last page', (
   assert.ok(view.find('notif-offnet'));
   assert.ok(view.find('notif-end'));
   assert.equal(view.find('notif-load-more'), undefined);
+});
+
+test('LOAD MORE ASKS THE RELAYS once the cached pages run out, and appends what they had', async () => {
+  const mine = Array.from({ length: 30 }, (_, i) => ({ id: 'c' + i, created_at: 1000 - i }));
+  const older = Array.from({ length: 5 }, (_, i) => ({ id: 'o' + i, created_at: 900 - i }));
+  let asked = 0;
+  const cache = {
+    events: [...mine], covered: { since: 950, until: 2000 }, exhausted: false,
+    loadOlder: async () => { asked++; cache.events.push(...older); cache.covered.since = 800; return older.length; },
+  };
+  const view = render(mine, [], cache);
+  assert.equal(view.list.children.length, 25);
+  view.find('notif-load-more').listeners.click(); // the cached page: no ask
+  assert.equal(view.list.children.length, 30);
+  assert.equal(asked, 0, 'asked the relays while a cached page was still in hand');
+  const more = view.find('notif-load-more');
+  assert.ok(more, 'the button went away while older history was still there to ask for');
+  const pending = more.listeners.click();
+  assert.equal(more.disabled, true, 'the button does not show it is working');
+  await pending; await tick();
+  assert.equal(asked, 1);
+  assert.deepEqual(view.list.children.slice(30).map((r) => r.eventId), ['o0', 'o1', 'o2', 'o3', 'o4']);
+  // The relays had nothing older: that is the end of the list.
+  cache.loadOlder = async () => { asked++; cache.exhausted = true; return 0; };
+  await view.find('notif-load-more').listeners.click(); await tick();
+  assert.equal(view.find('notif-load-more'), undefined);
+  assert.ok(view.find('notif-end'), 'the end note never came');
+});
+
+test('an older page skips what the sheet already drew', async () => {
+  const mine = [{ id: 'a', created_at: 100 }];
+  const cache = {
+    events: [...mine], covered: { since: 90, until: 200 }, exhausted: false,
+    loadOlder: async () => { cache.events.push({ id: 'a', created_at: 100 }, { id: 'b', created_at: 50 }); cache.exhausted = true; return 1; },
+  };
+  const view = render(mine, [], cache);
+  await view.find('notif-load-more').listeners.click(); await tick();
+  assert.deepEqual(view.list.children.map((r) => r.eventId), ['a', 'b']);
 });

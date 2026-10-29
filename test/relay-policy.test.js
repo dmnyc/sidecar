@@ -215,8 +215,8 @@ test('the bell subscribes on the inbox, not on the bootstrap set alone', () => {
   const init = sp.slice(sp.indexOf('async function initNotifSubs('));
   const initBody = init.slice(0, init.indexOf('\n  async function ') > 0 ? init.indexOf('\n  async function ') : 20000);
   assert.match(initBody, /const inbox = await inboxRelays\(a\.pubkey\);/);
-  assert.match(initBody, /poolSubscribeAllEose\(inbox, buildFilters\(since, 50\),/);
   assert.match(initBody, /let liveRelays = inbox;/);
+  assert.match(initBody, /cache\.refetch\(\{ keepLive: true \}\)/, 'startup loads history some other way than the inbox refresh');
   assert.match(initBody, /const urls = await inboxRelays\(a\.pubkey\);/, 'the refresh button reads the inbox too');
 });
 

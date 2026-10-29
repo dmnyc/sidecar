@@ -935,6 +935,18 @@
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
+  // NEWEST FIRST, OLDER ON REQUEST. The bell loads the most recent screenful and pages back
+  // from there, rather than a fixed week of history that one slow relay could leave stuck
+  // days in the past. NOTIF_SCREEN is the screenful: the sheet's page and the badge's top.
+  // History is asked for in stretches of time that widen until one holds a screenful, so a
+  // busy account stops at a day and a quiet one reaches back months. Each stretch settles
+  // shortly after the first relay answers (NOTIF_SETTLE_MS), or at NOTIF_FETCH_MAX_MS.
+  const NOTIF_SCREEN = 25;
+  const NOTIF_SPANS = [1, 3, 7, 30, 90].map((days) => days * 86400);
+  const NOTIF_RANGE_LIMIT = 200; // per filter per relay, generous so a stretch is not cut short
+  const NOTIF_CACHE_MAX = 1000;
+  const NOTIF_SETTLE_MS = 800;
+  const NOTIF_FETCH_MAX_MS = 6000;
   const _notifProfiles = new Map(); // sender pubkey → display name string
   const _muteLists = new Map(); // pubkey → resolved mute set (see emptyMuteSet)
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
@@ -5888,6 +5900,18 @@
     return cache.events.filter((ev) => ev.created_at > seenAt).length;
   }
 
+  // THE BADGE COUNTS THE NEWEST SCREENFUL, with a + when there is more unread than that:
+  // more than a screenful loaded, or unread reaching back past what has been loaded at all
+  // (the loaded stretch starts after you last looked, and older history is still there).
+  function notifBadgeText(count, cache, seenAt) {
+    if (count <= 0) return '';
+    const beyond = !!(cache && cache.covered && !cache.exhausted && cache.covered.since > seenAt);
+    if (count > NOTIF_SCREEN || beyond) {
+      return t('{{count}}+', { count: I18N.fmtNum(Math.min(count, NOTIF_SCREEN)) });
+    }
+    return I18N.fmtNum(count);
+  }
+
   function refreshBell() {
     const btn = $('notif-bell-btn');
     if (!btn) return;
@@ -5895,7 +5919,7 @@
     const count = pubkey ? notifUnseenCount(pubkey) : 0;
     const badge = btn.querySelector('.notif-badge');
     if (!badge) return;
-    badge.textContent = count > 99 ? t('{{count}}+', { count: I18N.fmtNum(99) }) : count > 0 ? I18N.fmtNum(count) : '';
+    badge.textContent = notifBadgeText(count, pubkey && _notifCache.get(pubkey), (pubkey && _notifSeenAt[pubkey]) || 0);
     badge.classList.toggle('hidden', count === 0);
   }
 
@@ -7629,7 +7653,6 @@
     await loadNotifSeen();
     const relays = await relayUrls(false);
     if (!relays.length) return;
-    const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // notification backfill window
 
     // Only the ACTIVE account. refreshBell() reads state.activePubkey and nothing
     // renders an unseen count for any other account, so subscribing for the rest
@@ -7663,7 +7686,9 @@
       const cache = _notifCache.get(a.pubkey) || { events: [], liveSub: null };
       _notifCache.set(a.pubkey, cache);
 
-      const addEvent = (ev) => {
+      // `history` marks an event a fetch of the past brought in, as opposed to a live
+      // arrival: it is cached and counted, never inserted at the top of an open sheet.
+      const addEvent = (ev, history) => {
         if (ev.pubkey === a.pubkey) return;
         // The e-based query can also return citations. Keep mentions/quotes from the
         // existing routes, but require actual threading for this new reply route.
@@ -7675,12 +7700,17 @@
         if (cache.events.some((e) => e.id === ev.id)) return;
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
-        if (cache.events.length > 100) cache.events.length = 100;
-        // What a refresh actually brought in. Counted here rather than compared as a
-        // length before and after, because the cap above makes those equal once the cache
-        // is full — a hundred-deep list would have reported "no new notifications" while
-        // quietly rotating new ones in.
-        if (cache.refetching) cache.refetchAdded++;
+        if (cache.events.length > NOTIF_CACHE_MAX) {
+          cache.events.length = NOTIF_CACHE_MAX;
+          // The oldest fell off, so what is loaded no longer reaches as far back. Paging
+          // older asks from here again rather than from a start the cache no longer holds.
+          const oldest = cache.events[cache.events.length - 1].created_at;
+          if (cache.covered && cache.covered.since < oldest) cache.covered.since = oldest;
+          cache.exhausted = false;
+        }
+        // What a fetch actually brought in. Counted here rather than compared as a length
+        // before and after, because the cap above makes those equal once the cache is full.
+        if (history) cache.historyAdded = (cache.historyAdded || 0) + 1;
         // zapSender: fetch the profile of whoever the row will NAME — for a zap
         // that is the zapper, not the LNURL service that signed the receipt.
         // When it resolves, pruneNameMuted re-checks this event against the
@@ -7692,13 +7722,12 @@
         // event to the visible list instead of leaving it to only show up the
         // next time the modal is reopened.
         //
-        // NOT DURING A REFETCH. That path is a backfill: it replays up to a week of
-        // history through this same function, and addLive puts an arrival at the TOP of
-        // the list because a live event is newer than everything by definition. A
-        // two-day-old note prepended above "just now" is what refresh looked like when
-        // it went out — reported. The refresh rebuilds the list from the sorted cache
-        // when it finishes instead, which is also what makes its paging right.
-        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey && !cache.refetching) {
+        // NOT FOR HISTORY. A fetch of the past replays it through this same function, and
+        // addLive puts an arrival at the TOP of the list because a live event is newer than
+        // everything by definition. A two-day-old note prepended above "just now" is what
+        // refresh looked like when it went out — reported. A refresh rebuilds the list from
+        // the sorted cache when it finishes instead, and Load more appends what it found.
+        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey && !history) {
           // Routed through the bell's own sort rather than prepended blind: it decides
           // in-network versus the collapsed group, clears the empty state, and marks the
           // end of the list.
@@ -7709,7 +7738,8 @@
       // Mentions/replies/reactions/zaps tagging the account, plus reposts
       // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
       // own notes — matched by id so they're caught even without a `p` tag.
-      function buildFilters(sinceTs, limit) {
+      // sinceTs may be undefined (no lower bound); untilTs bounds a stretch of history.
+      function buildFilters(sinceTs, limit, untilTs) {
         const ownIdList = [...(_ownNoteIds.get(a.pubkey) || [])];
         // POLL IDS ARE READ HERE, NOT FROZEN WHEN THE SUBSCRIPTION STARTED. A poll posted
         // afterwards is in the set by the time this runs again (rememberOwnPoll), and the
@@ -7751,8 +7781,96 @@
           const votes = { kinds: [POLL_RESPONSE_KIND], '#e': ownPollIdList, since: sinceTs };
           list.push(limit ? Object.assign({ limit }, votes) : votes);
         }
+        for (const f of list) {
+          if (sinceTs == null) delete f.since;
+          if (untilTs != null) f.until = untilTs;
+        }
         return list;
       }
+
+      // ONE STRETCH OF HISTORY, through addEvent as history. Settles NOTIF_SETTLE_MS after
+      // the first event, when every relay has finished, or at NOTIF_FETCH_MAX_MS, and closes
+      // the subscription when it does, so a relay that never answers cannot hold the sheet
+      // and a late one cannot drop old events into it afterwards.
+      const fetchRange = (urls, since, until) => new Promise((resolve) => {
+        let settled = false;
+        let closer = null;
+        let settleTimer = null;
+        let capTimer = null;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(settleTimer);
+          clearTimeout(capTimer);
+          try { if (closer) closer.close(); } catch (_) {}
+          resolve();
+        };
+        capTimer = setTimeout(finish, NOTIF_FETCH_MAX_MS);
+        try {
+          closer = poolSubscribeAllEose(urls, buildFilters(since, NOTIF_RANGE_LIMIT, until), {
+            onevent: (ev) => {
+              addEvent(ev, true);
+              if (!settleTimer) settleTimer = setTimeout(finish, NOTIF_SETTLE_MS);
+            },
+            onclose: finish,
+          });
+          if (settled && closer) closer.close();
+        } catch (_) {
+          finish();
+        }
+      });
+      const countSince = (ts) => cache.events.filter((e) => e.created_at >= ts).length;
+
+      // THE NEWEST SCREENFUL. A day back from now, widened (NOTIF_SPANS) until it holds a
+      // screenful. Each step asks only for the stretch the step before did not cover, and a
+      // refresh stops as soon as it meets what is already loaded, so the usual refresh is
+      // one stretch of a day. cache.covered is the stretch loaded without a gap.
+      cache.loadNewest = async (urls) => {
+        const now = Math.floor(Date.now() / 1000);
+        const had = cache.covered;
+        let upper;
+        let since = now;
+        for (const span of NOTIF_SPANS) {
+          const lower = now - span;
+          await fetchRange(urls, lower, upper);
+          upper = lower;
+          since = lower;
+          if (had && lower <= had.until) break;
+          if (countSince(lower) >= NOTIF_SCREEN) break;
+        }
+        cache.covered = had && since <= had.until
+          ? { since: Math.min(had.since, since), until: now }
+          : { since, until: now };
+        if (!had || since > had.until) cache.exhausted = false;
+      };
+
+      // THE NEXT SCREENFUL BACK, from where the loaded stretch starts, widened the same way.
+      // A stretch reaching NOTIF_SPANS' last step back with nothing in it is the end: the
+      // sheet says so and points at the client for anything older. Returns how many
+      // notifications it added. One run at a time; a second press shares it.
+      cache.loadOlder = () => {
+        if (cache.olderRun) return cache.olderRun;
+        cache.olderRun = (async () => {
+          if (cache.exhausted || !cache.covered) return 0;
+          const urls = await inboxRelays(a.pubkey);
+          if (!urls.length) return 0;
+          const start = cache.covered.since;
+          const before = cache.historyAdded || 0;
+          let upper = start;
+          for (const span of NOTIF_SPANS) {
+            const lower = start - span;
+            await fetchRange(urls, lower, upper);
+            upper = lower;
+            cache.covered.since = Math.min(cache.covered.since, lower);
+            if ((cache.historyAdded || 0) - before >= NOTIF_SCREEN) break;
+          }
+          const added = (cache.historyAdded || 0) - before;
+          if (!added) cache.exhausted = true;
+          if (a.pubkey === state?.activePubkey) refreshBell();
+          return added;
+        })().finally(() => { cache.olderRun = null; });
+        return cache.olderRun;
+      };
 
       // The bell's refresh button asks the relays again, through THIS addEvent rather
       // than a copy of it. addEvent is what drops your own events, applies the mute
@@ -7771,37 +7889,22 @@
       // ask at once; a second run would reset refetchAdded under the first and its sheet
       // would skip the rebuild. They share the run in flight instead. lastRefetchAt is
       // when the last one finished, which is how the sheet knows its cache is fresh.
-      cache.refetch = async () => {
+      // keepLive: leave the live subscription as it is (startup, which has just opened it).
+      cache.refetch = async (opts) => {
         if (cache.refetchRun) return cache.refetchRun;
         let ran;
         cache.refetchRun = new Promise((resolve) => { ran = resolve; });
         try {
           const urls = await inboxRelays(a.pubkey);
           if (!urls.length) return;
-          cache.replaceLive(urls);
-          const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
-          // Marks everything arriving from here as history rather than a live arrival, so
-          // addEvent above keeps filtering and caching it but stops inserting it into an
-          // open sheet at the top. Cleared in a finally, or one failed refresh would leave
-          // every later live notification invisible until the sheet was reopened.
-          cache.refetching = true;
+          if (!(opts && opts.keepLive)) cache.replaceLive(urls);
+          // What arrives here is history (see fetchRange), so it is cached and counted but
+          // never inserted at the top of an open sheet; the sheet rebuilds when this lands.
+          const before = cache.historyAdded || 0;
           cache.refetchAdded = 0;
-          try {
-            await new Promise((resolve) => {
-              let settled = false;
-              const finish = () => { if (!settled) { settled = true; resolve(); } };
-              // Capped, because a relay that never sends EOSE would otherwise leave the
-              // button spinning for as long as the sheet stays open.
-              setTimeout(finish, 6000);
-              try {
-                poolSubscribeAllEose(urls, buildFilters(from, 50), { onevent: addEvent, onclose: finish });
-              } catch (_) {
-                finish();
-              }
-            });
-          } finally {
-            cache.refetching = false;
-          }
+          await cache.loadNewest(urls);
+          cache.refetchAdded = (cache.historyAdded || 0) - before;
+          if (a.pubkey === state?.activePubkey) refreshBell();
         } finally {
           cache.lastRefetchAt = Date.now();
           cache.refetchRun = null;
@@ -7815,11 +7918,6 @@
       if (!inbox.length) continue;
       if (state?.activePubkey !== a.pubkey || cache.liveSub) continue;
       const liveSince = Math.floor(Date.now() / 1000);
-      // Every filter in one REQ per relay (poolSubscribeAll): one subscription per filter
-      // was seven requests per relay for this set alone.
-      try {
-        poolSubscribeAllEose(inbox, buildFilters(since, 50), { onevent: addEvent });
-      } catch (_) {}
       let liveRelays = inbox;
       cache.replaceLive = (urls = liveRelays) => {
         if (state?.activePubkey !== a.pubkey) return;
@@ -7835,18 +7933,22 @@
           : null;
       };
       cache.replaceLive();
+      // The newest screenful, through the same run the refresh button uses. The live
+      // subscription was opened just above, so this one does not reopen it.
+      cache.refetch({ keepLive: true }).catch(() => {});
 
-      // THE STARTUP BACKFILL IS NOT ENOUGH ON ITS OWN. It goes out while the panel is
+      // THE STARTUP LOAD IS NOT ENOUGH ON ITS OWN. It goes out while the panel is
       // loading everything else at once (mutes, own notes, relay lists, profiles, the
       // web-of-trust build), and it closes as soon as every relay has sent EOSE or timed
       // out, so a relay slowed by that crowd is cut off before it sends anything. The live
       // subscription only covers what arrives after it starts, so nothing filled the gap:
       // the bell sat days behind until the refresh button was pressed. That press is what
-      // this does, once, after the panel has settled.
-      // It does not rebuild an open sheet: a sheet opened before this runs asked on open
-      // (nothing had finished yet), shares this run, and rebuilds itself when it lands.
+      // this does, once, after the panel has settled. It only reaches back to where the
+      // startup load got to, so it is one short stretch, and it is skipped when a refresh
+      // (the bell opening, say) finished moments ago.
       setTimeout(() => {
-        if (state?.activePubkey !== a.pubkey || cache.lastRefetchAt || !cache.refetch) return;
+        if (state?.activePubkey !== a.pubkey || !cache.refetch) return;
+        if (cache.lastRefetchAt && Date.now() - cache.lastRefetchAt < 5000) return;
         cache.refetch().catch(() => {});
       }, 12000);
     }
@@ -8028,7 +8130,7 @@
     const split = wotSet ? self.SidecarWot.partition(wotSet, shown, zapSender) : null;
     const events = split ? split.inn : shown;
     const offNet = split ? split.out : [];
-    const PAGE = 25;
+    const PAGE = NOTIF_SCREEN;
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
@@ -8663,9 +8765,11 @@
           forgetOwnPollQuery(a.pubkey);
           forgetOwnNoteQuery(a.pubkey);
           const askRelays = await relayUrls(false);
+          // Shorter when the sheet asked for itself: the newest screenful is what someone
+          // opening the bell is waiting for. A late note query still updates the filters.
           await Promise.race([
             Promise.all([loadOwnPollIds(a.pubkey, askRelays), loadOwnNoteIds(a.pubkey, askRelays)]),
-            new Promise((resolve) => setTimeout(resolve, 5000)),
+            new Promise((resolve) => setTimeout(resolve, auto ? 1500 : 5000)),
           ]);
           const cached = _notifCache.get(a.pubkey);
           // No refetch on the cache means the subscriptions never started for this
@@ -8704,12 +8808,15 @@
       };
       refreshBtn.addEventListener('click', () => runRefresh());
       modal.appendChild(refreshBtn);
-      // OPENING THE BELL ASKS, unless an ask finished in the last minute. The sheet opens
-      // from cache, and a cache the startup backfill left behind stayed behind until the
-      // button was pressed by hand.
+      // OPENING THE BELL ASKS, unless an ask finished in the last few seconds. The sheet
+      // opens from cache, and a cache the startup load left behind stayed behind for a
+      // minute at a time when this waited that long: the newest were missing on a cold
+      // open. The ask is the newest stretch only, back to what is already loaded. The few
+      // seconds cover the sheet a refresh rebuilds and the trip back from a reply or a
+      // poll's results, which would otherwise ask again for what just arrived.
       {
         const c = _notifCache.get(a.pubkey);
-        if (!c || !c.lastRefetchAt || Date.now() - c.lastRefetchAt > 60000) runRefresh({ auto: true });
+        if (!c || !c.lastRefetchAt || Date.now() - c.lastRefetchAt > 10000) runRefresh({ auto: true });
       }
 
       // WHOSE notifications — but only when that is a real question.
@@ -8976,23 +9083,91 @@
         scroll.appendChild(endNote);
       }
 
-      function loadMore() {
+      // The next page of what is already here.
+      function showNextPage() {
         const next = events.slice(shown, shown + PAGE);
         next.forEach((ev) => list.appendChild(buildItem(ev)));
         shown += next.length;
-        if (shown >= events.length) {
-          if (moreBtn) { moreBtn.remove(); moreBtn = null; }
-          showEndNote();
-        } else if (!moreBtn) {
-          moreBtn = h('button', { className: 'notif-load-more', textContent: t('Load more') });
-          moreBtn.addEventListener('click', loadMore);
-          scroll.appendChild(moreBtn);
+      }
+
+      // Older history the relays still have: what is loaded has a start, and the stretch
+      // before it has not been found empty.
+      const olderToAsk = () => {
+        const c = _notifCache.get(a.pubkey);
+        return !!(c && c.loadOlder && c.covered && !c.exhausted);
+      };
+
+      // Load more stays while there is a page in hand OR older history to ask for; the end
+      // note takes its place only when neither is left.
+      function syncMore() {
+        if (shown < events.length || ((events.length || offNet.length) && olderToAsk())) {
+          if (!moreBtn) {
+            moreBtn = h('button', { className: 'notif-load-more', textContent: t('Load more') });
+            moreBtn.addEventListener('click', loadMore);
+            // Before the out-of-network group when it is already up, so the button stays
+            // at the foot of the list it pages.
+            if (offNetBox) scroll.insertBefore(moreBtn, offNetBox);
+            else scroll.appendChild(moreBtn);
+          }
+          return;
         }
+        if (moreBtn) { moreBtn.remove(); moreBtn = null; }
+        showEndNote();
+      }
+
+      // What this sheet holds, so a page of history adds only what it has not drawn.
+      const drawnIds = new Set([...events, ...offNet].map((e) => e.id));
+      // Anything older than this is history the sheet has not seen; newer is live or drawn.
+      let oldestDrawn = [...events, ...offNet].reduce((m, e) => Math.min(m, e.created_at), Infinity);
+
+      // A page from the relays, sorted the way this sheet sorted the rest: muted dropped,
+      // in-network appended to the list, the rest counted into the collapsed group.
+      function takeOlderFromCache() {
+        const c = _notifCache.get(a.pubkey);
+        if (!c) return;
+        const mute = _muteLists.get(a.pubkey);
+        const fresh = c.events.filter((e) => e.created_at <= oldestDrawn && !drawnIds.has(e.id) &&
+          !(mute && mute.size && isMutedNotif(mute, e)));
+        if (!fresh.length) return;
+        for (const e of fresh) { drawnIds.add(e.id); oldestDrawn = Math.min(oldestDrawn, e.created_at); }
+        const part = wotSet ? self.SidecarWot.partition(wotSet, fresh, zapSender) : { inn: fresh, out: [] };
+        events.push(...part.inn);
+        if (part.out.length) {
+          offNet.push(...part.out);
+          if (offNetBox) {
+            const lbl = offNetBox.querySelector('.notif-offnet-toggle span');
+            if (lbl) lbl.textContent = tn('{{count}} from outside your network', '{{count}} from outside your network', offNet.length);
+            const inner = offNetBox.querySelector('.notif-offnet-list');
+            const note = inner && inner.querySelector('.notif-offnet-note');
+            // Only when expanded; collapsed, the count is the update.
+            if (inner && note && inner.children.length > 1) part.out.forEach((ev) => inner.insertBefore(buildItem(ev), note));
+          } else if (endNote || moreBtn) {
+            showOffNet();
+          }
+        }
+      }
+
+      // A page in hand is drawn at once. Past it, the relays are asked for the next
+      // screenful back, with the button saying so while they answer.
+      async function loadMore() {
+        if (shown < events.length) { showNextPage(); syncMore(); return; }
+        const c = _notifCache.get(a.pubkey);
+        if (!c || !c.loadOlder || !moreBtn) { syncMore(); return; }
+        const btn = moreBtn;
+        btn.disabled = true;
+        btn.textContent = t('Loading…');
+        try { await c.loadOlder(); } catch (_) {}
+        if (!btn.isConnected) return; // the sheet closed while the relays answered
+        btn.disabled = false;
+        btn.textContent = t('Load more');
+        takeOlderFromCache();
+        showNextPage();
+        syncMore();
       }
 
       // An empty main list can still have notifications in the outside-network group.
       // Run the end-of-list render for that case so its toggle remains reachable.
-      if (events.length || offNet.length) loadMore();
+      if (events.length || offNet.length) { showNextPage(); syncMore(); }
 
       // Back to where you were. The pages first — scrolling to an offset that nothing has
       // been rendered into yet would just clamp to the bottom of a short list — and then
@@ -9002,7 +9177,8 @@
       // the list taller, so the offset lands a row or two off. Which is the right kind of
       // wrong — the alternative is the top of the list, every time.
       if (place && place.pages > 1) {
-        for (let i = 1; i < place.pages && shown < events.length; i++) loadMore();
+        for (let i = 1; i < place.pages && shown < events.length; i++) showNextPage();
+        syncMore();
       }
       if (place && place.scrollTop) {
         const want = place.scrollTop;
