@@ -21142,6 +21142,30 @@
     return String(val);
   }
 
+  // A zap's details gain a way to the note it landed on, opened in the client this
+  // account chose — the same companion-not-client reasoning as the post receipt's link.
+  // Built as a button styled as a link, so it needs no href to point nowhere, and the
+  // click stops here: the row above toggles the pane on any click it sees.
+  function zapNoteRow(id) {
+    const clientReady = preferredClient().catch(() => null);
+    const link = h('button', { className: 'tx-d-link', textContent: t('Open the note') });
+    link.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      let nevent = '';
+      try { nevent = NT.nip19.neventEncode({ id, relays: [] }); } catch (_) { return; }
+      const client = await clientReady;
+      if (client) openInClient(client.url(nevent));
+    });
+    // Name where it opens once that is known, the same in-place upgrade the names use.
+    clientReady.then((c) => {
+      if (c && c.label) link.textContent = t('Open the note in {{client}}', { client: c.label });
+    });
+    return h('div', { className: 'tx-d-row' }, [
+      h('span', { className: 'tx-d-label', textContent: t('Zapped note') }),
+      link,
+    ]);
+  }
+
   function txDetailRow(label, value, copyValue, prose) {
     if (value == null || value === '') return null;
     const val = h('span', { className: 'tx-d-val' + (prose ? ' prose' : ''), textContent: String(value) });
@@ -21229,6 +21253,12 @@
     // Only ever consulted for outgoing: an incoming zap has the real event to read, and
     // payMeta is keyed by an invoice we paid.
     const zapParty = zap ? (incoming ? zap.pubkey : zap.recipient) : (!incoming && meta.zapPubkey) || '';
+    // The note the zap landed on, when there is one. An incoming zap carries the event
+    // itself, e tag included; a sent one is a description_hash invoice with nothing to
+    // parse, so the id comes from the request Sidecar signed seconds earlier. payMeta is
+    // keyed by an invoice WE paid, so its half is outgoing-only for the same reason the
+    // recipient's is.
+    const zapNoteId = (zap && zap.eventId) || (!incoming && meta.zapEvent) || '';
     // Either source makes it a zap. Note this is the recorded pubkey, so a zap sent from
     // another client and paid by the same wallet still reads as a plain payment — there
     // is nothing on it that says otherwise.
@@ -21292,6 +21322,7 @@
       const rows = [
         txDetailRow(incoming ? t('From') : t('To'), counterparty || zapWho),
         txDetailRow(t('Note'), note, null, true),
+        zapNoteId ? zapNoteRow(zapNoteId) : null,
         txDetailRow(t('Amount'), satsLabel(sats)),
         incoming ? null : txDetailRow(t('Fee'), fmtFeeMsat(fee)),
         txDetailRow(t('Date'), when ? I18N.fmtDate(when * 1000,

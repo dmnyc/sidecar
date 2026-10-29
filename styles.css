@@ -4107,6 +4107,8 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .tx-d-val.copyable { cursor: pointer; }
 .tx-d-val.copyable:hover { color: var(--lav); }
 .tx-d-val.copied { color: var(--success); }
+.tx-d-link { font: inherit; font-size: 12px; color: var(--lav); background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
+.tx-d-link:hover { text-decoration: underline; }
 .send-comment { width: 100%; margin-top: 8px; }
 .send-comment:disabled { opacity: 0.5; cursor: not-allowed; }
 

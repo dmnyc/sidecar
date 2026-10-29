@@ -2941,7 +2941,10 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // Non-consuming, so it cannot affect whether the payment is auto-approved. The invoice
   // binds the record to this payment, so the next same-amount zap is not given this
   // one's recipient, and the claim takes the same record the label named.
-  const zapRecipient = sats == null ? '' : await ZAPREQ.recipientFor(host, pubkey, sats, invoice).catch(() => '');
+  const zapInfo = sats == null ? null : await ZAPREQ.labelFor(host, pubkey, sats, invoice).catch(() => null);
+  const zapRecipient = (zapInfo && zapInfo.recipient) || '';
+  // The note the zap landed on, so the history can link to it; '' on a profile zap.
+  const zapEvent = (zapInfo && zapInfo.event) || '';
   let zapOk = false;
   // Claim only if the payment actually needs it: the site's budget already covering
   // this one makes autoOk true either way, and a zap approval is single-use, so
@@ -3122,7 +3125,10 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
     // Who this zap paid, keyed by invoice like the rest of payMeta, so the wallet list
     // can say "Zap to alice" instead of "Sent". Bookkeeping, so it sits here with the
     // rest of it — after the money moved and off the caller's path.
-    if (zapRecipient) await savePayMetaEntry(invoice, { zapPubkey: zapRecipient });
+    if (zapRecipient || zapEvent) {
+      await savePayMetaEntry(invoice, Object.assign(
+        zapRecipient ? { zapPubkey: zapRecipient } : null, zapEvent ? { zapEvent } : null));
+    }
     // A pick made on the card was dealt with when it was approved: a one-time pick leaves the
     // site paired with the account it had, and "all further payments" paired it then. Only a
     // payment the card did not change binds here, as it always did.
