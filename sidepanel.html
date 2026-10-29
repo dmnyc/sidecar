@@ -861,6 +861,19 @@
                 <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
                 <button class="secondary" id="relay-add" data-i18n="Add">Add</button>
               </div>
+              <!-- Validation errors from the Add field. -->
+              <div class="error hidden" id="relay-add-error"></div>
+              <!-- A relay that failed the add-time health check: the question on its own
+                   full-width row below the input (a label and two buttons never share the
+                   input's line in a panel this narrow), the answers stretched beneath the
+                   message. Filled in and shown by the relay-add handler. -->
+              <div class="relay-add-confirm hidden" id="relay-add-confirm">
+                <p class="confirm-msg" id="relay-add-confirm-msg"></p>
+                <div class="relay-add-confirm-actions">
+                  <button class="secondary" id="relay-add-anyway" data-i18n="Add anyway">Add anyway</button>
+                  <button class="ghost" id="relay-add-cancel" data-i18n="Cancel">Cancel</button>
+                </div>
+              </div>
               <!-- Shown while any bootstrap relay is ws:// — same advisory as the
                    Profile tab's NIP-65 editor. Hidden by renderSettings. -->
               <p class="hint warn hidden" id="relay-ws-warn" data-i18n="A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.">A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.</p>

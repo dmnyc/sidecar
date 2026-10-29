@@ -2553,6 +2553,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .confirm-msg { flex: 1; font-size: 12.5px; color: var(--text-2); }
 .del-confirm { color: var(--red); border-color: rgba(240, 86, 107, 0.45); }
 .del-confirm:hover { color: var(--red); border-color: var(--red); }
+/* "Add anyway?" for a relay that failed the add-time probe — the Settings relay list
+   and the Profile tab's NIP-65 editor share it. The message gets its own full-width
+   line and the answers stretch beneath it, the same shape .site-item +
+   .site-controls use; it never sits beside the input, which is too narrow to share. */
+.relay-add-confirm { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin: 8px 0 4px; }
+.relay-add-confirm .confirm-msg { flex: none; }
+.relay-add-confirm-actions { display: flex; gap: 8px; }
+.relay-add-confirm-actions button { flex: 1; }
 .level-select {
   width: auto;
   flex-shrink: 0;
