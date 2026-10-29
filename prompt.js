@@ -117,6 +117,19 @@
     return asks[method] || tSec('wants to {{method}}', { method });
   }
 
+  // A SIGN CARD SAYS WHAT IT SIGNS: the kind's name in the line under the host, so a run of
+  // cards from one site can be told apart. A parameter after a colon, so no language has to
+  // build an article around it; an unrecognized kind keeps the general line. Same as
+  // approvalAsk in sidepanel.js.
+  function signAsk(d) {
+    if (d && d.method === 'signEvent') {
+      const ev = d.params && (d.params.event || d.params);
+      const label = ev && ev.kind != null ? kindLabels()[ev.kind] : null;
+      if (label) return tSec('wants to sign: {{kind}}', { kind: label });
+    }
+    return methodAsk(d && d.method);
+  }
+
   let data = null;
   let isPayment = false;
   // A LARGE PAYMENT TAKES A SECOND PRESS, here as in the panel's own sends: at this many
@@ -608,7 +621,7 @@
     chosenPubkey = data.activePubkey;
 
     els.host.textContent = data.host;
-    const verb = isPayment ? tSec('wants to send a Lightning payment') : methodAsk(data.method);
+    const verb = isPayment ? tSec('wants to send a Lightning payment') : signAsk(data);
     els.ask.textContent = verb;
     buildAccountCapsule();
     buildWrongAcct();
