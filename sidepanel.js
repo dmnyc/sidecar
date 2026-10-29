@@ -2849,7 +2849,9 @@
               hideConnect: true,
               hint: 'Scan or copy to show someone how to pay you.',
               note: 'Sending is off on your own profile.',
-            } : undefined);
+            // The comment disclosure the zap handoff carries: another wallet scanning this
+            // pays the author, and only this panel's own payment is a zap on the comment.
+            } : (options?.chatEvent ? { note: t('Scan or copy sends a payment to the author, not a zap on this comment.') } : undefined));
             zapWrap.append(offerHandoff);
           }
           if (zapPanel) zapPanel.classList.add('hidden');
@@ -2899,10 +2901,27 @@
           const client = await ensureNwc();
           if (!client) throw new Error('Wallet unavailable. Reconnect in the Wallet tab.');
           offerPay.textContent = 'Asking…';
+          const paying = sats || offerData.price || 0;
+          // A ZAP, NOT JUST A PAYMENT. The bolt opened this panel, so the request carries
+          // the same signed kind 9734 the lightning-address path sends: the service
+          // commits it to the invoice and settles it with a 9735 receipt on Nostr, where
+          // every other zap lands. Without it the spec says the request is treated as a
+          // spontaneous payment — sats arrive and nothing is ever published.
+          const relays = [offerData.relay].concat(await readRelayUrls(pubkey))
+            .filter((r, i, all) => all.indexOf(r) === i).slice(0, 6);
+          const zapTemplate = options?.chatEvent
+            ? NT.nip57.makeZapRequest({ event: options.chatEvent, amount: paying * 1000, relays })
+            : NT.nip57.makeZapRequest({ pubkey, amount: paying * 1000, relays });
+          // Keep the payment recipient as the host, even when a provider published the stream.
+          if (options?.streamEvent && /^30311:[a-f0-9]{64}:/.test(options.streamEvent.address || '') && /^[a-f0-9]{64}$/.test(options.streamEvent.id || '')) {
+            zapTemplate.tags.push(['a', options.streamEvent.address], ['e', options.streamEvent.id], ['k', '30311']);
+          }
+          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: zapTemplate, expectedPubkey: state.activePubkey });
           const { bolt11 } = await clink.requestInvoice(offerData, {
             amountSats: needsAmount ? sats : offerData.price,
+            zap: JSON.stringify(signed),
+            payerData: { pubkey: state.activePubkey },
           });
-          const paying = sats || offerData.price || 0;
           offerPay.textContent = 'Paying…';
           flight = beginPaymentFlight(paying ? tSec('Paying {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paying'));
           await client.payInvoice(bolt11);
@@ -2926,6 +2945,7 @@
         if (!offerData) return;
         if (!offerFormHandoff) {
           offerFormHandoff = offerPayBlock(offerData, { hideConnect: true });
+          if (options?.chatEvent) offerFormHandoff.append(h('p', { className: 'hint zap-pay-note', textContent: t('Scan or copy sends a payment to the author, not a zap on this comment.') }));
           offerPanel.append(offerFormHandoff);
         }
         offerFormHandoff.classList.toggle('hidden');
