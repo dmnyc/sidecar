@@ -65,15 +65,15 @@ test('either source makes the row a zap', () => {
 test('the background records the recipient without spending the approval', () => {
   // recipientFor is non-consuming and MUST be read before the claim below it, which is
   // single-use. Reversed, every labeled zap would lose its auto-zap approval and prompt.
-  const i = background.indexOf('ZAPREQ.recipientFor(');
+  const i = background.indexOf('ZAPREQ.labelFor(');
   const j = background.indexOf('ZAPREQ.claim(');
   assert.notEqual(i, -1, 'the background must read the recipient');
   assert.notEqual(j, -1, 'the auto-zap claim should still be there');
   assert.ok(i < j, 'the recipient must be read before the claim consumes the record');
   assert.match(
     background,
-    /if \(zapRecipient\) await savePayMetaEntry\(invoice, \{ zapPubkey: zapRecipient \}\);/,
-    'and written against the invoice once the payment settles'
+    /if \(zapRecipient \|\| zapEvent\) \{[\s\S]*?savePayMetaEntry\(invoice,[\s\S]*?zapPubkey: zapRecipient[\s\S]*?zapEvent \? \{ zapEvent \}/,
+    'and written, with the zapped note, against the invoice once the payment settles'
   );
 });
 
@@ -84,6 +84,6 @@ test('the write sits in the post-payment bookkeeping, not the caller path', () =
   const moved = background.indexOf('the money has moved');
   // The CALL, not the declaration — savePayMetaEntry is defined up beside the secret
   // store it writes through, which is far earlier in the file than this block.
-  const write = background.indexOf('await savePayMetaEntry(invoice, { zapPubkey');
+  const write = background.indexOf('await savePayMetaEntry(invoice, Object.assign');
   assert.ok(moved !== -1 && write > moved, 'the metadata write must come after the payment');
 });

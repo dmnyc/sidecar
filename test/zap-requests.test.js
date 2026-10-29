@@ -51,6 +51,7 @@ const ALICE = 'a'.repeat(64);
 const BOB = 'b'.repeat(64);
 const SITE = 'jumble.social';
 const OTHER = 'evil.example';
+const NOTE_ID = 'd'.repeat(64); // the e tag a note zap carries
 
 // A kind:9734 zap request for `msat` millisats. `amount` is optional per NIP-57, so
 // passing null models the request that carries none.
@@ -274,6 +275,35 @@ const CAROL = 'c'.repeat(64); // the p tag zapRequest() builds
 test('the recipient is recorded and can be read back', async () => {
   await Z.record(SITE, ALICE, zapRequest(212000));
   assert.equal(await Z.recipientFor(SITE, ALICE, 212), CAROL);
+});
+
+// The note the zap landed on (#…): a sent zap's invoice is a description_hash, so the
+// signed request is the only place its id exists on this side. The recipient and the
+// note travel together, because one lookup marks the record for this invoice and the
+// claim that follows removes it — a second read would find nothing.
+test('the zapped note is recorded beside the recipient', async () => {
+  await Z.record(SITE, ALICE, zapRequest(212000, [['e', NOTE_ID]]));
+  const l = await Z.labelFor(SITE, ALICE, 212);
+  assert.equal(l.recipient, CAROL);
+  assert.equal(l.event, NOTE_ID, 'the note it zapped was not kept');
+});
+
+test('a profile zap names no note', async () => {
+  await Z.record(SITE, ALICE, zapRequest(212000));
+  assert.equal((await Z.labelFor(SITE, ALICE, 212)).event, '');
+});
+
+test('labelFor labels without spending the approval, like recipientFor', async () => {
+  await Z.record(SITE, ALICE, zapRequest(212000, [['e', NOTE_ID]]));
+  await Z.labelFor(SITE, ALICE, 212);
+  assert.equal(await Z.claim(SITE, ALICE, 212), true, 'a label still must not spend the record');
+});
+
+test('recipientFor keeps naming only the recipient', async () => {
+  await Z.record(SITE, ALICE, zapRequest(212000, [['e', NOTE_ID]]));
+  const r = await Z.recipientFor(SITE, ALICE, 212);
+  assert.equal(r, CAROL);
+  assert.equal(typeof r, 'string', 'existing callers expect the pubkey, not a record');
 });
 
 test('reading the recipient does not spend the approval', async () => {

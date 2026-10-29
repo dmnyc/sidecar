@@ -45,7 +45,7 @@ function harness(decide, wallet) {
     sget: async () => ({ sidecar_settings: {} }),
     sset: async () => {}, pushPageSettings() {},
     autoZapLimits: () => ({ perZap: 0, daily: 0 }), autoZapWindow: async () => ({ spent: 0 }), recordAutoZap: async () => {},
-    ZAPREQ: { recipientFor: async () => '', claim: async () => false },
+    ZAPREQ: { labelFor: async () => null, claim: async () => false },
     BUDGETS: { covers: async () => false, setBudget: async (pk, host, b) => { calls.budgets.push(['set', pk, host, b.budgetSats]); }, consume: async (pk, host, n) => { calls.budgets.push(['consume', pk, host, n]); } },
     KS: {
       isLocked: () => false,
