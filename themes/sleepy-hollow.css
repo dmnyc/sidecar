@@ -208,14 +208,14 @@
    repaints (measured, not guessed: the computed value ran while the pixels held still).
    The drift is left to right, the reading direction, and slow: 100vw in 75 seconds.
 
-   THE LEAVES come loose. sidepanel.html carries a .lock-leaves of ten <i> leaves; each
-   crosses the whole panel left to right on the same wind as the clouds, sinking at a
-   gentle angle as it goes — a shallow diagonal, not a fall — turning slowly, easing in
-   at the left edge and out at the right, so new leaves arrive while old ones leave. A
-   crossing takes 26 to 40 seconds. Heights, durations and delays are staggered per leaf
-   below, and the loop restarts each leaf on its own clock, so the stream never repeats
-   as a row. Their still plate stands down while they fly (patterns.css), as the cloud
-   plate does.
+   THE LEAVES come loose. sidepanel.html carries a .lock-leaves of <i> leaves, and this
+   theme flies the first ten; each crosses the whole panel left to right on the same wind
+   as the clouds, sinking at a gentle angle as it goes — a shallow diagonal, not a fall —
+   turning slowly, easing in at the left edge and out at the right, so new leaves arrive
+   while old ones leave. A crossing takes 26 to 40 seconds. Heights, durations and delays
+   are staggered per leaf below, and the loop restarts each leaf on its own clock, so the
+   stream never repeats as a row. Their still plate stands down while they fly
+   (patterns.css), as the cloud plate does.
 
    THE PUMPKIN gets its candle: .lock-ember, a halo over the baked glow that breathes,
    wider and dimmer, the way a flame does when the air is still.
@@ -320,6 +320,7 @@
   animation-delay: var(--d);
   opacity: 0;
 }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(n+11) { display: none; }
 [data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3n) { filter: brightness(0.8); }
 [data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5n) { filter: brightness(1.2) hue-rotate(-12deg); }
 /* Ten leaves, ten clocks: a height in the sky, a crossing of 26 to 40 seconds, and a
