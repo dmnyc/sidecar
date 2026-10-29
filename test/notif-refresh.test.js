@@ -58,10 +58,14 @@ function refetchBlock(fn) {
 
 test('THE REFRESH REUSES addEvent, NOT A COPY OF IT', () => {
   const fn = stripComments(lift('async function initNotifSubs('));
-  assert.match(fn, /cache\.refetch = async \(\)/, 'the cache carries no refetch for the sheet to call');
+  assert.match(fn, /cache\.refetch = async \(opts\)/, 'the cache carries no refetch for the sheet to call');
   const refetch = refetchBlock(fn);
-  assert.match(refetch, /onevent: addEvent/, 'the refresh no longer feeds events through addEvent');
-  assert.match(refetch, /buildFilters\(/, 'the refresh builds its own filters instead of the subscription ones');
+  assert.match(refetch, /await cache\.loadNewest\(urls\)/, 'the refresh no longer loads through the shared fetch');
+  // Every stretch of history, newest or older, goes through fetchRange, and fetchRange
+  // feeds addEvent with the subscription's own filters.
+  const range = fn.slice(fn.indexOf('const fetchRange = '), fn.indexOf('const countSince = '));
+  assert.match(range, /addEvent\(ev, true\)/, 'history no longer goes through addEvent');
+  assert.match(range, /buildFilters\(since, NOTIF_RANGE_LIMIT, until\)/, 'history builds its own filters');
 });
 
 test('the refresh re-reads the relay list', () => {
@@ -78,10 +82,12 @@ test('A RELAY THAT NEVER SENDS EOSE CANNOT HANG THE BUTTON', () => {
   // accepts the subscription and then says nothing would otherwise leave the promise
   // pending and the button spinning for as long as the sheet stays open.
   const fn = stripComments(lift('async function initNotifSubs('));
-  const refetch = refetchBlock(fn);
-  assert.match(refetch, /setTimeout\(finish, \d+\)/, 'nothing caps the wait');
-  assert.match(refetch, /onclose: finish/, 'the fetch does not resolve when the subscription closes');
-  assert.match(refetch, /if \(!settled\)/, 'finish can resolve twice');
+  const range = fn.slice(fn.indexOf('const fetchRange = '), fn.indexOf('const countSince = '));
+  assert.match(range, /capTimer = setTimeout\(finish, NOTIF_FETCH_MAX_MS\)/, 'nothing caps the wait');
+  assert.match(range, /onclose: finish/, 'the fetch does not resolve when the subscription closes');
+  assert.match(range, /if \(settled\) return;/, 'finish can resolve twice');
+  // And it closes what it opened, so a late relay cannot keep feeding a settled fetch.
+  assert.match(range, /closer\.close\(\)/, 'a settled fetch leaves its subscription open');
 });
 
 // ---- the control ------------------------------------------------------------------
@@ -106,9 +112,10 @@ test('WHAT ARRIVED IS COUNTED, NOT MEASURED BY LENGTH', () => {
   // The cache is capped at 100. Comparing its length before and after would report "no
   // new notifications" for a full cache that had just rotated new ones in — and would
   // then skip the rebuild, leaving them invisible.
+  // Behavior: test/notif-discovery.test.js counts a refresh's arrivals into a full cache.
   const add = stripComments(lift('async function initNotifSubs('));
-  assert.match(add, /if \(cache\.refetching\) cache\.refetchAdded\+\+/, 'arrivals are not counted');
-  assert.match(add, /cache\.refetchAdded = 0/, 'the count is never reset per refresh');
+  assert.match(add, /if \(history\) cache\.historyAdded = \(cache\.historyAdded \|\| 0\) \+ 1;/, 'arrivals are not counted');
+  assert.match(add, /cache\.refetchAdded = \(cache\.historyAdded \|\| 0\) - before;/, 'the count is not taken per refresh');
   const sheet = stripComments(lift('async function showNotifModal('));
   assert.match(sheet, /refetchAdded \|\| 0/, 'the button reads something other than the count');
   assert.doesNotMatch(sheet, /after === before/, 'the length comparison came back');
@@ -119,13 +126,12 @@ test('A REFETCH DOES NOT STREAM HISTORY INTO AN OPEN SHEET', () => {
   // an arrival at the TOP because a live event is newer than everything by definition.
   // Refresh therefore showed two-day-old notes above "just now", and left the page
   // indices pointing at the wrong slice of a list that had grown underneath them.
+  // Behavior: test/notif-discovery.test.js runs a refresh into an open sheet. History is
+  // marked per event, not by a flag that could stick on and hide every live arrival.
   const add = stripComments(lift('async function initNotifSubs('));
-  assert.match(add, /_openNotifBell\.pubkey === a\.pubkey && !cache\.refetching/,
+  assert.match(add, /_openNotifBell\.pubkey === a\.pubkey && !history/,
     'a backfill can prepend history to an open sheet again');
-  const refetch = refetchBlock(add);
-  assert.match(refetch, /cache\.refetching = true/, 'the backfill is not marked as history');
-  // In a finally, or one failed refresh leaves every later live notification invisible.
-  assert.match(refetch, /finally \{\s*cache\.refetching = false;/, 'the flag can stick on failure');
+  assert.doesNotMatch(add, /cache\.refetching = true/, 'the sticky flag came back');
 });
 
 test('IT REBUILDS THE LIST FROM THE SORTED CACHE', () => {
