@@ -610,6 +610,7 @@ function memberViewOf(e) {
 }
 
 // What the panel renders from (metadata only, plus the head's full data).
+let lastPendingSig = '';
 function pendingView() {
   const head = queue.find((e) => e.state === 'showing' && e.display === 'panel') || null;
   // Group the head with other live queued entries sharing host+account+kind.
@@ -725,6 +726,16 @@ function waitForPanelPort(ms) {
   });
 }
 
+// Dev-log view of the whole queue: what is in it, in order, and whether each entry could
+// ever join a batch. Answers "did the requests pile up, or arrive one at a time?" without
+// opening the worker. Metadata only, never event content.
+function queueSnapshot() {
+  return queue.map((e) => ({
+    m: e.method, k: e.kind, host: e.host, state: e.state, display: e.display,
+    batchable: isBatchableEntry(e),
+  }));
+}
+
 // ---- T1: accept a request. Synchronous registration; never blocks. ----
 function openPrompt(data, originWindowId) {
   // Fast path: the keystore may have unlocked via an earlier approval. Collapse a
@@ -746,6 +757,7 @@ function openPrompt(data, originWindowId) {
       originWindowId: originWindowId != null ? originWindowId : undefined,
     });
     callbacks.set(id, { resolve, settled: false });
+    dlog('info', 'queue', 'request queued', { host: data.host, method: data.method, kind: ev ? ev.kind : null, depth: queue.length, queue: queueSnapshot() });
     ensureKeepalive();
     qPersist();
     broadcastQueue();
@@ -925,6 +937,7 @@ async function driveOnce() {
   if (!panelPort) await waitForPanelPort(600);
   if (panelServesWindow(origin) && !head.panelFailed) {
     head.state = 'showing'; head.display = 'panel';
+    dlog('info', 'queue', 'showing on panel', { host: head.host, method: head.method, kind: head.kind, depth: queue.length });
     head.shownAt = Date.now();
     head.acked = false; // set by SIDECAR_APPROVAL_SHOWN when the panel renders it
     qPersist(); broadcastQueue();
@@ -933,6 +946,7 @@ async function driveOnce() {
     setTimeout(() => { driveDisplay(); }, PANEL_ACK_MS + 50);
   } else {
     head.state = 'showing'; head.display = 'popup';
+    dlog('info', 'queue', 'showing in popup (no Reject all there)', { host: head.host, method: head.method, kind: head.kind, depth: queue.length });
     qPersist();
     const url = chrome.runtime.getURL('prompt.html?id=' + head.id);
     if (popupWindowId != null) { if (!(await navigatePopup(url, origin))) { popupWindowId = null; await createPopup(url, origin); } }
@@ -959,6 +973,10 @@ function settlePrompt(id, action, extra) {
   callbacks.delete(id);
   const i = queue.findIndex((e) => e.id === id);
   if (i >= 0) queue.splice(i, 1);
+  dlog('info', 'queue', 'request settled', {
+    host: entry && entry.host, method: entry && entry.method, kind: entry && entry.kind,
+    action, coalesced: !!(extra && extra.coalesced), depth: queue.length,
+  });
   qPersist();
   cb.resolve(Object.assign({ action }, extra || {}));
 
@@ -973,6 +991,25 @@ function settlePrompt(id, action, extra) {
       } else if (action === 'once' || action === 'trust') {
         grantDecrypt(host, activePubkey);
         flushDecryptSiblings(host, activePubkey, 'once');
+      }
+    }
+  }
+
+  // Login-burst coalescing: one decision on the first getPublicKey covers the rest of that
+  // host + account's backlog (see grantPubkey). A coalesced sibling never re-triggers it.
+  if (entry && entry.data && entry.method === 'getPublicKey' && !(extra && extra.coalesced)) {
+    const { host, activePubkey } = entry.data;
+    if (host && activePubkey) {
+      if (action === 'reject') {
+        flushPubkeySiblings(host, activePubkey, 'reject');
+      } else if (action === 'once' || action === 'trust') {
+        // The account picked in the switcher rides with the approval, but only if the card
+        // offered it: the window follows the account that ends up answering.
+        const picked = extra && extra.switchToPubkey;
+        const offered = picked && Array.isArray(entry.data.otherAccounts) &&
+          entry.data.otherAccounts.some((a) => a.pubkey === picked);
+        grantPubkey(host, offered ? picked : activePubkey);
+        flushPubkeySiblings(host, activePubkey, 'once', offered ? { switchToPubkey: picked } : undefined);
       }
     }
   }
@@ -1073,6 +1110,17 @@ function grantContent(host, pubkey, kind) {
   contentGrants.set(grantKey(host, pubkey, kind), Date.now() + COALESCE_WINDOW_MS);
 }
 
+// Every short-lived "yes" a site has earned in this worker's memory: the app-data window above,
+// the login-burst window above and the decrypt-burst window below. Forgetting a site ends them,
+// along with its saved tier, grants and binding. Left running, one more sign inside the window
+// went through with no card and quietly bound the forgotten site again.
+function forgetStandingApprovals(host) {
+  const prefix = host + '|';
+  for (const k of [...contentGrants.keys()]) if (k.startsWith(prefix)) contentGrants.delete(k);
+  for (const k of [...decryptGrants.keys()]) if (k.startsWith(prefix)) decryptGrants.delete(k);
+  for (const k of [...pubkeyGrants.keys()]) if (k.startsWith(prefix)) pubkeyGrants.delete(k);
+}
+
 // ---- decrypt-burst coalescing ----
 // A client loading a DM inbox can fire dozens of nip04/nip44.decrypt calls at
 // once — one per event it's trying to read (and a sloppy one, like gamestr.io,
@@ -1109,6 +1157,42 @@ function flushDecryptSiblings(host, pubkey, action) {
     if (e.data.host !== host || e.data.activePubkey !== pubkey) continue;
     const cb = callbacks.get(e.id);
     if (cb && !cb.settled) settlePrompt(e.id, action, { coalesced: true });
+  }
+}
+
+// ---- login-burst coalescing (getPublicKey) ----
+// A web app often asks for the public key from every component that mounts, so opening one
+// site queued seventeen identical "wants to see your public key" cards (pollerama.fun).
+// Every one of them returns the same npub, so there is nothing for a second card to show
+// and nothing hidden behind the first: the user's answer to one covers the rest of that
+// host's queue for that account. Approve (or Trust) settles the waiting siblings as 'once'
+// and carries the account chosen in the switcher with them; Reject drops them all.
+//
+// A late arrival from the same load gets a short window, set only by an explicit approval
+// (never extended by a coalesced sibling). It is far shorter than the decrypt window on
+// purpose: every getPublicKey is a login, the one moment someone can pick another account,
+// and a deliberate sign-out and back in a minute later must still get its card.
+const PUBKEY_WINDOW_MS = 20000;
+const pubkeyGrants = new Map(); // `host|pubkey` -> expiry ms
+function pubkeyGrantKey(host, pubkey) { return host + '|' + pubkey; }
+function hasPubkeyGrant(host, pubkey) {
+  const exp = pubkeyGrants.get(pubkeyGrantKey(host, pubkey));
+  if (!exp) return false;
+  if (Date.now() >= exp) { pubkeyGrants.delete(pubkeyGrantKey(host, pubkey)); return false; }
+  return true;
+}
+function grantPubkey(host, pubkey) {
+  pubkeyGrants.set(pubkeyGrantKey(host, pubkey), Date.now() + PUBKEY_WINDOW_MS);
+}
+// Settle the rest of the same-host, same-account getPublicKey backlog with one decision.
+// `coalesced: true` marks them so they neither extend the window nor count as approvals.
+function flushPubkeySiblings(host, pubkey, action, extra) {
+  for (const e of [...queue]) {
+    if (e.state === 'interrupted' || !e.data) continue;
+    if (e.method !== 'getPublicKey') continue;
+    if (e.data.host !== host || e.data.activePubkey !== pubkey) continue;
+    const cb = callbacks.get(e.id);
+    if (cb && !cb.settled) settlePrompt(e.id, action, Object.assign({}, extra, { coalesced: true }));
   }
 }
 
@@ -1505,6 +1589,8 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // account skip the prompt. Never bypasses a block (that already threw above)
     // or an unlock.
     const decryptCoalesced = DECRYPT_METHODS.has(method) && hasDecryptGrant(host, activePubkey);
+    // Login-burst window (see grantPubkey): the same promise for getPublicKey. Same limits.
+    const pubkeyCoalesced = method === 'getPublicKey' && hasPubkeyGrant(host, activePubkey);
     // Timed "relax approvals" window: a user-opted auto-approve for this
     // (host, account). Like the coalesce grants it only bypasses the prompt —
     // never a block (already threw above) or an unlock (still required below).
@@ -1556,7 +1642,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 
     const needApproval = destructive
       ? true
-      : (coalesced || appDataAutoAllow || decryptCoalesced || relaxActive || zapAutoSign
+      : (coalesced || appDataAutoAllow || decryptCoalesced || pubkeyCoalesced || relaxActive || zapAutoSign
           ? false
           : ((status === 'ask' && !isRelayAuth) || sharedIdentity));
 
@@ -1778,7 +1864,10 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       }
       // Tally the one-time approvals so the prompt can eventually point at Trust.
       // Only 'once' — picking 'relax' or 'trust' IS acting on that advice.
-      if (decision.action === 'once') await bumpApproveCount(host, activePubkey);
+      // A getPublicKey settled by the login-burst flush is the same one approval, not another.
+      if (!(method === 'getPublicKey' && decision.coalesced === true)) {
+        if (decision.action === 'once') await bumpApproveCount(host, activePubkey);
+      }
       // 'relax' → open a timed auto-approve window for this (host, account), then
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {
@@ -3967,6 +4056,9 @@ async function handleControl(message, sender, sendResponse) {
         await clearSiteAccount(message.host); // forget the binding so a re-login can pick a new account
         await clearAuthorizedForHost(message.host); // and the shared-identity history
         await clearAlwaysActiveHost(message.host); // and any standing instruction to skip the check
+        forgetStandingApprovals(message.host); // and the short in-memory approve windows
+        await RELAX.revokeForHost(message.host); // and a timed Auto-sign window, which outlived the forget
+        syncRelaxBadge();
         break;
       case 'SIDECAR_GET_SITE_BINDINGS':
         result = await getAllSiteAccounts();
@@ -4012,6 +4104,13 @@ async function handleControl(message, sender, sendResponse) {
         // history button, because every row in it is a site record.
         await PERMS.clearAll();
         await sset({ [SITE_ACCTS_KEY]: {}, [SITE_AUTHZ_KEY]: {}, [SITE_ALWAYS_ACTIVE_KEY]: {}, [ACTIVITY_KEY]: [] });
+        // The short approve windows end with everything else: the in-memory app-data,
+        // decrypt and login-burst windows, and any timed Auto-sign window.
+        contentGrants.clear();
+        decryptGrants.clear();
+        pubkeyGrants.clear();
+        await RELAX.revokeAll();
+        syncRelaxBadge();
         result = true;
         break;
       // The page-invoice card asks before it appears: is this invoice simply the one
@@ -4490,7 +4589,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   // Observable-queue queries/actions (see the approval-queue section up top).
   if (message.type === 'SIDECAR_GET_PENDING') {
-    sendResponse({ ok: true, result: pendingView() });
+    const view = pendingView();
+    // What the card is about to be drawn from: whether the "N more waiting" strip (and with
+    // it Reject all) will exist, and how big the batch is. Logged only when it changes, since
+    // the panel asks on every queue broadcast.
+    const sig = (view.head ? view.head.id + ':' + view.head.groupIds.length : '-') + '|' + view.waiting.length;
+    if (sig !== lastPendingSig) {
+      lastPendingSig = sig;
+      dlog('info', 'queue', 'card offered', {
+        head: view.head ? { host: view.head.data && view.head.data.host, method: view.head.data && view.head.data.method, batch: view.head.groupIds.length } : null,
+        waiting: view.waiting.length,
+        backlogStrip: view.waiting.length > 0,
+      });
+    }
+    sendResponse({ ok: true, result: view });
     return false;
   }
   // The panel confirming it put an approval on screen. Without this the panel is a
@@ -4503,6 +4615,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (message.type === 'SIDECAR_REJECT_ALL_PENDING') {
+    dlog('info', 'queue', 'reject all', { depth: queue.length });
     for (const e of [...queue]) {
       if (e.state === 'interrupted') continue;
       if (callbacks.has(e.id)) settlePrompt(e.id, 'reject');
