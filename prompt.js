@@ -1145,17 +1145,30 @@
   els.reject.addEventListener('click', () => decide('reject'));
   // The keystore can lock while this card sits unanswered (idle auto-lock). A card
   // queued while unlocked has no PIN field, and approving it would walk to the sign
-  // and fail with "Keystore is locked". The worker re-marks the queue entry, but this
-  // page is a one-shot view of that one entry, so it listens for the lock itself and
-  // reveals the PIN field on the card already on screen — decide() gates on
-  // data.needUnlock, so the very next Approve unlocks instead of failing.
-  chrome.runtime.onMessage.addListener((msg) => {
+  // and fail with "Keystore is locked". This page is a one-shot view of that one entry
+  // and never sees the queue broadcast, so it listens for the lock itself and asks the
+  // worker for the entry again. The worker decides: markPendingUnlocks has re-marked
+  // the entry before the `locked` event goes out, and it leaves a getPublicKey or
+  // getRelays card PIN-less, since answering one never touches the keystore. Deciding
+  // here instead asked for a PIN on a login. decide() gates on data.needUnlock, so the
+  // very next Approve unlocks instead of failing.
+  async function onLockedWhileShowing(msg) {
     if (!(msg && msg.type === 'SIDECAR_EVENT' && msg.event === 'locked')) return;
     if (!data || data.needUnlock) return;
+    let resp;
+    try {
+      resp = await send({ type: 'SIDECAR_GET_PROMPT_DATA', id: promptId });
+    } catch (_) {
+      return; // the worker did not answer; the sign still fails closed on the lock
+    }
+    if (!resp || !resp.ok || !resp.data || !resp.data.needUnlock || data.needUnlock) return;
     data.needUnlock = true;
     els.unlock.classList.remove('hidden');
     setTimeout(() => els.pin.focus(), 50);
-  });
+  }
+  // Not the async function itself: a listener that returns a promise answers the message
+  // in Firefox, and this page would then answer messages meant for the worker.
+  chrome.runtime.onMessage.addListener((msg) => { onLockedWhileShowing(msg); });
 
   els.pin &&
     els.pin.addEventListener('keydown', (e) => {

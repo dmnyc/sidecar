@@ -111,11 +111,51 @@ test('the panel re-renders a showing card whose entry was re-marked', () => {
   assert.match(fn, /pendingApproval\.data = head\.data;\s*\n\s*showApproval\(\);/);
 });
 
-test('the popup listens for the lock and reveals the PIN field on the showing card', () => {
+// The popup's lock handler, run against a stub worker that answers SIDECAR_GET_PROMPT_DATA
+// with `fresh` (the entry as markPendingUnlocks left it) and a card showing `data`.
+async function popupOnLock(data, fresh, msg = { type: 'SIDECAR_EVENT', event: 'locked', auto: true }) {
+  const hidden = new Set(['unlock']);
+  const asked = [];
+  const ctx = vm.createContext({
+    data,
+    promptId: 'q0',
+    els: { unlock: { classList: { remove: (c) => c === 'hidden' && hidden.delete('unlock') } }, pin: { focus() {} } },
+    setTimeout: () => {},
+    send: async (m) => { asked.push(m); if (fresh instanceof Error) throw fresh; return fresh; },
+  });
+  vm.runInContext(lift(prompt, 'async function onLockedWhileShowing(') + '\nthis.onLock = onLockedWhileShowing;', ctx);
+  await ctx.onLock(msg);
+  return { pinShown: !hidden.has('unlock'), needUnlock: data.needUnlock, asked };
+}
+
+test('the popup shows the PIN field when the worker re-marked its entry', async () => {
   // The popup is a one-shot view of one entry; it never sees the queue broadcast, so
   // it has to hear the lock itself. decide() gates on data.needUnlock, so the flip is
   // what makes the next Approve unlock instead of fail.
-  assert.match(prompt, /SIDECAR_EVENT' && msg\.event === 'locked/);
-  assert.match(prompt, /if \(!data \|\| data\.needUnlock\) return;/);
-  assert.match(prompt, /data\.needUnlock = true;\s*\n\s*els\.unlock\.classList\.remove\('hidden'\);/);
+  const r = await popupOnLock({ method: 'signEvent', needUnlock: false }, { ok: true, data: { method: 'signEvent', needUnlock: true } });
+  // JSON, because the message is built inside the vm context and carries its Object.
+  assert.equal(JSON.stringify(r.asked), JSON.stringify([{ type: 'SIDECAR_GET_PROMPT_DATA', id: 'q0' }]), 'the worker is asked, by this card\'s id');
+  assert.equal(r.needUnlock, true);
+  assert.equal(r.pinShown, true);
+});
+
+test('the popup keeps a login card PIN-less when the worker did not mark it', async () => {
+  // The first cut flipped every card on the lock, so a getPublicKey card demanded a PIN
+  // and refused Approve without one. The worker is the one that knows which methods
+  // need the key.
+  for (const method of ['getPublicKey', 'getRelays']) {
+    const r = await popupOnLock({ method, needUnlock: false }, { ok: true, data: { method, needUnlock: false } });
+    assert.equal(r.needUnlock, false, method + ' must not ask for a PIN');
+    assert.equal(r.pinShown, false, method + ' must not show the PIN field');
+  }
+});
+
+test('the popup changes nothing when its entry is gone, the worker is silent, or the event is not a lock', async () => {
+  const expired = await popupOnLock({ method: 'signEvent', needUnlock: false }, { ok: false, error: 'Prompt expired' });
+  assert.equal(expired.pinShown, false);
+  const silent = await popupOnLock({ method: 'signEvent', needUnlock: false }, new Error('did not respond'));
+  assert.equal(silent.pinShown, false);
+  const other = await popupOnLock({ method: 'signEvent', needUnlock: false }, { ok: true, data: { needUnlock: true } }, { type: 'SIDECAR_EVENT', event: 'unlocked' });
+  assert.equal(other.pinShown, false);
+  assert.equal(other.asked.length, 0, 'only the lock asks the worker');
 });
