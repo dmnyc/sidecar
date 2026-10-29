@@ -3694,9 +3694,31 @@ async function loadUnlockGuard() {
 const saveUnlockGuard = (g) => sset({ sidecar_unlock_guard: g });
 const clearUnlockGuard = () => new Promise((res) => chrome.storage.local.remove('sidecar_unlock_guard', res));
 
+// A card queued while the keystore was unlocked carries no PIN field, and the idle
+// auto-lock can fire while it sits unanswered — reading the page is not "activity" as
+// bumpAutoLock counts it. Approved as-is, the request walks to the sign and dies on
+// requireUnlocked(): the page hears "Keystore is locked", nothing signs, and the only
+// way out is detouring into the panel. The card is the better place to ask. Marking
+// every pending entry that now needs an unlock re-renders the showing one with its PIN
+// field (the panel re-renders on the broadcast; the popup listens for the lock), so the
+// approval unlocks inline — the same card a request gets that arrived while already
+// locked. getPublicKey and getRelays need no key material, so those cards stay
+// PIN-less; a payment gates on the lock in its own path, so webln entries are marked.
+function markPendingUnlocks() {
+  let touched = false;
+  for (const e of queue) {
+    if (!e.data || e.data.needUnlock) continue;
+    if (e.scope !== 'webln' && !SIGNER.needsPrivateKey(e.method)) continue;
+    e.data.needUnlock = true;
+    touched = true;
+  }
+  if (touched) { qPersist(); broadcastQueue(); }
+}
+
 async function lockKeystore(auto = false) {
   await KS.lock();
   SIGNER.clearCache();
+  markPendingUnlocks();
   closeSwNwc();
   qrSecret = null; // a scanned key must not outlive the unlocked session
   chrome.alarms.clear(AUTO_LOCK_ALARM);

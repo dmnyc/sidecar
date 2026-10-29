@@ -24721,6 +24721,15 @@
         pendingApproval.groupIds = group;
         pendingApproval.members = head.members || [];
         showApproval();
+      } else if (head.data && head.data.needUnlock !== pendingApproval.data.needUnlock) {
+        // The keystore locked while this card was showing (idle auto-lock — see
+        // markPendingUnlocks in background.js). The entry is re-marked needUnlock and
+        // the card must follow: re-rendered with its PIN field, the approval unlocks
+        // inline instead of failing the sign with "Keystore is locked" after the fact.
+        // showApproval keeps an already-picked switcher, so nothing the user chose is
+        // reset by the re-render.
+        pendingApproval.data = head.data;
+        showApproval();
       } else {
         // Same head, already built — just ensure the overlay is visible. This is
         // what makes it robust to an intervening refresh() that hid all views

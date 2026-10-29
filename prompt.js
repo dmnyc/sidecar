@@ -1143,6 +1143,20 @@
   els.allow.addEventListener('click', () => decide('once'));
   els.trust.addEventListener('click', () => decide('trust'));
   els.reject.addEventListener('click', () => decide('reject'));
+  // The keystore can lock while this card sits unanswered (idle auto-lock). A card
+  // queued while unlocked has no PIN field, and approving it would walk to the sign
+  // and fail with "Keystore is locked". The worker re-marks the queue entry, but this
+  // page is a one-shot view of that one entry, so it listens for the lock itself and
+  // reveals the PIN field on the card already on screen — decide() gates on
+  // data.needUnlock, so the very next Approve unlocks instead of failing.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!(msg && msg.type === 'SIDECAR_EVENT' && msg.event === 'locked')) return;
+    if (!data || data.needUnlock) return;
+    data.needUnlock = true;
+    els.unlock.classList.remove('hidden');
+    setTimeout(() => els.pin.focus(), 50);
+  });
+
   els.pin &&
     els.pin.addEventListener('keydown', (e) => {
       // Respect the destructive lock — Enter bypasses the disabled Allow button
