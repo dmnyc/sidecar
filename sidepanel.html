@@ -1004,6 +1004,26 @@
     <iframe id="rider-frame" title="Relay Rider"></iframe>
   </div>
 
+  <!-- The question behind the pay card's "Pay on any page": confirmed here, never on the
+       page. Drawn as an approval, over whatever is open, because a page raises it and the
+       person can be anywhere in the panel. Before #view-approval so a signing request
+       still sits on top. -->
+  <div id="view-payanywhere" class="approval-overlay hidden">
+    <div class="approval-card">
+      <div class="approval-scroll">
+        <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
+        <div class="approval-host" id="payanywhere-host"></div>
+        <div class="approval-ask" id="payanywhere-text"></div>
+      </div>
+      <div class="approval-footer">
+        <div class="approval-actions">
+          <button class="primary" id="payanywhere-on" data-i18n="Turn on">Turn on</button>
+          <button class="ghost" id="payanywhere-later" data-i18n="Not now">Not now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Signing approval (inline, replaces the popup when the panel is open) ===== -->
   <div id="view-approval" class="approval-overlay hidden">
     <div class="approval-card">

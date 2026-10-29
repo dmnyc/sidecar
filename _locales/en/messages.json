@@ -178,5 +178,29 @@
   "cardOfferDontAsk": {
     "message": "Don't ask again",
     "description": "On the offer card: stop offering to pay Lightning links on sites not signed in with Sidecar."
+  },
+  "firstOfferEyebrow": {
+    "message": "Sidecar can pay invoices",
+    "description": "Heading of the first-time card shown when a Lightning invoice appears on a site not signed in with Sidecar."
+  },
+  "firstOfferBody": {
+    "message": "On any page, not just connected sites.",
+    "description": "Body of the first-time card offering to pay invoices on any page."
+  },
+  "firstOfferAny": {
+    "message": "Pay on any page",
+    "description": "First-time card choice: turn on paying invoices on sites not signed in with Sidecar. Confirmed in Sidecar's panel."
+  },
+  "firstOfferSignedIn": {
+    "message": "Only sites I’m signed in to",
+    "description": "First-time card choice: keep Sidecar's pay prompts to sites signed in with Sidecar."
+  },
+  "firstOfferConfirm": {
+    "message": "Open Sidecar to confirm.",
+    "description": "First-time card, after choosing Pay on any page: points to Sidecar's panel."
+  },
+  "firstOfferClose": {
+    "message": "Close",
+    "description": "First-time card: closes it after Pay on any page was chosen."
   }
 }

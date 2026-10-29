@@ -9339,7 +9339,8 @@
   function panelIsCovered() {
     if (document.documentElement.classList.contains('modal-open')) return true;
     const approval = $('view-approval');
-    return !!approval && !approval.classList.contains('hidden');
+    const ask = $('view-payanywhere');
+    return (!!approval && !approval.classList.contains('hidden')) || (!!ask && !ask.classList.contains('hidden'));
   }
 
   // Draw whatever was skipped while an overlay was up. Callers must clear their own
@@ -23112,6 +23113,11 @@
     }).observe(el, { attributes: true, attributeFilter: ['class'] });
   }
 
+  // The pay-anywhere question is a surface of the same kind: no game beside it either.
+  new MutationObserver(() => {
+    if (!$('view-payanywhere').classList.contains('hidden')) closeRider();
+  }).observe($('view-payanywhere'), { attributes: true, attributeFilter: ['class'] });
+
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
   });
@@ -25002,10 +25008,41 @@
     card.append(msg, h('div', { className: 'webln-offer-controls' }, [use, later]));
     show(card);
   }
+  // "Show Sidecar on sites you're not signed in to?", raised by the pay card's first-time
+  // offer when the person chose "Pay on any page". Confirmed here and not on the page
+  // for the same reason as the offer above: a site must not be able to switch this on.
+  // Either button ends the question; the setting changes only on "Turn on".
+  function renderPayAnywhereAsk(host) {
+    const view = $('view-payanywhere');
+    if (!view) return;
+    if (!host) { hide(view); flushDeferredMainRender(); return; }
+    // Behind the lock screen it would be a question about a wallet nobody has unlocked;
+    // it is asked again the moment the lock goes (see the observer below).
+    if (!$('view-lock').classList.contains('hidden')) { hide(view); return; }
+    $('payanywhere-host').textContent = host;
+    $('payanywhere-text').textContent = t('showed an invoice. Let Sidecar pay on sites you’re not signed in to?');
+    // Over everything, the way a signing approval is: show first, then close any sheet, so
+    // the panel is never briefly uncovered between the two.
+    show(view);
+    closeAcctMenu();
+    if (document.documentElement.classList.contains('modal-open')) closeModal('payanywhere');
+  }
+  const answerPayAnywhere = async (yes) => {
+    renderPayAnywhereAsk('');
+    await bg({ type: 'SIDECAR_PAY_ANYWHERE_ANSWER', use: yes });
+    if (yes) { const tgl = $('paypill-anywhere-toggle'); if (tgl) tgl.checked = true; }
+  };
+  $('payanywhere-on').addEventListener('click', () => answerPayAnywhere(true));
+  $('payanywhere-later').addEventListener('click', () => answerPayAnywhere(false));
+  // Unlocking is when a question that arrived behind the lock screen can finally be asked.
+  new MutationObserver(() => {
+    if ($('view-lock').classList.contains('hidden')) refreshWeblnOffer();
+  }).observe($('view-lock'), { attributes: true, attributeFilter: ['class'] });
   async function refreshWeblnOffer() {
     try {
       const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
       renderWeblnOffer(s && s.weblnOfferHost ? s.weblnOfferHost : '');
+      renderPayAnywhereAsk(s && s.payAnywhereAskHost ? s.payAnywhereAskHost : '');
     } catch (_) {}
   }
 
@@ -25052,6 +25089,7 @@
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
       if (msg && msg.type === 'SIDECAR_WEBLN_OFFER') renderWeblnOffer(String(msg.host || ''));
+      if (msg && msg.type === 'SIDECAR_PAY_ANYWHERE_ASK') renderPayAnywhereAsk(String(msg.host || ''));
       if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {
