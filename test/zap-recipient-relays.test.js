@@ -178,3 +178,20 @@ test('the notification zap form reads through it, and tells "could not load" fro
   assert.doesNotMatch(code, /poolGetProfile\(relays, who\)/, 'the configured-only read is back');
   assert.match(code, /if \(!profile && !answered\) throw new Error\(t\('Could not load their profile\.'\)\)/);
 });
+
+test('capMs resolves with what arrived by then, says it was cut off, and closes the rest', async () => {
+  const p = panelWith({ relays: {
+    'wss://fast.example': { ms: 10, events: [kind0('x@fast.example')] },
+    'wss://dead.example': 'down',
+  }, maxWait: 5000 });
+  const { out, ms } = await timed(() => p.query(['wss://fast.example', 'wss://dead.example'], { kinds: [0], authors: [PK] }, { maxWait: 5000, capMs: 120 }));
+  assert.ok(ms < 1000, 'the cap did not cut the read short: ' + ms + 'ms');
+  assert.equal(out.events.length, 1);
+  assert.equal(out.complete, false, 'a read cut off by the cap claimed to be complete');
+});
+
+test('a read every relay finished is complete', async () => {
+  const p = panelWith({ relays: { 'wss://a.example': { ms: 0, events: [] } } });
+  const out = await p.query(['wss://a.example'], { kinds: [0], authors: [PK] }, { capMs: 2000 });
+  assert.equal(out.complete, true);
+});
