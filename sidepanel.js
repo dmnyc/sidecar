@@ -4399,8 +4399,13 @@
     // not obliged to honor the filter.
     const settleAfter = params && params.settleAfter;
     const author = filter.authors && filter.authors.length === 1 ? filter.authors[0] : null;
+    // capMs (opt-in): resolve by then with whatever has arrived, and say so with
+    // complete: false. For a read that must wait for every relay (a replaceable record
+    // whose copies differ by relay) but cannot wait on one that never connects.
+    const capMs = params && params.capMs;
     const subParams = Object.assign({}, params);
     delete subParams.settleAfter;
+    delete subParams.capMs;
     return new Promise((resolve) => {
       const events = [];
       const seen = new Set();
@@ -4410,13 +4415,16 @@
       let left = urls.length;
       let done = false;
       let settleTimer = null;
+      let capTimer = null;
       const finish = () => {
         if (done) return;
         done = true;
         clearTimeout(settleTimer);
-        resolve({ events, answered });
-        if (settleAfter) for (const sub of subs) { try { sub.close(); } catch (_) {} }
+        clearTimeout(capTimer);
+        resolve({ events, answered, complete: left === 0 });
+        if (settleAfter || capMs) for (const sub of subs) { try { sub.close(); } catch (_) {} }
       };
+      if (capMs) capTimer = setTimeout(finish, capMs);
       for (const url of urls) {
         if (done) break;
         subs.push(poolSubscribeManyEose([url], filter, Object.assign({}, subParams, {
@@ -9970,13 +9978,22 @@
         const connIc = icon('check');
         connIc.classList.add('stat-mini-ok');
         walletVal.appendChild(h('span', { className: 'wallet-badge' }, [connIc, document.createTextNode('Connected')]));
-        // Backup status — green check if current, orange X if missing/stale.
-        let backupOk = null;
-        try {
-          const backup = await nwcBackupState();
-          backupOk = backup.state === 'current';
-        } catch (_) {}
-        if (backupOk === true) {
+        // Backup status — green check if current, orange X if missing/stale, and a
+        // plain "Couldn't check" when it could not tell. That last used to fall in with
+        // the X, so a slow read at startup told you a backed-up wallet was not, while
+        // the Wallet tab said it was. One retry first: the overview loads while the
+        // panel is still starting up, when relay reads are at their slowest.
+        let backupState = 'unknown';
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (attempt) await new Promise((r) => setTimeout(r, 4000));
+          if (!walletVal.isConnected && attempt) return;
+          try { backupState = (await nwcBackupState()).state; } catch (_) { backupState = 'unknown'; }
+          if (backupState !== 'unknown') break;
+        }
+        const backupOk = backupState === 'current' ? true : backupState === 'unknown' ? null : false;
+        if (backupOk === null) {
+          walletVal.appendChild(h('span', { className: 'wallet-badge account-stat-dim', textContent: NWC_BACKUP_LABEL.unknown }));
+        } else if (backupOk === true) {
           const ic = icon('check');
           ic.classList.add('stat-mini-ok');
           walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Backed up')]));
@@ -17128,12 +17145,29 @@
     return [...new Set(urls.map(normalizeRelay))];
   }
 
+  // The newest copy of a backup record, or null when the relays answered and have none.
+  //
+  // NOBODY ANSWERING IS NOT "NO BACKUP". This used to race the read against six seconds
+  // and return null either way, so a read that ran long (the panel starting up, a relay
+  // on the list that never connects) reported a wallet as not backed up while the Wallet
+  // tab, asking later, said it was. Now it throws when it cannot tell, which every caller
+  // reads as "couldn't check".
+  //
+  // It still waits for every relay rather than settling on the first answer: the record
+  // is replaceable and relays keep different copies, and the first to answer can hold an
+  // older one. Capped, so a relay that never connects cannot hold it forever; at the cap
+  // the newest copy that arrived is used, and an empty-handed read counts as unchecked.
+  const BACKUP_READ_CAP_MS = 8000;
   async function fetchBackupEvent(dtag) {
     const relays = await backupReadRelays();
-    return Promise.race([
-      poolGet(relays, { kinds: [30078], authors: [state.activePubkey], '#d': [dtag] }),
-      new Promise((res) => setTimeout(() => res(null), 6000)),
-    ]).catch(() => null);
+    const author = state.activePubkey;
+    const { events, answered, complete } = await poolQueryAnswered(relays,
+      { kinds: [30078], authors: [author], '#d': [dtag] }, { capMs: BACKUP_READ_CAP_MS });
+    const ev = events.filter((e) => e && e.pubkey === author)
+      .sort((x, y) => y.created_at - x.created_at)[0] || null;
+    if (ev) return ev;
+    if (!answered || !complete) throw new Error(t('Could not reach your relays to check for a backup.'));
+    return null;
   }
 
   // ---- wallet (NWC) backup to relays — NIP-78, encrypted to self ----
@@ -17164,7 +17198,8 @@
   // compare can say 'stale' when the wallet is really the same. That false positive
   // only prompts a harmless re-backup, where a false 'current' is the bug itself.
   async function nwcBackupState() {
-    const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+    let ev;
+    try { ev = await fetchBackupEvent(NWC_BACKUP_DTAG); } catch (_) { return { state: 'unknown' }; }
     if (!ev) return { state: 'none' };
     // Presence comes from the metadata view; the decrypt-and-compare runs in the
     // service worker (SIDECAR_NWC_BACKUP_MATCHES) so the raw connection string

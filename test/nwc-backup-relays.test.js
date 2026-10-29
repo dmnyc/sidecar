@@ -22,19 +22,26 @@ function lift(pattern, label) {
   return m[0];
 }
 
-function harness({ post, configured, nip65Only, postThrows }) {
+// answer: what poolQueryAnswered resolves with; by default the relays answered with nothing.
+function harness({ post, configured, nip65Only, postThrows, answer }) {
   const queried = [];
   const ctx = {
     state: { activePubkey: 'a'.repeat(64) },
+    t: (s) => s,
+    poolQueryAnswered: async (relays, filter, params) => {
+      queried.push(relays);
+      ctx.lastParams = params;
+      return answer || { events: [], answered: true, complete: true };
+    },
     normalizeRelay: (u) => String(u).replace(/\/$/, ''),
     postRelays: async () => { if (postThrows) throw new Error('relay list unavailable'); return post; },
     relayUrls: async () => configured,
     nip65OnlyFor: async () => !!nip65Only,
-    poolGet: async (relays) => { queried.push(relays); return null; },
   };
   vm.createContext(ctx);
   vm.runInContext(
     lift(/async function backupReadRelays\(\)\s*\{[\s\S]*?\n  \}/, 'backupReadRelays') + '\n' +
+    lift(/const BACKUP_READ_CAP_MS = \d+;/, 'BACKUP_READ_CAP_MS') + '\n' +
     lift(/async function fetchBackupEvent\(dtag\)\s*\{[\s\S]*?\n  \}/, 'fetchBackupEvent') + '\n' +
     'globalThis.fetchBackupEvent = fetchBackupEvent;',
     ctx
@@ -66,4 +73,45 @@ test('an unresolved relay list throws ("couldn\'t check"), never reads as "no ba
   const { ctx, queried } = harness({ post: [], configured: [], nip65Only: true, postThrows: true });
   await assert.rejects(ctx.fetchBackupEvent('sidecar:nwc-backup'));
   assert.equal(queried.length, 0);
+});
+
+// ---- "no backup" only when the relays said so ---------------------------------------
+
+const ME = 'a'.repeat(64);
+const copy = (created_at, rest = {}) => ({ id: 'c' + created_at, pubkey: ME, created_at, content: 'x', tags: [], ...rest });
+const one = { post: ['wss://declared.example'], configured: [] };
+
+test('the newest copy wins when relays hold different ones', async () => {
+  const { ctx } = harness({ ...one, answer: { events: [copy(100), copy(300), copy(200)], answered: true, complete: true } });
+  assert.equal((await ctx.fetchBackupEvent('sidecar:nwc-backup')).created_at, 300);
+});
+
+test('another author\'s copy is not taken for this account\'s backup', async () => {
+  const { ctx } = harness({ ...one, answer: { events: [copy(500, { pubkey: 'b'.repeat(64) })], answered: true, complete: true } });
+  assert.equal(await ctx.fetchBackupEvent('sidecar:nwc-backup'), null);
+});
+
+test('relays that answered with nothing, all of them, is "no backup"', async () => {
+  const { ctx } = harness({ ...one });
+  assert.equal(await ctx.fetchBackupEvent('sidecar:nwc-backup'), null);
+});
+
+test('NOBODY ANSWERING IS "COULDN\'T CHECK", NOT "NO BACKUP"', async () => {
+  const { ctx } = harness({ ...one, answer: { events: [], answered: false, complete: true } });
+  await assert.rejects(ctx.fetchBackupEvent('sidecar:nwc-backup'));
+});
+
+test('a read cut off by the cap with nothing in hand is unchecked; with a copy in hand it is used', async () => {
+  const cut = harness({ ...one, answer: { events: [], answered: true, complete: false } });
+  await assert.rejects(cut.ctx.fetchBackupEvent('sidecar:nwc-backup'), 'a relay still out may hold it');
+  const got = harness({ ...one, answer: { events: [copy(42)], answered: true, complete: false } });
+  assert.equal((await got.ctx.fetchBackupEvent('sidecar:nwc-backup')).created_at, 42);
+});
+
+test('the read waits for every relay, and is capped', async () => {
+  const { ctx } = harness({ ...one });
+  await ctx.fetchBackupEvent('sidecar:nwc-backup');
+  assert.ok(ctx.lastParams.capMs > 0, 'nothing caps the read');
+  assert.equal(ctx.lastParams.settleAfter, undefined,
+    'settling on the first answer can take an older copy over the newest');
 });
