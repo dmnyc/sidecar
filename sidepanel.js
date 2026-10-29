@@ -2999,6 +2999,9 @@
           // address at best.
           await savePayMeta(invoice, {
             zapPubkey: pubkey,
+            // The comment this zap landed on, when it was a comment zap: the request's e tag
+            // is its id, so the details pane can link to it. A stream or profile zap has none.
+            zapEvent: (options?.chatEvent && options.chatEvent.id) || undefined,
             address: zapAddr,
             comment: note.value.trim(),
             feeMsat: res && res.fees_paid,
@@ -8541,6 +8544,8 @@
           const res = await client.payInvoice(invoice);
           await savePayMeta(invoice, {
             zapPubkey: who,
+            // The note the request's e tag names, so the details pane can link to it.
+            zapEvent: (ev && ev.id) || undefined,
             address: addr,
             comment: comment.value.trim(),
             feeMsat: res && res.fees_paid,
@@ -21148,7 +21153,7 @@
   // click stops here: the row above toggles the pane on any click it sees.
   function zapNoteRow(id) {
     const clientReady = preferredClient().catch(() => null);
-    const link = h('button', { className: 'tx-d-link', textContent: t('Open the note') });
+    const link = h('button', { className: 'tx-d-link', textContent: t('Open') });
     link.addEventListener('click', async (e) => {
       e.stopPropagation();
       let nevent = '';
@@ -21158,7 +21163,7 @@
     });
     // Name where it opens once that is known, the same in-place upgrade the names use.
     clientReady.then((c) => {
-      if (c && c.label) link.textContent = t('Open the note in {{client}}', { client: c.label });
+      if (c && c.label) link.textContent = t('Open in {{client}}', { client: c.label });
     });
     return h('div', { className: 'tx-d-row' }, [
       h('span', { className: 'tx-d-label', textContent: t('Zapped note') }),
@@ -21283,7 +21288,7 @@
       if (String(note).trim()) {
         const mark = h('span', { className: 'tx-note', title: note });
         mark.setAttribute('role', 'img');
-        mark.setAttribute('aria-label', t('Note: {{note}}', { note }));
+        mark.setAttribute('aria-label', t('Message: {{message}}', { message: note }));
         mark.append(icon('message-filled'));
         labelEl.classList.add('has-note');
         labelEl.append(mark);
@@ -21321,7 +21326,8 @@
       const zapWho = isZap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
       const rows = [
         txDetailRow(incoming ? t('From') : t('To'), counterparty || zapWho),
-        txDetailRow(t('Note'), note, null, true),
+        // "Message", not "Note": a note is the Nostr post, which the row below links to.
+        txDetailRow(t('Message'), note, null, true),
         zapNoteId ? zapNoteRow(zapNoteId) : null,
         txDetailRow(t('Amount'), satsLabel(sats)),
         incoming ? null : txDetailRow(t('Fee'), fmtFeeMsat(fee)),

@@ -41,7 +41,7 @@ test('the note id is read off the event first, the recorded request second, outg
 
 test('the details pane offers the row only when the zap names a note', () => {
   const row = fnSource('zapNoteRow');
-  assert.match(panel, /txDetailRow\(t\('Note'\), note, null, true\),\s*\n\s*zapNoteId \? zapNoteRow\(zapNoteId\) : null,/);
+  assert.match(panel, /txDetailRow\(t\('Message'\), note, null, true\),\s*\n\s*zapNoteId \? zapNoteRow\(zapNoteId\) : null,/);
   // A profile zap (no e tag) and a plain payment both leave zapNoteId empty — the row
   // is absent, not rendered empty.
   assert.match(row, /function zapNoteRow\(id\) \{/);
@@ -67,8 +67,20 @@ test('the click does not collapse the pane it lives in', () => {
 test('every string the row shows goes through t()', () => {
   const row = fnSource('zapNoteRow');
   assert.match(row, /t\('Zapped note'\)/);
-  assert.match(row, /t\('Open the note'\)/);
+  assert.match(row, /t\('Open'\)/);
   // The client's name arrives after the row is drawn; the upgrade is a template of
   // its own, so no locale can glue fragments around a client's name.
-  assert.match(row, /t\('Open the note in \{\{client\}\}', \{ client: c\.label \}\)/);
+  assert.match(row, /t\('Open in \{\{client\}\}', \{ client: c\.label \}\)/);
+});
+
+test('a zap sent from the panel records the note it tagged, so a sent zap links too', () => {
+  // The panel builds its own zap requests (zapInvoice), so the background's record of a
+  // site's signed request never sees them. Each panel path saves the id it handed
+  // makeZapRequest, whose e tag is exactly that id; a profile or stream zap saves none.
+  assert.match(panel, /zapPubkey: who,\s*\/\/[^\n]*\n\s*zapEvent: \(ev && ev\.id\) \|\| undefined,/,
+    'the note zap does not record the note');
+  assert.match(panel, /zapPubkey: pubkey,\s*(?:\/\/[^\n]*\n\s*)+zapEvent: \(options\?\.chatEvent && options\.chatEvent\.id\) \|\| undefined,/,
+    'the comment zap does not record the comment');
+  assert.match(panel, /event: ev,\n\s*\}\);/, 'the note zap no longer tags the note it records');
+  assert.match(panel, /event: options\?\.chatEvent,/, 'the comment zap no longer tags the comment it records');
 });
