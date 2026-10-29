@@ -4379,23 +4379,47 @@
     const urls = [...new Set(relays || [])];
     if (!urls.length) return Promise.resolve({ events: [], answered: false });
     const realBefore = (params && params.maxWait) || BASE_EOSE_TIMEOUT;
+    // settleAfter (opt-in): settle that long after the first event, rather than waiting
+    // for every relay. Without it one relay that never answers holds the result for the
+    // whole window even when another had it in a tenth of a second. The pause leaves time
+    // for a newer copy on another relay to land; whatever is still open is closed. On a
+    // single-author filter only that author's event starts the clock, since a relay is
+    // not obliged to honor the filter.
+    const settleAfter = params && params.settleAfter;
+    const author = filter.authors && filter.authors.length === 1 ? filter.authors[0] : null;
+    const subParams = Object.assign({}, params);
+    delete subParams.settleAfter;
     return new Promise((resolve) => {
       const events = [];
       const seen = new Set();
+      const subs = [];
       const t0 = Date.now();
       let answered = false;
       let left = urls.length;
+      let done = false;
+      let settleTimer = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(settleTimer);
+        resolve({ events, answered });
+        if (settleAfter) for (const sub of subs) { try { sub.close(); } catch (_) {} }
+      };
       for (const url of urls) {
-        poolSubscribeManyEose([url], filter, Object.assign({}, params, {
+        if (done) break;
+        subs.push(poolSubscribeManyEose([url], filter, Object.assign({}, subParams, {
           onevent: (ev) => {
             answered = true; // an event is an answer, whenever it lands
             if (ev && !seen.has(ev.id)) { seen.add(ev.id); events.push(ev); }
+            if (settleAfter && !settleTimer && ev && (!author || ev.pubkey === author)) {
+              settleTimer = setTimeout(finish, settleAfter);
+            }
           },
           onclose: (reasons) => {
             if ((reasons || [])[0] === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
-            if (--left === 0) resolve({ events, answered });
+            if (--left === 0) finish();
           },
-        }));
+        })));
       }
     });
   }
@@ -4699,6 +4723,46 @@
     })();
     _profileInflight.set(pubkey, p);
     return p;
+  }
+
+  // The profile to ZAP someone from, read from the relays THEY publish to.
+  //
+  // Their own write relays (kind:10002) are the source of truth: the lightning address is
+  // where the money goes, and a copy anywhere else is only a copy. The notification zap
+  // form used to ask the configured relays alone, which rarely carry a stranger's kind:0,
+  // and read finding nothing as "They have no lightning address" for people who have one.
+  //
+  // Their relay list comes from the session cache when it holds one, otherwise from the
+  // configured set plus the aggregator, which collects kind:10002. It stays in memory: a
+  // disk write per stranger zapped is not worth keeping. Only when they publish no list,
+  // or none of their relays has a profile, does the address come from the configured set
+  // plus the aggregator, the same set getProfile reads. That read starts at once, so the
+  // fallback costs no extra wait. Every read settles shortly after its first answer
+  // (settleAfter), so a relay on their list that never answers no longer holds the form.
+  //
+  // Resolves { profile, answered }: answered is false only when no relay anywhere replied,
+  // so the caller can tell "could not load" from "has no address".
+  const ZAP_LOOKUP = { maxWait: PROFILE_MAX_WAIT, settleAfter: 300 };
+  async function zapRecipientProfile(pubkey) {
+    const miss = { ev: null, answered: false };
+    const read = (relays) => (relays.length ? poolGetProfileInfo(relays, pubkey, ZAP_LOOKUP) : Promise.resolve(miss));
+    const wide = relayUrls(false).catch(() => []).then((relays) => [...new Set([...relays, 'wss://purplepag.es'])]);
+    const list = nip65Cache.has(pubkey)
+      ? Promise.resolve(nip65Cache.get(pubkey))
+      : wide.then((relays) => poolQueryAnswered(relays, { kinds: [10002], authors: [pubkey], limit: 1 }, ZAP_LOOKUP))
+        .then(({ events }) => {
+          const ev = events.filter((e) => e && e.pubkey === pubkey).sort((x, y) => y.created_at - x.created_at)[0];
+          return ev ? self.SidecarRelayPolicy.listFromTags(ev.tags) : null;
+        });
+    const own = list.then((l) => read((l && l.write) || [])).catch(() => miss);
+    const fallback = wide.then(read).catch(() => miss);
+    const fromOwn = await own;
+    const res = fromOwn.ev ? fromOwn : await fallback;
+    if (!res.ev) return { profile: null, answered: fromOwn.answered || res.answered };
+    let content = {};
+    try { content = JSON.parse(res.ev.content) || {}; } catch (_) {}
+    cacheProfile(pubkey, content);
+    return { profile: content, answered: true };
   }
 
   async function fetchPreviewProfile(pubkey) {
@@ -8496,12 +8560,12 @@
       // Same gate the profile sheet uses: an address without allowsNostr can take a
       // payment but can never produce a receipt, so a Zap button on it is a promise it
       // cannot keep.
-      relayUrls(false)
-        .then((relays) => poolGetProfile(relays, who))
-        .then(async (prof) => {
+      zapRecipientProfile(who)
+        .then(async ({ profile, answered }) => {
           if (!zapForm.isConnected) return;
-          let lud = '';
-          try { lud = (JSON.parse(prof.content) || {}).lud16 || ''; } catch (_) {}
+          // Nobody answered is not evidence of anything, so it does not say "no address".
+          if (!profile && !answered) throw new Error(t('Could not load their profile.'));
+          const lud = (profile && typeof profile.lud16 === 'string' && profile.lud16.trim()) || '';
           if (!lud) throw new Error(t('They have no lightning address.'));
           const p = await lnAddressParams(lud);
           if (!p.zappable) throw new Error(t('Their lightning address cannot receive zaps.'));
