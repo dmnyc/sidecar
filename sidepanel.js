@@ -12105,6 +12105,16 @@
     });
   }
 
+  // WHICH SIGNED EVENTS A CLIENT CAN SHOW. A relay auth, an app's saved settings, a list or
+  // a zap request has no page of its own, so the row's link-out opened a client on nothing.
+  // These do: notes and their reposts, reactions, media, polls, comments, voice, highlights,
+  // articles, starter packs, communities and live events (the kinds a web client renders as
+  // a page, taken from the ones the default client supports). Every other signed event gets
+  // Copy event ID instead, which is what you want from one of those anyway.
+  const ACTIVITY_VIEWABLE_KINDS = new Set([
+    1, 6, 7, 16, 20, 21, 22, 1068, 1111, 1222, 1244, 9802, 30023, 30311, 34235, 34236, 34550, 39089,
+  ]);
+
   function activityRow(e) {
     // A request Sidecar refused on shape (see normalizeSignEventParams in
     // background.js) never reached the key, so it must not borrow METHOD_META's
@@ -12150,14 +12160,25 @@
     // also goes on the row title, so it can be read and copied without leaving.
     if (e.id) {
       row.title = e.id;
-      const open = iconButton('View this event', 'external', async () => {
-        try {
-          const nevent = NT.nip19.neventEncode({ id: e.id, author: e.pubkey || undefined });
-          const client = await preferredClient();
-          window.open(client.url(nevent), '_blank', 'noopener');
-        } catch (_) {}
-      });
-      row.append(h('div', { className: 'item-actions' }, [open]));
+      const nevent = () => NT.nip19.neventEncode({ id: e.id, author: e.pubkey || undefined, kind: e.kind != null ? e.kind : undefined });
+      const action = e.method === 'signEvent' && ACTIVITY_VIEWABLE_KINDS.has(e.kind)
+        ? iconButton(t('View this event'), 'external', async () => {
+          try {
+            const client = await preferredClient();
+            window.open(client.url(nevent()), '_blank', 'noopener');
+          } catch (_) {}
+        })
+        // The same copy the notification menu's Copy event ID gives: the nevent, with the
+        // author and kind riding along so a client can find it.
+        : iconButton(t('Copy event ID'), 'copy', async () => {
+          try {
+            await copyPlain(nevent());
+            toast(t('Copied'), 'success');
+          } catch (_) {
+            toast(t('Could not copy'), 'error');
+          }
+        });
+      row.append(h('div', { className: 'item-actions' }, [action]));
     }
     return row;
   }
@@ -23708,6 +23729,21 @@
       24133: tSec('This is a remote-signing handshake. Approving it could hand control of your account to another app or device.'),
     };
   }
+  // A SIGN CARD SAYS WHAT IT SIGNS, in the line under the host. Every sign card used to read
+  // "wants to sign an event with your key", so a run of them from one site (an app's
+  // settings sync, a like, a post) looked like the same card refusing to go away, and the
+  // kind sat further down in the preview. The kind's name rides in as a parameter after a
+  // colon, which no language has to build an article around. An unrecognized kind keeps
+  // the general line; the preview still gives its number and the warning. Same as prompt.js.
+  function approvalAsk(data) {
+    if (data && data.method === 'signEvent') {
+      const ev = data.params && (data.params.event || data.params);
+      const label = ev && ev.kind != null ? approvalKindLabels()[ev.kind] : null;
+      if (label) return tSec('wants to sign: {{kind}}', { kind: label });
+    }
+    return approvalMethodAsk(data && data.method);
+  }
+
   // The number beside the name, always (docs/i18n-design.md §3.7). Same as prompt.js.
   function approvalKindLabel(kind) {
     if (kind == null) return '—';
@@ -24322,7 +24358,7 @@
     $('approval-host').textContent = data.host;
     $('approval-ask').textContent = payment
       ? tSec('wants to send a Lightning payment')
-      : approvalMethodAsk(data.method);
+      : approvalAsk(data);
 
     renderApprovalAccountCapsule(data);
     renderWrongAcctEscape(data);

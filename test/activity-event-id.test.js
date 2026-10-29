@@ -90,7 +90,8 @@ test('the action is an icon button, not a labelled one', () => {
   // rows — the recurring mistake CLAUDE.md is written about.
   const at = panel.indexOf('function activityRow(');
   const fn = panel.slice(at, panel.indexOf('\n  }\n', at));
-  assert.match(fn, /iconButton\('View this event', 'external'/);
+  assert.match(fn, /iconButton\(t\('View this event'\), 'external'/);
+  assert.match(fn, /iconButton\(t\('Copy event ID'\), 'copy'/);
   assert.match(fn, /className: 'item-actions'/, 'and lives in the inline action slot');
 });
 
@@ -114,4 +115,59 @@ test('no event content is stored', () => {
   for (const field of ['content', 'tags', 'sig']) {
     assert.doesNotMatch(call, new RegExp('\\b' + field + ':'), field + ' must not be logged');
   }
+});
+
+// ---- only a link-out where a client can show the event ------------------------------
+//
+// A relay auth, an app's saved settings or a list has no page of its own, so its link-out
+// opened a client on nothing. Those rows copy the event ID instead. These run the real
+// activityRow with the DOM stood in.
+const vm = require('node:vm');
+function activityRowHarness() {
+  const buttons = [];
+  const copied = [];
+  const opened = [];
+  const node = (tag, props = {}, children = []) => ({ tag, ...props, children: [...children], append(...c) { this.children.push(...c); }, appendChild(c) { this.children.push(c); } });
+  const ctx = vm.createContext({
+    h: node, icon: (n) => ({ icon: n }), t: (s) => s, relTime: () => 'now',
+    METHOD_META: { signEvent: { icon: 'feather', label: () => 'Signed' } },
+    iconButton: (title, name, onClick) => { const b = { title, name, onClick }; buttons.push(b); return b; },
+    NT: { nip19: { neventEncode: (o) => 'nevent:' + o.id + ':' + o.kind } },
+    preferredClient: async () => ({ url: (n) => 'https://client.example/' + n }),
+    window: { open: (u) => opened.push(u) },
+    copyPlain: async (v) => copied.push(v), toast: () => {},
+  });
+  const at = panel.indexOf('  const ACTIVITY_VIEWABLE_KINDS');
+  const fnAt = panel.indexOf('function activityRow(', at);
+  const end = panel.indexOf('\n  }\n', fnAt);
+  vm.runInContext(panel.slice(at, end + 4) + '\nthis.row = activityRow;', ctx);
+  return { row: ctx.row, buttons, copied, opened };
+}
+const entry = (kind) => ({ method: 'signEvent', kind, id: 'ab'.repeat(32), pubkey: 'cd'.repeat(32), host: 'site.example', ts: 1 });
+
+test('A RELAY AUTH, APP DATA OR LIST ROW COPIES ITS ID instead of opening a blank page', async () => {
+  for (const kind of [22242, 30078, 10002, 0, 3, 9734, 27235]) {
+    const hx = activityRowHarness();
+    hx.row(entry(kind));
+    assert.equal(hx.buttons.length, 1);
+    assert.equal(hx.buttons[0].name, 'copy', 'kind ' + kind + ' still links out to a page that shows nothing');
+    await hx.buttons[0].onClick();
+    assert.deepEqual(hx.copied, ['nevent:' + 'ab'.repeat(32) + ':' + kind]);
+  }
+});
+
+test('a note, reaction, repost, comment or article still opens in the client', async () => {
+  for (const kind of [1, 7, 6, 1111, 30023]) {
+    const hx = activityRowHarness();
+    hx.row(entry(kind));
+    assert.equal(hx.buttons[0].name, 'external', 'kind ' + kind + ' lost its link-out');
+    await hx.buttons[0].onClick();
+    assert.equal(hx.opened.length, 1);
+  }
+});
+
+test('a row with no id still has no button', () => {
+  const hx = activityRowHarness();
+  hx.row({ method: 'getPublicKey', host: 'site.example', ts: 1 });
+  assert.equal(hx.buttons.length, 0);
 });
