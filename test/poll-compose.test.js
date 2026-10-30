@@ -369,7 +369,7 @@ test('A POLL YOU JUST POSTED IS ONE OF YOUR POLLS IMMEDIATELY', () => {
   // for the life of the panel. So your first poll of a session left accountHasPolls() false:
   // no tab, and since Profile no longer lists them, no way back to that tally at all once
   // the post banner timed out. Seeded at publish rather than waited for.
-  assert.match(bare, /if \(signed\.kind === POLL_KIND\) rememberOwnPoll\(signed\.pubkey, signed\.id\);/);
+  assert.match(bare, /if \(signed\.kind === POLL_KIND\) rememberOwnPoll\(signed\.pubkey, signed\.id, signed\);/);
   const fn = bare.slice(bare.indexOf('function rememberOwnPoll'));
   assert.match(fn.slice(0, fn.indexOf('\n  }')), /ids\.add\(id\);/);
 
@@ -833,10 +833,13 @@ test('THE BELL CARRIES A POLLS TAB, NOT A BUTTON OUT OF THE BELL', () => {
   assert.equal((bare.match(/fillPollsList\(/g) || []).length, 2, 'one definition, one caller');
 });
 
-test('THE NUMBER ON THE TAB IS HOW MANY POLLS ARE IN IT', () => {
+test('THE NUMBER ON THE TAB IS HOW MANY LIVE POLLS ARE IN IT', () => {
   // It counted the OPEN ones first, which is a different question from the one a number
   // beside a tab asks. Against a list of three rows with two of them still running, it
-  // just read as a wrong number.
+  // just read as a wrong number. Then it counted every poll the account had ever
+  // posted, which was the opposite mistake: a poll that ended in March held a (1) on
+  // the tab forever, because nothing about that number meant "unread" and nothing
+  // about viewing a tally could clear it. Live polls only, now.
   //
   // In a capsule, not loose in the label: "Polls 3" is one string to the eye and the
   // number has to be picked back out of it.
@@ -847,11 +850,12 @@ test('THE NUMBER ON THE TAB IS HOW MANY POLLS ARE IN IT', () => {
 });
 
 test('the count is seeded free, then corrected by the list that knows', () => {
-  // ownPollCount is the notification filters' own ids: capped at 50 and fetched from the
-  // notification relay set, where the list uses pollReadRelays. Free and usually right, so
-  // it labels the tab the instant the sheet opens, but it is not the authority.
+  // liveOwnPollCount is the notification filters' own polls, judged live: capped at 50
+  // and fetched from the notification relay set, where the list uses pollReadRelays.
+  // Free and usually right, so it labels the tab the instant the sheet opens, but it is
+  // not the authority.
   const body = notifModalBody();
-  assert.match(body, /setCount\(ownPollCount\(a\.pubkey\)\);/, 'the instant answer');
+  assert.match(body, /setCount\(liveOwnPollCount\(a\.pubkey\)\);/, 'the instant answer');
   assert.match(body, /onCount: setCount,/, 'and the real one when the list has it');
   assert.match(bare, /function ownPollCount\(pubkey\)/);
   assert.match(bare, /return ownPollCount\(pubkey\) > 0;/, 'one source for both questions');
@@ -868,16 +872,17 @@ test('the count is seeded free, then corrected by the list that knows', () => {
   // every assertion about the call sites above true and the feature gone. Destructured in
   // the signature and used unguarded, since the one caller passes both.
   assert.match(bare, /async function fillPollsList\(list, pubkey, \{ openPoll, onCount \}\)/);
-  assert.match(fill, /onCount\(polls\.length\);/);
-  const reported = fill.indexOf('onCount(polls.length)');
+  assert.match(fill, /onCount\(countLivePolls\(polls\)\);/);
+  const reported = fill.indexOf('onCount(countLivePolls(polls))');
   const votes = fill.indexOf("kinds: [POLL_RESPONSE_KIND], '#e'");
   // > -1 first. indexOf returns -1 for a line that is simply gone, and -1 is less than
   // every real index, so the ordering check alone passes loudest when it should fail.
   assert.ok(reported > -1, 'nothing reports the real count');
   assert.ok(votes > -1 && reported < votes, 'the count must not wait on the votes');
-  // One report covers both cases: polls.length is 0 for an account with none, and it goes
-  // out BEFORE the empty-list return rather than from inside it, so a tab labeled with a
-  // stale number from the cache is corrected even when the answer is that there are none.
+  // One report covers both cases: countLivePolls is 0 for an account with none, and for
+  // one where every poll has finished, and it goes out BEFORE the empty-list return
+  // rather than from inside it, so a tab labeled with a stale number from the cache is
+  // corrected even when the answer is that nothing is live.
   // Matched on the early return's own cache write, since `if (!polls.length)` also appears
   // inside the shared renderer above it and would be found there first.
   const emptyReturn = fill.indexOf('_pollListCache.set(pubkey, { polls, counts: new Map() });');
