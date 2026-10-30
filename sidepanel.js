@@ -287,6 +287,10 @@
     // line breaks run together; and The House of the Seven Gables (1851).
     { text: 'A man said to the universe: “Sir, I exist!” “However,” replied the universe, “The fact has not created in me a sense of obligation.”', who: 'Stephen Crane, 1899' },
     { text: 'Life is made up of marble and mud.', who: 'Nathaniel Hawthorne, 1851' },
+    // 1.16.4. Checked against the Project Gutenberg texts: Anne of Green Gables (1908); and
+    // The Wind in the Willows (1908), which reads "absolute nothing", not the usual "absolutely".
+    { text: 'Marilla, isn’t it nice to think that tomorrow is a new day with no mistakes in it yet?', who: 'L. M. Montgomery, 1908' },
+    { text: 'Believe me, my young friend, there is nothing—absolute nothing—half so much worth doing as simply messing about in boats.', who: 'Kenneth Grahame, 1908' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

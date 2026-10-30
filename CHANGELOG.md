@@ -9,6 +9,30 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [1.16.4] — 2026-10-29
+
+### Added
+- **A zap’s payment details link to the note it landed on,** opened in your own client: zaps you received, and zaps you sent from a site or from the panel.
+- **Sidecar offers, once, to pay invoices on any page.** The first time a site you are not signed in to shows an invoice in a payment panel, a card asks. Turning it on is confirmed in Sidecar, never on the page.
+
+### Changed
+- **Notifications load the newest first.** Opening the bell asks for the latest, and Load more fetches older ones from your relays as you ask, past the old one-week limit. The badge counts the newest screenful, with a + when there is more.
+- **A sign card names what it signs,** “wants to sign: Reaction”, on the panel and the popup alike.
+- **Recent activity copies an event’s ID** where no client can show the event, such as a relay sign-in or an app’s saved settings, instead of opening an empty page.
+- **A site that asks for your public key many times at once gets one card.** Your answer to the first covers the rest.
+- **Payment details call a zap’s comment or an invoice’s description a “Message”,** since a note is the Nostr post.
+- **Poll results count voters whose ballots sit off the usual relays.**
+- **The wallet directory lists self-custodial wallets first,** and its Ecash and Spark descriptions are corrected.
+
+### Fixed
+- **Zapping from a notification finds the person’s lightning address** on the relays they publish to. It said “They have no lightning address” for people who have one, and it now loads in a second or two.
+- **The Accounts overview no longer says a backed-up wallet is not backed up.** A backup check that cannot finish says “Couldn’t check”.
+- **A sign card the auto-lock catches asks for your PIN** instead of failing to sign, and a request left unanswered too long tells the site it timed out, not that you rejected it.
+- **Relay addresses pasted with https:// are corrected, not saved broken,** and Sidecar checks a relay before adding it, asking first when it cannot reach it.
+
+### Documentation
+- **The changelog opens with the latest release,** not an empty Unreleased heading.
+
 ## [1.16.3] — 2026-10-26
 
 ### Added
