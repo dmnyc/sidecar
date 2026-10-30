@@ -1,0 +1,153 @@
+'use strict';
+
+// THE PANEL IS OUR PAGE, SO THE ZOOM IS OURS TO OFFER (issue #565).
+//
+// A tester on a monitor with a low height-to-width ratio could not make the panel
+// narrower (Chrome floors the side panel's width; no API changes that) and asked to
+// zoom the contents instead. That half is cheap: CSS zoom on the panel body reflows
+// everything uniformly. Six stops, not a continuum, so a stored value always means one
+// size a person can hold a preference about.
+//
+// It is deliberately NOT built on --display-scale. That token changes the theme's face
+// while line boxes stay pinned, so switching themes never reflows the panel; a zoom is
+// the opposite contract, and a root zoom multiplies the pinned values along with
+// everything else, so the reflow guards on those tokens still hold.
+//
+// The stops, the mapping and the apply are lifted and run. The wiring (persistence,
+// the feature-detect gate, the boot call) is held against the source, the way
+// overview-reads.test.js holds its function.
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const ROOT = path.join(__dirname, '..');
+const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+
+// Balanced-brace lift, for whole functions.
+function liftFn(decl) {
+  const at = bare.indexOf(decl);
+  if (at === -1) throw new Error('Could not find ' + decl);
+  const open = bare.indexOf('{', at);
+  let depth = 0;
+  for (let j = open; j < bare.length; j++) {
+    if (bare[j] === '{') depth++;
+    else if (bare[j] === '}' && --depth === 0) return bare.slice(at, j + 1);
+  }
+  throw new Error('Unbalanced braces after ' + decl);
+}
+
+const bare = source.replace(/^\s*\/\/.*$/gm, '');
+
+// One-statement lift, for declarations (liftFn needs braces to grab).
+function liftLine(decl) {
+  const at = bare.indexOf(decl);
+  if (at === -1) throw new Error('Could not find ' + decl);
+  const end = bare.indexOf(';', at);
+  return bare.slice(at, end + 1);
+}
+
+const ctx = { console, document: { body: { style: {} } }, Date, Math, Number, isFinite, Set, Map, Array };
+vm.createContext(ctx);
+vm.runInContext(
+  liftLine('const PANEL_ZOOM_STOPS = ') + '\n' +
+  liftLine('const PANEL_ZOOM_DEFAULT = ') + '\n' +
+  liftFn('function panelZoomPercent(') + '\n' +
+  liftFn('function panelZoomIndex(') + '\n' +
+  liftFn('function applyPanelZoom(') + '\n' +
+  'globalThis.PANEL_ZOOM_STOPS = PANEL_ZOOM_STOPS;' +
+  'globalThis.PANEL_ZOOM_DEFAULT = PANEL_ZOOM_DEFAULT;' +
+  'globalThis.panelZoomPercent = panelZoomPercent;' +
+  'globalThis.panelZoomIndex = panelZoomIndex;' +
+  'globalThis.applyPanelZoom = applyPanelZoom;',
+  ctx
+);
+const { PANEL_ZOOM_STOPS, PANEL_ZOOM_DEFAULT, panelZoomPercent, panelZoomIndex, applyPanelZoom } = ctx;
+
+test('SIX STOPS, AND 100 IS ONE OF THEM', () => {
+  assert.deepEqual([...PANEL_ZOOM_STOPS], [80, 90, 100, 110, 125, 150], 'the stops moved');
+  assert.equal(PANEL_ZOOM_DEFAULT, 100);
+  assert.ok(PANEL_ZOOM_STOPS.includes(PANEL_ZOOM_DEFAULT), 'the default is a stop, not a wish');
+});
+
+test('THE SLIDER INDEX READS AS A PERCENT, AND GARBAGE WEARS THE DEFAULT', () => {
+  assert.equal(panelZoomPercent(0), 80);
+  assert.equal(panelZoomPercent(2), 100);
+  assert.equal(panelZoomPercent(5), 150);
+  // slider.value is a string; the mapping takes it as it comes.
+  assert.equal(panelZoomPercent('4'), 125);
+  // Half a step rounds to the nearer stop, like the thumb does.
+  assert.equal(panelZoomPercent(1.4), 90);
+  assert.equal(panelZoomPercent(1.5), 100);
+  // Out of range is the default, never a made-up stop.
+  assert.equal(panelZoomPercent(-1), 100);
+  assert.equal(panelZoomPercent(6), 100);
+  assert.equal(panelZoomPercent('spin'), 100);
+});
+
+test('A STORED PERCENT SNAPS TO ITS NEAREST STOP', () => {
+  assert.equal(panelZoomIndex(80), 0);
+  assert.equal(panelZoomIndex(100), 2);
+  assert.equal(panelZoomIndex(150), 5);
+  assert.equal(panelZoomIndex(120), 4, '120 is five from 125 and ten from 110');
+  // A dead tie goes to the lower stop. Nobody stores 95 by choice; nobody should land
+  // on 110 by accident of rounding either.
+  assert.equal(panelZoomIndex(95), 1);
+  // Absent setting, or a stored null: the default, not stop zero.
+  assert.equal(panelZoomIndex(undefined), 2);
+  assert.equal(panelZoomIndex(null), 2);
+  assert.equal(panelZoomIndex('spin'), 2);
+});
+
+test('ZOOM SETS THE BODY, AND 100 LEAVES NO INLINE ZOOM', () => {
+  applyPanelZoom(125);
+  assert.equal(ctx.document.body.style.zoom, '1.25');
+  applyPanelZoom(80);
+  assert.equal(ctx.document.body.style.zoom, '0.8');
+  applyPanelZoom(150);
+  assert.equal(ctx.document.body.style.zoom, '1.5');
+  applyPanelZoom(100);
+  assert.equal(ctx.document.body.style.zoom, '', 'the default panel carries no inline zoom');
+});
+
+// ---- the wiring, against the source ---------------------------------------------
+
+test('THE CONTROL SITS IN APPEARANCE, LABELED AND SELF-DESCRIBING', () => {
+  const at = html.indexOf('id="panel-zoom-setting"');
+  assert.ok(at > -1, 'the setting block exists');
+  const sectionAt = html.indexOf('data-section="appearance"');
+  const sectionEnd = html.indexOf('</section>', sectionAt);
+  assert.ok(at > sectionAt && at < sectionEnd, 'and it lives in the Appearance section');
+  const block = html.slice(html.lastIndexOf('<div class="setting"', at), sectionEnd);
+  assert.match(block, /<h3 data-i18n="Panel zoom">Panel zoom<\/h3>/);
+  assert.match(block, /data-i18n="Make everything in the panel larger or smaller\."/);
+  assert.match(block, /id="panel-zoom-slider" min="0" max="5" step="1"/);
+  assert.match(block, /aria-label="Panel zoom" data-i18n-aria-label="Panel zoom"/);
+  assert.match(block, /id="panel-zoom-value"/, 'the percent readout');
+});
+
+test('PERSISTED ON RELEASE, NOT ON EVERY TICK OF THE DRAG', () => {
+  const fn = liftFn('function initPanelZoom(');
+  const input = fn.slice(fn.indexOf("addEventListener('input'"), fn.indexOf("addEventListener('change'"));
+  assert.match(input, /paint\(panelZoomPercent\(slider\.value\)\)/, 'input only paints');
+  assert.doesNotMatch(input, /SIDECAR_SET_SETTINGS/, 'a drag would be dozens of writes');
+  const commit = fn.slice(fn.indexOf("addEventListener('change'"));
+  assert.match(commit, /SIDECAR_SET_SETTINGS/, 'the write happens on release');
+  assert.match(commit, /panelZoom: pct/, 'under the settings key the issue named');
+});
+
+test('HIDDEN WHERE ZOOM WOULD DO NOTHING, APPLIED FROM STORAGE AT BOOT', () => {
+  const fn = liftFn('function initPanelZoom(');
+  assert.match(fn, /CSS\.supports\('zoom', '1'\)/, 'the feature-detect the issue asked for');
+  const gate = fn.indexOf('CSS.supports');
+  const hide = fn.indexOf("setting.classList.add('hidden')");
+  assert.ok(gate > -1 && hide > gate, 'the block hides only where zoom would do nothing');
+  assert.match(fn, /SIDECAR_GET_SETTINGS/, 'restored from sidecar_settings');
+  assert.match(fn, /panelZoomIndex\(settings && settings\.panelZoom\)/);
+  assert.match(bare, /initPanelZoom\(\);/, 'wired once at boot');
+  assert.match(bare, /value\.textContent = I18N\.fmtNum\(pct, \{ style: 'unit', unit: 'percent' \}\)/,
+    'the readout is a formatted number, not a glued string');
+});

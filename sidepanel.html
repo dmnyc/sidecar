@@ -570,6 +570,18 @@
             <label class="toggle-row"><input type="checkbox" id="quotes-toggle" /> <span data-i18n="Show literary quotes">Show literary quotes</span></label>
           </div>
 
+          <!-- THE STEPS ARE SIX BY DESIGN (80 to 150), and the slider snaps to them:
+               index 0..5 in the markup, percents in sidepanel.js (PANEL_ZOOM_STOPS).
+               Hidden entirely where CSS zoom is unsupported (initPanelZoom). -->
+          <div class="setting" id="panel-zoom-setting">
+            <h3 data-i18n="Panel zoom">Panel zoom</h3>
+            <p class="hint" data-i18n="Make everything in the panel larger or smaller.">Make everything in the panel larger or smaller.</p>
+            <div class="zoom-row">
+              <input type="range" id="panel-zoom-slider" min="0" max="5" step="1" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom" />
+              <output class="zoom-value" id="panel-zoom-value" for="panel-zoom-slider">100%</output>
+            </div>
+          </div>
+
         </div>
       </section>
 

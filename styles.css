@@ -2154,6 +2154,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .toggle-row { display: flex; align-items: center; gap: 9px; cursor: pointer; color: var(--text); font-size: 14px; }
 .toggle-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
+
+/* PANEL ZOOM (issue #565). The slider snaps to six stops and the readout carries the
+   percent, so the value is text and gets tabular figures like every other number. */
+.zoom-row { display: flex; align-items: center; gap: 10px; }
+.zoom-row input[type=range] { flex: 1; min-width: 0; accent-color: var(--orange); cursor: pointer; }
+.zoom-value { flex-shrink: 0; min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 /* Two switches under one heading (Wallet & payments' hide-balances pair, where the
    second qualifies the first) — the row carries no vertical margin of its own, so
    stacked ones would sit flush. Matched to the row's own 9px gap. */

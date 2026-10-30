@@ -25389,6 +25389,74 @@
     syncHostPermBanner();
   }
 
+  // ---- panel zoom ----
+  // THE PANEL IS OUR PAGE, so a UI scale is ours to offer (issue #565). CSS zoom on the
+  // body reflows the whole panel uniformly — scrollbars, layout and line boxes together
+  // — which is what “zoom the contents” means. It is not --display-scale, and must not
+  // become it: that token changes the theme's face while line boxes stay pinned, so
+  // switching themes never reflows the panel. A zoom is the opposite contract — the
+  // user asked for more or less room taken — and a root zoom multiplies the pinned
+  // values along with everything else, so those reflow guards still hold.
+  //
+  // Six stops, not a continuum: sizes a person can hold a preference about, and a
+  // stored value that always means one of them. CSS zoom is standard since 2024
+  // (Chrome 128+, Firefox 126+); where the browser is older the control hides, because
+  // a slider that changes nothing reads as broken.
+  const PANEL_ZOOM_STOPS = [80, 90, 100, 110, 125, 150];
+  const PANEL_ZOOM_DEFAULT = 100;
+
+  function panelZoomPercent(index) {
+    const i = Math.round(Number(index));
+    if (!Number.isFinite(i) || i < 0 || i >= PANEL_ZOOM_STOPS.length) return PANEL_ZOOM_DEFAULT;
+    return PANEL_ZOOM_STOPS[i];
+  }
+
+  // A stored percent is whatever an older build or a hand edit left behind: snap to the
+  // nearest stop, and anything that is not a number wears the default.
+  function panelZoomIndex(pct) {
+    const n = Number(pct);
+    if (pct == null || !Number.isFinite(n)) return PANEL_ZOOM_STOPS.indexOf(PANEL_ZOOM_DEFAULT);
+    let best = 0;
+    for (let i = 1; i < PANEL_ZOOM_STOPS.length; i++) {
+      if (Math.abs(PANEL_ZOOM_STOPS[i] - n) < Math.abs(PANEL_ZOOM_STOPS[best] - n)) best = i;
+    }
+    return best;
+  }
+
+  // Empty string at 100% so the default panel carries no inline zoom at all.
+  function applyPanelZoom(pct) {
+    document.body.style.zoom = pct === PANEL_ZOOM_DEFAULT ? '' : String(pct / 100);
+  }
+
+  // Wired once at boot, never in renderSettings(), which runs on every gear entry and
+  // would stack listeners (the rule the settings accordion already lives by).
+  function initPanelZoom() {
+    const setting = $('panel-zoom-setting');
+    if (!CSS.supports('zoom', '1')) {
+      setting.classList.add('hidden'); // a slider that changes nothing reads as broken
+      return;
+    }
+    const slider = $('panel-zoom-slider');
+    const value = $('panel-zoom-value');
+    const paint = (pct) => {
+      value.textContent = I18N.fmtNum(pct, { style: 'unit', unit: 'percent' });
+      applyPanelZoom(pct);
+    };
+    call({ type: 'SIDECAR_GET_SETTINGS' }).then((settings) => {
+      const index = panelZoomIndex(settings && settings.panelZoom);
+      slider.value = String(index);
+      paint(panelZoomPercent(index));
+    }).catch(() => {});
+    // Live while dragging; persisted once, on release. A write per input event would
+    // be dozens of settings writes per drag of the thumb.
+    slider.addEventListener('input', () => paint(panelZoomPercent(slider.value)));
+    slider.addEventListener('change', () => {
+      const pct = panelZoomPercent(slider.value);
+      paint(pct);
+      call({ type: 'SIDECAR_SET_SETTINGS', settings: { panelZoom: pct } }).catch(() => {});
+    });
+  }
+
   // ---- collapsible settings sections ----
   // Accordion contract: at most one section open. Opening one folds the others;
   // tapping the open header closes it and leaves none open. State lives in
@@ -25506,6 +25574,7 @@
   initDevBadge();
   initLanguagePicker();
   initHostPermGuard();
+  initPanelZoom();
   initSettingsSections();
   initStampedType();
   // At boot rather than on a tab or an account switch, because an update is about the
