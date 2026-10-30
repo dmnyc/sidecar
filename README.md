@@ -234,6 +234,7 @@ dedicated, named support for:
 - The Bauhaus theme is a tribute to the [Bauhaus school](https://en.wikipedia.org/wiki/Bauhaus) (1919–1933) — its principles of geometric clarity, primary color, and type as architecture echo in the author's own logo at [dmnyc.net](https://dmnyc.net)
 - The Nixie theme is a tribute to the [nixie tube](https://en.wikipedia.org/wiki/Nixie_tube), the cold-cathode readout of mid-century instrument panels — neon-orange numerals behind a wire mesh, and cold steel around them
 - The Metropolis theme is a tribute to [Fritz Lang's *Metropolis*](https://en.wikipedia.org/wiki/Metropolis_(1927_film)) (1927) — deco geometry taken down to the machine floor, soot and tarnished brass under shafts of light, and a balance that strikes white and cools into metal
+- The Brownstone theme is a tribute to New York’s sandstone rowhouse facades — broad masonry courses, recessed floral carvings, and layered molding in warm evening light, with brass hardware and Caslon lettering
 - The Werkstätte theme is a tribute to the [Wiener Werkstätte](https://en.wikipedia.org/wiki/Wiener_Werkst%C3%A4tte) (1903–1932), the Viennese design workshop founded by Josef Hoffmann and Koloman Moser out of the [Vienna Secession](https://en.wikipedia.org/wiki/Vienna_Secession) — black and white, the square as an ornament in its own right, and gold used as an applied material rather than as ink. The field is Hoffmann's *Gitterwerk*, the lattice of little squares that earned him the nickname Quadratl-Hoffmann
 - The Wabi-sabi theme is a tribute to [wabi-sabi](https://en.wikipedia.org/wiki/Wabi-sabi), the Japanese aesthetic of the imperfect and impermanent, and to [kintsugi](https://en.wikipedia.org/wiki/Kintsugi), the art of mending broken pottery with gold-dusted lacquer so the repair becomes part of the object's history rather than something hidden
 - The Ukiyo-e theme is a tribute to [ukiyo-e](https://en.wikipedia.org/wiki/Ukiyo-e), the Edo-period woodblock prints of Hokusai and Hiroshige — a sky graded from pale blue to a yellow horizon under a band of Prussian blue, and the yellow-green of Hokusai's cliffs — with the traditional *seigaiha* wave pattern as its field
@@ -253,7 +254,7 @@ dedicated, named support for:
 ## Author
 
 - Created by The Daniel 🖖
-- Mixed with Claude and GLM 🍸
+- Mixed with Claude, GLM, and Astra 🍸
 
 ## License
 
