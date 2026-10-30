@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="356">
+<!-- Selected 11A: four small open flowers and a larger matching center.
+     Opaque molding and bounded panel paths keep joints out of raised stone. -->
+<defs><linearGradient id="molding" x2="0" y2="1">
+<stop stop-color="#7e644b"/><stop offset=".09" stop-color="#604a38"/>
+<stop offset=".23" stop-color="#3b2d23"/><stop offset=".3" stop-color="#70563f"/>
+<stop offset=".46" stop-color="#624b38"/><stop offset=".75" stop-color="#382b23"/>
+<stop offset=".8" stop-color="#75563f"/><stop offset="1" stop-color="#221c18"/>
+</linearGradient><pattern id="grain" width="173" height="149" patternUnits="userSpaceOnUse"><path d="M78.3 83.4h0.9M80.6 75.7h0.7M31.9 76.3h0.7M137.2 14.0h0.5M15.7 120.6h0.8M7.2 146.3h1.0M113.1 91.7h0.4M2.6 78.7h0.3M32.9 36.0h0.3M80.3 65.6h0.9M89.8 95.4h0.6M114.6 68.1h0.5M172.6 148.4h0.9M122.5 47.0h0.5M50.0 10.5h0.8M69.3 126.1h0.6M165.7 126.2h0.3M36.3 135.6h0.6M169.6 59.2h0.4M108.9 116.0h0.5M15.1 49.6h1.0M131.1 17.6h0.5M17.5 8.9h0.9M30.7 83.3h0.6M33.0 109.1h0.4M111.4 17.4h0.6M36.8 40.2h1.0M139.0 45.3h0.9M36.5 58.7h0.9M111.0 14.9h1.0M36.9 38.5h0.8M56.9 44.2h0.4M15.6 86.8h0.5M104.0 55.4h0.6M165.9 72.1h0.7M149.9 27.2h0.4M157.2 121.9h0.5M32.8 110.2h1.0M34.0 141.6h0.9M104.4 62.8h0.4M6.7 143.4h0.5M121.9 38.3h0.9M103.2 43.7h0.4M124.6 10.2h0.5M96.8 127.0h0.7M48.5 136.7h0.4M2.9 40.1h0.6M10.5 26.3h0.6M99.0 19.6h0.6M154.1 146.1h0.8M119.6 87.1h0.4M6.1 2.7h0.9M121.3 143.5h0.3M110.1 71.9h0.8M55.2 148.9h0.4M94.5 109.8h0.9M127.5 104.8h0.9M158.3 52.4h0.8M155.8 129.8h0.6M136.8 128.7h0.7M108.1 57.0h0.7M105.3 12.0h0.7M171.8 131.1h0.8M67.2 109.5h0.7M76.2 124.9h0.4M129.8 4.4h0.7M83.2 34.3h0.8M86.0 91.6h0.9M44.3 1.7h0.5M117.3 30.2h0.4M156.7 98.3h0.6M154.3 48.7h0.8M34.3 64.2h0.9M158.2 131.2h0.6M100.9 47.2h0.4M85.9 124.7h0.9M123.0 141.6h0.5M29.3 67.1h0.5M37.0 61.7h0.7M85.4 47.0h0.9M169.9 67.4h0.4M5.4 130.1h0.3M122.6 85.0h0.5M136.9 2.8h0.4M78.7 3.7h0.9M41.1 21.0h0.3M108.8 66.5h0.7M113.3 120.3h1.0M118.4 29.7h0.6M30.9 1.6h0.6M123.6 26.7h0.5M59.8 103.9h0.7M106.3 112.7h0.6M137.0 135.0h0.4M161.3 107.6h0.4M78.5 93.2h0.9M65.2 84.8h0.9M137.8 140.7h0.6M112.7 30.5h0.8M141.6 95.6h0.8M36.9 134.1h1.0M169.1 80.0h0.9M55.4 135.6h0.9M60.3 12.3h0.6M95.2 114.5h0.6M4.9 120.6h0.3M138.4 25.8h0.5M136.3 20.9h0.4M89.4 107.8h0.9M119.3 140.9h0.6M164.2 12.8h0.5M91.1 43.2h0.8M110.5 77.9h0.9M96.9 46.4h0.6M146.2 134.2h0.4M147.2 144.3h0.7M99.1 29.9h0.7M87.0 90.2h0.3M167.7 76.9h0.6M138.6 83.9h0.6M119.5 9.8h0.7M71.6 142.6h0.9M46.6 70.5h0.4M75.0 121.5h0.9M82.4 47.3h0.4M106.9 137.9h0.4M134.8 3.4h0.4M39.3 102.4h0.5M61.5 92.3h0.4M126.4 18.3h0.7M43.3 29.5h0.7M75.6 56.0h0.6M91.6 23.8h0.4M109.2 95.1h0.7M147.3 91.1h0.9M40.2 110.4h0.9M156.2 47.1h0.5M159.6 32.5h1.0M153.5 20.0h0.5M125.7 38.7h0.4M144.0 62.8h0.9M21.8 60.0h0.8M3.1 29.9h0.8M157.7 144.3h0.4M87.5 113.0h0.7M118.6 28.2h0.3M18.4 5.6h0.7M89.1 84.7h0.4M31.9 30.4h0.9M171.3 138.1h0.4" stroke="#d6b18a" stroke-opacity=".085" stroke-width=".55"/></pattern>
+<path id="petal" d="M0 -5C-5 -10 -5 -20 0 -26C5 -20 5 -10 0 -5Z"/>
+<g id="flower"><use href="#petal" transform="rotate(0)"/><use href="#petal" transform="rotate(45)"/><use href="#petal" transform="rotate(90)"/><use href="#petal" transform="rotate(135)"/><use href="#petal" transform="rotate(180)"/><use href="#petal" transform="rotate(225)"/><use href="#petal" transform="rotate(270)"/><use href="#petal" transform="rotate(315)"/></g>
+<linearGradient id="face" x2=".15" y2="1">
+<stop stop-color="#534133"/><stop offset="1" stop-color="#49392e"/>
+</linearGradient>
+<pattern id="panels" width="300" height="146" patternUnits="userSpaceOnUse" x="50%" y="194">
+<rect width="300" height="146" fill="#49392e"/>
+<rect x="8" y="10" width="280" height="126" fill="url(#face)"/>
+<path d="M8 136V10H288" fill="none" stroke="#e0bb8f" stroke-opacity=".13" stroke-width=".8"/>
+<path d="M8 136H288V10" fill="none" stroke="#171311" stroke-opacity=".5" stroke-width="1.6"/>
+</pattern>
+</defs>
+<rect width="100%" height="356" fill="#49392e"/>
+<rect width="100%" height="21" fill="url(#molding)"/>
+<rect y="22" width="100%" height="10" fill="#523e2e"/>
+<path d="M0 24H10000M0 29H10000" stroke="#b29170" stroke-opacity=".28" stroke-width=".7"/>
+<rect y="33" width="100%" height="64" fill="#4a3a2e"/>
+<svg x="10%" y="65" width="1" height="1" overflow="visible">
+<g transform="scale(0.64)">
+<use href="#flower" x=".8" y="1" fill="#181816" opacity=".6"/>
+<use href="#flower" x="-.4" y="-.5" fill="#b4936f" opacity=".3"/>
+<use href="#flower" fill="#5c4836"/>
+</g></svg><svg x="30%" y="65" width="1" height="1" overflow="visible">
+<g transform="scale(0.64)">
+<use href="#flower" x=".8" y="1" fill="#181816" opacity=".6"/>
+<use href="#flower" x="-.4" y="-.5" fill="#b4936f" opacity=".3"/>
+<use href="#flower" fill="#5c4836"/>
+</g></svg><svg x="50%" y="65" width="1" height="1" overflow="visible">
+<g transform="scale(1)">
+<use href="#flower" x=".8" y="1" fill="#181816" opacity=".6"/>
+<use href="#flower" x="-.4" y="-.5" fill="#b4936f" opacity=".3"/>
+<use href="#flower" fill="#5c4836"/>
+</g></svg><svg x="70%" y="65" width="1" height="1" overflow="visible">
+<g transform="scale(0.64)">
+<use href="#flower" x=".8" y="1" fill="#181816" opacity=".6"/>
+<use href="#flower" x="-.4" y="-.5" fill="#b4936f" opacity=".3"/>
+<use href="#flower" fill="#5c4836"/>
+</g></svg><svg x="90%" y="65" width="1" height="1" overflow="visible">
+<g transform="scale(0.64)">
+<use href="#flower" x=".8" y="1" fill="#181816" opacity=".6"/>
+<use href="#flower" x="-.4" y="-.5" fill="#b4936f" opacity=".3"/>
+<use href="#flower" fill="#5c4836"/>
+</g></svg>
+<path d="M0 33H10000M0 98H10000" stroke="#181715" stroke-width="1.5"/>
+<rect y="99" width="100%" height="35" fill="url(#molding)"/>
+<path d="M0 136H10000" stroke="#101416" stroke-opacity=".7" stroke-width="4"/>
+<rect y="157" width="100%" height="35" fill="url(#molding)"/>
+<path d="M0 192H10000" stroke="#0c1012" stroke-opacity=".5" stroke-width="3"/>
+<rect y="194" width="100%" height="146" fill="url(#panels)"/>
+<rect y="343" width="100%" height="12" fill="url(#molding)"/>
+<path d="M0 355H10000" stroke="#101113" stroke-opacity=".48"/>
+<rect width="100%" height="356" fill="url(#grain)"/>
+</svg>

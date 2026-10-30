@@ -5514,11 +5514,8 @@ html:has(#view-approval:not(.hidden)) .toasts {
 
      The token was measured on FIGURES, so it is not identical to the label's ideal, but
      it lands within a pixel of it on every face (Par Avion 0.03px, Art Deco 0.65px,
-     Bauhaus 0.9px) and every card ends up closer to centered than it is without it. One
-     exception, recorded rather than hidden: Brownstone is currently the best-centered
-     card in the picker at 0.1px and this puts it 0.8px low. Bitter's figures and its
-     caps want different corrections, and a second per-face token to buy back 0.7px on
-     one card is not worth carrying. */
+     Bauhaus 0.9px). Brownstone pairs Libre Caslon Text headings with Display
+     figures; its card label retains the same small optical correction. */
   transform: translateY(var(--display-ink-nudge, 0));
 }
 

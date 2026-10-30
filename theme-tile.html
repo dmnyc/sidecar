@@ -95,6 +95,13 @@
        value would size the sky band and the gradient too, and the band would come out a
        224px block with a hard right edge. */
     [data-theme="ukiyo-e"] body { background-size: auto, 224px 112px, auto; }
+    /* Brownstone's fade spans the full panel, but this preview shows only its top
+       175px. Fit the two shadow gradients to the visible band so the thumbnail
+       includes the warm stone and the evening shade. Keep the carved geometry
+       and lamp pool at their normal size. */
+    html[data-theme="brownstone"][data-tile] body {
+      background-size: auto, 100% 175px, 100% 175px, auto, var(--stone-width) 356px, 640px 230px;
+    }
   </style>
 </head>
 <body>
