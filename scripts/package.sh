@@ -41,6 +41,8 @@ VERSION_NO_V="${TAG#v}"
 # UTC so it does not depend on the packager's timezone. `touch -t` format, which
 # both BSD and GNU touch accept — BSD's -d rejects git's ISO offset.
 SOURCE_DATE=$(TZ=UTC git log -1 --format=%cd --date=format-local:'%Y%m%d%H%M.%S' "${TAG}^{commit}")
+# The same clock, date-only, for the seasonal gate below.
+TAG_DATE=$(TZ=UTC git log -1 --format=%cd --date=format-local:'%Y-%m-%d' "${TAG}^{commit}")
 
 STAGE="$(mktemp -d)/sidecar"
 mkdir -p "${STAGE}"
@@ -66,6 +68,22 @@ rm -rf "${STAGE}"/.[!.]* "${STAGE}/scripts" "${STAGE}/assets" "${STAGE}/test" \
 # (help.html's changelog and privacy links point at GitHub), so the glob is safe.
 # NOTICE has no extension and stays: it's the vendored licenses.
 rm -f "${STAGE}"/*.md "${STAGE}/.gitignore" "${STAGE}/package.json"
+
+# Seasonal editions' art ships only in a release tagged inside its window.
+#
+# seasons.js decides when an edition is OFFERED; this gate decides when its art SHIPS,
+# because a store package is downloaded whole — there is no on-demand delivery for
+# extension files, and fetching art at runtime is remote-hosted code the stores
+# prohibit. The rule is the maintainer's: an edition ships on the day it is needed,
+# and the release that brings one in takes the finished one out (Phantom Bouquet's
+# release, tagged November 9 or later, is the one Sleepy Hollow leaves). Art only:
+# the edition's stylesheet always ships (~15-19 KB), keeping every document's <link>
+# valid; the url()s left pointing at stripped files sit inside theme blocks this
+# package's calendar never activates. Windows are read from the stage's own
+# seasons.js and the date is TAG_DATE — the clock SOURCE_DATE already uses — so the
+# build stays a function of the tag alone: same tag, same files, any machine, any day.
+echo "Seasonal editions (tag date ${TAG_DATE}):"
+node "${ROOT}/scripts/seasonal-packaging.cjs" "${STAGE}" "${TAG_DATE}"
 
 # version.js is gitignored and not in the archive — regenerate it, stamped to the tag.
 cat > "${STAGE}/version.js" <<EOF
