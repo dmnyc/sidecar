@@ -1037,6 +1037,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-05': [
     { year: 1605, text: "Guy Fawkes was found guarding explosives under the House of Lords, spoiling the Gunpowder Plot." }, // London
+    { year: 1895, text: "George Selden, a Rochester lawyer, won a patent for a gasoline road engine, though he had never built a car." }, // The Henry Ford, US Patent 549,160
   ],
   '11-06': [
     { year: 1860, text: "Abraham Lincoln was elected president of the United States." },
@@ -1069,9 +1070,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-14': [
     { year: 1889, text: "Nellie Bly left New York to see if she could travel around the world in less than eighty days." }, // New York World
+    { year: 1851, text: "Moby-Dick was published in the United States, a month after the London edition titled simply The Whale." }, // Wikipedia, Moby-Dick
   ],
   '11-15': [
     { year: 1904, text: "King C. Gillette patented the first safety razor with disposable blades." }, // US 775,134
+    { year: 1920, text: "Delegates from 41 nations met in Geneva for the first Assembly of the League of Nations." }, // Wikipedia, League of Nations
   ],
   '11-16': [
     { year: 1933, text: "The United States and the Soviet Union formally established diplomatic relations." }, // Roosevelt and Litvinov
