@@ -2228,11 +2228,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* PANEL ZOOM (issue #565). The slider snaps to six stops and the readout carries the
    percent, so the value is text and gets tabular figures like every other number. */
 .zoom-row { display: flex; align-items: center; gap: 10px; }
+/* Bare slider: the global input rule (field border, dark field background, 13px
+   padding, gold focus ring) is a text-field costume, and on a drawn track it read as
+   a pill around the bar. Keyboard users keep an indicator through :focus-visible. */
 .zoom-row input[type=range] {
   -webkit-appearance: none; appearance: none;
-  flex: 1; min-width: 0; height: 24px; background: transparent;
+  flex: 1; min-width: 0; height: 24px;
+  padding: 0; border: none; border-radius: 0;
+  background: transparent;
   cursor: pointer; touch-action: none;
+  transition: none;
 }
+.zoom-row input[type=range]:focus { outline: none; border: none; box-shadow: none; }
+.zoom-row input[type=range]:focus-visible { outline: 2px solid var(--lav); outline-offset: 2px; }
 /* Drawn, not native: Chrome's native track misrenders its width under CSS zoom —
    the bar stopped short of the element at every stop but 100%. The fill to the thumb
    is a gradient driven by --zoom-fill, written by paint() with the value. */

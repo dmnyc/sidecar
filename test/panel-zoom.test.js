@@ -389,6 +389,12 @@ test('RESET IS ONE TAP TO 100%, AND ONLY OFFERED WHEN YOU ARE NOT THERE', () => 
   assert.match(css, /::-webkit-slider-runnable-track \{[^}]*--zoom-fill/);
   assert.match(css, /::-moz-range-progress [^}]*background: var\(--orange\)/, 'firefox gets the fill natively');
   assert.doesNotMatch(css, /\.zoom-row input\[type=range\] \{[^}]*accent-color/, 'accent-color needs the native track we dropped');
+  // No text-field costume: the global input rule's border, field background and gold
+  // focus ring all landed on the slider and read as a pill around the bar.
+  assert.match(css, /\.zoom-row input\[type=range\] \{[^}]*border: none; border-radius: 0;/);
+  assert.match(css, /\.zoom-row input\[type=range\]:focus \{ outline: none; border: none; box-shadow: none; \}/);
+  assert.match(css, /\.zoom-row input\[type=range\]:focus-visible \{ outline: 2px solid var\(--lav\)/,
+    'keyboard users keep an indicator');
 });
 
 test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => {
