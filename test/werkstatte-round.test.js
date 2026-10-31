@@ -29,6 +29,9 @@ const IGNORE = new Set([
   'css', 'json', 'low', 'profile-body', // captured from compound selectors
   'modal-x', 'peek-x', // the profile card's corner X: a dark disc over the banner picture, and
                        // a dark tile in the square themes, which is what they do to everything
+  'zoom-row',     // the zoom slider's round thumb is drawn inside ::-webkit-slider-thumb /
+                  // ::-moz-range-thumb pseudo-elements, which class rules in a theme sheet
+                  // cannot reach — it is round everywhere by construction
 ]);
 
 for (const theme of SQUARE_THEMES) {
