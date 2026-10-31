@@ -20,7 +20,7 @@ function harness() {
   let now = 1800000000000;
   class Clock extends Date { static now() { return now; } }
   const state = {
-    reads: [], requests: [], signs: [], warnings: [], relayRequests: [],
+    reads: [], requests: [], signs: [], warnings: [], relayRequests: [], timeouts: [], notices: [],
     accountRelays: { 'wss://relay.example': { read: true, write: true } },
     lookup: async () => list(SERVER),
     respond: async url => ({ ok: true, json: async () => url === FALLBACK
@@ -30,7 +30,8 @@ function harness() {
   const ctx = {
     window: { SidecarI18n: { t: (key, values = {}) => key.replace(/\{\{(\w+)\}\}/g, (_, k) => values[k]), tn: x => x } },
     Date: Clock, URL, TextEncoder, crypto: webcrypto, Uint8Array,
-    AbortController, setTimeout, clearTimeout, btoa, FormData,
+    AbortController, clearTimeout, btoa, FormData,
+    setTimeout: (fn, ms) => { state.timeouts.push(ms); return setTimeout(fn, ms); },
     console: { warn: (...args) => state.warnings.push(args.map(String).join(' ')) },
     fetch: async (url, options) => { state.requests.push({ url, options }); return state.respond(url, options); },
   };
@@ -38,6 +39,7 @@ function harness() {
   vm.runInContext(source, ctx);
   const uploader = ctx.window.SidecarCore.installComposer({
     activePubkey: () => PK,
+    onUploadFallback: message => state.notices.push(message),
     relayUrls: async writableOnly => { assert.equal(writableOnly, false); return ['wss://relay.example']; },
     poolGet: async (relays, filter) => { state.reads.push({ relays, filter }); return state.lookup(filter, relays); },
     call: async message => {
@@ -152,4 +154,67 @@ test('an empty account relay set does not query excluded bootstrap relays', asyn
   assert.equal(await h.uploadMedia(file()), 'https://i.nostr.build/fallback.gif');
   assert.equal(h.state.reads.length, 0);
   assert.deepEqual(h.state.relayRequests, [PK]);
+});
+
+const big = mb => new Blob([new Uint8Array(mb * 1024 * 1024)], { type: 'image/jpeg' });
+
+test('a larger file gets more time on a server, up to a ceiling', async () => {
+  // One flat 30 seconds aborted any image that could not cross a modest uplink in that time,
+  // and each abort fell through to nostr.build: small images on the person's own server, big
+  // ones not.
+  const timeoutFor = async f => {
+    const h = harness();
+    await h.uploadMedia(f);
+    return h.state.timeouts[0];
+  };
+  assert.equal(await timeoutFor(file()), 40000, 'a tiny file: 30s and one megabyte');
+  assert.equal(await timeoutFor(big(5)), 80000);
+  assert.equal(await timeoutFor(big(12)), 150000);
+  assert.equal(await timeoutFor(big(100)), 300000, 'never more than five minutes');
+});
+
+test('a refresh that finds nothing keeps using the last list that worked, for an hour', async () => {
+  const h = harness();
+  assert.equal(await h.uploadMedia(file()), SERVER + '/hash.gif');
+  h.advance(300001);
+  h.state.lookup = async () => { throw new Error('relay disconnected'); };
+  assert.equal(await h.uploadMedia(file()), SERVER + '/hash.gif', 'a flaky relay must not send this one to nostr.build');
+  assert.ok(h.state.warnings.some(w => w.includes('last one that worked')));
+  // It stays expired, so the next upload asks again and a recovered relay is believed at once.
+  h.state.lookup = async () => list('https://new.example');
+  assert.equal(await h.uploadMedia(file()), 'https://new.example/hash.gif');
+  // And a list that the refresh keeps missing is not honored forever.
+  h.advance(300001);
+  h.state.lookup = async () => null;
+  assert.equal(await h.uploadMedia(file()), 'https://new.example/hash.gif', 'within the hour');
+  h.advance(3600001);
+  assert.equal(await h.uploadMedia(file()), 'https://i.nostr.build/fallback.gif', 'past it, there is no list');
+});
+
+test('when the account\u2019s servers all refuse a file, the person is told why it went to nostr.build', async () => {
+  const h = harness();
+  const respond = h.state.respond;
+  h.state.respond = async url => url === FALLBACK ? respond(url) : { ok: false, status: 413 };
+  assert.equal(await h.uploadMedia(file()), 'https://i.nostr.build/fallback.gif');
+  assert.deepEqual(h.state.notices, ['Your Blossom server did not take this file (HTTP 413). Uploaded to nostr.build instead.']);
+});
+
+test('an account with no Blossom list is never told about a fallback it did not choose', async () => {
+  const h = harness();
+  h.state.lookup = async () => null;
+  assert.equal(await h.uploadMedia(file()), 'https://i.nostr.build/fallback.gif');
+  assert.deepEqual(h.state.notices, []);
+});
+
+test('a server that takes too long is reported as slow, not as an abort', async () => {
+  const h = harness();
+  const respond = h.state.respond;
+  h.state.respond = async (url, options) => {
+    if (url === FALLBACK) return respond(url);
+    const e = new Error('The operation was aborted.');
+    e.name = 'AbortError';
+    throw e;
+  };
+  await h.uploadMedia(file());
+  assert.deepEqual(h.state.notices, ['Your Blossom server did not take this file (it took too long). Uploaded to nostr.build instead.']);
 });

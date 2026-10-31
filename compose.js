@@ -407,6 +407,8 @@
 
   const composer = SC.installComposer({
     NT,
+    // Said when the account's own Blossom servers took none of a file and nostr.build did.
+    onUploadFallback: (message) => toast(message, 'info'),
     applyAvatar,
     cachedProfile,
     cacheProfile,

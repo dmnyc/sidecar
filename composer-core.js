@@ -1162,10 +1162,21 @@ window.SidecarCore = (function () {
     // Blossom servers. Cache only usable lists, so the next upload can recover
     // immediately instead of silently using nostr.build for another five minutes.
     if (servers.length) {
-      _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
-    } else {
-      _blossomServerCache.delete(pubkey);
+      _blossomServerCache.set(pubkey, {
+        servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL, staleUntil: Date.now() + BLOSSOM_STALE_TTL,
+      });
+      return servers;
     }
+    // THE LAST GOOD LIST, WHEN THE REFRESH COMES BACK EMPTY. A relay that is slow or down for
+    // one lookup said nothing about the account's servers, and answering "none" sent the
+    // upload to nostr.build: the same image went to the person's own server one minute and
+    // not the next. The old entry stays expired, so the next upload asks again, and it is
+    // only used for an hour, so a list the person really did clear is not honored forever.
+    if (cached && cached.staleUntil > Date.now()) {
+      console.warn('[Upload] could not refresh the Blossom server list; using the last one that worked.');
+      return cached.servers;
+    }
+    _blossomServerCache.delete(pubkey);
     return servers;
   }
 
@@ -1184,7 +1195,7 @@ window.SidecarCore = (function () {
     let lastError;
     for (const server of servers) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), BLOSSOM_UPLOAD_TIMEOUT);
+      const timer = setTimeout(() => controller.abort(), blossomTimeoutFor(file));
       try {
         const resp = await fetch(server + '/upload', {
           method: 'PUT',
@@ -1221,6 +1232,14 @@ window.SidecarCore = (function () {
       return await uploadToBlossom(file, servers, pk);
     } catch (e) {
       console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
+      // SAID, NOT ONLY LOGGED. The account has Blossom servers and none took the file, which
+      // is the one case where "it went to nostr.build" is a surprise: the link in the note is
+      // not on the person's own server and nothing on screen said why. An account with no
+      // list never gets here, so it is never told about a choice it did not make.
+      if (deps.onUploadFallback) {
+        const reason = e && e.name === 'AbortError' ? t('it took too long') : (e && e.message) || t('it did not answer');
+        try { deps.onUploadFallback(t('Your Blossom server did not take this file ({{reason}}). Uploaded to nostr.build instead.', { reason })); } catch (_) {}
+      }
       return null;
     }
   }
@@ -3561,8 +3580,23 @@ window.SidecarCore = (function () {
   const BLOSSOM_AUTH_KIND = 24242;
   const BLOSSOM_UPLOAD_TIMEOUT = 30000;
   const BLOSSOM_CACHE_TTL = 5 * 60 * 1000;
+  // A list that was good and has expired is still better than none when the refresh fails.
+  const BLOSSOM_STALE_TTL = 60 * 60 * 1000;
 
-  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }
+  // THE TIME A SERVER GETS DEPENDS ON THE FILE. One flat 30 seconds for the whole PUT
+  // aborted any image that could not cross a modest uplink in that time, a phone photo of
+  // several megabytes, and each abort ran the list out and fell through to nostr.build, which
+  // never times out. So the small images went to the person's own server and the big ones
+  // did not. Thirty seconds to start, ten more for every megabyte, and never more than five
+  // minutes: a stuck server is still given up on.
+  const BLOSSOM_MS_PER_MB = 10000;
+  const BLOSSOM_TIMEOUT_MAX = 5 * 60 * 1000;
+  function blossomTimeoutFor(file) {
+    const mb = Math.ceil((file && file.size ? file.size : 0) / (1024 * 1024));
+    return Math.min(BLOSSOM_UPLOAD_TIMEOUT + mb * BLOSSOM_MS_PER_MB, BLOSSOM_TIMEOUT_MAX);
+  }
+
+  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt, staleUntil }
 
   // ---- the same note, twice ----
   //

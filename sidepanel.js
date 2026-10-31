@@ -13756,6 +13756,8 @@
     paintCountdownNum,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
+      // Said when the account's own Blossom servers took none of a file and nostr.build did.
+      onUploadFallback: (message) => toast(message, 'info'),
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
       // The synchronous half of getFollowList: the already-loaded list for the account
       // that is active right now, or null. Kept as a function rather than a value because
