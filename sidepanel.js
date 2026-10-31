@@ -4637,6 +4637,15 @@
     const hit = _profileCache.get(pubkey);
     return hit && hit.expiresAt > Date.now() ? hit : null;
   }
+
+  // A COMPLETE profile the shared cache already holds, name and picture both. Half an
+  // answer is no shortcut: the backfill's own question is whether the account still
+  // needs anything, and settling it with a name and no picture would strand the
+  // picture behind a settled flag.
+  function cachedCompleteProfile(pubkey) {
+    const hit = cachedProfile(pubkey);
+    return hit && hit.name && hit.picture ? hit : null;
+  }
   // ONE QUERY FOR A LIST OF AUTHORS, the way the bell reads its senders
   // (prefetchNotifProfiles). A getProfile per author, all at once, is enough concurrent
   // REQs that many fail, and each failure renders as an npub. The configured relays are
@@ -5816,6 +5825,21 @@
   // empty kind:0 is not.
   async function fetchAndStoreProfile(pubkey) {
     try {
+      // THE IMPORT PREVIEW ALREADY ANSWERED. Pasting an nsec into a cold install shows
+      // its preview through the shared cache, read the fast way (configured set plus
+      // the aggregator), and then this backfill refetched everything the slow way: the
+      // NIP-65 list first, then kind:0, each a six-second window on a pool still
+      // opening its sockets, and a fifteen-second cooldown before the retry. The
+      // account sat on its placeholder name for all of it while a complete profile sat
+      // in memory. One the cache holds is stored at once — and the read below still
+      // runs, for the kind:0 baseline it seeds and because a fresher copy may live on
+      // the relays the account declares.
+      const hit = cachedCompleteProfile(pubkey);
+      if (hit) {
+        await call({ type: 'SIDECAR_SET_PROFILE', pubkey, name: hit.name, picture: hit.picture });
+        state = await call({ type: 'SIDECAR_GET_STATE' });
+        if (!state.locked) renderMain();
+      }
       // The same set the overview's profile read uses, because this is one of your own
       // accounts: its declared relays, purplepag.es and the configured set, or without
       // the configured set when NIP-65 only is on. Reading the configured set alone

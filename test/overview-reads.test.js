@@ -99,6 +99,7 @@ test('the count still reads the account\'s own relays, one event per relay', asy
 test('THE ACCOUNT ROW READS THE ACCOUNT\'S OWN RELAYS, NOT THE CONFIGURED SET', async () => {
   const asked = [];
   const deps = {
+    _profileCache: new Map(),
     readRelayUrls: async (who) => { asked.push(who); return ['wss://declared', 'wss://purplepag.es']; },
     poolGetProfile: async (relays) => { deps.poolGetProfile.relays = relays; return null; },
     seedBaseline: () => {},
@@ -107,7 +108,11 @@ test('THE ACCOUNT ROW READS THE ACCOUNT\'S OWN RELAYS, NOT THE CONFIGURED SET', 
     state: {},
   };
   // eslint-disable-next-line no-new-func
-  const fetchAndStoreProfile = new Function(...Object.keys(deps), `${lift('async function fetchAndStoreProfile(')}; return fetchAndStoreProfile;`)(...Object.values(deps));
+  // The cache helpers are injected as source, not passed as values: cachedProfile
+  // reads _profileCache, which must be a parameter of the same scope they run in.
+  const fetchAndStoreProfile = new Function(...Object.keys(deps),
+    `${lift('function cachedProfile(')}\n${lift('function cachedCompleteProfile(')}\n${lift('async function fetchAndStoreProfile(')}; return fetchAndStoreProfile;`
+  )(...Object.values(deps));
   assert.equal(await fetchAndStoreProfile(PK), false, 'no event is still retryable');
   assert.deepEqual(asked, [PK], 'the relay set is resolved for this account');
   assert.deepEqual(deps.poolGetProfile.relays, ['wss://declared', 'wss://purplepag.es'],
