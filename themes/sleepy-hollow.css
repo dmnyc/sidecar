@@ -206,7 +206,7 @@
    of that, translated one panel width and looped — a transform, which Chrome always
    paints, where a background-position animation on the body's fixed layers never
    repaints (measured, not guessed: the computed value ran while the pixels held still).
-   The drift is left to right, the reading direction, and slow: 100vw in 75 seconds.
+   The drift is left to right, the reading direction, and slow: calc(100vw / var(--panel-zoom, 1)) in 75 seconds.
 
    THE LEAVES come loose. sidepanel.html carries a .lock-leaves of ten <i> leaves; each
    crosses the whole panel left to right on the same wind as the clouds, sinking at a
@@ -224,7 +224,7 @@
    display:none, the body's own still clouds and leaves stay up (the stand-down in
    patterns.css is scoped to motion-allowed), and the candle is a still halo. */
 @keyframes sleepy-hollow-drift {
-  from { transform: translateX(var(--drift, -100vw)); }
+  from { transform: translateX(var(--drift, calc(-100vw / var(--panel-zoom, 1)))); }
   to   { transform: translateX(0); }
 }
 [data-theme="sleepy-hollow"] #view-lock::before {
@@ -232,8 +232,8 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 300vw;
-  height: 116.7vw; /* the sky plates are 420 tall in a 360 frame */
+  width: calc(300vw / var(--panel-zoom, 1));
+  height: calc(116.7vw / var(--panel-zoom, 1)); /* the sky plates are 420 tall in a 360 frame */
   background-image: url(sleepy-hollow-clouds.svg);
   background-size: 33.34% auto;
   background-repeat: repeat-x;
@@ -253,8 +253,8 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 116.7vw;
+  width: calc(100vw / var(--panel-zoom, 1));
+  height: calc(116.7vw / var(--panel-zoom, 1));
   background-image: url(sleepy-hollow-tree.svg);
   background-size: 100% auto;
   background-repeat: no-repeat;
@@ -269,7 +269,7 @@
        the strip is a fixed height and pans exactly one tile period — the loop stays
        seamless at every width. */
     --drift: -1920px;
-    width: calc(100vw + 2400px);
+    width: calc(calc(100vw / var(--panel-zoom, 1)) + 2400px);
     height: 520px;
     background-size: 1920px auto;
     background-image: url(sleepy-hollow-clouds-wide.svg);
@@ -284,24 +284,24 @@
 @media (min-width: 900px) {
   [data-theme="sleepy-hollow"] #view-lock::before {
     --drift: -1920px;
-    width: calc(100vw + 2400px);
+    width: calc(calc(100vw / var(--panel-zoom, 1)) + 2400px);
     height: 520px;
     background-size: 1920px auto;
     background-image: url(sleepy-hollow-clouds-wide.svg);
   }
   [data-theme="sleepy-hollow"] #view-lock::after {
-    height: 57.8vw;
+    height: calc(57.8vw / var(--panel-zoom, 1));
     background-image: url(sleepy-hollow-tree-wide.svg);
   }
 }
 
 @keyframes sleepy-hollow-fall {
-  0%   { transform: translate3d(-10vw, 0, 0) rotate(0deg); opacity: 0; }
+  0%   { transform: translate3d(calc(-10vw / var(--panel-zoom, 1)), 0, 0) rotate(0deg); opacity: 0; }
   8%   { opacity: 0.8; }
-  25%  { transform: translate3d(18vw, 7vh, 0) rotate(60deg); }
-  50%  { transform: translate3d(43vw, 12vh, 0) rotate(140deg); }
-  75%  { transform: translate3d(72vw, 19vh, 0) rotate(230deg); opacity: 0.6; }
-  100% { transform: translate3d(104vw, 27vh, 0) rotate(320deg); opacity: 0; }
+  25%  { transform: translate3d(calc(18vw / var(--panel-zoom, 1)), calc(7vh / var(--panel-zoom, 1)), 0) rotate(60deg); }
+  50%  { transform: translate3d(calc(43vw / var(--panel-zoom, 1)), calc(12vh / var(--panel-zoom, 1)), 0) rotate(140deg); }
+  75%  { transform: translate3d(calc(72vw / var(--panel-zoom, 1)), calc(19vh / var(--panel-zoom, 1)), 0) rotate(230deg); opacity: 0.6; }
+  100% { transform: translate3d(calc(104vw / var(--panel-zoom, 1)), calc(27vh / var(--panel-zoom, 1)), 0) rotate(320deg); opacity: 0; }
 }
 [data-theme="sleepy-hollow"] .lock-leaves {
   position: fixed;
@@ -325,16 +325,16 @@
 /* Ten leaves, ten clocks: a height in the sky, a crossing of 26 to 40 seconds, and a
    delay already deep in the crossing, so the screen is leaved the moment it locks and no
    two leaves ever share a phase. */
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(1)  { --y: 6vh;  --t: 30s; --d: -6s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(2)  { --y: 14vh; --t: 38s; --d: -19s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3)  { --y: 22vh; --t: 28s; --d: -12s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(4)  { --y: 30vh; --t: 34s; --d: -2s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5)  { --y: 38vh; --t: 26s; --d: -15s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(6)  { --y: 44vh; --t: 33s; --d: -8s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(7)  { --y: 10vh; --t: 29s; --d: -24s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(8)  { --y: 26vh; --t: 40s; --d: -5s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(9)  { --y: 48vh; --t: 28s; --d: -17s; }
-[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(10) { --y: 18vh; --t: 36s; --d: -11s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(1)  { --y: calc(6vh / var(--panel-zoom, 1));  --t: 30s; --d: -6s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(2)  { --y: calc(14vh / var(--panel-zoom, 1)); --t: 38s; --d: -19s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(3)  { --y: calc(22vh / var(--panel-zoom, 1)); --t: 28s; --d: -12s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(4)  { --y: calc(30vh / var(--panel-zoom, 1)); --t: 34s; --d: -2s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(5)  { --y: calc(38vh / var(--panel-zoom, 1)); --t: 26s; --d: -15s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(6)  { --y: calc(44vh / var(--panel-zoom, 1)); --t: 33s; --d: -8s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(7)  { --y: calc(10vh / var(--panel-zoom, 1)); --t: 29s; --d: -24s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(8)  { --y: calc(26vh / var(--panel-zoom, 1)); --t: 40s; --d: -5s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(9)  { --y: calc(48vh / var(--panel-zoom, 1)); --t: 28s; --d: -17s; }
+[data-theme="sleepy-hollow"] .lock-leaves i:nth-child(10) { --y: calc(18vh / var(--panel-zoom, 1)); --t: 36s; --d: -11s; }
 
 @keyframes sleepy-hollow-candle {
   from { opacity: 0.5; transform: scale(0.92); }
@@ -342,16 +342,16 @@
 }
 /* The candle sits over the pumpkin, whose place comes from the generator: the Horseman is
    planted at 8% of the width, his pumpkin 151 units in (of the 360-unit plate) and 35.5
-   units-of-width above the foot, glow 12 units-of-width across — so the halo is a 20vw
-   square centered on (33.2vw, bottom 35.5vw). If hx, PUMPKIN_AT or PUMPKIN_GLOW move in
+   units-of-width above the foot, glow 12 units-of-width across — so the halo is a calc(20vw / var(--panel-zoom, 1))
+   square centered on (calc(33.2vw / var(--panel-zoom, 1)), bottom calc(35.5vw / var(--panel-zoom, 1))). If hx, PUMPKIN_AT or PUMPKIN_GLOW move in
    gen-sleepy-hollow.py, these three lines move with them; the ridge lines themselves no
    longer drift, drawing as they do from their own streams. */
 [data-theme="sleepy-hollow"] .lock-ember {
   position: fixed;
-  left: 23.2vw;
-  bottom: 25.5vw;
-  width: 20vw;
-  height: 20vw;
+  left: calc(23.2vw / var(--panel-zoom, 1));
+  bottom: calc(25.5vw / var(--panel-zoom, 1));
+  width: calc(20vw / var(--panel-zoom, 1));
+  height: calc(20vw / var(--panel-zoom, 1));
   background: radial-gradient(closest-side,
               rgba(240, 154, 62, 0.38), rgba(240, 154, 62, 0.15) 46%, rgba(240, 154, 62, 0) 72%);
   animation: sleepy-hollow-candle 3.4s ease-in-out infinite alternate;
@@ -360,7 +360,7 @@
 }
 /* On the wide plates the Horseman rides at 40% of the width, his pumpkin 151 units in
    (of the 900-unit plate) and 18.2 units-of-width above the foot, glow 6.4 across — a
-   10.7vw square centered on (53.4vw, bottom 18.2vw). Same rule as ever: if hx,
+   calc(10.7vw / var(--panel-zoom, 1)) square centered on (calc(53.4vw / var(--panel-zoom, 1)), bottom calc(18.2vw / var(--panel-zoom, 1))). Same rule as ever: if hx,
    PUMPKIN_AT or PUMPKIN_GLOW move, these move with them. */
 @media (min-width: 520px) and (max-width: 899.98px) {
   [data-theme="sleepy-hollow"] .lock-ember {
@@ -372,10 +372,10 @@
 }
 @media (min-width: 900px) {
   [data-theme="sleepy-hollow"] .lock-ember {
-    left: 36.1vw;
-    bottom: 13.2vw;
-    width: 10.7vw;
-    height: 10.7vw;
+    left: calc(36.1vw / var(--panel-zoom, 1));
+    bottom: calc(13.2vw / var(--panel-zoom, 1));
+    width: calc(10.7vw / var(--panel-zoom, 1));
+    height: calc(10.7vw / var(--panel-zoom, 1));
   }
 }
 @media (prefers-reduced-motion: reduce) {

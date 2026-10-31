@@ -4056,6 +4056,12 @@
       const inset = target.offsetWidth * 0.16;
       const x = target.offsetLeft + inset;
       const w = target.offsetWidth - inset * 2;
+      // Rows wrap at panel-narrow widths: the mark follows the active item's own row
+      // rather than the bottom of the bar. For a one-row bar this is the same pixel
+      // the bottom: -1px rule drew (the item stretches the full bar height), so the
+      // shared bars are unaffected; with top and height both set, the CSS bottom is
+      // the over-constrained value and drops out.
+      slider.style.top = (target.offsetTop + target.offsetHeight - 1) + 'px';
       if (animate) {
         slider.style.transform = 'translateX(' + x + 'px)';
         slider.style.width = w + 'px';
@@ -9961,7 +9967,7 @@
         // domain without exposing a handle. Display the bare domain.
         const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
         const badge = h('span', { className: 'nip05-badge' });
-        nip05Val.append(badge, document.createTextNode(nip05));
+        nip05Val.append(badge, h('span', { className: 'account-stat-id-text', textContent: nip05, title: nip05 }));
         const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
           badge.innerHTML = '';
           paintNip05Badge(badge, res, paint);
@@ -9978,7 +9984,7 @@
       if (content.lud16) {
         const ok = icon('check');
         ok.classList.add('stat-mini-ok');
-        lud16Val.append(ok, document.createTextNode(content.lud16));
+        lud16Val.append(ok, h('span', { className: 'account-stat-id-text', textContent: content.lud16, title: content.lud16 }));
       } else {
         lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
       }
@@ -12189,6 +12195,17 @@
     1, 6, 7, 16, 20, 21, 22, 1068, 1111, 1222, 1244, 9802, 30023, 30311, 34235, 34236, 34550, 39089,
   ]);
 
+
+  // The host and how long ago, as two pieces that wrap as pieces. One string with a
+  // break-anywhere rule cut "jumble.social" in half in a narrow panel; as two spans the
+  // age drops to its own line when the pair does not fit, and only a host that is wider than
+  // the whole row is shortened, with an ellipsis.
+  function actSub(host, ts) {
+    return h('div', { className: 'item-sub act-sub' }, [
+      h('span', { className: 'act-host', textContent: host }),
+      h('span', { className: 'act-when', textContent: '· ' + relTime(ts) }),
+    ]);
+  }
   function activityRow(e) {
     // A request Sidecar refused on shape (see normalizeSignEventParams in
     // background.js) never reached the key, so it must not borrow METHOD_META's
@@ -12202,7 +12219,7 @@
       iconBox.appendChild(icon('alert'));
       const main = h('div', { className: 'item-main' }, [
         h('div', { className: 'item-label', textContent: 'Refused an unreadable signing request' }),
-        h('div', { className: 'item-sub', textContent: (e.host || '') + ' · ' + relTime(e.ts) }),
+        actSub(e.host || '', e.ts),
         h('div', { className: 'item-sub', textContent: String(e.rejected).replace(/^signEvent: /, '') }),
       ]);
       if (e.shape) {
@@ -12220,7 +12237,7 @@
     iconBox.appendChild(icon(iconName || 'feather'));
     const main = h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: meta.label(e) }),
-      h('div', { className: 'item-sub', textContent: e.host + ' · ' + relTime(e.ts) }),
+      actSub(e.host, e.ts),
     ]);
     row.append(iconBox, main);
 
@@ -25471,6 +25488,188 @@
     syncHostPermBanner();
   }
 
+  // ---- panel zoom ----
+  // THE PANEL IS OUR PAGE, so a UI scale is ours to offer (issue #565). CSS zoom on the
+  // body reflows the whole panel uniformly — scrollbars, layout and line boxes together
+  // — which is what “zoom the contents” means. It is not --display-scale, and must not
+  // become it: that token changes the theme's face while line boxes stay pinned, so
+  // switching themes never reflows the panel. A zoom is the opposite contract — the
+  // user asked for more or less room taken — and a root zoom multiplies the pinned
+  // values along with everything else, so those reflow guards still hold.
+  //
+  // Six stops, not a continuum: sizes a person can hold a preference about, and a
+  // stored value that always means one of them. CSS zoom is standard since 2024
+  // (Chrome 128+, Firefox 126+); where the browser is older the control hides, because
+  // a slider that changes nothing reads as broken.
+  const PANEL_ZOOM_STOPS = [80, 90, 100, 110, 120];
+  const PANEL_ZOOM_DEFAULT = 100;
+
+  function panelZoomPercent(index) {
+    const i = Math.round(Number(index));
+    if (!Number.isFinite(i) || i < 0 || i >= PANEL_ZOOM_STOPS.length) return PANEL_ZOOM_DEFAULT;
+    return PANEL_ZOOM_STOPS[i];
+  }
+
+  // A stored percent is whatever an older build or a hand edit left behind: snap to the
+  // nearest stop, and anything that is not a number wears the default.
+  function panelZoomIndex(pct) {
+    const n = Number(pct);
+    if (pct == null || !Number.isFinite(n)) return PANEL_ZOOM_STOPS.indexOf(PANEL_ZOOM_DEFAULT);
+    let best = 0;
+    for (let i = 1; i < PANEL_ZOOM_STOPS.length; i++) {
+      if (Math.abs(PANEL_ZOOM_STOPS[i] - n) < Math.abs(PANEL_ZOOM_STOPS[best] - n)) best = i;
+    }
+    return best;
+  }
+
+  // Empty string at 100% so the default panel carries no inline zoom at all. The
+  // factor is published to :root because viewport units do not shrink with CSS zoom:
+  // 100vh inside a zoomed subtree is still the physical viewport, so a lock screen
+  // sized 100vh rendered one-and-a-half panels tall. Viewport lengths in the
+  // stylesheets divide by this (calc(100vh / var(--panel-zoom, 1))).
+  function applyPanelZoom(pct) {
+    const zoom = pct === PANEL_ZOOM_DEFAULT ? '' : String(pct / 100);
+    document.body.style.zoom = zoom;
+    if (zoom) document.documentElement.style.setProperty('--panel-zoom', zoom);
+    else document.documentElement.style.removeProperty('--panel-zoom');
+  }
+
+  // THE WIDTH THE CONTENT ACTUALLY HAS: the viewport divided by the zoom. Media
+  // queries never see CSS zoom — the window is still its physical size — so the
+  // collapse below is computed here instead of in CSS. It is also the honest answer
+  // for a genuinely narrow sidebar (Firefox drags below Chrome's floor): zoom or no
+  // zoom, under this line the rows stack rather than clip. Nothing shrinks — the
+  // narrow-panel rules run on stacking, never on smaller controls.
+  const PANEL_NARROW_PX = 340;
+
+  function effectivePanelWidth() {
+    const zoom = parseFloat(document.body.style.zoom);
+    return window.innerWidth / (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
+  }
+
+  function updatePanelNarrow() {
+    const narrow = effectivePanelWidth() < PANEL_NARROW_PX;
+    document.body.classList.toggle('panel-narrow', narrow);
+    applyTopbarFold(narrow);
+  }
+
+  // THE ⬧ THAT KEEPS THE TOPBAR TO ONE LINE. Three stay visible, and each for a
+  // reason: the bell carries the notification badge; settings and lock are the way
+  // OUT — if a zoom or a theme goes wrong, the exit must never live inside the thing
+  // that broke. The other four MOVE into #topbar-more-menu. Moved, not rebuilt:
+  // appendChild keeps every listener wired by id, so folding is invisible to the rest
+  // of the panel. The recorded parent and next sibling put each icon back exactly
+  // where the inline row had it when the width comes back.
+  const TOPBAR_FOLD = ['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn'];
+  let topbarFolded = false;
+  const topbarRestore = new Map(); // id -> [parent, nextSibling] as the inline row had it
+
+  function applyTopbarFold(narrow) {
+    if (narrow === topbarFolded) return;
+    topbarFolded = narrow;
+    const more = $('topbar-more-btn');
+    const menu = $('topbar-more-menu');
+    more.classList.toggle('hidden', !narrow);
+    more.setAttribute('aria-expanded', String(narrow));
+    if (narrow) {
+      // ALL the restore spots are recorded before the first move, in one pass. Folding
+      // in list order shifts the siblings under later icons — search's "next" would
+      // have been bookmarks-after-stream-was-gone, and the row would have rebuilt with
+      // search at the wrong end. Record first, then move.
+      if (!topbarRestore.size) {
+        for (const id of TOPBAR_FOLD) {
+          const el = $(id);
+          topbarRestore.set(id, [el.parentElement, el.nextSibling]);
+        }
+      }
+      for (const id of TOPBAR_FOLD) menu.appendChild($(id));
+    } else {
+      for (const id of TOPBAR_FOLD) {
+        const el = $(id);
+        const at = topbarRestore.get(id);
+        if (at) at[0].insertBefore(el, at[1]);
+      }
+      closeTopbarMore();
+    }
+  }
+
+  function topbarMoreOpen() {
+    const menu = $('topbar-more-menu');
+    return !menu.classList.contains('hidden') && !menu.classList.contains('is-closing');
+  }
+  function closeTopbarMore() {
+    const menu = $('topbar-more-menu');
+    if (menu.classList.contains('hidden')) return;
+    $('topbar-more-btn').setAttribute('aria-expanded', 'false');
+    menu.classList.remove('is-open');
+    menu.classList.add('is-closing');
+    setTimeout(() => {
+      menu.classList.remove('is-closing');
+      menu.classList.add('hidden');
+    }, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150);
+  }
+
+  // Wired once at boot, never in renderSettings(), which runs on every gear entry and
+  // would stack listeners (the rule the settings accordion already lives by).
+  function initPanelZoom() {
+    // Narrow mode answers a wider question than zoom — a sidebar dragged narrow
+    // clips the same way with no zoom at all — so it is wired before the feature
+    // gate, and again on every resize, which the zoom case rides through anyway.
+    updatePanelNarrow();
+    addEventListener('resize', updatePanelNarrow);
+    // The tray opens from its button and closes on any click outside itself — the
+    // account menu's contract, on the same dropdown tokens.
+    $('topbar-more-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = $('topbar-more-menu');
+      if (topbarMoreOpen()) { closeTopbarMore(); return; }
+      menu.classList.remove('is-closing');
+      menu.classList.remove('hidden');
+      requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add('is-open')));
+      $('topbar-more-btn').setAttribute('aria-expanded', 'true');
+    });
+    document.addEventListener('click', (e) => {
+      const menu = $('topbar-more-menu');
+      if (topbarMoreOpen() && !menu.contains(e.target) && !$('topbar-more-btn').contains(e.target)) {
+        closeTopbarMore();
+      }
+    });
+    const setting = $('panel-zoom-setting');
+    if (!CSS.supports('zoom', '1')) {
+      setting.classList.add('hidden'); // a control that changes nothing reads as broken
+      return;
+    }
+    const down = $('panel-zoom-down');
+    const up = $('panel-zoom-up');
+    const readout = $('panel-zoom-reset');
+    let at = PANEL_ZOOM_STOPS.indexOf(PANEL_ZOOM_DEFAULT);
+    const paint = (pct) => {
+      applyPanelZoom(pct);
+      updatePanelNarrow();
+      at = panelZoomIndex(pct);
+      // The readout is the one place the size is written; the ends of the range switch the
+      // button that would go past them off, so the stepper never offers a size it lacks.
+      readout.textContent = I18N.fmtNum(PANEL_ZOOM_STOPS[at] / 100, { style: 'percent' });
+      readout.classList.toggle('is-changed', PANEL_ZOOM_STOPS[at] !== PANEL_ZOOM_DEFAULT);
+      down.disabled = at <= 0;
+      up.disabled = at >= PANEL_ZOOM_STOPS.length - 1;
+    };
+    // A tap is a commit: paint, then one settings write.
+    const commit = (pct) => {
+      paint(pct);
+      call({ type: 'SIDECAR_SET_SETTINGS', settings: { panelZoom: pct } }).catch(() => {});
+    };
+    down.addEventListener('click', () => { if (at > 0) commit(PANEL_ZOOM_STOPS[at - 1]); });
+    up.addEventListener('click', () => { if (at < PANEL_ZOOM_STOPS.length - 1) commit(PANEL_ZOOM_STOPS[at + 1]); });
+    readout.addEventListener('click', () => { if (PANEL_ZOOM_STOPS[at] !== PANEL_ZOOM_DEFAULT) commit(PANEL_ZOOM_DEFAULT); });
+    // Shown at once, so the readout is never blank while the stored size is on its way. A
+    // stored value that is not one of the stops (a hand edit) snaps to the nearest one.
+    paint(PANEL_ZOOM_DEFAULT);
+    call({ type: 'SIDECAR_GET_SETTINGS' }).then((settings) => {
+      paint(panelZoomPercent(panelZoomIndex(settings && settings.panelZoom)));
+    }).catch(() => {});
+  }
+
   // ---- collapsible settings sections ----
   // Accordion contract: at most one section open. Opening one folds the others;
   // tapping the open header closes it and leaves none open. State lives in
@@ -25588,6 +25787,7 @@
   initDevBadge();
   initLanguagePicker();
   initHostPermGuard();
+  initPanelZoom();
   initSettingsSections();
   initStampedType();
   // At boot rather than on a tab or an account switch, because an update is about the
