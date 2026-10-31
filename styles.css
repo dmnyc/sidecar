@@ -2216,12 +2216,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .zoom-row input[type=range] { flex: 1; min-width: 0; accent-color: var(--orange); cursor: pointer; }
 .zoom-value { flex-shrink: 0; min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .zoom-reset {
-  flex-shrink: 0; border: none; background: none; padding: 4px 2px;
-  font-family: inherit; font-size: 12px; font-weight: 600; color: var(--muted);
-  cursor: pointer; border-radius: 6px; transition: color 0.15s;
+  flex-shrink: 0; border: none; background: none; padding: 5px;
+  color: var(--muted); cursor: pointer; border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
 }
-.zoom-reset:hover { color: var(--text); }
-.zoom-reset:disabled { opacity: 0.45; cursor: default; }
+.zoom-reset svg { width: 14px; height: 14px; display: block; }
+.zoom-reset:hover { color: var(--lav); background: var(--hover-medium); }
+.zoom-reset:disabled { opacity: 0.45; cursor: default; background: none; }
 /* Two switches under one heading (Wallet & payments' hide-balances pair, where the
    second qualifies the first) — the row carries no vertical margin of its own, so
    stacked ones would sit flush. Matched to the row's own 9px gap. */

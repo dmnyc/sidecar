@@ -595,7 +595,12 @@
             <div class="zoom-row">
               <input type="range" id="panel-zoom-slider" min="0" max="5" step="1" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom" />
               <output class="zoom-value" id="panel-zoom-value" for="panel-zoom-slider">100%</output>
-              <button type="button" class="zoom-reset" id="panel-zoom-reset" data-i18n="Reset">Reset</button>
+              <!-- Feather's rotate-ccw: the standard reset glyph, and a picture is the
+                   one label that never needs translating. Title and aria-label stay
+                   English on purpose. -->
+              <button type="button" class="zoom-reset" id="panel-zoom-reset" title="Reset" aria-label="Reset">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+              </button>
             </div>
           </div>
 

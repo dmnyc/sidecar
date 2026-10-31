@@ -335,7 +335,12 @@ test('RESET IS ONE TAP TO 100%, AND ONLY OFFERED WHEN YOU ARE NOT THERE', () => 
   assert.match(change, /commit\(panelZoomPercent\(slider\.value\)\)/);
   const at = html.indexOf('id="panel-zoom-reset"');
   assert.ok(at > -1, 'the button exists');
-  assert.match(html.slice(html.lastIndexOf('<button', at), html.indexOf('</button>', at) + 9), /data-i18n="Reset"/);
+  const btn = html.slice(html.lastIndexOf('<button', at), html.indexOf('</button>', at) + 9);
+  // An icon is the one label that never needs translating: no data-i18n on purpose,
+  // the English title and aria-label are the whole text of it.
+  assert.doesNotMatch(btn, /data-i18n/);
+  assert.match(btn, /title="Reset" aria-label="Reset"/);
+  assert.match(btn, /<svg[^>]*><polyline points="1 4 1 10 7 10"/, 'Feather\u2019s rotate-ccw');
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.zoom-reset \{/);
   assert.match(css, /\.zoom-reset:disabled/);
