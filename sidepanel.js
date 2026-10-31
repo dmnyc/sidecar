@@ -25541,10 +25541,19 @@
     }
     const slider = $('panel-zoom-slider');
     const value = $('panel-zoom-value');
+    const reset = $('panel-zoom-reset');
     const paint = (pct) => {
       value.textContent = I18N.fmtNum(pct, { style: 'unit', unit: 'percent' });
       applyPanelZoom(pct);
       updatePanelNarrow();
+      // One tap to 100% only needs to exist when 100% is not where you already are.
+      reset.disabled = pct === PANEL_ZOOM_DEFAULT;
+    };
+    // The drag's release and the reset button share one commit path: same paint, same
+    // settings write, so neither can drift from the other.
+    const commit = (pct) => {
+      paint(pct);
+      call({ type: 'SIDECAR_SET_SETTINGS', settings: { panelZoom: pct } }).catch(() => {});
     };
     call({ type: 'SIDECAR_GET_SETTINGS' }).then((settings) => {
       const index = panelZoomIndex(settings && settings.panelZoom);
@@ -25554,10 +25563,10 @@
     // Live while dragging; persisted once, on release. A write per input event would
     // be dozens of settings writes per drag of the thumb.
     slider.addEventListener('input', () => paint(panelZoomPercent(slider.value)));
-    slider.addEventListener('change', () => {
-      const pct = panelZoomPercent(slider.value);
-      paint(pct);
-      call({ type: 'SIDECAR_SET_SETTINGS', settings: { panelZoom: pct } }).catch(() => {});
+    slider.addEventListener('change', () => commit(panelZoomPercent(slider.value)));
+    reset.addEventListener('click', () => {
+      slider.value = String(panelZoomIndex(PANEL_ZOOM_DEFAULT));
+      commit(panelZoomPercent(slider.value));
     });
   }
 

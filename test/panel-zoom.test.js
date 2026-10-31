@@ -178,9 +178,8 @@ test('PERSISTED ON RELEASE, NOT ON EVERY TICK OF THE DRAG', () => {
   const input = fn.slice(fn.indexOf("addEventListener('input'"), fn.indexOf("addEventListener('change'"));
   assert.match(input, /paint\(panelZoomPercent\(slider\.value\)\)/, 'input only paints');
   assert.doesNotMatch(input, /SIDECAR_SET_SETTINGS/, 'a drag would be dozens of writes');
-  const commit = fn.slice(fn.indexOf("addEventListener('change'"));
-  assert.match(commit, /SIDECAR_SET_SETTINGS/, 'the write happens on release');
-  assert.match(commit, /panelZoom: pct/, 'under the settings key the issue named');
+  assert.match(fn, /SIDECAR_SET_SETTINGS/, 'the write happens on release');
+  assert.match(fn, /panelZoom: pct/, 'under the settings key the issue named');
 });
 
 test('HIDDEN WHERE ZOOM WOULD DO NOTHING, APPLIED FROM STORAGE AT BOOT', () => {
@@ -323,6 +322,23 @@ test('FOLDING IS IDEMPOTENT, AND A SECOND ROUND TRIP STILL RESTORES', () => {
   __document.body.style.zoom = '1.5'; updatePanelNarrow();
   assert.equal(__els['stream-entry'].parentElement, __els['topbar-more-menu'], 'folds again cleanly');
   __document.body.style.zoom = ''; updatePanelNarrow();
+});
+
+test('RESET IS ONE TAP TO 100%, AND ONLY OFFERED WHEN YOU ARE NOT THERE', () => {
+  const fn = liftFn('function initPanelZoom(');
+  assert.match(fn, /reset\.disabled = pct === PANEL_ZOOM_DEFAULT;/, 'disabled at the default, live with every paint');
+  const click = fn.slice(fn.indexOf("reset.addEventListener('click'"));
+  assert.match(click, /slider\.value = String\(panelZoomIndex\(PANEL_ZOOM_DEFAULT\)\)/, 'the thumb goes to the middle stop');
+  assert.match(click, /commit\(panelZoomPercent\(slider\.value\)\)/, 'and it persists exactly as a drag would');
+  // The drag's release and the reset share one commit path: same paint, same write.
+  const change = fn.slice(fn.indexOf("addEventListener('change'"));
+  assert.match(change, /commit\(panelZoomPercent\(slider\.value\)\)/);
+  const at = html.indexOf('id="panel-zoom-reset"');
+  assert.ok(at > -1, 'the button exists');
+  assert.match(html.slice(html.lastIndexOf('<button', at), html.indexOf('</button>', at) + 9), /data-i18n="Reset"/);
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.zoom-reset \{/);
+  assert.match(css, /\.zoom-reset:disabled/);
 });
 
 test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => {
