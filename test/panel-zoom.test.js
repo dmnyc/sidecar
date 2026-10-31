@@ -236,7 +236,7 @@ test('THE COLLAPSE STACKS ON GROUP BOUNDARIES, IT DOES NOT SHRINK', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   const at = css.indexOf('PANEL NARROW');
   assert.ok(at > -1, 'the rules exist');
-  const endRule = css.indexOf('body.panel-narrow .theme-special-cards');
+  const endRule = css.indexOf('body.panel-narrow .wallet-budgets .item-actions');
   const rules = css.slice(at, css.indexOf('}', endRule) + 1);
   assert.match(rules, /body\.panel-narrow \.topbar \{ flex-wrap: wrap;/, 'the topbar wraps');
   assert.match(rules, /body\.panel-narrow \.topbar-actions \{ flex-wrap: wrap; justify-content: flex-end; gap: 2px; \}/,
@@ -248,6 +248,13 @@ test('THE COLLAPSE STACKS ON GROUP BOUNDARIES, IT DOES NOT SHRINK', () => {
   assert.match(rules, /body\.panel-narrow \.wallet-actions \{ flex-direction: column; align-items: stretch; \}/);
   assert.match(rules, /body\.panel-narrow \.modal-tabs \{ flex-wrap: wrap; \}/, 'the Activity sub-tabs wrap');
   assert.match(rules, /body\.panel-narrow \.modal-tab \{ flex: 1 1 45%; \}/, 'same two-per-row treatment');
+  // The wallet backup pair floors at min-content too (Back up broke across lines).
+  assert.match(rules, /body\.panel-narrow \.wallet-backup-card \{ padding: 10px; \}/,
+    'the card gives back a notch so the export link keeps one line');
+  assert.match(rules, /body\.panel-narrow \.wallet-backup-actions \{ flex-direction: column; align-items: stretch; \}/);
+  // Budget rows stack like transaction rows instead of cramming three columns.
+  assert.match(rules, /body\.panel-narrow \.wallet-budgets \.item \{ flex-direction: column; align-items: stretch; \}/);
+  assert.match(rules, /body\.panel-narrow \.wallet-budgets \.item-actions \{ justify-content: flex-end; \}/);
   // A theme's name is set in its own display face at specimen size; two narrow
   // columns amputate it (Cast Iron broke mid-word). One card per row at narrow.
   // Written as a selector list on purpose: theme-gallery.test.js anchors its
