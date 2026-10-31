@@ -25,6 +25,7 @@ const workerSrc = fs.readFileSync(path.join(ROOT, 'pow-worker.js'), 'utf8');
 const panelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
 const bare = panel.replace(/^\s*\/\/.*$/gm, '');
 const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
 const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
 
 // The worker plus the real vendored bundle, in one realm. importScripts is dropped
@@ -288,8 +289,8 @@ test('A FAILED OR STOPPED POST GOES BACK TO BEING A DRAFT', () => {
 
 test('the add buttons share a row, and it wraps rather than shrinks', () => {
   // Media, GIF, Poll and PoW are peers, so they read as a toolbar rather than stacked
-  // decisions. Short labels are what makes that fit: "Media", "GIF", "Poll", "PoW 18".
-  assert.match(bare, /h\('div', \{ className: 'compose-actions' \}, \[addBtn, gifPicker\.addBtn, pollAdd, powBtn\]\)/);
+  // decisions. They are icons, which is what makes five of them fit one row.
+  assert.match(bare, /h\('div', \{ className: 'compose-actions' \}, \[addBtn, gifPicker\.addBtn, emojiPicker\.addBtn, pollAdd, powBtn\]\)/);
   const row = css.slice(css.indexOf('.compose-actions {'));
   const decls = row.slice(0, row.indexOf('}'));
   assert.match(decls, /display: flex/);
@@ -312,9 +313,10 @@ test('the add buttons share a row, and it wraps rather than shrinks', () => {
   assert.doesNotMatch(addDecls, /flex: 1;/, 'flex: 1 would let a label be shaved to fit');
   assert.match(addDecls, /justify-content: center/, 'a grown button centers what is in it');
 
-  // Both PoW states are the same width, so cycling never makes the row reflow under the
-  // thumb that is cycling it.
-  assert.match(bare, /t\('PoW \{\{bits\}\}', \{ bits: lvl\.bits \}\) : t\('PoW off'\)/);
+  // Both PoW states are the same width, because the state is a badge on the glyph and not a
+  // word: cycling never makes the row reflow under the thumb that is cycling it.
+  assert.match(core, /if \(lvl\) bits\.textContent = I18N\.fmtNum\(lvl\.bits\);\n\s+else bits\.replaceChildren\(icon\('x'\)\);/);
+  assert.match(css, /\.compose-add-icon \{[^}]*flex: 1 1 0; min-width: 44px/, 'icon cells are equal');
 });
 
 test('the proof-of-work icon does not mean something else already', () => {
@@ -322,14 +324,14 @@ test('the proof-of-work icon does not mean something else already', () => {
   // button sitting next to this one, so neither was available. A pickaxe rather than the
   // hash it computes: a button needs the verb, and a # reads as a tag everywhere else on
   // nostr, which is the one thing it must not be taken for here.
-  assert.match(bare, /powBtn\.append\(icon\('pickaxe'\), powBtnLabel\)/);
+  assert.match(core, /composeToolBtn\('pickaxe', t\('Proof of work: off'\)\)/);
   assert.match(panel, /^\s+pickaxe: '<path /m, 'the pickaxe glyph is missing from ICONS');
-  // Three uses, and all three are proof of work: the composer's button, the mining
-  // pane's glyph, and the footer bar a minimized mine draws. The assertion is that
+  // Two uses here, both proof of work: the mining pane's glyph and the footer bar a
+  // minimized mine draws. The composer's button is built in composer-core. The assertion is that
   // nothing ELSE adopts it, since a shape meaning two things is exactly why badge-check
   // was unavailable.
   const uses = (panel.match(/icon\('pickaxe'\)/g) || []).length;
-  assert.equal(uses, 3, 'the pickaxe means proof of work here and nothing else');
+  assert.equal(uses, 2, 'the pickaxe means proof of work here and nothing else');
   assert.match(bare, /const glyph = icon\('pickaxe'\);\n\s+glyph\.classList\.add\('mining-glyph'\);/);
 });
 

@@ -5252,7 +5252,7 @@
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable,
     buildPollTags, buildPollEditor,
   } = window.SidecarCore;
-  const { buildGifPicker } = window.SidecarCore;
+  const { buildGifPicker, buildEmojiPicker, composeToolBtn, buildPowButton } = window.SidecarCore;
   // Saved drafts, listed the same way the expanded composer lists them.
   const { otherDraftEntries, buildSavedDraftList } = window.SidecarCore;
   // The same note posted twice: see postFingerprint in composer-core.js.
@@ -6504,67 +6504,9 @@
   //
   // Search is the escape hatch from that, and it reads across every group: nobody knows
   // which of the nine "shrug" is in. Results are capped for the same reason as above.
-  const EMOJI_SEARCH_MAX = 120;
-
-  // Match at a WORD START, never mid-word. Substring matching gave "love" a boxing glove
-  // and a pair of mittens, through "glove", while the words people actually type are
-  // prefixes: "surpris", "ital", "lovely". The haystack carries a leading space and has
-  // its punctuation flattened, so this is one indexOf rather than a regex per row.
-  const emojiHit = (hay, q) => hay.includes(' ' + q);
-  const emojiQuery = (raw) => raw.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-
-  // Words no emoji dataset carries, because they are associations rather than
-  // descriptions. Checked before writing this: emojibase tags 🇮🇹 as "IT, flag", 🍝 as
-  // "pasta, meatballs, restaurant" and 🤌 as "gesture, sarcastic, huh" — nothing ties any
-  // of them to Italy, and nothing anywhere says "spock" or "llap". iOS has them because
-  // Apple curates them by hand, and so do we.
-  //
-  // Each line is a decision somebody made, not a claim about what an emoji means. Add a
-  // word the moment you notice yourself typing it and getting nothing.
-  const EMOJI_ALIASES = {
-    spock: ['🖖'],
-    llap: ['🖖'],
-    italian: ['🇮🇹', '🍕', '🍝', '🤌'],
-  };
-
-  // The table, prepared once for searching: name lowercased, aliases folded in.
-  //
-  // THE NAMES ARE NOT ALL LOWERCASE. 338 of the 1,914 carry a capital — every flag is
-  // "flag Italy", "flag Japan" — and the search lowercased only the query, so "ital"
-  // matched nothing while "Ital" matched. Every flag in the picker was unreachable by the
-  // way anyone would actually type it.
-  //
-  // Done at index time rather than per keystroke: the search already runs across the
-  // whole table on a debounce, and lowercasing 1,914 strings on every one of those was
-  // the reason not to fix it in the comparison.
-  let _emojiIndex = null;
-  function emojiGroups() {
-    if (_emojiIndex) return _emojiIndex;
-    const table = self.SidecarEmoji;
-    if (!Array.isArray(table) || !table.length) return null;
-    const extra = new Map();
-    for (const [term, chars] of Object.entries(EMOJI_ALIASES)) {
-      for (const ch of chars) extra.set(ch, (extra.get(ch) || []) + ' ' + term);
-    }
-    // [char, name, haystack] — paintGrid reads the first two and ignores the rest.
-    //
-    // The haystack is the name, the vendored CLDR keywords and any alias, lowercased,
-    // with every run of punctuation flattened to a space and a space in front. That last
-    // detail lets the search match at word starts without a regex per row, and the
-    // punctuation pass is why "eyes" still finds "smiling face with heart-eyes".
-    // Unicode-aware, because "Åland Islands" and "Côte d'Ivoire" are in this table.
-    _emojiIndex = table.map(([group, rows]) => [
-      group,
-      rows.map(([ch, name, keywords]) => [
-        ch,
-        name,
-        ' ' + (name + ' ' + (keywords || '') + (extra.get(ch) || ''))
-          .toLowerCase()
-          .replace(/[^\p{L}\p{N}]+/gu, ' '),
-      ]),
-    ]);
-    return _emojiIndex;
-  }
+  // The index and the search words are shared with the composers' Emoji button, so they
+  // live in composer-core.js; the aliases and the lowercasing note are there.
+  const { emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX } = window.SidecarCore;
 
   // A short row of the ones people actually reach for, above the grid. Same idea as the
   // zap presets: most reactions are one of a handful, and making those a single tap is
@@ -14911,6 +14853,9 @@
         addBtn.classList.toggle('hidden', p || !!draft.poll);
         gifPicker.addBtn.classList.toggle('hidden', p || !!draft.poll || !gifPicker.available);
         if (p) gifPicker.close();
+        // The editor it writes into is hidden in Preview, so the button goes with it.
+        emojiPicker.addBtn.classList.toggle('hidden', p || !emojiPicker.available);
+        if (p) emojiPicker.close();
         pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
         pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
@@ -15131,28 +15076,16 @@
       fileInput.type = 'file';
       fileInput.accept = 'image/*,video/*';
       fileInput.style.display = 'none';
-      const addBtn = h('button', { className: 'mini compose-add' });
-      addBtn.append(icon('camera'), h('span', { textContent: t('Media') }));
+      const addBtn = composeToolBtn('camera', t('Media'));
       addBtn.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files && fileInput.files[0];
         if (!file) return;
         err.textContent = '';
         addBtn.disabled = true;
-        const lbl = addBtn.querySelector('span');
-        const prev = lbl.textContent;
-        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
-        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
-        // label: a longer one claims more of the row and leaves less free space to share,
-        // which took 10px off Poll and 10px off PoW every time an upload started. The
-        // rule against it is already written three functions down, on the PoW button,
-        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
-        // the row. Same toolbar, same reason.
-        //
-        // The shimmer is the panel's idiom for a value waiting in place where a spinner
-        // does not fit beside it, which is exactly a 15px icon and one word.
-        setWaiting(lbl, prev, true);
-        addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
+        // The whole button sweeps (styles.css). The button has no word to shimmer, and
+        // the stripes are what say it is busy.
+        addBtn.classList.add('is-uploading');
         try {
           const url = await uploadMedia(file, pubkey);
           // Into the media slot only. The URL is appended to the content at publish
@@ -15169,7 +15102,6 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        setWaiting(lbl, prev, false);
         addBtn.classList.remove('is-uploading');
         fileInput.value = '';
       });
@@ -15190,20 +15122,9 @@
         // hidden while a poll is open; a paste was the way round that.
         if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
         addBtn.disabled = true;
-        const lbl = addBtn.querySelector('span');
-        const prev = lbl.textContent;
-        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
-        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
-        // label: a longer one claims more of the row and leaves less free space to share,
-        // which took 10px off Poll and 10px off PoW every time an upload started. The
-        // rule against it is already written three functions down, on the PoW button,
-        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
-        // the row. Same toolbar, same reason.
-        //
-        // The shimmer is the panel's idiom for a value waiting in place where a spinner
-        // does not fit beside it, which is exactly a 15px icon and one word.
-        setWaiting(lbl, prev, true);
-        addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
+        // The whole button sweeps (styles.css). The button has no word to shimmer, and
+        // the stripes are what say it is busy.
+        addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey);
@@ -15218,7 +15139,6 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        setWaiting(lbl, prev, false);
         addBtn.classList.remove('is-uploading');
       });
 
@@ -15234,20 +15154,14 @@
       //
       // Cycles Off, 16, 18, 20, 22 and back. Five states is too many for a
       // toggle and too few to be worth a sheet, and a chooser would be a second surface
-      // saying what Settings already says. The label carries the current state, so what
-      // one more tap costs is always on screen rather than in a tooltip.
+      // saying what Settings already says. The badge on the pickaxe carries the current
+      // state, so what one more tap costs is always on screen rather than in a tooltip.
       //
       // Seeded from Settings and never written back: this is a decision about this note.
-      const powBtn = h('button', { className: 'mini compose-add', type: 'button' });
-      const powBtnLabel = h('span');
-      powBtn.append(icon('pickaxe'), powBtnLabel);
+      const powControl = buildPowButton();
+      const powBtn = powControl.btn;
       function paintPowBtn() {
-        const lvl = powForThisPost.on ? powLevelFor(powForThisPost.bits) : null;
-        // "PoW 18" and "PoW off" are the same width, so cycling never makes the row
-        // opposite it jump. The full name is in the title and in Settings.
-        powBtnLabel.textContent = lvl ? t('PoW {{bits}}', { bits: lvl.bits }) : t('PoW off');
-        powBtn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
-        powBtn.classList.toggle('compose-add-on', !!lvl);
+        powControl.paint(powForThisPost.on ? powLevelFor(powForThisPost.bits) : null);
       }
       powBtn.addEventListener('click', () => {
         const order = [null, ...POW_LEVELS.map((l) => l.bits)];
@@ -15277,6 +15191,12 @@
           renderThumbs();
           paintEitherOr();
         },
+      });
+
+      // ---- emoji, into the note at the caret ----
+      const emojiPicker = buildEmojiPicker({
+        onPick: (ch) => mentionEditor.insertText(ch),
+        onClose: () => mentionEditor.focus(),
       });
 
       const pollEditor = buildPollEditor({
@@ -15377,20 +15297,23 @@
       // arrived there would quietly publish as one, which is the exact failure the draft
       // store learned to carry replyTo to avoid.
       //
-      // A WORD, ON THE TAB BAR, rather than an icon in the corner. The corner already
-      // belongs to the close box, so a second button there sat on top of it, and the
+      // ON THE TAB BAR, not in the corner. The corner already belongs to the close box, so
+      // a second button there sat on top of it. And corner BRACKETS, not an arrow: the
       // outward arrow that reads as "expand" in most apps reads here as leaving the
       // browser entirely. Write / Preview / Expand is a row of three things you can do
-      // with what you are writing, and the third one says what it is.
+      // with what you are writing; the third is the frame growing, named by its title and
+      // its accessible name.
       // REPLIES EXPAND NOW TOO. This was null for a reply because the tab could not
       // build threading tags and would have published a top-level note detached from the
       // thread. compose.js takes replyTags from composer-core and reads the target off
       // the draft, so the two produce identical tags from identical input.
       const expand = h('button', {
-        className: 'compose-expand', type: 'button', textContent: t('Expand'),
+        className: 'compose-expand', type: 'button',
         title: replyTo ? t('Reply in a tab, with room to read the thread')
                        : t('Write in a tab, with room to read it back'),
       });
+      expand.setAttribute('aria-label', t('Expand'));
+      expand.append(icon('maximize'));
       if (expand) {
         expand.addEventListener('click', async () => {
           expand.disabled = true;
@@ -15426,9 +15349,10 @@
         previewPane,
         thumbs,
         mediaDrawer.wrap,
-        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, pollAdd, powBtn]),
+        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollAdd, powBtn]),
         fileInput,
         gifPicker.wrap,
+        emojiPicker.wrap,
         pollWrap,
         err,
         h('div', { className: 'actions' }, [post, cancel])

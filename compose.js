@@ -1615,6 +1615,9 @@
   let uploadFiles = async () => {};
   // Set by buildToolbar: closes the GIF picker, which sits outside the toolbar row.
   let closeGifPicker = () => {};
+  // The same for the emoji picker, and the button that opens it, which goes with the editor.
+  let closeEmojiPicker = () => {};
+  let emojiBtn = null;
 
   // ---- the toolbar: media, a poll, and a proof of work for this note ----
   function buildToolbar() {
@@ -1625,8 +1628,7 @@
     fileInput.type = 'file';
     fileInput.accept = 'image/*,video/*';
     fileInput.style.display = 'none';
-    const addBtn = h('button', { className: 'mini compose-add', type: 'button' });
-    addBtn.append(icon('camera'), h('span', { textContent: t('Media') }));
+    const addBtn = SC.composeToolBtn('camera', t('Media'));
     addBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0];
@@ -1637,14 +1639,9 @@
     uploadFiles = async (files) => {
       err.textContent = '';
       addBtn.disabled = true;
-      const lbl = addBtn.querySelector('span');
-      // THE LABEL STAYS "Media" AND SHIMMERS, as it does in the panel. Swapping in
-      // "Uploading…" made this button 23px wider and took 8px each off GIF, Poll and
-      // PoW, so the whole row moved the moment an upload started. The stripes say it is
-      // busy; the word does not need to change to say it too.
-      lbl.dataset.text = lbl.textContent;
-      lbl.classList.add('t-shimmer');
-      addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
+      // The whole button sweeps (styles.css), as it does in the panel: there is no word
+      // to shimmer, and the stripes are what say it is busy.
+      addBtn.classList.add('is-uploading');
       try {
         for (const file of files) {
           const url = await composer.uploadMedia(file, state.activePubkey);
@@ -1663,21 +1660,14 @@
       }
       addBtn.disabled = false;
       addBtn.classList.remove('is-uploading');
-      lbl.classList.remove('t-shimmer');
-      delete lbl.dataset.text;
     };
 
-    // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same labels as the
-    // panel. The labels are not quite the same width, so the row's cells are equal rather
-    // than sized to them (styles.css), and cycling moves nothing.
-    const powBtn = h('button', { className: 'mini compose-add', type: 'button' });
-    const powLabel = h('span');
-    powBtn.append(icon('pickaxe'), powLabel);
+    // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same badge as the
+    // panel.
+    const powControl = SC.buildPowButton();
+    const powBtn = powControl.btn;
     function paintPow() {
-      const lvl = powForThisPost.on ? SC.powLevelFor(powForThisPost.bits) : null;
-      powLabel.textContent = lvl ? t('PoW {{bits}}', { bits: lvl.bits }) : t('PoW off');
-      powBtn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
-      powBtn.classList.toggle('compose-add-on', !!lvl);
+      powControl.paint(powForThisPost.on ? SC.powLevelFor(powForThisPost.bits) : null);
     }
     repaintPow = paintPow;
     powBtn.addEventListener('click', () => {
@@ -1707,6 +1697,15 @@
     });
     closeGifPicker = gifPicker.close;
 
+    // Emoji go into the note at the caret, through the editor, so the draft hears of them
+    // the way it hears of typing.
+    const emojiPicker = SC.buildEmojiPicker({
+      onPick: (ch) => editorApi.insertText(ch),
+      onClose: () => editorApi.focus(),
+    });
+    closeEmojiPicker = emojiPicker.close;
+    emojiBtn = emojiPicker.addBtn;
+
     pollEditor = SC.buildPollEditor({
       poll: () => draft.poll || null,
       setPoll: (p) => { draft.poll = p; },
@@ -1720,11 +1719,12 @@
       mediaBtn: () => addBtn,
       gif: () => gifPicker,
     });
-    row.append(addBtn, gifPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
+    row.append(addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
     // Below the toolbar rather than inside it: the editor is a form, and the row is a
     // row of buttons.
     row.after(pollEditor.wrap);
     row.after(gifPicker.wrap);
+    row.after(emojiPicker.wrap);
   }
 
   // ---- Write / Preview ----
@@ -1756,6 +1756,9 @@
       // chosen rather than offering to attach a photo to a list.
       $('compose-actions').classList.toggle('hidden', which === 'drafts');
       if (which === 'drafts') closeGifPicker();
+      // It writes into the editor, which Preview and the drafts list both put away.
+      if (which !== 'write') closeEmojiPicker();
+      if (emojiBtn) emojiBtn.classList.toggle('hidden', which !== 'write' || !SC.emojiGroups());
       // And Post goes with it. From a list of other drafts it would publish the one you
       // cannot see; Cancel and the setting beside it still apply, so they stay.
       $('compose-post').classList.toggle('hidden', which === 'drafts');

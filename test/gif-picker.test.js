@@ -178,7 +178,8 @@ test('A POLL SENDS THE GIF BUTTON OFF WITH MEDIA, AND CLOSES THE PICKER', () => 
 
 test('the picker keeps the panel row rules: the close box is fixed and the credit truncates', () => {
   const rule = (sel) => {
-    const m = css.match(new RegExp('\\n' + sel.replace('.', '\\.') + ' \\{([^}]*)\\}'));
+    // A selector may sit in a list with another picker's (the emoji picker shares the card).
+    const m = css.match(new RegExp('\\n(?:[^{}\\n]*,\\n)*' + sel.replace('.', '\\.') + '(?:,\\n[^{}\\n]*)* \\{([^}]*)\\}'));
     assert.ok(m, sel + ' is styled');
     return m[1];
   };
@@ -195,7 +196,7 @@ test('WITHOUT A KEY THERE IS NO GIF BUTTON, AND NOTHING BRINGS ONE BACK', () => 
   const at = core.indexOf('function buildGifPicker(d)');
   const body = core.slice(at, core.indexOf('\n  }\n', at));
   assert.match(body, /const available = !!GIF_API_KEY;/);
-  assert.match(body, /'mini compose-add' \+ \(available \? '' : ' hidden'\)/);
+  assert.match(body, /addBtn\.classList\.toggle\('hidden', !available\)/);
   assert.match(body, /return \{ addBtn, wrap, open, close, isOpen, available \};/);
   assert.match(panel, /gifPicker\.addBtn\.classList\.toggle\('hidden', p \|\| !!draft\.poll \|\| !gifPicker\.available\)/);
 });
