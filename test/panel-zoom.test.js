@@ -203,19 +203,47 @@ test('NARROW IS WIRED BEFORE THE ZOOM GATE, AND ON EVERY PAINT AND RESIZE', () =
   assert.match(fn, /applyPanelZoom\(pct\);\s*updatePanelNarrow\(\);/, 'every zoom paint re-judges');
 });
 
-test('THE COLLAPSE STACKS, IT DOES NOT SHRINK', () => {
+test('THE COLLAPSE STACKS ON GROUP BOUNDARIES, IT DOES NOT SHRINK', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   const at = css.indexOf('PANEL NARROW');
   assert.ok(at > -1, 'the rules exist');
   const tabRule = css.indexOf('body.panel-narrow .tab {');
-  const rules = css.slice(at, css.indexOf('}', tabRule) + 1);
+  const nextComment = css.indexOf('/*', tabRule);
+  const rules = css.slice(at, nextComment === -1 ? css.length : nextComment);
   assert.match(rules, /body\.panel-narrow \.topbar \{ flex-wrap: wrap;/, 'the topbar wraps');
-  assert.match(rules, /body\.panel-narrow \.topbar-actions \{ flex: 0 0 100%; flex-wrap: wrap;/,
-    'the icon row takes a full line of its own and wraps rather than clip');
+  assert.match(rules, /body\.panel-narrow \.topbar-actions \{ flex-wrap: wrap; justify-content: flex-end; \}/,
+    'icon groups wrap as whole units, right-aligned');
   assert.match(rules, /body\.panel-narrow \.tabs \{ flex-wrap: wrap; \}/, 'the tabs wrap');
   assert.match(rules, /body\.panel-narrow \.tab \{ flex: 1 1 45%; \}/, 'two rows of two');
+  // A theme's name is set in its own display face at specimen size; two narrow
+  // columns amputate it (Cast Iron broke mid-word). One card per row at narrow.
+  // Written as a selector list on purpose: theme-gallery.test.js anchors its
+  // minmax(0, 1fr) guard on the literal '.theme-selector {', and the narrow rule
+  // must not shadow that anchor.
+  assert.match(rules, /body\.panel-narrow \.theme-selector,\s*body\.panel-narrow \.theme-special-cards \{\s*grid-template-columns: 1fr;/);
   // No font-size, no padding reductions: the narrow-panel rule is stack, never shrink.
   assert.doesNotMatch(rules, /font-size/, 'no shrinking the controls');
+});
+
+test('THE TOPBAR ICONS CARRY THE GROUPS THE COMMENTS ALWAYS NAMED', () => {
+  const at = html.indexOf('class="topbar-actions"');
+  const end = html.indexOf('</div>', at);
+  const row = html.slice(at, end);
+  const groups = row.match(/class="topbar-group[^"]*"/g) || [];
+  assert.equal(groups.length, 2, 'content and chrome, nothing else');
+  const chrome = row.indexOf('topbar-group-chrome');
+  assert.ok(chrome > -1, 'the chrome group is marked as such');
+  for (const id of ['notif-bell-btn', 'search-btn', 'stream-entry', 'bookmarks-btn']) {
+    const at2 = row.indexOf(id);
+    assert.ok(at2 > -1 && at2 < chrome, id + ' acts on content, and sits in the content group');
+  }
+  for (const id of ['help-btn', 'settings-btn', 'lock-btn']) {
+    assert.ok(row.indexOf(id) > chrome, id + ' is app chrome, and sits in the chrome group');
+  }
+  // The groups are atomic at every width, and seamless when unwrapped: the gaps
+  // inside a group equal the gaps between groups, so one row of seven is unchanged.
+  const css0 = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css0, /\.topbar-group \{ display: inline-flex; align-items: center; gap: 4px; \}/);
 });
 
 test('THE TRAVELING MARK FOLLOWS A WRAPPED TAB\u2019S OWN ROW', () => {

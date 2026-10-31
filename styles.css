@@ -825,17 +825,30 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    row read as one undifferentiated strip. Wider than this and they stop reading
    as a set. */
 .topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+/* Atomic at every width: the gaps inside a group match the gaps between groups, so
+   one row of seven looks identical to before the groups existed. They matter only
+   when body.panel-narrow wraps the row — a wrap lands between groups. */
+.topbar-group { display: inline-flex; align-items: center; gap: 4px; }
 
 /* PANEL NARROW — body class from sidepanel.js when the width the content actually
-   has (viewport over zoom) is under 340px. The topbar's icon row drops to a
-   full-width line of its own and wraps again rather than clipping; the four main
-   tabs fold to two rows of two. Nothing shrinks: the rows stack, which is the
-   narrow-panel rule this leans on. The traveling tab mark follows the active tab's
-   row (wireTabSlider writes its top from the measured item). */
+   has (viewport over zoom) is under 340px. The topbar wraps between its two icon
+   groups (content, then app chrome — the split the markup already drew), so a wrap
+   lands on a group boundary and no icon is stranded; the four main tabs fold to two
+   rows of two; the theme gallery goes one card per row, because a theme's name is
+   set in its own display face at specimen size and two narrow columns amputate it.
+   Nothing shrinks: the rows stack, which is the narrow-panel rule this leans on.
+   The traveling tab mark follows the active tab's row (wireTabSlider writes its top
+   from the measured item). */
 body.panel-narrow .topbar { flex-wrap: wrap; row-gap: 4px; }
-body.panel-narrow .topbar-actions { flex: 0 0 100%; flex-wrap: wrap; justify-content: flex-end; margin-left: 0; }
+body.panel-narrow .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
 body.panel-narrow .tabs { flex-wrap: wrap; }
 body.panel-narrow .tab { flex: 1 1 45%; }
+body.panel-narrow .theme-selector,
+body.panel-narrow .theme-special-cards {
+  grid-template-columns: 1fr;
+  grid-auto-flow: row;
+  grid-auto-columns: 1fr;
+}
 
 /* ===== main app ===== */
 .topbar {
