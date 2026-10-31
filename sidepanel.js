@@ -25429,9 +25429,16 @@
     return best;
   }
 
-  // Empty string at 100% so the default panel carries no inline zoom at all.
+  // Empty string at 100% so the default panel carries no inline zoom at all. The
+  // factor is published to :root because viewport units do not shrink with CSS zoom:
+  // 100vh inside a zoomed subtree is still the physical viewport, so a lock screen
+  // sized 100vh rendered one-and-a-half panels tall. Viewport lengths in the
+  // stylesheets divide by this (calc(100vh / var(--panel-zoom, 1))).
   function applyPanelZoom(pct) {
-    document.body.style.zoom = pct === PANEL_ZOOM_DEFAULT ? '' : String(pct / 100);
+    const zoom = pct === PANEL_ZOOM_DEFAULT ? '' : String(pct / 100);
+    document.body.style.zoom = zoom;
+    if (zoom) document.documentElement.style.setProperty('--panel-zoom', zoom);
+    else document.documentElement.style.removeProperty('--panel-zoom');
   }
 
   // THE WIDTH THE CONTENT ACTUALLY HAS: the viewport divided by the zoom. Media

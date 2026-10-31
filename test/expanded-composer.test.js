@@ -279,7 +279,7 @@ test('THE COMPOSER FLOATS, CENTERED BOTH WAYS, ON A SOLID SURFACE', () => {
   // earlier in the file now and is what a plain indexOf finds.
   const body = css.slice(bodyAt, sheetAt).replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(body, /justify-content: center/);
-  assert.match(body, /min-height: calc\(100vh - var\(--compose-topbar-h\)\)/);
+  assert.match(body, /min-height: calc\(calc\(100vh \/ var\(--panel-zoom, 1\)\) - var\(--compose-topbar-h\)\)/);
   assert.match(sheet, /margin: auto 0/);
   assert.ok(!/align-items: center/.test(body), 'align-items clips an oversized card');
 
@@ -448,7 +448,7 @@ test('THE REVIEW COUNTDOWN IS HONORED HERE TOO', () => {
   // pane inherits a 42vh cap sized for the panel, which on this page sits under a note
   // written at 17px with its images at full width: tall enough to push its own ring and
   // its own buttons off the screen, at the one moment everything in it matters.
-  assert.match(css, /\.compose-countdown \.countdown-preview \{ max-height: 32vh; \}/);
+  assert.match(css, /\.compose-countdown \.countdown-preview \{ max-height: calc\(32vh \/ var\(--panel-zoom, 1\)\); \}/);
   assert.match(css, /\.compose-countdown \.note-media \{ max-height: 160px/);
   assert.match(css, /\.compose-countdown \.countdown-wrap \{ flex-shrink: 0; \}/,
     'the ring and the buttons below it must never be what scrolls out of reach');

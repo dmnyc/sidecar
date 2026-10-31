@@ -736,7 +736,7 @@ html[data-tile][data-theme="sleepy-hollow"] body {
    with it, unevenly on a tall window, and the tilted side lenses looked bigger than the
    center one. Each lens is a small square of its own (jazz-age-lens-*.svg), kept at its
    proportions and pinned where its beam starts: 16%, 50% and 84% across, and 64/900 of
-   the way down (7.11vh), less half the 96px square. */
+   the way down (calc(7.11vh / var(--panel-zoom, 1))), less half the 96px square. */
 [data-theme="jazz-age"] body.compose-page {
   background-image:
     url(jazz-age-lens-left.svg), url(jazz-age-lens-center.svg), url(jazz-age-lens-right.svg),
@@ -745,9 +745,9 @@ html[data-tile][data-theme="sleepy-hollow"] body {
     url(jazz-age-lock-wide.svg), url(jazz-age-curtain-lit.svg);
   background-size: 96px 96px, 96px 96px, 96px 96px, 100% 100%, 100% 100%, 360px 100%;
   background-position:
-    calc(16vw - 48px) calc(7.11vh - 48px),
-    calc(50vw - 48px) calc(7.11vh - 48px),
-    calc(84vw - 48px) calc(7.11vh - 48px),
+    calc(calc(16vw / var(--panel-zoom, 1)) - 48px) calc(calc(7.11vh / var(--panel-zoom, 1)) - 48px),
+    calc(calc(50vw / var(--panel-zoom, 1)) - 48px) calc(calc(7.11vh / var(--panel-zoom, 1)) - 48px),
+    calc(calc(84vw / var(--panel-zoom, 1)) - 48px) calc(calc(7.11vh / var(--panel-zoom, 1)) - 48px),
     0 0, 0 0, 0 0;
   background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat-x;
   background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;

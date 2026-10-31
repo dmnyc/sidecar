@@ -194,7 +194,7 @@ button, input, select, textarea { font-family: inherit; }
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 100vh;
+  min-height: calc(100vh / var(--panel-zoom, 1));
   padding: 30px 24px;
 }
 .brand-lg { display: flex; align-items: center; margin-bottom: 18px; }
@@ -343,8 +343,8 @@ select {
 }
 textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 /* autosizeTextarea: grows with content, then scrolls instead of pushing the rest
-   of the editor away. 45vh keeps the Save row reachable in the panel. */
-textarea.autosize { max-height: 45vh; overflow-y: auto; }
+   of the editor away. calc(45vh / var(--panel-zoom, 1)) keeps the Save row reachable in the panel. */
+textarea.autosize { max-height: calc(45vh / var(--panel-zoom, 1)); overflow-y: auto; }
 /* Explicit dark colors for the native option popup — belt-and-suspenders for
    platforms that draw options with the system theme regardless of color-scheme. */
 select option, select optgroup { background-color: var(--bg-2); color: var(--text); }
@@ -874,6 +874,11 @@ body.panel-narrow .wallet-actions { flex-direction: column; align-items: stretch
 /* The Activity sub-tabs share the traveling mark and the min-content floor. */
 body.panel-narrow .modal-tabs { flex-wrap: wrap; }
 body.panel-narrow .modal-tab { flex: 1 1 45%; }
+/* Onboarding's content is taller than the viewport at 150% no matter what — the
+   centered layout would clip both ends in a scroll container (the classic
+   center-overflow trap: the top is unreachable). Top-align it at narrow, so the PIN
+   is on screen and the rest arrives by scrolling. */
+body.panel-narrow #view-onboarding { justify-content: flex-start; padding-top: 24px; }
 body.panel-narrow .theme-selector,
 body.panel-narrow .theme-special-cards {
   grid-template-columns: 1fr;
@@ -913,7 +918,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
    shipped the first time, because #view-main has this layout but #view-settings never
    did. Scoped here rather than added to the shared .topbar rule so the main view's
    topbar (which has its own sticky behavior via the wallet card) is unaffected. */
-#view-settings { display: flex; flex-direction: column; height: 100vh; }
+#view-settings { display: flex; flex-direction: column; height: calc(100vh / var(--panel-zoom, 1)); }
 #view-settings .topbar { position: sticky; top: 0; z-index: 5; flex-shrink: 0; }
 .brand { display: flex; align-items: center; }
 .brand-logo-sm { height: 24px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
@@ -1154,7 +1159,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   .tab-slider { transition: none !important; }
 }
 
-#view-main { display: flex; flex-direction: column; height: 100vh; position: relative; }
+#view-main { display: flex; flex-direction: column; height: calc(100vh / var(--panel-zoom, 1)); position: relative; }
 .content { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px 16px 28px; display: flex; flex-direction: column; overflow-anchor: none; }
 .tabview { flex: 1; display: flex; flex-direction: column; }
 .brand-foot { margin-top: auto; padding-top: 40px; padding-bottom: 4px; text-align: center; opacity: 1; pointer-events: none; user-select: none; }
@@ -2754,7 +2759,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   padding: 22px;
   width: 100%;
   max-width: 344px;
-  max-height: 90vh;
+  max-height: calc(90vh / var(--panel-zoom, 1));
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -3060,7 +3065,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .na-ask-yes { background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold)); color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); }
 .na-ask-no { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); }
 .compose-preview {
-  min-height: 120px; max-height: 46vh; overflow-y: auto;
+  min-height: 120px; max-height: calc(46vh / var(--panel-zoom, 1)); overflow-y: auto;
   border: 1px solid var(--border); border-radius: 10px; padding: 12px;
   background: rgba(var(--well-rgb), 0.3);
 }
@@ -3347,7 +3352,7 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
    rather than equal numbers, because the panes agreeing is the point: switching tabs
    must not move the card. */
 .compose-page {
-  margin: 0; min-height: 100vh;
+  margin: 0; min-height: calc(100vh / var(--panel-zoom, 1));
   --compose-topbar-h: 47px;
   --compose-pane-h: 340px;
 }
@@ -3386,7 +3391,7 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 .compose-topbar .compose-x { margin: -12px 0 -12px auto; flex-shrink: 0; }
 .compose-body {
   display: flex; justify-content: center;
-  min-height: calc(100vh - var(--compose-topbar-h));
+  min-height: calc(calc(100vh / var(--panel-zoom, 1)) - var(--compose-topbar-h));
   padding: 32px 20px 48px; box-sizing: border-box;
 }
 /* WIDE ENOUGH TO READ, not as wide as the window. A line of prose past about 70
@@ -3625,13 +3630,13 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-done-open { text-decoration: none; padding: 10px 22px; }
 
 /* THE REVIEW WINDOW IS NOT THE EDITOR, so it does not want the editor's height. The pane
-   inherits .countdown-preview's 42vh cap, which on this page sits under a note written at
+   inherits .countdown-preview's calc(42vh / var(--panel-zoom, 1)) cap, which on this page sits under a note written at
    17px with its images at full width: a countdown tall enough to push its own ring and
    its own buttons off the screen, at the one moment everything in it matters.
 
    A third of the window, scrolling inside itself, and the images come down to something
    you can take in at a glance rather than read twice. */
-.compose-countdown .countdown-preview { max-height: 32vh; }
+.compose-countdown .countdown-preview { max-height: calc(32vh / var(--panel-zoom, 1)); }
 .compose-countdown .preview-body { font-size: 15px; line-height: 1.5; }
 .compose-countdown .note-media { max-height: 160px; object-fit: contain; }
 .compose-countdown .note-embed { padding: 8px 10px; }
@@ -3788,7 +3793,7 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
      countdown showing you almost nothing right before it publishes. It scrolls
      internally instead (overflow-y below), which is what the cap was always for. */
   flex-shrink: 0;
-  max-height: 42vh;
+  max-height: calc(42vh / var(--panel-zoom, 1));
   overflow-y: auto;
   background: var(--velvet-1);
   border: 1px solid var(--border);
@@ -4836,7 +4841,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    off the bottom, so the one thing you came to do was the thing you had to go find. The
    padding moves onto the two halves, since the footer needs its own. */
 .approval-card {
-  width: 100%; max-width: 360px; max-height: 90vh;
+  width: 100%; max-width: 360px; max-height: calc(90vh / var(--panel-zoom, 1));
   display: flex; flex-direction: column; overflow: hidden;
   border-radius: 16px;
   background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
@@ -6103,7 +6108,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 
 /* AND IT TAKES THE HEIGHT THAT IS LEFT, not a fixed slice of the viewport.
 
-   This was max-height: 34vh, which is right on a short panel and leaves a blank band above
+   This was max-height: calc(34vh / var(--panel-zoom, 1)), which is right on a short panel and leaves a blank band above
    the actions on a tall one: the side panel is dragged to whatever height suits, and a
    third of it is not the same as what is actually spare. The open row grows into the free
    space instead, so there is none left over to sit empty, and the choices below it follow

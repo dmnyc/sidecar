@@ -1171,7 +1171,7 @@
   top: 18px;
   right: 16px;
   width: 190px;
-  height: clamp(0px, calc(50vh - 270px), 140px);
+  height: clamp(0px, calc(calc(50vh / var(--panel-zoom, 1)) - 270px), 140px);
   background: url(ben-day-zap.svg) right center / contain no-repeat;
   transform: rotate(14deg);
   pointer-events: none;

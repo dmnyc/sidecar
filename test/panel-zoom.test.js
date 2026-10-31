@@ -54,7 +54,12 @@ const ctx = {
   console,
   document: {
     body: { style: {}, classList: { last: null, toggle(c, on) { this.last = [c, on]; } } },
-    documentElement: {},
+    documentElement: {
+      style: {
+        setProperty(k, v) { this[k] = v; },
+        removeProperty(k) { delete this[k]; },
+      },
+    },
   },
   window: { innerWidth: 400 },
   getComputedStyle: () => ({ getPropertyValue: () => '' }),
@@ -146,15 +151,32 @@ test('A STORED PERCENT SNAPS TO ITS NEAREST STOP', () => {
   assert.equal(panelZoomIndex('spin'), 2);
 });
 
-test('ZOOM SETS THE BODY, AND 100 LEAVES NO INLINE ZOOM', () => {
+test('ZOOM SETS THE BODY, PUBLISHES ITS FACTOR, AND 100 LEAVES NOTHING BEHIND', () => {
   applyPanelZoom(125);
   assert.equal(ctx.document.body.style.zoom, '1.25');
+  assert.equal(ctx.document.documentElement.style['--panel-zoom'], '1.25',
+    'viewport units divide by this');
   applyPanelZoom(80);
   assert.equal(ctx.document.body.style.zoom, '0.8');
   applyPanelZoom(150);
   assert.equal(ctx.document.body.style.zoom, '1.5');
   applyPanelZoom(100);
   assert.equal(ctx.document.body.style.zoom, '', 'the default panel carries no inline zoom');
+  assert.ok(!('--panel-zoom' in ctx.document.documentElement.style), 'and the divisor goes with it');
+});
+
+test('EVERY VIEWPORT UNIT DIVIDES BY THE PUBLISHED ZOOM', () => {
+  // Viewport units do not shrink with CSS zoom: 100vh inside a zoomed subtree is
+  // still the physical viewport, which is how the lock screen rendered one-and-a-half
+  // panels tall and the PIN sat below the fold. Stylesheets may use them only
+  // divided by the published factor.
+  const files = ['styles.css', ...fs.readdirSync(path.join(ROOT, 'themes')).map((d) => 'themes/' + d)];
+  for (const f of files) {
+    const text = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const stripped = text.replace(/\/\*[\s\S]*?\*\//g, '');
+    const bad = stripped.match(new RegExp('\\d(?:\\.\\d+)?(?:d?vh|d?vw|svh|lvh|svw|lvw)\\b(?!\\s*/\\s*var\\(--panel-zoom)', 'g'));
+    assert.equal(bad, null, f + ' uses a raw viewport unit: ' + (bad || []).join(', '));
+  }
 });
 
 // ---- the wiring, against the source ---------------------------------------------
@@ -255,6 +277,9 @@ test('THE COLLAPSE STACKS ON GROUP BOUNDARIES, IT DOES NOT SHRINK', () => {
   // Budget rows stack like transaction rows instead of cramming three columns.
   assert.match(rules, /body\.panel-narrow \.wallet-budgets \.item \{ flex-direction: column; align-items: stretch; \}/);
   assert.match(rules, /body\.panel-narrow \.wallet-budgets \.item-actions \{ justify-content: flex-end; \}/);
+  // Onboarding is taller than the viewport at 150% whatever the layout does; centered
+  // overflow in a scroll container clips the TOP. Top-align so scrolling reaches all.
+  assert.match(rules, /body\.panel-narrow #view-onboarding \{ justify-content: flex-start; padding-top: 24px; \}/);
   // A theme's name is set in its own display face at specimen size; two narrow
   // columns amputate it (Cast Iron broke mid-word). One card per row at narrow.
   // Written as a selector list on purpose: theme-gallery.test.js anchors its
