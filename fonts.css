@@ -14,7 +14,8 @@
 
      Speakeasy   Playfair Display   high-contrast Didone serif   cocktail menu
      Film Noir   Noto Serif Display condensed Didone, two cuts   the studio title card
-     Brownstone  Bitter             slab serif                   19th-c. New York
+     Brownstone  Libre Caslon Text 600 old-style serif             substantial headings
+                 + Libre Caslon Display regular                 brass street numbers
      Art Deco    Josefin Sans       1920s geometric sans         deco lettering
      Aegean      Cinzel             Roman inscriptional caps     classical stone
      Bauhaus     Jost               Futura-lineage geometric     the school's own
@@ -190,6 +191,27 @@
   font-weight: 400 700;
   font-display: swap;
   src: url('fonts/bitter-var.woff2') format('woff2-variations');
+}
+/* Brownstone's street-number figures. Full character set, converted
+   to WOFF2, retaining font metadata. SIL OFL 1.1, no Reserved Font Name;
+   fonts/OFL-LibreCaslonDisplay.txt. */
+@font-face {
+  font-family: 'Libre Caslon Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/libre-caslon-display.woff2') format('woff2');
+}
+/* Brownstone headings: a genuine 600 instance from Libre Caslon Text's weight
+   axis, with the full character set. The range maps shared heading weights to
+   this one semibold cut without synthetic bold. SIL OFL 1.1, no Reserved Font
+   Name; fonts/OFL-LibreCaslonText.txt. */
+@font-face {
+  font-family: 'Libre Caslon Text';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/libre-caslon-text-600.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Josefin Sans';
