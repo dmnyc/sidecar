@@ -25448,7 +25448,59 @@
   }
 
   function updatePanelNarrow() {
-    document.body.classList.toggle('panel-narrow', effectivePanelWidth() < PANEL_NARROW_PX);
+    const narrow = effectivePanelWidth() < PANEL_NARROW_PX;
+    document.body.classList.toggle('panel-narrow', narrow);
+    applyTopbarFold(narrow);
+  }
+
+  // THE ⬧ THAT KEEPS THE TOPBAR TO ONE LINE. Bell and search stay visible — they
+  // carry the badge and the find box; the other five MOVE into #topbar-more-menu.
+  // Moved, not rebuilt: appendChild keeps every listener wired by id, so folding is
+  // invisible to the rest of the panel. The recorded parent and next sibling put each
+  // icon back exactly where the inline row had it when the width comes back.
+  const TOPBAR_FOLD = ['stream-entry', 'bookmarks-btn', 'help-btn', 'settings-btn', 'lock-btn'];
+  let topbarFolded = false;
+  const topbarRestore = new Map(); // id -> [parent, nextSibling] as the inline row had it
+
+  function applyTopbarFold(narrow) {
+    if (narrow === topbarFolded) return;
+    topbarFolded = narrow;
+    const more = $('topbar-more-btn');
+    const menu = $('topbar-more-menu');
+    more.classList.toggle('hidden', !narrow);
+    more.setAttribute('aria-expanded', String(narrow));
+    if (narrow) {
+      for (const id of TOPBAR_FOLD) {
+        const el = $(id);
+        if (el.parentElement !== menu) {
+          topbarRestore.set(id, [el.parentElement, el.nextSibling]);
+          menu.appendChild(el);
+        }
+      }
+    } else {
+      for (const id of TOPBAR_FOLD) {
+        const el = $(id);
+        const at = topbarRestore.get(id);
+        if (at) at[0].insertBefore(el, at[1]);
+      }
+      closeTopbarMore();
+    }
+  }
+
+  function topbarMoreOpen() {
+    const menu = $('topbar-more-menu');
+    return !menu.classList.contains('hidden') && !menu.classList.contains('is-closing');
+  }
+  function closeTopbarMore() {
+    const menu = $('topbar-more-menu');
+    if (menu.classList.contains('hidden')) return;
+    $('topbar-more-btn').setAttribute('aria-expanded', 'false');
+    menu.classList.remove('is-open');
+    menu.classList.add('is-closing');
+    setTimeout(() => {
+      menu.classList.remove('is-closing');
+      menu.classList.add('hidden');
+    }, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150);
   }
 
   // Wired once at boot, never in renderSettings(), which runs on every gear entry and
@@ -25459,6 +25511,23 @@
     // gate, and again on every resize, which the zoom case rides through anyway.
     updatePanelNarrow();
     addEventListener('resize', updatePanelNarrow);
+    // The tray opens from its button and closes on any click outside itself — the
+    // account menu's contract, on the same dropdown tokens.
+    $('topbar-more-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = $('topbar-more-menu');
+      if (topbarMoreOpen()) { closeTopbarMore(); return; }
+      menu.classList.remove('is-closing');
+      menu.classList.remove('hidden');
+      requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add('is-open')));
+      $('topbar-more-btn').setAttribute('aria-expanded', 'true');
+    });
+    document.addEventListener('click', (e) => {
+      const menu = $('topbar-more-menu');
+      if (topbarMoreOpen() && !menu.contains(e.target) && !$('topbar-more-btn').contains(e.target)) {
+        closeTopbarMore();
+      }
+    });
     const setting = $('panel-zoom-setting');
     if (!CSS.supports('zoom', '1')) {
       setting.classList.add('hidden'); // a slider that changes nothing reads as broken

@@ -182,7 +182,15 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </button>
         </span>
+        <!-- The overflow affordance for body.panel-narrow: the five icons that fold
+             behind it MOVE into #topbar-more-menu (applyTopbarFold) — moved, not
+             rebuilt, so every listener wired by id keeps working. Hidden at any width
+             the inline row can hold all seven. -->
+        <button id="topbar-more-btn" class="icon-btn topbar-more hidden" title="More" aria-label="More" data-i18n-title="More" data-i18n-aria-label="More" aria-expanded="false" aria-controls="topbar-more-menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="none"><circle cx="5" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="19" cy="12" r="1.6" fill="currentColor"></circle></svg>
+        </button>
       </div>
+      <div id="topbar-more-menu" class="topbar-more-menu hidden"></div>
       <div id="acct-menu" class="acct-menu hidden"></div>
     </header>
 

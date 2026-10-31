@@ -829,6 +829,30 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    one row of seven looks identical to before the groups existed. They matter only
    when body.panel-narrow wraps the row — a wrap lands between groups. */
 .topbar-group { display: inline-flex; align-items: center; gap: 4px; }
+/* The overflow tray body.panel-narrow folds five topbar icons into. The nodes move
+   (applyTopbarFold), they are not rebuilt, so every id keeps its listeners. Anchored
+   right, under the ⬧ button; the dip open and closed is the account menu's, on the
+   same dropdown tokens. */
+.topbar-more-menu {
+  position: absolute; top: calc(100% + 4px); right: 10px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border-strong); border-radius: 14px;
+  box-shadow: var(--sheen), 0 20px 50px rgba(0, 0, 0, 0.6);
+  padding: 6px; z-index: 90;
+  transform-origin: top right;
+  transform: scale(var(--dropdown-pre-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-open-dur) var(--dropdown-ease),
+    opacity   var(--dropdown-open-dur) var(--dropdown-ease);
+}
+.topbar-more-menu.is-open {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
 
 /* PANEL NARROW — body class from sidepanel.js when the width the content actually
    has (viewport over zoom) is under 340px. The topbar wraps between its two icon

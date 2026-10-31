@@ -52,8 +52,13 @@ function liftLine(decl) {
 
 const ctx = {
   console,
-  document: { body: { style: {}, classList: { last: null, toggle(c, on) { this.last = [c, on]; } } } },
+  document: {
+    body: { style: {}, classList: { last: null, toggle(c, on) { this.last = [c, on]; } } },
+    documentElement: {},
+  },
   window: { innerWidth: 400 },
+  getComputedStyle: () => ({ getPropertyValue: () => '' }),
+  setTimeout: (fn) => { fn(); return 0; },
   Date, Math, Number, isFinite, Set, Map, Array,
 };
 vm.createContext(ctx);
@@ -66,6 +71,31 @@ vm.runInContext(
   liftLine('const PANEL_NARROW_PX = ') + '\n' +
   liftFn('function effectivePanelWidth(') + '\n' +
   liftFn('function updatePanelNarrow(') + '\n' +
+  liftLine('const TOPBAR_FOLD = ') + '\n' +
+  liftLine('let topbarFolded = false;') + '\n' +
+  liftLine('const topbarRestore = new Map();') + '\n' +
+  liftFn('function applyTopbarFold(') + '\n' +
+  liftFn('function topbarMoreOpen(') + '\n' +
+  liftFn('function closeTopbarMore(') + '\n' +
+  // A DOM small enough to run the fold for real: parents, siblings, classes.
+  'const __els = {};\n' +
+  'const __makeEl = (id) => { const el = { id, children: [], parentElement: null, classes: new Set(), attrs: {},\n' +
+  '  get nextSibling() { if (!this.parentElement) return null; const s = this.parentElement.children; return s[s.indexOf(this) + 1] || null; },\n' +
+  '  classList: { add: (...c) => c.forEach((x) => el.classes.add(x)), remove: (...c) => c.forEach((x) => el.classes.delete(x)), contains: (c) => el.classes.has(c), toggle: (c, on) => { if (on === undefined) { el.classes.has(c) ? el.classes.delete(c) : el.classes.add(c); } else if (on) { el.classes.add(c); } else { el.classes.delete(c); } } },\n' +
+  '  setAttribute: (k, v) => { el.attrs[k] = v; },\n' +
+  '  appendChild: (c) => { if (c.parentElement) c.parentElement.removeChild(c); c.parentElement = el; el.children.push(c); return c; },\n' +
+  '  insertBefore: (c, ref) => { if (c.parentElement) c.parentElement.removeChild(c); c.parentElement = el; const i = ref ? el.children.indexOf(ref) : -1; el.children.splice(i === -1 ? el.children.length : i, 0, c); return c; },\n' +
+  '  removeChild: (c) => { const i = el.children.indexOf(c); if (i > -1) { el.children.splice(i, 1); c.parentElement = null; } } }; return el; };\n' +
+  'globalThis.__els = __els; globalThis.$ = (id) => __els[id] || null;\n' +
+  'const __actions = __els["topbar-actions"] = __makeEl("topbar-actions");\n' +
+  'const __content = __els["group-content"] = __makeEl("group-content");\n' +
+  'const __chrome = __els["group-chrome"] = __makeEl("group-chrome");\n' +
+  'const __more = __els["topbar-more-btn"] = __makeEl("topbar-more-btn"); __more.classes.add("hidden");\n' +
+  'const __menu = __els["topbar-more-menu"] = __makeEl("topbar-more-menu"); __menu.classes.add("hidden");\n' +
+  '__actions.appendChild(__content); __actions.appendChild(__chrome); __actions.appendChild(__more);\n' +
+  'for (const id of ["notif-bell-btn", "search-btn", "stream-entry", "bookmarks-btn"]) __content.appendChild(__els[id] || (__els[id] = __makeEl(id)));\n' +
+  'for (const id of ["help-btn", "settings-btn", "lock-btn"]) __chrome.appendChild(__els[id] || (__els[id] = __makeEl(id)));\n' +
+  '__actions.appendChild(__makeEl("acct-chip"));' + '\n' +
   'globalThis.PANEL_NARROW_PX = PANEL_NARROW_PX;' +
   'globalThis.effectivePanelWidth = effectivePanelWidth;' +
   'globalThis.updatePanelNarrow = updatePanelNarrow;' +
@@ -79,7 +109,7 @@ vm.runInContext(
   ctx
 );
 const { PANEL_ZOOM_STOPS, PANEL_ZOOM_DEFAULT, panelZoomPercent, panelZoomIndex, applyPanelZoom,
-        PANEL_NARROW_PX, effectivePanelWidth, updatePanelNarrow, __document, __window } = ctx;
+        PANEL_NARROW_PX, effectivePanelWidth, updatePanelNarrow, __document, __window, __els } = ctx;
 
 test('SIX STOPS, AND 100 IS ONE OF THEM', () => {
   assert.deepEqual([...PANEL_ZOOM_STOPS], [80, 90, 100, 110, 125, 150], 'the stops moved');
@@ -250,4 +280,59 @@ test('THE TRAVELING MARK FOLLOWS A WRAPPED TAB\u2019S OWN ROW', () => {
   const fn = liftFn('function wireTabSlider(');
   assert.match(fn, /slider\.style\.top = \(target\.offsetTop \+ target\.offsetHeight - 1\) \+ 'px'/,
     'positioned from the measured item, not the bar\u2019s bottom edge');
+});
+
+// ---- the expandable ⋯ menu (review: five icons folding is better than wrapping) --
+
+test('THE ⋯ FOLDS FIVE ICONS INTO THE TRAY AND GIVES THEM BACK WHOLE', () => {
+  __window.innerWidth = 400;
+  __document.body.style.zoom = '1.5';
+  updatePanelNarrow();
+  assert.equal(__els['topbar-more-btn'].attrs['aria-expanded'], 'true');
+  assert.ok(!__els['topbar-more-btn'].classes.has('hidden'), 'the affordance shows');
+  for (const id of ['stream-entry', 'bookmarks-btn', 'help-btn', 'settings-btn', 'lock-btn']) {
+    assert.equal(__els[id].parentElement, __els['topbar-more-menu'], id + ' moved, not rebuilt');
+  }
+  assert.equal(__els['notif-bell-btn'].parentElement.id, 'group-content', 'bell stays inline');
+  assert.equal(__els['search-btn'].parentElement.id, 'group-content', 'search stays inline');
+
+  __document.body.style.zoom = '';
+  updatePanelNarrow();
+  assert.equal(__els['topbar-more-btn'].attrs['aria-expanded'], 'false');
+  assert.ok(__els['topbar-more-btn'].classes.has('hidden'), 'the affordance hides');
+  assert.ok(__els['topbar-more-menu'].classes.has('hidden'), 'the tray closed');
+  // The inline row is exactly what it was: stream back between search and bookmarks.
+  // (Joined strings, not deepEqual: the children array is vm-realm and the harness
+  // compares prototypes before contents.)
+  assert.equal(__els['group-content'].children.map((c) => c.id).join(','),
+    'notif-bell-btn,search-btn,stream-entry,bookmarks-btn');
+  assert.equal(__els['group-chrome'].children.map((c) => c.id).join(','), 'help-btn,settings-btn,lock-btn');
+});
+
+test('FOLDING IS IDEMPOTENT, AND A SECOND ROUND TRIP STILL RESTORES', () => {
+  __document.body.style.zoom = '1.5'; updatePanelNarrow(); updatePanelNarrow();
+  assert.equal(__els['stream-entry'].parentElement, __els['topbar-more-menu'], 'no double move');
+  __document.body.style.zoom = ''; updatePanelNarrow(); updatePanelNarrow();
+  assert.equal(__els['stream-entry'].parentElement.id, 'group-content', 'no double restore');
+  __document.body.style.zoom = '1.5'; updatePanelNarrow();
+  assert.equal(__els['stream-entry'].parentElement, __els['topbar-more-menu'], 'folds again cleanly');
+  __document.body.style.zoom = ''; updatePanelNarrow();
+});
+
+test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => {
+  const fn = liftFn('function initPanelZoom(');
+  assert.match(fn, /topbar-more-btn'\)\.addEventListener\('click'/);
+  assert.match(fn, /!menu\.contains\(e\.target\) && !\$\('topbar-more-btn'\)\.contains\(e\.target\)/,
+    'a click outside the tray closes it');
+  assert.match(bare, /applyTopbarFold\(narrow\);/, 'every narrow judgment folds or unfolds');
+  assert.match(bare,
+    /const TOPBAR_FOLD = \['stream-entry', 'bookmarks-btn', 'help-btn', 'settings-btn', 'lock-btn'\];/,
+    'bell and search stay visible: they carry the badge and the find box');
+  const menuAt = html.indexOf('id="topbar-more-menu"');
+  assert.ok(menuAt > -1, 'the tray exists in the markup');
+  assert.match(html.slice(html.lastIndexOf('<button id="topbar-more-btn"', menuAt), menuAt + 60),
+    /data-i18n-title="More" data-i18n-aria-label="More"/);
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.topbar-more-menu \{[^}]*transform-origin: top right/, 'anchored right, under the button');
+  assert.match(css, /\.topbar-more-menu\.is-open \{[^}]*pointer-events: auto/, 'and it opens');
 });
