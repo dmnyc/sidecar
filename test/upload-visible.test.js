@@ -30,12 +30,13 @@ test('the uploading button keeps its strength and runs stripes, held still under
   assert.match(css, /html\.reduce-balance-motion \.compose-add\.is-uploading::after \{ animation: none;/);
 });
 
-test('the expanded composer keeps the Media label while it uploads, as the panel does', () => {
-  // Swapping in "Uploading…" made the button 23px wider and took 8px each off GIF, Poll
-  // and PoW: the whole row moved the moment an upload started. The label shimmers in
-  // place instead, and the stripes say it is busy.
-  const tab = read('compose.js');
-  assert.doesNotMatch(tab, /textContent = t\('Uploading…'\)/, 'the label is swapped again');
-  assert.equal(count(tab, /lbl\.classList\.add\('t-shimmer'\)/g), 1);
-  assert.equal(count(tab, /lbl\.classList\.remove\('t-shimmer'\)/g), 1);
+test('the Media button is an icon, so an upload cannot reach for a label that is not there', () => {
+  // It used to find its label with querySelector('span') and shimmer it. The button has no
+  // label now; a leftover lookup would be null and throw on the first upload, in both.
+  for (const f of ['compose.js', 'sidepanel.js']) {
+    const src = read(f).split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    assert.doesNotMatch(src, /addBtn\.querySelector\('span'\)/, f + ' still looks for the Media label');
+    assert.doesNotMatch(src, /setWaiting\(lbl,/, f + ' still shimmers the Media label');
+    assert.doesNotMatch(src, /lbl\.classList\.(add|remove)\('t-shimmer'\)/, f + ' still shimmers the Media label');
+  }
 });

@@ -179,13 +179,19 @@ test('ONE TAB, AND IT IS THE RIGHT DRAFT', () => {
 test('the way in is a word on the tab bar, not an icon in the corner', () => {
   // The corner already belongs to the close box, so a second button there landed on top
   // of it. And the outward arrow that means "expand" in most apps reads here as leaving
-  // the browser, which is the one thing it does not do. Write / Preview / Expand is a row
-  // of three things you can do with what you are writing.
-  assert.match(panelBare, /textContent: t\('Expand'\)/);
+  // the browser, which is the one thing it does not do, so the glyph is four corner
+  // brackets. Write / Preview / Expand is a row of three things you can do with what you
+  // are writing.
+  assert.match(panelBare, /expand\.setAttribute\('aria-label', t\('Expand'\)\);/);
+  assert.match(panelBare, /expand\.append\(icon\('maximize'\)\);/);
   assert.match(panelBare, /if \(expand\) tabBar\.append\(expand\);/);
   assert.ok(!/compose-expand[^']*modal-x|modal-x compose-expand/.test(panelBare),
     'the expand control must not take the corner slot the close box owns');
-  assert.ok(!/expand\.append\(icon\(/.test(panelBare), 'no arrow: it does not leave the browser');
+  // No arrow: four corner brackets, which are paths with no diagonal and no arrowhead.
+  const glyph = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8').match(/^\s+maximize: '([^']*)'/m);
+  assert.ok(glyph, 'the maximize glyph is missing from ICONS');
+  assert.equal((glyph[1].match(/<path /g) || []).length, 4, 'four corners');
+  assert.ok(!/<line|<polyline|<polygon/.test(glyph[1]), 'an arrow has a shaft or a head; brackets are only corners');
   // No bottom border, so it cannot read as a third tab that could be selected.
   const rule = css.slice(css.indexOf('.compose-expand {'), css.indexOf('.compose-expand:hover'));
   assert.match(rule, /margin-left: auto/);

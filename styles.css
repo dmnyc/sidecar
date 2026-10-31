@@ -3225,6 +3225,29 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   gap: 7px; margin: 0; flex: 1 0 auto;
 }
 .compose-add svg { width: 15px; height: 15px; }
+/* THE TOOLBAR'S BUTTONS ARE ICONS (composeToolBtn): five of them share the row in equal
+   cells, so what one shows never moves its neighbors. The 44px floor is the tap target and
+   the row's no-squash rule in one: 5 x 44 and four gaps is 252px of the sheet's 300, so
+   nothing wraps, and a row that did fill up would wrap rather than shrink a button. */
+.compose-add-icon { position: relative; flex: 1 1 0; min-width: 44px; }
+.compose-add-icon svg { width: 18px; height: 18px; }
+/* The bits of a proof of work that is on, on the pickaxe: the state the label used to say.
+   Over the glyph's lower-right corner with the cell's own fill behind it, so the number
+   stays legible whatever theme paints the button. Anchored from the cell's center and not
+   its edge, so it stays at the glyph in a cell of any width: the tab's cells are wider than
+   the panel's, and an edge anchor left the number floating away from the icon there. */
+.compose-pow-bits {
+  position: absolute; left: calc(50% + 4px); bottom: 3px;
+  padding: 1px 3px; border-radius: 3px;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  color: var(--lav); background: var(--bg-2);
+  pointer-events: none;
+}
+/* Off: a small X in the badge's place, muted, so the button says "nothing mined" without
+   a word. The glyph is drawn, a heavier stroke than the toolbar's 2 because at 7px a
+   2-unit line is a hairline. */
+.compose-pow-bits.off { color: var(--muted); display: flex; align-items: center; padding: 2px; }
+.compose-pow-bits svg { width: 7px; height: 7px; stroke-width: 3.5; display: block; }
 /* AN UPLOAD IN PROGRESS STRIPES THE WHOLE BUTTON. The label's shimmer alone was a band of
    --text across --muted on one 15px word, and the disabled button's dimming took most of
    what was left: on a light theme, where both inks are dark, it could not be seen. The
@@ -3258,8 +3281,10 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 .compose-expand {
   margin-left: auto;
   background: none; border: none; cursor: pointer;
-  color: var(--muted); font-size: 13px; font-weight: 600; padding: 6px 2px 6px 10px;
+  color: var(--muted); padding: 6px 2px 6px 10px;
+  display: inline-flex; align-items: center;
 }
+.compose-expand svg { width: 16px; height: 16px; }
 .compose-expand:hover:not(:disabled) { color: var(--lav); }
 /* 12px padding, a 22px wordmark, 12px padding, 1px rule. Written once because the
    centered card below has to subtract it, and two literals would drift.
@@ -6331,7 +6356,8 @@ button.poll-bar-head {
    one inline control is the close button, an icon in a flex-shrink: 0 slot, so the credit
    beside it is what gives way. The chips wrap onto another line instead of shrinking,
    and the grid scrolls inside the card so the Post button stays where it was. */
-.gif-picker {
+.gif-picker,
+.emoji-picker {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -6342,8 +6368,10 @@ button.poll-bar-head {
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   box-shadow: var(--sheen);
 }
-.gif-picker.hidden { display: none; }
-.gif-head { display: flex; align-items: center; gap: 8px; }
+.gif-picker.hidden,
+.emoji-picker.hidden { display: none; }
+.gif-head,
+.emoji-picker-head { display: flex; align-items: center; gap: 8px; }
 .gif-credit {
   flex: 1;
   min-width: 0;
@@ -6354,7 +6382,8 @@ button.poll-bar-head {
   text-overflow: ellipsis;
 }
 .gif-credit a { color: var(--lav); }
-.gif-x {
+.gif-x,
+.emoji-picker-x {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -6368,10 +6397,21 @@ button.poll-bar-head {
   color: var(--muted);
   cursor: pointer;
 }
-.gif-x:hover { color: var(--text); background: var(--hover-soft); }
-.gif-x svg { width: 15px; height: 15px; }
-.gif-search { padding: 8px 11px; font-size: 14px; }
-.gif-search:focus { outline: none; border-color: var(--gold-soft); }
+.gif-x:hover,
+.emoji-picker-x:hover { color: var(--text); background: var(--hover-soft); }
+.gif-x svg,
+.emoji-picker-x svg { width: 15px; height: 15px; }
+.gif-search,
+.emoji-picker-search { padding: 8px 11px; font-size: 14px; }
+.gif-search:focus,
+.emoji-picker-search:focus { outline: none; border-color: var(--gold-soft); }
+/* THE EMOJI PICKER, in the GIF picker's card. The search field is the one flexible thing
+   in its row, min-width: 0 so it shrinks beside the close button, which keeps its size.
+   The grid and tabs are the reaction picker's own; only the scroller differs, because
+   there it fills a sheet and here it is capped so Post stays where it was. */
+.emoji-picker-search { flex: 1; min-width: 0; }
+.emoji-picker .emoji-tabs { margin: 0; }
+.emoji-picker .emoji-scroll { flex: none; max-height: 220px; }
 .gif-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .gif-chips.hidden { display: none; }
 .gif-chip {

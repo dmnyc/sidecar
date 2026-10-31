@@ -133,9 +133,20 @@ window.SidecarCore = (function () {
     'message-circle': '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
     bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>',
     award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
-    // A frame with a play mark, for the GIF picker: a picture that moves. Its label says
-    // GIF beside it, which is what keeps it from reading as the video placeholder above.
-    gif: '<rect x="2" y="4" width="20" height="16" rx="3"></rect><polygon points="10 9 15 12 10 15 10 9"></polygon>',
+    // The letters G I F, drawn as strokes rather than set in a font: the button has no
+    // label to say what it is, and the old frame-with-a-play-mark read as video. Paths, so
+    // the mark is the same in every theme's typeface and in every language, and narrow
+    // letters so the word fills the 24px grid instead of needing a wider cell.
+    gif: '<path d="M8.2 8C7.6 6.6 6.5 6 5 6 3 6 1.9 7.8 1.9 12s1.1 6 3.1 6c2.1 0 3.4-1.4 3.4-4v-1.3H5.2"></path><path d="M12 6v12"></path><path d="M22.1 6h-5.7v12M16.4 12h4.4"></path>',
+    // Feather's smile: a face, for the Emoji button.
+    smile: '<circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line>',
+    // Four corner brackets, for the panel's Expand button: the frame growing, with no arrow
+    // in it. An arrow reads here as leaving the browser, and the tab it opens is the same
+    // draft with more room.
+    maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path>',
+    // Feather's check-square: a ballot box with its tick, for the Poll button. The bar-chart
+    // below still stands for a poll's results and for votes in the activity list.
+    'check-square': '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
     globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
   };
@@ -903,9 +914,50 @@ window.SidecarCore = (function () {
       }, 0);
     });
 
+    // WHERE THE CARET WAS. A toolbar button takes focus, and the picker it opens takes
+    // it again, so by the time something is chosen the editor has no selection of its
+    // own. The last range seen inside it is kept for insertText to come back to.
+    let lastRange = null;
+    function rememberCaret() {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const r = sel.getRangeAt(0);
+      if (editor.contains(r.startContainer) && editor.contains(r.endContainer)) lastRange = r.cloneRange();
+    }
+    ['keyup', 'mouseup', 'input', 'blur'].forEach((ev) => editor.addEventListener(ev, rememberCaret));
+
+    // Text at the caret, or the end when there is none to return to, with the caret left
+    // after it. A text node rather than execCommand, so the emoji goes in whole, and never
+    // inside a mention pill: a range that sits in one is moved to just after it.
+    function insertText(text) {
+      if (!text) return;
+      editor.focus();
+      let range = lastRange && editor.contains(lastRange.startContainer) && editor.contains(lastRange.endContainer)
+        ? lastRange : null;
+      if (!range) {
+        range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+      const pill = (n) => (n.nodeType === Node.ELEMENT_NODE ? n : n.parentElement)?.closest?.('[data-bech32]');
+      const inside = pill(range.startContainer);
+      if (inside) { range.setStartAfter(inside); range.collapse(true); }
+      range.deleteContents();
+      const node = document.createTextNode(text);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      lastRange = range.cloneRange();
+      emit();
+    }
+
     return {
       wrap,
       editor,
+      insertText,
       getText: () => serializeEditor(editor),
       // Re-read the editor after the caller mutated its DOM directly (e.g.
       // appending an uploaded media URL) so the text, placeholder and any
@@ -2085,10 +2137,40 @@ window.SidecarCore = (function () {
     return list;
   }
 
+  // THE TOOLBAR'S BUTTONS ARE GLYPHS, NOT WORDS. Media, GIF, Emoji, Poll and proof of work
+  // share one row in a 300px sheet, and five worded buttons took two lines of it, with the
+  // longest translation deciding where the break fell. The icon is the control and the name
+  // is its title and its accessible name, which is still a string a translator sees.
+  function composeToolBtn(iconName, label) {
+    const b = h('button', { className: 'mini compose-add compose-add-icon', type: 'button', title: label });
+    b.setAttribute('aria-label', label);
+    b.append(icon(iconName));
+    return b;
+  }
+
+  // The proof-of-work button, for both composers: a pickaxe with its bits as a badge while
+  // it is on, and a small X in the same place while it is off. The badge is what a label
+  // used to be, the state on screen rather than in a tooltip, since one more tap changes
+  // what the post costs. The X is drawn, not typed, so it is the same in every theme's
+  // font. paint(lvl) takes a level from powLevelFor, or null for off.
+  function buildPowButton() {
+    const btn = composeToolBtn('pickaxe', t('Proof of work: off'));
+    const bits = h('span', { className: 'compose-pow-bits' });
+    btn.append(bits);
+    function paint(lvl) {
+      if (lvl) bits.textContent = I18N.fmtNum(lvl.bits);
+      else bits.replaceChildren(icon('x'));
+      bits.classList.toggle('off', !lvl);
+      btn.setAttribute('aria-label', lvl ? t('Proof of work: {{bits}} bits', { bits: lvl.bits }) : t('Proof of work: off'));
+      btn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
+      btn.classList.toggle('compose-add-on', !!lvl);
+    }
+    return { btn, paint };
+  }
+
   function buildPollEditor(d) {
     const pollWrap = h('div', { className: 'poll-editor hidden' });
-    const pollAdd = h('button', { className: 'mini compose-add' });
-    pollAdd.append(icon('bar-chart'), h('span', { textContent: t('Poll') }));
+    const pollAdd = composeToolBtn('check-square', t('Poll'));
     pollAdd.addEventListener('click', () => {
       d.setPoll(newPollDraft());
       paintPoll();
@@ -2417,6 +2499,205 @@ window.SidecarCore = (function () {
     }
   }
 
+  // ---- the emoji table, indexed for searching ----
+  //
+  // 1,914 emoji in nine groups, from the vendored table (emoji-data.js, self.SidecarEmoji).
+  // The reaction picker in the panel and the composers' Emoji button search the one index,
+  // so a word that finds something in one finds it in the other.
+
+  const EMOJI_SEARCH_MAX = 120;
+  const emojiHit = (hay, q) => hay.includes(' ' + q);
+  const emojiQuery = (raw) => raw.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+  // Words no emoji dataset carries, because they are associations rather than
+  // descriptions. Checked before writing this: emojibase tags 🇮🇹 as "IT, flag", 🍝 as
+  // "pasta, meatballs, restaurant" and 🤌 as "gesture, sarcastic, huh" — nothing ties any
+  // of them to Italy, and nothing anywhere says "spock" or "llap". iOS has them because
+  // Apple curates them by hand, and so do we.
+  //
+  // Each line is a decision somebody made, not a claim about what an emoji means. Add a
+  // word the moment you notice yourself typing it and getting nothing.
+  const EMOJI_ALIASES = {
+    spock: ['🖖'],
+    llap: ['🖖'],
+    italian: ['🇮🇹', '🍕', '🍝', '🤌'],
+  };
+
+  // The table, prepared once for searching: name lowercased, aliases folded in.
+  //
+  // THE NAMES ARE NOT ALL LOWERCASE. 338 of the 1,914 carry a capital — every flag is
+  // "flag Italy", "flag Japan" — and the search lowercased only the query, so "ital"
+  // matched nothing while "Ital" matched. Every flag in the picker was unreachable by the
+  // way anyone would actually type it.
+  //
+  // Done at index time rather than per keystroke: the search already runs across the
+  // whole table on a debounce, and lowercasing 1,914 strings on every one of those was
+  // the reason not to fix it in the comparison.
+  let _emojiIndex = null;
+  function emojiGroups() {
+    if (_emojiIndex) return _emojiIndex;
+    const table = self.SidecarEmoji;
+    if (!Array.isArray(table) || !table.length) return null;
+    const extra = new Map();
+    for (const [term, chars] of Object.entries(EMOJI_ALIASES)) {
+      for (const ch of chars) extra.set(ch, (extra.get(ch) || []) + ' ' + term);
+    }
+    // [char, name, haystack] — paintGrid reads the first two and ignores the rest.
+    //
+    // The haystack is the name, the vendored CLDR keywords and any alias, lowercased,
+    // with every run of punctuation flattened to a space and a space in front. That last
+    // detail lets the search match at word starts without a regex per row, and the
+    // punctuation pass is why "eyes" still finds "smiling face with heart-eyes".
+    // Unicode-aware, because "Åland Islands" and "Côte d'Ivoire" are in this table.
+    _emojiIndex = table.map(([group, rows]) => [
+      group,
+      rows.map(([ch, name, keywords]) => [
+        ch,
+        name,
+        ' ' + (name + ' ' + (keywords || '') + (extra.get(ch) || ''))
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, ' '),
+      ]),
+    ]);
+    return _emojiIndex;
+  }
+
+  // THE EMOJI BUTTON'S PICKER, built here so both composers have one, the way the GIF
+  // picker is. It opens under the toolbar like that one does, and for the same reason:
+  // the panel's composer is already a sheet, and a sheet over a sheet would hide the note
+  // the emoji is for.
+  //
+  // One group at a time, for the reason the reaction picker gives: every cell is a real
+  // button, and 1,914 of them is a visible hitch on open. Search reads across all nine.
+  // A pick goes in at the caret and the picker closes.
+  //
+  //   onPick(char)  put it in the editor; the picker closes itself after
+  //
+  // Returns the button for the toolbar, the picker to mount below it, and open/close.
+  function buildEmojiPicker(d) {
+    const groups = emojiGroups();
+    // WITHOUT THE TABLE THERE IS NO BUTTON, the GIF picker's rule: a control that can
+    // only open onto an apology is a control shown to everyone for nothing.
+    const available = !!groups;
+    const addBtn = composeToolBtn('smile', t('Emoji'));
+    addBtn.classList.toggle('hidden', !available);
+    addBtn.setAttribute('aria-expanded', 'false');
+
+    const wrap = h('div', { className: 'emoji-picker hidden' });
+    const closeBtn = h('button', { className: 'emoji-picker-x', type: 'button', title: t('Close emoji search') });
+    closeBtn.setAttribute('aria-label', t('Close emoji search'));
+    closeBtn.append(icon('x'));
+    const input = h('input', {
+      className: 'emoji-picker-search',
+      type: 'search',
+      placeholder: t('Search emoji'),
+      autocomplete: 'off',
+      spellcheck: false,
+    });
+    input.setAttribute('aria-label', t('Search emoji'));
+    const tabs = h('div', { className: 'emoji-tabs' });
+    const grid = h('div', { className: 'emoji-grid' });
+    const scroll = h('div', { className: 'emoji-scroll' }, [grid]);
+    wrap.append(h('div', { className: 'emoji-picker-head' }, [input, closeBtn]), tabs, scroll);
+
+    const pick = (ch) => {
+      d.onPick(ch);
+      close();
+    };
+    function paintGrid(rows) {
+      // A fragment, because appending 388 buttons one at a time reflows 388 times.
+      const frag = document.createDocumentFragment();
+      rows.forEach(([ch, name]) => {
+        const b = h('button', { className: 'emoji-cell', type: 'button', textContent: ch, title: name });
+        b.setAttribute('aria-label', name);
+        // Held on mousedown so the editor's caret is not what the tap takes away.
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => pick(ch));
+        frag.append(b);
+      });
+      grid.replaceChildren(frag);
+      scroll.scrollTop = 0;
+    }
+    let active = 0;
+    function showGroup(i) {
+      active = i;
+      [...tabs.children].forEach((tab, n) => tab.classList.toggle('active', n === i));
+      paintGrid(groups[i][1]);
+    }
+    if (groups) {
+      // Each tab is its group's own first emoji, so nine glyphs never have to be chosen
+      // and kept in step with the table when it is regenerated.
+      groups.forEach((g, i) => {
+        const tab = h('button', {
+          className: 'emoji-tab',
+          type: 'button',
+          textContent: g[1][0] ? g[1][0][0] : '•',
+          title: g[0],
+        });
+        tab.setAttribute('aria-label', g[0]);
+        tab.addEventListener('click', () => { input.value = ''; showGroup(i); });
+        tabs.append(tab);
+      });
+    }
+
+    let searchTimer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      // Debounced: a query runs over every name in the table, and doing that per
+      // keystroke while someone types "party" is five passes for one answer.
+      searchTimer = setTimeout(() => {
+        const q = emojiQuery(input.value);
+        if (!q) { showGroup(active); return; }
+        [...tabs.children].forEach((tab) => tab.classList.remove('active'));
+        const hits = [];
+        for (const [, rows] of groups) {
+          for (const row of rows) {
+            if (emojiHit(row[2], q)) {
+              hits.push(row);
+              if (hits.length >= EMOJI_SEARCH_MAX) break;
+            }
+          }
+          if (hits.length >= EMOJI_SEARCH_MAX) break;
+        }
+        paintGrid(hits);
+        if (!hits.length) grid.append(h('p', { className: 'hint emoji-none', textContent: t('No emoji matches that.') }));
+      }, 120);
+    });
+    wrap.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      // The picker, not the sheet around it: Escape in the panel closes the composer.
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+      d.onClose && d.onClose();
+    });
+
+    const isOpen = () => !wrap.classList.contains('hidden');
+    function open() {
+      if (!available) return;
+      wrap.classList.remove('hidden');
+      addBtn.classList.add('compose-add-on');
+      addBtn.setAttribute('aria-expanded', 'true');
+      // Painted on the first open, not at build: the table is only worth a thousand
+      // buttons to someone who asks for it.
+      if (!grid.childElementCount) showGroup(0);
+      input.focus();
+    }
+    function close() {
+      clearTimeout(searchTimer);
+      wrap.classList.add('hidden');
+      addBtn.classList.remove('compose-add-on');
+      addBtn.setAttribute('aria-expanded', 'false');
+    }
+    addBtn.addEventListener('click', () => (isOpen() ? close() : open()));
+    closeBtn.addEventListener('click', () => {
+      close();
+      addBtn.focus();
+    });
+
+    return { addBtn, wrap, open, close, isOpen, available };
+  }
+
   // THE GIF PICKER, built here so both composers have one, the way the poll editor is.
   //
   // It opens under the toolbar rather than over the composer: the panel's composer is
@@ -2434,8 +2715,8 @@ window.SidecarCore = (function () {
     // does nothing, shown to everyone. The callers that show and hide it with the poll
     // and the preview check this too, so nothing brings it back.
     const available = !!GIF_API_KEY;
-    const addBtn = h('button', { className: 'mini compose-add' + (available ? '' : ' hidden'), type: 'button' });
-    addBtn.append(icon('gif'), h('span', { textContent: t('GIF') }));
+    const addBtn = composeToolBtn('gif', t('GIF'));
+    addBtn.classList.toggle('hidden', !available);
     addBtn.setAttribute('aria-expanded', 'false');
 
     const wrap = h('div', { className: 'gif-picker hidden' });
@@ -3488,6 +3769,7 @@ window.SidecarCore = (function () {
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
+    emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX, buildEmojiPicker, composeToolBtn, buildPowButton,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
