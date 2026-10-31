@@ -116,50 +116,15 @@ vm.runInContext(
 const { PANEL_ZOOM_STOPS, PANEL_ZOOM_DEFAULT, panelZoomPercent, panelZoomIndex, applyPanelZoom,
         PANEL_NARROW_PX, effectivePanelWidth, updatePanelNarrow, __document, __window, __els } = ctx;
 
-test('SIX STOPS, AND 100 IS ONE OF THEM', () => {
-  assert.deepEqual([...PANEL_ZOOM_STOPS], [80, 90, 100, 110, 125, 150], 'the stops moved');
-  assert.equal(PANEL_ZOOM_DEFAULT, 100);
-  assert.ok(PANEL_ZOOM_STOPS.includes(PANEL_ZOOM_DEFAULT), 'the default is a stop, not a wish');
-});
-
-test('THE SLIDER INDEX READS AS A PERCENT, AND GARBAGE WEARS THE DEFAULT', () => {
-  assert.equal(panelZoomPercent(0), 80);
-  assert.equal(panelZoomPercent(2), 100);
-  assert.equal(panelZoomPercent(5), 150);
-  // slider.value is a string; the mapping takes it as it comes.
-  assert.equal(panelZoomPercent('4'), 125);
-  // Half a step rounds to the nearer stop, like the thumb does.
-  assert.equal(panelZoomPercent(1.4), 90);
-  assert.equal(panelZoomPercent(1.5), 100);
-  // Out of range is the default, never a made-up stop.
-  assert.equal(panelZoomPercent(-1), 100);
-  assert.equal(panelZoomPercent(6), 100);
-  assert.equal(panelZoomPercent('spin'), 100);
-});
-
-test('A STORED PERCENT SNAPS TO ITS NEAREST STOP', () => {
-  assert.equal(panelZoomIndex(80), 0);
-  assert.equal(panelZoomIndex(100), 2);
-  assert.equal(panelZoomIndex(150), 5);
-  assert.equal(panelZoomIndex(120), 4, '120 is five from 125 and ten from 110');
-  // A dead tie goes to the lower stop. Nobody stores 95 by choice; nobody should land
-  // on 110 by accident of rounding either.
-  assert.equal(panelZoomIndex(95), 1);
-  // Absent setting, or a stored null: the default, not stop zero.
-  assert.equal(panelZoomIndex(undefined), 2);
-  assert.equal(panelZoomIndex(null), 2);
-  assert.equal(panelZoomIndex('spin'), 2);
-});
-
 test('ZOOM SETS THE BODY, PUBLISHES ITS FACTOR, AND 100 LEAVES NOTHING BEHIND', () => {
-  applyPanelZoom(125);
-  assert.equal(ctx.document.body.style.zoom, '1.25');
-  assert.equal(ctx.document.documentElement.style['--panel-zoom'], '1.25',
+  applyPanelZoom(120);
+  assert.equal(ctx.document.body.style.zoom, '1.2');
+  assert.equal(ctx.document.documentElement.style['--panel-zoom'], '1.2',
     'viewport units divide by this');
   applyPanelZoom(80);
   assert.equal(ctx.document.body.style.zoom, '0.8');
-  applyPanelZoom(150);
-  assert.equal(ctx.document.body.style.zoom, '1.5');
+  applyPanelZoom(110);
+  assert.equal(ctx.document.body.style.zoom, '1.1');
   applyPanelZoom(100);
   assert.equal(ctx.document.body.style.zoom, '', 'the default panel carries no inline zoom');
   assert.ok(!('--panel-zoom' in ctx.document.documentElement.style), 'and the divisor goes with it');
@@ -181,52 +146,209 @@ test('EVERY VIEWPORT UNIT DIVIDES BY THE PUBLISHED ZOOM', () => {
 
 // ---- the wiring, against the source ---------------------------------------------
 
-test('THE CONTROL SITS IN APPEARANCE, LABELED AND SELF-DESCRIBING', () => {
+// ---- the stops and the stepper ----------------------------------------------------
+
+test('FIVE STOPS, 80 TO 120, AND 100 IS ONE OF THEM', () => {
+  assert.deepEqual([...PANEL_ZOOM_STOPS], [80, 90, 100, 110, 120], 'the stops moved');
+  assert.equal(PANEL_ZOOM_DEFAULT, 100);
+  assert.ok(PANEL_ZOOM_STOPS.includes(PANEL_ZOOM_DEFAULT), 'the default is a stop, not a wish');
+  // The ceiling is a decision: a narrow panel cannot hold the content at 125 or 150, and
+  // rows that fit at 100 clipped, wrapped mid-word or overflowed there.
+  assert.ok(Math.max(...PANEL_ZOOM_STOPS) <= 120, 'nothing above 120');
+});
+
+test('A STOP INDEX READS AS A PERCENT, AND GARBAGE WEARS THE DEFAULT', () => {
+  assert.equal(panelZoomPercent(0), 80);
+  assert.equal(panelZoomPercent(2), 100);
+  assert.equal(panelZoomPercent(4), 120);
+  assert.equal(panelZoomPercent('3'), 110, 'a string index is read as the number it is');
+  assert.equal(panelZoomPercent(1.4), 90);
+  assert.equal(panelZoomPercent(1.5), 100);
+  // Out of range is the default, never a made-up stop.
+  assert.equal(panelZoomPercent(-1), 100);
+  assert.equal(panelZoomPercent(5), 100);
+  assert.equal(panelZoomPercent('spin'), 100);
+});
+
+test('A STORED PERCENT SNAPS TO ITS NEAREST STOP', () => {
+  assert.equal(panelZoomIndex(80), 0);
+  assert.equal(panelZoomIndex(100), 2);
+  assert.equal(panelZoomIndex(120), 4);
+  assert.equal(panelZoomIndex(150), 4, 'above the ceiling is the ceiling');
+  assert.equal(panelZoomIndex(50), 0, 'and below the floor is the floor');
+  // A dead tie goes to the lower stop: nobody should land on a larger size by an accident
+  // of rounding.
+  assert.equal(panelZoomIndex(95), 1);
+  assert.equal(panelZoomIndex(105), 2);
+  // Absent, null or not a number: the default, not stop zero.
+  assert.equal(panelZoomIndex(undefined), 2);
+  assert.equal(panelZoomIndex(null), 2);
+  assert.equal(panelZoomIndex('spin'), 2);
+});
+
+// ---- the control, against the markup ---------------------------------------------
+
+test('THE STEPPER SITS IN APPEARANCE, FIRST, LABELED AND SELF-DESCRIBING', () => {
   const at = html.indexOf('id="panel-zoom-setting"');
   assert.ok(at > -1, 'the setting block exists');
   const sectionAt = html.indexOf('data-section="appearance"');
   const sectionEnd = html.indexOf('</section>', sectionAt);
   assert.ok(at > sectionAt && at < sectionEnd, 'and it lives in the Appearance section');
-  // FIRST in the section, not last: the control you reach for when the panel is
-  // unusable must not sit below a scroll of everything it makes unusable.
+  // FIRST in the section: the control you reach for when the panel is unusable must not
+  // sit below a scroll of everything it makes unusable.
   const langAt = html.indexOf('id="language-setting"');
   assert.ok(langAt > -1 && at < langAt, 'it opens the section, ahead of Language');
   const block = html.slice(html.lastIndexOf('<div class="setting"', at), sectionEnd);
   assert.match(block, /<h3 data-i18n="Panel zoom">Panel zoom<\/h3>/);
   assert.match(block, /data-i18n="Make everything in the panel larger or smaller\."/);
-  assert.match(block, /id="panel-zoom-slider" class="zoom-input" min="0" max="5" step="1"/);
-  assert.match(block, /aria-label="Panel zoom" data-i18n-aria-label="Panel zoom"/);
-  assert.match(block, /class="zoom-track"/, 'the drawn track');
-  assert.match(block, /class="zoom-thumb"/, 'the drawn thumb');
-  assert.match(block, /class="zoom-input"/, 'the real control, transparent on top');
-  assert.match(block, /id="panel-zoom-value"/, 'the percent readout');
+  assert.match(block, /role="group" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom"/);
+  // Three controls, each named for a screen reader through the translation table.
+  for (const [id, label] of [['panel-zoom-down', 'Smaller'], ['panel-zoom-up', 'Larger'], ['panel-zoom-reset', 'Reset to 100%']]) {
+    const i = block.indexOf('id="' + id + '"');
+    assert.ok(i > -1, id + ' exists');
+    const tag = block.slice(block.lastIndexOf('<button', i), block.indexOf('>', i));
+    assert.match(tag, new RegExp('aria-label="' + label + '"'), id + ' is named');
+    assert.match(tag, new RegExp('data-i18n-aria-label="' + label + '"'), id + ' is named through i18n');
+  }
+  // Down is the minus, up is the plus, and the glyphs are drawn, so no font decides them.
+  assert.match(block, /id="panel-zoom-down"[\s\S]*?<line x1="5" y1="12" x2="19" y2="12"><\/line>[\s\S]*?<\/button>/);
+  assert.match(block, /id="panel-zoom-up"[\s\S]*?<line x1="12" y1="5" x2="12" y2="19"><\/line>/);
+  // Nothing of the earlier controls is left behind.
+  assert.doesNotMatch(block, /type="range"|zoom-slider|zoom-track|zoom-thumb|zoom-input|zoom-stop\b|zoom-stops/);
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(css, /\.zoom-(slider|track|thumb|input|stop|stops|row|value|reset)\b/, 'dead rules for controls that are gone');
+  assert.match(css, /\.zoom-stepper \{[^}]*display: flex/);
+  assert.match(css, /\.zoom-step \{[^}]*flex: 0 0 44px/, 'the ends are fixed cells; the readout takes the rest');
+  assert.match(css, /\.zoom-readout\.is-changed \{/, 'the readout wears the accent off 100');
 });
 
-test('PERSISTED ON RELEASE, NOT ON EVERY TICK OF THE DRAG', () => {
+// ---- the control, run -------------------------------------------------------------
+
+// The REAL stepper code, lifted out of initPanelZoom and run against stand-in elements.
+// A source match here would pass on a stepper whose buttons did nothing: that is the
+// failure the six-button version had, where every tap read its stop's percent as an index.
+function runStepper(stored) {
   const fn = liftFn('function initPanelZoom(');
-  const input = fn.slice(fn.indexOf("addEventListener('input'"), fn.indexOf("addEventListener('change'"));
-  assert.match(input, /paint\(panelZoomPercent\(slider\.value\)\)/, 'input only paints');
-  assert.doesNotMatch(input, /SIDECAR_SET_SETTINGS/, 'a drag would be dozens of writes');
-  assert.match(fn, /SIDECAR_SET_SETTINGS/, 'the write happens on release');
-  assert.match(fn, /panelZoom: pct/, 'under the settings key the issue named');
+  const body = fn.slice(fn.indexOf("const down = $('panel-zoom-down');"), fn.lastIndexOf('}'));
+  class El {
+    constructor() { this.listeners = {}; this.disabled = false; this.textContent = ''; this.classes = new Set(); }
+    get classList() { return { toggle: (c, on) => (on ? this.classes.add(c) : this.classes.delete(c)), contains: (c) => this.classes.has(c) }; }
+    addEventListener(type, f) { this.listeners[type] = f; }
+    click() { if (!this.disabled && this.listeners.click) this.listeners.click(); }
+  }
+  const els = { 'panel-zoom-down': new El(), 'panel-zoom-up': new El(), 'panel-zoom-reset': new El() };
+  const saved = [];
+  const doc = { body: { style: {} }, documentElement: { style: { setProperty(k, v) { this[k] = v; }, removeProperty(k) { delete this[k]; } } } };
+  const c = {
+    document: doc, Promise, Number, String, Math, Intl,
+    $: (id) => els[id],
+    updatePanelNarrow() {},
+    I18N: { fmtNum: (n, o) => new Intl.NumberFormat('en', o).format(n) },
+    call: async (m) => {
+      if (m.type === 'SIDECAR_SET_SETTINGS') { saved.push(m.settings.panelZoom); return {}; }
+      if (stored === 'fail') throw new Error('Request failed');
+      return { panelZoom: stored };
+    },
+  };
+  vm.createContext(c);
+  vm.runInContext([
+    liftLine('const PANEL_ZOOM_STOPS = '), liftLine('const PANEL_ZOOM_DEFAULT = '),
+    liftFn('function panelZoomPercent('), liftFn('function panelZoomIndex('), liftFn('function applyPanelZoom('),
+    'globalThis.start = () => {' + body + '};',
+  ].join('\n'), c);
+  c.start();
+  return { els, saved, doc, down: els['panel-zoom-down'], up: els['panel-zoom-up'], readout: els['panel-zoom-reset'] };
+}
+const settle = () => new Promise((r) => setTimeout(r, 0));
+
+test('THE STEPPER STEPS, STOPS AT BOTH ENDS, AND WRITES ONCE PER TAP', async () => {
+  const s = runStepper(undefined);
+  await settle();
+  assert.equal(s.readout.textContent, '100%');
+  assert.equal(s.doc.body.style.zoom, '', 'nothing stored, nothing applied');
+  assert.ok(!s.readout.classes.has('is-changed'), 'plain at the default');
+  assert.ok(!s.down.disabled && !s.up.disabled);
+
+  s.up.click();
+  assert.equal(s.readout.textContent, '110%');
+  assert.equal(s.doc.body.style.zoom, '1.1');
+  s.up.click();
+  assert.equal(s.readout.textContent, '120%');
+  assert.ok(s.up.disabled, 'the + goes off at the ceiling');
+  s.up.click(); // a tap on the disabled end does nothing
+  assert.equal(s.readout.textContent, '120%');
+  assert.deepEqual(s.saved, [110, 120], 'one write per step, none for the refused tap');
+  assert.ok(s.readout.classes.has('is-changed'));
+
+  for (let i = 0; i < 5; i++) s.down.click();
+  assert.equal(s.readout.textContent, '80%');
+  assert.equal(s.doc.body.style.zoom, '0.8');
+  assert.ok(s.down.disabled, 'the - goes off at the floor');
+  assert.deepEqual(s.saved, [110, 120, 110, 100, 90, 80]);
 });
 
-test('HIDDEN WHERE ZOOM WOULD DO NOTHING, APPLIED FROM STORAGE AT BOOT', () => {
-  const fn = liftFn('function initPanelZoom(');
-  assert.match(fn, /CSS\.supports\('zoom', '1'\)/, 'the feature-detect the issue asked for');
-  const gate = fn.indexOf('CSS.supports');
-  const hide = fn.indexOf("setting.classList.add('hidden')");
-  assert.ok(gate > -1 && hide > gate, 'the block hides only where zoom would do nothing');
-  assert.match(fn, /SIDECAR_GET_SETTINGS/, 'restored from sidecar_settings');
-  assert.match(fn, /panelZoomIndex\(settings && settings\.panelZoom\)/);
-  assert.match(bare, /initPanelZoom\(\);/, 'wired once at boot');
-  assert.match(bare, /value\.textContent = I18N\.fmtNum\(pct, \{ style: 'unit', unit: 'percent' \}\)/,
-    'the readout is a formatted number, not a glued string');
-  assert.match(bare, /wrap\.style\.setProperty\('--zoom-fill'/, 'and the drawn track fills to the thumb');
-  assert.match(bare, /wrap\.style\.setProperty\('--zoom-frac'/, 'and the thumb rides the same fraction');
+test('THE READOUT IS THE RESET: ONE TAP TO 100, AND NOTHING AT 100', async () => {
+  const s = runStepper(undefined);
+  await settle();
+  s.readout.click();
+  assert.deepEqual(s.saved, [], 'at 100 there is nothing to reset, so nothing is written');
+  s.up.click(); s.up.click();
+  s.readout.click();
+  assert.equal(s.readout.textContent, '100%');
+  assert.equal(s.doc.body.style.zoom, '', 'back to a panel with no inline zoom');
+  assert.ok(!s.readout.classes.has('is-changed'));
+  assert.deepEqual(s.saved, [110, 120, 100]);
 });
 
-// ---- the narrow collapse (issue review: at 150% the rows clipped) ----------------
+test('THE STORED SIZE IS RESTORED, SNAPPED, AND A FAILED READ STILL SHOWS 100', async () => {
+  let s = runStepper(110); await settle();
+  assert.equal(s.readout.textContent, '110%'); assert.equal(s.doc.body.style.zoom, '1.1');
+  s = runStepper(150); await settle();
+  assert.equal(s.readout.textContent, '120%', 'a value above the ceiling snaps to it');
+  assert.ok(s.up.disabled);
+  s = runStepper('spin'); await settle();
+  assert.equal(s.readout.textContent, '100%');
+  s = runStepper('fail'); await settle();
+  assert.equal(s.readout.textContent, '100%', 'the readout is never blank while the read is lost');
+  assert.deepEqual(s.saved, [], 'restoring writes nothing');
+});
+
+// ---- what zoom exposed ------------------------------------------------------------
+//
+// Each of these was a layout that held at 100% and broke at the larger sizes, and each
+// belongs in a narrow panel at any zoom. They were measured in a browser; these keep the
+// rules from being edited away.
+
+test('RELAY RIDER IGNORES PANEL ZOOM', () => {
+  // The game sizes itself from its frame, and the frame sits inside the zoomed body: it saw
+  // two thirds of the window at 150 and picked a pixel scale to match, then got stretched.
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\.rider-overlay \{[^}]*zoom: calc\(1 \/ var\(--panel-zoom, 1\)\)/);
+});
+
+test('OVERVIEW VALUES SHRINK AT THE END, AND THE WALLET BADGES STACK WHOLE', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  // A bare text node in the right-aligned flex row spilled off the left edge: "el@sidecar.top".
+  assert.match(css, /\.account-stat-id-text \{[^}]*min-width: 0[^}]*text-overflow: ellipsis[^}]*white-space: nowrap/);
+  assert.match(bare, /h\('span', \{ className: 'account-stat-id-text', textContent: nip05, title: nip05 \}\)/);
+  assert.match(bare, /h\('span', \{ className: 'account-stat-id-text', textContent: content\.lud16, title: content\.lud16 \}\)/);
+  assert.match(css, /\.wallet-status \{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.wallet-badge \{[^}]*white-space: nowrap/);
+});
+
+test('A SIGNING ROW\u2019S HOST AND AGE WRAP AS PIECES, AND THE WALLET RANGE AS FIGURES', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(bare, /function actSub\(host, ts\)/);
+  assert.equal((bare.match(/actSub\(/g) || []).length, 3, 'defined once, used by both rows');
+  assert.match(css, /\.act-sub \{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.act-host \{[^}]*text-overflow: ellipsis/);
+  assert.match(css, /\.wallet-chart-meta \{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.wallet-chart-meta > span \{ white-space: nowrap; \}/);
+  assert.match(css, /\.relay-add-confirm-actions \{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.relay-add-confirm-actions button \{ min-width: max-content; white-space: nowrap; \}/);
+});
+
+// ---- the narrow collapse (at 150% the rows clipped; the ceiling is 120 now, the collapse stays) ----
 
 test('NARROW IS JUDGED ON THE WIDTH THE CONTENT ACTUALLY HAS', () => {
   assert.equal(PANEL_NARROW_PX, 340);
@@ -369,43 +491,6 @@ test('FOLDING IS IDEMPOTENT, AND A SECOND ROUND TRIP STILL RESTORES', () => {
   __document.body.style.zoom = '1.5'; updatePanelNarrow();
   assert.equal(__els['stream-entry'].parentElement, __els['topbar-more-menu'], 'folds again cleanly');
   __document.body.style.zoom = ''; updatePanelNarrow();
-});
-
-test('RESET IS ONE TAP TO 100%, AND ONLY OFFERED WHEN YOU ARE NOT THERE', () => {
-  const fn = liftFn('function initPanelZoom(');
-  assert.match(fn, /reset\.disabled = pct === PANEL_ZOOM_DEFAULT;/, 'disabled at the default, live with every paint');
-  const click = fn.slice(fn.indexOf("reset.addEventListener('click'"));
-  assert.match(click, /slider\.value = String\(panelZoomIndex\(PANEL_ZOOM_DEFAULT\)\)/, 'the thumb goes to the middle stop');
-  assert.match(click, /commit\(panelZoomPercent\(slider\.value\)\)/, 'and it persists exactly as a drag would');
-  // The drag's release and the reset share one commit path: same paint, same write.
-  const change = fn.slice(fn.indexOf("addEventListener('change'"));
-  assert.match(change, /commit\(panelZoomPercent\(slider\.value\)\)/);
-  const at = html.indexOf('id="panel-zoom-reset"');
-  assert.ok(at > -1, 'the button exists');
-  const btn = html.slice(html.lastIndexOf('<button', at), html.indexOf('</button>', at) + 9);
-  // An icon is the one label that never needs translating: no data-i18n on purpose,
-  // the English title and aria-label are the whole text of it.
-  assert.doesNotMatch(btn, /data-i18n/);
-  assert.match(btn, /title="Reset" aria-label="Reset"/);
-  assert.match(btn, /<svg[^>]*><polyline points="1 4 1 10 7 10"/, 'Feather\u2019s rotate-ccw');
-  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  assert.match(css, /\.zoom-reset \{/);
-  assert.match(css, /\.zoom-reset:disabled/);
-  // A drag on the thumb must never scroll the section out from under it.
-  assert.match(css, /\.zoom-input \{[^}]*touch-action: none/);
-  // The slider is drawn from plain boxes: Chrome's native range track misrenders its
-  // width under CSS zoom (the bar stopped short of the element at every stop but
-  // 100%), and the thumb's centering drifted besides. The real input is transparent
-  // on top for behavior; nothing below is a pseudo-element for a version to relayout.
-  assert.match(css, /\.zoom-slider \{ position: relative; flex: 1; min-width: 0; height: 18px; \}/);
-  assert.match(css, /\.zoom-track \{[^}]*--zoom-fill/);
-  assert.match(css, /\.zoom-thumb \{[^}]*left: calc\(9px \+ \(100% - 18px\) \* var\(--zoom-frac, 0\.5\)\);\r?\n \s*\}?|\.zoom-thumb \{[^}]*--zoom-frac/);
-  assert.doesNotMatch(css, /webkit-slider-runnable-track/, 'no native slider internals left');
-  // No text-field costume: the global input rule's border, field background and gold
-  // focus ring all landed on the slider and read as a pill around the bar.
-  assert.match(css, /\.zoom-input \{[^}]*opacity: 0[^}]*touch-action: none/, 'the input is behavior only');
-  assert.match(css, /\.zoom-slider:focus-within \{ outline: 2px solid var\(--lav\)/,
-    'keyboard users keep an indicator');
 });
 
 test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => {

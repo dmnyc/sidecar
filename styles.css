@@ -1203,6 +1203,13 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
    only the second line of defense behind that. */
 .rider-overlay {
   position: fixed; inset: 0; z-index: 95; background: #0e0e14; display: flex;
+  /* THE GAME IS NOT PANEL CONTENT, SO PANEL ZOOM DOES NOT APPLY TO IT. The body's zoom
+     scales this overlay with everything else, and the game sizes itself from its frame:
+     at 150% the frame reported two thirds of the real width, the game picked a smaller
+     pixel scale to fit, and the browser then stretched that by 1.5, so its pixel art was
+     resampled and its close button was placed in the wrong units. Zoom multiplies down the
+     tree, so the reciprocal takes this subtree back to 1 and the game sees the real window. */
+  zoom: calc(1 / var(--panel-zoom, 1));
   /* It arrives rather than appearing: a short rise and a fade, opening slower than it
      closes.
 
@@ -1707,13 +1714,23 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   gap: 4px;
 }
 .account-stat-id-val .nip05-badge { display: inline-flex; flex-shrink: 0; }
+/* THE VALUE'S TEXT IS ITS OWN SHRINKABLE ITEM. The row is a right-aligned flex box, and a
+   bare text node in one cannot take an ellipsis: when the value was wider than the room, it
+   spilled off the LEFT edge and was clipped there, so "daniel@sidecar.top" read as
+   "niel@sidecar.top". As an item with min-width: 0 it gives way and ends in an ellipsis,
+   which is the panel's rule for prose in a row. The full value is its title. */
+.account-stat-id-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-stat-id-val .nip05-badge svg { width: 12px; height: 12px; }
 /* Wallet status badges with colored check/X */
 .wallet-status {
-  gap: 10px;
+  gap: 2px 10px;
   white-space: normal;
+  /* Two badges that do not fit side by side stack, each whole, rather than one breaking
+     mid-phrase ("Backed" / "up") and the other being clipped. */
+  flex-wrap: wrap;
 }
 .wallet-badge {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2233,38 +2250,25 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* PANEL ZOOM (issue #565). The slider snaps to six stops and the readout carries the
    percent, so the value is text and gets tabular figures like every other number. */
-.zoom-row { display: flex; align-items: center; gap: 10px; }
-/* The slider is drawn from plain boxes, not the platform's slider internals: Chrome's
-   native track misrenders its width under CSS zoom (the bar stopped short of the
-   element at every stop but 100%), and the thumb's vertical centering drifted with
-   the same clock. The real <input type=range> stays — drag, keyboard, screen readers
-   — painted transparent on top; the drawn boxes are positioned by paint() through
-   --zoom-fill (the gradient's fill point) and --zoom-frac (the thumb's position), so
-   there is nothing here for a browser version to lay out differently. */
-.zoom-slider { position: relative; flex: 1; min-width: 0; height: 18px; }
-.zoom-track {
-  position: absolute; inset: 0; border-radius: 3px;
-  background: linear-gradient(90deg, var(--orange) var(--zoom-fill, 50%), var(--hover-medium) var(--zoom-fill, 50%)) no-repeat center / 100% 6px;
+/* Six labeled buttons, not a slider: the stops were always the whole control, and
+   buttons are boxes that every browser lays out identically at every zoom. They wrap
+   rather than clip at narrow widths. The worn stop is outlined in gold. */
+/* Smaller, the size, larger: three equal-height controls in a row. The ends are icon
+   buttons of one width and the readout takes the rest, so "100%" never decides the layout.
+   The readout is the reset: it reads as a plain field at 100 and picks up the accent when
+   the panel is at another size, which is when tapping it does something. */
+.zoom-stepper { display: flex; align-items: stretch; gap: 6px; }
+.zoom-step, .zoom-readout {
+  height: 36px; border: 1px solid var(--border); background: transparent; color: var(--text);
+  font-family: inherit; cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
-.zoom-thumb {
-  position: absolute; top: 0; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--orange); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-  left: calc(9px + (100% - 18px) * var(--zoom-frac, 0.5));
-}
-.zoom-input {
-  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
-  opacity: 0; cursor: pointer; touch-action: none;
-}
-.zoom-slider:focus-within { outline: 2px solid var(--lav); outline-offset: 2px; }
-.zoom-value { flex-shrink: 0; min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
-.zoom-reset {
-  flex-shrink: 0; border: none; background: none; padding: 5px;
-  color: var(--muted); cursor: pointer; border-radius: 8px;
-  transition: color 0.15s, background 0.15s;
-}
-.zoom-reset svg { width: 14px; height: 14px; display: block; }
-.zoom-reset:hover { color: var(--lav); background: var(--hover-medium); }
-.zoom-reset:disabled { opacity: 0.45; cursor: default; background: none; }
+.zoom-step { flex: 0 0 44px; display: flex; align-items: center; justify-content: center; border-radius: 8px; padding: 0; }
+.zoom-step svg { width: 16px; height: 16px; }
+.zoom-readout { flex: 1; min-width: 0; border-radius: 8px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); cursor: default; }
+.zoom-readout.is-changed { color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold)); border-color: var(--accent-fill, var(--gold)); cursor: pointer; }
+.zoom-step:hover:not(:disabled) { border-color: var(--border-strong); }
+.zoom-step:disabled { opacity: 0.4; cursor: default; }
 /* Two switches under one heading (Wallet & payments' hide-balances pair, where the
    second qualifies the first) — the row carries no vertical margin of its own, so
    stacked ones would sit flush. Matched to the row's own 9px gap. */
@@ -2670,8 +2674,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    .site-controls use; it never sits beside the input, which is too narrow to share. */
 .relay-add-confirm { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin: 8px 0 4px; }
 .relay-add-confirm .confirm-msg { flex: none; }
-.relay-add-confirm-actions { display: flex; gap: 8px; }
+.relay-add-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Each answer keeps its label whole. When the two do not fit side by side the second takes
+   its own full-width line, instead of "Add anyway" breaking into two lines inside a tall
+   button. */
 .relay-add-confirm-actions button { flex: 1; }
+.relay-add-confirm-actions button { min-width: max-content; white-space: nowrap; }
 .level-select {
   width: auto;
   flex-shrink: 0;
@@ -2749,6 +2757,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* signing activity rows */
 .activity-item { gap: 11px; }
+/* The host and the age are one short line of data, and the shared .item-sub rule breaks
+   anywhere so a long npub cannot overflow. Here that cut "jumble.social" in half. They are
+   two pieces now (actSub in sidepanel.js): side by side when they fit, the age under the host
+   when they do not, and the host alone ends in an ellipsis only if it is wider than the row. */
+.act-sub { display: flex; flex-wrap: wrap; column-gap: 0.7ch; word-break: normal; }
+.act-host { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-when { white-space: nowrap; }
 .act-icon {
   flex-shrink: 0;
   width: 32px;
@@ -3968,9 +3983,12 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .wallet-chart.is-loading .wallet-chart-plot,
 .wallet-chart.is-loading .wallet-chart-meta { opacity: 0.4; transition: opacity 0.15s; }
 .wallet-chart-meta {
-  display: flex; align-items: baseline; gap: 8px; justify-content: center;
+  /* Three figures that wrap as whole figures: "▲ 0.94%" and a price range are not
+     breakable phrases, so a narrow card puts one on the next line, centered. */
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; justify-content: center;
   font-family: var(--font-ui); font-size: 11.5px; color: var(--muted); margin-top: 2px;
 }
+.wallet-chart-meta > span { white-space: nowrap; }
 .wallet-chart-delta.up { color: var(--success); }
 .wallet-chart-delta.down { color: var(--red); }
 .wallet-chart-price { color: var(--text-2); font-variant-numeric: tabular-nums; }

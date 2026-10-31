@@ -450,22 +450,16 @@
           <div class="setting" id="panel-zoom-setting">
             <h3 data-i18n="Panel zoom">Panel zoom</h3>
             <p class="hint" data-i18n="Make everything in the panel larger or smaller.">Make everything in the panel larger or smaller.</p>
-            <div class="zoom-row">
-              <div class="zoom-slider">
-                <div class="zoom-track"></div>
-                <div class="zoom-thumb"></div>
-                <!-- The real control: a native range kept for drag, keyboard and screen
-                     reader behavior, painted transparent over the drawn track and thumb.
-                     The drawn parts are plain boxes positioned by paint(), so no browser
-                     version's slider internals can shift them. -->
-                <input type="range" id="panel-zoom-slider" class="zoom-input" min="0" max="5" step="1" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom" />
-              </div>
-              <output class="zoom-value" id="panel-zoom-value" for="panel-zoom-slider">100%</output>
-              <!-- Feather's rotate-ccw: the standard reset glyph, and a picture is the
-                   one label that never needs translating. Title and aria-label stay
-                   English on purpose. -->
-              <button type="button" class="zoom-reset" id="panel-zoom-reset" title="Reset" aria-label="Reset">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+            <!-- Smaller, the current size, larger: a stepper over five stops, 80 to 120. The
+               middle button is the reset. A slider was geometry to fight at this width, six
+               stops did not fit it, and 150 percent was more than a narrow panel can hold. -->
+            <div class="zoom-stepper" role="group" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom">
+              <button type="button" class="zoom-step" id="panel-zoom-down" aria-label="Smaller" title="Smaller" data-i18n-aria-label="Smaller" data-i18n-title="Smaller">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+              <button type="button" class="zoom-readout" id="panel-zoom-reset" aria-label="Reset to 100%" title="Reset to 100%" data-i18n-aria-label="Reset to 100%" data-i18n-title="Reset to 100%">100%</button>
+              <button type="button" class="zoom-step" id="panel-zoom-up" aria-label="Larger" title="Larger" data-i18n-aria-label="Larger" data-i18n-title="Larger">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               </button>
             </div>
           </div>

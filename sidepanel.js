@@ -9898,7 +9898,7 @@
         // domain without exposing a handle. Display the bare domain.
         const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
         const badge = h('span', { className: 'nip05-badge' });
-        nip05Val.append(badge, document.createTextNode(nip05));
+        nip05Val.append(badge, h('span', { className: 'account-stat-id-text', textContent: nip05, title: nip05 }));
         const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
           badge.innerHTML = '';
           paintNip05Badge(badge, res, paint);
@@ -9915,7 +9915,7 @@
       if (content.lud16) {
         const ok = icon('check');
         ok.classList.add('stat-mini-ok');
-        lud16Val.append(ok, document.createTextNode(content.lud16));
+        lud16Val.append(ok, h('span', { className: 'account-stat-id-text', textContent: content.lud16, title: content.lud16 }));
       } else {
         lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
       }
@@ -12126,6 +12126,17 @@
     1, 6, 7, 16, 20, 21, 22, 1068, 1111, 1222, 1244, 9802, 30023, 30311, 34235, 34236, 34550, 39089,
   ]);
 
+
+  // The host and how long ago, as two pieces that wrap as pieces. One string with a
+  // break-anywhere rule cut "jumble.social" in half in a narrow panel; as two spans the
+  // age drops to its own line when the pair does not fit, and only a host that is wider than
+  // the whole row is shortened, with an ellipsis.
+  function actSub(host, ts) {
+    return h('div', { className: 'item-sub act-sub' }, [
+      h('span', { className: 'act-host', textContent: host }),
+      h('span', { className: 'act-when', textContent: '· ' + relTime(ts) }),
+    ]);
+  }
   function activityRow(e) {
     // A request Sidecar refused on shape (see normalizeSignEventParams in
     // background.js) never reached the key, so it must not borrow METHOD_META's
@@ -12139,7 +12150,7 @@
       iconBox.appendChild(icon('alert'));
       const main = h('div', { className: 'item-main' }, [
         h('div', { className: 'item-label', textContent: 'Refused an unreadable signing request' }),
-        h('div', { className: 'item-sub', textContent: (e.host || '') + ' · ' + relTime(e.ts) }),
+        actSub(e.host || '', e.ts),
         h('div', { className: 'item-sub', textContent: String(e.rejected).replace(/^signEvent: /, '') }),
       ]);
       if (e.shape) {
@@ -12157,7 +12168,7 @@
     iconBox.appendChild(icon(iconName || 'feather'));
     const main = h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: meta.label(e) }),
-      h('div', { className: 'item-sub', textContent: e.host + ' · ' + relTime(e.ts) }),
+      actSub(e.host, e.ts),
     ]);
     row.append(iconBox, main);
 
@@ -25408,7 +25419,7 @@
   // stored value that always means one of them. CSS zoom is standard since 2024
   // (Chrome 128+, Firefox 126+); where the browser is older the control hides, because
   // a slider that changes nothing reads as broken.
-  const PANEL_ZOOM_STOPS = [80, 90, 100, 110, 125, 150];
+  const PANEL_ZOOM_STOPS = [80, 90, 100, 110, 120];
   const PANEL_ZOOM_DEFAULT = 100;
 
   function panelZoomPercent(index) {
@@ -25543,45 +25554,38 @@
     });
     const setting = $('panel-zoom-setting');
     if (!CSS.supports('zoom', '1')) {
-      setting.classList.add('hidden'); // a slider that changes nothing reads as broken
+      setting.classList.add('hidden'); // a control that changes nothing reads as broken
       return;
     }
-    const slider = $('panel-zoom-slider');
-    const value = $('panel-zoom-value');
-    const reset = $('panel-zoom-reset');
+    const down = $('panel-zoom-down');
+    const up = $('panel-zoom-up');
+    const readout = $('panel-zoom-reset');
+    let at = PANEL_ZOOM_STOPS.indexOf(PANEL_ZOOM_DEFAULT);
     const paint = (pct) => {
-      value.textContent = I18N.fmtNum(pct, { style: 'unit', unit: 'percent' });
       applyPanelZoom(pct);
       updatePanelNarrow();
-      // The drawn track's orange fill and the thumb both follow the stop range, set on
-      // the wrapper so the sibling track and thumb boxes inherit them.
-      const wrap = slider.closest('.zoom-slider');
-      const span = PANEL_ZOOM_STOPS[PANEL_ZOOM_STOPS.length - 1] - PANEL_ZOOM_STOPS[0];
-      const frac = (pct - PANEL_ZOOM_STOPS[0]) / span;
-      wrap.style.setProperty('--zoom-fill', (100 * frac) + '%');
-      wrap.style.setProperty('--zoom-frac', frac);
-      // One tap to 100% only needs to exist when 100% is not where you already are.
-      reset.disabled = pct === PANEL_ZOOM_DEFAULT;
+      at = panelZoomIndex(pct);
+      // The readout is the one place the size is written; the ends of the range switch the
+      // button that would go past them off, so the stepper never offers a size it lacks.
+      readout.textContent = I18N.fmtNum(PANEL_ZOOM_STOPS[at] / 100, { style: 'percent' });
+      readout.classList.toggle('is-changed', PANEL_ZOOM_STOPS[at] !== PANEL_ZOOM_DEFAULT);
+      down.disabled = at <= 0;
+      up.disabled = at >= PANEL_ZOOM_STOPS.length - 1;
     };
-    // The drag's release and the reset button share one commit path: same paint, same
-    // settings write, so neither can drift from the other.
+    // A tap is a commit: paint, then one settings write.
     const commit = (pct) => {
       paint(pct);
       call({ type: 'SIDECAR_SET_SETTINGS', settings: { panelZoom: pct } }).catch(() => {});
     };
+    down.addEventListener('click', () => { if (at > 0) commit(PANEL_ZOOM_STOPS[at - 1]); });
+    up.addEventListener('click', () => { if (at < PANEL_ZOOM_STOPS.length - 1) commit(PANEL_ZOOM_STOPS[at + 1]); });
+    readout.addEventListener('click', () => { if (PANEL_ZOOM_STOPS[at] !== PANEL_ZOOM_DEFAULT) commit(PANEL_ZOOM_DEFAULT); });
+    // Shown at once, so the readout is never blank while the stored size is on its way. A
+    // stored value that is not one of the stops (a hand edit) snaps to the nearest one.
+    paint(PANEL_ZOOM_DEFAULT);
     call({ type: 'SIDECAR_GET_SETTINGS' }).then((settings) => {
-      const index = panelZoomIndex(settings && settings.panelZoom);
-      slider.value = String(index);
-      paint(panelZoomPercent(index));
+      paint(panelZoomPercent(panelZoomIndex(settings && settings.panelZoom)));
     }).catch(() => {});
-    // Live while dragging; persisted once, on release. A write per input event would
-    // be dozens of settings writes per drag of the thumb.
-    slider.addEventListener('input', () => paint(panelZoomPercent(slider.value)));
-    slider.addEventListener('change', () => commit(panelZoomPercent(slider.value)));
-    reset.addEventListener('click', () => {
-      slider.value = String(panelZoomIndex(PANEL_ZOOM_DEFAULT));
-      commit(panelZoomPercent(slider.value));
-    });
   }
 
   // ---- collapsible settings sections ----

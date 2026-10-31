@@ -276,7 +276,6 @@
    toggle's track and knob ARE the affordance. Everything else, avatars included, goes
    square deliberately — a portrait in a square frame is entirely period-correct here. */
 [data-theme="werkstatte"] *:not(.theme-card):not(.theme-card *),
-[data-theme="werkstatte"] .zoom-thumb:not(.theme-card):not(.theme-card *) { border-radius: 50%; }
 [data-theme="werkstatte"] *:not(.theme-card):not(.theme-card *)::before,
 [data-theme="werkstatte"] *:not(.theme-card):not(.theme-card *)::after {
   border-radius: 0;
