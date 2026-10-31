@@ -25553,6 +25553,9 @@
       value.textContent = I18N.fmtNum(pct, { style: 'unit', unit: 'percent' });
       applyPanelZoom(pct);
       updatePanelNarrow();
+      // The drawn track's orange fill follows the thumb across the stop range.
+      const span = PANEL_ZOOM_STOPS[PANEL_ZOOM_STOPS.length - 1] - PANEL_ZOOM_STOPS[0];
+      slider.style.setProperty('--zoom-fill', (100 * (pct - PANEL_ZOOM_STOPS[0]) / span) + '%');
       // One tap to 100% only needs to exist when 100% is not where you already are.
       reset.disabled = pct === PANEL_ZOOM_DEFAULT;
     };

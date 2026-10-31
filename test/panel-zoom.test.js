@@ -219,6 +219,7 @@ test('HIDDEN WHERE ZOOM WOULD DO NOTHING, APPLIED FROM STORAGE AT BOOT', () => {
   assert.match(bare, /initPanelZoom\(\);/, 'wired once at boot');
   assert.match(bare, /value\.textContent = I18N\.fmtNum\(pct, \{ style: 'unit', unit: 'percent' \}\)/,
     'the readout is a formatted number, not a glued string');
+  assert.match(bare, /slider\.style\.setProperty\('--zoom-fill'/, 'and the drawn track fills to the thumb');
 });
 
 // ---- the narrow collapse (issue review: at 150% the rows clipped) ----------------
@@ -382,6 +383,12 @@ test('RESET IS ONE TAP TO 100%, AND ONLY OFFERED WHEN YOU ARE NOT THERE', () => 
   assert.match(css, /\.zoom-reset:disabled/);
   // A drag on the thumb must never scroll the section out from under it.
   assert.match(css, /\.zoom-row input\[type=range\] \{[^}]*touch-action: none/);
+  // The track is drawn, not native: Chrome's native range track misrenders its width
+  // under CSS zoom (the bar stopped short of the element at every stop but 100%).
+  assert.match(css, /\.zoom-row input\[type=range\] \{[^}]*-webkit-appearance: none; appearance: none/);
+  assert.match(css, /::-webkit-slider-runnable-track \{[^}]*--zoom-fill/);
+  assert.match(css, /::-moz-range-progress [^}]*background: var\(--orange\)/, 'firefox gets the fill natively');
+  assert.doesNotMatch(css, /\.zoom-row input\[type=range\] \{[^}]*accent-color/, 'accent-color needs the native track we dropped');
 });
 
 test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => {

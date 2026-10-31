@@ -2228,7 +2228,26 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* PANEL ZOOM (issue #565). The slider snaps to six stops and the readout carries the
    percent, so the value is text and gets tabular figures like every other number. */
 .zoom-row { display: flex; align-items: center; gap: 10px; }
-.zoom-row input[type=range] { flex: 1; min-width: 0; accent-color: var(--orange); cursor: pointer; touch-action: none; }
+.zoom-row input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; min-width: 0; height: 24px; background: transparent;
+  cursor: pointer; touch-action: none;
+}
+/* Drawn, not native: Chrome's native track misrenders its width under CSS zoom —
+   the bar stopped short of the element at every stop but 100%. The fill to the thumb
+   is a gradient driven by --zoom-fill, written by paint() with the value. */
+.zoom-row input[type=range]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--orange) var(--zoom-fill, 50%), var(--hover-medium) var(--zoom-fill, 50%));
+}
+.zoom-row input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--orange); border: none; margin-top: -6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.zoom-row input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--hover-medium); }
+.zoom-row input[type=range]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--orange); }
+.zoom-row input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: none; border-radius: 50%; background: var(--orange); }
 .zoom-value { flex-shrink: 0; min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .zoom-reset {
   flex-shrink: 0; border: none; background: none; padding: 5px;
