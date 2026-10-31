@@ -187,6 +187,10 @@ test('THE CONTROL SITS IN APPEARANCE, LABELED AND SELF-DESCRIBING', () => {
   const sectionAt = html.indexOf('data-section="appearance"');
   const sectionEnd = html.indexOf('</section>', sectionAt);
   assert.ok(at > sectionAt && at < sectionEnd, 'and it lives in the Appearance section');
+  // FIRST in the section, not last: the control you reach for when the panel is
+  // unusable must not sit below a scroll of everything it makes unusable.
+  const langAt = html.indexOf('id="language-setting"');
+  assert.ok(langAt > -1 && at < langAt, 'it opens the section, ahead of Language');
   const block = html.slice(html.lastIndexOf('<div class="setting"', at), sectionEnd);
   assert.match(block, /<h3 data-i18n="Panel zoom">Panel zoom<\/h3>/);
   assert.match(block, /data-i18n="Make everything in the panel larger or smaller\."/);
@@ -376,6 +380,8 @@ test('RESET IS ONE TAP TO 100%, AND ONLY OFFERED WHEN YOU ARE NOT THERE', () => 
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.zoom-reset \{/);
   assert.match(css, /\.zoom-reset:disabled/);
+  // A drag on the thumb must never scroll the section out from under it.
+  assert.match(css, /\.zoom-row input\[type=range\] \{[^}]*touch-action: none/);
 });
 
 test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => {
