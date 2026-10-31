@@ -241,7 +241,7 @@ test('THE COLLAPSE STACKS ON GROUP BOUNDARIES, IT DOES NOT SHRINK', () => {
   const nextComment = css.indexOf('/*', tabRule);
   const rules = css.slice(at, nextComment === -1 ? css.length : nextComment);
   assert.match(rules, /body\.panel-narrow \.topbar \{ flex-wrap: wrap;/, 'the topbar wraps');
-  assert.match(rules, /body\.panel-narrow \.topbar-actions \{ flex-wrap: wrap; justify-content: flex-end; \}/,
+  assert.match(rules, /body\.panel-narrow \.topbar-actions \{ flex-wrap: wrap; justify-content: flex-end; gap: 2px; \}/,
     'icon groups wrap as whole units, right-aligned');
   assert.match(rules, /body\.panel-narrow \.tabs \{ flex-wrap: wrap; \}/, 'the tabs wrap');
   assert.match(rules, /body\.panel-narrow \.tab \{ flex: 1 1 45%; \}/, 'two rows of two');
@@ -284,26 +284,28 @@ test('THE TRAVELING MARK FOLLOWS A WRAPPED TAB\u2019S OWN ROW', () => {
 
 // ---- the expandable ⋯ menu (review: five icons folding is better than wrapping) --
 
-test('THE ⋯ FOLDS FIVE ICONS INTO THE TRAY AND GIVES THEM BACK WHOLE', () => {
+test('THE ⋯ FOLDS THE REST INTO THE TRAY AND GIVES THEM BACK WHOLE', () => {
   __window.innerWidth = 400;
   __document.body.style.zoom = '1.5';
   updatePanelNarrow();
   assert.equal(__els['topbar-more-btn'].attrs['aria-expanded'], 'true');
   assert.ok(!__els['topbar-more-btn'].classes.has('hidden'), 'the affordance shows');
-  for (const id of ['stream-entry', 'bookmarks-btn', 'help-btn', 'settings-btn', 'lock-btn']) {
+  for (const id of ['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn']) {
     assert.equal(__els[id].parentElement, __els['topbar-more-menu'], id + ' moved, not rebuilt');
   }
-  assert.equal(__els['notif-bell-btn'].parentElement.id, 'group-content', 'bell stays inline');
-  assert.equal(__els['search-btn'].parentElement.id, 'group-content', 'search stays inline');
+  // The three that never fold: the badge, and the ways out.
+  for (const id of ['notif-bell-btn', 'settings-btn', 'lock-btn']) {
+    assert.ok(__els[id].parentElement.id !== 'topbar-more-menu', id + ' stays inline');
+  }
 
   __document.body.style.zoom = '';
   updatePanelNarrow();
   assert.equal(__els['topbar-more-btn'].attrs['aria-expanded'], 'false');
   assert.ok(__els['topbar-more-btn'].classes.has('hidden'), 'the affordance hides');
   assert.ok(__els['topbar-more-menu'].classes.has('hidden'), 'the tray closed');
-  // The inline row is exactly what it was: stream back between search and bookmarks.
-  // (Joined strings, not deepEqual: the children array is vm-realm and the harness
-  // compares prototypes before contents.)
+  // The inline row is exactly what it was: search back between bell and stream,
+  // settings between help and lock. (Joined strings, not deepEqual: the children
+  // array is vm-realm and the harness compares prototypes before contents.)
   assert.equal(__els['group-content'].children.map((c) => c.id).join(','),
     'notif-bell-btn,search-btn,stream-entry,bookmarks-btn');
   assert.equal(__els['group-chrome'].children.map((c) => c.id).join(','), 'help-btn,settings-btn,lock-btn');
@@ -326,8 +328,8 @@ test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => 
     'a click outside the tray closes it');
   assert.match(bare, /applyTopbarFold\(narrow\);/, 'every narrow judgment folds or unfolds');
   assert.match(bare,
-    /const TOPBAR_FOLD = \['stream-entry', 'bookmarks-btn', 'help-btn', 'settings-btn', 'lock-btn'\];/,
-    'bell and search stay visible: they carry the badge and the find box');
+    /const TOPBAR_FOLD = \['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn'\];/,
+    'bell, settings and lock stay visible: the badge, and the ways out');
   const menuAt = html.indexOf('id="topbar-more-menu"');
   assert.ok(menuAt > -1, 'the tray exists in the markup');
   assert.match(html.slice(html.lastIndexOf('<button id="topbar-more-btn"', menuAt), menuAt + 60),

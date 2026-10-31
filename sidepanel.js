@@ -25453,12 +25453,14 @@
     applyTopbarFold(narrow);
   }
 
-  // THE ⬧ THAT KEEPS THE TOPBAR TO ONE LINE. Bell and search stay visible — they
-  // carry the badge and the find box; the other five MOVE into #topbar-more-menu.
-  // Moved, not rebuilt: appendChild keeps every listener wired by id, so folding is
-  // invisible to the rest of the panel. The recorded parent and next sibling put each
-  // icon back exactly where the inline row had it when the width comes back.
-  const TOPBAR_FOLD = ['stream-entry', 'bookmarks-btn', 'help-btn', 'settings-btn', 'lock-btn'];
+  // THE ⬧ THAT KEEPS THE TOPBAR TO ONE LINE. Three stay visible, and each for a
+  // reason: the bell carries the notification badge; settings and lock are the way
+  // OUT — if a zoom or a theme goes wrong, the exit must never live inside the thing
+  // that broke. The other four MOVE into #topbar-more-menu. Moved, not rebuilt:
+  // appendChild keeps every listener wired by id, so folding is invisible to the rest
+  // of the panel. The recorded parent and next sibling put each icon back exactly
+  // where the inline row had it when the width comes back.
+  const TOPBAR_FOLD = ['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn'];
   let topbarFolded = false;
   const topbarRestore = new Map(); // id -> [parent, nextSibling] as the inline row had it
 
@@ -25470,13 +25472,17 @@
     more.classList.toggle('hidden', !narrow);
     more.setAttribute('aria-expanded', String(narrow));
     if (narrow) {
-      for (const id of TOPBAR_FOLD) {
-        const el = $(id);
-        if (el.parentElement !== menu) {
+      // ALL the restore spots are recorded before the first move, in one pass. Folding
+      // in list order shifts the siblings under later icons — search's "next" would
+      // have been bookmarks-after-stream-was-gone, and the row would have rebuilt with
+      // search at the wrong end. Record first, then move.
+      if (!topbarRestore.size) {
+        for (const id of TOPBAR_FOLD) {
+          const el = $(id);
           topbarRestore.set(id, [el.parentElement, el.nextSibling]);
-          menu.appendChild(el);
         }
       }
+      for (const id of TOPBAR_FOLD) menu.appendChild($(id));
     } else {
       for (const id of TOPBAR_FOLD) {
         const el = $(id);
