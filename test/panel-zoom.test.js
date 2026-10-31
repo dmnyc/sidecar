@@ -50,7 +50,12 @@ function liftLine(decl) {
   return bare.slice(at, end + 1);
 }
 
-const ctx = { console, document: { body: { style: {} } }, Date, Math, Number, isFinite, Set, Map, Array };
+const ctx = {
+  console,
+  document: { body: { style: {}, classList: { last: null, toggle(c, on) { this.last = [c, on]; } } } },
+  window: { innerWidth: 400 },
+  Date, Math, Number, isFinite, Set, Map, Array,
+};
 vm.createContext(ctx);
 vm.runInContext(
   liftLine('const PANEL_ZOOM_STOPS = ') + '\n' +
@@ -58,6 +63,14 @@ vm.runInContext(
   liftFn('function panelZoomPercent(') + '\n' +
   liftFn('function panelZoomIndex(') + '\n' +
   liftFn('function applyPanelZoom(') + '\n' +
+  liftLine('const PANEL_NARROW_PX = ') + '\n' +
+  liftFn('function effectivePanelWidth(') + '\n' +
+  liftFn('function updatePanelNarrow(') + '\n' +
+  'globalThis.PANEL_NARROW_PX = PANEL_NARROW_PX;' +
+  'globalThis.effectivePanelWidth = effectivePanelWidth;' +
+  'globalThis.updatePanelNarrow = updatePanelNarrow;' +
+  'globalThis.__document = document;' +
+  'globalThis.__window = window;' +
   'globalThis.PANEL_ZOOM_STOPS = PANEL_ZOOM_STOPS;' +
   'globalThis.PANEL_ZOOM_DEFAULT = PANEL_ZOOM_DEFAULT;' +
   'globalThis.panelZoomPercent = panelZoomPercent;' +
@@ -65,7 +78,8 @@ vm.runInContext(
   'globalThis.applyPanelZoom = applyPanelZoom;',
   ctx
 );
-const { PANEL_ZOOM_STOPS, PANEL_ZOOM_DEFAULT, panelZoomPercent, panelZoomIndex, applyPanelZoom } = ctx;
+const { PANEL_ZOOM_STOPS, PANEL_ZOOM_DEFAULT, panelZoomPercent, panelZoomIndex, applyPanelZoom,
+        PANEL_NARROW_PX, effectivePanelWidth, updatePanelNarrow, __document, __window } = ctx;
 
 test('SIX STOPS, AND 100 IS ONE OF THEM', () => {
   assert.deepEqual([...PANEL_ZOOM_STOPS], [80, 90, 100, 110, 125, 150], 'the stops moved');
@@ -150,4 +164,62 @@ test('HIDDEN WHERE ZOOM WOULD DO NOTHING, APPLIED FROM STORAGE AT BOOT', () => {
   assert.match(bare, /initPanelZoom\(\);/, 'wired once at boot');
   assert.match(bare, /value\.textContent = I18N\.fmtNum\(pct, \{ style: 'unit', unit: 'percent' \}\)/,
     'the readout is a formatted number, not a glued string');
+});
+
+// ---- the narrow collapse (issue review: at 150% the rows clipped) ----------------
+
+test('NARROW IS JUDGED ON THE WIDTH THE CONTENT ACTUALLY HAS', () => {
+  assert.equal(PANEL_NARROW_PX, 340);
+  __window.innerWidth = 400;
+  __document.body.style.zoom = '';
+  assert.equal(effectivePanelWidth(), 400, 'no zoom: the viewport is the width');
+  __document.body.style.zoom = '1.5';
+  assert.ok(Math.abs(effectivePanelWidth() - 400 / 1.5) < 1e-9, 'zoom divides');
+  updatePanelNarrow();
+  assert.deepEqual(__document.body.classList.last, ['panel-narrow', true], '400/1.5 = 267: narrow');
+
+  __document.body.style.zoom = '0.8';
+  updatePanelNarrow();
+  assert.deepEqual(__document.body.classList.last, ['panel-narrow', false], '400/0.8 = 500: roomy');
+
+  __window.innerWidth = 320;
+  __document.body.style.zoom = '';
+  updatePanelNarrow();
+  assert.deepEqual(__document.body.classList.last, ['panel-narrow', true],
+    'a sidebar at Chrome’s floor is narrow with no zoom at all');
+
+  // A zoom string the panel never wrote cannot divide by NaN.
+  __document.body.style.zoom = 'spin';
+  assert.ok(Math.abs(effectivePanelWidth() - 320) < 1e-9, 'ungarbage: the factor falls back to 1');
+});
+
+test('NARROW IS WIRED BEFORE THE ZOOM GATE, AND ON EVERY PAINT AND RESIZE', () => {
+  const fn = liftFn('function initPanelZoom(');
+  const gate = fn.indexOf('CSS.supports');
+  const wired = fn.indexOf('updatePanelNarrow();');
+  const resize = fn.indexOf("addEventListener('resize', updatePanelNarrow)");
+  assert.ok(wired > -1 && wired < gate, 'a narrow sidebar matters with no zoom at all');
+  assert.ok(resize > -1, 'and again on resize');
+  assert.match(fn, /applyPanelZoom\(pct\);\s*updatePanelNarrow\(\);/, 'every zoom paint re-judges');
+});
+
+test('THE COLLAPSE STACKS, IT DOES NOT SHRINK', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const at = css.indexOf('PANEL NARROW');
+  assert.ok(at > -1, 'the rules exist');
+  const tabRule = css.indexOf('body.panel-narrow .tab {');
+  const rules = css.slice(at, css.indexOf('}', tabRule) + 1);
+  assert.match(rules, /body\.panel-narrow \.topbar \{ flex-wrap: wrap;/, 'the topbar wraps');
+  assert.match(rules, /body\.panel-narrow \.topbar-actions \{ flex: 0 0 100%; flex-wrap: wrap;/,
+    'the icon row takes a full line of its own and wraps rather than clip');
+  assert.match(rules, /body\.panel-narrow \.tabs \{ flex-wrap: wrap; \}/, 'the tabs wrap');
+  assert.match(rules, /body\.panel-narrow \.tab \{ flex: 1 1 45%; \}/, 'two rows of two');
+  // No font-size, no padding reductions: the narrow-panel rule is stack, never shrink.
+  assert.doesNotMatch(rules, /font-size/, 'no shrinking the controls');
+});
+
+test('THE TRAVELING MARK FOLLOWS A WRAPPED TAB\u2019S OWN ROW', () => {
+  const fn = liftFn('function wireTabSlider(');
+  assert.match(fn, /slider\.style\.top = \(target\.offsetTop \+ target\.offsetHeight - 1\) \+ 'px'/,
+    'positioned from the measured item, not the bar\u2019s bottom edge');
 });

@@ -826,6 +826,17 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    as a set. */
 .topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 
+/* PANEL NARROW — body class from sidepanel.js when the width the content actually
+   has (viewport over zoom) is under 340px. The topbar's icon row drops to a
+   full-width line of its own and wraps again rather than clipping; the four main
+   tabs fold to two rows of two. Nothing shrinks: the rows stack, which is the
+   narrow-panel rule this leans on. The traveling tab mark follows the active tab's
+   row (wireTabSlider writes its top from the measured item). */
+body.panel-narrow .topbar { flex-wrap: wrap; row-gap: 4px; }
+body.panel-narrow .topbar-actions { flex: 0 0 100%; flex-wrap: wrap; justify-content: flex-end; margin-left: 0; }
+body.panel-narrow .tabs { flex-wrap: wrap; }
+body.panel-narrow .tab { flex: 1 1 45%; }
+
 /* ===== main app ===== */
 .topbar {
   position: relative;

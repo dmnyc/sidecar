@@ -4052,6 +4052,12 @@
       const inset = target.offsetWidth * 0.16;
       const x = target.offsetLeft + inset;
       const w = target.offsetWidth - inset * 2;
+      // Rows wrap at panel-narrow widths: the mark follows the active item's own row
+      // rather than the bottom of the bar. For a one-row bar this is the same pixel
+      // the bottom: -1px rule drew (the item stretches the full bar height), so the
+      // shared bars are unaffected; with top and height both set, the CSS bottom is
+      // the over-constrained value and drops out.
+      slider.style.top = (target.offsetTop + target.offsetHeight - 1) + 'px';
       if (animate) {
         slider.style.transform = 'translateX(' + x + 'px)';
         slider.style.width = w + 'px';
@@ -25428,9 +25434,31 @@
     document.body.style.zoom = pct === PANEL_ZOOM_DEFAULT ? '' : String(pct / 100);
   }
 
+  // THE WIDTH THE CONTENT ACTUALLY HAS: the viewport divided by the zoom. Media
+  // queries never see CSS zoom — the window is still its physical size — so the
+  // collapse below is computed here instead of in CSS. It is also the honest answer
+  // for a genuinely narrow sidebar (Firefox drags below Chrome's floor): zoom or no
+  // zoom, under this line the rows stack rather than clip. Nothing shrinks — the
+  // narrow-panel rules run on stacking, never on smaller controls.
+  const PANEL_NARROW_PX = 340;
+
+  function effectivePanelWidth() {
+    const zoom = parseFloat(document.body.style.zoom);
+    return window.innerWidth / (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
+  }
+
+  function updatePanelNarrow() {
+    document.body.classList.toggle('panel-narrow', effectivePanelWidth() < PANEL_NARROW_PX);
+  }
+
   // Wired once at boot, never in renderSettings(), which runs on every gear entry and
   // would stack listeners (the rule the settings accordion already lives by).
   function initPanelZoom() {
+    // Narrow mode answers a wider question than zoom — a sidebar dragged narrow
+    // clips the same way with no zoom at all — so it is wired before the feature
+    // gate, and again on every resize, which the zoom case rides through anyway.
+    updatePanelNarrow();
+    addEventListener('resize', updatePanelNarrow);
     const setting = $('panel-zoom-setting');
     if (!CSS.supports('zoom', '1')) {
       setting.classList.add('hidden'); // a slider that changes nothing reads as broken
@@ -25441,6 +25469,7 @@
     const paint = (pct) => {
       value.textContent = I18N.fmtNum(pct, { style: 'unit', unit: 'percent' });
       applyPanelZoom(pct);
+      updatePanelNarrow();
     };
     call({ type: 'SIDECAR_GET_SETTINGS' }).then((settings) => {
       const index = panelZoomIndex(settings && settings.panelZoom);
