@@ -963,6 +963,10 @@
   // window and quietly stop reporting votes, and the vote filter can name poll ids only
   // instead of asking every relay about 150 ids that can never carry a kind:1018.
   const _ownPollIds = new Map(); // pubkey → Set<eventId> (this account's own kind:1068 ids)
+  // pubkey → Map<eventId, {created_at, endsAt}> — the least the Polls tab's live count
+  // needs to judge each poll, kept beside the id set because the set feeds a relay
+  // filter, which wants ids and nothing else.
+  const _ownPollMeta = new Map();
   const _ownPollIdsPromises = new Map();
   // WHAT THE POLLS TAB SHOWED LAST TIME, so opening it twice does not mean waiting twice.
   // The notification list beside it opens from _notifCache and asks the relays only when
@@ -5426,17 +5430,26 @@
   // kind 1068 has no close: a poll posted without `endsAt` can take a vote on day 400,
   // and nothing in the protocol says otherwise. But a list that treats a poll from March
   // as live forever is a list where nothing is ever live, so after this long an
-  // open-ended poll moves in with the finished ones.
+  // open-ended poll moves in with the finished ones. Seven days, no longer thirty: the
+  // bell's Polls tab counts by the same window, and the two disagreeing was a tab saying
+  // nothing is live over a list still flying the poll under Open.
   //
   // It is a display rule and only a display rule. The tally still counts every ballot,
   // because discarding votes to match a number we invented would be the panel lying
   // about somebody else's poll rather than about its own housekeeping.
-  const POLL_WATCH_SECS = 30 * 86400;
+  const POLL_WATCH_SECS = 7 * 86400;
 
-  // True when a poll has no end date and has aged past the watch window.
+  // True when a poll has no end date and has aged past the watch window. The value form
+  // is what the tab's live count reads: the polls the notification loaders keep carry a
+  // posted time and an end date, not the whole event.
+  function pollWatchExpiredAt(createdAt, endsAt) {
+    if (endsAt) return false;
+    return (createdAt || 0) + POLL_WATCH_SECS <= Math.floor(Date.now() / 1000);
+  }
+
   function pollWatchExpired(ev) {
-    if (!ev || pollEndsAt(ev)) return false;
-    return (ev.created_at || 0) + POLL_WATCH_SECS <= Math.floor(Date.now() / 1000);
+    if (!ev) return false;
+    return pollWatchExpiredAt(ev.created_at, pollEndsAt(ev));
   }
 
   // "ends in 5d", "ended 2h ago", or the open-ended case. Deliberately coarse: the exact
@@ -5461,6 +5474,14 @@
     return !!endsAt && endsAt <= Math.floor(Date.now() / 1000);
   }
 
+  // LIVE FOR SIDECAR'S HOUSEKEEPING, not a fact about the poll: an end date still
+  // ahead, or an open-ended poll inside the watch window. One definition for both
+  // places that ask, the bell's Polls tab and the list's Open group, so a poll cannot
+  // leave one while it still holds the other.
+  function pollIsLive(createdAt, endsAt) {
+    return !pollHasEnded(endsAt) && !pollWatchExpiredAt(createdAt, endsAt);
+  }
+
   // DONE WITH, WHICH IS NOT THE SAME AS ENDED, and the difference is why this is its own
   // function rather than a widened pollHasEnded. That one answers a fact about the poll:
   // its end date passed. The tally sheet asks it and says "ended" on the strength of the
@@ -5468,7 +5489,7 @@
   // closed when its author never closed it.
   //
   // This one answers a question about the LIST: should this still sit among the live
-  // ones. An expired end date and an open-ended poll left a month both answer yes.
+  // ones. An expired end date and an open-ended poll left a week both answer yes.
   //
   // THREE GROUPS, NOT TWO, and the third is why. A poll whose end date passed is Ended,
   // and saying so is just reporting what its author set. A poll with no end date that has
@@ -5487,6 +5508,17 @@
     if (pollHasEnded(pollEndsAt(ev))) return 'ended';
     if (pollWatchExpired(ev)) return 'untracked';
     return 'open';
+  }
+
+  // HOW MANY OF A LIST'S POLLS ARE STILL LIVE, which is what the bell's Polls tab
+  // counts. The number it replaced was the list's whole length, so one poll that ended
+  // in March held a (1) on the tab forever: countable, but nothing anybody can act on.
+  // A capsule's job is to say something here may still be moving, and Ended and
+  // Untracked are not that.
+  function countLivePolls(polls) {
+    let n = 0;
+    for (const ev of polls) if (pollGroup(ev) === 'open') n++;
+    return n;
   }
 
   // A GROUP HEADING, AND FOR THE TWO THAT ARE NOT OPEN, THE CONTROL THAT FOLDS IT.
@@ -7640,7 +7672,7 @@
         (evs || [])
           .sort((x, y) => y.created_at - x.created_at)
           .slice(0, 50)
-          .forEach((e) => ids.add(e.id));
+          .forEach((e) => { ids.add(e.id); rememberPollMeta(pubkey, e); });
       } catch (_) {}
       return ids;
     })();
@@ -7652,11 +7684,22 @@
   // Polls tab is gated on this set, so without this your first poll of a session leaves no
   // way back to its tally once the post banner times out sixty seconds later. It also puts
   // the new id in the vote filter, which is built from this same set.
-  function rememberOwnPoll(pubkey, id) {
+  function rememberOwnPoll(pubkey, id, ev) {
     if (!pubkey || !id) return;
     const ids = _ownPollIds.get(pubkey) || new Set();
     ids.add(id);
     _ownPollIds.set(pubkey, ids);
+    if (ev) rememberPollMeta(pubkey, ev);
+  }
+
+  // Posted time and end date for one poll, so the tab can ask which of them are still
+  // live without holding the events. A poll signed in this panel arrives here whole,
+  // which is what seeds the count before any relay confirms it.
+  function rememberPollMeta(pubkey, ev) {
+    if (!pubkey || !ev || !ev.id) return;
+    let meta = _ownPollMeta.get(pubkey);
+    if (!meta) { meta = new Map(); _ownPollMeta.set(pubkey, meta); }
+    meta.set(ev.id, { created_at: ev.created_at || 0, endsAt: pollEndsAt(ev) });
   }
 
   // Drop the memo so the next load asks the relays again, for a poll posted somewhere else
@@ -8924,9 +8967,11 @@
           if (cap) cap.textContent = String(n);
           else tabPolls.append(h('span', { className: 'modal-tab-count', textContent: String(n) }));
         };
-        // Seeded from the notification filters' own ids, which cost nothing and are usually
-        // right, then corrected by the list when it answers. See ownPollCount.
-        setCount(ownPollCount(a.pubkey));
+        // Seeded from the notification filters' own polls, which cost nothing and are
+        // usually right, then corrected by the list when it answers. Live ones only:
+        // the old seed counted every poll the account had, and one poll that ended in
+        // March held the (1) forever. See liveOwnPollCount.
+        setCount(liveOwnPollCount(a.pubkey));
 
         // .notif-scroll again, not a class of its own: the pane needs the same overflow
         // and the same edge-to-edge negative margins, and a second rule saying so is a
@@ -15392,7 +15437,7 @@
         const signed = await doPublish();
         // Before the banner, because the banner is the only other way back to this tally
         // and it dismisses itself after a minute.
-        if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id);
+        if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id, signed);
         else if (signed.kind === 1) rememberOwnNote(signed.pubkey, signed.id);
         else if (signed.kind === WEB_COMMENT_KIND) rememberOwnComment(signed.pubkey, signed.id);
         published = true;
@@ -16060,8 +16105,8 @@
   // bell's Polls tab is where that list lives, and this fills it.
   //
   // `openPoll` is how a row opens, so the caller that took the panel over can hand the
-  // reader a way back to where they were. `onCount` gets the real number of polls as soon
-  // as the rows are built, for the count on the tab's own label.
+  // reader a way back to where they were. `onCount` gets the real number of live polls
+  // as soon as the rows are built, for the count on the tab's own label.
   async function fillPollsList(list, pubkey, { openPoll, onCount }) {
     const active = { pubkey };
     // Before anything is drawn. The read is almost always long settled by the time anybody
@@ -16156,7 +16201,7 @@
       // Straight to rows, with last time's numbers already in them. The query below still
       // runs and still corrects them; what it no longer does is make you watch it.
       rows = paint(cached.polls, cached.counts, cached.wins);
-      onCount(cached.polls.length);
+      onCount(countLivePolls(cached.polls));
     } else {
       list.innerHTML = '';
       // .empty drops the flat list's card chrome, which is the thing that draws a capsule
@@ -16206,7 +16251,7 @@
     // The moment the rows exist, not after the vote query below: the count is a fact about
     // this list, and it would be odd for the rows to be on screen under a number that
     // still disagrees with them for the eight seconds that query is allowed.
-    onCount(polls.length);
+    onCount(countLivePolls(polls));
     if (!polls.length) {
       _pollListCache.set(pubkey, { polls, counts: new Map() });
       return;
@@ -16272,6 +16317,19 @@
   function ownPollCount(pubkey) {
     const ids = _ownPollIds.get(pubkey);
     return ids ? ids.size : 0;
+  }
+
+  // How many of those polls are still live, judged from the posted times and end dates
+  // the loaders keep, by the same pollIsLive the list's Open group answers to — so the
+  // seed and the correction that replaces it cannot disagree about what counts. The tab
+  // itself stays gated on ownPollCount: an all-finished account loses its capsule, not
+  // its way back to the tallies.
+  function liveOwnPollCount(pubkey) {
+    const meta = _ownPollMeta.get(pubkey);
+    if (!meta) return 0;
+    let n = 0;
+    for (const p of meta.values()) if (pollIsLive(p.created_at, p.endsAt)) n++;
+    return n;
   }
 
   // Whether the bell has a Polls tab to offer. Why that tab exists is written at the
