@@ -867,6 +867,13 @@ body.panel-narrow .topbar { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; p
 body.panel-narrow .topbar-actions { flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
 body.panel-narrow .tabs { flex-wrap: wrap; }
 body.panel-narrow .tab { flex: 1 1 45%; }
+/* The wallet's Send/Receive pair floors at its own min-content (icon + word + padding
+   ≤ 106px each), which is wider than the effective width at 150% on a small panel
+   — Receive was clipped at the right edge. Stack them. */
+body.panel-narrow .wallet-actions { flex-direction: column; align-items: stretch; }
+/* The Activity sub-tabs share the traveling mark and the min-content floor. */
+body.panel-narrow .modal-tabs { flex-wrap: wrap; }
+body.panel-narrow .modal-tab { flex: 1 1 45%; }
 body.panel-narrow .theme-selector,
 body.panel-narrow .theme-special-cards {
   grid-template-columns: 1fr;
