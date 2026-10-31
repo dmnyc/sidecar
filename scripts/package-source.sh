@@ -67,7 +67,7 @@ fi
 # deliberately IN. If you add to this list, add the reason, and update REVIEWERS.md §8.
 EXCLUDE=(
   .claude
-  CLAUDE.md
+  AGENTS.md
   FIREFOX_PORT.md
   docs/release-1.8.0-description.md
   docs/release-1.8.0-guide.md

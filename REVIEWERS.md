@@ -212,7 +212,7 @@ verification step, and removing them changes no shipped byte:
 
 | Path | Why |
 |---|---|
-| `.claude/`, `CLAUDE.md` | Local editor-tooling config and an internal UI style rule. |
+| `.claude/`, `AGENTS.md` (as `CLAUDE.md`) | Local editor-tooling config and an internal UI style rule. |
 | `FIREFOX_PORT.md` | A port *plan* whose own status line reads "DONE. Shipped in 1.5.0". `BROWSER_PARITY.md`, which is included, describes the build that actually exists. |
 | `docs/release-1.8.0-description.md`, `docs/release-1.8.0-guide.md` | Store listing copy for a version two releases back. |
 
