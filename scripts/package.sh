@@ -82,6 +82,11 @@ rm -f "${STAGE}"/*.md "${STAGE}/.gitignore" "${STAGE}/package.json"
 # package's calendar never activates. Windows are read from the stage's own
 # seasons.js and the date is TAG_DATE — the clock SOURCE_DATE already uses — so the
 # build stays a function of the tag alone: same tag, same files, any machine, any day.
+#
+# ONE NAMED EXCEPTION: SIDECAR_SEASON_DATE=YYYY-MM-DD judges the windows on the day the
+# build goes live instead of the tag's day, for a release that must be in review before an
+# edition starts (limits and reasoning in seasonal-packaging.cjs). Unset, nothing changes.
+# Record the value in the release guide, because the build then depends on it.
 echo "Seasonal editions (tag date ${TAG_DATE}):"
 node "${ROOT}/scripts/seasonal-packaging.cjs" "${STAGE}" "${TAG_DATE}"
 

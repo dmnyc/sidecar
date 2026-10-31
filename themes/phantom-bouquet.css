@@ -258,8 +258,8 @@ html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { ani
    Under prefers-reduced-motion, or Settings → Reduce motion, nothing moves: these are
    hidden and the floor plate's leaves lie still, as on every other view. */
 @keyframes phantom-bouquet-fall {
-  0%, 25% { translate: var(--x) calc(-100% - 12vh); }
-  100% { translate: var(--x) 112vh; }
+  0%, 25% { translate: var(--x) calc(-100% - calc(12vh / var(--panel-zoom, 1))); }
+  100% { translate: var(--x) calc(112vh / var(--panel-zoom, 1)); }
 }
 @keyframes phantom-bouquet-spin {
   from { rotate: var(--r); }
@@ -296,29 +296,29 @@ html.reduce-balance-motion[data-theme="phantom-bouquet"] .bal-glyph.bal-in { ani
    together at opposite edges of the panel, one coming in as the other leaves. Their
    spins are their own. */
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(1) { width: 201px; height: 219.5px; --leaf: url(phantom-bouquet-drift-1.avif);
-  --x: 4vw; animation-duration: 260s; animation-delay: -135s; --r: -12deg; --spin: 360deg; --tt: 46s; }
+  --x: calc(4vw / var(--panel-zoom, 1)); animation-duration: 260s; animation-delay: -135s; --r: -12deg; --spin: 360deg; --tt: 46s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(2) { width: 112.5px; height: 134.5px; --leaf: url(phantom-bouquet-drift-2.avif);
-  --x: 70vw; animation-duration: 220s; animation-delay: -176s; --r: 18deg; --spin: 360deg; --tt: 31s; }
+  --x: calc(70vw / var(--panel-zoom, 1)); animation-duration: 220s; animation-delay: -176s; --r: 18deg; --spin: 360deg; --tt: 31s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(3) { width: 160.5px; height: 207px; --leaf: url(phantom-bouquet-drift-3.avif);
-  --x: 40vw; animation-duration: 280s; animation-delay: -260s; --r: 24deg; --spin: 360deg; --tt: 52s; }
+  --x: calc(40vw / var(--panel-zoom, 1)); animation-duration: 280s; animation-delay: -260s; --r: 24deg; --spin: 360deg; --tt: 52s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(4) { width: 74.5px; height: 116px; --leaf: url(phantom-bouquet-drift-4.avif);
-  --x: 58vw; animation-duration: 230s; animation-delay: -92s; --r: -20deg; --spin: 360deg; --tt: 28s; }
+  --x: calc(58vw / var(--panel-zoom, 1)); animation-duration: 230s; animation-delay: -92s; --r: -20deg; --spin: 360deg; --tt: 28s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(5) { width: 82px; height: 153px; --leaf: url(phantom-bouquet-drift-5.avif);
-  --x: 18vw; animation-duration: 270s; animation-delay: -81s; --r: 58deg; --spin: -360deg; --tt: 60s; }
+  --x: calc(18vw / var(--panel-zoom, 1)); animation-duration: 270s; animation-delay: -81s; --r: 58deg; --spin: -360deg; --tt: 60s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(6) { width: 76px; height: 128px; --leaf: url(phantom-bouquet-drift-6.avif);
-  --x: 84vw; animation-duration: 225s; animation-delay: -148s; --r: -34deg; --spin: 360deg; --tt: 26s; }
+  --x: calc(84vw / var(--panel-zoom, 1)); animation-duration: 225s; animation-delay: -148s; --r: -34deg; --spin: 360deg; --tt: 26s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(7) { width: 201px; height: 219.5px; --leaf: url(phantom-bouquet-drift-7.avif);
-  --x: 52vw; animation-duration: 265s; animation-delay: -37s; --r: 8deg; --spin: 360deg; --tt: 49s; }
+  --x: calc(52vw / var(--panel-zoom, 1)); animation-duration: 265s; animation-delay: -37s; --r: 8deg; --spin: 360deg; --tt: 49s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(8) { width: 112.5px; height: 134.5px; --leaf: url(phantom-bouquet-drift-8.avif);
-  --x: 26vw; animation-duration: 245s; animation-delay: -243s; --r: -6deg; --spin: 360deg; --tt: 35s; }
+  --x: calc(26vw / var(--panel-zoom, 1)); animation-duration: 245s; animation-delay: -243s; --r: -6deg; --spin: 360deg; --tt: 35s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(9) { width: 112.5px; height: 134.5px; --leaf: url(phantom-bouquet-drift-8.avif); --flip: -1;
-  --x: 66vw; animation-duration: 245s; animation-delay: -120s; --r: 50deg; --spin: 360deg; --tt: 30s; }
+  --x: calc(66vw / var(--panel-zoom, 1)); animation-duration: 245s; animation-delay: -120s; --r: 50deg; --spin: 360deg; --tt: 30s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(10) { width: 201px; height: 219.5px; --leaf: url(phantom-bouquet-drift-7.avif); --flip: -1;
-  --x: 22vw; animation-duration: 265s; animation-delay: -170s; --r: -40deg; --spin: -360deg; --tt: 44s; }
+  --x: calc(22vw / var(--panel-zoom, 1)); animation-duration: 265s; animation-delay: -170s; --r: -40deg; --spin: -360deg; --tt: 44s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(11) { width: 82px; height: 153px; --leaf: url(phantom-bouquet-drift-5.avif); --flip: -1;
-  --x: 6vw; animation-duration: 270s; animation-delay: -216s; --r: -20deg; --spin: 360deg; --tt: 41s; }
+  --x: calc(6vw / var(--panel-zoom, 1)); animation-duration: 270s; animation-delay: -216s; --r: -20deg; --spin: 360deg; --tt: 41s; }
 [data-theme="phantom-bouquet"] .lock-leaves i:nth-child(12) { width: 76px; height: 128px; --leaf: url(phantom-bouquet-drift-6.avif); --flip: -1;
-  --x: 44vw; animation-duration: 225s; animation-delay: -36s; --r: 20deg; --spin: 360deg; --tt: 33s; }
+  --x: calc(44vw / var(--panel-zoom, 1)); animation-duration: 225s; animation-delay: -36s; --r: 20deg; --spin: 360deg; --tt: 33s; }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="phantom-bouquet"] .lock-leaves { display: none; }
 }

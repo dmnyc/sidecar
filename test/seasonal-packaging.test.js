@@ -171,3 +171,47 @@ test('a stage built from this very tree loses the right edition on each tag date
   assert.ok(fs.existsSync(path.join(october, 'themes', 'phantom-bouquet.css')));
   assert.ok(fs.existsSync(path.join(october, 'themes', 'sleepy-hollow-tree-wide.svg')), 'Sleepy Hollow art ships in its own window');
 });
+
+test('the gate date can be named, later than the tag and not far, so the next edition is in the build', () => {
+  // A release tagged Nov 7 is in store review over the Nov 9 handoff. Judged on its own
+  // date it carries Sleepy Hollow and none of Phantom Bouquet, which then opens to a
+  // package that cannot draw it.
+  assert.equal(gate.resolveGateDate('2026-11-07', undefined), '2026-11-07', 'unset changes nothing');
+  assert.equal(gate.resolveGateDate('2026-11-07', ''), '2026-11-07');
+  const stage = makeStage();
+  writeStage(stage, [
+    'themes/sleepy-hollow-hollow.svg', 'themes/sleepy-hollow.css',
+    'themes/phantom-bouquet-floor.avif', 'themes/phantom-bouquet.css',
+  ]);
+  const removed = gate.stripOutOfSeasonArt(stage, gate.resolveGateDate('2026-11-07', '2026-11-09'));
+  assert.deepEqual(removed, ['themes/sleepy-hollow-hollow.svg'], 'the edition that starts is in, the one that ends is out');
+  assert.deepEqual(list(stage, 'themes').sort(), ['phantom-bouquet-floor.avif', 'phantom-bouquet.css', 'sleepy-hollow.css']);
+});
+
+test('the named gate date fails closed: wrong shape, before the tag, or too far ahead', () => {
+  assert.throws(() => gate.resolveGateDate('2026-11-07', '11/09/2026'), /YYYY-MM-DD/);
+  assert.throws(() => gate.resolveGateDate('2026-11-07', '2026-11-06'), /before the tag date/);
+  assert.equal(gate.resolveGateDate('2026-11-07', '2026-11-07'), '2026-11-07', 'the tag date itself is fine');
+  assert.equal(gate.resolveGateDate('2026-11-07', '2026-11-21'), '2026-11-21', 'the limit is inclusive');
+  assert.throws(() => gate.resolveGateDate('2026-11-07', '2026-11-22'), /the limit is 14/);
+  assert.throws(() => gate.resolveGateDate('2026-11-07', '2027-11-09'), /the limit is 14/, 'a wrong year is caught');
+});
+
+test('the named gate date is read from the environment and announced, and an invalid one stops the build', () => {
+  const { spawnSync } = require('node:child_process');
+  const script = path.join(__dirname, '..', 'scripts', 'seasonal-packaging.cjs');
+  const seasonsSrc = fs.readFileSync(path.join(__dirname, '..', 'seasons.js'), 'utf8');
+  const stage = makeStage();
+  fs.writeFileSync(path.join(stage, 'seasons.js'), seasonsSrc);
+  writeStage(stage, ['themes/sleepy-hollow-hollow.svg', 'themes/phantom-bouquet-floor.avif']);
+  const run = (date) => spawnSync(process.execPath, [script, stage, '2026-11-07'],
+    { env: { ...process.env, SIDECAR_SEASON_DATE: date }, encoding: 'utf8' });
+  const bad = run('2026-12-31');
+  assert.equal(bad.status, 2, 'an out-of-range date is a failed build, never a quiet fallback');
+  assert.match(bad.stderr, /the limit is 14/);
+  assert.deepEqual(list(stage, 'themes').sort(), ['phantom-bouquet-floor.avif', 'sleepy-hollow-hollow.svg'], 'and strips nothing');
+  const ok = run('2026-11-09');
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /gate date 2026-11-09 \(SIDECAR_SEASON_DATE\), not the tag date 2026-11-07/);
+  assert.deepEqual(list(stage, 'themes'), ['phantom-bouquet-floor.avif']);
+});

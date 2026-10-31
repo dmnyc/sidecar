@@ -47,6 +47,31 @@ function parseDay(dateStr) {
   return date;
 }
 
+// THE DATE CAN BE LATER THAN THE TAG'S, ON PURPOSE AND ON THE RECORD. A store takes days to
+// review a release, so a build tagged the week before an edition starts is the one that is
+// live when it does; judged on the tag's own date it would ship none of the new art and the
+// edition would open to a package that cannot draw it. SIDECAR_SEASON_DATE names the day the
+// build goes live, and the gate then asks which edition is in season THEN, one date for the
+// whole build, so a build still never carries two editions. It cannot be earlier than the tag
+// (that would only ship an edition already over) or more than MAX_LEAD_DAYS ahead (a typo in
+// the year would otherwise ship the wrong art quietly). The release guide records the value
+// used, since the build is then a function of the tag AND this one named date.
+const MAX_LEAD_DAYS = 14;
+
+function resolveGateDate(tagDate, override) {
+  if (override == null || override === '') return tagDate;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(override)) {
+    throw new Error('SIDECAR_SEASON_DATE must be YYYY-MM-DD, got: ' + override);
+  }
+  const days = Math.round((parseDay(override) - parseDay(tagDate)) / 86400000);
+  if (days < 0) throw new Error('SIDECAR_SEASON_DATE ' + override + ' is before the tag date ' + tagDate);
+  if (days > MAX_LEAD_DAYS) {
+    throw new Error('SIDECAR_SEASON_DATE ' + override + ' is ' + days + ' days after the tag date ' + tagDate +
+      '; the limit is ' + MAX_LEAD_DAYS);
+  }
+  return override;
+}
+
 // The editions whose window does not contain dateStr (YYYY-MM-DD).
 function outOfSeasonEditions(stageDir, dateStr) {
   const seasons = loadSeasons(stageDir);
@@ -75,7 +100,7 @@ function stripOutOfSeasonArt(stageDir, dateStr) {
   return removed.sort();
 }
 
-module.exports = { loadSeasons, parseDay, outOfSeasonEditions, artFiles, stripOutOfSeasonArt };
+module.exports = { loadSeasons, parseDay, resolveGateDate, MAX_LEAD_DAYS, outOfSeasonEditions, artFiles, stripOutOfSeasonArt };
 
 if (require.main === module) {
   const [stageDir, dateStr] = process.argv.slice(2);
@@ -83,9 +108,19 @@ if (require.main === module) {
     console.error('Usage: node scripts/seasonal-packaging.cjs <stage-dir> <YYYY-MM-DD>');
     process.exit(2);
   }
+  let gateDate;
+  try {
+    gateDate = resolveGateDate(dateStr, process.env.SIDECAR_SEASON_DATE);
+  } catch (e) {
+    console.error(e.message);
+    process.exit(2);
+  }
+  if (gateDate !== dateStr) {
+    console.log('  gate date ' + gateDate + ' (SIDECAR_SEASON_DATE), not the tag date ' + dateStr);
+  }
   const seasons = loadSeasons(stageDir);
-  const date = parseDay(dateStr);
-  const removed = stripOutOfSeasonArt(stageDir, dateStr);
+  const date = parseDay(gateDate);
+  const removed = stripOutOfSeasonArt(stageDir, gateDate);
   for (const e of seasons.EDITIONS) {
     const inSeason = seasons.inSeason(e.key, date);
     const art = inSeason ? artFiles(stageDir, e.key) : [];
