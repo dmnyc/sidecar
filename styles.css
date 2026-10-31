@@ -2239,7 +2239,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    a pill around the bar. Keyboard users keep an indicator through :focus-visible. */
 .zoom-row input[type=range] {
   -webkit-appearance: none; appearance: none;
-  flex: 1; min-width: 0; height: 24px;
+  flex: 1; min-width: 0; height: 18px;
   padding: 0; border: none; border-radius: 0;
   background: transparent;
   cursor: pointer; touch-action: none;
@@ -2249,14 +2249,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .zoom-row input[type=range]:focus-visible { outline: 2px solid var(--lav); outline-offset: 2px; }
 /* Drawn, not native: Chrome's native track misrenders its width under CSS zoom —
    the bar stopped short of the element at every stop but 100%. The fill to the thumb
-   is a gradient driven by --zoom-fill, written by paint() with the value. */
+   is a gradient driven by --zoom-fill, written by paint() with the value. The track
+   is the input's full height and paints the 6px bar dead-center, so the thumb (as
+   tall as the track) sits ON the bar with no margin offsets to drift. */
 .zoom-row input[type=range]::-webkit-slider-runnable-track {
-  height: 6px; border-radius: 3px;
-  background: linear-gradient(90deg, var(--orange) var(--zoom-fill, 50%), var(--hover-medium) var(--zoom-fill, 50%));
+  height: 18px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--orange) var(--zoom-fill, 50%), var(--hover-medium) var(--zoom-fill, 50%)) no-repeat center / 100% 6px;
 }
 .zoom-row input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--orange); border: none; margin-top: -6px;
+  background: var(--orange); border: none;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 .zoom-row input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--hover-medium); }
