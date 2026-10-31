@@ -160,6 +160,7 @@
    list: spinners, switches, counts, the quill, the transaction roundels, direction and state
    dots, and every face. test/werkstatte-round.test.js audits this theme against the app. */
 [data-theme="turnstile"] *:not(.theme-card):not(.theme-card *),
+[data-theme="turnstile"] .zoom-thumb:not(.theme-card):not(.theme-card *) { border-radius: 50%; }
 [data-theme="turnstile"] *:not(.theme-card):not(.theme-card *)::before,
 [data-theme="turnstile"] *:not(.theme-card):not(.theme-card *)::after {
   border-radius: 0;

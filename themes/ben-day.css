@@ -179,6 +179,7 @@
    spinners, switches, counts, the quill, direction and state dots, and every face.
    test/werkstatte-round.test.js audits both themes against the app. */
 [data-theme="ben-day"] *:not(.theme-card):not(.theme-card *),
+[data-theme="ben-day"] .zoom-thumb:not(.theme-card):not(.theme-card *) { border-radius: 50%; }
 [data-theme="ben-day"] *:not(.theme-card):not(.theme-card *)::before,
 [data-theme="ben-day"] *:not(.theme-card):not(.theme-card *)::after {
   border-radius: 0;

@@ -2234,36 +2234,28 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* PANEL ZOOM (issue #565). The slider snaps to six stops and the readout carries the
    percent, so the value is text and gets tabular figures like every other number. */
 .zoom-row { display: flex; align-items: center; gap: 10px; }
-/* Bare slider: the global input rule (field border, dark field background, 13px
-   padding, gold focus ring) is a text-field costume, and on a drawn track it read as
-   a pill around the bar. Keyboard users keep an indicator through :focus-visible. */
-.zoom-row input[type=range] {
-  -webkit-appearance: none; appearance: none;
-  flex: 1; min-width: 0; height: 18px;
-  padding: 0; border: none; border-radius: 0;
-  background: transparent;
-  cursor: pointer; touch-action: none;
-  transition: none;
-}
-.zoom-row input[type=range]:focus { outline: none; border: none; box-shadow: none; }
-.zoom-row input[type=range]:focus-visible { outline: 2px solid var(--lav); outline-offset: 2px; }
-/* Drawn, not native: Chrome's native track misrenders its width under CSS zoom —
-   the bar stopped short of the element at every stop but 100%. The fill to the thumb
-   is a gradient driven by --zoom-fill, written by paint() with the value. The track
-   is the input's full height and paints the 6px bar dead-center, so the thumb (as
-   tall as the track) sits ON the bar with no margin offsets to drift. */
-.zoom-row input[type=range]::-webkit-slider-runnable-track {
-  height: 18px; border-radius: 3px;
+/* The slider is drawn from plain boxes, not the platform's slider internals: Chrome's
+   native track misrenders its width under CSS zoom (the bar stopped short of the
+   element at every stop but 100%), and the thumb's vertical centering drifted with
+   the same clock. The real <input type=range> stays — drag, keyboard, screen readers
+   — painted transparent on top; the drawn boxes are positioned by paint() through
+   --zoom-fill (the gradient's fill point) and --zoom-frac (the thumb's position), so
+   there is nothing here for a browser version to lay out differently. */
+.zoom-slider { position: relative; flex: 1; min-width: 0; height: 18px; }
+.zoom-track {
+  position: absolute; inset: 0; border-radius: 3px;
   background: linear-gradient(90deg, var(--orange) var(--zoom-fill, 50%), var(--hover-medium) var(--zoom-fill, 50%)) no-repeat center / 100% 6px;
 }
-.zoom-row input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--orange); border: none;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+.zoom-thumb {
+  position: absolute; top: 0; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--orange); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  left: calc(9px + (100% - 18px) * var(--zoom-frac, 0.5));
 }
-.zoom-row input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: var(--hover-medium); }
-.zoom-row input[type=range]::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--orange); }
-.zoom-row input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: none; border-radius: 50%; background: var(--orange); }
+.zoom-input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  opacity: 0; cursor: pointer; touch-action: none;
+}
+.zoom-slider:focus-within { outline: 2px solid var(--lav); outline-offset: 2px; }
 .zoom-value { flex-shrink: 0; min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .zoom-reset {
   flex-shrink: 0; border: none; background: none; padding: 5px;

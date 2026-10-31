@@ -194,8 +194,11 @@ test('THE CONTROL SITS IN APPEARANCE, LABELED AND SELF-DESCRIBING', () => {
   const block = html.slice(html.lastIndexOf('<div class="setting"', at), sectionEnd);
   assert.match(block, /<h3 data-i18n="Panel zoom">Panel zoom<\/h3>/);
   assert.match(block, /data-i18n="Make everything in the panel larger or smaller\."/);
-  assert.match(block, /id="panel-zoom-slider" min="0" max="5" step="1"/);
+  assert.match(block, /id="panel-zoom-slider" class="zoom-input" min="0" max="5" step="1"/);
   assert.match(block, /aria-label="Panel zoom" data-i18n-aria-label="Panel zoom"/);
+  assert.match(block, /class="zoom-track"/, 'the drawn track');
+  assert.match(block, /class="zoom-thumb"/, 'the drawn thumb');
+  assert.match(block, /class="zoom-input"/, 'the real control, transparent on top');
   assert.match(block, /id="panel-zoom-value"/, 'the percent readout');
 });
 
@@ -219,7 +222,8 @@ test('HIDDEN WHERE ZOOM WOULD DO NOTHING, APPLIED FROM STORAGE AT BOOT', () => {
   assert.match(bare, /initPanelZoom\(\);/, 'wired once at boot');
   assert.match(bare, /value\.textContent = I18N\.fmtNum\(pct, \{ style: 'unit', unit: 'percent' \}\)/,
     'the readout is a formatted number, not a glued string');
-  assert.match(bare, /slider\.style\.setProperty\('--zoom-fill'/, 'and the drawn track fills to the thumb');
+  assert.match(bare, /wrap\.style\.setProperty\('--zoom-fill'/, 'and the drawn track fills to the thumb');
+  assert.match(bare, /wrap\.style\.setProperty\('--zoom-frac'/, 'and the thumb rides the same fraction');
 });
 
 // ---- the narrow collapse (issue review: at 150% the rows clipped) ----------------
@@ -388,18 +392,19 @@ test('RESET IS ONE TAP TO 100%, AND ONLY OFFERED WHEN YOU ARE NOT THERE', () => 
   assert.match(css, /\.zoom-reset \{/);
   assert.match(css, /\.zoom-reset:disabled/);
   // A drag on the thumb must never scroll the section out from under it.
-  assert.match(css, /\.zoom-row input\[type=range\] \{[^}]*touch-action: none/);
-  // The track is drawn, not native: Chrome's native range track misrenders its width
-  // under CSS zoom (the bar stopped short of the element at every stop but 100%).
-  assert.match(css, /\.zoom-row input\[type=range\] \{[^}]*-webkit-appearance: none; appearance: none/);
-  assert.match(css, /::-webkit-slider-runnable-track \{[^}]*--zoom-fill/);
-  assert.match(css, /::-moz-range-progress [^}]*background: var\(--orange\)/, 'firefox gets the fill natively');
-  assert.doesNotMatch(css, /\.zoom-row input\[type=range\] \{[^}]*accent-color/, 'accent-color needs the native track we dropped');
+  assert.match(css, /\.zoom-input \{[^}]*touch-action: none/);
+  // The slider is drawn from plain boxes: Chrome's native range track misrenders its
+  // width under CSS zoom (the bar stopped short of the element at every stop but
+  // 100%), and the thumb's centering drifted besides. The real input is transparent
+  // on top for behavior; nothing below is a pseudo-element for a version to relayout.
+  assert.match(css, /\.zoom-slider \{ position: relative; flex: 1; min-width: 0; height: 18px; \}/);
+  assert.match(css, /\.zoom-track \{[^}]*--zoom-fill/);
+  assert.match(css, /\.zoom-thumb \{[^}]*left: calc\(9px \+ \(100% - 18px\) \* var\(--zoom-frac, 0\.5\)\);\r?\n \s*\}?|\.zoom-thumb \{[^}]*--zoom-frac/);
+  assert.doesNotMatch(css, /webkit-slider-runnable-track/, 'no native slider internals left');
   // No text-field costume: the global input rule's border, field background and gold
   // focus ring all landed on the slider and read as a pill around the bar.
-  assert.match(css, /\.zoom-row input\[type=range\] \{[^}]*border: none; border-radius: 0;/);
-  assert.match(css, /\.zoom-row input\[type=range\]:focus \{ outline: none; border: none; box-shadow: none; \}/);
-  assert.match(css, /\.zoom-row input\[type=range\]:focus-visible \{ outline: 2px solid var\(--lav\)/,
+  assert.match(css, /\.zoom-input \{[^}]*opacity: 0[^}]*touch-action: none/, 'the input is behavior only');
+  assert.match(css, /\.zoom-slider:focus-within \{ outline: 2px solid var\(--lav\)/,
     'keyboard users keep an indicator');
 });
 

@@ -451,7 +451,15 @@
             <h3 data-i18n="Panel zoom">Panel zoom</h3>
             <p class="hint" data-i18n="Make everything in the panel larger or smaller.">Make everything in the panel larger or smaller.</p>
             <div class="zoom-row">
-              <input type="range" id="panel-zoom-slider" min="0" max="5" step="1" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom" />
+              <div class="zoom-slider">
+                <div class="zoom-track"></div>
+                <div class="zoom-thumb"></div>
+                <!-- The real control: a native range kept for drag, keyboard and screen
+                     reader behavior, painted transparent over the drawn track and thumb.
+                     The drawn parts are plain boxes positioned by paint(), so no browser
+                     version's slider internals can shift them. -->
+                <input type="range" id="panel-zoom-slider" class="zoom-input" min="0" max="5" step="1" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom" />
+              </div>
               <output class="zoom-value" id="panel-zoom-value" for="panel-zoom-slider">100%</output>
               <!-- Feather's rotate-ccw: the standard reset glyph, and a picture is the
                    one label that never needs translating. Title and aria-label stay
