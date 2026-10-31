@@ -87,6 +87,17 @@ straight from 1.8.0 to 1.10.0. Consequences worth holding onto:
       none outside comments; origins come from `runtime.getURL`.
 - [ ] **Chrome smoke test** — load unpacked; exercise the approval popup, side panel,
       wallet, a media upload (kind 24242), and a repost content preview.
+- [ ] **Wallet preflight, with a real wallet.** In the unpacked build: Send opens, a
+      pasted BOLT11 shows its amount, a lightning address resolves, Receive makes an
+      invoice. Wallet code reaches money, so this one is never skipped for a release that
+      "did not touch the wallet": a shared style or helper can.
+- [ ] **Theme check.** Run `test/manual/theme-sweep.html` (instructions at the top of the
+      file) and read the pictures as well as the table: it must say every theme passes.
+      Then `git diff vPREV..HEAD -- themes/ styles.css` and read every hunk that touches a
+      selector list or a blanket rule. The wallet card and a transaction row are in the
+      sweep; look at them in the square themes (Werkstätte, Ben Day, Turnstile) in
+      particular. A control the release adds has to be drawn in
+      `test/manual/theme-surfaces.html` first, or the sweep never sees it.
 - [ ] **Firefox smoke test** — `about:debugging` → This Firefox → Load Temporary Add-on;
       exercise the sidebar, an approval, and confirm the panel actually renders (the
       blank-panel regression — i.e. the origin gate lets extension pages through).
