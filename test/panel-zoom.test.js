@@ -285,6 +285,12 @@ test('THE COLLAPSE STACKS ON GROUP BOUNDARIES, IT DOES NOT SHRINK', () => {
   // Onboarding is taller than the viewport at 150% whatever the layout does; centered
   // overflow in a scroll container clips the TOP. Top-align so scrolling reaches all.
   assert.match(rules, /body\.panel-narrow #view-onboarding \{ justify-content: flex-start; padding-top: 24px; \}/);
+  // Account npubs are data lines: they truncate on one line instead of word-break
+  // orphaning a character or two onto a second line. Scoped to the account list —
+  // prose rows elsewhere (budget sentences, transaction details) keep wrapping.
+  // (Always-on, so it lives beside .item-sub, not in the narrow block.)
+  assert.match(css, /#account-list \.item-sub \{\n  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal;\n\}/);
+  assert.match(css, /#account-list \.item-sub/);
   // A theme's name is set in its own display face at specimen size; two narrow
   // columns amputate it (Cast Iron broke mid-word). One card per row at narrow.
   // Written as a selector list on purpose: theme-gallery.test.js anchors its

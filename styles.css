@@ -1585,6 +1585,12 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 .item-main { flex: 1; min-width: 0; }
 .item-label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); word-break: break-all; margin-top: 2px; }
+/* Account names and npubs are data lines: at narrow widths they truncate on one
+   line instead of word-break orphaning a character or two onto a second line.
+   Prose rows elsewhere (budget sentences, transaction details) keep wrapping. */
+#account-list .item-sub {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal;
+}
 .item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .active-check { width: 18px; height: 18px; color: var(--gold); flex-shrink: 0; }
 
