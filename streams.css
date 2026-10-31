@@ -5,14 +5,14 @@ body { padding-top: var(--stream-height); }
 .stream-toolbar { display:flex; align-items:center; gap:8px; padding:0 8px; min-height:32px; }
 .stream-toolbar strong { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
 .stream-toolbar button { font:inherit; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--velvet-2); color:var(--text); }
-#stream-video { display:block; width:100%; height:min(180px, 27vh); object-fit:contain; background:#000; }
+#stream-video { display:block; width:100%; height:min(180px, calc(27vh / var(--panel-zoom, 1))); object-fit:contain; background:#000; }
 /* Hide Chromium’s disabled native fullscreen control; PiP remains available. */
 #stream-video::-webkit-media-controls-fullscreen-button { display:none; }
 #stream-dock[hidden], #stream-video[hidden], #stream-dock [hidden] { display:none; }
-.stream-expanded #stream-video { height: min(360px, 48vh); }
-.stream-approving #stream-video { height:min(140px, 22vh); }
+.stream-expanded #stream-video { height: min(360px, calc(48vh / var(--panel-zoom, 1))); }
+.stream-approving #stream-video { height:min(140px, calc(22vh / var(--panel-zoom, 1))); }
 .stream-approving .stream-toolbar button:not(#stream-stop) { display:none; }
-#stream-directory { max-height: min(480px, 60vh); overflow:auto; padding:12px; }
+#stream-directory { max-height: min(480px, calc(60vh / var(--panel-zoom, 1))); overflow:auto; padding:12px; }
 #stream-form { display:flex; flex-direction:column; gap:8px; }
 #stream-form input { width:100%; box-sizing:border-box; }
 /* Checkboxes must not inherit the full-width text-field layout. */
@@ -23,8 +23,8 @@ body { padding-top: var(--stream-height); }
 .stream-result { display:flex; align-items:center; gap:10px; text-align:start; padding:8px; background:var(--velvet-2); color:var(--text); border:1px solid var(--border); border-radius:8px; }
 .stream-result img { width:86px; height:48px; object-fit:cover; border-radius:4px; }
 .stream-result span { min-width:0; overflow-wrap:anywhere; }
-#view-main, #view-settings { height:calc(100vh - var(--stream-height)); }
-#view-lock { min-height:calc(100vh - var(--stream-height)); }
+#view-main, #view-settings { height:calc(calc(100vh / var(--panel-zoom, 1)) - var(--stream-height)); }
+#view-lock { min-height:calc(calc(100vh / var(--panel-zoom, 1)) - var(--stream-height)); }
 .approval-overlay { top:var(--stream-height); padding:10px; }
 .approval-card { max-height:100%; }
 /* Ruby glass pilot lamp: warm center, dark rim, and a restrained incandescent halo.
@@ -95,13 +95,13 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 /* The feed picker floats over the app; its list owns the scroll, not the lock page. */
 #stream-directory {
   position:absolute; inset:100% 0 auto;
-  max-height:min(480px, calc(100dvh - var(--stream-height) - 12px));
+  max-height:min(480px, calc(calc(100dvh / var(--panel-zoom, 1)) - var(--stream-height) - 12px));
   overflow-y:auto; overscroll-behavior:contain;
   background:var(--velvet-1); border-bottom:1px solid var(--border-strong);
   box-shadow:0 14px 28px #0005;
 }
 #view-lock {
-  height:calc(100dvh - var(--stream-height)); min-height:0;
+  height:calc(calc(100dvh / var(--panel-zoom, 1)) - var(--stream-height)); min-height:0;
   overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; justify-content:safe center;
 }
 #stream-dock:has(#stream-directory:not([hidden])) ~ #view-lock {
@@ -124,7 +124,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-approving #stream-title-button { display:grid; pointer-events:none; }
 
 /* Keep unlock and navigation available beneath even the expanded player. */
-#stream-dock { max-height:50dvh; display:flex; flex-direction:column; }
+#stream-dock { max-height:calc(50dvh / var(--panel-zoom, 1)); display:flex; flex-direction:column; }
 #stream-dock[hidden] { display:none; }
 .stream-toolbar { flex:0 0 32px; }
 #stream-video { min-height:0; flex:0 1 auto; }
@@ -397,7 +397,7 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
   .t-dropdown { transition: none !important; }
 }
 
-#compose-menu { position:fixed; right:18px; z-index:96; width:max-content; max-width:calc(100vw - 36px); padding:6px; background:var(--velvet-1); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px #0005; }
+#compose-menu { position:fixed; right:18px; z-index:96; width:max-content; max-width:calc(calc(100vw / var(--panel-zoom, 1)) - 36px); padding:6px; background:var(--velvet-1); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px #0005; }
 #compose-menu[hidden] { display:none; }
 #compose-menu button { display:block; width:100%; text-align:start; padding:12px 16px; border:0; background:transparent; color:var(--text); font:inherit; }
 #compose-menu button:hover, #compose-menu button:focus-visible { background:var(--hover-soft); }
@@ -500,7 +500,7 @@ html.stream-chat-active #view-main { justify-content:flex-end; }
 .stream-chat-identity,.stream-chat-form > .ghost { grid-column:1 / -1; }
 .stream-chat-form > .primary { width:44px; height:64px; margin:0; padding:0; display:grid; place-items:center; }
 @media (max-height:700px) {
-  html.stream-chat-active #stream-video { height:min(110px,20vh); }
+  html.stream-chat-active #stream-video { height:min(110px,calc(20vh / var(--panel-zoom, 1))); }
 }
 html.stream-chat-active #compose-fab,
 html.stream-chat-active #compose-menu { display:none; }
@@ -541,7 +541,7 @@ html.stream-chat-active #compose-menu { display:none; }
 /* Reuse the note composer's mention pills, keeping the chat input joined to Send. */
 .stream-chat-editor { min-width:0; position:relative; }
 #stream-chat-panel .stream-chat-editor .compose-editor { box-sizing:border-box; height:64px; min-height:64px; max-height:64px; overflow:auto; margin:0; padding:12px; font-size:14px; border:1px solid var(--border); border-radius:10px; background:var(--input-bg,linear-gradient(180deg,rgba(8,2,20,.6),rgba(20,4,40,.6))); color:var(--text); border-start-end-radius:0; border-end-end-radius:0; border-inline-end:0; }
-#stream-chat-panel .stream-chat-editor .ac-dropdown { top:auto !important; bottom:calc(100% + 4px); max-height:min(200px,35vh); inset-inline:0; width:auto; z-index:2; }
+#stream-chat-panel .stream-chat-editor .ac-dropdown { top:auto !important; bottom:calc(100% + 4px); max-height:min(200px,calc(35vh / var(--panel-zoom, 1))); inset-inline:0; width:auto; z-index:2; }
 
 #stream-chat-panel .stream-chat-editor .compose-editor:focus { border-color:var(--gold-soft); box-shadow:0 0 0 3px var(--focus-ring,rgba(203,161,78,.16)); }
 

@@ -679,10 +679,10 @@
   box-shadow: inset 0 0 0 2px #D9C98E, inset 0 0 0 3px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(21, 26, 30, 0.25);
   pointer-events: none;
 }
-[data-theme="turnstile"] #view-lock .lock-sign-up { bottom: calc(50vh + 210px); }
+[data-theme="turnstile"] #view-lock .lock-sign-up { bottom: calc(calc(50vh / var(--panel-zoom, 1)) + 210px); }
 /* Midway in the room under the form: half the screen, less the content below the middle
    (153px), the version chip (31px) and the sign's own 73px, halved. */
-[data-theme="turnstile"] #view-lock .lock-sign-down { bottom: calc(25vh - 97px); }
+[data-theme="turnstile"] #view-lock .lock-sign-down { bottom: calc(calc(25vh / var(--panel-zoom, 1)) - 97px); }
 [data-theme="turnstile"] #view-lock .lock-sign { align-items: center; }
 [data-theme="turnstile"] #view-lock .lock-sign span {
   display: block;

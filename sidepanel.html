@@ -136,6 +136,11 @@
         <svg class="chip-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
       <div class="topbar-actions">
+        <!-- TWO GROUPS, because the comments below already drew the line: these four
+             act on content, and help/settings/lock are app chrome. The groups are
+             atomic units when body.panel-narrow wraps the row, so a wrap lands
+             between groups instead of stranding two icons on a ragged second line. -->
+        <span class="topbar-group">
         <button id="notif-bell-btn" class="icon-btn notif-bell" title="Notifications" data-i18n-title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           <span class="notif-badge hidden"></span>
@@ -165,6 +170,8 @@
         <button id="bookmarks-btn" class="icon-btn" title="Your bookmarks">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         </button>
+        </span>
+        <span class="topbar-group topbar-group-chrome">
         <button id="help-btn" class="icon-btn" title="Help &amp; guides">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line><line x1="9.17" y1="14.83" x2="4.93" y2="19.07"></line></svg>
         </button>
@@ -174,7 +181,16 @@
         <button id="lock-btn" class="icon-btn" title="Lock">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </button>
+        </span>
+        <!-- The overflow affordance for body.panel-narrow: the five icons that fold
+             behind it MOVE into #topbar-more-menu (applyTopbarFold) — moved, not
+             rebuilt, so every listener wired by id keeps working. Hidden at any width
+             the inline row can hold all seven. -->
+        <button id="topbar-more-btn" class="icon-btn topbar-more hidden" title="More" aria-label="More" data-i18n-title="More" data-i18n-aria-label="More" aria-expanded="false" aria-controls="topbar-more-menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="none"><circle cx="5" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="19" cy="12" r="1.6" fill="currentColor"></circle></svg>
+        </button>
       </div>
+      <div id="topbar-more-menu" class="topbar-more-menu hidden"></div>
       <div id="acct-menu" class="acct-menu hidden"></div>
     </header>
 
@@ -427,6 +443,26 @@
           <button type="button" class="settings-section-toggle" aria-expanded="true" aria-controls="section-body-appearance" data-i18n="Appearance">Appearance</button>
         </h3>
         <div class="settings-section-body" id="section-body-appearance">
+
+          <!-- THE STEPS ARE SIX BY DESIGN (80 to 150), and the slider snaps to them:
+               index 0..5 in the markup, percents in sidepanel.js (PANEL_ZOOM_STOPS).
+               Hidden entirely where CSS zoom is unsupported (initPanelZoom). -->
+          <div class="setting" id="panel-zoom-setting">
+            <h3 data-i18n="Panel zoom">Panel zoom</h3>
+            <p class="hint" data-i18n="Make everything in the panel larger or smaller.">Make everything in the panel larger or smaller.</p>
+            <!-- Smaller, the current size, larger: a stepper over five stops, 80 to 120. The
+               middle button is the reset. A slider was geometry to fight at this width, six
+               stops did not fit it, and 150 percent was more than a narrow panel can hold. -->
+            <div class="zoom-stepper" role="group" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom">
+              <button type="button" class="zoom-step" id="panel-zoom-down" aria-label="Smaller" title="Smaller" data-i18n-aria-label="Smaller" data-i18n-title="Smaller">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+              <button type="button" class="zoom-readout" id="panel-zoom-reset" aria-label="Reset to 100%" title="Reset to 100%" data-i18n-aria-label="Reset to 100%" data-i18n-title="Reset to 100%">100%</button>
+              <button type="button" class="zoom-step" id="panel-zoom-up" aria-label="Larger" title="Larger" data-i18n-aria-label="Larger" data-i18n-title="Larger">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+            </div>
+          </div>
 
           <!-- Hidden until i18n.js lists a second language: a picker with one choice in it
                is a question with no answer. Each language is named in itself. -->

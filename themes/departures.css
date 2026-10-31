@@ -414,10 +414,10 @@
 [data-theme="departures"] #view-lock { position: relative; }
 [data-theme="departures"] #view-lock .lock-station { display: block; }
 [data-theme="departures"] #view-lock .lock-clock {
-  --clock: min(140px, calc(50vh - 220px));
+  --clock: min(140px, calc(calc(50vh / var(--panel-zoom, 1)) - 220px));
   position: absolute;
   left: 50%;
-  top: calc(50vh - 200px - var(--clock));
+  top: calc(calc(50vh / var(--panel-zoom, 1)) - 200px - var(--clock));
   width: var(--clock);
   height: var(--clock);
   transform: translateX(-50%);
@@ -430,7 +430,7 @@
   /* Centered in the room between the Forgot link and the version chip rather than
      resting on the chip: that room is half the screen less the content below the middle
      (153px), the chip (31px) and the board (146px), and the board sits mid-way in it. */
-  bottom: calc(25vh - 134px);
+  bottom: calc(calc(25vh / var(--panel-zoom, 1)) - 134px);
   display: flex;
   flex-direction: column;
   gap: 4px;

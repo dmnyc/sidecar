@@ -194,7 +194,7 @@ button, input, select, textarea { font-family: inherit; }
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 100vh;
+  min-height: calc(100vh / var(--panel-zoom, 1));
   padding: 30px 24px;
 }
 .brand-lg { display: flex; align-items: center; margin-bottom: 18px; }
@@ -343,8 +343,8 @@ select {
 }
 textarea { min-height: 76px; resize: vertical; line-height: 1.5; }
 /* autosizeTextarea: grows with content, then scrolls instead of pushing the rest
-   of the editor away. 45vh keeps the Save row reachable in the panel. */
-textarea.autosize { max-height: 45vh; overflow-y: auto; }
+   of the editor away. calc(45vh / var(--panel-zoom, 1)) keeps the Save row reachable in the panel. */
+textarea.autosize { max-height: calc(45vh / var(--panel-zoom, 1)); overflow-y: auto; }
 /* Explicit dark colors for the native option popup — belt-and-suspenders for
    platforms that draw options with the system theme regardless of color-scheme. */
 select option, select optgroup { background-color: var(--bg-2); color: var(--text); }
@@ -825,6 +825,76 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    row read as one undifferentiated strip. Wider than this and they stop reading
    as a set. */
 .topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+/* Atomic at every width: the gaps inside a group match the gaps between groups, so
+   one row of seven looks identical to before the groups existed. They matter only
+   when body.panel-narrow wraps the row — a wrap lands between groups. */
+.topbar-group { display: inline-flex; align-items: center; gap: 4px; }
+/* The overflow tray body.panel-narrow folds five topbar icons into. The nodes move
+   (applyTopbarFold), they are not rebuilt, so every id keeps its listeners. Anchored
+   right, under the ⬧ button; the dip open and closed is the account menu's, on the
+   same dropdown tokens. */
+.topbar-more-menu {
+  position: absolute; top: calc(100% + 4px); right: 10px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border-strong); border-radius: 14px;
+  box-shadow: var(--sheen), 0 20px 50px rgba(0, 0, 0, 0.6);
+  padding: 6px; z-index: 90;
+  transform-origin: top right;
+  transform: scale(var(--dropdown-pre-scale));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--dropdown-open-dur) var(--dropdown-ease),
+    opacity   var(--dropdown-open-dur) var(--dropdown-ease);
+}
+.topbar-more-menu.is-open {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* PANEL NARROW — body class from sidepanel.js when the width the content actually
+   has (viewport over zoom) is under 340px. The topbar wraps between its two icon
+   groups (content, then app chrome — the split the markup already drew), so a wrap
+   lands on a group boundary and no icon is stranded; the four main tabs fold to two
+   rows of two; the theme gallery goes one card per row, because a theme's name is
+   set in its own display face at specimen size and two narrow columns amputate it.
+   Nothing shrinks: the rows stack, which is the narrow-panel rule this leans on.
+   The traveling tab mark follows the active tab's row (wireTabSlider writes its top
+   from the measured item). */
+body.panel-narrow .topbar { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; padding-right: 10px; }
+body.panel-narrow .topbar-actions { flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+body.panel-narrow .tabs { flex-wrap: wrap; }
+body.panel-narrow .tab { flex: 1 1 45%; }
+/* The wallet's Send/Receive pair floors at its own min-content (icon + word + padding
+   ≤ 106px each), which is wider than the effective width at 150% on a small panel
+   — Receive was clipped at the right edge. Stack them. */
+body.panel-narrow .wallet-actions { flex-direction: column; align-items: stretch; }
+/* The Activity sub-tabs share the traveling mark and the min-content floor. */
+body.panel-narrow .modal-tabs { flex-wrap: wrap; }
+body.panel-narrow .modal-tab { flex: 1 1 45%; }
+/* Onboarding's content is taller than the viewport at 150% no matter what — the
+   centered layout would clip both ends in a scroll container (the classic
+   center-overflow trap: the top is unreachable). Top-align it at narrow, so the PIN
+   is on screen and the rest arrives by scrolling. */
+body.panel-narrow #view-onboarding { justify-content: flex-start; padding-top: 24px; }
+body.panel-narrow .theme-selector,
+body.panel-narrow .theme-special-cards {
+  grid-template-columns: 1fr;
+  grid-auto-flow: row;
+  grid-auto-columns: 1fr;
+}
+/* The wallet backup card: the Back up / Restore pair floors at its own min-content
+   and wrapped their labels across lines. Stacked, with a notch of card padding given
+   back so the export link keeps its one line. */
+body.panel-narrow .wallet-backup-card { padding: 10px; }
+body.panel-narrow .wallet-backup-actions { flex-direction: column; align-items: stretch; }
+/* Budget rows go column-style like transaction rows: host, then the full-width
+   sentence, then edit and revoke right-aligned — instead of three cramped columns
+   that wrapped the sentence onto three lines. */
+body.panel-narrow .wallet-budgets .item { flex-direction: column; align-items: stretch; }
+body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 
 /* ===== main app ===== */
 .topbar {
@@ -848,7 +918,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    shipped the first time, because #view-main has this layout but #view-settings never
    did. Scoped here rather than added to the shared .topbar rule so the main view's
    topbar (which has its own sticky behavior via the wallet card) is unaffected. */
-#view-settings { display: flex; flex-direction: column; height: 100vh; }
+#view-settings { display: flex; flex-direction: column; height: calc(100vh / var(--panel-zoom, 1)); }
 #view-settings .topbar { position: sticky; top: 0; z-index: 5; flex-shrink: 0; }
 .brand { display: flex; align-items: center; }
 .brand-logo-sm { height: 24px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4)); }
@@ -1089,7 +1159,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   .tab-slider { transition: none !important; }
 }
 
-#view-main { display: flex; flex-direction: column; height: 100vh; position: relative; }
+#view-main { display: flex; flex-direction: column; height: calc(100vh / var(--panel-zoom, 1)); position: relative; }
 .content { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px 16px 28px; display: flex; flex-direction: column; overflow-anchor: none; }
 .tabview { flex: 1; display: flex; flex-direction: column; }
 .brand-foot { margin-top: auto; padding-top: 40px; padding-bottom: 4px; text-align: center; opacity: 1; pointer-events: none; user-select: none; }
@@ -1133,6 +1203,13 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    only the second line of defense behind that. */
 .rider-overlay {
   position: fixed; inset: 0; z-index: 95; background: #0e0e14; display: flex;
+  /* THE GAME IS NOT PANEL CONTENT, SO PANEL ZOOM DOES NOT APPLY TO IT. The body's zoom
+     scales this overlay with everything else, and the game sizes itself from its frame:
+     at 150% the frame reported two thirds of the real width, the game picked a smaller
+     pixel scale to fit, and the browser then stretched that by 1.5, so its pixel art was
+     resampled and its close button was placed in the wrong units. Zoom multiplies down the
+     tree, so the reciprocal takes this subtree back to 1 and the game sees the real window. */
+  zoom: calc(1 / var(--panel-zoom, 1));
   /* It arrives rather than appearing: a short rise and a fade, opening slower than it
      closes.
 
@@ -1515,6 +1592,12 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 .item-main { flex: 1; min-width: 0; }
 .item-label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); word-break: break-all; margin-top: 2px; }
+/* Account names and npubs are data lines: at narrow widths they truncate on one
+   line instead of word-break orphaning a character or two onto a second line.
+   Prose rows elsewhere (budget sentences, transaction details) keep wrapping. */
+#account-list .item-sub {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal;
+}
 .item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .active-check { width: 18px; height: 18px; color: var(--gold); flex-shrink: 0; }
 
@@ -1631,13 +1714,23 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
   gap: 4px;
 }
 .account-stat-id-val .nip05-badge { display: inline-flex; flex-shrink: 0; }
+/* THE VALUE'S TEXT IS ITS OWN SHRINKABLE ITEM. The row is a right-aligned flex box, and a
+   bare text node in one cannot take an ellipsis: when the value was wider than the room, it
+   spilled off the LEFT edge and was clipped there, so "daniel@sidecar.top" read as
+   "niel@sidecar.top". As an item with min-width: 0 it gives way and ends in an ellipsis,
+   which is the panel's rule for prose in a row. The full value is its title. */
+.account-stat-id-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-stat-id-val .nip05-badge svg { width: 12px; height: 12px; }
 /* Wallet status badges with colored check/X */
 .wallet-status {
-  gap: 10px;
+  gap: 2px 10px;
   white-space: normal;
+  /* Two badges that do not fit side by side stack, each whole, rather than one breaking
+     mid-phrase ("Backed" / "up") and the other being clipped. */
+  flex-wrap: wrap;
 }
 .wallet-badge {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2154,6 +2247,28 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .toggle-row { display: flex; align-items: center; gap: 9px; cursor: pointer; color: var(--text); font-size: 14px; }
 .toggle-row input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--orange); cursor: pointer; flex-shrink: 0; }
+
+/* PANEL ZOOM (issue #565). The slider snaps to six stops and the readout carries the
+   percent, so the value is text and gets tabular figures like every other number. */
+/* Six labeled buttons, not a slider: the stops were always the whole control, and
+   buttons are boxes that every browser lays out identically at every zoom. They wrap
+   rather than clip at narrow widths. The worn stop is outlined in gold. */
+/* Smaller, the size, larger: three equal-height controls in a row. The ends are icon
+   buttons of one width and the readout takes the rest, so "100%" never decides the layout.
+   The readout is the reset: it reads as a plain field at 100 and picks up the accent when
+   the panel is at another size, which is when tapping it does something. */
+.zoom-stepper { display: flex; align-items: stretch; gap: 6px; }
+.zoom-step, .zoom-readout {
+  height: 36px; border: 1px solid var(--border); background: transparent; color: var(--text);
+  font-family: inherit; cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.zoom-step { flex: 0 0 44px; display: flex; align-items: center; justify-content: center; border-radius: 8px; padding: 0; }
+.zoom-step svg { width: 16px; height: 16px; }
+.zoom-readout { flex: 1; min-width: 0; border-radius: 8px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); cursor: default; }
+.zoom-readout.is-changed { color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold)); border-color: var(--accent-fill, var(--gold)); cursor: pointer; }
+.zoom-step:hover:not(:disabled) { border-color: var(--border-strong); }
+.zoom-step:disabled { opacity: 0.4; cursor: default; }
 /* Two switches under one heading (Wallet & payments' hide-balances pair, where the
    second qualifies the first) — the row carries no vertical margin of its own, so
    stacked ones would sit flush. Matched to the row's own 9px gap. */
@@ -2559,8 +2674,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    .site-controls use; it never sits beside the input, which is too narrow to share. */
 .relay-add-confirm { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin: 8px 0 4px; }
 .relay-add-confirm .confirm-msg { flex: none; }
-.relay-add-confirm-actions { display: flex; gap: 8px; }
+.relay-add-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Each answer keeps its label whole. When the two do not fit side by side the second takes
+   its own full-width line, instead of "Add anyway" breaking into two lines inside a tall
+   button. */
 .relay-add-confirm-actions button { flex: 1; }
+.relay-add-confirm-actions button { min-width: max-content; white-space: nowrap; }
 .level-select {
   width: auto;
   flex-shrink: 0;
@@ -2638,6 +2757,13 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* signing activity rows */
 .activity-item { gap: 11px; }
+/* The host and the age are one short line of data, and the shared .item-sub rule breaks
+   anywhere so a long npub cannot overflow. Here that cut "jumble.social" in half. They are
+   two pieces now (actSub in sidepanel.js): side by side when they fit, the age under the host
+   when they do not, and the host alone ends in an ellipsis only if it is wider than the row. */
+.act-sub { display: flex; flex-wrap: wrap; column-gap: 0.7ch; word-break: normal; }
+.act-host { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-when { white-space: nowrap; }
 .act-icon {
   flex-shrink: 0;
   width: 32px;
@@ -2675,7 +2801,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   padding: 22px;
   width: 100%;
   max-width: 344px;
-  max-height: 90vh;
+  max-height: calc(90vh / var(--panel-zoom, 1));
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -2981,7 +3107,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .na-ask-yes { background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold)); color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); }
 .na-ask-no { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); }
 .compose-preview {
-  min-height: 120px; max-height: 46vh; overflow-y: auto;
+  min-height: 120px; max-height: calc(46vh / var(--panel-zoom, 1)); overflow-y: auto;
   border: 1px solid var(--border); border-radius: 10px; padding: 12px;
   background: rgba(var(--well-rgb), 0.3);
 }
@@ -3268,7 +3394,7 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
    rather than equal numbers, because the panes agreeing is the point: switching tabs
    must not move the card. */
 .compose-page {
-  margin: 0; min-height: 100vh;
+  margin: 0; min-height: calc(100vh / var(--panel-zoom, 1));
   --compose-topbar-h: 47px;
   --compose-pane-h: 340px;
 }
@@ -3307,7 +3433,7 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 .compose-topbar .compose-x { margin: -12px 0 -12px auto; flex-shrink: 0; }
 .compose-body {
   display: flex; justify-content: center;
-  min-height: calc(100vh - var(--compose-topbar-h));
+  min-height: calc(calc(100vh / var(--panel-zoom, 1)) - var(--compose-topbar-h));
   padding: 32px 20px 48px; box-sizing: border-box;
 }
 /* WIDE ENOUGH TO READ, not as wide as the window. A line of prose past about 70
@@ -3546,13 +3672,13 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-done-open { text-decoration: none; padding: 10px 22px; }
 
 /* THE REVIEW WINDOW IS NOT THE EDITOR, so it does not want the editor's height. The pane
-   inherits .countdown-preview's 42vh cap, which on this page sits under a note written at
+   inherits .countdown-preview's calc(42vh / var(--panel-zoom, 1)) cap, which on this page sits under a note written at
    17px with its images at full width: a countdown tall enough to push its own ring and
    its own buttons off the screen, at the one moment everything in it matters.
 
    A third of the window, scrolling inside itself, and the images come down to something
    you can take in at a glance rather than read twice. */
-.compose-countdown .countdown-preview { max-height: 32vh; }
+.compose-countdown .countdown-preview { max-height: calc(32vh / var(--panel-zoom, 1)); }
 .compose-countdown .preview-body { font-size: 15px; line-height: 1.5; }
 .compose-countdown .note-media { max-height: 160px; object-fit: contain; }
 .compose-countdown .note-embed { padding: 8px 10px; }
@@ -3709,7 +3835,7 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
      countdown showing you almost nothing right before it publishes. It scrolls
      internally instead (overflow-y below), which is what the cap was always for. */
   flex-shrink: 0;
-  max-height: 42vh;
+  max-height: calc(42vh / var(--panel-zoom, 1));
   overflow-y: auto;
   background: var(--velvet-1);
   border: 1px solid var(--border);
@@ -3857,9 +3983,12 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .wallet-chart.is-loading .wallet-chart-plot,
 .wallet-chart.is-loading .wallet-chart-meta { opacity: 0.4; transition: opacity 0.15s; }
 .wallet-chart-meta {
-  display: flex; align-items: baseline; gap: 8px; justify-content: center;
+  /* Three figures that wrap as whole figures: "▲ 0.94%" and a price range are not
+     breakable phrases, so a narrow card puts one on the next line, centered. */
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; justify-content: center;
   font-family: var(--font-ui); font-size: 11.5px; color: var(--muted); margin-top: 2px;
 }
+.wallet-chart-meta > span { white-space: nowrap; }
 .wallet-chart-delta.up { color: var(--success); }
 .wallet-chart-delta.down { color: var(--red); }
 .wallet-chart-price { color: var(--text-2); font-variant-numeric: tabular-nums; }
@@ -4757,7 +4886,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    off the bottom, so the one thing you came to do was the thing you had to go find. The
    padding moves onto the two halves, since the footer needs its own. */
 .approval-card {
-  width: 100%; max-width: 360px; max-height: 90vh;
+  width: 100%; max-width: 360px; max-height: calc(90vh / var(--panel-zoom, 1));
   display: flex; flex-direction: column; overflow: hidden;
   border-radius: 16px;
   background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
@@ -6021,7 +6150,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 
 /* AND IT TAKES THE HEIGHT THAT IS LEFT, not a fixed slice of the viewport.
 
-   This was max-height: 34vh, which is right on a short panel and leaves a blank band above
+   This was max-height: calc(34vh / var(--panel-zoom, 1)), which is right on a short panel and leaves a blank band above
    the actions on a tall one: the side panel is dragged to whatever height suits, and a
    third of it is not the same as what is actually spare. The open row grows into the free
    space instead, so there is none left over to sit empty, and the choices below it follow
