@@ -9,7 +9,7 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
-## [1.16.5] — 2026-10-31
+## [1.16.5] — 2026-11-01
 
 ### Added
 - **EXIF data is stripped from photos before upload.** A photo’s EXIF data, and the other metadata embedded with it, can include its GPS location and camera details. Sidecar removes it before any upload, profile and banner pictures included, and the picture and its colors are unchanged.
