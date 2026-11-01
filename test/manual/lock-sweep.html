@@ -19,7 +19,7 @@
   form, and no scrolling. The longer message is the default because it is the worst case.
 
   PARAMETERS (query string): w and h for the panel size (378×915 by default), zoom for the
-  panel zoom as a factor (1.2), lede for the message. Worth a run at a short panel (h=700)
+  panel zoom as a factor (1.2), lede for the message, dir=rtl to mirror the panel as a right-to-left language does. Worth a run at a short panel (h=700)
   and at the zoom steps when a lock screen changed.
 -->
 <!doctype html>
@@ -58,6 +58,7 @@ const STUB = `<script>window.chrome={runtime:{id:'x',getURL:p=>p,sendMessage:(m,
     // The panel applied the theme from the stubbed settings and opened its own lock screen
     // (so the Departures clock runs); these lines only make sure of both.
     if (d.documentElement.dataset.theme !== t) d.documentElement.dataset.theme = t;
+    if (P.get('dir')) d.documentElement.dir = P.get('dir');
     if (ZOOM) { d.body.style.zoom = ZOOM; d.documentElement.style.setProperty('--panel-zoom', ZOOM); }
     for (const v of d.querySelectorAll('[id^="view-"]')) v.classList.add('hidden');
     const lock = d.getElementById('view-lock'); lock.classList.remove('hidden');

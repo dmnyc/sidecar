@@ -250,8 +250,8 @@ test('THE STRIP REORDERS BY MORE THAN DRAG', () => {
     assert.match(block, /canMovePicture\(draft\.media, i, 1\)\) cell\.append\(step\(1/, name + ' shows a right arrow at the last slot');
   }
   const sheet = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  assert.match(sheet, /\.compose-thumb-move\.left \{ left: 3px; \}/);
-  assert.match(sheet, /\.compose-thumb-move\.right \{ right: 3px; \}/);
+  assert.match(sheet, /\.compose-thumb-move\.left \{ inset-inline-start: 3px; \}/);
+  assert.match(sheet, /\.compose-thumb-move\.right \{ inset-inline-end: 3px; \}/);
 });
 
 test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {

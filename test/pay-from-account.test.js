@@ -281,7 +281,7 @@ test('the keep-this-account line is left-aligned beside its box, on the panel an
   for (const [name, source, selector] of [['styles.css', css, /#approval-bind-payer \.check\s*\{[^}]*\}/], ['prompt.html', popup, /#bind-payer \.check\s*\{[^}]*\}/]]) {
     const rule = source.match(selector);
     assert.ok(rule, name + ': the rule is gone');
-    assert.match(rule[0], /text-align:\s*left/, name + ': the words are not left-aligned');
+    assert.match(rule[0], /text-align:\s*start/, name + ': the words are not left-aligned');
     assert.match(rule[0], /align-items:\s*flex-start/, name + ': the box is not on the first line');
   }
 });

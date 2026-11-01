@@ -61,6 +61,13 @@
       const pick = simplified ? 'zh' : 'zh-TW';
       if (codes.includes(pick)) return pick;
     }
+    // Portuguese has two catalogs and a bare `pt` names neither: it goes to Brazil, which has
+    // far more speakers, and every other pt-XX (PT, AO, MZ, CV…) goes to Portugal.
+    if (base === 'pt') {
+      const pick = /^pt(-br)?$/i.test(want) ? 'pt-BR' : 'pt-PT';
+      if (codes.includes(pick)) return pick;
+      if (codes.includes('pt-BR')) return 'pt-BR';
+    }
     return codes.find((c) => c.toLowerCase() === base) || 'en';
   }
 
@@ -160,9 +167,16 @@
   }
   // fmtRelative(-5, 'minute') → "5 min. ago" in English, the language's own words
   // elsewhere, with no translation work for any of them.
+  //
+  // The compact (`narrow`) data is thin for some languages: Chrome gives Russian, French and
+  // European Portuguese a bare "-1 ч" / "-1 h" with no word for "ago", which reads as a negative
+  // quantity inside a sentence. A result that starts with a sign is that gap, so it is asked
+  // again in the `short` style, which spells the direction out ("1 ч назад", "il y a 1 h").
   function fmtRelative(value, unit, opts) {
-    return new Intl.RelativeTimeFormat(numLocale(), Object.assign({ numeric: 'auto', style: 'narrow' }, opts))
+    const make = (style) => new Intl.RelativeTimeFormat(numLocale(), Object.assign({ numeric: 'auto', style }, opts))
       .format(value, unit);
+    const out = make('narrow');
+    return /^[+\-\u2212]\s*\d/.test(out) ? make('short') : out;
   }
 
   // ---- static HTML --------------------------------------------------------------------

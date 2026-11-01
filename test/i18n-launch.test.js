@@ -26,7 +26,7 @@ for(const code of codes) {
   const catalog=JSON.parse(fs.readFileSync(path.join(root,'locales',code+'.json'),'utf8'));
   assert.equal(i.t('Copy'),catalog.Copy);
   const key='Incorrect PIN. Attempts remaining before Sidecar erases itself: {{count}}';
-  assert.equal(i.controlError({errorKey:'pin-remaining',errorParams:{count:3}}),catalog[key].replace('{{count}}','3'));
+  assert.equal(i.controlError({errorKey:'pin-remaining',errorParams:{count:3}}),catalog[key].replace('{{count}}',i.fmtNum(3)));
   const one='{{count}} relay';
   for(const count of [0,1,2,1000000]) {
    const category=new Intl.PluralRules(code).select(count);
@@ -42,7 +42,9 @@ for(const code of codes) {
 test('browser payment catalogs retain every key and payment placeholder definition',()=>{
  const english=JSON.parse(fs.readFileSync(path.join(root,'_locales/en/messages.json'),'utf8'));
  for(const code of codes) {
-  const messages=JSON.parse(fs.readFileSync(path.join(root,'_locales',code.replace('-','_'),'messages.json'),'utf8'));
+  const folder=code==='zh'?'zh_CN':code.replace('-','_');
+  if(!fs.existsSync(path.join(root,'_locales',folder))) { assert.equal(code,'ur','only Urdu has no browser message catalog (Chrome has no Urdu locale)'); continue; }
+  const messages=JSON.parse(fs.readFileSync(path.join(root,'_locales',folder,'messages.json'),'utf8'));
   assert.deepEqual(Object.keys(messages).sort(),Object.keys(english).sort());
   for(const [key,entry] of Object.entries(english)) {
    assert.deepEqual(messages[key].placeholders,entry.placeholders,code+': '+key);

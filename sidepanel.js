@@ -331,8 +331,8 @@
     if (!showQuotes) return h('div', { className: 'bm-empty' }, [h('p', { className: 'hint', textContent: hint || '' })]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
-      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
-      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      h('p', { className: 'bm-quote', dir: 'auto', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', dir: 'auto', textContent: q.who }),
       hint ? h('p', { className: 'hint', textContent: hint }) : h('span'),
     ]);
   }
@@ -346,8 +346,8 @@
     if (!showQuotes) return h('span');
     q = q || pickQuote();
     return h('div', { className: 'bm-empty bm-end' }, [
-      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
-      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      h('p', { className: 'bm-quote', dir: 'auto', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', dir: 'auto', textContent: q.who }),
     ]);
   }
 
@@ -376,8 +376,8 @@
     if (!showQuotes) return h('div', { className: 'bm-empty' }, [waitingRow(label)]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
-      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
-      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      h('p', { className: 'bm-quote', dir: 'auto', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', dir: 'auto', textContent: q.who }),
       waitingRow(label),
     ]);
   }
@@ -8440,7 +8440,7 @@
         const cleaned = cleanSnippet(ev.content);
         if (cleaned) {
           snippetText = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
-          contentEl = h('p', { className: 'notif-content', textContent: snippetText });
+          contentEl = h('p', { className: 'notif-content', dir: 'auto', textContent: snippetText });
           // data-note-id lets the background mention-name patch below (see
           // showNotifModal) find and re-render this snippet once a mentioned
           // profile resolves — it's rendered here with whatever names are
@@ -9543,7 +9543,7 @@
     host.append(
       h('div', { className: 'otd-main' }, [
         h('p', { className: 'otd-kicker', textContent: t('On this day in {{year}}', {year:String(entry.year)}) }),
-        h('p', { className: 'otd-text', textContent: entry.text }),
+        h('p', { className: 'otd-text', dir: 'auto', textContent: entry.text }),
       ]),
       share
     );
@@ -12920,6 +12920,7 @@
     body.append(
       h('div', {
         className: 'profile-name',
+        dir: 'auto',
         textContent: content.display_name || content.name || active.name || shortNpub(active.npub),
       })
     );
@@ -13030,7 +13031,7 @@
     fetchStatus(active.pubkey).then((st) => { if (header.isConnected) paintStatus(st); });
 
     if (content.about) {
-      const about = h('p', { className: 'profile-about' });
+      const about = h('p', { className: 'profile-about', dir: 'auto' });
       body.append(about);
       renderAbout(about, content.about);
     }
@@ -25999,13 +26000,17 @@
     const langs = I18N.languages();
     if (langs.length < 2) return;
     try { await I18N.ready; } catch (_) {}
-    const select = $('language-select');
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const current = (settings && settings.language) || 'auto';
-    select.append(h('option', { value: 'auto', textContent: t('Automatic (browser language)') }));
-    for (const l of langs) select.append(h('option', { value: l.code, textContent: l.name }));
-    select.value = langs.some((l) => l.code === current) ? current : 'auto';
-    select.addEventListener('change', () => setLanguage(select.value));
+    // The same choices in Settings and on the first screen, so a person can switch before they
+    // have a keystore. Either one reloads the panel in the new language.
+    for (const select of [$('language-select'), $('ob-language-select')]) {
+      select.append(h('option', { value: 'auto', textContent: t('Automatic (browser language)') }));
+      for (const l of langs) select.append(h('option', { value: l.code, textContent: l.name }));
+      select.value = langs.some((l) => l.code === current) ? current : 'auto';
+      select.addEventListener('change', () => setLanguage(select.value));
+    }
+    show($('ob-language-setting'));
     // The translations are drafts with no native review behind them, so say so, and say where a
     // correction goes. The link is built here, not in the catalogs, which never carry markup.
     const report = h('a', { className: 'explore-link', href: '#', textContent: t('Tell us on GitHub') });

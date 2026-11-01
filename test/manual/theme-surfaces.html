@@ -22,6 +22,7 @@
 (async () => {
   const q = new URLSearchParams(location.search);
   const theme = q.get('theme') || 'speakeasy';
+  if (q.get('dir')) document.documentElement.dir = q.get('dir'); // dir=rtl: the page as a right-to-left language sees it
 
   // The themes the panel loads, read from the panel's own page so this cannot drift from it.
   const html = await (await fetch('../../sidepanel.html')).text();

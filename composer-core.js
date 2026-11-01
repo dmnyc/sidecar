@@ -169,7 +169,10 @@ window.SidecarCore = (function () {
       '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
       (ICONS[name] || '') +
       '</svg>';
-    return wrap.firstElementChild;
+    const svg = wrap.firstElementChild;
+    // Named so a right-to-left page can mirror the ones that point somewhere (styles.css).
+    svg.setAttribute('data-icon', name);
+    return svg;
   }
 
 
@@ -554,7 +557,7 @@ window.SidecarCore = (function () {
     // composers hand in the conversion, and an editor without one (the page-comment
     // box) never shows the row.
     const onAttachUrl = (opts && opts.onAttachUrl) || null;
-    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
+    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true', dir: 'auto' });
     editor.dataset.placeholder = (opts && opts.placeholder) || '';
     const wrap = h('div', { className: 'compose-editor-wrap' });
     wrap.append(editor);

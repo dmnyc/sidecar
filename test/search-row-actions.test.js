@@ -378,7 +378,7 @@ test('a second tap while the first is still in flight does nothing', async () =>
 test('results mount the buttons for other people only, and the layout keeps them at the right edge', () => {
   assert.match(source, /if \(state\.activePubkey && !\(\(state && state\.accounts\) \|\| \[\]\)\.some\(\(a\) => a\.pubkey === c\.pubkey\)\) item\.append\(personActions\(c, \{ onTier: paintTrust \}\)\);/);
   assert.match(css, /^\.ac-item-actions \{[^}]*flex-shrink: 0/m, 'the buttons keep their size and the name truncates');
-  assert.match(css, /^\.ac-item-name \+ \.ac-item-actions \{ margin-left: auto; \}/m, 'right edge when there is no trust mark');
+  assert.match(css, /^\.ac-item-name \+ \.ac-item-actions \{ margin-inline-start: auto; \}/m, 'right edge when there is no trust mark');
 });
 
 // ---- the same buttons on the profile card a result opens ----
@@ -725,7 +725,7 @@ test('the card reads: icons, then the lightning address, then the bio', () => {
 test('the left-aligned bio is set apart from the centered block by a thin line, which goes when there is no bio', () => {
   const rule = css.match(/^\.peek-about \{([^}]*)\}/m);
   assert.ok(rule, 'the bio rule exists');
-  assert.match(rule[1], /text-align: left/);
+  assert.match(rule[1], /text-align: start/);
   assert.match(rule[1], /border-top: 1px solid var\(--border\)/);
   assert.match(rule[1], /padding-top: \d+px/, 'room under the line');
   assert.match(css, /^\.peek-about:empty \{ display: none; \}/m, 'no bio, no line');

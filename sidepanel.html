@@ -93,6 +93,13 @@
       <div class="error" id="ob-error"></div>
       <button type="submit" class="primary" id="ob-submit" data-i18n="Create keystore">Create keystore</button>
     </form>
+    <!-- The first screen is where a language matters most: the PIN and key-backup warnings
+         that follow are the text nobody should have to read in a language they do not. Shown
+         by initLanguagePicker, with the same choices as Settings. -->
+    <div class="ob-language hidden" id="ob-language-setting">
+      <label for="ob-language-select" data-i18n="Language">Language</label>
+      <select id="ob-language-select" aria-label="Language" data-i18n-aria-label="Language"></select>
+    </div>
     <div id="onboarding-version" class="pre-version-row"></div>
   </section>
 

@@ -436,7 +436,7 @@ test('the stacked actions share the row and wrap rather than overflow', () => {
   // margin-left: auto is what pushes the single link to the right of a one-row banner,
   // and it has to be undone here or the first action is shoved off its own row.
   const inner = css.slice(css.indexOf('.post-banner-actions .post-banner-link {'));
-  assert.match(inner.slice(0, inner.indexOf('}')), /margin-left: 0/);
+  assert.match(inner.slice(0, inner.indexOf('}')), /margin-inline-start: 0/);
 });
 
 // ---- what posting a poll actually costs ---------------------------------------------
@@ -755,7 +755,7 @@ test('a bar that opens keeps the metrics of one that does not', () => {
   // reads as the list being broken rather than as one of them being empty.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   const decls = css.slice(css.indexOf('button.poll-bar-head {')).split('}')[0];
-  for (const d of [/background: none/, /border: none/, /padding: 0/, /font: inherit/, /text-align: left/, /width: 100%/]) {
+  for (const d of [/background: none/, /border: none/, /padding: 0/, /font: inherit/, /text-align: start/, /width: 100%/]) {
     assert.match(decls, d, 'button.poll-bar-head is missing a reset: ' + d);
   }
 
@@ -973,7 +973,7 @@ test('THE TWO CORNERS ARE TWO DIFFERENT EXITS', () => {
 
 test('a heading clears both corners and sits centered between them', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  assert.match(css, /\.modal-back \{ left: 12px; right: auto; \}/);
+  assert.match(css, /\.modal-back \{ inset-inline-start: 12px; inset-inline-end: auto; \}/);
   // BOTH SIDES, always, which is what the centering rests on. The corners are inset 12px
   // and 30px wide, so 34px a side puts the title on the sheet's midline, exactly between
   // them. Reserving only the corner that happens to be occupied would center it on what
@@ -981,7 +981,7 @@ test('a heading clears both corners and sits centered between them', () => {
   // after posting would put its heading in two different places.
   assert.match(
     css,
-    /\.modal-sheet > h3 \{ padding-left: 34px; padding-right: 34px; text-align: center; \}/,
+    /\.modal-sheet > h3 \{ padding-inline-start: 34px; padding-inline-end: 34px; text-align: center; \}/,
     'the sheet title is centered between the corners'
   );
   // Comments stripped before the negative match, or a rule explaining why the class went

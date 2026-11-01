@@ -33,7 +33,7 @@ function load({ settings = {}, uiLang = 'en-US', cache = null, worker = false } 
   ctx.self = ctx;
   vm.createContext(ctx);
   vm.runInContext(SRC, ctx);
-  return Object.assign(ctx.SidecarI18n, { _store: store });
+  return Object.assign(ctx.SidecarI18n, { _store: store, _ctx: ctx });
 }
 
 // ---- English, with nothing loaded ----------------------------------------------------
@@ -117,6 +117,30 @@ test('numbers and dates follow the language', () => {
   assert.match(i.fmtRelative(-5, 'minute'), /5/);
 });
 
+test('a compact relative time that is only a signed number is asked again in the short style', () => {
+  // Chrome's `narrow` data gives Russian, French and European Portuguese "-1 ч" / "-1 h", with
+  // no word for "ago". Standing in for that gap: `narrow` answers with a bare signed number,
+  // `short` spells it out. The panel must show the second.
+  const i = load();
+  i.setLocale('ru', []);
+  const asked = [];
+  class Gappy {
+    constructor(loc, opts) { this.style = opts && opts.style; asked.push(this.style); }
+    format(v) { return this.style === 'narrow' ? v + ' ч' : '1 ч назад'; }
+  }
+  // The page's own `Intl` is swapped for a copy with the stand-in class; the real one is untouched.
+  i._ctx.Intl = Object.assign({}, Intl, { RelativeTimeFormat: Gappy });
+  try {
+    assert.equal(i.fmtRelative(-1, 'hour'), '1 ч назад');
+    assert.deepEqual(asked, ['narrow', 'short']);
+    asked.length = 0;
+    // A language whose compact form already says "ago" is left alone.
+    Gappy.prototype.format = function () { return '1 ч назад'; };
+    assert.equal(i.fmtRelative(-1, 'hour'), '1 ч назад');
+    assert.deepEqual(asked, ['narrow']);
+  } finally { i._ctx.Intl = Intl; }
+});
+
 // ---- choosing the language --------------------------------------------------------------
 
 test('THE BROWSER LANGUAGE RESOLVES TO A SUPPORTED ONE, OR ENGLISH', () => {
@@ -124,7 +148,9 @@ test('THE BROWSER LANGUAGE RESOLVES TO A SUPPORTED ONE, OR ENGLISH', () => {
   assert.equal(i.resolve('en-GB'), 'en');
   assert.equal(i.resolve('fr-CA'), 'fr');
   assert.equal(i.resolve('pt-BR'), 'pt-BR');
-  assert.equal(i.resolve('pt-PT'), 'en', 'European Portuguese is a later phase');
+  // A bare `pt` goes to Brazil; European Portuguese falls to it until it has a catalog of its own.
+  assert.equal(i.resolve('pt'), 'pt-BR');
+  assert.equal(i.resolve('pt-PT'), 'pt-BR');
   assert.equal(i.resolve(''), 'en');
   assert.equal(i.resolve('en-XA'), 'en-XA');
 });

@@ -160,7 +160,7 @@ test('THE REFRESH DOES NOT SIT ON TOP OF THE CLOSE BUTTON', () => {
   const r = css.indexOf('.notif-refresh {');
   assert.ok(x !== -1 && r !== -1, 'one of the two rules was renamed');
   assert.ok(r > x, '.notif-refresh must come after .modal-x or its offset loses the tie');
-  assert.match(css, /\.notif-refresh \{ right: 48px; \}/, 'the refresh no longer clears the close button');
+  assert.match(css, /\.notif-refresh \{ inset-inline-end: 48px; \}/, 'the refresh no longer clears the close button');
 });
 
 test('the spin is dropped under prefers-reduced-motion', () => {

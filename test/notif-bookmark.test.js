@@ -159,7 +159,7 @@ test('the row ends with the bookmark, after the four public actions', () => {
   // Appended last AND pushed to the far edge: the gap is what separates the private
   // action from the four public ones, the way every client the user came from groups them.
   assert.match(src, /bmBtn\.classList\.add\('notif-act-end'\)/, 'the button sits against the zap');
-  assert.match(css, /\.notif-actions \.notif-act-end \{[^}]*margin-left: auto/, 'nothing pushes it right');
+  assert.match(css, /\.notif-actions \.notif-act-end \{[^}]*margin-inline-start: auto/, 'nothing pushes it right');
 });
 
 test('a bookmarked button stops taking taps', () => {

@@ -74,7 +74,7 @@ body { padding-top: var(--stream-height); }
    with the title or it keeps the first line to itself and the message drops onto a second one. */
 #stream-title-window.stream-messaging .t-text-swap { display:none; }
 .stream-toolbar #stream-title { display:inline-block; width:max-content; max-width:none; overflow:visible; text-overflow:clip; white-space:nowrap; vertical-align:middle; font-size:12px; font-weight:500; }
-#stream-title-window.stream-title-scrolling { text-align:left; }
+#stream-title-window.stream-title-scrolling { text-align:start; }
 .stream-title-scrolling #stream-title { animation:stream-title-drift var(--stream-title-duration, 18s) linear infinite alternate; }
 @keyframes stream-title-drift { 0%,15% { transform:translateX(0); } 85%,100% { transform:translateX(var(--stream-title-travel)); } }
 #stream-title-window:hover #stream-title { animation-play-state:paused; }
@@ -117,10 +117,10 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
   align-items:center; gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
 }
 .stream-toolbar #stream-title-button #stream-title-window { grid-column:2; }
-.stream-toolbar #stream-browse { position:absolute; left:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; }
+.stream-toolbar #stream-browse { position:absolute; inset-inline-start:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; }
 .stream-live-cue { display:inline-flex; align-items:center; gap:8px; padding-inline:6px; }
 #stream-title-window { display:block; }
-.stream-controls { position:absolute; right:8px; top:0; height:32px; }
+.stream-controls { position:absolute; inset-inline-end:8px; top:0; height:32px; }
 .stream-approving #stream-title-button { display:grid; pointer-events:none; }
 
 /* Keep unlock and navigation available beneath even the expanded player. */
@@ -143,7 +143,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-result .stream-thumbnail img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .stream-more summary, #stream-advanced summary { list-style:none; font:inherit; font-size:13px; color:var(--muted); cursor:pointer; padding:10px 0; }
 .stream-more summary::-webkit-details-marker, #stream-advanced summary::-webkit-details-marker { display:none; }
-.stream-more summary::after, #stream-advanced summary::after { content:'›'; display:inline-block; margin-left:8px; }
+.stream-more summary::after, #stream-advanced summary::after { content:'›'; display:inline-block; margin-inline-start:8px; }
 .stream-more[open] summary::after, #stream-advanced[open] summary::after { transform:rotate(90deg); }
 .stream-more .stream-result { width:100%; margin-bottom:10px; }
 #stream-advanced { border-top:1px solid var(--border); margin-top:12px; }
@@ -153,7 +153,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 
 .stream-directory-actions { display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); margin-top:12px; padding-top:6px; }
 .stream-directory-actions .ghost { font:inherit; font-size:13px; border:0; padding:8px 10px; border-radius:8px; }
-.stream-directory-actions #stream-url-toggle { margin-left:auto; }
+.stream-directory-actions #stream-url-toggle { margin-inline-start:auto; }
 .stream-directory-actions #stream-refresh { margin:0; align-self:auto; }
 #stream-more-list { display:grid; gap:10px; margin-top:10px; }
 #stream-more-list[hidden] { display:none; }
@@ -196,10 +196,10 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-directory-actions svg { display:block; width:18px; height:18px; }
 .stream-directory-actions .ghost {
   flex:1 1 auto; height:36px; margin:0; padding:0 12px;
-  border:0; border-left:1px solid var(--border); border-radius:0;
+  border:0; border-inline-start:1px solid var(--border); border-radius:0;
   font:inherit; font-size:13px; line-height:1; color:var(--muted);
 }
-.stream-directory-actions #stream-url-toggle { margin-left:0; }
+.stream-directory-actions #stream-url-toggle { margin-inline-start:0; }
 .stream-directory-actions button:not(:disabled):hover,
 .stream-directory-actions button[aria-expanded="true"] { background:var(--hover-soft); color:var(--text); }
 .stream-directory-actions button:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
@@ -210,7 +210,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
    32-unit viewBox is centered at 18.6,18.6. Include the missing half in alignment. */
 .stream-avatar::before { transform:translate(6.25%, 6.25%); }
 
-.stream-result-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; text-align:left; }
+.stream-result-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; text-align:start; }
 #stream-info { display:flex; align-items:center; gap:8px; padding:2px 8px; flex:0 0 36px; min-height:36px; border-top:1px solid var(--border); }
 #stream-info[hidden], .stream-pip #stream-info { display:none; }
 #stream-host { display:flex; align-items:center; gap:8px; min-width:0; flex:1; color:var(--text); text-decoration:none; }
@@ -219,7 +219,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-host-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; transform:translate(6.25%,6.25%); }
 #stream-host-image { position:absolute; width:100%; height:100%; object-fit:cover; }
 #stream-viewers { font-size:12px; color:var(--muted); white-space:nowrap; }
-#stream-viewers::after { content:''; display:inline-block; width:14px; height:14px; vertical-align:-2px; margin-left:5px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
+#stream-viewers::after { content:''; display:inline-block; width:14px; height:14px; vertical-align:-2px; margin-inline-start:5px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
 #stream-zap { width:32px; height:32px; flex-shrink:0; padding:7px; }
 #stream-zap svg { width:11px; height:18px; fill:currentColor; stroke:none; }
 #stream-zap { display:flex; align-items:center; justify-content:center; padding:5px; }
@@ -249,7 +249,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-zap-modal .peek-avatar { width:40px; height:40px; margin-top:0; }
 .stream-zap-modal .peek-name { margin:0; }
 
-#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-right:-11px; cursor:pointer; }
+#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-inline-end:-11px; cursor:pointer; }
 
 /* transitions.dev: number pop-in for newly received event zaps. */
 :root {
@@ -323,7 +323,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 /* Keep names clear of the centered feed disclosure. */
 #stream-info:has(#stream-feed-toggle:not([hidden])) #stream-host {
   max-width:calc(50% - 24px);
-  margin-right:auto;
+  margin-inline-end:auto;
 }
 
 /* Decorations must use the lock area's remaining height, not the full viewport. cqh is a
@@ -403,12 +403,12 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh + 15
   .t-dropdown { transition: none !important; }
 }
 
-#compose-menu { position:fixed; right:18px; z-index:96; width:max-content; max-width:calc(calc(100vw / var(--panel-zoom, 1)) - 36px); padding:6px; background:var(--velvet-1); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px #0005; }
+#compose-menu { position:fixed; inset-inline-end:18px; z-index:96; width:max-content; max-width:calc(calc(100vw / var(--panel-zoom, 1)) - 36px); padding:6px; background:var(--velvet-1); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px #0005; }
 #compose-menu[hidden] { display:none; }
 #compose-menu button { display:block; width:100%; text-align:start; padding:12px 16px; border:0; background:transparent; color:var(--text); font:inherit; }
 #compose-menu button:hover, #compose-menu button:focus-visible { background:var(--hover-soft); }
-#stream-directory.stream-idle-directory { position:fixed; inset:0 0 auto; z-index:96; box-sizing:border-box; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
-#stream-directory.stream-playing-directory { inset-inline:0; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
+#stream-directory.stream-idle-directory { position:fixed; inset:0 0 auto; z-index:96; box-sizing:border-box; border:0; border-radius:0; box-shadow:none; padding-block: 8px 8px; padding-inline: 10px 4px; }
+#stream-directory.stream-playing-directory { inset-inline:0; border:0; border-radius:0; box-shadow:none; padding-block: 8px 8px; padding-inline: 10px 4px; }
 #stream-directory[hidden] { display:none; }
 
 #compose-menu button { display:flex; align-items:center; gap:12px; }
@@ -445,13 +445,13 @@ html.reduce-motion #stream-zap-total.stream-zap-counting { animation:none; }
 html.reduce-balance-motion #stream-zap-total .t-digit,
 html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 
-.stream-row .stream-result { padding-right:38px; }
-.stream-bookmark { position:absolute; right:4px; top:2px; width:32px; height:32px; padding:7px; z-index:1; }
+.stream-row .stream-result { padding-inline-end:38px; }
+.stream-bookmark { position:absolute; inset-inline-end:4px; top:2px; width:32px; height:32px; padding:7px; z-index:1; }
 .stream-bookmark svg { width:18px; height:18px; }
 /* The copy button sits directly under the bookmark in a row, and beside it in a stream's details. */
 .stream-copy { padding:7px; }
 .stream-copy svg { width:18px; height:18px; }
-.stream-row .stream-copy { position:absolute; right:4px; top:36px; width:32px; height:32px; z-index:1; }
+.stream-row .stream-copy { position:absolute; inset-inline-end:4px; top:36px; width:32px; height:32px; z-index:1; }
 .stream-bookmark[aria-pressed="true"], #stream-saved-toggle[aria-pressed="true"] { color:var(--gold); }
 
 .stream-directory-actions #stream-saved-toggle { width:36px; flex:0 0 36px; padding:9px; }
@@ -658,3 +658,7 @@ html[dir="rtl"] .stream-history-back svg { transform:rotate(180deg); }
 .stream-directory-actions[hidden] { display:none; }
 
 #stream-directory > .stream-directory-actions { flex:0 0 auto; margin:0 0 8px; }
+
+/* Right to left: the menus grow from the corner their button is in, which is the other one. */
+:root[dir="rtl"] .t-dropdown[data-origin="bottom-right"] { transform-origin: bottom left; }
+:root[dir="rtl"] .t-dropdown[data-origin="top-right"] { transform-origin: top left; }

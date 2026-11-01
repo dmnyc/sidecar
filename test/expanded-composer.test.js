@@ -194,7 +194,7 @@ test('the way in is a word on the tab bar, not an icon in the corner', () => {
   assert.ok(!/<line|<polyline|<polygon/.test(glyph[1]), 'an arrow has a shaft or a head; brackets are only corners');
   // No bottom border, so it cannot read as a third tab that could be selected.
   const rule = css.slice(css.indexOf('.compose-expand {'), css.indexOf('.compose-expand:hover'));
-  assert.match(rule, /margin-left: auto/);
+  assert.match(rule, /margin-inline-start: auto/);
   assert.ok(!/border-bottom/.test(rule));
 });
 
@@ -715,7 +715,7 @@ test('THE WAY OUT IS SETTINGS\' CLOSE BOX AND A WORD, AND THE WAY TO PUBLISH IS 
   assert.equal(glyph(pageHtml, 'compose-x'), glyph(sidepanelHtml, 'settings-close'), 'not the same glyph as Settings');
   // It overhangs the bar's padding rather than growing it: the card subtracts the bar's
   // height, and the bar matches the guide's.
-  assert.match(css, /\.compose-topbar \.compose-x \{ margin: -12px 0 -12px auto; flex-shrink: 0; \}/);
+  assert.match(css, /\.compose-topbar \.compose-x \{ margin-block: -12px -12px; margin-inline: auto 0; flex-shrink: 0; \}/);
   assert.match(bare, /x\.addEventListener\('click', leave\)/);
   assert.match(bare, /\$\('compose-close'\)\.addEventListener\('click', leave\)/);
   assert.match(bare, /const leave = \(\) => \{ flushDraft\(\)\.then\(\(\) => window\.close\(\)\); \};/);
