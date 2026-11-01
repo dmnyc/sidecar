@@ -5057,6 +5057,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === 'SIDECAR_CLEAR_DEBUG_LOG') {
     debugLog.length = 0;
+    // And the saved upload entries, or they would be back the next time the worker starts.
+    chrome.storage.local.remove('sidecar_upload_log', () => { void chrome.runtime.lastError; });
     sendResponse({ ok: true, result: [] });
     return false;
   }
