@@ -1,0 +1,89 @@
+<!--
+  Theme sweep: every theme the panel offers, side by side, with the measurable checks run
+  on each. Part of the release checklist (BROWSER_PARITY.md).
+
+      python3 -m http.server 8021
+      open http://localhost:8021/test/manual/theme-sweep.html
+
+  Served from the repo root, because the surfaces load the app's own stylesheets and
+  scripts. It publishes nothing and talks to no relay.
+
+  WHY IT EXISTS. A selector spliced into the square themes' "nothing is round" rule made
+  every element in Ben Day an oval, and the test suite stayed green. Tests read rules; this
+  draws them. The table says which themes failed and why. The pictures are for the failures
+  a number cannot name: a theme that is merely ugly this release.
+
+  WHAT IT CHECKS, per theme: the square themes (Werkstätte, Ben Day, Turnstile) have no
+  round corners on ordinary surfaces; nothing overflows its box or scrolls the page
+  sideways; the composer's icon toolbar stays on one line in equal cells; and the lowest
+  ink-on-fill contrast among the buttons, which is reported, not failed.
+
+  WHAT IT DOES NOT: run the panel. It draws the app's classes in test/manual/
+  theme-surfaces.html. A control a release adds only gets swept once it is drawn there.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar theme sweep</title>
+<style>
+  body { margin: 0; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; background: #15131c; color: #e7e3f0; }
+  .head { border-bottom: 1px solid #2c2740; padding: 14px 20px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  #summary { font-weight: 600; }
+  .pass { color: #7fd28f; } .fail { color: #ff8a80; }
+  table { border-collapse: collapse; margin: 10px 0 0; font-size: 13px; }
+  td, th { text-align: left; padding: 3px 14px 3px 0; vertical-align: top; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, 360px); gap: 14px; padding: 16px 20px 60px; }
+  .cell { width: 360px; }
+  .cell .n { font: 12px ui-monospace, monospace; padding: 3px 6px; background: #2c2740; }
+  .cell.bad .n { background: #7a2b2b; }
+  iframe { width: 360px; height: 760px; border: 1px solid #2c2740; display: block; background: #fff; }
+</style>
+<div class="head">
+  <h1>Theme sweep</h1>
+  <div id="summary">Loading…</div>
+  <table id="results"></table>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+(async () => {
+  // The panel's own list, so a theme added there is swept here without touching this page.
+  const html = await (await fetch('../../sidepanel.html')).text();
+  const themes = [...html.matchAll(/href="themes\/([\w-]+)\.css"/g)].map((m) => m[1]).filter((t) => t !== 'patterns');
+  const grid = document.getElementById('grid');
+  const cells = {};
+  for (const t of themes) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.innerHTML = '<div class="n"></div><iframe></iframe>';
+    cell.querySelector('.n').textContent = t;
+    cell.querySelector('iframe').src = 'theme-surfaces.html?theme=' + encodeURIComponent(t);
+    grid.append(cell);
+    cells[t] = cell;
+  }
+  const got = {};
+  const summary = document.getElementById('summary');
+  const table = document.getElementById('results');
+  function paint() {
+    const done = Object.keys(got).length;
+    const bad = themes.filter((t) => got[t] && got[t].issues.length);
+    summary.textContent = done < themes.length
+      ? done + ' of ' + themes.length + ' themes reported…'
+      : (bad.length ? bad.length + ' of ' + themes.length + ' themes have a problem' : 'All ' + themes.length + ' themes pass');
+    summary.className = done < themes.length ? '' : (bad.length ? 'fail' : 'pass');
+    table.innerHTML = '<tr><th>theme</th><th>result</th><th>lowest button contrast</th></tr>' + themes.map((t) => {
+      const r = got[t];
+      if (!r) return '<tr><td>' + t + '</td><td>…</td><td></td></tr>';
+      const c = r.minContrast == null ? '' : r.minContrast + ':1' + (r.minContrast < 3 ? ' (low)' : '');
+      return '<tr><td>' + t + '</td><td class="' + (r.issues.length ? 'fail' : 'pass') + '">' +
+        (r.issues.length ? r.issues.join('; ') : 'ok') + '</td><td>' + c + '</td></tr>';
+    }).join('');
+    for (const t of themes) cells[t].classList.toggle('bad', !!(got[t] && got[t].issues.length));
+  }
+  addEventListener('message', (e) => {
+    if (!e.data || !e.data.sweep || !cells[e.data.theme]) return;
+    got[e.data.theme] = e.data;
+    paint();
+  });
+  paint();
+})();
+</script>

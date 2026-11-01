@@ -1,0 +1,140 @@
+<!--
+  One theme's surfaces, for theme-sweep.html. Not meant to be opened by hand; it is loaded
+  once per theme in an iframe at the panel's width, and reports to its parent.
+
+  It draws the app's own classes against the app's own stylesheets, so a rule in
+  styles.css or a theme file lands on it exactly as it lands on the panel. It does NOT
+  run the panel. That is the cost of being able to do all twenty-odd themes in one look,
+  and it means a surface only gets swept once it is drawn here: when a release adds a
+  control, add it below.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Theme surfaces</title>
+<link rel="stylesheet" href="../../fonts.css">
+<link rel="stylesheet" href="../../styles.css">
+<style>body { margin: 0; padding: 14px 16px 18px; } .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; } h4 { margin: 14px 0 4px; font-size: 11px; opacity: .6; letter-spacing: .06em; }</style>
+<div id="root"></div>
+<script src="../../i18n.js"></script>
+<script src="../../emoji-data.js"></script>
+<script src="../../composer-core.js"></script>
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search);
+  const theme = q.get('theme') || 'speakeasy';
+
+  // The themes the panel loads, read from the panel's own page so this cannot drift from it.
+  const html = await (await fetch('../../sidepanel.html')).text();
+  const sheets = [...html.matchAll(/href="(themes\/[\w-]+\.css)"/g)].map((m) => '../../' + m[1]);
+  await Promise.all(sheets.map((href) => new Promise((res) => {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = href; l.onload = l.onerror = res; document.head.append(l);
+  })));
+  document.documentElement.dataset.theme = theme;
+
+  const SC = window.SidecarCore;
+  const h = SC.h, icon = SC.icon;
+  const root = document.getElementById('root');
+  const section = (title, ...kids) => {
+    root.append(h('h4', { textContent: title }));
+    kids.forEach((k) => root.append(k));
+  };
+  const btn = (cls, text) => h('button', { className: cls, type: 'button', textContent: text });
+
+  // ---- the composer's toolbar and its pickers ----
+  const edit = h('div', { className: 'compose-text compose-editor', textContent: 'Shipping this on Friday' });
+  const bar = h('div', { className: 'compose-actions' });
+  let picker = null;
+  if (SC.composeToolBtn) {
+    // The icon toolbar. Wired as the composers wire it, so the sweep draws the real buttons.
+    picker = SC.buildEmojiPicker({ onPick() {} });
+    const pow = SC.buildPowButton();
+    pow.paint(SC.powLevelFor(18));
+    bar.append(SC.composeToolBtn('camera', 'Media'), SC.composeToolBtn('gif', 'GIF'), picker.addBtn,
+      SC.composeToolBtn('check-square', 'Poll'), pow.btn);
+  } else {
+    for (const [i, l] of [['camera', 'Media'], ['gif', 'GIF'], ['bar-chart', 'Poll'], ['pickaxe', 'PoW off']]) {
+      const b = h('button', { className: 'mini compose-add', type: 'button' });
+      b.append(icon(i), h('span', { textContent: l }));
+      bar.append(b);
+    }
+  }
+  section('composer', edit, bar);
+  if (picker) { root.append(picker.wrap); picker.open(); }
+
+  // ---- settings ----
+  const toggle = h('label', { className: 'toggle-row' }, [h('input', { type: 'checkbox', checked: true }), h('span', { textContent: 'Hide balances' })]);
+  const setting = h('div', { className: 'setting' }, [
+    h('h3', { textContent: 'Auto-lock' }),
+    h('p', { className: 'hint', textContent: 'Lock Sidecar after you have been away.' }),
+    toggle,
+    h('select', {}, [h('option', { textContent: '15 minutes' })]),
+    h('input', { type: 'text', value: 'wss://relay.example' }),
+  ]);
+  const actions = h('div', { className: 'row' }, [btn('primary', 'Save'), btn('secondary', 'Cancel'), btn('danger', 'Remove'), btn('mini', 'Copy')]);
+  section('settings', setting, actions);
+
+  // ---- wallet ----
+  const card = h('div', { className: 'wallet-card' }, [
+    h('div', { className: 'wallet-balance', textContent: '21,000' }),
+    h('div', { className: 'wallet-unit', textContent: 'sats' }),
+  ]);
+  for (const [cls, ic] of [['wallet-refresh', 'refresh'], ['wallet-eye', 'eye'], ['wallet-pin', 'pin'], ['wallet-chart-btn', 'chart']]) {
+    const b = h('button', { className: cls, type: 'button', title: ic }); b.append(icon(ic)); card.append(b);
+  }
+  const tx = h('div', { className: 'item tx-row' }, [h('div', { className: 'tx-head' }, [
+    h('div', { className: 'tx-icon in' }, [icon('check')]),
+    h('div', { textContent: 'Zap received · 2,100 sats' }),
+  ])]);
+  const list = h('div', { className: 'list' }, [tx]);
+  section('wallet', card, list, h('div', { className: 'row' }, [btn('primary', 'Send'), btn('secondary', 'Receive')]));
+
+  // ---- checks ----
+  const SQUARE = ['werkstatte', 'ben-day', 'turnstile'];
+  const issues = [];
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // In the square themes nothing is round but a short list of things that earn it.
+  // These are the ordinary surfaces, none of which does, so each must compute to 0.
+  if (SQUARE.includes(theme)) {
+    const probe = ['button.primary', 'button.secondary', 'button.danger', 'button.mini', '.compose-add', '.setting input[type=text]',
+      '.setting select', '.item', '.wallet-card', '.wallet-refresh', '.emoji-picker', '.emoji-cell', '.compose-editor'];
+    for (const sel of probe) {
+      for (const el of document.querySelectorAll(sel)) {
+        const r = getComputedStyle(el).borderTopLeftRadius;
+        if (r !== '0px') { issues.push(sel + ' is round (' + r + ')'); break; }
+      }
+    }
+  }
+
+  // Nothing wider than its box, and the page itself does not scroll sideways.
+  for (const el of document.querySelectorAll('button, .item, .wallet-card, .emoji-picker')) {
+    if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'hidden') {
+      issues.push((el.className || el.tagName) + ' overflows by ' + (el.scrollWidth - el.clientWidth) + 'px'); break;
+    }
+  }
+  if (document.documentElement.scrollWidth > innerWidth + 1) issues.push('the page scrolls sideways');
+
+  // The toolbar's buttons share one row and equal cells.
+  const cells = [...bar.children].filter((c) => c.getBoundingClientRect().width);
+  if (SC.composeToolBtn && cells.length) {
+    if (new Set(cells.map((c) => Math.round(c.getBoundingClientRect().top))).size > 1) issues.push('the toolbar wraps');
+    if (new Set(cells.map((c) => Math.round(c.getBoundingClientRect().width))).size > 1) issues.push('the toolbar cells are unequal');
+  }
+
+  // The lowest ink-on-fill contrast among the buttons: reported, not failed, because the
+  // themes' own chip colors set some of it. A number that falls between releases is the news.
+  const lum = (c) => { const m = c.match(/[\d.]+/g).map(Number); const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(m[0]) + 0.7152 * f(m[1]) + 0.0722 * f(m[2]); };
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  let minContrast = 99;
+  for (const el of document.querySelectorAll('button.primary, button.secondary, button.danger, button.mini')) {
+    const cs = getComputedStyle(el);
+    // Opaque fills only: a translucent wash takes its real color from what is behind it, and
+    // measuring it as if it were solid reports a contrast nobody sees.
+    const solid = (c) => { const m = c.match(/[\d.]+/g); return m.length < 4 || Number(m[3]) >= 0.9; };
+    const fills = (cs.backgroundImage.match(/rgba?\([^)]*\)/g) || []).concat(cs.backgroundColor).filter(solid);
+    if (fills.length) minContrast = Math.min(minContrast, ratio(cs.color, fills[0]));
+  }
+  parent.postMessage({ sweep: true, theme, issues, minContrast: minContrast === 99 ? null : +minContrast.toFixed(1), height: document.documentElement.scrollHeight }, '*');
+})();
+</script>
