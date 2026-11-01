@@ -9,6 +9,12 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [Unreleased]
+
+### Changed
+- **New installs start with auto-lock at 30 minutes, up from 15, and the PIN reminder lets you pick the time right away.** Existing installs keep the time they have.
+- **Snort joins the apps on the Welcome page.**
+
 ## [1.16.5] — 2026-11-01
 
 ### Added

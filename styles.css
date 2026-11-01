@@ -5082,6 +5082,9 @@ html:has(#view-approval:not(.hidden)) .toasts {
 .pin-reminder-title { text-align: center; }
 .pin-reminder-body { text-align: center; }
 .pin-reminder-warn { color: var(--gold); font-weight: 600; }
+/* The auto-lock choice under the warning: its label above it, the field full width. */
+.pin-reminder-lock { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; text-align: start; }
+.pin-reminder-lock select { width: 100%; }
 .shared-note {
   margin: 2px 0 14px; padding: 9px 11px; border-radius: 9px;
   background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft);

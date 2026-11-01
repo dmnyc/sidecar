@@ -11242,7 +11242,17 @@
   // encryption), so this is the one moment to make sure it actually got captured
   // somewhere durable, not just typed and forgotten. A gently swaying antique key
   // (distinct from the small modern 'key' glyph used elsewhere) draws the eye.
-  function pinReminderModal(onDone) {
+  //
+  // It also asks how long Sidecar may sit idle before it locks. A new keystore starts at
+  // the background's default, so the choice is already made and this only shows it; a
+  // change is saved the moment it is picked, so closing the sheet any other way keeps it.
+  // The options are the Settings list's own, which keeps the two from drifting apart.
+  async function pinReminderModal(onDone) {
+    let current = 30;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      if (s && typeof s.autoLockMinutes === 'number') current = s.autoLockMinutes;
+    } catch (_) { /* the shown value is the starting default; saving still works */ }
     openModal(
       (modal) => {
         const keyWrap = h('div', { className: 'pin-reminder-icon' });
@@ -11261,10 +11271,32 @@
         const body = h('p', { className: 'hint pin-reminder-body' });
         const warn = h('strong', { className: 'pin-reminder-warn', textContent: tSec("This PIN can't be recovered") });
         body.append(...I18N.fill(tSec('Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.'), { warning: warn }));
+        const lockSelect = h('select', { id: 'pin-reminder-autolock' });
+        for (const o of $('autolock-select').options) {
+          if (o.dataset && o.dataset.legacy) continue;
+          lockSelect.append(h('option', { value: o.value, textContent: o.textContent }));
+        }
+        ensureAutoLockOption(lockSelect, current);
+        lockSelect.value = String(current);
+        let saved = String(current);
+        lockSelect.addEventListener('change', async () => {
+          try {
+            await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(lockSelect.value) } });
+            saved = lockSelect.value;
+          } catch (e) {
+            lockSelect.value = saved; // not saved, so do not show a time that is not in force
+            toast(e.message, 'error');
+          }
+        });
+        const lockRow = h('div', { className: 'pin-reminder-lock' }, [
+          h('label', { htmlFor: 'pin-reminder-autolock', textContent: t('Auto-lock') }),
+          lockSelect,
+        ]);
         modal.append(
           keyWrap,
           h('h3', { className: 'pin-reminder-title', textContent: tSec('Save your PIN somewhere safe') }),
           body,
+          lockRow,
           h('div', { className: 'actions' }, [ok])
         );
       },
