@@ -215,3 +215,29 @@ test('the named gate date is read from the environment and announced, and an inv
   assert.match(ok.stdout, /gate date 2026-11-09 \(SIDECAR_SEASON_DATE\), not the tag date 2026-11-07/);
   assert.deepEqual(list(stage, 'themes'), ['phantom-bouquet-floor.avif']);
 });
+
+test('no day of the year has two editions in season, so no package can carry both', () => {
+  // The gate strips by date, so what keeps a package to one edition is that the windows never
+  // overlap. Walk three years of days, leap day and New Year included.
+  const seasons = gate.loadSeasons(ROOT);
+  for (let d = new Date(2026, 0, 1, 12); d < new Date(2029, 0, 1, 12); d.setDate(d.getDate() + 1)) {
+    const live = seasons.EDITIONS.filter((e) => seasons.inSeason(e.key, d)).map((e) => e.key);
+    assert.ok(live.length <= 1, d.toDateString() + ' has ' + live.join(' and ') + ' in season at once');
+  }
+});
+
+test('the gate refuses a stage that still holds two editions\' art', () => {
+  const stage = makeStage();
+  writeStage(stage, ['themes/sleepy-hollow-hollow.svg', 'themes/phantom-bouquet-floor.avif']);
+  assert.deepEqual(gate.editionsWithArt(stage), ['sleepy-hollow', 'phantom-bouquet']);
+  gate.stripOutOfSeasonArt(stage, '2026-11-09');
+  assert.deepEqual(gate.editionsWithArt(stage), ['phantom-bouquet']);
+  // A window that overlapped would leave both, and the command line stops there.
+  const clash = makeStage();
+  fs.writeFileSync(path.join(clash, 'seasons.js'),
+    fs.readFileSync(path.join(ROOT, 'seasons.js'), 'utf8').replace('from: [11, 9]', 'from: [11, 1]'));
+  writeStage(clash, ['themes/sleepy-hollow-hollow.svg', 'themes/phantom-bouquet-floor.avif']);
+  const run = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'seasonal-packaging.cjs'), clash, '2026-11-05'], { encoding: 'utf8' });
+  assert.equal(run.status, 1);
+  assert.match(run.stderr, /Two special editions would ship in one package/);
+});

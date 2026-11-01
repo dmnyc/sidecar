@@ -100,7 +100,14 @@ function stripOutOfSeasonArt(stageDir, dateStr) {
   return removed.sort();
 }
 
-module.exports = { loadSeasons, parseDay, resolveGateDate, MAX_LEAD_DAYS, outOfSeasonEditions, artFiles, stripOutOfSeasonArt };
+// The editions whose art is still in the stage. A package must carry at most one: the gate
+// above strips by date, and this is the check on its result, so two windows that ever
+// overlapped, or a stripped file that was not, fail the build instead of shipping both.
+function editionsWithArt(stageDir) {
+  return Array.from(loadSeasons(stageDir).EDITIONS, (e) => e).filter((e) => artFiles(stageDir, e.key).length > 0).map((e) => e.key);
+}
+
+module.exports = { loadSeasons, parseDay, resolveGateDate, MAX_LEAD_DAYS, outOfSeasonEditions, artFiles, stripOutOfSeasonArt, editionsWithArt };
 
 if (require.main === module) {
   const [stageDir, dateStr] = process.argv.slice(2);
@@ -128,4 +135,9 @@ if (require.main === module) {
       (inSeason ? 'in season — art ships (' + art.length + ' files)' : 'out of season — art stripped'));
   }
   console.log('  stripped ' + removed.length + ' file' + (removed.length === 1 ? '' : 's'));
+  const shipping = editionsWithArt(stageDir);
+  if (shipping.length > 1) {
+    console.error('Two special editions would ship in one package (' + shipping.join(', ') + '). Refusing to build.');
+    process.exit(1);
+  }
 }
