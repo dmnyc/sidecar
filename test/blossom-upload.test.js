@@ -157,7 +157,7 @@ test('an empty account relay set does not query excluded bootstrap relays', asyn
   assert.deepEqual(h.state.relayRequests, [PK]);
 });
 
-const big = mb => new Blob([new Uint8Array(mb * 1024 * 1024)], { type: 'image/jpeg' });
+const big = mb => new Blob([new Uint8Array(mb * 1024 * 1024)], { type: 'image/webp' });
 
 test('a larger file gets more time on a server, up to a ceiling', async () => {
   // One flat 30 seconds aborted any image that could not cross a modest uplink in that time,
