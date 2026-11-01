@@ -1252,7 +1252,11 @@ window.SidecarCore = (function () {
       const canvas = typeof OffscreenCanvas === 'function'
         ? new OffscreenCanvas(w, h)
         : Object.assign(document.createElement('canvas'), { width: w, height: h });
-      const ctx = canvas.getContext('2d');
+      // WIDE COLOR KEEPS ITS COLOR. A phone photo is Display P3, and a default canvas is
+      // sRGB: the re-encoded JPEG came out tagged sRGB and its colors shifted. A Display P3
+      // canvas keeps the gamut and the browser writes that profile into the JPEG; an sRGB
+      // picture loses nothing in it. A browser that cannot make one falls back to sRGB.
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
       ctx.drawImage(bitmap, 0, 0);
       // Transparency anywhere means the PNG stays: JPEG would turn it black.
       const px = ctx.getImageData(0, 0, w, h).data;

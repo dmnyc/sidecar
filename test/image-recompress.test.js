@@ -21,10 +21,11 @@ const png = (bytes, name = 'image.png') => new File([new Uint8Array(bytes)], nam
 
 // A decoder and an encoder that behave as told, in a context of the real composer-core.
 function load({ width = 2000, height = 1500, alpha = false, jpegBytes = 100 * 1024, decodeThrows = false, decoder = true } = {}) {
-  const calls = { encoded: [], closed: 0, warnings: [], requests: [] };
+  const calls = { encoded: [], closed: 0, warnings: [], requests: [], contexts: [] };
   class Canvas {
     constructor(w, h) { this.w = w; this.h = h; }
-    getContext() {
+    getContext(type, opts) {
+      calls.contexts.push(opts ? opts.colorSpace : null);
       return {
         drawImage() {},
         getImageData: (x, y, w, h) => {
@@ -123,4 +124,13 @@ test('the upload carries the recompressed file, and the original size limit stil
   assert.equal(sent.type, 'image/jpeg', 'what is uploaded is the JPEG, not the PNG that was pasted');
   assert.equal(sent.size, 1 * MB);
   await assert.rejects(() => installed.uploadMedia(new File([new Uint8Array(101 * MB)], 'big.png', { type: 'image/png' }), 'a'.repeat(64)), /too large/);
+});
+
+test('the picture is drawn in Display P3, so a phone photo keeps its colors', async () => {
+  // A default canvas is sRGB: a Display P3 photo came out tagged sRGB with its colors shifted
+  // by 28 levels a channel on average. Measured in a browser on that photo, a P3 canvas gave
+  // a JPEG tagged Display P3 that matched the original within 2 levels.
+  const { core, calls } = load({ jpegBytes: 1 * MB });
+  await core.recompressImage(png(8 * MB));
+  assert.deepEqual(calls.contexts, ['display-p3']);
 });
