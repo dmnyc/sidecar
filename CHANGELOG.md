@@ -26,7 +26,7 @@ has entries, and that heading becomes the version heading when the release is cu
 - **A pasted account’s name and picture show the moment it imports,** instead of waiting on the slow relay path.
 - **Uploads reach your own Blossom server more often.** A large file gets more time before Sidecar gives up on the server, and a relay that is slow to return your server list no longer sends the upload elsewhere. When your server does refuse a file, Sidecar says why before using nostr.build.
 - **The expanded composer’s preview updates when you remove or add an attachment,** instead of after a trip back to the editor.
-- **Turnstile’s Uptown sign keeps clear of the logo.** On the lock screen the longer “Locked since your browser closed” message lifted the logo into the sign; the sign now hangs a fixed distance above the logo.
+- **Turnstile’s and Departures’ lock screens look as they did at launch.** The longer “Locked since your browser closed” message no longer lifts the logo into Turnstile’s Uptown sign, and the Departures clock and board are back where they were first placed.
 - **The bell’s Polls tab counts only live polls.** One old poll no longer holds a (1) on the tab forever.
 - **Rows that clipped in a narrow panel now read whole.** Overview values end in an ellipsis instead of losing their start, the wallet’s badges and price range keep their figures together, a signing row’s host and age wrap as pieces, and the relay question keeps its labels.
 
