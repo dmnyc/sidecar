@@ -41,7 +41,8 @@ const AUTO_LOCK_ALARM = 'sidecar-auto-lock';
 // Settings dropdown — an explicit choice (including "When browser closes", stored as 0)
 // is always respected once saved, even one the dropdown no longer offers. Keys shouldn't stay decrypted indefinitely in a
 // browser that's left open; this only fires on true inactivity (bumpAutoLock is
-// called on every sign/pay/unlock), so normal active use never hits it.
+// called on every sign/pay/unlock, and the alarm checks the computer's own idle time
+// before it locks), so normal active use never hits it.
 const DEFAULT_AUTO_LOCK_MINUTES = 15;
 function resolveSettings(sidecar_settings) {
   return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
@@ -3746,6 +3747,7 @@ async function lockKeystore(auto = false) {
   closeSwNwc();
   qrSecret = null; // a scanned key must not outlive the unlocked session
   chrome.alarms.clear(AUTO_LOCK_ALARM);
+  chrome.storage.session.remove(AWAY_SINCE_KEY, () => void chrome.runtime.lastError);
   // A lock ends any active relax window: the keys are gone, so auto-approving
   // signs makes no sense, and idle auto-lock is exactly the "walked away" case
   // where a lingering auto-sign shouldn't survive.
@@ -3770,8 +3772,90 @@ function bumpAutoLock() {
     const minutes = resolveSettings(sidecar_settings).autoLockMinutes;
     if (minutes > 0 && !KS.isLocked()) {
       chrome.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: minutes });
+      setIdleDetection(minutes);
+      // Using Sidecar means you are here: any away time recorded before now is over.
+      chrome.storage.session.remove(AWAY_SINCE_KEY, () => void chrome.runtime.lastError);
     }
   });
+}
+
+// The idle auto-lock measures time away from the computer, not time since Sidecar last
+// signed: someone reading in a client for half an hour signs nothing and is still at the
+// keyboard. chrome.idle reports the system's own input idle time. The alarm above still
+// fires the setting's minutes after Sidecar's last use; it then asks how long the computer
+// has been idle, locks if that is the whole setting, and otherwise checks again later.
+// The idle and screen-lock events below record when you went away and lock without
+// waiting for Sidecar's alarm when they can.
+//
+// Chrome answers idle questions only up to 4 hours (it clamps the interval), so for the 8-
+// and 24-hour settings “idle for 4 hours” is where the away time starts counting, and the
+// lock comes when the full setting has passed since then. A locked screen counts as away
+// from the moment it locked. Where chrome.idle is missing or fails, the state reads as
+// idle for the whole setting, which is the old rule: lock when the alarm fires.
+const IDLE_RECHECK_MINUTES = 1;
+const IDLE_MAX_SECONDS = 4 * 60 * 60;
+const AWAY_SINCE_KEY = 'sidecar_away_since';
+function idleSeconds(minutes) { return Math.min(IDLE_MAX_SECONDS, Math.max(15, Math.round(minutes * 60))); }
+function setIdleDetection(minutes) {
+  try {
+    if (chrome.idle && typeof chrome.idle.setDetectionInterval === 'function') {
+      chrome.idle.setDetectionInterval(idleSeconds(minutes));
+    }
+  } catch (_) { /* no idle events: the alarm still locks */ }
+}
+function systemIdleState(minutes) {
+  return new Promise((resolve) => {
+    try {
+      if (!chrome.idle || typeof chrome.idle.queryState !== 'function') return resolve(null);
+      chrome.idle.queryState(idleSeconds(minutes), (state) => {
+        resolve(chrome.runtime.lastError || !state ? null : state);
+      });
+    } catch (_) { resolve(null); }
+  });
+}
+// state: 'active' | 'idle' | 'locked', or null when chrome.idle could not say.
+async function checkAutoLock(minutes, state, now = Date.now()) {
+  if (state === 'active') {
+    await chrome.storage.session.remove(AWAY_SINCE_KEY);
+    chrome.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: IDLE_RECHECK_MINUTES });
+    setIdleDetection(minutes);
+    return;
+  }
+  if (state === null) { lockKeystore(true); return; }
+  const stored = (await sgetSession(AWAY_SINCE_KEY))[AWAY_SINCE_KEY];
+  // 'idle' means no input for idleSeconds(minutes), so you left at least that long ago.
+  const away = Math.min(
+    typeof stored === 'number' ? stored : now,
+    state === 'idle' ? now - idleSeconds(minutes) * 1000 : now,
+  );
+  const left = away + minutes * 60000 - now;
+  if (left <= 0) { lockKeystore(true); return; }
+  await ssetSession({ [AWAY_SINCE_KEY]: away });
+  chrome.alarms.create(AUTO_LOCK_ALARM, { delayInMinutes: Math.max(IDLE_RECHECK_MINUTES, left / 60000) });
+}
+async function onAutoLockAlarm() {
+  // Re-check the live setting at fire time: an alarm armed under an older
+  // choice (before the user switched to Never) must not lock.
+  const { sidecar_settings } = await sget('sidecar_settings');
+  const minutes = resolveSettings(sidecar_settings).autoLockMinutes;
+  if (!(minutes > 0)) return;
+  await checkAutoLock(minutes, await systemIdleState(minutes));
+}
+// 'idle' arrives once the computer has had no input for the detection interval, which
+// bumpAutoLock sets to the auto-lock time (at most 4 hours); 'locked' when the screen
+// locks. "When browser closes" (0) is left alone: it never locked on a timer.
+async function onSystemIdleState(state) {
+  if (state !== 'idle' && state !== 'locked' && state !== 'active') return;
+  await KS.ensureLoaded(); // the event may be what woke this worker
+  if (KS.isLocked()) return;
+  const { sidecar_settings } = await sget('sidecar_settings');
+  const minutes = resolveSettings(sidecar_settings).autoLockMinutes;
+  if (!(minutes > 0)) return;
+  if (state === 'active') { await chrome.storage.session.remove(AWAY_SINCE_KEY); return; }
+  await checkAutoLock(minutes, state);
+}
+if (chrome.idle && chrome.idle.onStateChanged) {
+  chrome.idle.onStateChanged.addListener((state) => { onSystemIdleState(state).catch(() => {}); });
 }
 
 // Reflect an active relax window on the toolbar icon badge (remaining minutes),
@@ -3797,11 +3881,7 @@ function syncRelaxBadge() {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === AUTO_LOCK_ALARM) {
-    // Re-check the live setting at fire time: an alarm armed under an older
-    // choice (before the user switched to Never) must not lock.
-    sget('sidecar_settings').then(({ sidecar_settings }) => {
-      if (resolveSettings(sidecar_settings).autoLockMinutes > 0) lockKeystore(true);
-    });
+    onAutoLockAlarm().catch(() => {});
   }
   // A relax window expired — RELAX.onAlarm drops the grant and returns true.
   // Alarms persist across a service-worker restart, so this fires even if the

@@ -9,6 +9,7 @@
     "storage",
     "sidePanel",
     "alarms",
+    "idle",
     "contextMenus",
     "notifications",
     "scripting"
