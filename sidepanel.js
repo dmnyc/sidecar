@@ -13305,6 +13305,8 @@
   async function uploadImage(file, kind, forPubkey) {
     if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
     if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    // Profile and banner pictures too: no location or camera metadata leaves with them.
+    file = await window.SidecarCore.stripPrivateMetadata(file);
     const forPk = forPubkey || state.activePubkey;
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;

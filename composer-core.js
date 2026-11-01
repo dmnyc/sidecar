@@ -1275,12 +1275,106 @@ window.SidecarCore = (function () {
     }
   }
 
+  // A PHOTO CARRIES WHERE IT WAS TAKEN. A phone writes GPS coordinates, the camera and often
+  // the owner's name into a JPEG's EXIF and XMP blocks, and every upload sent them along: to a
+  // server that strips them, one that refuses the file for them ("Private metadata detected"),
+  // or one that keeps and serves them to anyone who downloads the picture. So they come out
+  // before anything leaves. In the file's own bytes, not by redrawing it: APP1 (EXIF and XMP)
+  // and APP13 (IPTC) are dropped and the image data is untouched, so there is no quality lost
+  // and the color profile (APP2) stays. The one thing EXIF does for the picture is say which
+  // way up it is; a photo whose orientation is not the default is redrawn upright instead, on
+  // a Display P3 canvas, because dropping the tag alone would leave it on its side.
+  function jpegSegments(bytes) {
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) return null;
+    const segs = [];
+    let i = 2;
+    while (i + 4 <= bytes.length) {
+      if (bytes[i] !== 0xFF) return null;
+      const marker = bytes[i + 1];
+      if (marker === 0xFF) { i += 1; continue; }
+      if (marker === 0xDA) { segs.push({ marker, start: i, end: bytes.length }); return segs; } // image data to the end
+      if (marker === 0xD9) { segs.push({ marker, start: i, end: i + 2 }); return segs; }
+      if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { segs.push({ marker, start: i, end: i + 2 }); i += 2; continue; }
+      const len = (bytes[i + 2] << 8) | bytes[i + 3];
+      if (len < 2 || i + 2 + len > bytes.length) return null;
+      segs.push({ marker, start: i, end: i + 2 + len });
+      i += 2 + len;
+    }
+    return null;
+  }
+
+  // EXIF orientation (tag 0x0112) from an APP1 segment, or 1 when there is none to read.
+  function exifOrientation(bytes, seg) {
+    const b = bytes.subarray(seg.start + 4, seg.end);
+    if (b.length < 14 || String.fromCharCode(b[0], b[1], b[2], b[3]) !== 'Exif') return 1;
+    const t = b.subarray(6);
+    const le = t[0] === 0x49;
+    const u16 = (o) => (le ? t[o] | (t[o + 1] << 8) : (t[o] << 8) | t[o + 1]);
+    const u32 = (o) => (le ? (t[o] | (t[o + 1] << 8) | (t[o + 2] << 16)) + t[o + 3] * 16777216 : t[o] * 16777216 + ((t[o + 1] << 16) | (t[o + 2] << 8) | t[o + 3]));
+    const ifd = u32(4);
+    if (ifd + 2 > t.length) return 1;
+    const n = u16(ifd);
+    for (let k = 0; k < n; k++) {
+      const e = ifd + 2 + k * 12;
+      if (e + 12 > t.length) break;
+      if (u16(e) === 0x0112) return u16(e + 8) || 1;
+    }
+    return 1;
+  }
+
+  async function redrawUpright(file) {
+    if (typeof createImageBitmap !== 'function') return null;
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(file); // applies the EXIF orientation by default
+      const w = bitmap.width;
+      const h = bitmap.height;
+      if (!w || !h || w * h > RECOMPRESS_MAX_PIXELS) return null;
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(w, h)
+        : Object.assign(document.createElement('canvas'), { width: w, height: h });
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      const blob = canvas.convertToBlob
+        ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 })
+        : await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+      return blob ? new File([blob], file.name || 'image.jpg', { type: 'image/jpeg' }) : null;
+    } catch (_) {
+      return null;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  const PRIVATE_SEGMENTS = new Set([0xE1, 0xED]); // APP1 (EXIF, XMP), APP13 (IPTC)
+
+  // Returns the file without its private metadata. FAILS CLOSED: a JPEG whose metadata cannot
+  // be removed is not sent at all, because sending the location was the bug.
+  async function stripPrivateMetadata(file) {
+    if (!file || file.type !== 'image/jpeg') return file;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const segs = jpegSegments(bytes);
+    if (!segs) throw new Error(t('This photo could not be read, so it was not uploaded.'));
+    const priv = segs.filter((s) => PRIVATE_SEGMENTS.has(s.marker));
+    if (!priv.length) return file;
+    const orientation = priv.filter((s) => s.marker === 0xE1).reduce((o, s) => (o !== 1 ? o : exifOrientation(bytes, s)), 1);
+    if (orientation !== 1) {
+      const upright = await redrawUpright(file);
+      if (upright) return upright;
+      throw new Error(t('This photo could not be cleaned of its location data, so it was not uploaded.'));
+    }
+    const kept = segs.filter((s) => !PRIVATE_SEGMENTS.has(s.marker));
+    const parts = [bytes.subarray(0, 2), ...kept.map((s) => bytes.subarray(s.start, s.end))];
+    return new File(parts, file.name || 'image.jpg', { type: 'image/jpeg' });
+  }
+
   async function uploadMedia(original, forPubkey) {
     const isImg = original.type.startsWith('image/');
     const isVid = original.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error(t('Choose an image or video'));
     if (original.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
-    const file = await recompressImage(original);
+    // A canvas writes no metadata, so only what goes up as chosen needs stripping.
+    const file = await recompressImage(await stripPrivateMetadata(original));
     const forPk = forPubkey || deps.activePubkey();
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -3821,7 +3915,7 @@ window.SidecarCore = (function () {
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
     emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX, buildEmojiPicker, composeToolBtn, buildPowButton,
-    recompressImage,
+    recompressImage, stripPrivateMetadata,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
