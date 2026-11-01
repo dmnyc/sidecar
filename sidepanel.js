@@ -13310,6 +13310,8 @@
   async function uploadImage(file, kind, forPubkey) {
     if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
     if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    // Profile and banner pictures too: no location or camera metadata leaves with them.
+    file = await window.SidecarCore.stripPrivateMetadata(file);
     const forPk = forPubkey || state.activePubkey;
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -13761,6 +13763,10 @@
     paintCountdownNum,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
+      // Said when the account's own Blossom servers took none of a file and nostr.build did.
+      onUploadFallback: (message) => toast(message, 'info'),
+      // Upload decisions into Settings → Developer → Debug log (unpacked builds only).
+      devLog: (level, msg, data) => { call({ type: 'SIDECAR_UPLOAD_LOG', level, msg, data }).catch(() => {}); },
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
       // The synchronous half of getFollowList: the already-loaded list for the account
       // that is active right now, or null. Kept as a function rather than a value because
@@ -13771,6 +13777,7 @@
       // so the core never touches this panel's pool and a second page can bring its own.
       call, poolGet, poolQuerySync, relayUrls, cacheProfile,
       activePubkey: () => state.activePubkey,
+      onUploadNotice: (message) => toast(message, 'info'),
       // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
       // exactly the kind of thing that setting is for.
       reduceBalanceMotion: () => reduceBalanceMotion,
@@ -15132,7 +15139,7 @@
         addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file, pubkey);
+            const url = await uploadMedia(file, pubkey, { pasted: true });
             draft.media.push({ url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();

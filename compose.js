@@ -407,6 +407,10 @@
 
   const composer = SC.installComposer({
     NT,
+    // Said when the account's own Blossom servers took none of a file and nostr.build did.
+    onUploadFallback: (message) => toast(message, 'info'),
+    // Upload decisions into Settings → Developer → Debug log (unpacked builds only).
+    devLog: (level, msg, data) => { call({ type: 'SIDECAR_UPLOAD_LOG', level, msg, data }).catch(() => {}); },
     applyAvatar,
     cachedProfile,
     cacheProfile,
@@ -422,6 +426,7 @@
     poolQuerySync: (relays, filter, params) => pool().querySync(relays, filter, params),
     relayUrls,
     activePubkey: () => state.activePubkey,
+    onUploadNotice: (message) => toast(message, 'info'),
     // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
     // exactly the kind of thing that setting is for.
     reduceBalanceMotion: () => reduceMotion,
@@ -1447,6 +1452,8 @@
     // comes through here: an upload, a paste, a removal, a draft loaded. The Poll button
     // stood its ground after an upload, because nothing here told it to.
     if (pollEditor) pollEditor.paintEitherOr();
+    // And the preview, when that is what is showing: the attachments are part of what it draws.
+    paintPreview();
     // Where a dragged thumb will land, across renderThumbs' rebuilds.
     let dragFrom = -1;
     draft.media.forEach((m, i) => {
@@ -1636,7 +1643,7 @@
       fileInput.value = '';
     });
     // The Media button and a pasted image take the one path.
-    uploadFiles = async (files) => {
+    uploadFiles = async (files, { pasted = false } = {}) => {
       err.textContent = '';
       addBtn.disabled = true;
       // The whole button sweeps (styles.css), as it does in the panel: there is no word
@@ -1644,7 +1651,7 @@
       addBtn.classList.add('is-uploading');
       try {
         for (const file of files) {
-          const url = await composer.uploadMedia(file, state.activePubkey);
+          const url = await composer.uploadMedia(file, state.activePubkey, { pasted });
           // Into the media slot only. The URL is appended to the content at publish
           // (SC.composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
@@ -1732,6 +1739,11 @@
   // The same renderer the panel previews with, so what this shows and what that shows
   // cannot disagree about a mention, an embed or a link card.
   let showTab = () => {};
+  // Draws the Preview pane from the draft as it is NOW, or does nothing while the pane is
+  // not the one showing. Set by buildTabs. renderThumbs calls it, so removing, adding or
+  // uploading an attachment from the strip, which stays on screen over Preview, is seen in
+  // the preview straight away instead of after a trip back to the editor and out again.
+  let paintPreview = () => {};
   function buildTabs() {
     const write = $('tab-write');
     const prev = $('tab-preview');
@@ -1765,7 +1777,10 @@
       // Invisible rather than gone: it is the spacer that holds Cancel to the right.
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
-      if (which !== 'preview') return;
+      paintPreview();
+    };
+    paintPreview = () => {
+      if (pane.classList.contains('hidden')) return;
       pane.innerHTML = '';
       // What will actually go out: the prose and, appended at the end, the
       // attachments — the preview and the published note are rendered from the one
@@ -1875,7 +1890,7 @@
       // A poll and its attachments are one or the other; the Media button is hidden
       // for the same reason.
       if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
-      uploadFiles(images);
+      uploadFiles(images, { pasted: true });
     });
     // After the toolbar, because that is what builds the poll editor: a poll restored
     // from the slot above has nothing to paint into until it exists.

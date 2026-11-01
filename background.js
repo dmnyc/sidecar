@@ -534,6 +534,19 @@ const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
 // this must run after that declaration — the Chrome-path log call is synchronous.
 function startDebugLog() {
   dlog('info', 'bg', 'Background started', { version: chrome.runtime.getManifest().version });
+  // The upload entries the worker forgot when it last slept, back in the log, oldest first.
+  try {
+    chrome.storage.local.get('sidecar_upload_log', (o) => {
+      const saved = Array.isArray(o && o.sidecar_upload_log) ? o.sidecar_upload_log : [];
+      const have = new Set(debugLog.map((e) => e.ts + '|' + e.msg));
+      const missing = saved.filter((e) => e && !have.has(e.ts + '|' + e.msg));
+      if (missing.length) {
+        debugLog.unshift(...missing);
+        debugLog.sort((a, b) => a.ts - b.ts);
+        while (debugLog.length > DEBUG_LOG_MAX) debugLog.shift();
+      }
+    });
+  } catch (_) {}
   self.addEventListener('error', (e) => {
     dlog('error', 'bg', 'Uncaught error', { message: e.message, filename: e.filename, lineno: e.lineno });
   });
@@ -5020,12 +5033,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Dev bug button's debug panel — reads the in-memory trace log. Gated to
   // extension pages only (not in CONTENT_OK above), and IS_DEV_BUILD means
   // debugLog is always empty on a Web Store install anyway.
+  // Upload decisions from the composers (composer-core's uploadLog). Unpacked builds only,
+  // like every dlog entry, and kept in storage as well, because the worker forgets its log
+  // when it sleeps and an upload is often looked into minutes later.
+  if (message.type === 'SIDECAR_UPLOAD_LOG') {
+    if (IS_DEV_BUILD) {
+      const level = ['info', 'warn', 'error'].includes(message.level) ? message.level : 'info';
+      const entry = { ts: Date.now(), level, tag: 'upload', msg: String(message.msg || '').slice(0, 200), data: message.data || null };
+      debugLog.push(entry);
+      if (debugLog.length > DEBUG_LOG_MAX) debugLog.shift();
+      chrome.storage.local.get('sidecar_upload_log', (o) => {
+        const prev = Array.isArray(o && o.sidecar_upload_log) ? o.sidecar_upload_log : [];
+        const next = prev.concat([entry]).slice(-30);
+        chrome.storage.local.set({ sidecar_upload_log: next }, () => { void chrome.runtime.lastError; });
+      });
+    }
+    sendResponse({ ok: true, result: true });
+    return false;
+  }
   if (message.type === 'SIDECAR_GET_DEBUG_LOG') {
     sendResponse({ ok: true, result: debugLog });
     return false;
   }
   if (message.type === 'SIDECAR_CLEAR_DEBUG_LOG') {
     debugLog.length = 0;
+    // And the saved upload entries, or they would be back the next time the worker starts.
+    chrome.storage.local.remove('sidecar_upload_log', () => { void chrome.runtime.lastError; });
     sendResponse({ ok: true, result: [] });
     return false;
   }
