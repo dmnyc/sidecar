@@ -1204,7 +1204,17 @@ window.SidecarCore = (function () {
           signal: controller.signal,
         });
         clearTimeout(timer);
-        if (!resp.ok) throw new Error(t('HTTP {{status}}', { status: resp.status }));
+        if (!resp.ok) {
+          // THE SERVER SAYS WHY, in an X-Reason header (BUD-01), and the status alone threw it
+          // away: a 403 could be a banned type, a quota, a closed list or a bad signature, and
+          // the notice could only say "HTTP 403". The host is named too, so a list of several
+          // servers says which one answered.
+          const why = resp.headers && typeof resp.headers.get === 'function' ? resp.headers.get('X-Reason') : null;
+          const host = server.replace(/^https?:\/\//, '');
+          throw new Error(why
+            ? t('{{host}} answered HTTP {{status}}: {{reason}}', { host, status: resp.status, reason: why })
+            : t('{{host}} answered HTTP {{status}}', { host, status: resp.status }));
+        }
         const data = await resp.json().catch(() => null);
         if (data && data.url) return data.url;
         throw new Error(t('No URL in Blossom response'));

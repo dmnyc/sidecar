@@ -127,7 +127,7 @@ test('all Blossom upload failures retain nostr.build fallback and a diagnostic',
   h.state.respond = async url => url === FALLBACK ? respond(url) : { ok: false, status: 403 };
   assert.equal(await h.uploadMedia(file()), 'https://i.nostr.build/fallback.gif');
   assert.deepEqual(h.state.signs.map(s => s.event.kind), [24242, 27235]);
-  assert.ok(h.state.warnings.some(s => s.includes('HTTP 403')));
+  assert.ok(h.state.warnings.some(s => s.includes('answered HTTP 403')));
 });
 
 test('profile upload helper also retries a missed discovery', async () => {
@@ -196,7 +196,7 @@ test('when the account\u2019s servers all refuse a file, the person is told why 
   const respond = h.state.respond;
   h.state.respond = async url => url === FALLBACK ? respond(url) : { ok: false, status: 413 };
   assert.equal(await h.uploadMedia(file()), 'https://i.nostr.build/fallback.gif');
-  assert.deepEqual(h.state.notices, ['Your Blossom server did not take this file (HTTP 413). Uploaded to nostr.build instead.']);
+  assert.deepEqual(h.state.notices, ['Your Blossom server did not take this file (blossom.example answered HTTP 413). Uploaded to nostr.build instead.']);
 });
 
 test('an account with no Blossom list is never told about a fallback it did not choose', async () => {
@@ -217,4 +217,26 @@ test('a server that takes too long is reported as slow, not as an abort', async 
   };
   await h.uploadMedia(file());
   assert.deepEqual(h.state.notices, ['Your Blossom server did not take this file (it took too long). Uploaded to nostr.build instead.']);
+});
+
+test('the server\u2019s own reason is in the notice, with the host that gave it', async () => {
+  // Blossom servers say why in an X-Reason header. A 403 can be a banned type, a quota, a
+  // closed list or a bad signature, and "HTTP 403" told nobody which.
+  const h = harness();
+  const respond = h.state.respond;
+  h.state.respond = async url => url === FALLBACK
+    ? respond(url)
+    : { ok: false, status: 403, headers: { get: name => (name === 'X-Reason' ? 'Storage quota exceeded' : null) } };
+  await h.uploadMedia(file());
+  assert.deepEqual(h.state.notices, ['Your Blossom server did not take this file (blossom.example answered HTTP 403: Storage quota exceeded). Uploaded to nostr.build instead.']);
+  assert.ok(h.state.warnings.some(w => w.includes('Storage quota exceeded')), 'and the console has it too');
+});
+
+test('with several servers, the notice names the one that answered last', async () => {
+  const h = harness();
+  h.state.lookup = async () => list(SERVER, 'https://second.example');
+  const respond = h.state.respond;
+  h.state.respond = async url => url === FALLBACK ? respond(url) : { ok: false, status: url.startsWith(SERVER) ? 413 : 403 };
+  await h.uploadMedia(file());
+  assert.match(h.state.notices[0], /second\.example answered HTTP 403/);
 });
