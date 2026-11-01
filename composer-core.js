@@ -1225,11 +1225,58 @@ window.SidecarCore = (function () {
     }
   }
 
-  async function uploadMedia(file, forPubkey) {
-    const isImg = file.type.startsWith('image/');
-    const isVid = file.type.startsWith('video/');
+  // A PHOTO COPIED TO THE CLIPBOARD ARRIVES AS A PNG. The browser decodes the picture and
+  // hands over every pixel losslessly: a 1.3 MB phone JPEG of 2917 by 3888 pixels pasted as
+  // a 39 MB PNG, which is slow to send, heavy on the server and a long wait for whoever
+  // reads the note. Photos are what JPEG is for, so a large PNG is re-encoded as one. It is
+  // left alone when that would cost something:
+  //   - small files, where there is nothing worth saving;
+  //   - anything with transparency, which JPEG cannot hold;
+  //   - a screenshot or drawing, whose flat colors and hard edges PNG already stores well and
+  //     JPEG smears: the JPEG has to come out at least 30 percent smaller to be used;
+  //   - a picture too large to decode safely, and any browser that cannot decode it.
+  // Only PNG is touched. A JPEG, GIF, WebP or video goes up exactly as it was chosen.
+  const RECOMPRESS_MIN_BYTES = 300 * 1024;
+  const RECOMPRESS_MAX_PIXELS = 36 * 1000 * 1000;
+  const RECOMPRESS_QUALITY = 0.85;
+  const RECOMPRESS_KEEP_RATIO = 0.7;
+  async function recompressImage(file) {
+    if (!file || file.type !== 'image/png' || file.size < RECOMPRESS_MIN_BYTES) return file;
+    if (typeof createImageBitmap !== 'function') return file;
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(file);
+      const w = bitmap.width;
+      const h = bitmap.height;
+      if (!w || !h || w * h > RECOMPRESS_MAX_PIXELS) return file;
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(w, h)
+        : Object.assign(document.createElement('canvas'), { width: w, height: h });
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      // Transparency anywhere means the PNG stays: JPEG would turn it black.
+      const px = ctx.getImageData(0, 0, w, h).data;
+      for (let i = 3; i < px.length; i += 4) if (px[i] !== 255) return file;
+      const blob = canvas.convertToBlob
+        ? await canvas.convertToBlob({ type: 'image/jpeg', quality: RECOMPRESS_QUALITY })
+        : await new Promise((res) => canvas.toBlob(res, 'image/jpeg', RECOMPRESS_QUALITY));
+      if (!blob || blob.size > file.size * RECOMPRESS_KEEP_RATIO) return file;
+      const stem = String(file.name || 'image').replace(/\.[^.]+$/, '');
+      return new File([blob], stem + '.jpg', { type: 'image/jpeg' });
+    } catch (e) {
+      console.warn('[Upload] could not recompress the image; sending it as it is:', e);
+      return file;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  async function uploadMedia(original, forPubkey) {
+    const isImg = original.type.startsWith('image/');
+    const isVid = original.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error(t('Choose an image or video'));
-    if (file.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
+    if (original.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
+    const file = await recompressImage(original);
     const forPk = forPubkey || deps.activePubkey();
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -3770,6 +3817,7 @@ window.SidecarCore = (function () {
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
     emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX, buildEmojiPicker, composeToolBtn, buildPowButton,
+    recompressImage,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
