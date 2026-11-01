@@ -976,7 +976,7 @@
 
   function paintCount() {
     const n = (draft.text || '').trim().length;
-    $('compose-count').textContent = n ? n + (n === 1 ? ' character' : ' characters') : '';
+    $('compose-count').textContent = n ? tn('{{count}} character', '{{count}} characters', n) : '';
     // Media alone is a postable note, the same as in the panel: an image with no caption
     // is a thing people post. The button itself is decided in one place.
     paintPostButton();

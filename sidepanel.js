@@ -1816,7 +1816,7 @@
       _firstPostSeenPubkeys.add(state.activePubkey);
       chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
       balloon.classList.add('hidden');
-      openComposer('Just setting up my #Sidecar 🍸');
+      openComposer(t('Just setting up my #Sidecar 🍸'));
     } else {
       openComposer();
     }
@@ -10246,7 +10246,7 @@
         chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
       }
       balloon.classList.add('hidden');
-      openComposer('Just setting up my #Sidecar 🍸');
+      openComposer(t('Just setting up my #Sidecar 🍸'));
     });
   })();
 
@@ -13202,11 +13202,10 @@
     try {
       const m = await loadMuteList(pubkey, await readRelayUrls(pubkey));
       setWaiting(numEl, I18N.fmtNum(m.pubkeys.size), false);
-      const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
       const extras = [];
-      if (m.hashtags.size) extras.push(plural(m.hashtags.size, 'hashtag'));
-      if (m.words.length) extras.push(plural(m.words.length, 'word'));
-      if (m.threads.size) extras.push(plural(m.threads.size, 'thread'));
+      if (m.hashtags.size) extras.push(tn('{{count}} hashtag', '{{count}} hashtags', m.hashtags.size));
+      if (m.words.length) extras.push(tn('{{count}} word', '{{count}} words', m.words.length));
+      if (m.threads.size) extras.push(tn('{{count}} thread', '{{count}} threads', m.threads.size));
       if (labelEl && extras.length) {
         labelEl.title = t('Also muted: {{list}}. Only people are counted here.', { list: extras.join(', ') });
       }
@@ -26056,6 +26055,8 @@
     }).join('\n');
   }
 
+  // English only, on purpose. This is developer tooling, shown on unpacked builds alone, so
+  // none of it is worth a translator's time or a line in 21 catalogs.
   async function openDebugPanel() {
     await devBuildReady;
     if (!isDevBuild()) return;
@@ -26067,7 +26068,7 @@
     openModal((modal) => {
       modal.classList.add('modal-sheet');
 
-      const xBtn = h('button', { className: 'modal-x', title: t('Close') });
+      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);
@@ -26077,8 +26078,8 @@
       const verText = ver + (build.commit && build.commit !== 'dev' ? ' (' + build.commit + ')' : '');
       modal.append(
         h('div', {}, [
-          h('div', { className: 'notif-modal-title', textContent: t('Dev tools') }),
-          h('div', { className: 'hint', textContent: t('Sidecar {{version}} · dev build', { version: verText }) }),
+          h('div', { className: 'notif-modal-title', textContent: 'Dev tools' }),
+          h('div', { className: 'hint', textContent: 'Sidecar ' + verText + ' · dev build' }),
         ])
       );
 
@@ -26092,7 +26093,7 @@
           await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devComposerKinds: enabled } });
         } catch (_) {
           demoToggle.checked = !enabled;
-          toast(t('Could not save the demo setting'), 'error');
+          toast('Could not save the demo setting', 'error');
         } finally {
           demoToggle.disabled = false;
         }
@@ -26110,7 +26111,7 @@
           await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devSilentTags: enabled } });
         } catch (_) {
           silentToggle.checked = !enabled;
-          toast(t('Could not save the demo setting'), 'error');
+          toast('Could not save the demo setting', 'error');
         } finally {
           silentToggle.disabled = false;
         }
@@ -26127,7 +26128,7 @@
           await call({ type: 'SIDECAR_SET_SETTINGS', settings: { devReplyById: enabled } });
         } catch (_) {
           replyToggle.checked = !enabled;
-          toast(t('Could not save the demo setting'), 'error');
+          toast('Could not save the demo setting', 'error');
         } finally {
           replyToggle.disabled = false;
         }
@@ -26138,7 +26139,7 @@
       // without this there is no way to look at it on a local build. It writes the same
       // flag the worker writes rather than building a lookalike, so what you preview is
       // what ships.
-      const cardBtn = h('button', { className: 'secondary', textContent: t('Preview the update card') });
+      const cardBtn = h('button', { className: 'secondary', textContent: 'Preview the update card' });
       cardBtn.addEventListener('click', () => {
         chrome.storage.local.set({ versionCard: { to: ver || 'this version', from: null } }, () => {
           // Through afterModalClose, or the card paints under the sheet you are standing
@@ -26151,19 +26152,19 @@
         });
       });
       modal.append(h('section', { className: 'dev-controls-section' }, [
-        h('h3', { className: 'settings-section-title', textContent: t('Dev controls') }),
+        h('h3', { className: 'settings-section-title', textContent: 'Dev controls' }),
         h('label', { className: 'toggle-row' }, [
-          demoToggle, h('span', { textContent: t('Demo event kind selector') }),
+          demoToggle, h('span', { textContent: 'Demo event kind selector' }),
         ]),
-        h('p', { className: 'hint', textContent: t('Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.') }),
+        h('p', { className: 'hint', textContent: 'Choose kind 1 or 1111 in the composer. Off by default; applies when you next open the composer.' }),
         h('label', { className: 'toggle-row' }, [
-          silentToggle, h('span', { textContent: t('Silent p tags') }),
+          silentToggle, h('span', { textContent: 'Silent p tags' }),
         ]),
-        h('p', { className: 'hint', textContent: t('Tag keys in the composer that the note itself never mentions. Applies when you next open the composer.') }),
+        h('p', { className: 'hint', textContent: 'Tag keys in the composer that the note itself never mentions. Applies when you next open the composer.' }),
         h('label', { className: 'toggle-row' }, [
-          replyToggle, h('span', { textContent: t('Reply to any event') }),
+          replyToggle, h('span', { textContent: 'Reply to any event' }),
         ]),
-        h('p', { className: 'hint', textContent: t('Enter an event ID in the main composer to reply to it. Applies when you next open the composer.') }),
+        h('p', { className: 'hint', textContent: 'Enter an event ID in the main composer to reply to it. Applies when you next open the composer.' }),
         cardBtn,
       ]));
 
@@ -26171,14 +26172,14 @@
       const list = h('div', { className: 'list' });
       scroll.appendChild(list);
       const logSection = h('section', { className: 'dev-log-section' }, [
-        h('h3', { className: 'settings-section-title', textContent: t('Debug log') }),
+        h('h3', { className: 'settings-section-title', textContent: 'Debug log' }),
         scroll,
       ]);
       modal.appendChild(logSection);
 
       function render() {
         if (!entries.length) {
-          listState(list, t('No log entries yet. Use the app and they’ll appear here.'));
+          listState(list, 'No log entries yet. Use the app and they’ll appear here.');
           return;
         }
         list.innerHTML = '';
@@ -26190,15 +26191,15 @@
         render();
       };
 
-      const copyBtn = h('button', { className: 'secondary', textContent: t('Copy') });
+      const copyBtn = h('button', { className: 'secondary', textContent: 'Copy' });
       copyBtn.addEventListener('click', async () => {
         try {
           await copyPlain(debugLogText(entries) || '(empty)');
-          copyBtn.textContent = t('Copied ✓');
-          setTimeout(() => (copyBtn.textContent = t('Copy')), 1200);
+          copyBtn.textContent = 'Copied ✓';
+          setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
         } catch (_) {}
       });
-      const clearBtn = h('button', { className: 'ghost', textContent: t('Clear') });
+      const clearBtn = h('button', { className: 'ghost', textContent: 'Clear' });
       clearBtn.addEventListener('click', async () => {
         try { entries = await call({ type: 'SIDECAR_CLEAR_DEBUG_LOG' }); } catch (_) { return; }
         render();

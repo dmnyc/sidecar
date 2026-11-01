@@ -53,3 +53,17 @@ test('browser payment catalogs retain every key and payment placeholder definiti
   }
  }
 });
+
+// zh was once written with zh-TW's file, because the merge matched "out-zh-" against "out-zh-TW-".
+// Both then read as Traditional, and nothing failed. The two scripts share a few strings (PIN, 24H),
+// never most of them.
+test('the Simplified and Traditional Chinese catalogs are different translations',()=>{
+ const read=code=>JSON.parse(fs.readFileSync(path.join(root,'locales',code+'.json'),'utf8'));
+ const simplified=read('zh'),traditional=read('zh-TW');
+ const keys=Object.keys(simplified);
+ const alike=keys.filter(key=>simplified[key]===traditional[key]).length;
+ assert.ok(alike<keys.length*0.2,alike+' of '+keys.length+' strings are the same in both');
+ for(const key of ['Accounts','Activity','Profile','Wallet','Settings']) assert.notEqual(simplified[key],traditional[key],key);
+ assert.match(simplified.Wallet,/钱包/);
+ assert.match(traditional.Wallet,/錢包/);
+});
