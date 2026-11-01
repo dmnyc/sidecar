@@ -19841,13 +19841,15 @@
   // spot(target) / lastUsdClose. The shape of the day is what the chart conveys, and it
   // ends exactly on the spot price the balance is showing — verified to land within a
   // unit across JPY/CHF/NGN/KRW.
-  // Ranges the chart offers, in display order.
+  // Ranges the chart offers, in display order. Each label is a function: this table is built
+  // as the panel script starts, before the language file has loaded, so a label translated
+  // here would stay English. The chart calls it when it draws the row.
   const PRICE_RANGES = [
-    { key: '24h', label: '24H' },
-    { key: '7d', label: '7D' },
-    { key: '30d', label: '30D' },
-    { key: '1y', label: '1Y' },
-    { key: 'all', label: 'ALL' },
+    { key: '24h', label: () => t('24H') },
+    { key: '7d', label: () => t('7D') },
+    { key: '30d', label: () => t('30D') },
+    { key: '1y', label: () => t('1Y') },
+    { key: 'all', label: () => t('ALL') },
   ];
   const RANGE_SECONDS = {
     '24h': 24 * 3600,
@@ -20123,7 +20125,7 @@
     PRICE_RANGES.forEach(({ key, label }) => {
       const b = h('button', {
         className: 'wallet-chart-range-btn' + (key === range ? ' active' : ''),
-        textContent: label,
+        textContent: label(),
       });
       b.addEventListener('click', (e) => {
         e.stopPropagation(); // the card itself has a click handler

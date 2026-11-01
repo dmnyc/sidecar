@@ -4061,6 +4061,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      breakable phrases, so a narrow card puts one on the next line, centered. */
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; justify-content: center;
   font-family: var(--font-ui); font-size: 11.5px; color: var(--muted); margin-top: 2px;
+  /* The chart is full-bleed (the slot cancels the card's 16px padding); the figures are
+     not, so they wrap at the card's inner edge instead of running to its border. A long
+     locale format ("US$77.275,06 – US$78.110,24") is what showed it. */
+  padding: 0 16px;
 }
 .wallet-chart-meta > span { white-space: nowrap; }
 .wallet-chart-delta.up { color: var(--success); }
