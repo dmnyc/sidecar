@@ -1447,6 +1447,8 @@
     // comes through here: an upload, a paste, a removal, a draft loaded. The Poll button
     // stood its ground after an upload, because nothing here told it to.
     if (pollEditor) pollEditor.paintEitherOr();
+    // And the preview, when that is what is showing: the attachments are part of what it draws.
+    paintPreview();
     // Where a dragged thumb will land, across renderThumbs' rebuilds.
     let dragFrom = -1;
     draft.media.forEach((m, i) => {
@@ -1732,6 +1734,11 @@
   // The same renderer the panel previews with, so what this shows and what that shows
   // cannot disagree about a mention, an embed or a link card.
   let showTab = () => {};
+  // Draws the Preview pane from the draft as it is NOW, or does nothing while the pane is
+  // not the one showing. Set by buildTabs. renderThumbs calls it, so removing, adding or
+  // uploading an attachment from the strip, which stays on screen over Preview, is seen in
+  // the preview straight away instead of after a trip back to the editor and out again.
+  let paintPreview = () => {};
   function buildTabs() {
     const write = $('tab-write');
     const prev = $('tab-preview');
@@ -1765,7 +1772,10 @@
       // Invisible rather than gone: it is the spacer that holds Cancel to the right.
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
-      if (which !== 'preview') return;
+      paintPreview();
+    };
+    paintPreview = () => {
+      if (pane.classList.contains('hidden')) return;
       pane.innerHTML = '';
       // What will actually go out: the prose and, appended at the end, the
       // attachments — the preview and the published note are rendered from the one
