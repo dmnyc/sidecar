@@ -1873,5 +1873,6 @@
   "{{attachments}} — added to the end of your post": "{{attachments}} — เพิ่มต่อท้ายโพสต์ของคุณ",
   "{{count}} hashtag_other": "{{count}} แฮชแท็ก",
   "{{count}} word_other": "{{count}} คำ",
-  "{{count}} thread_other": "{{count}} เธรด"
+  "{{count}} thread_other": "{{count}} เธรด",
+  "A fast, feature-packed, open-source social client built on Nostr.": "ไคลเอนต์โซเชียลโอเพนซอร์สที่เร็วและมีฟีเจอร์ครบครัน สร้างบน Nostr"
 }

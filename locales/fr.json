@@ -2003,5 +2003,6 @@
   "{{count}} word_other": "{{count}} mots",
   "{{count}} thread_one": "{{count}} fil",
   "{{count}} thread_many": "{{count}} de fils",
-  "{{count}} thread_other": "{{count}} fils"
+  "{{count}} thread_other": "{{count}} fils",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Un client social open source, rapide et riche en fonctionnalités, bâti sur Nostr."
 }

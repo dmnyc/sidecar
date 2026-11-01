@@ -1938,5 +1938,6 @@
   "{{count}} word_one": "{{count}} szó",
   "{{count}} word_other": "{{count}} szó",
   "{{count}} thread_one": "{{count}} szál",
-  "{{count}} thread_other": "{{count}} szál"
+  "{{count}} thread_other": "{{count}} szál",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Gyors, funkciógazdag, nyílt forráskódú közösségi kliens, amely a Nostrra épül."
 }

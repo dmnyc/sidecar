@@ -2068,5 +2068,6 @@
   "{{count}} thread_one": "{{count}} wątek",
   "{{count}} thread_few": "{{count}} wątki",
   "{{count}} thread_many": "{{count}} wątków",
-  "{{count}} thread_other": "{{count}} wątku"
+  "{{count}} thread_other": "{{count}} wątku",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Szybki, bogaty w funkcje klient społecznościowy o otwartym kodzie, zbudowany na Nostr."
 }

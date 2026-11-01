@@ -2003,5 +2003,6 @@
   "{{count}} word_other": "{{count}} מילים",
   "{{count}} thread_one": "שרשור אחד",
   "{{count}} thread_two": "שני שרשורים",
-  "{{count}} thread_other": "{{count}} שרשורים"
+  "{{count}} thread_other": "{{count}} שרשורים",
+  "A fast, feature-packed, open-source social client built on Nostr.": "לקוח חברתי מהיר, עשיר בתכונות ובקוד פתוח, שנבנה על Nostr."
 }

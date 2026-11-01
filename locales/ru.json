@@ -2068,5 +2068,6 @@
   "{{count}} thread_one": "{{count}} ветка",
   "{{count}} thread_few": "{{count}} ветки",
   "{{count}} thread_many": "{{count}} веток",
-  "{{count}} thread_other": "{{count}} ветки"
+  "{{count}} thread_other": "{{count}} ветки",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Быстрый, многофункциональный социальный клиент с открытым кодом на базе Nostr."
 }

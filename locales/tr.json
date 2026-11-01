@@ -1938,5 +1938,6 @@
   "{{count}} word_one": "{{count}} sözcük",
   "{{count}} word_other": "{{count}} sözcük",
   "{{count}} thread_one": "{{count}} ileti dizisi",
-  "{{count}} thread_other": "{{count}} ileti dizisi"
+  "{{count}} thread_other": "{{count}} ileti dizisi",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Nostr üzerine kurulu, hızlı, özellik dolu, açık kaynaklı bir sosyal istemci."
 }

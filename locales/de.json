@@ -1938,5 +1938,6 @@
   "{{count}} word_one": "{{count}} Wort",
   "{{count}} word_other": "{{count}} Wörter",
   "{{count}} thread_one": "{{count}} Thread",
-  "{{count}} thread_other": "{{count}} Threads"
+  "{{count}} thread_other": "{{count}} Threads",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Ein schneller, funktionsreicher Open-Source-Social-Client auf Nostr-Basis."
 }

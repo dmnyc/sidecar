@@ -1873,5 +1873,6 @@
   "{{attachments}} — added to the end of your post": "{{attachments}} — 将添加到帖子末尾",
   "{{count}} hashtag_other": "{{count}} 个话题标签",
   "{{count}} word_other": "{{count}} 个词",
-  "{{count}} thread_other": "{{count}} 个对话串"
+  "{{count}} thread_other": "{{count}} 个对话串",
+  "A fast, feature-packed, open-source social client built on Nostr.": "一款基于 Nostr 构建的快速、功能丰富的开源社交客户端。"
 }

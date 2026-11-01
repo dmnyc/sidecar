@@ -1938,5 +1938,6 @@
   "{{count}} word_one": "{{count}} λέξη",
   "{{count}} word_other": "{{count}} λέξεις",
   "{{count}} thread_one": "{{count}} νήμα",
-  "{{count}} thread_other": "{{count}} νήματα"
+  "{{count}} thread_other": "{{count}} νήματα",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Μια γρήγορη, πλούσια σε λειτουργίες κοινωνική εφαρμογή-πελάτης ανοιχτού κώδικα, χτισμένη πάνω στο Nostr."
 }

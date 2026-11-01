@@ -1938,5 +1938,6 @@
   "{{count}} word_one": "{{count}} واژه",
   "{{count}} word_other": "{{count}} واژه",
   "{{count}} thread_one": "{{count}} رشته",
-  "{{count}} thread_other": "{{count}} رشته"
+  "{{count}} thread_other": "{{count}} رشته",
+  "A fast, feature-packed, open-source social client built on Nostr.": "یک کلاینت اجتماعی سریع، پرامکانات و متن‌باز که بر پایهٔ Nostr ساخته شده است."
 }

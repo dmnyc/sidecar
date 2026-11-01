@@ -1938,5 +1938,6 @@
   "{{count}} word_one": "{{count}} शब्द",
   "{{count}} word_other": "{{count}} शब्द",
   "{{count}} thread_one": "{{count}} थ्रेड",
-  "{{count}} thread_other": "{{count}} थ्रेड"
+  "{{count}} thread_other": "{{count}} थ्रेड",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Nostr पर बना एक तेज़, सुविधाओं से भरपूर, ओपन-सोर्स सोशल क्लाइंट।"
 }

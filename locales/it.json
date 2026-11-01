@@ -2003,5 +2003,6 @@
   "{{count}} word_other": "{{count}} parole",
   "{{count}} thread_one": "{{count}} thread",
   "{{count}} thread_many": "{{count}} thread",
-  "{{count}} thread_other": "{{count}} thread"
+  "{{count}} thread_other": "{{count}} thread",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Un client social open source, veloce e ricco di funzioni, costruito su Nostr."
 }

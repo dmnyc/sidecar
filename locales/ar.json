@@ -2198,5 +2198,6 @@
   "{{count}} thread_two": "سلسلتان",
   "{{count}} thread_few": "{{count}} سلاسل",
   "{{count}} thread_many": "{{count}} سلسلة",
-  "{{count}} thread_other": "{{count}} سلسلة"
+  "{{count}} thread_other": "{{count}} سلسلة",
+  "A fast, feature-packed, open-source social client built on Nostr.": "عميل اجتماعي سريع وغني بالميزات ومفتوح المصدر، مبني على Nostr."
 }

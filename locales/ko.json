@@ -1873,5 +1873,6 @@
   "{{attachments}} — added to the end of your post": "{{attachments}} — 게시물 끝에 추가됩니다",
   "{{count}} hashtag_other": "해시태그 {{count}}개",
   "{{count}} word_other": "단어 {{count}}개",
-  "{{count}} thread_other": "스레드 {{count}}개"
+  "{{count}} thread_other": "스레드 {{count}}개",
+  "A fast, feature-packed, open-source social client built on Nostr.": "Nostr 기반의 빠르고 기능이 풍부한 오픈 소스 소셜 클라이언트예요."
 }
