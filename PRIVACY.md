@@ -155,6 +155,9 @@ Sidecar requests only the permissions it needs to function:
 - **Storage** — to keep your encrypted keystore, settings, and local activity.
 - **Side panel** — to show the Sidecar interface.
 - **Alarms** — to auto-lock the keystore after a period of inactivity.
+- **Idle** — to tell whether you are away from your computer, so auto-lock counts
+  time away rather than time since the last signature. Sidecar reads only whether
+  the computer is active, idle or locked.
 - **Context menus** — for the right-click "Pay with Sidecar" option.
 - **Notifications** — to confirm payment results.
 - **Scripting** — to reconnect tabs that were already open when Sidecar updated or

@@ -172,7 +172,7 @@ package.
 It is deliberately inert, and every part of that is checkable in the file:
 
 - No `chrome.*` or `browser.*` API of any kind. It uses none of the extension's
-  five permissions.
+  permissions.
 - No `fetch`, no `XMLHttpRequest`, no `WebSocket`. It makes no network request at
   all, so it is covered by §7 below without qualification.
 - Not listed in `web_accessible_resources` (the manifest key is absent entirely),
