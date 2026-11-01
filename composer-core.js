@@ -1156,7 +1156,7 @@ window.SidecarCore = (function () {
       // behind in the panel when the uploader moved here, and an empty list reads exactly
       // like an account with no Blossom server: every upload went to nostr.build instead,
       // in both composers, with nothing said anywhere.
-      console.warn('[Upload] could not read the Blossom server list:', e);
+      uploadLog('warn', 'could not read the Blossom server list', { error: String((e && e.message) || e) });
     }
     // A relay failure or a missing event is not proof that this account has no
     // Blossom servers. Cache only usable lists, so the next upload can recover
@@ -1173,7 +1173,7 @@ window.SidecarCore = (function () {
     // not the next. The old entry stays expired, so the next upload asks again, and it is
     // only used for an hour, so a list the person really did clear is not honored forever.
     if (cached && cached.staleUntil > Date.now()) {
-      console.warn('[Upload] could not refresh the Blossom server list; using the last one that worked.');
+      uploadLog('warn', 'could not refresh the Blossom server list; using the last one that worked', { servers: cached.servers });
       return cached.servers;
     }
     _blossomServerCache.delete(pubkey);
@@ -1220,11 +1220,20 @@ window.SidecarCore = (function () {
         throw new Error(t('No URL in Blossom response'));
       } catch (e) {
         clearTimeout(timer);
-        console.warn('[Blossom] upload to ' + server + ' failed:', e);
+        uploadLog('warn', 'Blossom upload failed', { server, error: e && e.name === 'AbortError' ? 'timed out' : String((e && e.message) || e), type: file.type, bytes: file.size });
         lastError = e;
       }
     }
     throw lastError || new Error(t('All Blossom servers failed'));
+  }
+
+  // Every upload decision, in the console and, in an unpacked build, in Settings → Developer →
+  // Debug log, which keeps it across the panel closing. The console was the only record, so
+  // finding out why a file went to nostr.build meant opening developer tools at the right
+  // moment. Server, status, the server's reason, file type and size: never the file or a key.
+  function uploadLog(level, msg, data) {
+    console.warn('[Upload] ' + msg + (data ? ' ' + JSON.stringify(data) : ''));
+    try { if (deps && deps.devLog) deps.devLog(level, msg, data || null); } catch (_) {}
   }
 
   async function tryBlossomFirst(file, forPubkey) {
@@ -1236,12 +1245,12 @@ window.SidecarCore = (function () {
     try {
       const servers = await fetchBlossomServers(pk);
       if (!servers.length) {
-        console.warn('[Upload] no usable Blossom servers found; falling back to nostr.build. Discovery will retry on the next upload.');
+        uploadLog('warn', 'no Blossom server list found; using nostr.build', null);
         return null;
       }
       return await uploadToBlossom(file, servers, pk);
     } catch (e) {
-      console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
+      uploadLog('error', 'every Blossom server refused; using nostr.build', { error: String((e && e.message) || e) });
       // SAID, NOT ONLY LOGGED. The account has Blossom servers and none took the file, which
       // is the one case where "it went to nostr.build" is a surprise: the link in the note is
       // not on the person's own server and nothing on screen said why. An account with no
@@ -1261,7 +1270,10 @@ window.SidecarCore = (function () {
     if (file.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
     const forPk = forPubkey || deps.activePubkey();
     const blossomUrl = await tryBlossomFirst(file, forPk);
-    if (blossomUrl) return blossomUrl;
+    if (blossomUrl) {
+      uploadLog('info', 'uploaded to Blossom', { url: blossomUrl, type: file.type, bytes: file.size });
+      return blossomUrl;
+    }
     const url = 'https://nostr.build/api/v2/upload/files';
     const authEvent = {
       kind: 27235,

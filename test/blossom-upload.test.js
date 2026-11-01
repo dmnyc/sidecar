@@ -20,7 +20,7 @@ function harness() {
   let now = 1800000000000;
   class Clock extends Date { static now() { return now; } }
   const state = {
-    reads: [], requests: [], signs: [], warnings: [], relayRequests: [], timeouts: [], notices: [],
+    reads: [], requests: [], signs: [], warnings: [], relayRequests: [], timeouts: [], notices: [], devlog: [],
     accountRelays: { 'wss://relay.example': { read: true, write: true } },
     lookup: async () => list(SERVER),
     respond: async url => ({ ok: true, json: async () => url === FALLBACK
@@ -40,6 +40,7 @@ function harness() {
   const uploader = ctx.window.SidecarCore.installComposer({
     activePubkey: () => PK,
     onUploadFallback: message => state.notices.push(message),
+    devLog: (level, msg, data) => state.devlog.push({ level, msg, data }),
     relayUrls: async writableOnly => { assert.equal(writableOnly, false); return ['wss://relay.example']; },
     poolGet: async (relays, filter) => { state.reads.push({ relays, filter }); return state.lookup(filter, relays); },
     call: async message => {
@@ -239,4 +240,26 @@ test('with several servers, the notice names the one that answered last', async 
   h.state.respond = async url => url === FALLBACK ? respond(url) : { ok: false, status: url.startsWith(SERVER) ? 413 : 403 };
   await h.uploadMedia(file());
   assert.match(h.state.notices[0], /second\.example answered HTTP 403/);
+});
+
+test('every decision goes to the debug log as well as the console, with what was tried and why', async () => {
+  // The console was the only record, so finding out why a file went to nostr.build meant
+  // having developer tools open at the right moment.
+  const h = harness();
+  const respond = h.state.respond;
+  h.state.respond = async url => url === FALLBACK ? respond(url) : { ok: false, status: 403, headers: { get: () => 'Blocked type' } };
+  await h.uploadMedia(file());
+  const log = JSON.parse(JSON.stringify(h.state.devlog));
+  const failed = log.find(e => e.msg === 'Blossom upload failed');
+  assert.ok(failed, 'the refusal is logged');
+  assert.equal(failed.data.server, SERVER);
+  assert.match(failed.data.error, /answered HTTP 403: Blocked type/);
+  assert.equal(failed.data.type, 'image/gif');
+  assert.ok(log.some(e => e.level === 'error' && e.msg.startsWith('every Blossom server refused')));
+  assert.ok(h.state.warnings.some(w => w.includes('Blocked type')), 'and the console has it too');
+
+  const ok = harness();
+  await ok.uploadMedia(file());
+  const done = JSON.parse(JSON.stringify(ok.state.devlog)).find(e => e.msg === 'uploaded to Blossom');
+  assert.equal(done.data.url, SERVER + '/hash.gif', 'a success is logged with where it landed');
 });
