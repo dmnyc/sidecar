@@ -12,7 +12,10 @@ has entries, and that heading becomes the version heading when the release is cu
 ## [Unreleased]
 
 ### Added
-- **Sidecar in German, Spanish, French and Brazilian Portuguese.** Settings → Appearance has a **Language** choice, set to follow the browser until you pick one. It changes the panel, the approval screens, the welcome page, the composer, the wallet pages and the QR scanner, and numbers, dates and “5m ago” follow the language you chose. The pay pill and card on a web page follow the browser’s language instead, so a site learns nothing new from them. The help guide is still English, and says so in your language. The translations are drafts that no native speaker has read yet; Settings says so and links to GitHub for corrections.
+- **Sidecar in 21 languages.** Arabic, German, Greek, Spanish, Persian, French, Hebrew, Hindi, Hungarian, Italian, Japanese, Korean, Polish, Brazilian and European Portuguese, Russian, Thai, Turkish, Urdu, and Simplified and Traditional Chinese. Settings → Appearance has a **Language** choice, set to follow the browser until you pick one, and the first screen offers the same choice, so the PIN and backup warnings can be read in your language from the start. It changes the panel, the approval screens, the welcome page, the composer, the wallet pages and the QR scanner, and numbers, dates and “5m ago” follow the language you chose. Arabic, Persian, Hebrew and Urdu mirror the whole panel, and Greek, Cyrillic and the Central European letters use the panel’s own typeface. The pay pill and card on a web page follow the browser’s language instead, so a site learns nothing new from them. The help guide, the “On this day” lines, the literary quotes and Relay Rider stay English. The translations are drafts that no native speaker has read yet; Settings says so and links to GitHub for corrections.
+
+### Fixed
+- **“1 h ago” no longer reads “-1 h”.** Chrome’s compact time data gave French, Russian and European Portuguese a bare negative number in sentences such as “a draft from -1 h”; Sidecar now asks for the longer form when that happens.
 
 ## [1.16.6] — 2026-11-03
 

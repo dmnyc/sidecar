@@ -6,7 +6,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const root=path.join(__dirname,'..');
 const source=fs.readFileSync(path.join(root,'i18n.js'),'utf8');
-const codes=['de','es','fr','pt-BR'];
+const codes=['ar','de','el','es','fa','fr','he','hi','hu','it','ja','ko','pl','pt-BR','pt-PT','ru','th','tr','ur','zh','zh-TW'];
 for(const code of codes) {
  test(code+' loads its real catalog through the persisted language setting',async()=>{
   const fetched=[];

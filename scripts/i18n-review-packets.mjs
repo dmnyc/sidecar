@@ -4,7 +4,7 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
 const {ROOT,allKeys}=require('./i18n-keys-core');
-const codes=['de','es','fr','pt-BR'];
+const codes=['ar','de','el','es','fa','fr','he','hi','hu','it','ja','ko','pl','pt-BR','pt-PT','ru','th','tr','ur','zh','zh-TW'];
 const keys=allKeys().filter(key=>key.security);
 const english=JSON.parse(fs.readFileSync(path.join(ROOT,'_locales/en/messages.json'),'utf8'));
 const dir=path.join(ROOT,'docs/i18n/review');

@@ -7,7 +7,7 @@ const vm=require('node:vm');
 const root=path.join(__dirname,'..');
 const source=fs.readFileSync(path.join(root,'help.js'),'utf8');
 const key='This guide is currently available in English. Translations are in progress.';
-for(const language of ['en','de','es','fr','pt-BR']) {
+for(const language of ['en','ar','de','el','es','fa','fr','he','hi','hu','it','ja','ko','pl','pt-BR','pt-PT','ru','th','tr','ur','zh','zh-TW']) {
  test('guide identifies its English content for '+language,async()=>{
   const note={hidden:true,textContent:'',lang:''};
   const catalog=language==='en'?{}:JSON.parse(fs.readFileSync(path.join(root,'locales',language+'.json'),'utf8'));

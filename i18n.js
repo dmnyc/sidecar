@@ -27,10 +27,27 @@
   // with draft launch catalogs available for review; en-XA is the pseudo-locale.
   const LANGUAGES = [
     { code: 'en', name: 'English' },
+    { code: 'ar', name: 'العربية' },
     { code: 'de', name: 'Deutsch' },
+    { code: 'el', name: 'Ελληνικά' },
     { code: 'es', name: 'Español' },
+    { code: 'fa', name: 'فارسی' },
     { code: 'fr', name: 'Français' },
+    { code: 'he', name: 'עברית' },
+    { code: 'hi', name: 'हिन्दी' },
+    { code: 'hu', name: 'Magyar' },
+    { code: 'it', name: 'Italiano' },
+    { code: 'ja', name: '日本語' },
+    { code: 'ko', name: '한국어' },
+    { code: 'pl', name: 'Polski' },
     { code: 'pt-BR', name: 'Português (Brasil)' },
+    { code: 'pt-PT', name: 'Português (Portugal)' },
+    { code: 'ru', name: 'Русский' },
+    { code: 'th', name: 'ไทย' },
+    { code: 'tr', name: 'Türkçe' },
+    { code: 'ur', name: 'اردو' },
+    { code: 'zh', name: '简体中文' },
+    { code: 'zh-TW', name: '繁體中文' },
   ];
   const PSEUDO = 'en-XA';
   // en-XB, the developer's TEST locale: a real locale file (locales/en-XB.json, written by

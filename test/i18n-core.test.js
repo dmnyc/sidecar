@@ -148,9 +148,22 @@ test('THE BROWSER LANGUAGE RESOLVES TO A SUPPORTED ONE, OR ENGLISH', () => {
   assert.equal(i.resolve('en-GB'), 'en');
   assert.equal(i.resolve('fr-CA'), 'fr');
   assert.equal(i.resolve('pt-BR'), 'pt-BR');
-  // A bare `pt` goes to Brazil; European Portuguese falls to it until it has a catalog of its own.
+  // Portuguese has two catalogs: a bare `pt` goes to Brazil, which has far more speakers, and
+  // every other pt-XX (PT, AO, MZ, CV...) to Portugal.
+  assert.equal(i.resolve('pt-PT'), 'pt-PT');
   assert.equal(i.resolve('pt'), 'pt-BR');
-  assert.equal(i.resolve('pt-PT'), 'pt-BR');
+  assert.equal(i.resolve('pt-AO'), 'pt-PT');
+  // Chinese follows script: zh, zh-CN and zh-SG are Simplified, every other zh-* Traditional.
+  assert.equal(i.resolve('zh'), 'zh');
+  assert.equal(i.resolve('zh-CN'), 'zh');
+  assert.equal(i.resolve('zh-Hans'), 'zh');
+  assert.equal(i.resolve('zh-TW'), 'zh-TW');
+  assert.equal(i.resolve('zh-HK'), 'zh-TW');
+  assert.equal(i.resolve('zh-Hant'), 'zh-TW');
+  // Regional variants fall to their base language; languages with no catalog fall to English.
+  assert.equal(i.resolve('ru-UA'), 'ru');
+  assert.equal(i.resolve('ar-EG'), 'ar');
+  assert.equal(i.resolve('vi'), 'en');
   assert.equal(i.resolve(''), 'en');
   assert.equal(i.resolve('en-XA'), 'en-XA');
 });
