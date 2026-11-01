@@ -1263,11 +1263,317 @@ window.SidecarCore = (function () {
     }
   }
 
-  async function uploadMedia(file, forPubkey) {
-    const isImg = file.type.startsWith('image/');
-    const isVid = file.type.startsWith('video/');
+  // A PHOTO COPIED TO THE CLIPBOARD ARRIVES AS A PNG. The browser decodes the picture and
+  // hands over every pixel losslessly: a 1.3 MB phone JPEG of 2917 by 3888 pixels pasted as
+  // a 39 MB PNG, which is slow to send, heavy on the server and a long wait for whoever
+  // reads the note. Photos are what JPEG is for, so a large PNG is re-encoded as one. It is
+  // left alone when that would cost something:
+  //   - small files, where there is nothing worth saving;
+  //   - anything with transparency, which JPEG cannot hold;
+  //   - a screenshot or drawing, whose flat colors and hard edges PNG already stores well and
+  //     JPEG smears: the JPEG has to come out at least 30 percent smaller to be used;
+  //   - a picture too large to decode safely, and any browser that cannot decode it.
+  // Only PNG is touched. A JPEG, GIF, WebP or video goes up exactly as it was chosen.
+  const RECOMPRESS_MIN_BYTES = 300 * 1024;
+  const RECOMPRESS_MAX_PIXELS = 36 * 1000 * 1000;
+  const RECOMPRESS_QUALITY = 0.85;
+  const RECOMPRESS_KEEP_RATIO = 0.7;
+
+  // AN HDR PHOTO PASTES AS RAW SIGNAL. Preview on a Mac copies an HDR photo (one with a gain
+  // map) as a 16-bit PNG whose color profile declares the PQ curve, the HDR brightness
+  // encoding, in a `cicp` tag. Chrome does not read that tag: it decodes the values as if they
+  // were ordinary ones, and the re-encoded JPEG came out gray and flat, its blacks lifted and
+  // its whites dimmed. So the PNG's color chunks are read before the picture is decoded:
+  // PNG's own cICP chunk, or the cicp tag in its ICC profile. Transfer 16 is PQ, 18 is HLG.
+  function pngChunksBeforeData(bytes) {
+    const sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (bytes.length < 8 || sig.some((b, i) => bytes[i] !== b)) return null;
+    const out = [];
+    let i = 8;
+    while (i + 8 <= bytes.length) {
+      const len = ((bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]) >>> 0;
+      const type = String.fromCharCode(bytes[i + 4], bytes[i + 5], bytes[i + 6], bytes[i + 7]);
+      if (type === 'IDAT' || type === 'IEND') return out;
+      if (i + 12 + len > bytes.length) return out;
+      out.push({ type, start: i, end: i + 12 + len, data: bytes.subarray(i + 8, i + 8 + len) });
+      i += 12 + len;
+    }
+    return out;
+  }
+
+  async function inflateZlib(data) {
+    if (typeof DecompressionStream !== 'function') return null;
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  function iccCicpTransfer(icc) {
+    if (!icc || icc.length < 132) return null;
+    const u32 = (o) => ((icc[o] << 24) | (icc[o + 1] << 16) | (icc[o + 2] << 8) | icc[o + 3]) >>> 0;
+    const count = u32(128);
+    for (let k = 0; k < count && 132 + 12 * k + 12 <= icc.length; k++) {
+      const at = 132 + 12 * k;
+      if (String.fromCharCode(icc[at], icc[at + 1], icc[at + 2], icc[at + 3]) !== 'cicp') continue;
+      const off = u32(at + 4);
+      return off + 10 <= icc.length ? icc[off + 9] : null;
+    }
+    return null;
+  }
+
+  // 'pq', 'hlg' or null, and the chunks that set the picture's color, for the probe below.
+  // The color chunks all come before the image data, so only the head of the file is read.
+  const HDR_TRANSFER = { 16: 'pq', 18: 'hlg' };
+  const PNG_COLOR_CHUNKS = ['cHRM', 'gAMA', 'iCCP', 'sRGB', 'cICP', 'mDCV', 'cLLI'];
+  async function pngHdrInfo(file) {
+    try {
+      const head = new Uint8Array(await file.slice(0, 2 * 1024 * 1024).arrayBuffer());
+      const chunks = pngChunksBeforeData(head);
+      if (!chunks) return null;
+      let transfer = null;
+      for (const c of chunks) {
+        if (c.type === 'cICP' && c.data.length >= 2) transfer = HDR_TRANSFER[c.data[1]] || transfer;
+        if (c.type === 'iCCP' && !transfer) {
+          const nul = c.data.indexOf(0);
+          if (nul < 0) continue;
+          const icc = await inflateZlib(c.data.subarray(nul + 2));
+          transfer = HDR_TRANSFER[iccCicpTransfer(icc)] || transfer;
+        }
+      }
+      if (!transfer) return null;
+      return { transfer, colorChunks: chunks.filter((c) => PNG_COLOR_CHUNKS.includes(c.type)).map((c) => head.slice(c.start, c.end)) };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // DOES THIS BROWSER READ IT RAW? Measured, not assumed, so a Chrome that learns the tag
+  // later is not corrected twice: a one-pixel PNG carrying the photo's own color chunks and a
+  // known PQ value is decoded, and only if that value comes back unchanged is the correction
+  // applied.
+  const PROBE_VALUE = 148;
+  let crcTable = null;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        crcTable[n] = c >>> 0;
+      }
+    }
+    let c = 0xFFFFFFFF;
+    for (const b of bytes) c = crcTable[(c ^ b) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function pngChunk(type, data) {
+    const out = new Uint8Array(12 + data.length);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, data.length);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(data, 8);
+    dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+  }
+  function probePng(colorChunks) {
+    const ihdr = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]); // 1x1, 8-bit RGB
+    const row = [0, PROBE_VALUE, PROBE_VALUE, PROBE_VALUE]; // filter byte, then the pixel
+    let a = 1, b = 0;
+    for (const v of row) { a = (a + v) % 65521; b = (b + a) % 65521; }
+    // zlib, one stored deflate block: no compressor needed for four bytes.
+    const idat = new Uint8Array([0x78, 0x01, 0x01, 4, 0, 0xFB, 0xFF, ...row, b >> 8, b & 0xFF, a >> 8, a & 0xFF]);
+    const parts = [new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), pngChunk('IHDR', ihdr), ...colorChunks, pngChunk('IDAT', idat), pngChunk('IEND', new Uint8Array(0))];
+    return new Blob(parts, { type: 'image/png' });
+  }
+  async function decodesSignalRaw(colorChunks) {
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(probePng(colorChunks));
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(1, 1)
+        : Object.assign(document.createElement('canvas'), { width: 1, height: 1 });
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      return Math.abs(ctx.getImageData(0, 0, 1, 1).data[0] - PROBE_VALUE) <= 2;
+    } catch (_) {
+      return false;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  // PQ signal to standard range, one entry per 8-bit value: the PQ curve gives the light in
+  // nits, 203 nits is the white of a standard-range picture (ITU-R BT.2408), anything brighter
+  // is clipped, and the result is encoded with the sRGB curve that a Display P3 canvas uses.
+  // Checked against the photo that prompted it: the average error against the original's own
+  // standard-range image fell from 28 levels to 3.
+  const SDR_WHITE_NITS = 203;
+  function pqToSdrTable() {
+    const m1 = 0.1593017578125, m2 = 78.84375, c1 = 0.8359375, c2 = 18.8515625, c3 = 18.6875;
+    const table = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) {
+      const p = Math.pow(v / 255, 1 / m2);
+      const nits = 10000 * Math.pow(Math.max(p - c1, 0) / (c2 - c3 * p), 1 / m1);
+      const l = Math.min(nits / SDR_WHITE_NITS, 1);
+      const enc = l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
+      table[v] = Math.round(255 * enc);
+    }
+    return table;
+  }
+
+  async function recompressImage(file, { pasted = false, onHdr } = {}) {
+    if (!file || file.type !== 'image/png' || file.size < RECOMPRESS_MIN_BYTES) return file;
+    if (typeof createImageBitmap !== 'function') return file;
+    let bitmap = null;
+    try {
+      // An HDR PNG someone chose goes up as it is, its HDR intact: only the clipboard's copy is
+      // worth trading for size. A pasted one is corrected to standard range, which looks like
+      // the original on any screen that is not HDR, so nothing needs saying. Only one that
+      // cannot be corrected (HLG, or a browser that fails the probe) tells the person, while
+      // there is still time to attach the original instead.
+      const hdr = await pngHdrInfo(file);
+      if (hdr && !pasted) return file;
+      const toSdr = hdr && hdr.transfer === 'pq' && await decodesSignalRaw(hdr.colorChunks) ? pqToSdrTable() : null;
+      if (hdr && !toSdr && typeof onHdr === 'function') { try { onHdr(hdr.transfer); } catch (_) {} }
+      bitmap = await createImageBitmap(file);
+      const w = bitmap.width;
+      const h = bitmap.height;
+      if (!w || !h || w * h > RECOMPRESS_MAX_PIXELS) return file;
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(w, h)
+        : Object.assign(document.createElement('canvas'), { width: w, height: h });
+      // WIDE COLOR KEEPS ITS COLOR. A phone photo is Display P3, and a default canvas is
+      // sRGB: the re-encoded JPEG came out tagged sRGB and its colors shifted. A Display P3
+      // canvas keeps the gamut and the browser writes that profile into the JPEG; an sRGB
+      // picture loses nothing in it. A browser that cannot make one falls back to sRGB.
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      // Transparency anywhere means the PNG stays: JPEG would turn it black.
+      const img = ctx.getImageData(0, 0, w, h);
+      const px = img.data;
+      for (let i = 3; i < px.length; i += 4) if (px[i] !== 255) return file;
+      if (toSdr) {
+        for (let i = 0; i < px.length; i += 4) { px[i] = toSdr[px[i]]; px[i + 1] = toSdr[px[i + 1]]; px[i + 2] = toSdr[px[i + 2]]; }
+        ctx.putImageData(img, 0, 0);
+      }
+      const blob = canvas.convertToBlob
+        ? await canvas.convertToBlob({ type: 'image/jpeg', quality: RECOMPRESS_QUALITY })
+        : await new Promise((res) => canvas.toBlob(res, 'image/jpeg', RECOMPRESS_QUALITY));
+      if (!blob || blob.size > file.size * RECOMPRESS_KEEP_RATIO) return file;
+      const stem = String(file.name || 'image').replace(/\.[^.]+$/, '');
+      return new File([blob], stem + '.jpg', { type: 'image/jpeg' });
+    } catch (e) {
+      console.warn('[Upload] could not recompress the image; sending it as it is:', e);
+      return file;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  // A PHOTO CARRIES WHERE IT WAS TAKEN. A phone writes GPS coordinates, the camera and often
+  // the owner's name into a JPEG's EXIF and XMP blocks, and every upload sent them along: to a
+  // server that strips them, one that refuses the file for them ("Private metadata detected"),
+  // or one that keeps and serves them to anyone who downloads the picture. So they come out
+  // before anything leaves. In the file's own bytes, not by redrawing it: APP1 (EXIF and XMP)
+  // and APP13 (IPTC) are dropped and the image data is untouched, so there is no quality lost
+  // and the color profile (APP2) stays. The one thing EXIF does for the picture is say which
+  // way up it is; a photo whose orientation is not the default is redrawn upright instead, on
+  // a Display P3 canvas, because dropping the tag alone would leave it on its side.
+  function jpegSegments(bytes) {
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) return null;
+    const segs = [];
+    let i = 2;
+    while (i + 4 <= bytes.length) {
+      if (bytes[i] !== 0xFF) return null;
+      const marker = bytes[i + 1];
+      if (marker === 0xFF) { i += 1; continue; }
+      if (marker === 0xDA) { segs.push({ marker, start: i, end: bytes.length }); return segs; } // image data to the end
+      if (marker === 0xD9) { segs.push({ marker, start: i, end: i + 2 }); return segs; }
+      if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { segs.push({ marker, start: i, end: i + 2 }); i += 2; continue; }
+      const len = (bytes[i + 2] << 8) | bytes[i + 3];
+      if (len < 2 || i + 2 + len > bytes.length) return null;
+      segs.push({ marker, start: i, end: i + 2 + len });
+      i += 2 + len;
+    }
+    return null;
+  }
+
+  // EXIF orientation (tag 0x0112) from an APP1 segment, or 1 when there is none to read.
+  function exifOrientation(bytes, seg) {
+    const b = bytes.subarray(seg.start + 4, seg.end);
+    if (b.length < 14 || String.fromCharCode(b[0], b[1], b[2], b[3]) !== 'Exif') return 1;
+    const t = b.subarray(6);
+    const le = t[0] === 0x49;
+    const u16 = (o) => (le ? t[o] | (t[o + 1] << 8) : (t[o] << 8) | t[o + 1]);
+    const u32 = (o) => (le ? (t[o] | (t[o + 1] << 8) | (t[o + 2] << 16)) + t[o + 3] * 16777216 : t[o] * 16777216 + ((t[o + 1] << 16) | (t[o + 2] << 8) | t[o + 3]));
+    const ifd = u32(4);
+    if (ifd + 2 > t.length) return 1;
+    const n = u16(ifd);
+    for (let k = 0; k < n; k++) {
+      const e = ifd + 2 + k * 12;
+      if (e + 12 > t.length) break;
+      if (u16(e) === 0x0112) return u16(e + 8) || 1;
+    }
+    return 1;
+  }
+
+  async function redrawUpright(file) {
+    if (typeof createImageBitmap !== 'function') return null;
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(file); // applies the EXIF orientation by default
+      const w = bitmap.width;
+      const h = bitmap.height;
+      if (!w || !h || w * h > RECOMPRESS_MAX_PIXELS) return null;
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(w, h)
+        : Object.assign(document.createElement('canvas'), { width: w, height: h });
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      const blob = canvas.convertToBlob
+        ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 })
+        : await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+      return blob ? new File([blob], file.name || 'image.jpg', { type: 'image/jpeg' }) : null;
+    } catch (_) {
+      return null;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  const PRIVATE_SEGMENTS = new Set([0xE1, 0xED]); // APP1 (EXIF, XMP), APP13 (IPTC)
+
+  // Returns the file without its private metadata. FAILS CLOSED: a JPEG whose metadata cannot
+  // be removed is not sent at all, because sending the location was the bug.
+  async function stripPrivateMetadata(file) {
+    if (!file || file.type !== 'image/jpeg') return file;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const segs = jpegSegments(bytes);
+    if (!segs) throw new Error(t('This photo could not be read, so it was not uploaded.'));
+    const priv = segs.filter((s) => PRIVATE_SEGMENTS.has(s.marker));
+    if (!priv.length) return file;
+    const orientation = priv.filter((s) => s.marker === 0xE1).reduce((o, s) => (o !== 1 ? o : exifOrientation(bytes, s)), 1);
+    if (orientation !== 1) {
+      const upright = await redrawUpright(file);
+      if (upright) return upright;
+      throw new Error(t('This photo could not be cleaned of its location data, so it was not uploaded.'));
+    }
+    const kept = segs.filter((s) => !PRIVATE_SEGMENTS.has(s.marker));
+    const parts = [bytes.subarray(0, 2), ...kept.map((s) => bytes.subarray(s.start, s.end))];
+    return new File(parts, file.name || 'image.jpg', { type: 'image/jpeg' });
+  }
+
+  async function uploadMedia(original, forPubkey, { pasted = false } = {}) {
+    const isImg = original.type.startsWith('image/');
+    const isVid = original.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error(t('Choose an image or video'));
-    if (file.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
+    if (original.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
+    // A canvas writes no metadata, so only what goes up as chosen needs stripping.
+    const file = await recompressImage(await stripPrivateMetadata(original), {
+      pasted,
+      onHdr: () => {
+        if (deps.onUploadNotice) deps.onUploadNotice(t('This pasted HDR photo may lose definition. Attach the original file for best results.'));
+      },
+    });
     const forPk = forPubkey || deps.activePubkey();
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) {
@@ -3826,6 +4132,7 @@ window.SidecarCore = (function () {
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
     emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX, buildEmojiPicker, composeToolBtn, buildPowButton,
+    recompressImage, stripPrivateMetadata, pngHdrInfo, pqToSdrTable,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,

@@ -13305,6 +13305,8 @@
   async function uploadImage(file, kind, forPubkey) {
     if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
     if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    // Profile and banner pictures too: no location or camera metadata leaves with them.
+    file = await window.SidecarCore.stripPrivateMetadata(file);
     const forPk = forPubkey || state.activePubkey;
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -13770,6 +13772,7 @@
       // so the core never touches this panel's pool and a second page can bring its own.
       call, poolGet, poolQuerySync, relayUrls, cacheProfile,
       activePubkey: () => state.activePubkey,
+      onUploadNotice: (message) => toast(message, 'info'),
       // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
       // exactly the kind of thing that setting is for.
       reduceBalanceMotion: () => reduceBalanceMotion,
@@ -15131,7 +15134,7 @@
         addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file, pubkey);
+            const url = await uploadMedia(file, pubkey, { pasted: true });
             draft.media.push({ url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();
