@@ -206,13 +206,13 @@ full.
 
 ## 8. What this archive leaves out
 
-The archive is the repository at the release tag, with five paths held back.
+The archive is the repository at the release tag, with six paths held back.
 None of them is source for anything in the add-on, none is read by any build or
 verification step, and removing them changes no shipped byte:
 
 | Path | Why |
 |---|---|
-| `.claude/`, `AGENTS.md` (as `CLAUDE.md`) | Local editor-tooling config and an internal UI style rule. |
+| `.claude/`, `AGENTS.md`, and `CLAUDE.md` (a link to it) | Local editor-tooling config, and the working rules for people and tools contributing to the repository. |
 | `FIREFOX_PORT.md` | A port *plan* whose own status line reads "DONE. Shipped in 1.5.0". `BROWSER_PARITY.md`, which is included, describes the build that actually exists. |
 | `docs/release-1.8.0-description.md`, `docs/release-1.8.0-guide.md` | Store listing copy for a version two releases back. |
 

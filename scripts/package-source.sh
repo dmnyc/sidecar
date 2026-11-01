@@ -68,6 +68,7 @@ fi
 EXCLUDE=(
   .claude
   AGENTS.md
+  CLAUDE.md
   FIREFOX_PORT.md
   docs/release-1.8.0-description.md
   docs/release-1.8.0-guide.md
@@ -75,6 +76,17 @@ EXCLUDE=(
 for path in "${EXCLUDE[@]}"; do
   rm -rf "${STAGE:?}/${path}"
 done
+
+# A link left pointing at an excluded file is not just missing from the zip: the
+# date-stamping below follows it and creates its target as an empty file. CLAUDE.md is
+# a link to AGENTS.md, and holding back only AGENTS.md put an empty one in 1.16.5's
+# first build. So a link with nothing behind it stops the build here.
+dangling=$(cd "${STAGE}" && find -L . -type l)
+if [ -n "${dangling}" ]; then
+  echo "Links left pointing at nothing in the archive (exclude them too):" >&2
+  echo "${dangling}" >&2
+  exit 1
+fi
 
 mkdir -p dist
 rm -f "${ROOT}/${OUT}"
