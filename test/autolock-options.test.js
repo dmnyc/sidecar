@@ -36,8 +36,14 @@ test('nothing still calls the last choice "Until browser closes" or offers one m
   assert.doesNotMatch(read('sidepanel.html'), /<option value="1" data-i18n="After 1 minute"/);
 });
 
-test('an account that never chose still gets 15 minutes', () => {
-  assert.match(read('background.js'), /const DEFAULT_AUTO_LOCK_MINUTES = 15;/);
+test('an account that never chose still gets 15 minutes, and a new keystore starts at 30', () => {
+  const bg = read('background.js');
+  assert.match(bg, /const DEFAULT_AUTO_LOCK_MINUTES = 15;/);
+  assert.match(bg, /const NEW_KEYSTORE_AUTO_LOCK_MINUTES = 30;/);
+  // The new value is written only where a keystore is created, never used as the fallback.
+  const init = bg.slice(bg.indexOf("case 'SIDECAR_INIT'"), bg.indexOf("case 'SIDECAR_UNLOCK'"));
+  assert.match(init, /autoLockMinutes: NEW_KEYSTORE_AUTO_LOCK_MINUTES/);
+  assert.match(bg, /return \{ autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, \.\.\./);
 });
 
 // ---- a stored choice the list no longer offers stays visible and in force ----
@@ -96,4 +102,20 @@ test('Settings uses it before it sets the picker', () => {
   const call = src.indexOf("ensureAutoLockOption($('autolock-select')");
   const set = src.indexOf("$('autolock-select').value = String(settings.autoLockMinutes || 0);");
   assert.ok(call > 0 && set > call, 'the entry must exist before the value is assigned, or the select shows nothing');
+});
+
+// ---- the PIN reminder lets a new account choose its lock time up front ----
+
+test('the PIN reminder offers the Settings list of lock times and saves the pick at once', () => {
+  const panel = src.replace(/^\s*\/\/.*$/gm, '');
+  const at = panel.indexOf('async function pinReminderModal(');
+  const body = panel.slice(at, panel.indexOf('\n  }\n', at));
+  // The options come from the Settings select, so the two lists cannot drift apart.
+  assert.match(body, /\$\('autolock-select'\)\.options/);
+  // Shown at what the keystore holds, and saved on change rather than on OK, so any way
+  // of closing the sheet keeps the choice.
+  assert.match(body, /SIDECAR_GET_SETTINGS/);
+  assert.match(body, /addEventListener\('change'[\s\S]*SIDECAR_SET_SETTINGS[\s\S]*autoLockMinutes: Number\(lockSelect\.value\)/);
+  // No new string: the label is the Settings heading's own.
+  assert.match(body, /t\('Auto-lock'\)/);
 });

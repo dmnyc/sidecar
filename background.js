@@ -44,6 +44,10 @@ const AUTO_LOCK_ALARM = 'sidecar-auto-lock';
 // called on every sign/pay/unlock, and the alarm checks the computer's own idle time
 // before it locks), so normal active use never hits it.
 const DEFAULT_AUTO_LOCK_MINUTES = 15;
+// What a brand-new keystore starts with, written to its settings as an explicit choice.
+// Kept apart from the fallback above on purpose: that one still applies to keystores
+// that never chose, and raising it would loosen their lock without asking.
+const NEW_KEYSTORE_AUTO_LOCK_MINUTES = 30;
 function resolveSettings(sidecar_settings) {
   return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
 }
@@ -4004,12 +4008,12 @@ async function handleControl(message, sender, sendResponse) {
         break;
       case 'SIDECAR_INIT': {
         result = await KS.initialize(message.pin);
-        // A new keystore adopts the current auto-lock default as an explicit
-        // setting (and needs no migration notice) — the "no stored value" state
-        // is reserved for keystores that predate the 15-minute default.
+        // A new keystore starts at 30 minutes as an explicit setting (and needs no
+        // migration notice) — the "no stored value" state is reserved for keystores
+        // that predate the 15-minute default, and stays at 15.
         const prev = (await sget('sidecar_settings')).sidecar_settings || {};
         await sset({
-          sidecar_settings: { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, autoLockNoticeShown: true, ...prev },
+          sidecar_settings: { autoLockMinutes: NEW_KEYSTORE_AUTO_LOCK_MINUTES, autoLockNoticeShown: true, ...prev },
         });
         bumpAutoLock();
         break;

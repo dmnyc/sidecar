@@ -66,6 +66,16 @@ function apps() {
     desc: t('Fast, slick social feed with trending analytics, advanced search, and a built-in wallet.'),
   },
   {
+    name: 'Snort',
+    url: 'https://snort.social',
+    domain: 'snort.social',
+    cat: 'social',
+    // Their apple-touch-icon is an opaque full-bleed square, so it takes the flush treatment.
+    icon: 'https://snort.social/img/apple-touch-icon.png',
+    flush: true,
+    desc: t('A fast, feature-packed, open-source social client built on Nostr.'),
+  },
+  {
     name: 'noStrudel',
     url: 'https://nostrudel.ninja',
     domain: 'nostrudel.ninja',
