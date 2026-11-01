@@ -12,16 +12,20 @@ has entries, and that heading becomes the version heading when the release is cu
 ## [1.16.5] — 2026-10-31
 
 ### Added
+- **EXIF data is stripped from photos before upload.** A photo’s EXIF data, and the other metadata embedded with it, can include its GPS location and camera details. Sidecar removes it before any upload, profile and banner pictures included, and the picture and its colors are unchanged.
 - **Panel zoom.** Settings → Appearance has a minus button, the current size and a plus button, in five steps from 80 to 120 percent. The size in the middle resets to 100. It scales the whole panel, and Sidecar remembers it.
 - **An emoji picker in the composer,** in the panel and in the expanded composer. It opens under the toolbar with nine groups and a search across all 1,914, and a tap puts the emoji in at the caret.
 
 ### Changed
 - **The composer’s toolbar is a row of icons.** Media, GIF, Emoji, Poll and proof of work share one line, each named by its tooltip and for screen readers. Proof of work shows its bits as a badge on the pickaxe, and a small X while it is off. The panel’s Expand button is four corner brackets.
 - **Brownstone is redrawn** with carved stonework and brass details, set in Libre Caslon.
+- **A pasted photo uploads as a JPEG.** The clipboard turns a photo into a PNG many times its size, and a large one is now re-encoded before upload, keeping its colors, HDR photos included. Screenshots and anything with transparency stay PNG.
 - **A narrow panel folds its topbar icons behind a tray,** and the wallet’s Send and Receive stack, whether the width is short because of panel zoom or a narrow sidebar.
 
 ### Fixed
 - **A pasted account’s name and picture show the moment it imports,** instead of waiting on the slow relay path.
+- **Uploads reach your own Blossom server more often.** A large file gets more time before Sidecar gives up on the server, and a relay that is slow to return your server list no longer sends the upload elsewhere. When your server does refuse a file, Sidecar says why before using nostr.build.
+- **The expanded composer’s preview updates when you remove or add an attachment,** instead of after a trip back to the editor.
 - **The bell’s Polls tab counts only live polls.** One old poll no longer holds a (1) on the tab forever.
 - **Rows that clipped in a narrow panel now read whole.** Overview values end in an ellipsis instead of losing their start, the wallet’s badges and price range keep their figures together, a signing row’s host and age wrap as pieces, and the relay question keeps its labels.
 

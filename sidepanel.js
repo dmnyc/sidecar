@@ -291,6 +291,11 @@
     // The Wind in the Willows (1908), which reads "absolute nothing", not the usual "absolutely".
     { text: 'Marilla, isn’t it nice to think that tomorrow is a new day with no mistakes in it yet?', who: 'L. M. Montgomery, 1908' },
     { text: 'Believe me, my young friend, there is nothing—absolute nothing—half so much worth doing as simply messing about in boats.', who: 'Kenneth Grahame, 1908' },
+    // 1.16.5. Checked against the Project Gutenberg texts: The Ambassadors (1903), Strether's
+    // advice to Little Bilham; and The Secret Garden (1911), Colin on Magic. Both are
+    // writers the list did not already have.
+    { text: 'Live all you can; it’s a mistake not to.', who: 'Henry James, 1903' },
+    { text: 'Magic is always pushing and drawing and making things out of nothing.', who: 'Frances Hodgson Burnett, 1911' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

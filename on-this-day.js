@@ -1030,6 +1030,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-03': [
     { year: 1903, text: "Panama declared its independence from Colombia, clearing the way for a US-built canal." }, // supported by the US
+    { year: 1900, text: "The first automobile show in America opened at Madison Square Garden in New York." }, // The Henry Ford, "The Growth and Rebirth of the American Auto Show"; AP, Today in History, Nov. 3
   ],
   '11-04': [
     { year: 1922, text: "Howard Carter found the step that led down to Tutankhamun's tomb." },
@@ -1060,6 +1061,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-11': [
     { year: 1918, text: "The guns fell silent on the Western Front at eleven in the morning." },
+    { year: 1889, text: "Washington became the forty-second state, proclaimed by President Benjamin Harrison." }, // Proclamation 294, American Presidency Project; HistoryLink essay 5210
   ],
   '11-12': [
     { year: 1927, text: "The Holland Tunnel opened to traffic, linking New York and New Jersey under the Hudson." },
@@ -1067,6 +1069,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-13': [
     { year: 1940, text: "Walt Disney released Fantasia, introducing stereophonic sound to movie theaters." }, // Fantasound
+    { year: 1789, text: "Benjamin Franklin wrote to a French friend that nothing in this world is certain except death and taxes." }, // Letter to Jean-Baptiste Le Roy, Nov. 13, 1789; National Constitution Center
   ],
   '11-14': [
     { year: 1889, text: "Nellie Bly left New York to see if she could travel around the world in less than eighty days." }, // New York World
@@ -1078,6 +1081,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-16': [
     { year: 1933, text: "The United States and the Soviet Union formally established diplomatic relations." }, // Roosevelt and Litvinov
+    { year: 1907, text: "Oklahoma became the forty-sixth state, joining the Oklahoma and Indian Territories into one." }, // Proclamation 780; National Archives, "Oklahoma Statehood, November 16, 1907"
   ],
   '11-17': [
     { year: 1869, text: "The Suez Canal opened, joining the Mediterranean to the Red Sea." },
