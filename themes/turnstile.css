@@ -679,7 +679,17 @@
   box-shadow: inset 0 0 0 2px #D9C98E, inset 0 0 0 3px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(21, 26, 30, 0.25);
   pointer-events: none;
 }
-[data-theme="turnstile"] #view-lock .lock-sign-up { bottom: calc(calc(50vh / var(--panel-zoom, 1)) + 210px); }
+/* The upper sign hangs from the logo, not from the screen: placed by the screen's height it
+   assumed a one-line message, and the two-line one ("Locked since your browser closed…")
+   lifted the centered logo into it. Measured from the logo it keeps the same 55px above it
+   at any message length, height or zoom: the room it had over the one-line message when
+   the theme shipped. Its width is the same as the lower sign's: the
+   logo's row is the screen less its 24px padding on each side, 48px of the 64px. */
+[data-theme="turnstile"] #view-lock .brand-lg { position: relative; }
+[data-theme="turnstile"] #view-lock .lock-sign-up {
+  bottom: calc(100% + 55px);
+  width: min(250px, calc(100% - 16px));
+}
 /* Midway in the room under the form: half the screen, less the content below the middle
    (153px), the version chip (31px) and the sign's own 73px, halved. */
 [data-theme="turnstile"] #view-lock .lock-sign-down { bottom: calc(calc(25vh / var(--panel-zoom, 1)) - 97px); }

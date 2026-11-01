@@ -326,23 +326,29 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
   margin-right:auto;
 }
 
-/* Decorations must use the lock area's remaining height, not the full viewport. */
+/* Decorations must use the lock area's remaining height, not the full viewport. cqh is a
+   share of the CONTENT box, 60px shorter than the screen because of .screen's 30px top and
+   bottom padding, while the decorations are placed from the padding box. So 50% of the
+   screen is 50cqh + 30px and 25% is 25cqh + 15px. Written as bare 50cqh and 25cqh these put
+   Departures' clock 30px high and its board 15px low, and Turnstile's signs 30px and 15px
+   low, until the lock-screen sweep measured it against the themes as first shipped. */
 #view-lock { container-type:size; container-name:stream-lock; }
 html[data-theme="departures"] #view-lock .lock-clock {
-  --clock:min(140px, max(0px, calc(50cqh - 220px)));
-  top:calc(50cqh - 200px - var(--clock));
+  --clock:min(140px, max(0px, calc(50cqh + 30px - 220px)));
+  top:calc(50cqh + 30px - 200px - var(--clock));
 }
-html[data-theme="departures"] #view-lock .lock-board { bottom:calc(25cqh - 134px); }
-html[data-theme="turnstile"] #view-lock .lock-sign-up { bottom:calc(50cqh + 210px); }
-html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97px); }
-@container stream-lock (max-height:720px) {
+html[data-theme="departures"] #view-lock .lock-board { bottom:calc(25cqh + 15px - 134px); }
+html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh + 15px - 97px); }
+/* The same 60px again: the themes' own breakpoints are screen heights (720, 640 and 600px),
+   and a container query measures the content box, so each is 60px less here. */
+@container stream-lock (max-height:660px) {
   html[data-theme="departures"] #view-lock .lock-board,
   html[data-theme="turnstile"] #view-lock .lock-sign-down { display:none; }
 }
-@container stream-lock (max-height:640px) {
+@container stream-lock (max-height:580px) {
   html[data-theme="turnstile"] #view-lock .lock-sign-up { display:none; }
 }
-@container stream-lock (max-height:600px) {
+@container stream-lock (max-height:540px) {
   html[data-theme="departures"] #view-lock .lock-station { display:none; }
 }
 

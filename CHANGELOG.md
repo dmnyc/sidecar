@@ -9,7 +9,7 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
-## [1.16.5] — 2026-10-31
+## [1.16.5] — 2026-11-01
 
 ### Added
 - **EXIF data is stripped from photos before upload.** A photo’s EXIF data, and the other metadata embedded with it, can include its GPS location and camera details. Sidecar removes it before any upload, profile and banner pictures included, and the picture and its colors are unchanged.
@@ -26,12 +26,14 @@ has entries, and that heading becomes the version heading when the release is cu
 - **A pasted account’s name and picture show the moment it imports,** instead of waiting on the slow relay path.
 - **Uploads reach your own Blossom server more often.** A large file gets more time before Sidecar gives up on the server, and a relay that is slow to return your server list no longer sends the upload elsewhere. When your server does refuse a file, Sidecar says why before using nostr.build.
 - **The expanded composer’s preview updates when you remove or add an attachment,** instead of after a trip back to the editor.
+- **Turnstile’s and Departures’ lock screens look as they did at launch.** The longer “Locked since your browser closed” message no longer lifts the logo into Turnstile’s Uptown sign, and the Departures clock and board are back where they were first placed.
 - **The bell’s Polls tab counts only live polls.** One old poll no longer holds a (1) on the tab forever.
 - **Rows that clipped in a narrow panel now read whole.** Overview values end in an ellipsis instead of losing their start, the wallet’s badges and price range keep their figures together, a signing row’s host and age wrap as pieces, and the relay question keeps its labels.
 
 ### Documentation
 - **AGENTS.md is the canonical rules file for contributors and tools,** and CLAUDE.md points to it. A pull request is not opened without asking first.
 - **The release checklist has a theme check,** next to the wallet check, with a sweep page that shows every theme’s surfaces side by side.
+- **The release checklist has a lock-screen check,** a sweep page that shows every theme’s lock screen and measures whether any decoration touches the logo, the message or the PIN form.
 
 ## [1.16.4] — 2026-10-29
 
