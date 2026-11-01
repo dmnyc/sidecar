@@ -20,6 +20,7 @@ has entries, and that heading becomes the version heading when the release is cu
 - **The composer’s toolbar is a row of icons.** Media, GIF, Emoji, Poll and proof of work share one line, each named by its tooltip and for screen readers. Proof of work shows its bits as a badge on the pickaxe, and a small X while it is off. The panel’s Expand button is four corner brackets.
 - **Brownstone is redrawn** with carved stonework and brass details, set in Libre Caslon.
 - **A pasted photo uploads as a JPEG.** The clipboard turns a photo into a PNG many times its size, and a large one is now re-encoded before upload, keeping its colors, HDR photos included. Screenshots and anything with transparency stay PNG.
+- **Auto-lock counts time away from your computer,** not time since Sidecar last signed. Reading in a client for longer than the setting no longer finds Sidecar locked at the next like or reply, and Sidecar locks when the computer has been idle that long. A locked screen counts as time away. The browser’s idle permission is new for this.
 - **A narrow panel folds its topbar icons behind a tray,** and the wallet’s Send and Receive stack, whether the width is short because of panel zoom or a narrow sidebar.
 
 ### Fixed

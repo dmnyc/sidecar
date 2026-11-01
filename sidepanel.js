@@ -25165,6 +25165,13 @@
     });
     $('pseudo-locale-toggle').checked = settings.language === I18N.PSEUDO;
     $('pseudo-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.PSEUDO : 'auto'));
+    $('dev-autolock-toggle').checked = settings.autoLockMinutes === 1;
+    $('dev-autolock-toggle').addEventListener('change', async (e) => {
+      const minutes = e.target.checked ? 1 : 15;
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: minutes } });
+      ensureAutoLockOption($('autolock-select'), minutes);
+      $('autolock-select').value = String(minutes);
+    });
     $('test-locale-toggle').checked = settings.language === I18N.TEST;
     $('test-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.TEST : 'auto'));
     // A pretend date for the special editions (seasons.js). Clearing the card's record
