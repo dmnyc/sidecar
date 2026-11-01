@@ -2134,6 +2134,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    is display:block and centered, which breaks the sentence in half. Same treatment
    .wallet-notice .explore-link already gets, as a reusable modifier. */
 .explore-link.inline { display: inline; color: inherit; text-align: inherit; text-decoration: underline; }
+/* The drafts hint under the language picker: its link ends the sentence, so it stays inline
+   and left-aligned, and takes the accent color so it reads as a link. */
+#language-setting .explore-link { display: inline; text-align: inherit; color: var(--lav); text-decoration: underline; }
+#language-setting .explore-link:hover { color: var(--text); }
 .explore-link.share-link { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .share-link svg { width: 14px; height: 14px; }
 #share-sidecar-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }

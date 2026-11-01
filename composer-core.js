@@ -3156,6 +3156,24 @@ window.SidecarCore = (function () {
   // Done at index time rather than per keystroke: the search already runs across the
   // whole table on a debounce, and lowercasing 1,914 strings on every one of those was
   // the reason not to fix it in the comparison.
+  // The nine group names, as each tab's tooltip and screen-reader label. Written out so the
+  // key extractor sees every one; the table's own English names are the keys, and a name the
+  // table gains later shows in English until it is added here.
+  function emojiGroupLabel(name) {
+    const labels = {
+      'Smileys & Emotion': t('Smileys & Emotion'),
+      'People & Body': t('People & Body'),
+      'Animals & Nature': t('Animals & Nature'),
+      'Food & Drink': t('Food & Drink'),
+      'Travel & Places': t('Travel & Places'),
+      'Activities': t('Activities'),
+      'Objects': t('Objects'),
+      'Symbols': t('Symbols'),
+      'Flags': t('Flags'),
+    };
+    return labels[name] || name;
+  }
+
   let _emojiIndex = null;
   function emojiGroups() {
     if (_emojiIndex) return _emojiIndex;
@@ -3255,9 +3273,9 @@ window.SidecarCore = (function () {
           className: 'emoji-tab',
           type: 'button',
           textContent: g[1][0] ? g[1][0][0] : '•',
-          title: g[0],
+          title: emojiGroupLabel(g[0]),
         });
-        tab.setAttribute('aria-label', g[0]);
+        tab.setAttribute('aria-label', emojiGroupLabel(g[0]));
         tab.addEventListener('click', () => { input.value = ''; showGroup(i); });
         tabs.append(tab);
       });
@@ -4589,7 +4607,7 @@ window.SidecarCore = (function () {
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
     emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX, buildEmojiPicker, composeToolBtn, buildPowButton,
-    recompressImage, stripPrivateMetadata, pngHdrInfo, pqToSdrTable,
+    recompressImage, stripPrivateMetadata, pngHdrInfo, pqToSdrTable, emojiGroupLabel,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,

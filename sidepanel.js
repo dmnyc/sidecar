@@ -6796,15 +6796,16 @@
         paintGrid(groups[i][1]);
       }
       groups.forEach((g, i) => {
-        const t = h('button', {
+        const label = window.SidecarCore.emojiGroupLabel(g[0]);
+        const tab = h('button', {
           className: 'emoji-tab',
           type: 'button',
           textContent: g[1][0] ? g[1][0][0] : '•',
-          title: g[0],
+          title: label,
         });
-        t.setAttribute('aria-label', g[0]);
-        t.addEventListener('click', () => { search.value = ''; showGroup(i); });
-        tabs.append(t);
+        tab.setAttribute('aria-label', label);
+        tab.addEventListener('click', () => { search.value = ''; showGroup(i); });
+        tabs.append(tab);
       });
 
       let searchTimer = null;
@@ -26006,7 +26007,7 @@
     // The translations are drafts with no native review behind them, so say so, and say where a
     // correction goes. The link is built here, not in the catalogs, which never carry markup.
     const report = h('a', { className: 'explore-link', href: '#', textContent: t('Tell us on GitHub') });
-    report.addEventListener('click', (e) => { e.preventDefault(); chrome.tabs.create({ url: 'https://github.com/dmnyc/sidecar/issues' }); });
+    report.addEventListener('click', (e) => { e.preventDefault(); chrome.tabs.create({ url: 'https://github.com/dmnyc/sidecar/issues/new?title=Translation%20mistake' }); });
     $('language-setting').append(h('p', { className: 'hint' }, I18N.fill(t('These translations are drafts. Spotted a mistake? {{link}}'), { link: report })));
     show($('language-setting'));
   }
