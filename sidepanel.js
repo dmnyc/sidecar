@@ -26304,47 +26304,74 @@
   function updatePanelNarrow() {
     const narrow = effectivePanelWidth() < PANEL_NARROW_PX;
     document.body.classList.toggle('panel-narrow', narrow);
-    applyTopbarFold(narrow);
+    applyTopbarFold(topbarFoldCount(narrow));
   }
 
   // THE ⬧ THAT KEEPS THE TOPBAR TO ONE LINE. Three stay visible, and each for a
   // reason: the bell carries the notification badge; settings and lock are the way
   // OUT — if a zoom or a theme goes wrong, the exit must never live inside the thing
-  // that broke. The other four MOVE into #topbar-more-menu. Moved, not rebuilt:
+  // that broke. The other four MOVE into #topbar-more-menu, only as many as the width
+  // makes necessary and the least-used first, so a panel a little under 340px keeps
+  // most of its icons instead of folding all of them. Moved, not rebuilt:
   // appendChild keeps every listener wired by id, so folding is invisible to the rest
   // of the panel. The recorded parent and next sibling put each icon back exactly
   // where the inline row had it when the width comes back.
-  const TOPBAR_FOLD = ['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn'];
-  let topbarFolded = false;
+  const TOPBAR_FOLD = ['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn']; // the tray's order
+  const TOPBAR_FOLD_FIRST = ['help-btn', 'bookmarks-btn', 'stream-entry', 'search-btn']; // who leaves first
+  const TOPBAR_FIXED = 3; // bell, settings, lock
+  let topbarFolded = 0; // how many are in the tray
   const topbarRestore = new Map(); // id -> [parent, nextSibling] as the inline row had it
 
-  function applyTopbarFold(narrow) {
-    if (narrow === topbarFolded) return;
-    topbarFolded = narrow;
+  // How many to fold at this width: none while all seven icons fit beside the account chip,
+  // then the fewest that make room. One icon is never enough, because the ⬧ takes the
+  // place of the one it replaces.
+  function topbarFoldCount(narrow) {
+    // The icon and chip sizes are measured when the row is laid out, and the CSS values
+    // otherwise (the panel boots with the main view hidden behind a lock). The padding is
+    // .topbar's, which body.panel-narrow cuts from 16px to 10px.
+    const icon = ($('settings-btn') && $('settings-btn').offsetWidth) || 31;
+    const chip = ($('acct-btn') && $('acct-btn').offsetWidth) || 60;
+    const room = effectivePanelWidth() - (narrow ? 20 : 32) - chip - 6;
+    const row = (buttons) => buttons * icon + (buttons - 1) * 4;
+    const all = TOPBAR_FIXED + TOPBAR_FOLD.length;
+    if (row(all) <= room) return 0;
+    for (let folded = 2; folded < TOPBAR_FOLD.length; folded++) {
+      if (row(all - folded + 1) <= room) return folded;
+    }
+    return TOPBAR_FOLD.length;
+  }
+
+  function applyTopbarFold(count) {
+    if (count === topbarFolded) return;
     const more = $('topbar-more-btn');
     const menu = $('topbar-more-menu');
-    more.classList.toggle('hidden', !narrow);
-    more.setAttribute('aria-expanded', String(narrow));
-    if (narrow) {
-      // ALL the restore spots are recorded before the first move, in one pass. Folding
-      // in list order shifts the siblings under later icons — search's "next" would
-      // have been bookmarks-after-stream-was-gone, and the row would have rebuilt with
-      // search at the wrong end. Record first, then move.
-      if (!topbarRestore.size) {
-        for (const id of TOPBAR_FOLD) {
-          const el = $(id);
-          topbarRestore.set(id, [el.parentElement, el.nextSibling]);
-        }
-      }
-      for (const id of TOPBAR_FOLD) menu.appendChild($(id));
-    } else {
+    // ALL the restore spots are recorded before the first move, in one pass. Folding
+    // in list order shifts the siblings under later icons — search's "next" would
+    // have been bookmarks-after-stream-was-gone, and the row would have rebuilt with
+    // search at the wrong end. Record first, then move.
+    if (!topbarRestore.size) {
       for (const id of TOPBAR_FOLD) {
         const el = $(id);
-        const at = topbarRestore.get(id);
-        if (at) at[0].insertBefore(el, at[1]);
+        topbarRestore.set(id, [el.parentElement, el.nextSibling]);
       }
-      closeTopbarMore();
     }
+    // Put back whatever is in the tray. An icon goes home once the sibling it sat before is
+    // there, or insertBefore has nothing to measure against and throws.
+    let away = TOPBAR_FOLD.filter((id) => $(id).parentElement === menu);
+    while (away.length) {
+      const ready = away.filter((id) => { const next = topbarRestore.get(id)[1]; return !next || next.parentElement !== menu; });
+      for (const id of ready.length ? ready : away) {
+        const at = topbarRestore.get(id);
+        at[0].insertBefore($(id), at[1]);
+      }
+      away = away.filter((id) => $(id).parentElement === menu);
+    }
+    const leaving = TOPBAR_FOLD_FIRST.slice(0, count);
+    for (const id of TOPBAR_FOLD) if (leaving.includes(id)) menu.appendChild($(id));
+    topbarFolded = count;
+    more.classList.toggle('hidden', !count);
+    more.setAttribute('aria-expanded', String(!!count));
+    if (!count) closeTopbarMore();
   }
 
   function topbarMoreOpen() {
