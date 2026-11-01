@@ -407,6 +407,10 @@
 
   const composer = SC.installComposer({
     NT,
+    // Said when the account's own Blossom servers took none of a file and nostr.build did.
+    onUploadFallback: (message) => toast(message, 'info'),
+    // Upload decisions into Settings → Developer → Debug log (unpacked builds only).
+    devLog: (level, msg, data) => { call({ type: 'SIDECAR_UPLOAD_LOG', level, msg, data }).catch(() => {}); },
     applyAvatar,
     cachedProfile,
     cacheProfile,

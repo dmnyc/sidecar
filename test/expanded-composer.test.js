@@ -113,7 +113,7 @@ test('THE BLOSSOM SERVER LIST IS ACTUALLY LOOKED FOR', () => {
   assert.match(core, /const BLOSSOM_AUTH_KIND = 24242;/);
   assert.ok(!/BLOSSOM_SERVER_LIST_KIND =/.test(panel), 'sidepanel.js kept a copy');
   const fn = core.slice(core.indexOf('async function fetchBlossomServers('));
-  assert.match(fn.slice(0, fn.indexOf('\n  }')), /console\.warn\('\[Upload\] could not read the Blossom server list:'/);
+  assert.match(fn.slice(0, fn.indexOf('\n  }')), /uploadLog\('warn', 'could not read the Blossom server list'/);
   assert.ok(!/\} catch \(_\) \{\}\n    _blossomServerCache/.test(core), 'a swallowed lookup reads as no servers');
 });
 
