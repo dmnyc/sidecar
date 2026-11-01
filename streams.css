@@ -333,7 +333,6 @@ html[data-theme="departures"] #view-lock .lock-clock {
   top:calc(50cqh - 200px - var(--clock));
 }
 html[data-theme="departures"] #view-lock .lock-board { bottom:calc(25cqh - 134px); }
-html[data-theme="turnstile"] #view-lock .lock-sign-up { bottom:calc(50cqh + 210px); }
 html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97px); }
 @container stream-lock (max-height:720px) {
   html[data-theme="departures"] #view-lock .lock-board,

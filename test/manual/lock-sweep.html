@@ -1,0 +1,81 @@
+<!--
+  Lock-screen sweep: every theme's lock screen, side by side, with the overlap check run on
+  each. Part of the release checklist (BROWSER_PARITY.md), next to the theme sweep.
+
+      python3 -m http.server 8021
+      open http://localhost:8021/test/manual/lock-sweep.html
+
+  Served from the repo root. It loads the real sidepanel.html for each theme with the
+  extension APIs stubbed, so it publishes nothing and talks to no relay, then shows the lock
+  screen in place of the panel.
+
+  WHY IT EXISTS. The lock screen is where most themes put their decoration (Turnstile's
+  station signs, the Departures clock and board, Sleepy Hollow's moon and leaves), placed
+  around content that moves: "Locked since your browser closed" runs to two lines, lifted
+  the centered logo, and Turnstile's upper sign sat on it. The theme sweep draws no lock
+  screen, so it could not see that.
+
+  WHAT IT CHECKS, per theme: no decoration within 16px of the logo, the message or the PIN
+  form, and no scrolling. The longer message is the default because it is the worst case.
+
+  PARAMETERS (query string): w and h for the panel size (378×915 by default), zoom for the
+  panel zoom as a factor (1.2), lede for the message. Worth a run at a short panel (h=700)
+  and at the zoom steps when a lock screen changed.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar lock-screen sweep</title>
+<style>
+  body { margin: 0; font: 13px ui-sans-serif, system-ui, sans-serif; background: #15131c; color: #e7e3f0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, 380px); gap: 12px; padding: 12px; }
+  .n { font: 12px ui-monospace, monospace; padding: 3px 6px; background: #2c2740; }
+  .n.bad { background: #7a2b2b; }
+  iframe { border: 1px solid #2c2740; display: block; background: #fff; }
+</style>
+<div id="summary" style="padding:10px 12px;font-weight:600">Loading…</div>
+<div class="grid" id="grid"></div>
+<script>
+const P = new URLSearchParams(location.search);
+const W = +(P.get('w') || 378), H = +(P.get('h') || 915);
+const LEDE = P.get('lede') || 'Locked since your browser closed. Enter your PIN to unlock.';
+const ROOT = P.get('root') || '../../';
+const ZOOM = P.get('zoom'); // panel zoom as a factor, e.g. 1.2
+const STUB = `<script>window.chrome={runtime:{id:'x',getURL:p=>p,sendMessage:(m,cb)=>{const r=m&&m.type==='SIDECAR_GET_STATE'?{initialized:true,locked:true,accounts:[]}:m&&m.type==='SIDECAR_GET_SETTINGS'?{autoLockMinutes:+(window.__AUTOLOCK||0),theme:window.__THEME}:null;const resp={ok:true,result:r};if(cb)setTimeout(()=>cb(resp),0);return Promise.resolve(resp);},onMessage:{addListener(){}},connect:()=>({onMessage:{addListener(){}},onDisconnect:{addListener(){}},postMessage(){}}),getManifest:()=>({version:'0'})},storage:{local:{get:(k,cb)=>{cb&&cb({});return Promise.resolve({})},set:()=>Promise.resolve()},session:{get:()=>Promise.resolve({}),set:()=>Promise.resolve()},onChanged:{addListener(){}}},i18n:{getMessage:()=>'',getUILanguage:()=>'en'},tabs:{query:()=>Promise.resolve([])},sidePanel:{}};<\/script>`;
+(async () => {
+  const src = await (await fetch(ROOT + 'sidepanel.html')).text();
+  const themes = [...src.matchAll(/href="themes\/([\w-]+)\.css"/g)].map((m) => m[1]).filter((t) => t !== 'patterns');
+  const frame = (t) => src.replace('<head>', `<head><base href="${new URL(ROOT, location.href).href}"><script>window.__AUTOLOCK=${P.get('lede') ? 15 : 0};window.__THEME=${JSON.stringify(t)};<\/script>` + STUB);
+  const grid = document.getElementById('grid');
+  const problems = [];
+  for (const t of themes) {
+    const cell = document.createElement('div');
+    const label = document.createElement('div'); label.className = 'n'; label.textContent = t;
+    const f = document.createElement('iframe'); f.width = W; f.height = H; f.srcdoc = frame(t);
+    cell.append(label, f); grid.append(cell);
+    await new Promise((r) => (f.onload = r));
+    await new Promise((r) => setTimeout(r, 900));
+    const d = f.contentDocument;
+    // The panel applied the theme from the stubbed settings and opened its own lock screen
+    // (so the Departures clock runs); these lines only make sure of both.
+    if (d.documentElement.dataset.theme !== t) d.documentElement.dataset.theme = t;
+    if (ZOOM) { d.body.style.zoom = ZOOM; d.documentElement.style.setProperty('--panel-zoom', ZOOM); }
+    for (const v of d.querySelectorAll('[id^="view-"]')) v.classList.add('hidden');
+    const lock = d.getElementById('view-lock'); lock.classList.remove('hidden');
+    const lede = lock.querySelector('.lede'); if (lede) lede.textContent = LEDE;
+    await new Promise((r) => setTimeout(r, 500));
+    // Measured: any decoration that overlaps the logo, the message or the PIN form, and
+    // anything that makes the page scroll.
+    const box = (e) => e.getBoundingClientRect();
+    const content = [lock.querySelector('.brand-lg'), lede, d.getElementById('unlock-form')].filter(Boolean).map(box);
+    const deco = [...lock.querySelectorAll('.lock-sign, .lock-station, .lock-clock, .lock-board')]
+      .filter((e) => { const s = getComputedStyle(e); return s.display !== 'none' && s.visibility !== 'hidden' && box(e).height > 0; });
+    // Closer than 16px reads as touching, so it counts too.
+    const GAP = 16;
+    const hit = deco.some((e) => { const a = box(e); return content.some((b) => a.left < b.right && b.left < a.right && a.top < b.bottom + GAP && b.top < a.bottom + GAP); });
+    const scrolls = d.documentElement.scrollHeight > H + 1;
+    if (hit || scrolls) { label.classList.add('bad'); label.textContent += hit ? '  touches content' : '  scrolls'; problems.push(t); }
+  }
+  document.getElementById('summary').textContent = `${themes.length} lock screens at ${W}×${H}` + (ZOOM ? ` zoom ${ZOOM}` : '') + ` — “${LEDE}”` + (problems.length ? ` — check: ${problems.join(', ')}` : ', no overlaps measured');
+  document.body.dataset.done = '1';
+})();
+</script>

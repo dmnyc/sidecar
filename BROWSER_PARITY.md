@@ -98,6 +98,10 @@ straight from 1.8.0 to 1.10.0. Consequences worth holding onto:
       sweep; look at them in the square themes (Werkstätte, Ben Day, Turnstile) in
       particular. A control the release adds has to be drawn in
       `test/manual/theme-surfaces.html` first, or the sweep never sees it.
+- [ ] **Lock-screen check.** Run `test/manual/lock-sweep.html` and look at every theme's
+      lock screen, not only the summary: it must say no overlaps were measured. Run it again
+      at a short panel (`?h=700`) and at the largest panel zoom (`?zoom=1.2`) when a lock
+      screen, a theme or the zoom changed this release.
 - [ ] **Firefox smoke test** — `about:debugging` → This Firefox → Load Temporary Add-on;
       exercise the sidebar, an approval, and confirm the panel actually renders (the
       blank-panel regression — i.e. the origin gate lets extension pages through).
