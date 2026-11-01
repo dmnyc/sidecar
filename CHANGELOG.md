@@ -31,6 +31,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Documentation
 - **AGENTS.md is the canonical rules file for contributors and tools,** and CLAUDE.md points to it. A pull request is not opened without asking first.
+- **The release checklist has a theme check,** next to the wallet check, with a sweep page that shows every theme’s surfaces side by side.
 
 ## [1.16.4] — 2026-10-29
 
