@@ -377,7 +377,7 @@ test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
     assert.ok(!new RegExp('function ' + name + '\\(').test(panel), 'sidepanel.js kept a copy of ' + name);
   }
   assert.match(bare, /composer\.renderNotePreview\(box, body\)/);
-  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey\)/);
+  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted \}\)/);
   // Its relay reads go through this page's own pool, so the core never learns which
   // sockets it is using and cannot reach the panel's.
   assert.match(bare, /poolGet: \(relays, filter, params\) => pool\(\)\.get\(/);
@@ -903,7 +903,7 @@ test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
   assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
   assert.match(body, /e\.preventDefault\(\);/);
   assert.match(body, /document\.execCommand\('insertText', false, plain\)/);
-  assert.match(body, /uploadFiles\(images\)/);
+  assert.match(body, /uploadFiles\(images, \{ pasted: true \}\)/);
   // The Media button and a paste share one upload path.
   assert.match(page, /if \(file\) await uploadFiles\(\[file\]\);/);
   // Neither composer lets a paste attach to a poll.

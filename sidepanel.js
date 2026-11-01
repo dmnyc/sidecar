@@ -13768,6 +13768,7 @@
       // so the core never touches this panel's pool and a second page can bring its own.
       call, poolGet, poolQuerySync, relayUrls, cacheProfile,
       activePubkey: () => state.activePubkey,
+      onUploadNotice: (message) => toast(message, 'info'),
       // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
       // exactly the kind of thing that setting is for.
       reduceBalanceMotion: () => reduceBalanceMotion,
@@ -15129,7 +15130,7 @@
         addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file, pubkey);
+            const url = await uploadMedia(file, pubkey, { pasted: true });
             draft.media.push({ url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();

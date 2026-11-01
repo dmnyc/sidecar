@@ -1240,11 +1240,162 @@ window.SidecarCore = (function () {
   const RECOMPRESS_MAX_PIXELS = 36 * 1000 * 1000;
   const RECOMPRESS_QUALITY = 0.85;
   const RECOMPRESS_KEEP_RATIO = 0.7;
-  async function recompressImage(file) {
+
+  // AN HDR PHOTO PASTES AS RAW SIGNAL. Preview on a Mac copies an HDR photo (one with a gain
+  // map) as a 16-bit PNG whose color profile declares the PQ curve, the HDR brightness
+  // encoding, in a `cicp` tag. Chrome does not read that tag: it decodes the values as if they
+  // were ordinary ones, and the re-encoded JPEG came out gray and flat, its blacks lifted and
+  // its whites dimmed. So the PNG's color chunks are read before the picture is decoded:
+  // PNG's own cICP chunk, or the cicp tag in its ICC profile. Transfer 16 is PQ, 18 is HLG.
+  function pngChunksBeforeData(bytes) {
+    const sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (bytes.length < 8 || sig.some((b, i) => bytes[i] !== b)) return null;
+    const out = [];
+    let i = 8;
+    while (i + 8 <= bytes.length) {
+      const len = ((bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]) >>> 0;
+      const type = String.fromCharCode(bytes[i + 4], bytes[i + 5], bytes[i + 6], bytes[i + 7]);
+      if (type === 'IDAT' || type === 'IEND') return out;
+      if (i + 12 + len > bytes.length) return out;
+      out.push({ type, start: i, end: i + 12 + len, data: bytes.subarray(i + 8, i + 8 + len) });
+      i += 12 + len;
+    }
+    return out;
+  }
+
+  async function inflateZlib(data) {
+    if (typeof DecompressionStream !== 'function') return null;
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  function iccCicpTransfer(icc) {
+    if (!icc || icc.length < 132) return null;
+    const u32 = (o) => ((icc[o] << 24) | (icc[o + 1] << 16) | (icc[o + 2] << 8) | icc[o + 3]) >>> 0;
+    const count = u32(128);
+    for (let k = 0; k < count && 132 + 12 * k + 12 <= icc.length; k++) {
+      const at = 132 + 12 * k;
+      if (String.fromCharCode(icc[at], icc[at + 1], icc[at + 2], icc[at + 3]) !== 'cicp') continue;
+      const off = u32(at + 4);
+      return off + 10 <= icc.length ? icc[off + 9] : null;
+    }
+    return null;
+  }
+
+  // 'pq', 'hlg' or null, and the chunks that set the picture's color, for the probe below.
+  // The color chunks all come before the image data, so only the head of the file is read.
+  const HDR_TRANSFER = { 16: 'pq', 18: 'hlg' };
+  const PNG_COLOR_CHUNKS = ['cHRM', 'gAMA', 'iCCP', 'sRGB', 'cICP', 'mDCV', 'cLLI'];
+  async function pngHdrInfo(file) {
+    try {
+      const head = new Uint8Array(await file.slice(0, 2 * 1024 * 1024).arrayBuffer());
+      const chunks = pngChunksBeforeData(head);
+      if (!chunks) return null;
+      let transfer = null;
+      for (const c of chunks) {
+        if (c.type === 'cICP' && c.data.length >= 2) transfer = HDR_TRANSFER[c.data[1]] || transfer;
+        if (c.type === 'iCCP' && !transfer) {
+          const nul = c.data.indexOf(0);
+          if (nul < 0) continue;
+          const icc = await inflateZlib(c.data.subarray(nul + 2));
+          transfer = HDR_TRANSFER[iccCicpTransfer(icc)] || transfer;
+        }
+      }
+      if (!transfer) return null;
+      return { transfer, colorChunks: chunks.filter((c) => PNG_COLOR_CHUNKS.includes(c.type)).map((c) => head.slice(c.start, c.end)) };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // DOES THIS BROWSER READ IT RAW? Measured, not assumed, so a Chrome that learns the tag
+  // later is not corrected twice: a one-pixel PNG carrying the photo's own color chunks and a
+  // known PQ value is decoded, and only if that value comes back unchanged is the correction
+  // applied.
+  const PROBE_VALUE = 148;
+  let crcTable = null;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        crcTable[n] = c >>> 0;
+      }
+    }
+    let c = 0xFFFFFFFF;
+    for (const b of bytes) c = crcTable[(c ^ b) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function pngChunk(type, data) {
+    const out = new Uint8Array(12 + data.length);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, data.length);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(data, 8);
+    dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+  }
+  function probePng(colorChunks) {
+    const ihdr = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]); // 1x1, 8-bit RGB
+    const row = [0, PROBE_VALUE, PROBE_VALUE, PROBE_VALUE]; // filter byte, then the pixel
+    let a = 1, b = 0;
+    for (const v of row) { a = (a + v) % 65521; b = (b + a) % 65521; }
+    // zlib, one stored deflate block: no compressor needed for four bytes.
+    const idat = new Uint8Array([0x78, 0x01, 0x01, 4, 0, 0xFB, 0xFF, ...row, b >> 8, b & 0xFF, a >> 8, a & 0xFF]);
+    const parts = [new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), pngChunk('IHDR', ihdr), ...colorChunks, pngChunk('IDAT', idat), pngChunk('IEND', new Uint8Array(0))];
+    return new Blob(parts, { type: 'image/png' });
+  }
+  async function decodesSignalRaw(colorChunks) {
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(probePng(colorChunks));
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(1, 1)
+        : Object.assign(document.createElement('canvas'), { width: 1, height: 1 });
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      return Math.abs(ctx.getImageData(0, 0, 1, 1).data[0] - PROBE_VALUE) <= 2;
+    } catch (_) {
+      return false;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  // PQ signal to standard range, one entry per 8-bit value: the PQ curve gives the light in
+  // nits, 203 nits is the white of a standard-range picture (ITU-R BT.2408), anything brighter
+  // is clipped, and the result is encoded with the sRGB curve that a Display P3 canvas uses.
+  // Checked against the photo that prompted it: the average error against the original's own
+  // standard-range image fell from 28 levels to 3.
+  const SDR_WHITE_NITS = 203;
+  function pqToSdrTable() {
+    const m1 = 0.1593017578125, m2 = 78.84375, c1 = 0.8359375, c2 = 18.8515625, c3 = 18.6875;
+    const table = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) {
+      const p = Math.pow(v / 255, 1 / m2);
+      const nits = 10000 * Math.pow(Math.max(p - c1, 0) / (c2 - c3 * p), 1 / m1);
+      const l = Math.min(nits / SDR_WHITE_NITS, 1);
+      const enc = l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
+      table[v] = Math.round(255 * enc);
+    }
+    return table;
+  }
+
+  async function recompressImage(file, { pasted = false, onHdr } = {}) {
     if (!file || file.type !== 'image/png' || file.size < RECOMPRESS_MIN_BYTES) return file;
     if (typeof createImageBitmap !== 'function') return file;
     let bitmap = null;
     try {
+      // An HDR PNG someone chose goes up as it is, its HDR intact: only the clipboard's copy is
+      // worth trading for size. A pasted one is corrected to standard range, which looks like
+      // the original on any screen that is not HDR, so nothing needs saying. Only one that
+      // cannot be corrected (HLG, or a browser that fails the probe) tells the person, while
+      // there is still time to attach the original instead.
+      const hdr = await pngHdrInfo(file);
+      if (hdr && !pasted) return file;
+      const toSdr = hdr && hdr.transfer === 'pq' && await decodesSignalRaw(hdr.colorChunks) ? pqToSdrTable() : null;
+      if (hdr && !toSdr && typeof onHdr === 'function') { try { onHdr(hdr.transfer); } catch (_) {} }
       bitmap = await createImageBitmap(file);
       const w = bitmap.width;
       const h = bitmap.height;
@@ -1259,8 +1410,13 @@ window.SidecarCore = (function () {
       const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
       ctx.drawImage(bitmap, 0, 0);
       // Transparency anywhere means the PNG stays: JPEG would turn it black.
-      const px = ctx.getImageData(0, 0, w, h).data;
+      const img = ctx.getImageData(0, 0, w, h);
+      const px = img.data;
       for (let i = 3; i < px.length; i += 4) if (px[i] !== 255) return file;
+      if (toSdr) {
+        for (let i = 0; i < px.length; i += 4) { px[i] = toSdr[px[i]]; px[i + 1] = toSdr[px[i + 1]]; px[i + 2] = toSdr[px[i + 2]]; }
+        ctx.putImageData(img, 0, 0);
+      }
       const blob = canvas.convertToBlob
         ? await canvas.convertToBlob({ type: 'image/jpeg', quality: RECOMPRESS_QUALITY })
         : await new Promise((res) => canvas.toBlob(res, 'image/jpeg', RECOMPRESS_QUALITY));
@@ -1368,13 +1524,18 @@ window.SidecarCore = (function () {
     return new File(parts, file.name || 'image.jpg', { type: 'image/jpeg' });
   }
 
-  async function uploadMedia(original, forPubkey) {
+  async function uploadMedia(original, forPubkey, { pasted = false } = {}) {
     const isImg = original.type.startsWith('image/');
     const isVid = original.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error(t('Choose an image or video'));
     if (original.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
     // A canvas writes no metadata, so only what goes up as chosen needs stripping.
-    const file = await recompressImage(await stripPrivateMetadata(original));
+    const file = await recompressImage(await stripPrivateMetadata(original), {
+      pasted,
+      onHdr: () => {
+        if (deps.onUploadNotice) deps.onUploadNotice(t('This pasted HDR photo may lose definition. Attach the original file for best results.'));
+      },
+    });
     const forPk = forPubkey || deps.activePubkey();
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -3915,7 +4076,7 @@ window.SidecarCore = (function () {
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
     emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX, buildEmojiPicker, composeToolBtn, buildPowButton,
-    recompressImage, stripPrivateMetadata,
+    recompressImage, stripPrivateMetadata, pngHdrInfo, pqToSdrTable,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,

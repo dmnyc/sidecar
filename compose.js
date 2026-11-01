@@ -422,6 +422,7 @@
     poolQuerySync: (relays, filter, params) => pool().querySync(relays, filter, params),
     relayUrls,
     activePubkey: () => state.activePubkey,
+    onUploadNotice: (message) => toast(message, 'info'),
     // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
     // exactly the kind of thing that setting is for.
     reduceBalanceMotion: () => reduceMotion,
@@ -1636,7 +1637,7 @@
       fileInput.value = '';
     });
     // The Media button and a pasted image take the one path.
-    uploadFiles = async (files) => {
+    uploadFiles = async (files, { pasted = false } = {}) => {
       err.textContent = '';
       addBtn.disabled = true;
       // The whole button sweeps (styles.css), as it does in the panel: there is no word
@@ -1644,7 +1645,7 @@
       addBtn.classList.add('is-uploading');
       try {
         for (const file of files) {
-          const url = await composer.uploadMedia(file, state.activePubkey);
+          const url = await composer.uploadMedia(file, state.activePubkey, { pasted });
           // Into the media slot only. The URL is appended to the content at publish
           // (SC.composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
@@ -1875,7 +1876,7 @@
       // A poll and its attachments are one or the other; the Media button is hidden
       // for the same reason.
       if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
-      uploadFiles(images);
+      uploadFiles(images, { pasted: true });
     });
     // After the toolbar, because that is what builds the poll editor: a poll restored
     // from the slot above has nothing to paint into until it exists.
