@@ -10414,6 +10414,47 @@
     return m ? m[1].toLowerCase() : '';
   }
 
+  // An ncryptsec is always 162 characters: NIP-49's 91 bytes, bech32 encoded.
+  const NCRYPTSEC_LENGTH = 162;
+
+  // The same, for the text of a PDF's content stream. The encrypted sheet sets its 162
+  // characters as two lines of 81, each its own `(...) Tj` string, and the pattern above
+  // stops at the end of a string, so it returned the first half and the import failed with
+  // "Incorrect password". The plain sheet's 63-character nsec is one string and was never
+  // affected. So: when a string ends in the start of an ncryptsec, take the strings that
+  // follow it, as long as they are nothing but key characters, until it is whole.
+  //
+  // Bounded on purpose. It stops at the length every ncryptsec has, and it only joins
+  // strings made entirely of letters and digits, so it cannot swallow a caption that
+  // happens to come next. A key that comes out short falls through to the plain pattern,
+  // which is the old behavior, rather than being invented.
+  function extractSecretFromPdfText(text) {
+    const s = String(text || '');
+    const runs = [];
+    const re = /\(((?:\\[\s\S]|[^\\)])*)\)\s*Tj/g;
+    let m;
+    while ((m = re.exec(s))) runs.push(m[1].replace(/\\([()\\])/g, '$1'));
+    for (let i = 0; i < runs.length; i++) {
+      const head = /(?:nostr:)?(ncryptsec1[a-z0-9]*)$/i.exec(runs[i]);
+      if (!head) continue;
+      let key = head[1];
+      for (let j = i + 1; j < runs.length && key.length < NCRYPTSEC_LENGTH && /^[a-z0-9]+$/i.test(runs[j]); j++) {
+        key += runs[j];
+      }
+      if (key.length >= NCRYPTSEC_LENGTH) return key.slice(0, NCRYPTSEC_LENGTH).toLowerCase();
+    }
+    return extractSecretFromText(s);
+  }
+
+  // A pasted private key with the whitespace taken out of it. The encrypted sheet sets its
+  // ncryptsec on two lines, so copying it from a PDF viewer gives two pieces with a line
+  // break between them, and a single-line field turns that break into a space. No key has
+  // whitespace in it, so dropping it all is safe, and it means the two lines paste back
+  // together without anyone having to assemble them.
+  function cleanPastedKey(value) {
+    return String(value || '').replace(/\s+/g, '');
+  }
+
   // Decode `file` at one scale. Separated so callers can retry at a larger size:
   // a phone photo of the whole sheet puts the QR in a fraction of the frame, and
   // downscaling too far erases the modules.
@@ -10449,7 +10490,7 @@
       return s;
     };
     const raw = asText(buf);
-    let secret = extractSecretFromText(raw);
+    let secret = extractSecretFromPdfText(raw);
     if (secret) return secret;
 
     // Sidecar's own sheets are uncompressed, but a PDF re-saved by another tool
@@ -10470,7 +10511,7 @@
           const inflated = await new Response(
             new Blob([slice]).stream().pipeThrough(new DecompressionStream('deflate'))
           ).arrayBuffer();
-          secret = extractSecretFromText(asText(new Uint8Array(inflated)));
+          secret = extractSecretFromPdfText(asText(new Uint8Array(inflated)));
           if (secret) return secret;
         } catch (_) { /* not a Flate stream, or truncated — try the next */ }
       }
@@ -10674,7 +10715,7 @@
       let previewTimer = null;
       async function updatePreview() {
         err.textContent = '';
-        const raw = secretInput.value.trim();
+        const raw = cleanPastedKey(secretInput.value);
         const isNcryptsec = /^ncryptsec1/i.test(raw);
         cryptRow.classList.toggle('hidden', !isNcryptsec);
 
@@ -10711,6 +10752,9 @@
         }
       }
       secretInput.addEventListener('input', () => {
+        // Show the key as it will be read, so a paste that came in as two lines is one.
+        const clean = cleanPastedKey(secretInput.value);
+        if (clean !== secretInput.value) secretInput.value = clean;
         clearTimeout(previewTimer);
         previewTimer = setTimeout(updatePreview, 350);
       });
@@ -10737,7 +10781,7 @@
         save.disabled = true;
         save.textContent = 'Importing…';
         try {
-          const raw = secretInput.value.trim();
+          const raw = cleanPastedKey(secretInput.value);
           if (!raw) throw new Error('Enter an nsec, ncryptsec, or hex private key.');
           const secret = /^ncryptsec1/i.test(raw) ? await decryptNcryptsec(raw, cryptPass.value) : raw;
           await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
