@@ -66,7 +66,7 @@ function harness() {
   vm.createContext(ctx);
   vm.runInContext(NOTIF_CONSTS.replace(/const /g, 'var '), ctx);
   for (const name of ['function rememberOwnNote(', 'function forgetOwnNoteQuery(', 'function loadOwnNoteIds(',
-    'function isOwnNoteReply(', 'function rememberOwnComment(', 'async function loadOwnCommentIds(', 'function closeNotifSubsExcept(', 'async function initNotifSubs(']) {
+    'function isOwnNoteReply(', 'function rememberOwnComment(', 'async function loadOwnCommentIds(', 'function closeNotifSubsExcept(', 'async function initNotifSubs(', 'async function refreshNotifCache(']) {
     vm.runInContext(lift(name), ctx);
   }
   // Startup's first load runs on its own; wait for it, and for any run it started.
@@ -329,4 +329,30 @@ test('what a refresh brought in is counted, even into a full cache', async () =>
   assert.equal(cache.refetchAdded, 2);
   await cache.refetch();
   assert.equal(cache.refetchAdded, 0, 'what was already there counted as new');
+});
+
+// The sheet that opens before the panel has built the cache. initNotifSubs starts the first
+// load and returns while it is still running, and the sheet stopped its spinner on that and
+// read a count of nothing: the notes landed afterwards and the list stayed empty until it
+// was closed and opened again.
+test('THE BELL\'S REFRESH WAITS FOR THE FIRST LOAD when it is the one to start it', async () => {
+  const h = harness();
+  h.ctx.answer = inStretch([at('a', 0.1), at('b', 0.2), at('c', 0.3)]);
+  assert.equal(h.ctx._notifCache.get('me'), undefined, 'this is the cold-cache case');
+  await h.ctx.refreshNotifCache('me');
+  // No settle(): what the sheet sees the moment its spinner stops.
+  const cache = h.ctx._notifCache.get('me');
+  assert.equal(cache.events.length, 3, 'the refresh returned before the notes had arrived');
+  assert.equal(cache.refetchAdded, 3, 'the sheet would read nothing new and not rebuild');
+  assert.equal(cache.refetchRun, null, 'a load was still running');
+});
+
+test('the refresh on a cache that already exists still shares the run in flight', async () => {
+  const h = harness();
+  h.ctx.answer = inStretch([at('a', 0.1)]);
+  await h.ctx.initNotifSubs();
+  await h.ctx.refreshNotifCache('me');
+  const cache = h.ctx._notifCache.get('me');
+  assert.equal(cache.events.length, 1);
+  assert.equal(cache.refetchRun, null);
 });
