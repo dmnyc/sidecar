@@ -3026,12 +3026,22 @@ window.SidecarCore = (function () {
       addBtn.classList.add('compose-add-on');
       addBtn.setAttribute('aria-expanded', 'true');
       // Painted on the first open, not at build: the table is only worth a thousand
-      // buttons to someone who asks for it.
-      if (!grid.childElementCount) showGroup(0);
+      // buttons to someone who asks for it. After a search the grid was emptied on close,
+      // so this is also what puts the group you were on back.
+      if (!grid.childElementCount) showGroup(active);
       input.focus();
     }
     function close() {
       clearTimeout(searchTimer);
+      // A SEARCH IS FOR ONE PICK. Left in the field it greeted the next open with the same
+      // word and the same hits, and the person who wanted a different emoji had to delete it
+      // first. The grid goes with it, since it is showing that search's hits; open() paints
+      // the group again. Emptying the grid only when there was a search keeps the group you
+      // were browsing, and spares a 388-button repaint on every plain close.
+      if (input.value) {
+        input.value = '';
+        grid.replaceChildren();
+      }
       wrap.classList.add('hidden');
       addBtn.classList.remove('compose-add-on');
       addBtn.setAttribute('aria-expanded', 'false');
