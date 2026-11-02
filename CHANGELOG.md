@@ -17,6 +17,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Fixed
 - **The notifications sheet no longer opens empty when you open it right after the panel loads.** The notes were arriving a moment after the refresh icon stopped spinning, and only closing and reopening the sheet showed them. It now waits for them.
+- **Restoring from the encrypted backup sheet’s PDF file works.** The sheet sets its key on two lines, and the reader took only the first, so the import failed with “Incorrect password, or not a valid ncryptsec key.” It now reads both lines. Sheets you already printed or saved are read the same way.
 
 ## [1.16.5] — 2026-11-01
 
