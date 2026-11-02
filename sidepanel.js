@@ -2607,7 +2607,9 @@
       rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
-      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, lud, about);
+      // Their CLINK offer, under the address, cut the way the Profile tab cuts your own.
+      const offerLine = h('div', { className: 'peek-meta hidden' });
+      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, lud, offerLine, about);
       modal.append(body);
       if(options?.chatEvent)modal.append(window.SidecarStreamChat.commentZapContext(options.chatEvent,key=>cachedProfile(key)?.name || window.SidecarStreams.cocktailName(key)));
 
@@ -2659,10 +2661,11 @@
       // is genuinely useful on your own sheet, since showing somebody your zap QR is a
       // thing people do, and that is exactly what the no-wallet branch already draws.
       //
-      // Every key the keystore holds counts, not just the active one. A second account is
-      // equally you, so a wallet attached to one must not be offered a send form pointed
-      // at another.
-      const isSelf = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
+      // Only the profile you are signed in as. Another account in your keystore is
+      // somebody this wallet can pay like anyone else: sats move from the active account's
+      // wallet to a different address and the receipt is a real zap between two keys,
+      // which is the one thing people hold two accounts to try.
+      const isSelf = !!state && !!pubkey && state.activePubkey === pubkey;
 
       let zapAddr = '';
       let zapZappable = false;
@@ -2757,33 +2760,60 @@
       // twice on a cached profile, and the wallet lookup lands whenever it lands, so a
       // reveal that fired on first-answer-wins would swap the sheet under whoever was
       // already typing in it.
-      // WHICH ONE IS OPEN. Both buttons look the same and both toggle a panel, so without
-      // this the only thing saying which one you pressed is the panel itself, and by the
-      // time it has a QR in it the button is off the top of a scrolled sheet.
+      // WHICH ONE IS OPEN. A profile that can be paid two ways shows a switch, Lightning and
+      // CLINK, and one panel under it. Before the switch the two routes were a form and a
+      // second button beside it, and pressing the button swapped one near-identical form
+      // for another with nothing to say which route the next press would take.
       //
       // Read off the DOM rather than tracked in a flag, because three things can open or
-      // close these panels (each button, and the no-wallet handoff) and a flag would be a
-      // fourth thing to keep in step with them. Whatever is actually on screen is the
-      // answer by definition.
+      // close these panels (the bolt, the switch, and the no-wallet handoff) and a flag
+      // would be a fourth thing to keep in step with them. Whatever is actually on screen is
+      // the answer by definition.
       function paintPayState() {
         const lit = (el) => !!el && el.isConnected && !el.classList.contains('hidden');
         const zapOn = lit(zapPanel);
         const offerOn = lit(offerPanel) || lit(offerHandoff);
-        // With no zap panel the bolt is what opens the offer, so it carries that state.
-        const boltOn = zapOn || (!zapPanel && offerOn);
+        // The bolt carries the state of the whole area, whichever route is showing.
+        const boltOn = zapOn || offerOn;
         zapBtn.classList.toggle('peek-pay-on', boltOn);
-        offerBtn.classList.toggle('peek-pay-on', offerOn);
         // A disclosure, so say so to anything that is not looking at the color.
         zapBtn.setAttribute('aria-expanded', String(boltOn));
-        offerBtn.setAttribute('aria-expanded', String(offerOn));
-        // The area shows only while a panel is open, with Pay offer last inside it and only
-        // when there is a zap panel for it to sit beside.
-        // The stream zap sheet has no icon row to open anything from, so there the area also
-        // shows for an offer with no zap panel beside it, with Pay offer in it.
-        const zapSheet = !!(options && options.zap);
-        zapWrap.classList.toggle('hidden', !(zapOn || offerOn || (zapSheet && offerShown)));
-        payRow.classList.toggle('hidden', !((zapPanel || zapSheet) && offerShown));
-        zapWrap.append(payRow);
+        // The switch only when there are two routes to switch between. With one, the bolt
+        // opens it directly and a one-option switch would be a label for nothing.
+        const both = !!zapPanel && offerShown;
+        payTabs.classList.toggle('hidden', !both);
+        tabLightning.classList.toggle('active', zapOn);
+        tabLightning.setAttribute('aria-selected', String(zapOn));
+        tabClink.classList.toggle('active', offerOn);
+        tabClink.setAttribute('aria-selected', String(offerOn));
+        zapWrap.classList.toggle('hidden', !boltOn);
+        // First in the area, so whichever panel is open sits under it.
+        if (zapWrap.firstChild !== payTabs) zapWrap.prepend(payTabs);
+        if (payTabs.moveSlider) payTabs.moveSlider(null, false);
+      }
+
+      // Show one route and put the other away. Not a toggle: pressing the tab you are on
+      // keeps you there, which is what a tab does.
+      function selectTab(which, focus) {
+        if (which === 'clink' && offerFound) {
+          payTab = 'clink';
+          openOfferPanel(offerFound, { forceOpen: true });
+          return;
+        }
+        if (!zapPanel) return;
+        payTab = 'lightning';
+        offerPanel.classList.add('hidden');
+        if (offerHandoff) offerHandoff.classList.add('hidden');
+        zapPanel.classList.remove('hidden');
+        paintPayState();
+        // Only the form has anything to type into; focusing the other one focuses a QR.
+        if (focus !== false && zapPanel === zapForm) amount.focus();
+      }
+
+      // The stream zap sheet has no bolt to open anything from, so a route that is the only
+      // one has to open itself. Called wherever "there will be no zap panel" becomes known.
+      function settleZapSheetOffer() {
+        if (options?.zap && offerShown && !zapPanel) openOfferPanel(offerFound, { forceOpen: true });
       }
 
       function revealZap() {
@@ -2807,11 +2837,11 @@
           : zapPayBlock(zapAddr, isSelf ? selfPay : options?.chatEvent ? {note:t('Scan or copy sends a payment to the author, not a zap on this comment. Connect a wallet to zap the comment.')} : undefined);
         enableBolt();
         zapWrap.append(zapPanel);
-        if (options?.zap) zapPanel.classList.remove('hidden');
+        if (options?.zap) selectTab('lightning', false);
         paintPayState();
       }
 
-      // A SECOND WAY TO PAY, beside the first rather than under it. Zap and Pay offer are
+      // A SECOND WAY TO PAY, beside the first rather than under it. Lightning and CLINK are
       // two routes to the same person and neither is the other's fallback: a lightning
       // address is a server that answers for them, an offer is their own wallet answering
       // for itself, and plenty of profiles carry exactly one of the two.
@@ -2824,8 +2854,6 @@
         offerShown = true;
         offerFound = offer;
         enableBolt();
-        payRow.append(offerBtn);
-        offerBtn.addEventListener('click', () => openOfferPanel(offer));
         paintPayState();
       }
 
@@ -2840,19 +2868,20 @@
       const offerErr = h('div', { className: 'error' });
       const offerAmount = satsInput('sats');
       const offerPresets = zapPresetRow(offerAmount);
-      const offerPay = h('button', { className: 'primary', textContent: 'Pay' });
+      const offerPay = h('button', { className: 'primary', textContent: t('Pay offer') });
       let offerData = null;
       const offerGate = largeSendGate(offerPay, {
         sats: () => (!offerData ? 0
           : window.SidecarCLINK.amountRequired(offerData) ? parseInt(offerAmount.value, 10) || 0
             : offerData.price || 0),
-        label: () => 'Pay',
+        label: () => t('Pay offer'),
         confirmLabel: 'Confirm',
       });
       offerAmount.addEventListener('input', offerGate.paint);
       let offerHandoff = null; // the QR and copy block, built the first time it is wanted
 
-      async function openOfferPanel(offer) {
+      async function openOfferPanel(offer, opts) {
+        const forceOpen = !!(opts && opts.forceOpen);
         offerData = offer;
         offerGate.paint(); // a fixed-price offer may be large before anything is typed
         // NO WALLET IS NOT NO WAY TO PAY, which is the whole lesson of the zap branch
@@ -2874,12 +2903,14 @@
               hideConnect: true,
               hint: 'Scan or copy to show someone how to pay you.',
               note: 'Sending is off on your own profile.',
-            } : undefined);
+            // The comment disclosure the zap handoff carries: another wallet scanning this
+            // pays the author, and only this panel's own payment is a zap on the comment.
+            } : (options?.chatEvent ? { note: t('Scan or copy sends a payment to the author, not a zap on this comment.') } : undefined));
             zapWrap.append(offerHandoff);
           }
           if (zapPanel) zapPanel.classList.add('hidden');
           offerPanel.classList.add('hidden');
-          offerHandoff.classList.toggle('hidden');
+          offerHandoff.classList.toggle('hidden', forceOpen ? false : undefined);
           paintPayState();
           return;
         }
@@ -2892,7 +2923,7 @@
         if (!needsAmount && offer.price) offerAmount.value = String(offer.price);
         offerPay.textContent = !needsAmount && offer.price
           ? 'Pay ' + fmtSats(offer.price) + ' sats'
-          : 'Pay';
+          : t('Pay offer');
         offerErr.textContent = '';
         // NOT through zapPanel, which is the Zap button's own reference to whichever
         // panel that button opens. Pointing it here made Zap toggle the offer instead of
@@ -2902,7 +2933,7 @@
         if (offerHandoff) offerHandoff.classList.add('hidden');
         // Toggled, not forced open: pressing Pay offer twice should shut it again, the
         // same way pressing Zap twice does.
-        offerPanel.classList.toggle('hidden', offerPanel.isConnected && !offerPanel.classList.contains('hidden'));
+        offerPanel.classList.toggle('hidden', forceOpen ? false : offerPanel.isConnected && !offerPanel.classList.contains('hidden'));
         paintPayState();
         if (needsAmount && !offerPanel.classList.contains('hidden')) offerAmount.focus();
       }
@@ -2924,10 +2955,27 @@
           const client = await ensureNwc();
           if (!client) throw new Error('Wallet unavailable. Reconnect in the Wallet tab.');
           offerPay.textContent = 'Asking…';
+          const paying = sats || offerData.price || 0;
+          // A ZAP, NOT JUST A PAYMENT. The bolt opened this panel, so the request carries
+          // the same signed kind 9734 the lightning-address path sends: the service
+          // commits it to the invoice and settles it with a 9735 receipt on Nostr, where
+          // every other zap lands. Without it the spec says the request is treated as a
+          // spontaneous payment — sats arrive and nothing is ever published.
+          const relays = [offerData.relay].concat(await readRelayUrls(pubkey))
+            .filter((r, i, all) => all.indexOf(r) === i).slice(0, 6);
+          const zapTemplate = options?.chatEvent
+            ? NT.nip57.makeZapRequest({ event: options.chatEvent, amount: paying * 1000, relays })
+            : NT.nip57.makeZapRequest({ pubkey, amount: paying * 1000, relays });
+          // Keep the payment recipient as the host, even when a provider published the stream.
+          if (options?.streamEvent && /^30311:[a-f0-9]{64}:/.test(options.streamEvent.address || '') && /^[a-f0-9]{64}$/.test(options.streamEvent.id || '')) {
+            zapTemplate.tags.push(['a', options.streamEvent.address], ['e', options.streamEvent.id], ['k', '30311']);
+          }
+          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: zapTemplate, expectedPubkey: state.activePubkey });
           const { bolt11 } = await clink.requestInvoice(offerData, {
             amountSats: needsAmount ? sats : offerData.price,
+            zap: JSON.stringify(signed),
+            payerData: { pubkey: state.activePubkey },
           });
-          const paying = sats || offerData.price || 0;
           offerPay.textContent = 'Paying…';
           flight = beginPaymentFlight(paying ? tSec('Paying {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paying'));
           await client.payInvoice(bolt11);
@@ -2951,6 +2999,7 @@
         if (!offerData) return;
         if (!offerFormHandoff) {
           offerFormHandoff = offerPayBlock(offerData, { hideConnect: true });
+          if (options?.chatEvent) offerFormHandoff.append(h('p', { className: 'hint zap-pay-note', textContent: t('Scan or copy sends a payment to the author, not a zap on this comment.') }));
           offerPanel.append(offerFormHandoff);
         }
         offerFormHandoff.classList.toggle('hidden');
@@ -2959,9 +3008,6 @@
         offerErr);
 
       const zapWrap = h('div', { className: 'peek-zap hidden' });
-      // Pay offer, inside the payment area the bolt opens. Rare, and a way to pay rather
-      // than a way out, so it is a worded button in the panel and not a fifth icon.
-      const payRow = h('div', { className: 'peek-pay-row hidden' });
       const zapErr = h('div', { className: 'error' });
       // THE BOLT IS AN ICON IN THE ROW UNDER THE NAME, beside follow, mute and the way out
       // to the client. It is there from the start and dimmed until there is something
@@ -2972,8 +3018,15 @@
       zapBtn.append(boltIcon());
       const enableBolt = () => { zapBtn.disabled = false; zapBtn.classList.remove('pending'); };
       let offerFound = null; // a profile with an offer and no address: the bolt opens it
-      const offerBtn = h('button', { className: 'secondary peek-zap-open' });
-      offerBtn.append(icon('zap'), h('span', { textContent: 'Pay offer' }));
+      // The switch between the two ways to pay. Hidden unless there are two.
+      const payTabs = h('div', { className: 'modal-tabs peek-pay-tabs hidden', role: 'tablist' });
+      const tabLightning = h('button', { className: 'modal-tab', type: 'button', role: 'tab', textContent: t('Lightning') });
+      const tabClink = h('button', { className: 'modal-tab', type: 'button', role: 'tab', textContent: t('CLINK') });
+      payTabs.append(tabLightning, tabClink);
+      wireTabSlider(payTabs, '.modal-tab');
+      let payTab = null; // which route was last chosen, so the bolt reopens on it
+      tabLightning.addEventListener('click', () => selectTab('lightning'));
+      tabClink.addEventListener('click', () => selectTab('clink'));
       let offerShown = false;
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
       const amount = satsInput('sats');
@@ -3056,12 +3109,17 @@
         }
         // ONE PAYMENT PANEL AT A TIME. Two open at once is two amount fields and two Pay
         // buttons on a 358px sheet, and no way to tell which one a number was typed into.
-        offerPanel.classList.add('hidden');
-        if (offerHandoff) offerHandoff.classList.add('hidden');
-        zapPanel.classList.toggle('hidden');
-        paintPayState();
-        // Only the form has anything to type into; focusing the other one focuses a QR.
-        if (zapPanel === zapForm && !zapForm.classList.contains('hidden')) amount.focus();
+        const open = !zapPanel.classList.contains('hidden') || !offerPanel.classList.contains('hidden')
+          || (offerHandoff && !offerHandoff.classList.contains('hidden'));
+        if (open) {
+          zapPanel.classList.add('hidden');
+          offerPanel.classList.add('hidden');
+          if (offerHandoff) offerHandoff.classList.add('hidden');
+          paintPayState();
+          return;
+        }
+        // Reopens on the route you were last on.
+        selectTab(offerShown && payTab === 'clink' ? 'clink' : 'lightning');
       });
       // A WAY OUT TO ANOTHER WALLET EVEN WHEN THERE IS ONE HERE. Having connected a wallet
       // does not mean wanting to pay from this machine: the phone in your pocket is often
@@ -3083,7 +3141,7 @@
       });
       zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, zapQrBtn, send]),
         zapDefaultSaver(amount, presets), zapErr);
-      zapWrap.append(payRow);   // sits under the icon row, mounted with it below; filled once both answers are in
+      zapWrap.append(payTabs);  // first in the area; shown once there are two ways to pay
 
       // Asked here, AFTER the pieces it chooses between exist. Started earlier it would
       // still have worked, because a promise cannot run its callback before this function
@@ -3153,7 +3211,21 @@
         if (c.picture) applyAvatar(av, { picture: c.picture });
         // Their CLINK offer, if the kind 0 carries one. Off the same content paint()
         // already has, so it costs no lookup.
-        revealOffer(profileOffer(c));
+        const foundOffer = profileOffer(c);
+        revealOffer(foundOffer);
+        if (foundOffer) {
+          const rawOffer = window.SidecarCLINK.stripNostrPrefix(foundOffer.raw || '');
+          offerLine.innerHTML = '';
+          offerLine.append(boltIcon(), h('span', { textContent: truncMid(rawOffer, 18, 6) }));
+          offerLine.classList.remove('hidden');
+          offerLine.title = t('Copy this CLINK offer');
+          offerLine.onclick = () => {
+            copyPlain(rawOffer).then(
+              () => toast(t('Copied ✓'), 'success'),
+              () => toast(t('Could not copy'), 'error')
+            );
+          };
+        }
         const display = c.display_name || c.displayName || c.name || '';
         if (display) name.textContent = display;
         nip05Row.classList.add('hidden');
@@ -3211,11 +3283,13 @@
             revealZap();
           } else {
             lnAddressParams(c.lud16).then((p) => {
-              if (!p.zappable) return;
+              if (!p.zappable) return settleZapSheetOffer();
               zapZappable = true;
               revealZap();
-            }).catch(() => {});
+            }).catch(() => settleZapSheetOffer());
           }
+        } else {
+          settleZapSheetOffer();
         }
       }
 
