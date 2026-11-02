@@ -111,3 +111,31 @@ test('a key the sheet one day sets on a single line still reads back', async () 
   const read = reader();
   assert.equal(await read(Buffer.from(`BT (${NC}) Tj ET`, 'latin1')), NC);
 });
+
+// Copying the key out of a PDF viewer gives the two lines with a break between them, and
+// a single-line field turns the break into a space. The import field reads it as one key.
+test('the two lines pasted from the sheet read as one key', () => {
+  const at = PANEL.indexOf('function cleanPastedKey(');
+  assert.ok(at >= 0, 'cleanPastedKey is gone');
+  const open = PANEL.indexOf('{', PANEL.indexOf(')', at));
+  let depth = 0, end = open;
+  for (let i = open; i < PANEL.length; i++) {
+    if (PANEL[i] === '{') depth++;
+    if (PANEL[i] === '}' && --depth === 0) { end = i; break; }
+  }
+  const ctx = {};
+  vm.createContext(ctx);
+  vm.runInContext(PANEL.slice(at, end + 1), ctx);
+  const first = NC.slice(0, 81), second = NC.slice(81);
+  for (const joiner of [' ', '\n', '\r\n', '\t', '  \n  ']) {
+    assert.equal(ctx.cleanPastedKey(first + joiner + second), NC, JSON.stringify(joiner));
+  }
+  assert.equal(ctx.cleanPastedKey('  ' + NSEC + '\n'), NSEC, 'ends are trimmed as before');
+  assert.equal(ctx.cleanPastedKey(NSEC), NSEC, 'a key without whitespace is untouched');
+
+  // And the import modal reads through it, at the preview and at the save.
+  const modal = PANEL.slice(PANEL.indexOf('function importAccountModal('));
+  assert.equal((modal.match(/cleanPastedKey\(secretInput\.value\)/g) || []).length >= 3, true,
+    'the import field reads the key some other way');
+  assert.ok(!/secretInput\.value\.trim\(\)/.test(modal), 'a read still trims only the ends');
+});

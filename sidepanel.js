@@ -10446,6 +10446,15 @@
     return extractSecretFromText(s);
   }
 
+  // A pasted private key with the whitespace taken out of it. The encrypted sheet sets its
+  // ncryptsec on two lines, so copying it from a PDF viewer gives two pieces with a line
+  // break between them, and a single-line field turns that break into a space. No key has
+  // whitespace in it, so dropping it all is safe, and it means the two lines paste back
+  // together without anyone having to assemble them.
+  function cleanPastedKey(value) {
+    return String(value || '').replace(/\s+/g, '');
+  }
+
   // Decode `file` at one scale. Separated so callers can retry at a larger size:
   // a phone photo of the whole sheet puts the QR in a fraction of the frame, and
   // downscaling too far erases the modules.
@@ -10706,7 +10715,7 @@
       let previewTimer = null;
       async function updatePreview() {
         err.textContent = '';
-        const raw = secretInput.value.trim();
+        const raw = cleanPastedKey(secretInput.value);
         const isNcryptsec = /^ncryptsec1/i.test(raw);
         cryptRow.classList.toggle('hidden', !isNcryptsec);
 
@@ -10743,6 +10752,9 @@
         }
       }
       secretInput.addEventListener('input', () => {
+        // Show the key as it will be read, so a paste that came in as two lines is one.
+        const clean = cleanPastedKey(secretInput.value);
+        if (clean !== secretInput.value) secretInput.value = clean;
         clearTimeout(previewTimer);
         previewTimer = setTimeout(updatePreview, 350);
       });
@@ -10769,7 +10781,7 @@
         save.disabled = true;
         save.textContent = 'Importing…';
         try {
-          const raw = secretInput.value.trim();
+          const raw = cleanPastedKey(secretInput.value);
           if (!raw) throw new Error('Enter an nsec, ncryptsec, or hex private key.');
           const secret = /^ncryptsec1/i.test(raw) ? await decryptNcryptsec(raw, cryptPass.value) : raw;
           await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
