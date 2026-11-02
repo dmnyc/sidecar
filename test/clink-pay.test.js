@@ -346,7 +346,7 @@ test('A BROKEN OFFER IS NO OFFER, NOT AN ERROR ON SOMEBODY ELSE’S PROFILE', ()
 
   // And the button only exists when an offer decoded.
   assert.match(bare, /if \(offerShown \|\| !offer \|\| !modal\.isConnected\) return;/);
-  assert.match(bare, /revealOffer\(profileOffer\(c\)\)/);
+  assert.match(bare, /const foundOffer = profileOffer\(c\);\s*revealOffer\(foundOffer\);/);
 });
 
 test('the wallet is checked before a stranger is asked for an invoice', () => {
@@ -385,13 +385,13 @@ test('the offer handoff carries the comment disclosure the zap handoff has', () 
   // author, and only this panel's own payment is a zap on the comment. Same sentence,
   // same place, because it is the same nuance.
   assert.match(bare, /if \(options\?\.chatEvent\) offerFormHandoff\.append\(h\('p', \{ className: 'hint zap-pay-note', textContent: t\('Scan or copy sends a payment to the author, not a zap on this comment\.'\) \}\)\)/);
-  const open = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
+  const open = bare.slice(bare.indexOf('async function openOfferPanel(offer, opts)'));
   const body = open.slice(0, open.indexOf('\n      }'));
   assert.match(body, /options\?\.chatEvent \? \{ note: t\('Scan or copy sends a payment to the author, not a zap on this comment\.'\) \} : undefined/);
 });
 
 test('a fixed offer is not asked for an amount it already knows', () => {
-  const fn = bare.slice(bare.indexOf('function openOfferPanel(offer)'));
+  const fn = bare.slice(bare.indexOf('function openOfferPanel(offer, opts)'));
   const body = fn.slice(0, fn.indexOf('\n      }'));
   assert.match(body, /window\.SidecarCLINK\.amountRequired\(offer\)/);
   assert.match(body, /offerPresets\.classList\.toggle\('hidden', !needsAmount\)/);
@@ -413,23 +413,19 @@ test('THE PANEL SAYS NOTHING IT DOES NOT HAVE TO', () => {
 
 test('the offer sits inside the payment area the bolt opens, neither the other’s fallback', () => {
   // A lightning address is a server answering for them; an offer is their own wallet
-  // answering for itself. Plenty of profiles carry exactly one of the two, so the row
-  // holds whichever apply and gives them equal width.
-  assert.match(css, /\.peek-pay-row \{ display: flex; flex-wrap: wrap; gap: 8px; \}/);
-  assert.match(css, /\.peek-pay-row > \.peek-zap-open \{ flex: 1 1 0; \}/);
-  // NO min-width. A flex item's default `min-width: auto` is already its own content, so
-  // these refuse to squash their labels and wrap only when two truly will not fit. A
-  // hand-picked 132px came to 272px for the pair, which is wider than the row in a panel
-  // dragged narrow: they stacked at widths where they would have fitted side by side.
-  const row = css.slice(css.indexOf('.peek-pay-row > .peek-zap-open'), css.indexOf('.peek-zap-open {'));
-  assert.ok(!/min-width/.test(row), 'a hand-picked floor wraps the row before the labels need it');
-  // The Zap button is an icon in the row under the name now, so the row holds only Pay
-  // offer, inside the payment area, and only when there is a zap panel for it to sit
-  // beside. A profile with an offer and no address is opened by the bolt itself.
-  assert.match(bare, /payRow\.append\(offerBtn\)/);
-  assert.doesNotMatch(bare, /payRow\.prepend\(zapBtn\)/, 'the Zap button went back into the pay row');
-  assert.match(bare, /payRow\.classList\.toggle\('hidden', !\(\(zapPanel \|\| zapSheet\) && offerShown\)\);/);
+  // answering for itself. Plenty of profiles carry exactly one of the two. With both, a
+  // Lightning / CLINK switch sits at the top of the area and one panel shows under it, so
+  // the next press is never ambiguous about which route it takes.
+  assert.match(css, /\.peek-pay-tabs \{ margin: 0 0 12px; \}/);
+  assert.doesNotMatch(css, /\.peek-pay-row/, 'the second-button row is back');
+  assert.match(bare, /className: 'modal-tabs peek-pay-tabs hidden'/);
+  assert.match(bare, /textContent: t\('Lightning'\)/);
+  assert.match(bare, /textContent: t\('CLINK'\)/);
+  // Only with two routes: with one the bolt opens it directly.
+  assert.match(bare, /const both = !!zapPanel && offerShown;/);
+  assert.match(bare, /payTabs\.classList\.toggle\('hidden', !both\);/);
   assert.match(bare, /if \(!zapPanel\) \{\s*if \(offerFound\) openOfferPanel\(offerFound\);\s*return;/);
+  assert.doesNotMatch(bare, /payRow|offerBtn/, 'the separate Pay offer button outlived the switch');
 });
 
 test('ONE PAYMENT PANEL AT A TIME, AND NEITHER BUTTON DOES THE OTHER’S JOB', () => {
@@ -437,24 +433,27 @@ test('ONE PAYMENT PANEL AT A TIME, AND NEITHER BUTTON DOES THE OTHER’S JOB', (
   // Pointing it at the offer made Zap toggle the offer instead of the zap, and two panels
   // open at once is two amount fields and two Pay buttons on a 358px sheet with no way to
   // tell which one a number was typed into.
-  const open = bare.slice(bare.indexOf('function openOfferPanel(offer)'));
+  const open = bare.slice(bare.indexOf('function openOfferPanel(offer, opts)'));
   const body = open.slice(0, open.indexOf('\n      }'));
   assert.ok(!/zapPanel = offerPanel/.test(body), 'the offer hijacked the zap button');
   assert.match(body, /if \(zapPanel\) zapPanel\.classList\.add\('hidden'\);/);
   // Toggled rather than forced open: pressing Pay offer twice shuts it again, the same way
   // pressing Zap twice does, and a button that only ever opens is a button that lies about
   // being a toggle.
-  assert.match(body, /offerPanel\.classList\.toggle\('hidden', offerPanel\.isConnected && !offerPanel\.classList\.contains\('hidden'\)\);/);
+  assert.match(body, /offerPanel\.classList\.toggle\('hidden', forceOpen \? false : offerPanel\.isConnected && !offerPanel\.classList\.contains\('hidden'\)\);/);
+  // The switch is the exception that proves it: choosing a tab opens that route and does
+  // not close it, which is what a tab does.
+  assert.match(bare, /openOfferPanel\(offerFound, \{ forceOpen: true \}\)/);
 
   const zapClick = bare.slice(bare.indexOf("zapBtn.addEventListener('click'"));
-  assert.match(zapClick.slice(0, 400), /offerPanel\.classList\.add\('hidden'\);/);
+  assert.match(zapClick.slice(0, 1200), /offerPanel\.classList\.add\('hidden'\);/);
 });
 
 test('NO WALLET IS NOT NO WAY TO PAY', () => {
   // The lesson the zap branch beside it already learned: picking an amount and pressing
   // Pay only to be told at the end that there is no wallet is a dead end, and the offer
   // had exactly that shape until now. Same block, same QR, same copy button.
-  const open = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
+  const open = bare.slice(bare.indexOf('async function openOfferPanel(offer, opts)'));
   const body = open.slice(0, open.indexOf('\n      }'));
   // Widened to `|| isSelf`: your own profile takes this same branch whatever your wallet
   // says, because the row exists there to hand somebody the QR rather than to pay
@@ -504,40 +503,24 @@ test('A CONNECTED WALLET DOES NOT MEAN PAYING FROM THIS MACHINE', () => {
   assert.match(bare, /if \(!offerFormHandoff\) \{/);
 });
 
-test('THE BUTTON SAYS WHICH PANEL IS OPEN', () => {
-  // Both buttons are identical and both toggle a panel, so without this the only thing
-  // saying which one you pressed is the panel itself, which is off the top of a scrolled
-  // sheet the moment it has a QR in it.
+test('THE BOLT AND THE SWITCH SAY WHICH PANEL IS OPEN', () => {
+  // Read off the DOM, not a flag: three things open and close these panels (the bolt, the
+  // switch, the no-wallet handoff) and a flag would be a fourth to keep in step with them.
   const fn = bare.slice(bare.indexOf('function paintPayState()'));
   const body = fn.slice(0, fn.indexOf('\n      }'));
-  // Read off the DOM, not a flag: three things open and close these panels, and a flag
-  // would be a fourth to keep in step with them.
   assert.match(body, /const lit = \(el\) => !!el && el\.isConnected && !el\.classList\.contains\('hidden'\);/);
   assert.match(body, /const offerOn = lit\(offerPanel\) \|\| lit\(offerHandoff\);/);
-  // With no zap panel the bolt is what opens the offer, so it carries that state.
-  assert.match(body, /const boltOn = zapOn \|\| \(!zapPanel && offerOn\);/);
+  // The bolt carries the whole area's state, whichever route is showing.
+  assert.match(body, /const boltOn = zapOn \|\| offerOn;/);
   assert.match(body, /zapBtn\.classList\.toggle\('peek-pay-on', boltOn\)/);
-  assert.match(body, /offerBtn\.classList\.toggle\('peek-pay-on', offerOn\)/);
-  // A disclosure, so it says so to anything not looking at the color.
+  assert.match(body, /tabLightning\.classList\.toggle\('active', zapOn\)/);
+  assert.match(body, /tabClink\.classList\.toggle\('active', offerOn\)/);
   assert.match(body, /aria-expanded/);
+  assert.match(body, /aria-selected/);
 
-  // Every route that opens or closes one repaints. Miss one and the tint outlives the
+  // Every route that opens or closes one repaints. Miss one and the state outlives the
   // panel it was describing, which is worse than never having had it.
-  assert.equal((bare.match(/paintPayState\(\);/g) || []).length, 5);
-
-  // Color and a wash, no metrics. A border weight or a size change here would move the
-  // row every time somebody opened one, directly above a form people type into.
-  const rule = css.slice(css.indexOf('.peek-pay-row > .peek-pay-on {'), css.indexOf('.peek-pay-row > .peek-pay-on svg'));
-  assert.match(rule, /color: var\(--lav\)/);
-  assert.ok(!/padding|font-size|font-weight|border-width/.test(rule), 'the row would move when a panel opens');
-
-  // ONE HUE, AND IT IS THE THEME'S. Border and wash both come off currentColor, so the
-  // lit state is --lav brightened rather than --lav wearing a second palette's edge.
-  // Naming --gold-soft and --accent-rgb here is what put a yellow border on Speakeasy's
-  // purple button: four themes repoint one of that pair and not the other.
-  assert.match(rule, /border-color: color-mix\(in srgb, currentColor \d+%, transparent\)/);
-  assert.match(rule, /background: color-mix\(in srgb, currentColor \d+%, transparent\)/);
-  assert.ok(!/--gold|--accent-rgb/.test(rule), 'the lit state names a palette the label does not use');
+  assert.equal((bare.match(/paintPayState\(\);/g) || []).length, 6);
 });
 
 test('it ships', () => {

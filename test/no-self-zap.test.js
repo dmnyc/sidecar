@@ -7,9 +7,11 @@
 // land them at your own address, and the zap would publish a receipt of you paying
 // yourself to your relays.
 //
-// EVERY KEY THE KEYSTORE HOLDS COUNTS, not just the active one. A second account is
-// equally you, and the comparison being against state.activePubkey rather than the
-// whole list is the shape this test exists to catch.
+// ONLY THE ACCOUNT YOU ARE SIGNED IN AS. A second account in the keystore is another
+// key, and paying it from the active account's wallet is a real zap between two keys,
+// which is what holding two accounts is for. The first shape of this compared against
+// every key the keystore holds, which made it impossible to zap your own other account
+// to try the feature; the test below is what stops it going back.
 //
 // BOTH BUTTONS STILL APPEAR. They open the block they would open for somebody with no
 // wallet connected: the QR and the copyable address. Withholding the row entirely was
@@ -39,21 +41,23 @@ const ALSO_ME = 'b'.repeat(64);
 const STRANGER = 'c'.repeat(64);
 const STATE = { activePubkey: ME, accounts: [{ pubkey: ME }, { pubkey: ALSO_ME }] };
 
-test('EVERY ACCOUNT YOU HOLD IS YOU, NOT JUST THE ACTIVE ONE', () => {
+test('ONLY THE ACTIVE ACCOUNT IS YOU; A SECOND ACCOUNT YOU HOLD IS ZAPPABLE', () => {
   assert.equal(isSelf(STATE, ME), true, 'the active account');
-  assert.equal(isSelf(STATE, ALSO_ME), true,
-    'a second account you hold is equally you; comparing against activePubkey misses it');
+  assert.equal(isSelf(STATE, ALSO_ME), false,
+    'a second account in the keystore is somebody the active wallet can pay');
   assert.equal(isSelf(STATE, STRANGER), false, 'a stranger is still zappable');
+  // Switching accounts moves the line with it.
+  assert.equal(isSelf({ ...STATE, activePubkey: ALSO_ME }, ALSO_ME), true);
+  assert.equal(isSelf({ ...STATE, activePubkey: ALSO_ME }, ME), false);
 });
 
-test('a missing account list degrades to the old behavior rather than breaking zaps', () => {
-  // Deliberate, and the cheaper of the two mistakes. This sheet is reachable only from
-  // the panel's own search, so the list is populated in practice; if it somehow were
-  // not, offering a zap to somebody who might be you costs a routing fee, while
-  // withholding it from everybody removes the feature outright.
+test('no active account or no state degrades to the old behavior rather than breaking zaps', () => {
+  // The cheaper of the two mistakes: offering a zap to somebody who might be you costs a
+  // routing fee, while withholding it from everybody removes the feature outright.
   assert.equal(isSelf(null, ME), false);
   assert.equal(isSelf({}, ME), false);
   assert.equal(isSelf({ accounts: [] }, ME), false);
+  assert.equal(isSelf({ activePubkey: null }, ME), false);
 });
 
 test('BOTH CONTROLS TAKE THE NO-WALLET BRANCH, NOT JUST THE ZAP', () => {
@@ -64,7 +68,7 @@ test('BOTH CONTROLS TAKE THE NO-WALLET BRANCH, NOT JUST THE ZAP', () => {
   assert.ok(zapPick, 'the zap panel no longer forces the handoff block for your own profile');
   assert.match(zapPick[0], /zapPayBlock\(zapAddr, isSelf \?/);
 
-  const offerFn = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
+  const offerFn = bare.slice(bare.indexOf('async function openOfferPanel(offer, opts)'));
   assert.match(offerFn.slice(0, 900), /if \(!zapHasWallet \|\| isSelf\) \{/,
     'the offer still opens its pay form on your own profile');
 });
@@ -90,7 +94,7 @@ test('NO CONNECT-A-WALLET LINE ON YOUR OWN PROFILE', () => {
   assert.match(zapPick[0], /hideConnect: true/);
   assert.match(zapPick[0], /hint: '[^']+'/, 'the hint still addresses a payer, not you');
 
-  const offerFn = bare.slice(bare.indexOf('async function openOfferPanel(offer)'));
+  const offerFn = bare.slice(bare.indexOf('async function openOfferPanel(offer, opts)'));
   assert.match(offerFn.slice(0, 900), /offerPayBlock\(offer, isSelf[\s\S]{0,120}hideConnect: true/);
 });
 
@@ -127,4 +131,17 @@ test('the address is still shown and still copies', () => {
   const at = bare.indexOf("lud.title = 'Copy lightning address';");
   assert.doesNotMatch(bare.slice(at - 300, at), /if \(isSelf\) return;/,
     'the copy line got swept up in the payment gate');
+});
+
+test('the sheet shows the profile\'s CLINK offer, cut in the middle, tap to copy', () => {
+  // Under the lightning address, the same 18/6 cut the Profile tab uses for your own offer,
+  // off the content paint() already has. It must not depend on the Pay offer button or on
+  // there being a lightning address: a profile can carry an offer alone.
+  const at = bare.indexOf('const foundOffer = profileOffer(c);');
+  assert.ok(at > -1, 'the sheet no longer reads the offer for display');
+  const seg = bare.slice(at, at + 900);
+  assert.match(seg, /truncMid\(rawOffer, 18, 6\)/);
+  assert.match(seg, /copyPlain\(rawOffer\)/);
+  assert.match(bare, /rel, lud, offerLine, about\)/, 'the offer line is not in the sheet body under the address');
+  assert.doesNotMatch(bare.slice(at - 120, at), /if \(c\.lud16\)/, 'the offer line sits inside the lightning-address branch');
 });

@@ -516,16 +516,16 @@ test('the bolt is gold, set apart by a divider, and the area waits for a panel',
 });
 
 // The payment area's state, run: a hidden area, an offer with no address, and both.
-function payWorld({ zapOpen = false, offerOpen = false, hasZap = true, offerShown = false, zapSheet = false } = {}) {
+function payWorld({ zapOpen = false, offerOpen = false, hasZap = true, offerShown = false } = {}) {
   const mk = (hidden) => { const e = el('div'); if (hidden) e.classList.add('hidden'); e.isConnected = true; return e; };
   const ctx = {
     zapPanel: hasZap ? mk(!zapOpen) : null,
     offerPanel: mk(!offerOpen), offerHandoff: null,
-    zapBtn: el('button'), offerBtn: el('button'),
-    zapWrap: Object.assign(el('div'), { appended: [] }), payRow: el('div'),
-    offerShown, options: zapSheet ? { zap: true } : {},
+    zapBtn: el('button'), payTabs: el('div'), tabLightning: el('button'), tabClink: el('button'),
+    zapWrap: Object.assign(el('div'), { firstChild: null, prepended: [] }),
+    offerShown,
   };
-  ctx.zapWrap.append = (x) => ctx.zapWrap.appended.push(x);
+  ctx.zapWrap.prepend = (x) => { ctx.zapWrap.prepended.push(x); ctx.zapWrap.firstChild = x; };
   vm.createContext(ctx);
   vm.runInContext(lift(/      function paintPayState\(\) \{[\s\S]*?\n      \}\n/, 'paintPayState') + '\nglobalThis.paint = paintPayState;', ctx);
   return ctx;
@@ -542,16 +542,30 @@ test('the payment area is hidden until a panel is open', () => {
   assert.equal(open.zapBtn.attrs['aria-expanded'], 'true');
 });
 
-test('Pay offer is in the area only beside a zap panel', () => {
+test('the Lightning / CLINK switch shows only when there are two ways to pay', () => {
   const both = payWorld({ zapOpen: true, offerShown: true });
   both.paint();
-  assert.equal(both.payRow.classList.contains('hidden'), false);
+  assert.equal(both.payTabs.classList.contains('hidden'), false);
   const zapOnly = payWorld({ zapOpen: true, offerShown: false });
   zapOnly.paint();
-  assert.equal(zapOnly.payRow.classList.contains('hidden'), true);
+  assert.equal(zapOnly.payTabs.classList.contains('hidden'), true);
   const offerOnly = payWorld({ hasZap: false, offerOpen: true, offerShown: true });
   offerOnly.paint();
-  assert.equal(offerOnly.payRow.classList.contains('hidden'), true, 'the bolt opens it directly, so the second button would only repeat it');
+  assert.equal(offerOnly.payTabs.classList.contains('hidden'), true, 'the bolt opens it directly, so a one-option switch would be a label for nothing');
+});
+
+test('the switch marks the route that is open, and says so to a screen reader', () => {
+  const lightning = payWorld({ zapOpen: true, offerShown: true });
+  lightning.paint();
+  assert.equal(lightning.tabLightning.classList.contains('active'), true);
+  assert.equal(lightning.tabClink.classList.contains('active'), false);
+  assert.equal(lightning.tabLightning.attrs['aria-selected'], 'true');
+  assert.equal(lightning.tabClink.attrs['aria-selected'], 'false');
+  const clink = payWorld({ offerOpen: true, offerShown: true });
+  clink.paint();
+  assert.equal(clink.tabClink.classList.contains('active'), true);
+  assert.equal(clink.tabLightning.classList.contains('active'), false);
+  assert.equal(clink.tabClink.attrs['aria-selected'], 'true');
 });
 
 test('an offer with no address: the bolt carries the open state, and the area shows', () => {
@@ -560,13 +574,12 @@ test('an offer with no address: the bolt carries the open state, and the area sh
   assert.equal(w.zapWrap.classList.contains('hidden'), false);
   assert.equal(w.zapBtn.classList.contains('peek-pay-on'), true);
   assert.equal(w.zapBtn.attrs['aria-expanded'], 'true');
-  assert.equal(w.offerBtn.classList.contains('peek-pay-on'), true);
 });
 
-test('the payment area is kept last in its own container so panels open above Pay offer', () => {
+test('the switch is kept first in the area, so whichever panel is open sits under it', () => {
   const w = payWorld({ zapOpen: true, offerShown: true });
   w.paint();
-  assert.equal(w.zapWrap.appended.at(-1), w.payRow);
+  assert.equal(w.zapWrap.prepended.at(-1), w.payTabs);
 });
 
 // ---- the mark beside the name follows the icon ----
@@ -706,7 +719,7 @@ test('the corner X stays readable over any banner picture', () => {
 // ---- the lightning address above the bio, the bio set apart by a line ----
 
 test('the card reads: icons, then the lightning address, then the bio', () => {
-  assert.match(source, /\[npubChip\(npub\)\]\), rel, lud, about\);/, 'the bio is above the address again');
+  assert.match(source, /\[npubChip\(npub\)\]\), rel, lud, offerLine, about\);/, 'the bio is above the address again');
 });
 
 test('the left-aligned bio is set apart from the centered block by a thin line, which goes when there is no bio', () => {
@@ -815,7 +828,7 @@ test('THE STREAM ZAP SHEET KEEPS ITS PAYMENT AREA: the rule that hides the card 
   // the class the rule names.
   assert.match(source, /const zapWrap = h\('div', \{ className: 'peek-zap hidden' \}\);/);
   assert.match(source, /rel\.after\(toolbar\);\s*toolbar\.after\(zapWrap\);/, 'it sits in the body, next to the icon row');
-  assert.match(source, /body\.append\(name, nip05Row, h\('div', \{ className: 'peek-npub' \}, \[npubChip\(npub\)\]\), rel, lud, about\);/, 'rel is a child of the body');
+  assert.match(source, /body\.append\(name, nip05Row, h\('div', \{ className: 'peek-npub' \}, \[npubChip\(npub\)\]\), rel, lud, offerLine, about\);/, 'rel is a child of the body');
 });
 
 test('no other rule hides the payment area on that sheet, and the dead foot-container rule is gone', () => {
@@ -833,26 +846,29 @@ test('every place that opens the card for a stream goes through the same sheet c
   assert.match(source, /if \(options\?\.zap\) modal\.classList\.add\('stream-zap-modal'\);/);
 });
 
-test('on the zap sheet an offer with no address still has Pay offer, because there is no bolt to open it', () => {
-  const w = payWorld({ hasZap: false, offerShown: true, zapSheet: true });
-  w.paint();
-  assert.equal(w.zapWrap.classList.contains('hidden'), false, 'the area shows');
-  assert.equal(w.payRow.classList.contains('hidden'), false, 'with Pay offer in it');
+test('on the zap sheet an offer with no address opens itself, because there is no bolt to open it', () => {
+  // settleZapSheetOffer is called wherever it becomes known that no zap panel is coming.
+  const src = lift(/      function settleZapSheetOffer\(\) \{[\s\S]*?\n      \}\n/, 'settleZapSheetOffer');
+  const run = (ctx) => { vm.createContext(ctx); vm.runInContext(src + '\nglobalThis.go = settleZapSheetOffer;', ctx); ctx.go(); return ctx.opened; };
+  const open = (offerPanelArg, extra) => Object.assign({ opened: null, offerFound: { id: 1 }, openOfferPanel: function (o, opts) { this.opened = [o, opts]; } }, extra, offerPanelArg);
+  const sheetOnly = open({}, { options: { zap: true }, offerShown: true, zapPanel: null });
+  sheetOnly.openOfferPanel = (o, opts) => { sheetOnly.opened = [o, opts]; };
+  assert.deepEqual(plain(run(sheetOnly)), [{ id: 1 }, { forceOpen: true }]);
+  const withZap = open({}, { options: { zap: true }, offerShown: true, zapPanel: {} });
+  withZap.openOfferPanel = (o, opts) => { withZap.opened = [o, opts]; };
+  assert.equal(run(withZap), null, 'an address with an offer opens on Lightning, not here');
+  const profile = open({}, { options: {}, offerShown: true, zapPanel: null });
+  profile.openOfferPanel = (o, opts) => { profile.opened = [o, opts]; };
+  assert.equal(run(profile), null, 'off the zap sheet the bolt opens it');
 });
 
-test('on the zap sheet an address with an offer shows both, and with neither the area stays shut', () => {
-  const both = payWorld({ zapOpen: true, offerShown: true, zapSheet: true });
+test('on the zap sheet an address with an offer shows the switch, and with neither the area stays shut', () => {
+  const both = payWorld({ zapOpen: true, offerShown: true });
   both.paint();
   assert.equal(both.zapWrap.classList.contains('hidden'), false);
-  assert.equal(both.payRow.classList.contains('hidden'), false);
-  const none = payWorld({ hasZap: false, offerShown: false, zapSheet: true });
+  assert.equal(both.payTabs.classList.contains('hidden'), false);
+  const none = payWorld({ hasZap: false, offerShown: false });
   none.paint();
   assert.equal(none.zapWrap.classList.contains('hidden'), true, 'nothing to pay with, nothing to show');
 });
 
-test('off the zap sheet nothing changes: an offer alone is opened by the bolt, not shown in the area', () => {
-  const w = payWorld({ hasZap: false, offerShown: true, zapSheet: false });
-  w.paint();
-  assert.equal(w.zapWrap.classList.contains('hidden'), true);
-  assert.equal(w.payRow.classList.contains('hidden'), true);
-});
