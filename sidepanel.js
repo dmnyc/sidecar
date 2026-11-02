@@ -23837,7 +23837,9 @@
     wrap.append(
       badge,
       h('div', { className: 'recv-success-title', textContent: tSec('Payment received') }),
-      h('div', { className: 'recv-success-amt', textContent: '+' + tn('{{count}} sat', '{{count}} sats', sats) })
+      // The LRM in front keeps the "+" on the left of the number on a right-to-left page,
+      // where a sign at the start of a line would otherwise land on its far side ("21+").
+      h('div', { className: 'recv-success-amt', textContent: '\u200E+' + tn('{{count}} sat', '{{count}} sats', sats) })
     );
     const done = h('button', { className: 'primary', textContent: tSec('Done') });
     done.addEventListener('click', closeModal);
