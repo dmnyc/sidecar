@@ -96,8 +96,12 @@ test('the bell sheet has a refresh control', () => {
   const fn = stripComments(lift('async function showNotifModal('));
   assert.match(fn, /className: 'modal-x notif-refresh'/, 'the sheet has no refresh button');
   assert.match(fn, /icon\('refresh'\)/, 'the refresh button carries no glyph');
-  assert.match(fn, /cached\.refetch\(\)/, 'the button does not call the cache refetch');
-  assert.match(fn, /await initNotifSubs\(\)/, 'a sheet whose subscriptions never started cannot start them');
+  assert.match(fn, /await refreshNotifCache\(a\.pubkey\)/, 'the button does not ask the cache');
+  // What it asks lives in refreshNotifCache. Its behavior, including the cold cache, is
+  // tested in test/notif-discovery.test.js; these only keep both halves from going missing.
+  const ask = stripComments(lift('async function refreshNotifCache('));
+  assert.match(ask, /cached\.refetch\(\)/, 'the button does not call the cache refetch');
+  assert.match(ask, /await initNotifSubs\(\)/, 'a sheet whose subscriptions never started cannot start them');
 });
 
 test('IT SAYS SO WHEN NOTHING CAME BACK', () => {

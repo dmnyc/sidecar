@@ -7986,6 +7986,24 @@
     }
   }
 
+  // ASK THE RELAYS FOR THE NEWEST, AND WAIT FOR THE ANSWER. What the open bell's refresh
+  // does, and the reason it is a function of its own: with no cache yet (the sheet opened
+  // before startup got as far as building one), initNotifSubs only STARTS the first load,
+  // and returns while it is still on the wire. The sheet took that for the answer, read a
+  // count of nothing, stopped the spinner and stayed empty, and the notes landed in the
+  // cache a second later with nothing to draw them; closing and reopening built the list
+  // from that cache. So after starting the subscriptions this asks the cache itself, which
+  // joins the load already running or runs its own, and returns when it has settled.
+  async function refreshNotifCache(pubkey) {
+    const cached = _notifCache.get(pubkey);
+    // A refetch on the cache means the subscriptions are up. None means they never
+    // started for this account (no relays at the time, say), so start them.
+    if (cached && cached.refetch) { await cached.refetch(); return; }
+    await initNotifSubs();
+    const started = _notifCache.get(pubkey);
+    if (started && started.refetch) await started.refetch();
+  }
+
   // THE ⋮ MENU: the event itself rather than what it says — its kind, and the ids, npub
   // and JSON you reach for when debugging a client or quoting a note somewhere else.
   //
@@ -8803,11 +8821,7 @@
             Promise.all([loadOwnPollIds(a.pubkey, askRelays), loadOwnNoteIds(a.pubkey, askRelays)]),
             new Promise((resolve) => setTimeout(resolve, auto ? 1500 : 5000)),
           ]);
-          const cached = _notifCache.get(a.pubkey);
-          // No refetch on the cache means the subscriptions never started for this
-          // account (no relays at the time, say), so start them.
-          if (cached && cached.refetch) await cached.refetch();
-          else await initNotifSubs();
+          await refreshNotifCache(a.pubkey);
         } catch (_) {
           // A relay failing is the normal case here, and the answer is simply that the
           // list does not grow. An error toast would be noise on a surface that is
@@ -8824,7 +8838,14 @@
         // 'success', not 'info': toast() only draws two kinds and treats anything that is
         // not 'error' as a success, so 'info' would read in the source as a neutral toast
         // this app cannot draw.
-        const added = (_notifCache.get(a.pubkey) || {}).refetchAdded || 0;
+        const cacheNow = _notifCache.get(a.pubkey) || {};
+        const added = cacheNow.refetchAdded || 0;
+        // AN EMPTY SHEET OVER A CACHE THAT HAS NOTES is never the right answer, whatever
+        // the count says. Another run (startup's, finishing while this one waited) can have
+        // brought them in and left this run counting zero new; history is never drawn into
+        // an open sheet, so nothing else would. Build the list from the cache, quietly.
+        const drawnNothing = !list.children.length && !offNet.length && (cacheNow.events || []).length > 0;
+        if (!added && drawnNothing && refreshBtn.isConnected) return void showNotifModal(a);
         if (!added) return auto ? undefined : toast(t('No new notifications'), 'success');
 
         // REBUILT FROM THE CACHE, not streamed in. The cache is sorted newest-first and

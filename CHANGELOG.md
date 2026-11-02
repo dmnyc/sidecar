@@ -15,6 +15,9 @@ has entries, and that heading becomes the version heading when the release is cu
 - **New installs start with auto-lock at 30 minutes, up from 15, and the PIN reminder lets you pick the time right away.** Existing installs keep the time they have.
 - **Snort joins the apps on the Welcome page.**
 
+### Fixed
+- **The notifications sheet no longer opens empty when you open it right after the panel loads.** The notes were arriving a moment after the refresh icon stopped spinning, and only closing and reopening the sheet showed them. It now waits for them.
+
 ## [1.16.5] — 2026-11-01
 
 ### Added
