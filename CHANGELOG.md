@@ -11,6 +11,9 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ## [Unreleased]
 
+### Added
+- **The livestream chat has the composer’s emoji picker.** A smiley opens the same nine groups and search above the message field, and a pick goes in at the caret. Hide chat is now a chevron beside it.
+
 ### Changed
 - **New installs start with auto-lock at 30 minutes, up from 15, and the PIN reminder lets you pick the time right away.** Existing installs keep the time they have.
 - **Snort joins the apps on the Welcome page.**
