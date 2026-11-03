@@ -313,11 +313,21 @@
     for(const c of prefix)step(c.charCodeAt(0)>>>5); step(0);
     for(const c of prefix)step(c.charCodeAt(0)&31); for(const w of words)step(w);
     if(check!==1)return null;
-    const hashes={}; const end=words.length-110;
+    // Tag 1 is the payment hash. A description is either committed to as a hash (tag 23, what
+    // NIP-57 asks a zap invoice for) or written out in full (tag 13, which some providers
+    // use whenever the zap carries a comment). Both are read; ZapTotals decides what each is worth.
+    const hashes={}; let plain=null; const end=words.length-110;
     for(let i=7;i<end;) {
       if(i+3>end)return null;
       const type=words[i], length=words[i+1]*32+words[i+2]; i+=3;
       if(i+length>end)return null;
+      if(type===13) {
+        if(plain!==null)return null;
+        let bits=0,value=0; const bytes=[];
+        for(const w of words.slice(i,i+length)){value=(value<<5)|w;bits+=5;if(bits>=8){bits-=8;bytes.push((value>>>bits)&255);value&=(1<<bits)-1;}}
+        if(value!==0)return null;
+        try { plain=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(bytes)); } catch (_) { return null; }
+      }
       if(type===1 || type===23) {
         if(length!==52 || hashes[type])return null;
         let bits=0,value=0; const bytes=[];
@@ -327,7 +337,7 @@
       }
       i+=length;
     }
-    return hashes[1] && hashes[23] ? {msats:Number(amount), paymentHash:hashes[1], descriptionHash:hashes[23]} : null;
+    return hashes[1] && (hashes[23] || plain!==null) ? {msats:Number(amount), paymentHash:hashes[1], descriptionHash:hashes[23] || null, description:plain} : null;
   }
   class ZapTotals {
     constructor() { this.payments=new Set(); this.msats=0; this.count=0; this.authors=new Map(); }
@@ -342,7 +352,11 @@
         if(!invoice || this.payments.has(invoice.paymentHash))return false;
         const requested=one(request,'amount');
         if(requested!=null && (!/^\d+$/.test(requested) || BigInt(requested)!==BigInt(invoice.msats)))return false;
-        if(await digest(description)!==invoice.descriptionHash)return false;
+        // A hash must be the request's. An invoice that carries the description in full instead
+        // (Alby does when a zap has a comment) cannot be tied to the request, and it is counted
+        // anyway, as Zap.stream counts it: the receipt is the provider's own signature, and
+        // NIP-57 asks a client to check the provider, the amount and the request, not the hash.
+        if(invoice.descriptionHash && await digest(description)!==invoice.descriptionHash)return false;
         if(this.payments.has(invoice.paymentHash) || !Number.isSafeInteger(this.msats+invoice.msats))return false;
         this.payments.add(invoice.paymentHash);this.msats+=invoice.msats;this.count++;
         this.authors.set(request.pubkey,(this.authors.get(request.pubkey) || 0)+invoice.msats);return true;
