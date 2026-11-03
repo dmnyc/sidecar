@@ -1392,6 +1392,24 @@
     });
   }
 
+  // The line on the lock screen. "Locked since your browser closed" is only true when nothing
+  // else locked it: on Never, the browser closing is the one lock Sidecar does not announce,
+  // and it leaves no reason behind because it clears session storage. A lock Sidecar did
+  // itself, the lock button above all, records one, and that reads as a plain prompt.
+  // Ben Day letters this line as a comic's "Meanwhile…" caption, which trails off rather
+  // than stopping, so it has its own strings ending in an ellipsis. Strings, not CSS: a
+  // stylesheet can add the dots but cannot take the period away, and a translation has to
+  // be able to place them itself.
+  const LOCK_REASON_KEY = 'sidecar_lock_reason';
+  function lockLede(settings, reason) {
+    const caption = document.documentElement.getAttribute('data-theme') === 'ben-day';
+    const browserClosed = !!settings && settings.autoLockMinutes === 0 && !reason;
+    return browserClosed
+      ? (caption ? t('Locked since your browser closed. Enter your PIN to unlock…')
+        : t('Locked since your browser closed. Enter your PIN to unlock.'))
+      : (caption ? t('Enter your PIN to unlock…') : t('Enter your PIN to unlock.'));
+  }
+
   function startLockClock() {
     stopLockClock();
     const slot = $('lock-clock');
@@ -1525,22 +1543,17 @@
       wasLocked = true; // the next unlock is a new leg — see advanceMapLeg
       show($('view-lock'));
       startLockClock();
-      // On Never, the only thing that can have locked this is the browser closing —
-      // the derived key lives in chrome.storage.session, which is memory-only and
-      // cleared on browser close. Without saying so, "Never" reads as broken.
-      call({ type: 'SIDECAR_GET_SETTINGS' })
-        .then((s) => {
+      // On Never, a lock nobody asked for is the browser closing — the derived key lives in
+      // chrome.storage.session, which is memory-only and cleared on browser close. Without
+      // saying so, "Never" reads as broken. A lock the user asked for says nothing of it.
+      Promise.all([
+        call({ type: 'SIDECAR_GET_SETTINGS' }),
+        chrome.storage.session.get(LOCK_REASON_KEY).catch(() => ({})),
+      ])
+        .then(([s, got]) => {
           // Both branches set it: the node outlives the setting, so a Never lede left
           // behind would still be there after a switch to a timed lock.
-          // Ben Day letters this line as a comic's "Meanwhile…" caption, which trails
-          // off rather than stopping, so it has its own strings ending in an ellipsis.
-          // Strings, not CSS: a stylesheet can add the dots but cannot take the period
-          // away, and a translation has to be able to place them itself.
-          const caption = document.documentElement.getAttribute('data-theme') === 'ben-day';
-          $('view-lock').querySelector('.lede').textContent = s && s.autoLockMinutes === 0
-            ? (caption ? t('Locked since your browser closed. Enter your PIN to unlock…')
-              : t('Locked since your browser closed. Enter your PIN to unlock.'))
-            : (caption ? t('Enter your PIN to unlock…') : t('Enter your PIN to unlock.'));
+          $('view-lock').querySelector('.lede').textContent = lockLede(s, got && got[LOCK_REASON_KEY]);
         })
         .catch(() => {});
       setTimeout(() => $('unlock-pin').focus(), 50);
