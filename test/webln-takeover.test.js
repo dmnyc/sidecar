@@ -242,6 +242,46 @@ test('weblnOfferHost: one offer, never to someone who opted in or waved it off',
   assert.equal(f({ weblnOfferHost: 'first.example' }, 'second.example'), '', 'one offer at a time');
 });
 
+// Before a wallet is added the offer is a question with no meaning (and it showed up over
+// the onboarding screen). The worker's real functions, run with a stand-in keystore.
+async function offerWorker({ settings, wallets }) {
+  const pushed = [];
+  const ctx = vm.createContext({
+    KS: { hasAnyNwc: async () => wallets },
+    sget: async () => ({ sidecar_settings: settings }),
+    panelPort: { postMessage: (m) => pushed.push(m) },
+  });
+  const lift = ['function weblnOfferPending(', 'async function pendingWeblnOffer(', 'async function announceWeblnOffer(']
+    .map((d) => liftFn(bgSrc, d)).join('\n');
+  vm.runInContext(lift + '\nthis.pending = pendingWeblnOffer; this.announce = announceWeblnOffer;', ctx);
+  return { ctx, pushed };
+}
+
+test('the offer waits for a wallet: nothing is due or announced before one is added', async () => {
+  const none = await offerWorker({ settings: { weblnOfferHost: 'example.com' }, wallets: false });
+  assert.equal(await none.ctx.pending({ weblnOfferHost: 'example.com' }), '', 'no wallet, nothing due');
+  await none.ctx.announce();
+  assert.deepEqual(none.pushed, [], 'nothing is sent to the panel during setup');
+
+  const some = await offerWorker({ settings: { weblnOfferHost: 'example.com' }, wallets: true });
+  assert.equal(await some.ctx.pending({ weblnOfferHost: 'example.com' }), 'example.com', 'the remembered host is offered once there is a wallet');
+  await some.ctx.announce();
+  assert.equal(JSON.stringify(some.pushed), JSON.stringify([{ type: 'SIDECAR_WEBLN_OFFER', host: 'example.com' }]));
+});
+
+test('with a wallet, an answered or accepted offer is still never shown again', async () => {
+  for (const settings of [
+    { weblnOfferHost: 'example.com', weblnTakeover: true },
+    { weblnOfferHost: 'example.com', weblnOfferDismissed: true },
+    {},
+  ]) {
+    const w = await offerWorker({ settings, wallets: true });
+    assert.equal(await w.ctx.pending(settings), '', JSON.stringify(settings));
+    await w.ctx.announce();
+    assert.deepEqual(w.pushed, []);
+  }
+});
+
 test('a page may raise the notice but never answer the offer', () => {
   const set = bgSrc.match(/const CONTENT_OK = new Set\(\[[\s\S]*?\]\);/);
   assert.ok(set, 'CONTENT_OK is gone');
@@ -290,4 +330,23 @@ test('the offer card names the site and answers through the worker', async () =>
   assert.equal(c.answers[1].use, false, '"Not now" answers no');
   c.render('');
   assert.equal(c.card.classes.has('hidden'), true, 'no host, no card');
+});
+
+// The panel asks the worker what is due, not the raw setting: a host remembered during
+// setup stays hidden until the worker says a wallet exists.
+test('the panel shows the offer only when the worker says one is due', async () => {
+  const panelSrc = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
+  const run = async (due) => {
+    const shown = [];
+    const ctx = vm.createContext({
+      call: async (m) => (m.type === 'SIDECAR_WEBLN_OFFER_GET' ? due : { weblnOfferHost: 'example.com' }),
+      renderWeblnOffer: (host) => shown.push(host),
+      renderPayAnywhereAsk: () => {},
+    });
+    vm.runInContext(liftFn(panelSrc, 'async function refreshWeblnOffer(') + '\nthis.f = refreshWeblnOffer;', ctx);
+    await ctx.f();
+    return shown;
+  };
+  assert.deepEqual(await run(''), [''], 'a remembered host is not offered while no wallet exists');
+  assert.deepEqual(await run('example.com'), ['example.com'], 'it is offered once the worker says so');
 });

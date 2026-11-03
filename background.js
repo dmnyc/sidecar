@@ -63,6 +63,26 @@ function weblnOfferHost(settings, host) {
   return host;
 }
 
+// The offer that is due to be shown: the remembered host, once there is a wallet to
+// pay with. Before one is added the question has no meaning, and it used to appear
+// over the very screen that creates the keystore. The host is kept meanwhile, so a page
+// seen during setup still gets its offer after the first wallet is added.
+function weblnOfferPending(settings, hasWallet) {
+  if (!hasWallet || !settings) return '';
+  if (settings.weblnTakeover === true || settings.weblnOfferDismissed === true) return '';
+  return typeof settings.weblnOfferHost === 'string' ? settings.weblnOfferHost : '';
+}
+async function pendingWeblnOffer(settings) {
+  let has = false;
+  try { has = await KS.hasAnyNwc(); } catch (_) {}
+  return weblnOfferPending(settings, has);
+}
+async function announceWeblnOffer() {
+  const { sidecar_settings } = await sget('sidecar_settings');
+  const host = await pendingWeblnOffer(sidecar_settings);
+  if (host && panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_WEBLN_OFFER', host }); } catch (_) {} }
+}
+
 // NIP-13 difficulty, as the four rungs the panel offers. Mirrored from POW_LEVELS in
 // sidepanel.js and pinned to it by test, because this is the copy that decides what gets
 // STORED and the panel's is only what gets drawn.
@@ -4594,6 +4614,7 @@ async function handleControl(message, sender, sendResponse) {
       case 'SIDECAR_SET_NWC':
         await KS.setNwc(message.pubkey, message.connection);
         closeSwNwc(); // rebuild against the new connection on next use
+        announceWeblnOffer().catch(() => {}); // a first wallet is what the offer was waiting for
         result = { ok: true };
         break;
       case 'SIDECAR_GET_NWC': {
@@ -4912,10 +4933,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const prev = sidecar_settings || {};
       if (weblnOfferHost(prev, h)) {
         await sset({ sidecar_settings: { ...prev, weblnOfferHost: h } });
-        if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_WEBLN_OFFER', host: h }); } catch (_) {} }
+        await announceWeblnOffer();
       }
       sendResponse({ ok: true });
     }).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  // What the panel should be showing now: the host to offer for, or '' while there is
+  // none or no wallet has been added yet.
+  if (message.type === 'SIDECAR_WEBLN_OFFER_GET') {
+    sget('sidecar_settings')
+      .then(({ sidecar_settings }) => pendingWeblnOffer(sidecar_settings))
+      .then((host) => sendResponse({ ok: true, result: host }))
+      .catch(() => sendResponse({ ok: true, result: '' }));
     return true;
   }
   // The person's answer to the offer, from the panel. "Use Sidecar" turns the setting

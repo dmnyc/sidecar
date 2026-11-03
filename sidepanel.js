@@ -25264,7 +25264,8 @@
   async function refreshWeblnOffer() {
     try {
       const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
-      renderWeblnOffer(s && s.weblnOfferHost ? s.weblnOfferHost : '');
+      // The worker says what is due: nothing until a wallet has been added.
+      renderWeblnOffer(String((await call({ type: 'SIDECAR_WEBLN_OFFER_GET' })) || ''));
       renderPayAnywhereAsk(s && s.payAnywhereAskHost ? s.payAnywhereAskHost : '');
     } catch (_) {}
   }
