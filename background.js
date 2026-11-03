@@ -3752,6 +3752,8 @@ async function lockKeystore(auto = false) {
   qrSecret = null; // a scanned key must not outlive the unlocked session
   chrome.alarms.clear(AUTO_LOCK_ALARM);
   chrome.storage.session.remove(AWAY_SINCE_KEY, () => void chrome.runtime.lastError);
+  // Written before the 'locked' event below, so a panel that reacts to it finds the reason.
+  await chrome.storage.session.set({ [LOCK_REASON_KEY]: auto ? 'auto' : 'manual' }).catch(() => {});
   // A lock ends any active relax window: the keys are gone, so auto-approving
   // signs makes no sense, and idle auto-lock is exactly the "walked away" case
   // where a lingering auto-sign shouldn't survive.
@@ -3799,6 +3801,10 @@ function bumpAutoLock() {
 const IDLE_RECHECK_MINUTES = 1;
 const IDLE_MAX_SECONDS = 4 * 60 * 60;
 const AWAY_SINCE_KEY = 'sidecar_away_since';
+// WHY the keystore last locked, for the lock screen: 'manual' (the lock button) or 'auto' (the
+// idle timer). Session storage is cleared when the browser closes, so an empty slot on a
+// locked panel is how the lock screen knows the browser closed.
+const LOCK_REASON_KEY = 'sidecar_lock_reason';
 function idleSeconds(minutes) { return Math.min(IDLE_MAX_SECONDS, Math.max(15, Math.round(minutes * 60))); }
 function setIdleDetection(minutes) {
   try {
