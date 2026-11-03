@@ -101,9 +101,9 @@
     const leaders=el('div','stream-top-zappers');leaders.setAttribute('aria-label',t('Top zappers'));leaders.setAttribute('role','region');leaders.tabIndex=0;leaders.hidden=true;
     newer.hidden=true;log.setAttribute('aria-label',t('Stream chat'));
     const form=el('form','stream-chat-form'),identity=el('div','stream-chat-identity'),replyLabel=el('div','stream-chat-reply'),send=el('button','primary');
-    let input=el('textarea'),mentionEditor=null;
-    const identityRow=el('div','stream-chat-identity-row'),hideChat=el('button','stream-chat-hide',t('Hide chat'));
-    hideChat.type='button';hideChat.onclick=()=>{show(false);toggle.focus();};identityRow.append(identity,hideChat);
+    let input=el('textarea'),mentionEditor=null,emoji=null;
+    const identityRow=el('div','stream-chat-identity-row'),hideChat=el('button','icon-btn stream-chat-hide');
+    hideChat.type='button';hideChat.title=t('Hide chat');hideChat.setAttribute('aria-label',t('Hide chat'));hideChat.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"/></svg>';hideChat.onclick=()=>{show(false);toggle.focus();};identityRow.append(identity,hideChat);
     const draftText=()=>mentionEditor?mentionEditor.getText():input.value;
     const clearDraft=()=>{if(mentionEditor)mentionEditor.setText('');else input.value='';};
     send.setAttribute('aria-label',t('Send'));send.title=t('Send');send.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v14"/></svg>';
@@ -140,7 +140,7 @@
     for(const id of ['stream-dock','relax-status','mining-status']){const node=document.getElementById(id);if(node){sizeObserver.observe(node);new MutationObserver(sizeChat).observe(node,{attributes:true,attributeFilter:['class','hidden']});}}
     window.addEventListener('resize',sizeChat);
     const sources=()=>[...new Set([...(getItem()?.relays || []),'wss://relay.damus.io','wss://nos.lol','wss://relay.primal.net','wss://nostr.wine','wss://relay.snort.social'])];
-    function stop(){run++;clearTimeout(profileScrollTimer);clearTimeout(profilePaintTimer);profilePaintTimer=null;changedProfiles.clear();reactionPicker?.remove();reactionPicker=null;clearTimeout(reactionTimer);reactionTimer=null;reactionSubs.splice(0).forEach(s=>s.close());reactionTargets.clear();clearTimeout(noticeTimer);noticeTimer=null;notice.textContent='';abort?.abort();clearTimeout(retryTimer);clearTimeout(profileRetry);clearTimeout(paintTimer);paintTimer=null;mentionEditor?.close();sub?.close();sub=null;pool?.destroy();pool=null;}
+    function stop(){run++;emoji?.close();clearTimeout(profileScrollTimer);clearTimeout(profilePaintTimer);profilePaintTimer=null;changedProfiles.clear();reactionPicker?.remove();reactionPicker=null;clearTimeout(reactionTimer);reactionTimer=null;reactionSubs.splice(0).forEach(s=>s.close());reactionTargets.clear();clearTimeout(noticeTimer);noticeTimer=null;notice.textContent='';abort?.abort();clearTimeout(retryTimer);clearTimeout(profileRetry);clearTimeout(paintTimer);paintTimer=null;mentionEditor?.close();sub?.close();sub=null;pool?.destroy();pool=null;}
     function clearReply(){reply=null;replyLabel.hidden=true;}
     cancelReply.onclick=()=>{clearReply();input.focus();};
     function syncAccount(){
@@ -150,6 +150,7 @@
       const disabled=!account || busy || !allowed();
       input.disabled=send.disabled=disabled;
       if(mentionEditor){input.contentEditable=String(!disabled);input.setAttribute('aria-disabled',String(disabled));}
+      if(emoji){emoji.addBtn.disabled=disabled;if(disabled)emoji.close();}
       return current;
     }
     const displayName=key=>{const name=profiles.get(key)?.name;return (typeof name==='string' && name.trim()) || SidecarStreams.cocktailName(key);};
@@ -392,6 +393,15 @@
           }));
           input.addEventListener('drop',event=>{event.preventDefault();event.stopPropagation();});
           input.addEventListener('keydown',event=>{if(event.key==='Escape' && mentionEditor.wrap.querySelector('.ac-dropdown'))event.stopPropagation();},true);
+        }
+        // The composer's own emoji picker, so both offer the same table and the same search.
+        // Its button sits in the identity row, beside Hide chat; the picker opens between that
+        // row and the editor, where it pushes the log up and leaves the editor where it is.
+        if(!emoji && root.SidecarCore?.buildEmojiPicker){
+          emoji=root.SidecarCore.buildEmojiPicker({onPick:ch=>mentionEditor.insertText(ch),onClose:()=>input.focus()});
+          emoji.addBtn.classList.add('stream-chat-emoji');
+          identityRow.insertBefore(emoji.addBtn,hideChat);identityRow.after(emoji.wrap);
+          syncAccount();
         }
         sizeChat();open();
       }else stop();
