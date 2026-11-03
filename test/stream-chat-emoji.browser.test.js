@@ -105,7 +105,8 @@ function page() {
   const hide = pane().querySelector('.stream-chat-hide');
   out.hideIsIcon = !!hide && !!hide.querySelector('svg') && hide.textContent.trim() === '';
   out.hideName = hide && hide.getAttribute('aria-label');
-  out.hideTall = !!hide && hide.getBoundingClientRect().height >= 44 && hide.getBoundingClientRect().width >= 44;
+  const eb = btn().getBoundingClientRect(), hb = hide.getBoundingClientRect();
+  out.hideMatches = hb.height === 34 && eb.height === 34 && hb.width >= 44;
   hide.click();
   await wait(50);
   out.hideHidesChat = pane().hidden;
@@ -171,7 +172,7 @@ test('THE STREAM CHAT INPUT HAS THE COMPOSER’S EMOJI PICKER', opts, () => {
   assert.equal(r.escapeKeptChat, true, 'and leaves the chat open');
   assert.equal(r.hideIsIcon, true, 'Hide chat is an icon with no visible text');
   assert.equal(r.hideName, 'Hide chat', 'and keeps its accessible name');
-  assert.equal(r.hideTall, true, 'with a 44px tap target');
+  assert.equal(r.hideMatches, true, 'and matches the emoji button: both 34px tall');
   assert.equal(r.hideHidesChat, true, 'and still hides the chat');
 
   assert.equal(r.lockedDisabled, true, 'a locked account cannot use the picker');

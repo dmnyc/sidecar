@@ -103,7 +103,7 @@
     const form=el('form','stream-chat-form'),identity=el('div','stream-chat-identity'),replyLabel=el('div','stream-chat-reply'),send=el('button','primary');
     let input=el('textarea'),mentionEditor=null,emoji=null;
     const identityRow=el('div','stream-chat-identity-row'),hideChat=el('button','icon-btn stream-chat-hide');
-    hideChat.type='button';hideChat.title=t('Hide chat');hideChat.setAttribute('aria-label',t('Hide chat'));hideChat.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';hideChat.onclick=()=>{show(false);toggle.focus();};identityRow.append(identity,hideChat);
+    hideChat.type='button';hideChat.title=t('Hide chat');hideChat.setAttribute('aria-label',t('Hide chat'));hideChat.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"/></svg>';hideChat.onclick=()=>{show(false);toggle.focus();};identityRow.append(identity,hideChat);
     const draftText=()=>mentionEditor?mentionEditor.getText():input.value;
     const clearDraft=()=>{if(mentionEditor)mentionEditor.setText('');else input.value='';};
     send.setAttribute('aria-label',t('Send'));send.title=t('Send');send.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v14"/></svg>';

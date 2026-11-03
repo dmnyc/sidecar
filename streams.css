@@ -555,7 +555,7 @@ html.stream-chat-active #compose-menu { display:none; }
 .stream-chat-identity-row .stream-chat-identity { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .stream-chat-identity-row > .stream-chat-emoji { flex:0 0 auto; min-width:44px; margin:0; }
 .stream-chat-form > .emoji-picker { grid-column:1 / -1; margin-top:0; }
-.stream-chat-hide { flex:0 0 auto; min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
+.stream-chat-hide { flex:0 0 auto; min-width:44px; min-height:34px; padding-block:0; display:inline-flex; align-items:center; justify-content:center; }
 .stream-chat-hide:hover { color:var(--gold); }
 
 html.stream-directory-active #view-main > :not(#relax-status):not(#payment-status):not(#mining-status) { display:none; }
