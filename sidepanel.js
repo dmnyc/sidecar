@@ -25212,13 +25212,14 @@
   // "Use Sidecar for Lightning payments?", offered once, where another wallet extension
   // already answers a page's Lightning calls (#501). It lives here and not on the page
   // because a page can forge the notice that raises it, and a switch that moves money
-  // must not be one a site can flip. Either button retires it for good.
+  // must not be one a site can flip. Either button retires it for good. The setting is
+  // browser-wide, so the card does not name a site: `host` only says whether one is due.
   function renderWeblnOffer(host) {
     const card = $('webln-offer');
     if (!card) return;
     if (!host) { hide(card); card.innerHTML = ''; return; }
     card.innerHTML = '';
-    const msg = h('span', { className: 'webln-offer-msg', textContent: t('Sidecar isn’t set as your default Lightning wallet on {{host}}. Switch?', { host }) });
+    const msg = h('span', { className: 'webln-offer-msg', textContent: t('Another wallet handles Lightning payments in your browser. Use Sidecar instead?') });
     const use = h('button', { className: 'primary', textContent: t('Use Sidecar') });
     const later = h('button', { className: 'ghost', textContent: t('Not now') });
     const answer = async (yes) => {

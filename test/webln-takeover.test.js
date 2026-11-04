@@ -315,11 +315,12 @@ function offerCard() {
   return { card, answers, render: ctx.render };
 }
 
-test('the offer card names the site and answers through the worker', async () => {
+test('the offer card answers through the worker and names no site', async () => {
   const c = offerCard();
   c.render('example.com');
   assert.equal(c.card.classes.has('hidden'), false, 'the card is shown');
-  assert.match(c.card.children[0].textContent, /example\.com/);
+  assert.doesNotMatch(c.card.children[0].textContent, /example\.com/, 'the setting is browser-wide, so no site is named');
+  assert.match(c.card.children[0].textContent, /Another wallet handles Lightning payments/);
   const [use, later] = c.card.children[1].children;
   await use.handlers.click();
   assert.deepEqual(c.answers.map((a) => [a.type, a.use]), [['SIDECAR_WEBLN_OFFER_ANSWER', true]]);
