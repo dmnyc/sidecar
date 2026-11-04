@@ -4469,6 +4469,16 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 }
 .wallet-export-link:hover { color: var(--text); background: var(--hover-faint); }
 .wallet-export-link svg { width: 13px; height: 13px; }
+/* same row as the export link, in the destructive color */
+.wallet-delete-link {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; margin-top: 4px; padding: 7px;
+  background: transparent; border: none; border-radius: 8px;
+  color: var(--red); font-size: 12.5px; cursor: pointer;
+}
+.wallet-delete-link:hover { background: rgba(240, 86, 107, 0.12); }
+.wallet-delete-link:disabled { opacity: 0.5; cursor: default; }
+.wallet-delete-link svg { width: 13px; height: 13px; }
 
 /* amount preset chips (receive) */
 .amount-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
