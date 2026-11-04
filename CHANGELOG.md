@@ -9,7 +9,7 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
-## [Unreleased]
+## [1.16.6] — 2026-11-03
 
 ### Added
 - **You can delete your wallet backup from your relays.** A red Delete backup link in the Wallet tab’s Backup card asks first, then replaces the encrypted copy with an empty one and asks relays to forget it. Your connected wallet stays.
@@ -33,6 +33,7 @@ has entries, and that heading becomes the version heading when the release is cu
 - **A profile opened from search shows its CLINK offer.** The offer string, cut short and copyable, now sits under the address the way it does on your own profile.
 - **The composer’s emoji picker starts clean each time it opens.** A search stayed in the field after you picked an emoji, so the next open showed the same word and the same results. It now clears on every close, and the group you were browsing stays put when you had not searched.
 - **The offer to make Sidecar your default Lightning wallet waits until you have added a wallet.** It could appear during setup, over the screen that creates the keystore, when another wallet extension answered on the open page. The page is remembered, and the offer comes once your first wallet is connected.
+- **The source archive holds CLAUDE.md out along with AGENTS.md, and the build stops on links that point at nothing.** CLAUDE.md is a link to AGENTS.md, and holding back only AGENTS.md left an empty CLAUDE.md in 1.16.5’s first build.
 
 ### Documentation
 - **The CLINK entry in `WALLET_BACKENDS.md` records what actually happened.** The spec never became a NIP — the PR was closed unmerged in June 2025 — and the payer side shipped in #359 rather than staying held; the lightning.pub / ShockWallet assessment behind it now ships with the repo as `docs/lightning-pub-shockwallet-integration.md`, with CLINK Debits parked and tracked in #551.

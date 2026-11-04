@@ -1054,6 +1054,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-09': [
     { year: 1906, text: "Theodore Roosevelt visited the Panama Canal, the first time a president traveled abroad in office." },
+    { year: 1872, text: "The Great Boston Fire began in a Summer Street warehouse basement and burned into the next day, taking 65 acres of the business district." }, // Wikipedia, Great Boston Fire of 1872
   ],
   '11-10': [
     { year: 1871, text: "Henry Morton Stanley found David Livingstone near Lake Tanganyika, having searched for months." }, // Ujiji
@@ -1107,9 +1108,11 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-23': [
     { year: 1889, text: "The first jukebox was installed in a saloon in San Francisco." }, // Palais Royale Saloon
+    { year: 1936, text: "The first issue of Life went on sale, with Margaret Bourke-White’s photograph of the Fort Peck Dam on the cover." }, // Wikipedia, Life (magazine)
   ],
   '11-24': [
     { year: 1859, text: "On the Origin of Species was published. The first printing sold out to booksellers the same day." },
+    { year: 1642, text: "Abel Tasman sighted the west coast of an island he named Van Diemen’s Land, now Tasmania, for the governor who sent him." }, // Wikipedia, Abel Tasman
   ],
   '11-25': [
     { year: 1915, text: "Albert Einstein presented the field equations of general relativity to the Prussian Academy." }, // Berlin

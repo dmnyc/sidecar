@@ -296,6 +296,9 @@
     // writers the list did not already have.
     { text: 'Live all you can; it’s a mistake not to.', who: 'Henry James, 1903' },
     { text: 'Magic is always pushing and drawing and making things out of nothing.', who: 'Frances Hodgson Burnett, 1911' },
+    // 1.16.6. Checked against the Project Gutenberg text of Lord Jim (1900), chapter 20,
+    // Stein speaking; Conrad is a writer the list did not already have.
+    { text: 'A man that is born falls into a dream like a man who falls into the sea.', who: 'Joseph Conrad, 1900' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
