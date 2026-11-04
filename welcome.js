@@ -566,6 +566,16 @@ function apps() {
     icon: 'https://fanfares.io/apple-touch-icon.png',
     desc: t('Sell your content for bitcoin: publishing for the internet money era.'),
   },
+  {
+    name: 'Aqstr',
+    url: 'https://aqstr.com',
+    domain: 'aqstr.com',
+    cat: 'commerce',
+    // Their touch icon is a full-bleed rounded tile with no margin of its own, so flush.
+    icon: 'https://aqstr.com/apple-touch-icon.png',
+    flush: true,
+    desc: t('Complete social tasks and earn sats, or boost your own Nostr events.'),
+  },
   ];
 }
 
