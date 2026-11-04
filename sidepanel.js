@@ -17410,7 +17410,9 @@
       { kinds: [30078], authors: [author], '#d': [dtag] }, { capMs: BACKUP_READ_CAP_MS });
     const ev = events.filter((e) => e && e.pubkey === author)
       .sort((x, y) => y.created_at - x.created_at)[0] || null;
-    if (ev) return ev;
+    // An empty record is a deleted one (see deleteNwcBackup), and being the newest it
+    // outranks any older copy a relay kept. Answered, and nothing there: no backup.
+    if (ev) return ev.content ? ev : null;
     if (!answered || !complete) throw new Error(t('Could not reach your relays to check for a backup.'));
     return null;
   }
@@ -17495,6 +17497,35 @@
     };
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event });
     await publishSigned(signed);
+  }
+
+  // Remove the backup from the relays. A kind 5 alone is a request a relay may ignore, and
+  // it cannot reach a copy the relay holds under another event id, so the deletion that
+  // works is the replacement: the same record with nothing in it, newer than the one it
+  // replaces. A kind 5 for the address goes along for the relays that honor one. Both
+  // go to every relay the backup is READ from, since an older copy may sit only on the
+  // configured relays. Then it asks again and counts the relays still holding a
+  // ciphertext, so the answer is what the relays say and not what was sent.
+  async function deleteNwcBackup() {
+    const author = state.activePubkey;
+    let at = Math.floor(Date.now() / 1000);
+    try {
+      const prev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+      if (prev && prev.created_at >= at) at = prev.created_at + 1; // a replacement must be newer
+    } catch (_) {}
+    const sign = (event) => call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: author });
+    const tombstone = await sign({ kind: 30078, created_at: at, tags: [['d', NWC_BACKUP_DTAG]], content: '' });
+    const request = await sign({
+      kind: 5, created_at: at, content: '',
+      tags: [['a', '30078:' + author + ':' + NWC_BACKUP_DTAG], ['k', '30078']],
+    });
+    const relays = await backupReadRelays();
+    await publishToRelays(relays, tombstone);
+    try { await publishToRelays(relays, request); } catch (_) {} // a courtesy; the tombstone is the deletion
+    const { events } = await poolQueryAnswered(relays,
+      { kinds: [30078], authors: [author], '#d': [NWC_BACKUP_DTAG] }, { capMs: BACKUP_READ_CAP_MS });
+    const remaining = events.filter((e) => e && e.pubkey === author && e.content).length;
+    return { remaining };
   }
 
   async function restoreNwcFromRelays() {
@@ -22076,6 +22107,27 @@
     });
   }
 
+  // Deleting the backup leaves the connected wallet alone; what goes is the copy that
+  // restores it on another device. Action first, Cancel last, in the destructive color.
+  function confirmDeleteNwcBackup(onConfirm) {
+    openModal((modal) => {
+      const body = h('p', { className: 'hint' });
+      body.append(
+        document.createTextNode(t('Removes the backup Sidecar saved on your relays. Other apps’ backups and the connected wallet stay.') + ' '),
+        document.createTextNode(t('Delete requests are best effort, so some relays may keep a copy.'))
+      );
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
+      cancel.addEventListener('click', closeModal);
+      const go = h('button', { className: 'danger', textContent: t('Delete backup') });
+      go.addEventListener('click', () => { closeModal(); onConfirm(); });
+      modal.append(
+        h('h3', { textContent: t('Delete wallet backup?') }),
+        body,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
   // `statePromise` is shared with the nudge in renderWalletConnected so the relay
   // fetch + decrypt happens once per wallet render, not once per consumer.
   function renderWalletBackup(statePromise) {
@@ -22091,19 +22143,17 @@
     const restore = h('button', { className: 'secondary', textContent: t('Restore') });
     const doBackup = async () => {
       back.disabled = true;
+      deleteBtn.disabled = true; // one change to the relay copy at a time
       back.textContent = t('Backing up…');
       try {
         await backupNwcToRelays();
-        backupState = 'current';
-        status.textContent = NWC_BACKUP_LABEL.current;
-        status.classList.add('done');
-        status.classList.remove('warn');
-        staleNote.classList.add('hidden');
+        showBackupState('current');
         toast(t('Wallet backed up'), 'success');
       } catch (e) {
         toast(e.message, 'error');
       }
       back.disabled = false;
+      deleteBtn.disabled = false;
       back.textContent = t('Back up');
     };
     back.addEventListener('click', () => {
@@ -22117,6 +22167,7 @@
     });
     const doRestore = async () => {
       restore.disabled = true;
+      deleteBtn.disabled = true;
       restore.textContent = t('Restoring…');
       try {
         await restoreNwcFromRelays();
@@ -22125,6 +22176,7 @@
       } catch (e) {
         toast(e.message, 'error');
         restore.disabled = false;
+        deleteBtn.disabled = false;
         restore.textContent = t('Restore');
       }
     };
@@ -22143,6 +22195,36 @@
     exportBtn.append(icon('key'));
     exportBtn.addEventListener('click', exportNwcModal);
     hide(exportBtn); // shown only when a connection exists for the active account
+    // Shown unless the relays are known to hold nothing: "couldn't check" may still be a backup.
+    const deleteBtn = h('button', { className: 'wallet-delete-link', textContent: t('Delete backup') });
+    deleteBtn.prepend(icon('trash'));
+    hide(deleteBtn);
+    const showBackupState = (st) => {
+      backupState = st;
+      status.textContent = NWC_BACKUP_LABEL[st] || NWC_BACKUP_LABEL.unknown;
+      status.classList.toggle('done', st === 'current');
+      status.classList.toggle('warn', st === 'stale');
+      staleNote.classList.toggle('hidden', st !== 'stale');
+      deleteBtn.classList.toggle('hidden', st === 'none');
+    };
+    const doDelete = async () => {
+      // A Back up or Restore started now would race the deletion, and a backup landing
+      // after it would bring the record back.
+      deleteBtn.disabled = back.disabled = restore.disabled = true;
+      try {
+        const { remaining } = await deleteNwcBackup();
+        if (remaining) {
+          toast(tn('{{count}} relay still holds the backup.', '{{count}} relays still hold the backup.', remaining), 'error');
+        } else {
+          showBackupState('none');
+          toast(t('Backup deleted'), 'success');
+        }
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+      deleteBtn.disabled = back.disabled = restore.disabled = false;
+    };
+    deleteBtn.addEventListener('click', () => confirmDeleteNwcBackup(doDelete));
 
     const card = h('div', { className: 'wallet-backup-card' }, [
       h('div', { className: 'wallet-backup-head' }, [
@@ -22152,21 +22234,13 @@
       staleNote,
       h('div', { className: 'wallet-backup-actions' }, [back, restore]),
       exportBtn,
+      deleteBtn,
     ]);
     wrap.append(card);
 
     (statePromise || nwcBackupState())
-      .then((r) => {
-        backupState = (r && r.state) || 'unknown';
-        status.textContent = NWC_BACKUP_LABEL[backupState] || NWC_BACKUP_LABEL.unknown;
-        status.classList.toggle('done', backupState === 'current');
-        status.classList.toggle('warn', backupState === 'stale');
-        staleNote.classList.toggle('hidden', backupState !== 'stale');
-      })
-      .catch(() => {
-        backupState = 'unknown';
-        status.textContent = NWC_BACKUP_LABEL.unknown;
-      });
+      .then((r) => showBackupState((r && r.state) || 'unknown'))
+      .catch(() => showBackupState('unknown'));
     // Only offer export when this account actually has a connection saved.
     call({ type: 'SIDECAR_HAS_NWC', pubkey: state.activePubkey })
       .then((r) => { if (r && r.has) show(exportBtn); })

@@ -12,6 +12,7 @@ has entries, and that heading becomes the version heading when the release is cu
 ## [Unreleased]
 
 ### Added
+- **You can delete your wallet backup from your relays.** A red Delete backup link in the Wallet tab’s Backup card asks first, then replaces the encrypted copy with an empty one and asks relays to forget it. Your connected wallet stays.
 - **The livestream chat has the composer’s emoji picker.** A smiley opens the same nine groups and search above the message field, and a pick goes in at the caret. Hide chat is now a chevron beside it.
 
 ### Changed
