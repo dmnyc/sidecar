@@ -18,6 +18,7 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Changed
 - **New installs start with auto-lock at 30 minutes, up from 15, and the PIN reminder lets you pick the time right away.** Existing installs keep the time they have.
 - **Snort joins the apps on the Welcome page.**
+- **Aqstr joins the apps on the Welcome page.**
 - **The “Use Sidecar” Lightning offer no longer names a site.** The choice covers every page, but the card said it was about whichever page you opened first, such as Google.
 - **A profile with both a Lightning address and a CLINK offer pays through a Lightning | CLINK switch.** The two buttons looked alike, so it was unclear which kind of payment was about to go out. The routes are now tabs above the pay panel, shown only when a profile has both, and the bolt reopens on the one you used last.
 
