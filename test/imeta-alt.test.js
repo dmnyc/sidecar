@@ -51,6 +51,8 @@ vm.runInContext(
   lift(/function buildImetaTag\(url, alt, extra\) \{[\s\S]*?\n  \}/, 'buildImetaTag') + '\n' +
   lift(/function imetaTagsForMedia\(media, opts\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
   lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
+  lift(/const QUOTE_REF_LINE = [^;]+;/, 'QUOTE_REF_LINE') + '\n' +
+  lift(/function splitTrailingQuote\(text\) \{[\s\S]*?\n  \}/, 'splitTrailingQuote') + '\n' +
   lift(/function stripDraftMediaUrls\(text, media\) \{[\s\S]*?\n  \}/, 'stripDraftMediaUrls') + '\n' +
   lift(/function loneMediaUrl\(text\) \{[\s\S]*?\n  \}/, 'loneMediaUrl') + '\n' +
   lift(/function urlOnBoundary\(lines, url\) \{[\s\S]*?\n  \}/, 'urlOnBoundary') + '\n' +
@@ -239,11 +241,12 @@ test('THE STRIP REORDERS BY MORE THAN DRAG', () => {
     const at = src.indexOf('compose-thumb-move');
     assert.ok(at > -1, name + ' never builds the steppers');
     const block = src.slice(at - 2200, at + 900);
-    assert.match(block, /if \(draft\.media\.length > 1\) \{/, name + ' offers steppers on a single thumb');
+    // Steppers are for pictures stepping past pictures: a note beside them is pinned at its end.
+    assert.match(block, /pictureCount\(draft\.media\) > 1\) \{/, name + ' offers steppers on a single thumb');
     assert.match(block, /closeAltEditor\(\); \/\/ flush first/, name + ' moves the row\'s slot before flushing it');
-    assert.match(block, /draft\.media\.splice\(i, 1\)\[0\]/, name + ' never splices');
-    assert.match(block, /if \(i > 0\) cell\.append\(step\(-1/, name + ' shows a left arrow at the first slot');
-    assert.match(block, /if \(i < draft\.media\.length - 1\) cell\.append\(step\(1/, name + ' shows a right arrow at the last slot');
+    assert.match(block, /movePicture\(draft\.media, i, i \+ dir\)/, name + ' never moves the picture');
+    assert.match(block, /canMovePicture\(draft\.media, i, -1\)\) cell\.append\(step\(-1/, name + ' shows a left arrow at the first slot');
+    assert.match(block, /canMovePicture\(draft\.media, i, 1\)\) cell\.append\(step\(1/, name + ' shows a right arrow at the last slot');
   }
   const sheet = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(sheet, /\.compose-thumb-move\.left \{ left: 3px; \}/);
@@ -271,8 +274,8 @@ test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
   // paintPoll's own call moved with it; the media mutations still live in the panel.
   const inCore = (coreBare.match(/paintEitherOr\(\);/g) || []).length;
   const inPanel = (panelBare.match(/paintEitherOr\(\);/g) || []).length;
-  assert.equal(inCore + inPanel, 7,
-    'paintPoll + the media mutations (uploads, removal, attach, stepper, a picked GIF) must repaint the pair, '
+  assert.equal(inCore + inPanel, 10,
+    'paintPoll + the media mutations (uploads, removal, attach, stepper, a picked GIF, a quote moved in, pasted or removed) must repaint the pair, '
     + 'found ' + inCore + ' in the core and ' + inPanel + ' in the panel');
 });
 
@@ -326,12 +329,13 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
   assert.match(panelBare, /const preview = stripDraftMediaUrls\(saved\.text, saved\.media\)/, 'the chooser previews the stripped text');
   for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
     assert.ok(!src.includes('appendMediaUrl'), name + ' still appends URLs into the editor');
-    // A single thumb does not need reordering; more than one drags.
-    assert.match(src, /cell\.draggable = draft\.media\.length > 1;/, name + ' never offers the drag');
-    assert.match(src, /draft\.media\.splice\(dragFrom, 1\)\[0\]/, name + ' never reorders on drop');
+    // A single picture does not need reordering; more than one drags. The note is pinned at
+    // its end, so a drop moves pictures among themselves (movePicture).
+    assert.match(src, /cell\.draggable = (window\.SidecarCore\.|SC\.)pictureCount\(draft\.media\) > 1;/, name + ' never offers the drag');
+    assert.match(src, /movePicture\(draft\.media, dragFrom, i\)/, name + ' never reorders on drop');
     // The drawer, built once and re-read from the live draft — the draft is rebound
     // when the account moves, so a captured array would go stale.
-    assert.match(src, /buildMediaDrawer\(\(\) => draft\.media\)/, name + ' never builds the reference drawer');
+    assert.match(src, /buildMediaDrawer\(\(\) => draft\.media[,)]/, name + ' never builds the reference drawer');
     assert.match(src, /mediaDrawer\.sync\(\)/, name + ' never syncs the drawer');
     // An upload fires no editor input, so the autosave is told by hand — and so is
     // the Post button, since media alone is postable: without this, a first upload
@@ -343,7 +347,7 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
     const taps = name === 'sidepanel.js'
       ? src.match(/scheduleSave\(\);\n\s*updatePostState\(\);\n\s*renderThumbs\(\);/g) || []
       : src.match(/scheduleSave\(\);\n\s*paintCount\(\);\n\s*renderThumbs\(\);/g) || [];
-    const want = name === 'sidepanel.js' ? 5 : 4;
+    const want = name === 'sidepanel.js' ? 8 : 7;
     assert.equal(taps.length, want, name + ' repaints the button at every media change (found ' + taps.length + ')');
   }
 });
@@ -356,11 +360,37 @@ test('THE REFERENCE DRAWER SAYS WHERE THE ATTACHMENTS GO', () => {
   assert.ok(at > -1, 'composer-core.js never builds the drawer');
   const fn = core.slice(at, core.indexOf('\n  }\n', at));
   assert.match(fn, /added to the end of your post/);
+  // A trailing quote is offered to the strip from this same drawer, never moved silently.
+  assert.match(fn, /compose-media-offer/, 'the offer lives in the drawer');
+  assert.match(fn, /opts\.onMoveQuote/, 'the page owns the move');
   assert.match(fn, /attachment/, 'the count, in words');
   // And the copy affordance rides the row, in the icon slot: a URL in a reference
   // drawer that cannot leave it is a tease.
-  assert.match(fn, /compose-media-copy/);
-  assert.match(fn, /navigator\.clipboard\.writeText\(m\.url\)/);
+  // The row is built once and shared with the pictures' own list in the strip.
+  assert.match(fn, /buildUrlRow\(m\.url\)/);
+  const row = core.slice(core.indexOf('function buildUrlRow'), core.indexOf('function buildAttachmentsLabel'));
+  assert.match(row, /compose-media-copy/);
+  assert.match(row, /copyWithCheck\(cp, url\)/);
+  assert.match(core.slice(core.indexOf('function copyWithCheck')), /navigator\.clipboard\.writeText\(text\)/);
+});
+
+test('THE QUOTE BLOCK COPIES ITS REFERENCE, AND THE ARROW ENDS BOTH ROWS', () => {
+  // The reference leaves the text field when it is pasted, so the block gives it back. The
+  // row reads copy, remove, move: the arrow is the last button in the quote's row and the
+  // only one in the pictures' row, so the two arrows share a column without a spacer.
+  const at = core.indexOf('function buildQuoteBlock');
+  const fn = core.slice(at, core.indexOf('const av = h(', at));
+  const order = ['copyWithCheck(copy, ref)', "actions.append(trash)", "iconBtn('arrow-up'", "iconBtn('arrow-down'"].map((x) => fn.indexOf(x));
+  assert.ok(order.every((i) => i > -1), 'copy, trash and both arrows are built');
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'copy, then remove, then the arrows');
+  const label = core.slice(core.indexOf('function buildAttachmentsLabel'), core.indexOf('function buildMediaDrawer'));
+  assert.doesNotMatch(label, /spacer/);
+  assert.match(label, /return \{ label, list \}/, 'the label goes above the pictures, the links below them');
+  // Both pages seat the links under the LAST picture, inside the pictures' block.
+  for (const src of [pageBare, panelBare]) {
+    assert.match(src, /picturesGroup\.list/);
+    assert.match(src, /i === lastPicture/);
+  }
 });
 
 test('A DECIDED NOTE IS NOT EDITABLE UNDER THE REVIEW WINDOW', () => {
@@ -570,7 +600,7 @@ test('THE ROW AUTOSAVES AS IT TYPES, AND EVERY EXIT COMMITS', () => {
       name + ' flushes into a spliced array');
     // Drag reorders flush BEFORE the splice, while the row's slot is still valid.
     const drag = src.slice(src.indexOf("closeAltEditor(); // flush first: the row's slot is still where it was opened"));
-    assert.ok(drag.indexOf('closeAltEditor(); // flush first') < drag.indexOf('draft.media.splice(dragFrom, 1)'),
+    assert.ok(drag.indexOf('closeAltEditor(); // flush first') < drag.indexOf('movePicture(draft.media, dragFrom, i)'),
       name + ' flushes the row after moving its slot under it');
   }
   // The panel's Post press and the tab's account switch are the two closes whose
@@ -640,7 +670,7 @@ test('THE ATTACHMENT OFFER IS WIRED IN BOTH COMPOSERS, GUARDED IN THE THIRD', ()
     assert.match(src, /removeUrlFromEditor\(/, name + ' never cuts the URL from the prose');
     // TYPED BY ITS OWN EXTENSION, not hardcoded false. Every pasted video used to enter
     // the draft claiming to be an image, which is what the thumbnail strip then drew.
-    assert.match(src, /draft\.media\.push\(\{ url, isVideo: (SC\.)?urlIsVideo\(url\) \}\)/,
+    assert.match(src, /addMedia\(draft\.media, \{ url, isVideo: (SC\.)?urlIsVideo\(url\) \}\)/,
       name + ' never adds the attachment, or types it wrong');
     assert.match(src, /\.sync\(\); \/\/ re-emit after the direct DOM cut/, name + ' never re-emits the prose');
   }
@@ -716,4 +746,15 @@ test('A THUMBNAIL THAT LOSES THE UPLOAD RACE IS RETRIED, THEN MARKED', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /\.compose-thumb\.is-broken \{[^}]*border: 1px dashed var\(--amber\)/s,
     'a failed thumbnail is indistinguishable from a loading one');
+});
+
+test('A LONG LINK TRUNCATES INSIDE THE CARD INSTEAD OF PUSHING THE COPY BUTTON OFF IT', () => {
+  // The pictures' list sits in a wrapping flex row. A flex item will not go narrower than its
+  // content, and a nowrap URL is hundreds of pixels of content, so without min-width: 0 the
+  // list grew to the longest link (848px on a 360px screen, copy buttons at x=869).
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  const rule = css.match(/\.compose-thumbs \.attach-group-list \{[^}]*\}/);
+  assert.ok(rule, 'the list has its rule');
+  assert.match(rule[0], /min-width: 0/);
+  assert.match(rule[0], /max-width: 100%/);
 });

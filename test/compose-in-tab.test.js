@@ -67,7 +67,10 @@ test('TEXT PASSED IN IS SEEDED BEFORE THE TAB OPENS', () => {
   // nudge and a quote-repost. Without seeding, both arrive in the tab as a blank note
   // and whatever they meant to say is gone.
   assert.match(composer, /if \(initialText && !\(slot && slot\.text && slot\.text\.trim\(\)\)\) \{/);
-  assert.match(composer, /text: initialText, savedAt: Date\.now\(\)/);
+  // A prefill that is a quote's reference becomes the quote block rather than a line of
+  // bech32 (seedFrom); any other prefill is the same words.
+  assert.match(composer, /text: seed\.text, media: \[/);
+  assert.match(composer, /const seed = seedFrom\(initialText\);/);
   // NEVER over what is already there: a draft in progress outranks a prefill.
   assert.match(composer, /!\(slot && slot\.text && slot\.text\.trim\(\)\)/);
 });

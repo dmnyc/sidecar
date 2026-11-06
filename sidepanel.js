@@ -39,7 +39,7 @@
   const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
-  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb } = window.SidecarCore;
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
   const { loneMediaUrl, removeUrlFromEditor, urlIsVideo } = window.SidecarCore;
 
@@ -13948,7 +13948,7 @@
     resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
     powSetting, postCountdownSetting,
     renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
-    paintCountdownNum,
+    paintCountdownNum, buildQuoteBlock,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
       // Said when the account's own Blossom servers took none of a file and nostr.build did.
@@ -14325,6 +14325,14 @@
     chrome.tabs.create({ url });
   }
 
+  // WHAT A PREFILL BECOMES. The Quote button hands in the note's reference on a line of its
+  // own; as a block under the field it shows the note being quoted rather than a line of
+  // bech32, the same as a pasted one. Any other prefill is the words it always was.
+  function seedFrom(text) {
+    const { head, quotes } = takeTrailingQuote(text || '');
+    return { text: head, media: quotes };
+  }
+
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
       toast(t('Add an account first'), 'error');
@@ -14382,7 +14390,8 @@
         // tab blank: those routes pass their text in rather than having it typed. Never
         // over what is already there, because a draft in progress outranks a prefill.
         if (initialText && !(slot && slot.text && slot.text.trim())) {
-          all[dk] = { ...(slot || { media: [] }), text: initialText, savedAt: Date.now() };
+          const seed = seedFrom(initialText);
+          all[dk] = { ...(slot || { media: [] }), text: seed.text, media: [...((slot && slot.media) || []), ...seed.media], savedAt: Date.now() };
           await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
         }
         await handOffToTab(dk, (opts && opts.replyTo) || null);
@@ -14422,7 +14431,7 @@
     // The end time is stored as a DURATION rather than a timestamp, because a draft
     // written on Monday and posted on Thursday should still run its full duration instead
     // of arriving three days spent. See pollEndsAtFor.
-    let draft = { text: initialText || '', media: [], replyTo, poll: null };
+    let draft = { ...seedFrom(initialText), replyTo, poll: null };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
@@ -14749,9 +14758,9 @@
       // which is the same thing the preview showed.
       // A bare reference becomes its nostr: form first, so it tags and renders (core).
       const prose = window.SidecarCore.linkBareRefs(draft.text.trim(), NT);
-      const content = composeNoteContent(prose, draft.media);
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      const content = composeNoteContent(prose, draft.media);
       // A reply carries its threading tags FIRST: NIP-10 readers take the first `e`
       // marked root as the thread, and NIP-22 scope is read positionally by some
       // clients. Mentions and quotes from the body follow, deduped against the
@@ -14763,7 +14772,8 @@
       // What the text tags: mentions, quoted authors, and the quotes themselves, deduped
       // against the threading. composer-core's, so the expanded tab tags the same note
       // the same way.
-      const body = window.SidecarCore.noteBodyTags(prose, NT, reply ? reply.tags : []);
+      // A quote moved into the strip is read from there too: the content carries it.
+      const body = window.SidecarCore.noteBodyTags(window.SidecarCore.proseWithQuotes(prose, draft.media), NT, reply ? reply.tags : []);
       const bodyP = body.p;
       const quotes = { tags: body.q };
       // DEV ONLY, and gated three ways like the kind override beside it: the build, the
@@ -14983,10 +14993,14 @@
 
       // Rich text box with @mention autocomplete, shared with the page-comment
       // modal. Edits flow back through onChange into the draft + Post button.
+      // The attachments drawer is built further down; an edit can land before it exists.
+      let syncDrawer = () => {};
       const mentionEditor = createMentionEditor({
         placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
         onChange: (text) => {
           draft.text = text;
+          // The quote offer appears only while the post ends on a quoted note.
+          syncDrawer();
           // An edit makes it a different note, so the repeat question no longer applies.
           if (repeatAsked) { repeatAsked = null; post.textContent = replyTo ? t('Reply') : t('Post'); err.textContent = ''; }
           updatePostState();
@@ -15000,7 +15014,7 @@
           // the prose line and keeps the existing entry — and its description —
           // rather than appending the image a second time.
           if (!draft.media.some((m) => m && m.url === url)) {
-            draft.media.push({ url, isVideo: urlIsVideo(url) });
+            window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url) });
           }
           mentionEditor.sync(); // re-emit after the direct DOM cut, so the draft agrees
           scheduleSave();
@@ -15072,9 +15086,51 @@
       // posted rather than after.
       const THUMB_RETRIES = 2;
       const THUMB_RETRY_MS = 600;
+      // The block for a quote in the strip. The order is the array's, edited in place: the
+      // drawer and the autosave read `draft.media` afresh, and the array is shared with them.
+      function quoteBlockFor(m, i) {
+        const moveTo = (dir) => {
+          const next = window.SidecarCore.moveQuoteEntry(draft.media, i, dir);
+          draft.media.splice(0, draft.media.length, ...next);
+          scheduleSave();
+          renderThumbs();
+        };
+        return buildQuoteBlock(m.quote, {
+          canUp: i > 0,
+          canDown: i < draft.media.length - 1,
+          onUp: () => moveTo(-1),
+          onDown: () => moveTo(1),
+          onRemove: () => {
+            draft.media.splice(i, 1);
+            closeAltEditor(false); // the row edits a media slot that no longer exists
+            scheduleSave();
+            updatePostState();
+            renderThumbs();
+            paintEitherOr();
+          },
+        });
+      }
       function renderThumbs() {
         thumbs.innerHTML = '';
+        const SCore = window.SidecarCore;
+        const qi = draft.media.findIndex((m) => m && m.quote);
+        const hasQuote = qi >= 0;
+        const firstPicture = draft.media.findIndex((m) => m && !m.quote);
+        const lastPicture = draft.media.map((m) => !!(m && !m.quote)).lastIndexOf(true);
+        // The arrow is the quote's, seen from the pictures: below the quote is the quote first.
+        const picturesGroup = hasQuote ? SCore.buildAttachmentsLabel(SCore.pictureCount(draft.media), {
+          urls: draft.media.filter((x) => x && x.url).map((x) => x.url),
+          canUp: qi === 0,
+          canDown: qi > 0,
+          onUp: () => { draft.media.splice(0, draft.media.length, ...SCore.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
+          onDown: () => { draft.media.splice(0, draft.media.length, ...SCore.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
+        }) : null;
         draft.media.forEach((m, i) => {
+          // A quoted note is a block, not a thumbnail: it is shown as the note it quotes,
+          // in the strip's order, and steps above or below the pictures with its own buttons.
+          if (m.quote) { thumbs.append(quoteBlockFor(m, i)); return; }
+          // Beside a quote the pictures are one block with a label and an arrow of their own.
+          if (picturesGroup && i === firstPicture) thumbs.append(picturesGroup.label);
           const cell = h('div', { className: 'compose-thumb' });
           const el = m.isVideo ? document.createElement('video') : document.createElement('img');
           // Match the rest of the app: many media hosts (e.g. Blossom) reject the
@@ -15132,7 +15188,7 @@
           // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the
           // editor and are appended at publish in this array's order, so with more
           // than one attachment the thumbs drag.
-          cell.draggable = draft.media.length > 1;
+          cell.draggable = window.SidecarCore.pictureCount(draft.media) > 1;
           cell.addEventListener('dragstart', (e) => {
             dragFrom = i;
             cell.classList.add('dragging');
@@ -15151,8 +15207,7 @@
             cell.classList.remove('drop-target');
             if (dragFrom === -1 || dragFrom === i) return;
             closeAltEditor(); // flush first: the row's slot is still where it was opened
-            const moved = draft.media.splice(dragFrom, 1)[0];
-            draft.media.splice(i, 0, moved);
+            draft.media.splice(0, draft.media.length, ...window.SidecarCore.movePicture(draft.media, dragFrom, i));
             dragFrom = -1;
             scheduleSave();
             renderThumbs();
@@ -15180,24 +15235,22 @@
             // had none either; the steppers are the cheapest reorder there is, and
             // they are buttons, which touch and Tab both reach. The ends hide theirs,
             // because a disabled arrow is a control answering "you can't".
-            if (draft.media.length > 1) {
+            if (window.SidecarCore.pictureCount(draft.media) > 1) {
               const step = (dir, label) => {
                 const b = h('button', { className: 'compose-thumb-move ' + (dir < 0 ? 'left' : 'right'), title: label, type: 'button' });
                 b.append(icon(dir < 0 ? 'arrow-left' : 'arrow-right'));
                 b.addEventListener('click', () => {
-                  const to = i + dir;
-                  if (to < 0 || to >= draft.media.length) return;
+                  if (!window.SidecarCore.canMovePicture(draft.media, i, dir)) return;
                   closeAltEditor(); // flush first: the row's slot is still where it was opened
-                  const movedItem = draft.media.splice(i, 1)[0];
-                  draft.media.splice(to, 0, movedItem);
+                  draft.media.splice(0, draft.media.length, ...window.SidecarCore.movePicture(draft.media, i, i + dir));
                   scheduleSave();
                   renderThumbs();
                   paintEitherOr();
                 });
                 return b;
               };
-              if (i > 0) cell.append(step(-1, t('Move earlier')));
-              if (i < draft.media.length - 1) cell.append(step(1, t('Move later')));
+              if (window.SidecarCore.canMovePicture(draft.media, i, -1)) cell.append(step(-1, t('Move earlier')));
+              if (window.SidecarCore.canMovePicture(draft.media, i, 1)) cell.append(step(1, t('Move later')));
             }
           const rm = h('button', { className: 'compose-thumb-x', title: t('Remove') });
           rm.append(icon('trash'));
@@ -15213,14 +15266,35 @@
           });
           cell.append(rm);
           thumbs.append(cell);
+          // The pictures' links close their block, under the last of them.
+          if (picturesGroup && i === lastPicture) thumbs.append(picturesGroup.list);
         });
         mediaDrawer.sync();
       }
       // The attachments' reference drawer, seated between the strip and whatever
-      // row comes next: collapsed it is one line saying where the attachments go.
+      // row comes next: collapsed it is one line saying how many attachments there are,
+      // and the one place a trailing quote is offered to the strip.
       // Appended as a sibling in the modal's own list — a thumbs.after() here would
       // run while thumbs is still detached and never reach the document.
-      const mediaDrawer = buildMediaDrawer(() => draft.media);
+      const mediaDrawer = buildMediaDrawer(() => draft.media, {
+        getText: () => draft.text,
+        // THE QUOTE MOVES INTO THE STRIP: cut from the end of the words, appended as a card
+        // after the pictures (the order that shows them as part of the post), and from
+        // there it drags and steps like any of them. The editor is re-read after the cut
+        // so the draft agrees with what is on screen.
+        onMoveQuote: () => {
+          const { head, quotes } = takeTrailingQuote(draft.text, draft.media);
+          if (!quotes.length) return;
+          mentionEditor.setText(head);
+          mentionEditor.sync();
+          draft.media.push(...quotes);
+          scheduleSave();
+          updatePostState();
+          renderThumbs();
+          paintEitherOr();
+        },
+      });
+      syncDrawer = () => mediaDrawer.sync();
       renderThumbs();
 
       // ---- the ALT editor, one image at a time ----
@@ -15293,7 +15367,7 @@
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
           // A video carries its type and pixel size into its imeta tag; an image gets {}.
-          draft.media.push({ url, isVideo: file.type.startsWith('video/'), ...(await readVideoMeta(file)) });
+          window.SidecarCore.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...(await readVideoMeta(file)) });
           scheduleSave();
           updatePostState();
           renderThumbs();
@@ -15315,6 +15389,19 @@
         if (imageFiles.length === 0) {
           e.preventDefault();
           const plain = e.clipboardData.getData('text/plain');
+          // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
+          // or naddr references becomes a block under the field, showing the note, so there is
+          // something to check it against and it can be put above or below the pictures. A poll
+          // carries no attachments, so there it pastes as the text it is.
+          const quotes = draft.poll ? [] : quoteEntriesFromPaste(plain, draft.media);
+          if (quotes.length) {
+            draft.media.push(...quotes);
+            scheduleSave();
+            updatePostState();
+            renderThumbs();
+            paintEitherOr();
+            return;
+          }
           if (plain) document.execCommand('insertText', false, plain);
           return;
         }
@@ -15329,7 +15416,7 @@
         try {
           for (const file of imageFiles) {
             const url = await uploadMedia(file, pubkey, { pasted: true });
-            draft.media.push({ url, isVideo: urlIsVideo(url) });
+            window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();
           updatePostState();
@@ -15385,7 +15472,7 @@
           if (!draft.media.some((m) => m && m.url === gif.url)) {
             // The GIF's own title as its description to start from: nostr.build names
             // each one, and a GIF with no alt text is a blank to a screen reader.
-            draft.media.push({ url: gif.url, isVideo: false, alt: gif.title || '' });
+            window.SidecarCore.addMedia(draft.media, { url: gif.url, isVideo: false, alt: gif.title || '' });
           }
           scheduleSave();
           updatePostState();
@@ -15731,7 +15818,7 @@
         // The target you ARRIVED with, not the saved one. Discarding an old draft must
         // not also discard the Reply you just tapped to get here.
         replyTo = (opts && opts.replyTo) || null;
-        draft = { text: initialText || '', media: [], replyTo, poll: null };
+        draft = { ...seedFrom(initialText), replyTo, poll: null };
         showEditor();
       });
 
@@ -23699,6 +23786,10 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showClientTag: e.target.checked } });
   });
 
+  $('videoimeta-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { videoImeta: e.target.checked } });
+  });
+
   $('datasync-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { confirmDataSync: e.target.checked } });
   });
@@ -23786,10 +23877,6 @@
   // worth redrawing for.
   $('quotes-toggle').addEventListener('change', async (e) => {
     showQuotes = e.target.checked;
-  $('videoimeta-toggle').addEventListener('change', async (e) => {
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { videoImeta: e.target.checked } });
-  });
-
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { literaryQuotes: e.target.checked } });
   });
 

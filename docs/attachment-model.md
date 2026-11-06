@@ -119,28 +119,53 @@ Make it **read-only**. The order it shows is the thumbnails' order, and reorderi
 belongs to the thumbnails. Two places to change one array is two places to keep in
 step and a race when both are open.
 
-## What this buys, in order of how much it matters
+## A quote in the strip
 
-- The editor holds only what the person wrote.
-- Preview is now meaningfully different from the editor, and therefore worth having.
-- Reordering is an array splice instead of a text transformation.
-- Per-attachment metadata has an obvious home, and follows its attachment.
-- Removing an attachment is `splice(i, 1)`, with no text to clean up.
+The strip is two blocks: the pictures and videos, in their own order, and one quoted note.
+The only choice is which comes first, and the post is the words, then the first block, then
+the second.
 
-## Things that will bite
+The note is one entry in `draft.media`, `{ quote: 'nostr:nevent…' }`, pinned to the front or
+the back of the array. It is drawn as a block under the text field, the reply block's look
+(the gold rule, the author, the text clipped at 240 characters with Show more), found
+through the same lookup the preview uses and remembered for the life of the page so a redraw
+never blinks back to "Loading". The preview pane reads the same cache (`findEvent` remembers a found note for the life of the page and shares a lookup already in flight), so moving the quote does not send the relays a second request. A miss is never remembered. A note that cannot be found says so and is still quoted: the
+published line is the reference, not what was fetched.
 
-- **Preview must call `composeNoteContent`.** If Preview renders `text`, it shows a
-  different note than the one that publishes, which is the original fault wearing a
-  different hat.
-- **The uploading state must not resize the toolbar.** Swapping a button's label to
-  "Uploading…" widens it, and neighbouring buttons that size to their labels shrink.
-  Keep the label and animate it instead.
-- **A just-uploaded URL can 404 for a second or two** while the host finishes
-  writing it. An `<img>` tries exactly once, so the thumbnail is blank forever. Retry
-  a couple of times with a cache-busting query, then say the cell failed. This
-  matters more than a blank square: the URL is in the draft either way and will be
-  appended at publish, so a silently failed thumbnail is a note about to ship a link
-  nobody checked.
-- **Two composers drift.** If a panel and a full-tab composer share the model, put
-  `composeNoteContent`, the tag builder and the drawer in a shared module and have
-  both call it. Anything either one reimplements will diverge.
+Beside a quote the pictures get a label of their own ("2 attachments") with an arrow, and
+the label is also the toggle for their links: a chevron opens the list of URLs, with a copy
+button on each, under the last picture and inside the pictures' block, so the links travel
+with the pictures when the blocks swap. (With no quote the strip is one block and the
+reference drawer below it does the same job.) Either block moves the other's way: the note's
+arrow takes it above or below all the pictures at once, and the pictures' arrow does the same
+from the other side (`moveQuoteEntry`). Pictures step and drag among themselves only
+(`movePicture`, `canMovePicture`), never past the note, and a new attachment lands on the
+pictures' side of it (`addMedia`).
+
+The note's row reads copy, remove, move. Copy puts the `nostr:` reference back on the
+clipboard, since pasting it removed it from the text field. The move arrow ends the row, so
+it shares a column with the pictures' arrow and does not jump when the blocks swap. Removing
+the quote takes two taps (the first arms the trash, red, for three seconds): the block holds
+only a reference, and pasting the note again is the only way back.
+
+In the expanded composer the thumbnails are 128px, five across the card; the panel keeps 72px.
+
+**One note only.** Pasting a lone note1, nevent1 or naddr reference, with or without
+`nostr:`, becomes the block. Anything else pastes as the text it is: a sentence with a
+reference in it, two different notes, or a second note while one is attached. The Quote
+button's prefill becomes the block the same way. A quote already written into the words is
+offered to the strip ("Move the quote into the attachments", in the drawer, only with
+attachments on the post, only when the words end on a lone quote line and nothing else
+follows); it is never moved silently, and a quote left in the words publishes exactly as it
+always did.
+
+Publishing writes the words, then the strip in order, one line per entry and a blank line
+wherever the kind changes (`composeNoteContent`). The q and p tags are read from the words
+plus the strip's quote (`proseWithQuotes`), so the quote is tagged as one, once. The note
+describes no file, so it makes no imeta tag. A poll cannot be built while the strip has
+anything in it (the either-or rule), so a paste into a poll is text.
+
+## Video details
+
+An uploaded video's imeta tag carries its type and pixel size (`m`, `dim`), read from
+the file before it goes up. Settings turns it off with `videoImeta`.

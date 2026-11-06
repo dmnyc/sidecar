@@ -1099,7 +1099,8 @@
       // every author quoted, and a q tag for every note quoted. This page went without
       // them from its first release, so a mention written here never notified anyone
       // and a quote did not read as one.
-      const body = SC.noteBodyTags(text, NT, reply ? reply.tags : []);
+      // A quote moved into the strip is read from there too: the content carries it.
+      const body = SC.noteBodyTags(SC.proseWithQuotes(text, draft.media), NT, reply ? reply.tags : []);
       const clientTag = settings.showClientTag === false ? [] : [['client', 'Sidecar']];
       // DEV ONLY: silent p tags, deduped against the threading and the text's own.
       const replyP = new Set((reply ? reply.tags : []).filter((tg) => tg[0] === 'p').map((tg) => tg[1]));
@@ -1445,6 +1446,30 @@
   }
 
   // ---- thumbnails for what has been uploaded ----
+  // The block for a quote in the strip. The order is the array's, edited in place: the
+  // drawer and the autosave read `draft.media` afresh, and the array is shared with them.
+  function quoteBlockFor(m, i) {
+    const moveTo = (dir) => {
+      const next = SC.moveQuoteEntry(draft.media, i, dir);
+      draft.media.splice(0, draft.media.length, ...next);
+      scheduleSave();
+      renderThumbs();
+    };
+    return composer.buildQuoteBlock(m.quote, {
+      canUp: i > 0,
+      canDown: i < draft.media.length - 1,
+      onUp: () => moveTo(-1),
+      onDown: () => moveTo(1),
+      onRemove: () => {
+        draft.media.splice(i, 1);
+        closeAltEditor(false); // the row edits a media slot that no longer exists
+        scheduleSave();
+        paintCount();
+        renderThumbs();
+      },
+    });
+  }
+
   function renderThumbs() {
     const host = $('compose-thumbs');
     host.innerHTML = '';
@@ -1456,7 +1481,24 @@
     paintPreview();
     // Where a dragged thumb will land, across renderThumbs' rebuilds.
     let dragFrom = -1;
+    const qi = draft.media.findIndex((m) => m && m.quote);
+    const hasQuote = qi >= 0;
+    const firstPicture = draft.media.findIndex((m) => m && !m.quote);
+    const lastPicture = draft.media.map((m) => !!(m && !m.quote)).lastIndexOf(true);
+    // The arrow is the quote's, seen from the pictures: below the quote is the quote first.
+    const picturesGroup = hasQuote ? SC.buildAttachmentsLabel(SC.pictureCount(draft.media), {
+      urls: draft.media.filter((x) => x && x.url).map((x) => x.url),
+      canUp: qi === 0,
+      canDown: qi > 0,
+      onUp: () => { draft.media.splice(0, draft.media.length, ...SC.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
+      onDown: () => { draft.media.splice(0, draft.media.length, ...SC.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
+    }) : null;
     draft.media.forEach((m, i) => {
+      // A quoted note is a block, not a thumbnail: it is shown as the note it quotes, in
+      // the strip's order, and steps above or below the pictures with its own buttons.
+      if (m.quote) { host.append(quoteBlockFor(m, i)); return; }
+      // Beside a quote the pictures are one block with a label and an arrow of their own.
+      if (picturesGroup && i === firstPicture) host.append(picturesGroup.label);
       const cell = h('div', { className: 'compose-thumb' });
       const el = document.createElement(m.isVideo ? 'video' : 'img');
       // Many media hosts reject a chrome-extension:// referrer and answer 403, which
@@ -1479,7 +1521,7 @@
       // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the editor
       // and are appended at publish in this array's order, so with more than one
       // attachment the thumbs drag.
-      cell.draggable = draft.media.length > 1;
+      cell.draggable = SC.pictureCount(draft.media) > 1;
       cell.addEventListener('dragstart', (e) => {
         dragFrom = i;
         cell.classList.add('dragging');
@@ -1498,8 +1540,7 @@
         cell.classList.remove('drop-target');
         if (dragFrom === -1 || dragFrom === i) return;
         closeAltEditor(); // flush first: the row's slot is still where it was opened
-        const moved = draft.media.splice(dragFrom, 1)[0];
-        draft.media.splice(i, 0, moved);
+        draft.media.splice(0, draft.media.length, ...SC.movePicture(draft.media, dragFrom, i));
         dragFrom = -1;
         scheduleSave();
         renderThumbs();
@@ -1526,23 +1567,21 @@
       // had none either; the steppers are the cheapest reorder there is, and
       // they are buttons, which touch and Tab both reach. The ends hide theirs,
       // because a disabled arrow is a control answering "you can't".
-      if (draft.media.length > 1) {
+      if (SC.pictureCount(draft.media) > 1) {
         const step = (dir, label) => {
           const b = h('button', { className: 'compose-thumb-move ' + (dir < 0 ? 'left' : 'right'), title: label, type: 'button' });
           b.append(icon(dir < 0 ? 'arrow-left' : 'arrow-right'));
           b.addEventListener('click', () => {
-            const to = i + dir;
-            if (to < 0 || to >= draft.media.length) return;
+            if (!SC.canMovePicture(draft.media, i, dir)) return;
             closeAltEditor(); // flush first: the row's slot is still where it was opened
-            const movedItem = draft.media.splice(i, 1)[0];
-            draft.media.splice(to, 0, movedItem);
+            draft.media.splice(0, draft.media.length, ...SC.movePicture(draft.media, i, i + dir));
             scheduleSave();
             renderThumbs();
           });
           return b;
         };
-        if (i > 0) cell.append(step(-1, t('Move earlier')));
-        if (i < draft.media.length - 1) cell.append(step(1, t('Move later')));
+        if (SC.canMovePicture(draft.media, i, -1)) cell.append(step(-1, t('Move earlier')));
+        if (SC.canMovePicture(draft.media, i, 1)) cell.append(step(1, t('Move later')));
       }
       const rm = h('button', { className: 'compose-thumb-x', title: t('Remove'), type: 'button' });
       rm.append(icon('trash'));
@@ -1557,13 +1596,32 @@
       });
       cell.append(rm);
       host.append(cell);
+      // The pictures' links close their block, under the last of them.
+      if (picturesGroup && i === lastPicture) host.append(picturesGroup.list);
     });
     mediaDrawer.sync();
   }
 
   // The attachments' reference drawer, seated between the strip and whatever row
-  // comes next: collapsed it is one line saying where the attachments go.
-  const mediaDrawer = SC.buildMediaDrawer(() => draft.media);
+  // comes next: collapsed it is one line saying how many attachments there are, and the
+  // one place a trailing quote is offered to the strip.
+  const mediaDrawer = SC.buildMediaDrawer(() => draft.media, {
+    getText: () => draft.text,
+    // THE QUOTE MOVES INTO THE STRIP: cut from the end of the words, appended as a card
+    // after the pictures (the order that shows them as part of the post), and from there
+    // it drags and steps like any of them. The editor is re-read after the cut so the
+    // draft agrees with what is on screen.
+    onMoveQuote: () => {
+      const { head, quotes } = SC.takeTrailingQuote(draft.text, draft.media);
+      if (!quotes.length) return;
+      editorApi.setText(head);
+      editorApi.sync();
+      draft.media.push(...quotes);
+      scheduleSave();
+      paintCount();
+      renderThumbs();
+    },
+  });
   $('compose-thumbs').after(mediaDrawer.wrap);
 
   // ---- the ALT editor, one image at a time ----
@@ -1658,7 +1716,7 @@
           // postable) have to be told by hand.
           // A video carries its type and pixel size into its imeta tag (SC.readVideoMeta);
           // an image has nothing to add and gets {}.
-          draft.media.push({ url, isVideo: file.type.startsWith('video/'), ...(await SC.readVideoMeta(file)) });
+          SC.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...(await SC.readVideoMeta(file)) });
         }
         scheduleSave();
         paintCount();
@@ -1697,7 +1755,7 @@
         if (draft.poll) return;
         if (!draft.media.some((m) => m && m.url === gif.url)) {
           // The GIF's own title as its description to start from, as in the panel.
-          draft.media.push({ url: gif.url, isVideo: false, alt: gif.title || '' });
+          SC.addMedia(draft.media, { url: gif.url, isVideo: false, alt: gif.title || '' });
         }
         scheduleSave();
         paintCount();
@@ -1852,6 +1910,8 @@
         // An edit makes it a different note, so the repeat question no longer applies.
         if (repeatAsked) { repeatAsked = null; $('compose-err').textContent = ''; }
         paintCount();
+        // The quote offer appears only while the post ends on a quoted note.
+        mediaDrawer.sync();
         scheduleSave();
       },
       // A URL pasted on its own becomes a real attachment: cut from the prose,
@@ -1862,7 +1922,7 @@
         // the prose line and keeps the existing entry — and its description —
         // rather than appending the image a second time.
         if (!draft.media.some((m) => m && m.url === url)) {
-          draft.media.push({ url, isVideo: SC.urlIsVideo(url) });
+          SC.addMedia(draft.media, { url, isVideo: SC.urlIsVideo(url) });
         }
         editorApi.sync(); // re-emit after the direct DOM cut, so the draft agrees
         scheduleSave();
@@ -1886,6 +1946,18 @@
       e.preventDefault();
       if (!images.length) {
         const plain = e.clipboardData && e.clipboardData.getData('text/plain');
+        // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
+        // or naddr references becomes a block under the field, showing the note, so there is
+        // something to check it against and it can be put above or below the pictures. A poll
+        // carries no attachments, so there it pastes as the text it is.
+        const quotes = draft.poll ? [] : SC.quoteEntriesFromPaste(plain, draft.media);
+        if (quotes.length) {
+          draft.media.push(...quotes);
+          scheduleSave();
+          paintCount();
+          renderThumbs();
+          return;
+        }
         if (plain) document.execCommand('insertText', false, plain);
         return;
       }

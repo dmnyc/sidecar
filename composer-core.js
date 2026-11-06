@@ -412,7 +412,7 @@ window.SidecarCore = (function () {
       // uploader tries Blossom first. Every one of them is a name that used to be in the
       // panel's scope for free.
       renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
-      paintCountdownNum,
+      paintCountdownNum, buildQuoteBlock,
     };
   }
 
@@ -1849,11 +1849,138 @@ window.SidecarCore = (function () {
   // What the note says on the wire, and what the preview should show: the one place
   // prose and attachments meet again, so the review window previews the note that
   // will actually go out rather than the half of it the editor was showing.
+  //
+  // THE STRIP IS THE ORDER. An entry is a file URL or a quoted note (`{ quote: 'nostr:…' }`,
+  // the card a trailing quote becomes when it is moved in), and they publish in the
+  // strip's order after the person's words: one line each, a blank line wherever the kind
+  // changes, so a quote always starts its own paragraph the way a written one does.
   function composeNoteContent(text, media) {
     const prose = String(text || '').trim();
-    const urls = (media || []).map((m) => m && m.url).filter(Boolean);
-    if (!urls.length) return prose;
-    return (prose ? prose + '\n\n' : '') + urls.join('\n');
+    const groups = [];
+    let last = '';
+    for (const m of media || []) {
+      const line = m && (m.url || m.quote);
+      if (!line) continue;
+      const kind = m.url ? 'url' : 'quote';
+      if (kind === last) groups[groups.length - 1].push(line); else groups.push([line]);
+      last = kind;
+    }
+    return [prose, ...groups.map((g) => g.join('\n'))].filter(Boolean).join('\n\n');
+  }
+
+  // What the note's tags are read from: the words, and every quoted note the strip
+  // holds. The q and p tags come from the content a reader will see, not from the editor
+  // alone, or a quote moved into the strip would stop being tagged as one.
+  function proseWithQuotes(prose, media) {
+    const quotes = (media || []).map((m) => m && m.quote).filter(Boolean);
+    return [String(prose || ''), ...quotes].filter(Boolean).join('\n');
+  }
+
+  // ---- a quote that ends the post, offered to the strip ----
+  //
+  // A quote draft ends on a nostr: reference, and the attachments are appended after it.
+  // Some clients draw a note's images from where they sit in the text, and a picture
+  // below the quoted card ends up looking like part of the quote or lost beneath it. So
+  // the strip can hold the quote too, and the order is whatever the person drags it to.
+  //
+  // THE QUOTE IS ONLY OFFERED WHEN IT ENDS THE POST: whole lines of nostr: note, nevent
+  // or naddr references (a bare one counts, linkBareRefs links it before publish) and
+  // nothing else after them. A mention (npub), a reference in the middle of a sentence, or
+  // text written under the quote leaves the order exactly as it always was.
+  const QUOTE_REF_LINE = /^\s*(?:(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+\s*)+$/;
+
+  function splitTrailingQuote(text) {
+    const whole = String(text || '').trim();
+    const lines = whole.split('\n');
+    let at = lines.length;
+    // Blank lines between two quotes belong to the tail; the first line that is neither
+    // blank nor a reference ends it.
+    while (at > 0 && (!lines[at - 1].trim() || QUOTE_REF_LINE.test(lines[at - 1]))) at--;
+    const tail = lines.slice(at).join('\n').trim();
+    if (!tail) return { head: whole, tail: '' };
+    return { head: lines.slice(0, at).join('\n').trim(), tail };
+  }
+
+  // The trailing quote taken out of the text, as a strip entry. `head` is what stays in the
+  // editor. ONE NOTE ONLY: the strip holds a single quote, so a tail naming two different
+  // notes is left alone as text, and so is a quote when the strip already has one. The
+  // reference is normalized to its nostr: form, which is what gets published; the same
+  // note written twice is still one note.
+  function takeTrailingQuote(text, media) {
+    const whole = String(text || '');
+    if ((media || []).some((m) => m && m.quote)) return { head: whole, quotes: [] };
+    const { head, tail } = splitTrailingQuote(whole);
+    const refs = tail.match(/(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+/g) || [];
+    const distinct = [...new Set(refs.map((r) => 'nostr:' + r.replace(/^nostr:/, '')))];
+    if (distinct.length !== 1) return { head: whole, quotes: [] };
+    return { head, quotes: [{ quote: distinct[0] }] };
+  }
+
+  // A paste that is nothing but one quoted note: a note1, nevent1 or naddr reference, with or
+  // without nostr:. That is a person bringing a note in to quote it, so it becomes a block
+  // under the field instead of a line of bech32. Anything else (a sentence with a reference
+  // in it, a mention, a URL, or two different notes) is not recognized and pastes as the text
+  // it is: the strip quotes one note, and a paste never picks between two. Returns the entry
+  // in the nostr: form that publishes, or [] when there is nothing to quote; and [] when the
+  // strip already holds a quote, because a second paste does not silently replace the first.
+  function quoteEntriesFromPaste(text, media) {
+    if ((media || []).some((m) => m && m.quote)) return [];
+    const raw = String(text || '').trim();
+    if (!raw) return [];
+    const toks = raw.split(/\s+/);
+    const ref = /^(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+$/;
+    if (!toks.every((tk) => ref.test(tk))) return [];
+    const distinct = [...new Set(toks.map((tk) => 'nostr:' + tk.replace(/^nostr:/, '')))];
+    return distinct.length === 1 ? [{ quote: distinct[0] }] : [];
+  }
+
+  // THE STRIP IS TWO BLOCKS: the pictures (and videos), in their own order, and the quoted
+  // note. The only question is which comes first, so the note is pinned to one end and the
+  // pictures reorder among themselves, never past it. Everything below keeps that true.
+
+  // The note to the front or to the back. Returns a new array (the same one when it is
+  // already there, or when there is nothing to go past).
+  function moveQuoteEntry(media, index, dir) {
+    const list = Array.isArray(media) ? media : [];
+    const q = list[index];
+    if (!q || !q.quote || list.length < 2) return list;
+    if (dir < 0 ? index === 0 : index === list.length - 1) return list;
+    const rest = list.slice(0, index).concat(list.slice(index + 1));
+    return dir < 0 ? [q, ...rest] : [...rest, q];
+  }
+
+  // A picture moved from one slot to another, the note staying at its end. `from` and `to`
+  // are indexes into `media`; either one naming the note moves nothing.
+  function movePicture(media, from, to) {
+    const list = Array.isArray(media) ? media : [];
+    if (!list[from] || !list[to] || list[from].quote || list[to].quote) return list;
+    const q = list.findIndex((m) => m && m.quote);
+    const pics = list.filter((m) => !(m && m.quote));
+    const pf = from - (q >= 0 && q < from ? 1 : 0);
+    const pt = to - (q >= 0 && q < to ? 1 : 0);
+    const [moved] = pics.splice(pf, 1);
+    pics.splice(pt, 0, moved);
+    if (q < 0) return pics;
+    return q === 0 ? [list[q], ...pics] : [...pics, list[q]];
+  }
+
+  // Whether the picture at `i` has another picture to step past in that direction.
+  function canMovePicture(media, i, dir) {
+    const list = Array.isArray(media) ? media : [];
+    const j = i + dir;
+    return !!list[i] && !list[i].quote && j >= 0 && j < list.length && !(list[j] && list[j].quote);
+  }
+
+  function pictureCount(media) {
+    return (media || []).filter((m) => m && !m.quote).length;
+  }
+
+  // A new attachment goes in with the pictures: when the note is last it goes in ahead of
+  // it, which keeps the pictures-then-note order that was already chosen. Edits in place.
+  function addMedia(media, entry) {
+    const last = media.length - 1;
+    if (last >= 0 && media[last] && media[last].quote) media.splice(last, 0, entry);
+    else media.push(entry);
   }
 
   // Drafts saved before the URLs moved out of the editor carry them in the saved
@@ -2204,6 +2331,72 @@ window.SidecarCore = (function () {
     return cover;
   }
 
+  // The copy icon's feedback, shared by every copy button in the composer: the clipboard
+  // write, then a check mark for about a second. A failed write changes nothing.
+  function copyWithCheck(btn, text) {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.innerHTML = '';
+      btn.append(icon('check'));
+      btn.classList.add('did');
+      setTimeout(() => {
+        btn.innerHTML = '';
+        btn.append(icon('copy'));
+        btn.classList.remove('did');
+      }, 900);
+    }).catch(() => {});
+  }
+
+  // One row per link: the URL, truncated, and a copy button in the icon slot. The rows of
+  // the reference drawer and of the pictures' own list are this.
+  function buildUrlRow(url) {
+    const rowEl = h('div', { className: 'compose-media-row' });
+    const u = h('span', { className: 'compose-media-url', textContent: url });
+    u.title = url;
+    const cp = h('button', { className: 'compose-media-copy', title: t('Copy link'), type: 'button' });
+    cp.setAttribute('aria-label', t('Copy link'));
+    cp.append(icon('copy'));
+    cp.addEventListener('click', () => copyWithCheck(cp, url));
+    rowEl.append(u, cp);
+    return rowEl;
+  }
+
+  // The pictures' own block in the strip, shown only while a quote is attached beside them
+  // (the strip is then two blocks and each one says what it is and which way it can go).
+  // Returns { label, list }: the label goes above the first picture, the list of links
+  // below the last, so the links stay with the pictures they belong to when the blocks swap.
+  // The label's chevron opens the list; whether it is open outlives the strip's repaints.
+  // The arrow is the quote block's, seen from the other side: the pictures going below the
+  // note is the note going above them. It ends the row, in the same column as the quote
+  // block's own arrow.
+  let attachmentUrlsOpen = false;
+  function buildAttachmentsLabel(count, ctl) {
+    const c = ctl || {};
+    const urls = (c.urls || []).filter(Boolean);
+    const list = h('div', { className: 'compose-media-drawer attach-group-list' });
+    for (const u of urls) list.append(buildUrlRow(u));
+    const toggle = h('button', { className: 'attach-group-toggle', type: 'button' });
+    const paintOpen = () => {
+      list.classList.toggle('hidden', !attachmentUrlsOpen);
+      toggle.classList.toggle('open', attachmentUrlsOpen);
+      toggle.setAttribute('aria-expanded', attachmentUrlsOpen ? 'true' : 'false');
+    };
+    toggle.append(icon('chevron-down'), h('span', { textContent: tn('{{count}} attachment', '{{count}} attachments', count) }));
+    toggle.addEventListener('click', () => { attachmentUrlsOpen = !attachmentUrlsOpen; paintOpen(); });
+    paintOpen();
+    const actions = h('span', { className: 'quote-block-actions' });
+    const btn = (name, title, fn) => {
+      const b = h('button', { className: 'quote-block-btn', title, type: 'button' });
+      b.setAttribute('aria-label', title);
+      b.append(icon(name));
+      b.addEventListener('click', fn);
+      return b;
+    };
+    if (c.canUp) actions.append(btn('arrow-up', t('Move above the quote'), c.onUp));
+    if (c.canDown) actions.append(btn('arrow-down', t('Move below the quote'), c.onDown));
+    const label = h('div', { className: 'attach-group-label' }, [toggle, actions]);
+    return { label, list };
+  }
+
   // The attachments' reference drawer: one collapsed line saying how many and where
   // they go, expanding to one row per attachment — the URL, truncated, with a copy
   // button in the icon slot. Read-only on purpose: the order shown is the thumbs'
@@ -2217,42 +2410,31 @@ window.SidecarCore = (function () {
     const label = h('span', { className: 'compose-media-toggle-label' });
     toggle.append(chev, label);
     const drawer = h('div', { className: 'compose-media-drawer hidden' });
-    wrap.append(toggle, drawer);
+    // THE QUOTE OFFER, only when it means something: attachments are on the post and the
+    // words end on a quoted note. One tap moves the quote into the strip, where it is a
+    // card that reorders with the images (the order of the strip is the order of the post).
+    // Never done silently: a quote that stays in the text works exactly as it always did.
+    // `opts.getText` reads the live prose; `opts.onMoveQuote` is the page's move.
+    const offer = h('button', { className: 'compose-media-offer', type: 'button', textContent: t('Move the quote into the attachments') });
+    offer.addEventListener('click', () => { if (opts && opts.onMoveQuote) opts.onMoveQuote(); });
+    wrap.append(toggle, offer, drawer);
 
     function sync() {
       const media = (getMedia && getMedia()) || [];
       const urls = media.filter((m) => m && m.url);
-      if (!urls.length) {
+      // With a quote in the strip the pictures carry their own label and list of links.
+      if (!urls.length || media.some((m) => m && m.quote)) {
         wrap.classList.add('hidden');
         drawer.classList.add('hidden');
         toggle.classList.remove('open');
         return;
       }
       wrap.classList.remove('hidden');
-      label.textContent = urls.length + (urls.length === 1 ? ' attachment' : ' attachments')
-        + ' — added to the end of your post';
+      const quoted = !!(opts && opts.getText && takeTrailingQuote(opts.getText(), media).quotes.length);
+      offer.classList.toggle('hidden', !quoted);
+      label.textContent = tn('{{count}} attachment, added to the end of your post', '{{count}} attachments, added to the end of your post', urls.length);
       drawer.innerHTML = '';
-      for (const m of urls) {
-        const rowEl = h('div', { className: 'compose-media-row' });
-        const u = h('span', { className: 'compose-media-url', textContent: m.url });
-        u.title = m.url;
-        const cp = h('button', { className: 'compose-media-copy', title: t('Copy link'), type: 'button' });
-        cp.append(icon('copy'));
-        cp.addEventListener('click', () => {
-          navigator.clipboard.writeText(m.url).then(() => {
-            cp.innerHTML = '';
-            cp.append(icon('check'));
-            cp.classList.add('did');
-            setTimeout(() => {
-              cp.innerHTML = '';
-              cp.append(icon('copy'));
-              cp.classList.remove('did');
-            }, 900);
-          }).catch(() => {});
-        });
-        rowEl.append(u, cp);
-        drawer.append(rowEl);
-      }
+      for (const m of urls) drawer.append(buildUrlRow(m.url));
     }
     toggle.addEventListener('click', () => {
       drawer.classList.toggle('hidden');
@@ -3654,6 +3836,134 @@ window.SidecarCore = (function () {
     });
   }
 
+  // ---- the quoted note, as a block under the text field ----
+  //
+  // A quote in the strip is shown as the note it quotes, so there is something to check
+  // it against: the same block the composer draws for a reply (the gold rule, the label, the
+  // author and the text), clipped at 240 characters with Show more. Looked up once per
+  // reference for the life of the page, because every change to the strip redraws it
+  // and a block that blinked back to "Loading" on each would be unreadable.
+  //
+  // It is a REFERENCE: what is published is the nostr: line the entry holds, whether or not
+  // the note could be found, so a lookup that fails says so and the quote still goes out.
+  // `ctl`: { canUp, canDown, onUp, onDown, onRemove }, the page's say over the order.
+  const quoteLookups = new Map(); // nostr: ref -> Promise<event | null>
+  const quoteFound = new Map();   // nostr: ref -> event, for a synchronous first paint
+  const quoteOpen = new Set();    // refs whose block was opened with Show more
+  function lookUpQuoted(ref) {
+    if (quoteFound.has(ref)) return Promise.resolve(quoteFound.get(ref));
+    if (!quoteLookups.has(ref)) {
+      let p;
+      try { p = findEvent(embedRef(deps.NT.nip19.decode(ref.replace(/^nostr:/, '')))); } catch (_) { p = Promise.resolve(null); }
+      p = Promise.resolve(p).catch(() => null).then((ev) => {
+        // A miss is not remembered: the relay may answer next time.
+        quoteLookups.delete(ref);
+        if (ev) quoteFound.set(ref, ev);
+        return ev;
+      });
+      quoteLookups.set(ref, p);
+    }
+    return quoteLookups.get(ref);
+  }
+
+  const QUOTE_BLOCK_CAP = 240;
+  function buildQuoteBlock(ref, ctl) {
+    const c = ctl || {};
+    const block = h('div', { className: 'reply-target quote-block' });
+    const iconBtn = (name, title, fn) => {
+      const b = h('button', { className: 'quote-block-btn', title, type: 'button' });
+      b.setAttribute('aria-label', title);
+      b.append(icon(name));
+      b.addEventListener('click', fn);
+      return b;
+    };
+    const actions = h('span', { className: 'quote-block-actions' });
+    // COPY, REMOVE, MOVE, in that order: the move arrow ends the row, in the same column as the
+    // pictures' own arrow, and the destructive button sits one step away from the edge a thumb
+    // lands on. The reference leaves the text field when it is pasted, so this is how it comes back.
+    const copy = iconBtn('copy', t('Copy the note link'), () => copyWithCheck(copy, ref));
+    actions.append(copy);
+    // TWO TAPS TO REMOVE. The block holds a reference and nothing else, so once it is gone the
+    // only way back is to paste the note again, and a tap meant for the arrow beside it is
+    // easy to land. The first tap arms the button (red, and the tooltip says so); it stands
+    // down after three seconds. The same two-tap the account switcher uses: no words added
+    // to the row, which has no room for them.
+    const trash = iconBtn('trash', t('Remove the quote'), () => {
+      if (!trash.classList.contains('is-armed')) {
+        trash.classList.add('is-armed');
+        trash.title = t('Tap again to remove the quote');
+        trash.setAttribute('aria-label', trash.title);
+        setTimeout(() => {
+          trash.classList.remove('is-armed');
+          trash.title = t('Remove the quote');
+          trash.setAttribute('aria-label', trash.title);
+        }, 3000);
+        return;
+      }
+      if (c.onRemove) c.onRemove();
+    });
+    actions.append(trash);
+    if (c.canUp) actions.append(iconBtn('arrow-up', t('Move above the pictures'), c.onUp));
+    if (c.canDown) actions.append(iconBtn('arrow-down', t('Move below the pictures'), c.onDown));
+    block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Quoting') }), actions]));
+
+    const av = h('span', { className: 'avatar reply-target-av' });
+    deps.applyAvatar(av, null);
+    const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
+    block.append(h('div', { className: 'reply-target-who' }, [av, name]));
+    const body = h('div', { className: 'reply-target-body' });
+    block.append(body);
+
+    const paintQuoted = (ev) => {
+      if (!ev) {
+        name.textContent = t('Quoted note');
+        body.textContent = t('Couldn’t load this note. It will still be quoted.');
+        return;
+      }
+      const titleTag = (ev.tags || []).find((tg) => tg[0] === 'title');
+      const full = (titleTag && titleTag[1]) || ev.content || '';
+      let open = quoteOpen.has(ref);
+      let clipped = false;
+      const toggle = h('button', { className: 'show-toggle', type: 'button' });
+      const paint = () => {
+        body.innerHTML = '';
+        renderNoteText(body, full, open ? Infinity : QUOTE_BLOCK_CAP);
+        makeMediaExpandable(block, body);
+        block.classList.toggle('is-open', open);
+        block.classList.toggle('is-clipped', !open && clipped);
+        toggle.textContent = open ? t('Show less') : t('Show more');
+        if (!open) body.scrollTop = 0;
+      };
+      toggle.addEventListener('click', () => {
+        open = !open;
+        if (open) quoteOpen.add(ref); else quoteOpen.delete(ref);
+        paint();
+      });
+      paint();
+      // The control and the fade only when something was cut, after layout, because
+      // scrollHeight is 0 until it has one.
+      requestAnimationFrame(() => {
+        clipped = body.scrollHeight > body.clientHeight + 1 || full.length > QUOTE_BLOCK_CAP;
+        if (!clipped && !open) return;
+        block.classList.toggle('is-clipped', !open && clipped);
+        block.append(toggle);
+      });
+      name.textContent = deps.shortNpub(deps.NT.nip19.npubEncode(ev.pubkey));
+      deps.fetchPreviewProfile(ev.pubkey).then((p) => {
+        if (!block.isConnected || !p) return;
+        if (p.name) name.textContent = p.name;
+        if (p.picture) deps.applyAvatar(av, p);
+      }).catch(() => {});
+    };
+
+    if (quoteFound.has(ref)) paintQuoted(quoteFound.get(ref));
+    else {
+      body.textContent = t('Loading the quoted note…');
+      lookUpQuoted(ref).then(paintQuoted);
+    }
+    return block;
+  }
+
   const ogCache = new Map(); // url → { title, description, image, site } | null
 
   async function fetchOgMeta(url) {
@@ -4064,7 +4374,7 @@ window.SidecarCore = (function () {
     const d = draft || {};
     const poll = d.poll ? (d.poll.options || []).map((o) => String(o || '').trim()) : null;
     const shape = JSON.stringify([
-      pubkey || '', String(d.text || '').trim(), (d.media || []).map((m) => m && m.url),
+      pubkey || '', String(d.text || '').trim(), (d.media || []).map((m) => m && (m.url || m.quote)),
       (replyTo && replyTo.id) || '', poll,
     ]);
     return sha256Hex(new TextEncoder().encode(shape));
@@ -4243,6 +4553,8 @@ window.SidecarCore = (function () {
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, readVideoMeta, buildAltEditorRow,
+    splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, moveQuoteEntry, buildAttachmentsLabel,
+    movePicture, canMovePicture, pictureCount, addMedia,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,

@@ -47,7 +47,7 @@ const QUOTED = 'd'.repeat(64);
 const nevent = NT.nip19.neventEncode({ id: QUOTED, author: BOB, relays: ['wss://hint.example/'] });
 
 // The panel's publish lines, from the prose to the event, run as they are.
-async function panelTags({ text, media = [], replyTo = null, showClientTag = true }) {
+async function panelTags({ text, media = [], replyTo = null, showClientTag = true, settings = {} }) {
   const at = panel.indexOf('      const prose = window.SidecarCore.linkBareRefs(draft.text.trim(), NT);');
   assert.ok(at !== -1, 'the panel\'s publish no longer starts where this test reads it');
   const seg = panel.slice(at, panel.indexOf('      const event = {', at));
@@ -56,7 +56,7 @@ async function panelTags({ text, media = [], replyTo = null, showClientTag = tru
     window: { SidecarCore: SC },
     composeNoteContent: SC.composeNoteContent, imetaTagsForMedia: SC.imetaTagsForMedia,
     buildPollTags: SC.buildPollTags, CLIENT_TAG: ['client', 'Sidecar'],
-    call: async () => ({ showClientTag }),
+    call: async () => ({ showClientTag, ...settings }),
     isDevBuild: () => false, devKindEnabled: false, devSilentEnabled: false, devKind: 0, devSilentInput: null,
     replyTags: (target) => SC.replyTags(target, ME),
     relayUrls: async () => [],
@@ -67,7 +67,7 @@ async function panelTags({ text, media = [], replyTo = null, showClientTag = tru
 }
 
 // The tab's publish lines, from the reply to the template, run as they are.
-async function tabTags({ text, media = [], replyTo = null, showClientTag = true }) {
+async function tabTags({ text, media = [], replyTo = null, showClientTag = true, settings = {} }) {
   const at = page.indexOf("      const settings = (await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => null)) || {};");
   assert.ok(at !== -1, 'the tab\'s publish no longer starts where this test reads it');
   const end = page.indexOf('      // MINE FIRST, THEN SIGN.', at);
@@ -77,7 +77,7 @@ async function tabTags({ text, media = [], replyTo = null, showClientTag = true 
     SC, NT, Math, Date, text: SC.linkBareRefs(text.trim(), NT),
     draft: { text, media, poll: null }, replyTo,
     state: { activePubkey: ME },
-    call: async () => ({ showClientTag }),
+    call: async () => ({ showClientTag, ...settings }),
     targetRelays: async () => [],
     // A store build: the dev aids are off.
     devBuild: false, devOn: {}, devKind: 0, devSilentText: '', devAuthorOf: async () => null,
@@ -101,6 +101,18 @@ const CASES = [
     draft: { text: 'GM ' + NT.nip19.npubEncode(ALICE) + '\n' + nevent } },
   { name: 'an image with a description',
     draft: { text: 'a picture', media: [{ url: 'https://x.example/a.jpg', alt: 'a cat', type: 'image' }] } },
+  { name: 'an uploaded video, with its type and size',
+    draft: { text: 'a clip', media: [{ url: 'https://x.example/v.mp4', isVideo: true, mime: 'video/mp4', dim: '1280x720' }] } },
+  { name: 'an uploaded video with video details turned off',
+    draft: { text: 'a clip', settings: { videoImeta: false },
+      media: [{ url: 'https://x.example/v.mp4', isVideo: true, mime: 'video/mp4', dim: '1280x720' }] } },
+  { name: 'a quote with its attachments left at the end',
+    draft: { text: 'worth a look\n\nnostr:' + nevent, media: [{ url: 'https://x.example/a.jpg' }] } },
+  { name: 'a quote moved into the strip, after its attachments',
+    draft: { text: 'worth a look',
+      media: [{ url: 'https://x.example/a.jpg', alt: 'a cat' }, { url: 'https://x.example/v.mp4', isVideo: true, mime: 'video/mp4', dim: '640x360' }, { quote: 'nostr:' + nevent }] } },
+  { name: 'a quote card ahead of a picture',
+    draft: { text: 'worth a look', media: [{ quote: 'nostr:' + nevent }, { url: 'https://x.example/a.jpg' }] } },
 ];
 
 for (const { name, draft } of CASES) {
@@ -110,6 +122,18 @@ for (const { name, draft } of CASES) {
     assert.deepEqual(fromTab, fromPanel);
   });
 }
+
+test('a quote card is tagged as a quote by both composers, and the order is the strip\'s', async () => {
+  const media = [{ url: 'https://x.example/a.jpg' }, { quote: 'nostr:' + nevent }];
+  for (const run of [panelTags, tabTags]) {
+    const out = await run({ text: 'worth a look', media });
+    assert.ok(out.content.indexOf('https://x.example/a.jpg') < out.content.indexOf('nostr:' + nevent), 'the picture is not ahead of the quote');
+    assert.deepEqual(out.tags.filter((t) => t[0] === 'q').map((t) => t[1]), [QUOTED], 'the moved quote carries its q tag');
+    assert.ok(out.tags.some((t) => t[0] === 'p' && t[1] === BOB), 'the quoted author is p-tagged');
+    const flipped = await run({ text: 'worth a look', media: [media[1], media[0]] });
+    assert.ok(flipped.content.indexOf('nostr:' + nevent) < flipped.content.indexOf('https://x.example/a.jpg'), 'the flipped strip did not flip the note');
+  }
+});
 
 test('a mention written in the tab notifies, and a quote reads as a quote', async () => {
   const { tags } = await tabTags({ text: 'hi ' + mention(ALICE) + ' look nostr:' + nevent });
