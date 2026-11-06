@@ -140,12 +140,18 @@ Sidecar only talks to services **you choose**:
 - **Wallet quick-start** — if you choose to set up a wallet through **Rizful**,
   Sidecar exchanges the one-time code you enter for a wallet connection with
   rizful.com. Nothing is sent there unless you use that option.
+- **Withdraw links** — if you cash an LNURL-withdraw link or an LNURLcash note
+  from the Receive sheet, Sidecar contacts the service the link names, with no
+  cookies and no referrer, which shows that service your IP address. It sends the
+  service an invoice from your own wallet, and nothing else about you or your
+  wallet. Links to private or local network addresses are refused. Nothing is
+  sent until you paste a link and press Continue.
 
 Sidecar does not send any of this data to the developer. The services above are
 the only ones it contacts — those you configure (relays, wallet), those a display
 you choose depends on (relay icons, NIP-05 marks, the Bitcoin price), and those you
 invoke by a specific action (a link preview, a media upload, an @-mention search, a
-recovery scan, a wallet quick-start) — and there
+recovery scan, a wallet quick-start, a withdraw link) — and there
 is no analytics or tracking of any kind.
 
 ## Permissions

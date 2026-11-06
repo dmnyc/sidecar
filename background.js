@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
+  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -146,28 +146,7 @@ function rememberSignedRelayList(ev) {
 // The service worker fetch bypasses CORS and can reach the user's private
 // network, so refuse hostnames that resolve to loopback / private / link-local
 // space (incl. cloud metadata at 169.254.169.254) and non-http(s) schemes.
-function isPrivateHostname(host) {
-  const h = (host || '').toLowerCase();
-  if (!h) return true;
-  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
-  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
-  if (v4) {
-    const a = +v4[1], b = +v4[2];
-    if ([a, b, +v4[3], +v4[4]].some((n) => n > 255)) return true;
-    if (a === 0 || a === 10 || a === 127) return true;         // this-host, private, loopback
-    if (a === 169 && b === 254) return true;                    // link-local + metadata
-    if (a === 172 && b >= 16 && b <= 31) return true;           // private
-    if (a === 192 && b === 168) return true;                    // private
-    if (a === 100 && b >= 64 && b <= 127) return true;          // CGNAT
-    if (a >= 224) return true;                                  // multicast / reserved
-    return false;
-  }
-  // IPv6 literals (URL.hostname strips the brackets).
-  if (h === '::1' || h === '::') return true;
-  if (h.startsWith('fe80') || h.startsWith('fc') || h.startsWith('fd')) return true; // link-local / ULA
-  if (h.startsWith('::ffff:')) return true; // IPv4-mapped
-  return false;
-}
+const { isPrivateHostname } = self.SidecarPrivateHost;
 
 // Validate a URL intended for a server-side fetch. Returns the parsed URL or null.
 function safeFetchUrl(raw) {

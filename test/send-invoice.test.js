@@ -47,6 +47,15 @@ const COFFEE = 'lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rq
 const HASH_ONLY = 'lnbc20m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqscc6gd6ql3jrc5yzme8v4ntcewwz5cnw92tz0pc8qcuufvq7khhr8wpald05e92xw006sq94mg8v2ndf4sefvf9sygkshp5zfem29trqq2yxxz7';
 const SIGNED_AT = 1496314658;
 
+const WITHDRAW = (() => {
+  const c = { URL, URLSearchParams, TextDecoder, AbortSignal, Promise, Math, Number, String, JSON, Array, Object, Error, Set, Uint8Array };
+  c.self = c;
+  vm.createContext(c);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'private-host.js'), 'utf8'), c);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'lnurl-withdraw.js'), 'utf8'), c);
+  return c.SidecarLnurlWithdraw;
+})();
+
 const EN = withI18n({});
 const decode = new Function('t', 'tn', 'tSec', `${DECODER}\nreturn { decodeBolt11, fmtExpiresIn };`)(EN.t, EN.tn, EN.tSec);
 const GATE = [
@@ -133,6 +142,7 @@ function openSheet({ now = SIGNED_AT + 10, payStore = {}, payInvoice } = {}) {
   const timers = [];
   const made = [];
   const paid = [];
+  const handedOver = [];
   const flights = []; // { label, settle } — the payment bar's flights (#495)
   const h = (tag, props, kids) => {
     const e = el(tag, props);
@@ -171,6 +181,9 @@ function openSheet({ now = SIGNED_AT + 10, payStore = {}, payInvoice } = {}) {
     getPayMeta: async () => payStore,
     savePayMeta: async (inv, meta) => { payStore[inv] = Object.assign({ ts: clock.now * 1000 }, meta); },
     lightningStrike() {}, renderWallet() {}, renderPinnedBalanceBar() {},
+    // A pasted withdraw link is handed to Receive's Withdraw tab (see lnurl-withdraw.test.js).
+    window: { SidecarLnurlWithdraw: WITHDRAW },
+    receiveModal: (o) => handedOver.push(o),
   };
   withI18n(ctx); // the wallet's strings go through t(), tn() and tSec()
   vm.createContext(ctx);
@@ -187,6 +200,7 @@ function openSheet({ now = SIGNED_AT + 10, payStore = {}, payInvoice } = {}) {
     pay: find((e) => e.tag === 'button' && e.textContent === 'Pay'),
     comment: find((e) => e.cls.has('send-comment')),
     paid,
+    handedOver,
     flights,
     clock,
     payStore,
@@ -486,4 +500,20 @@ test('A WALLET\'S ERROR READS AS A SENTENCE', () => {
   assert.equal(asSentence('  route not found  '), 'Route not found.');
   assert.match(nwc, /new Error\(res\.error\.message \? asSentence\(res\.error\.message\) : res\.error\.code \|\| 'Wallet error'\)/,
     'applied where every wallet error is made, and not to a bare code');
+});
+
+test('A WITHDRAW LINK PASTED INTO SEND GOES TO RECEIVE, WHERE ITS TERMS ARE SHOWN FIRST', async () => {
+  // Money coming in is not what this sheet does, and "Enter a BOLT11 invoice" would be a
+  // wrong thing to tell someone holding a withdraw link.
+  for (const link of ['lnurlw://pay.example/w/abc', 'lightning:lnurlw://pay.example/w/abc']) {
+    const s = openSheet();
+    await s.paste(link);
+    await s.pay.fire('click');
+    assert.equal(JSON.stringify(s.handedOver), JSON.stringify([{ withdraw: 'lnurlw://pay.example/w/abc' }]), link);
+    assert.equal(s.paid.length, 0);
+  }
+  const plain = openSheet();
+  await plain.paste('hello');
+  await plain.pay.fire('click');
+  assert.deepEqual(plain.handedOver, [], 'anything else is still Send\'s own business');
 });

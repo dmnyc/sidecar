@@ -21,6 +21,7 @@
     "service_worker": "background.js",
     "scripts": [
       "i18n.js",
+      "private-host.js",
       "nostr-tools.js",
       "ws-guard.js",
       "crypto.js",

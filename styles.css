@@ -3012,6 +3012,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   color: var(--muted); font-size: 13px; font-weight: 600; padding: 6px 10px; cursor: pointer;
 }
 .compose-tab:hover { color: var(--text); }
+.compose-tab:disabled { opacity: 0.5; cursor: default; }
 .compose-tab.active { color: var(--lav); border-bottom-color: var(--lav); }
 .compose-text {
   width: 100%; min-height: 120px; resize: vertical; box-sizing: border-box;
