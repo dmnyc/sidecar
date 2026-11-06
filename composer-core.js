@@ -3521,7 +3521,28 @@ window.SidecarCore = (function () {
   const LOOKUP_FALLBACK_RELAYS = ['wss://relay.damus.io', 'wss://nostr.wine', 'wss://relay.ditto.pub'];
   const LOOKUP_STAGE_MS = 4000;
 
-  async function findEvent(ref) {
+  // REMEMBERED FOR THE LIFE OF THE PAGE, found notes only. The preview pane redraws on every
+  // change to the strip (moving the quote is one), and each redraw used to go back to the
+  // relays for a note that had not changed. The quote block reads the same cache, so the two
+  // never ask twice. A miss is dropped as soon as it lands: the relay may answer next time.
+  // A lookup already in flight is shared, so two callers asking at once cost one request.
+  const foundEvents = new Map();   // filter key -> event
+  const pendingLookups = new Map(); // filter key -> Promise<event | null>
+  function findEvent(ref) {
+    const key = JSON.stringify(ref.filter);
+    if (foundEvents.has(key)) return Promise.resolve(foundEvents.get(key));
+    if (!pendingLookups.has(key)) {
+      const p = askRelaysFor(ref).catch(() => null).then((ev) => {
+        pendingLookups.delete(key);
+        if (ev) foundEvents.set(key, ev);
+        return ev;
+      });
+      pendingLookups.set(key, p);
+    }
+    return pendingLookups.get(key);
+  }
+
+  async function askRelaysFor(ref) {
     const wanted = ref.filter && ref.filter.ids && ref.filter.ids[0];
     const ask = async (relays) => {
       let ev = null;
