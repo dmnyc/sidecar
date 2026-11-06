@@ -48,8 +48,8 @@ vm.runInContext(
   lift(/const ALT_MAX = \d+;/, 'ALT_MAX') + '\n' +
   lift(/function normalizeAltBreaks\(text\) \{[\s\S]*?\n  \}/, 'normalizeAltBreaks') + '\n' +
   lift(/function capAltText\(text\) \{[\s\S]*?\n  \}/, 'capAltText') + '\n' +
-  lift(/function buildImetaTag\(url, alt\) \{[\s\S]*?\n  \}/, 'buildImetaTag') + '\n' +
-  lift(/function imetaTagsForMedia\(media\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
+  lift(/function buildImetaTag\(url, alt, extra\) \{[\s\S]*?\n  \}/, 'buildImetaTag') + '\n' +
+  lift(/function imetaTagsForMedia\(media, opts\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
   lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
   lift(/function stripDraftMediaUrls\(text, media\) \{[\s\S]*?\n  \}/, 'stripDraftMediaUrls') + '\n' +
   lift(/function loneMediaUrl\(text\) \{[\s\S]*?\n  \}/, 'loneMediaUrl') + '\n' +
@@ -219,11 +219,11 @@ test('BOTH PUBLISHERS EMIT THE TAGS FROM THE SHARED HELPER', () => {
   // The panel assembles its tags from parts; the tab starts from a template. Either
   // one publishing without the helper is a note whose images ship undescribed, and
   // nothing else would catch it.
-  assert.match(panelBare, /tags\.push\(\.\.\.imetaTagsForMedia\(draft\.media\)\);/);
+  assert.match(panelBare, /tags\.push\(\.\.\.imetaTagsForMedia\(draft\.media, \{ videoImeta: settings\?\.videoImeta \}\)\);/);
   // Threading leads the list now that the tab can publish a reply; the client tag and
   // the imeta rows follow it, in that order, exactly as the panel assembles them.
   // imeta comes last, after threading, the client tag and any poll tags.
-  assert.match(pageBare, /\.\.\.SC\.imetaTagsForMedia\(draft\.media\),\s*\n\s*\],/);
+  assert.match(pageBare, /\.\.\.SC\.imetaTagsForMedia\(draft\.media, \{ videoImeta: settings\.videoImeta \}\),\s*\n\s*\],/);
   // The client tag is the Settings-governed clientTag now, and the text's own p and q
   // tags follow it, as in the panel.
   assert.match(pageBare, /\.\.\.\(reply \? reply\.tags : \[\]\),\s*\n\s*\.\.\.clientTag,\s*\n\s*\.\.\.body\.p,\s*\n\s*\.\.\.silentP,\s*\n\s*\.\.\.body\.q,/);
@@ -663,7 +663,7 @@ test('THE CORE EXPORTS THE WHOLE WRITE SIDE, AND THE PANEL TAKES IT', () => {
   }
   assert.match(
     panel,
-    /const \{ ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow \} = window\.SidecarCore;/
+    /const \{ ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow \} = window\.SidecarCore;/
   );
 });
 

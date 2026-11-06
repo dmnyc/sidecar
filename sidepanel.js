@@ -36,7 +36,7 @@
   const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
   // The imeta write side: describing an attached image so the client that renders the
   // note can say it. Same tag zap.cooking writes; see composer-core.js for the format.
-  const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
+  const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
   const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb } = window.SidecarCore;
@@ -11871,6 +11871,7 @@
     $('paypill-anywhere-toggle').checked = settings.payPillAnywhere === true; // default off
     $('webln-takeover-toggle').checked = settings.weblnTakeover === true; // default off (#501)
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
+    $('videoimeta-toggle').checked = settings.videoImeta !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
     // The way back from "Don't show this again": clears both flags in the local
     // store both surfaces read, and refreshes this document's memo so the next
@@ -14787,7 +14788,7 @@
       // URLs is byte-identical to what it published before alt text existed. A poll
       // carries no media: the editor enforces one-or-the-other (paintEitherOr), so a
       // 1068 wearing appended URLs and imeta tags cannot be built from here.
-      tags.push(...imetaTagsForMedia(draft.media));
+      tags.push(...imetaTagsForMedia(draft.media, { videoImeta: settings?.videoImeta }));
       const now = Math.floor(Date.now() / 1000);
       // A poll is never a reply: the editor does not offer one on a reply, and reply
       // drafts live in their own slot, so this cannot arrive carrying both. Guarded
@@ -15291,7 +15292,8 @@
           // (composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
-          draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+          // A video carries its type and pixel size into its imeta tag; an image gets {}.
+          draft.media.push({ url, isVideo: file.type.startsWith('video/'), ...(await readVideoMeta(file)) });
           scheduleSave();
           updatePostState();
           renderThumbs();
@@ -23784,6 +23786,10 @@
   // worth redrawing for.
   $('quotes-toggle').addEventListener('change', async (e) => {
     showQuotes = e.target.checked;
+  $('videoimeta-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { videoImeta: e.target.checked } });
+  });
+
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { literaryQuotes: e.target.checked } });
   });
 

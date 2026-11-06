@@ -1658,21 +1658,73 @@ window.SidecarCore = (function () {
   // description means no alt slot and no imeta tag at all — never empty metadata. The
   // cap is applied here as well as in the editor because a draft can be restored into
   // a composer that publishes without the editor ever being opened.
-  function buildImetaTag(url, alt) {
+  function buildImetaTag(url, alt, extra) {
     const cleaned = capAltText(normalizeAltBreaks(alt));
-    if (!url || !cleaned) return null;
-    return ['imeta', 'url ' + url, 'alt ' + cleaned];
+    // What the file itself says about it, for a video: its type and its size in pixels.
+    // Checked here rather than trusted, because a draft is restored from storage and a
+    // malformed slot must come out as no slot, never as a tag a client chokes on.
+    const mime = extra && /^video\/[\w.+-]{1,60}$/i.test(extra.m || '') ? extra.m.toLowerCase() : '';
+    const dim = extra && /^[1-9]\d{0,4}x[1-9]\d{0,4}$/.test(extra.dim || '') ? extra.dim : '';
+    if (!url || !(cleaned || mime || dim)) return null;
+    const tag = ['imeta', 'url ' + url];
+    if (mime) tag.push('m ' + mime);
+    if (dim) tag.push('dim ' + dim);
+    if (cleaned) tag.push('alt ' + cleaned);
+    return tag;
   }
 
-  // In draft order, one tag per described attachment. Undescribed media contributes
-  // nothing, so a note of bare URLs publishes exactly as it did before this existed.
-  function imetaTagsForMedia(media) {
+  // In draft order, one tag per attachment with something to say. A bare image or a
+  // video that was never measured contributes nothing, so a note of plain URLs publishes
+  // exactly as it did before this existed.
+  //
+  // A VIDEO'S TYPE AND SIZE RIDE ALONG BY DEFAULT: a client that knows the shape before it
+  // fetches a byte can reserve the box and pick a player, and several decline to show a
+  // video inline without it. `videoImeta: false` (Settings) leaves them out.
+  function imetaTagsForMedia(media, opts) {
+    const withVideo = !(opts && opts.videoImeta === false);
     const out = [];
     for (const m of media || []) {
-      const tag = buildImetaTag(m && m.url, m && m.alt);
+      const extra = withVideo && m && m.isVideo ? { m: m.mime, dim: m.dim } : null;
+      const tag = buildImetaTag(m && m.url, m && m.alt, extra);
       if (tag) out.push(tag);
     }
     return out;
+  }
+
+  // A video's type and pixel size, read from the file in the browser before it goes up:
+  // the same bytes the server receives, so what the tag says is what was sent. Best
+  // effort and bounded: a codec the browser cannot read, or a file that never answers,
+  // resolves to what is known (the type) after five seconds rather than holding the
+  // upload open. Never throws.
+  function readVideoMeta(file) {
+    return new Promise((resolve) => {
+      const out = {};
+      if (!file || !/^video\//.test(file.type || '')) { resolve(out); return; }
+      out.mime = file.type;
+      let finished = false;
+      let objectUrl = '';
+      const video = document.createElement('video');
+      const timer = setTimeout(finish, 5000);
+      function finish() {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        try { video.removeAttribute('src'); video.load(); } catch (_) {}
+        try { if (objectUrl) URL.revokeObjectURL(objectUrl); } catch (_) {}
+        resolve(out);
+      }
+      video.preload = 'metadata';
+      video.muted = true;
+      video.addEventListener('loadedmetadata', () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) out.dim = video.videoWidth + 'x' + video.videoHeight;
+        finish();
+      });
+      video.addEventListener('error', finish);
+      try {
+        objectUrl = URL.createObjectURL(file);
+        video.src = objectUrl;
+      } catch (_) { finish(); }
+    });
   }
 
   // The ALT editor as one full-width row: thumbnail and explainer on top, the
@@ -4190,7 +4242,7 @@ window.SidecarCore = (function () {
     IMG_EXT, VID_EXT, urlIsVideo,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
-    ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
+    ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, readVideoMeta, buildAltEditorRow,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,

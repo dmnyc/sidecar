@@ -1125,7 +1125,7 @@
           ...silentP,
           ...body.q,
           ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
-          ...SC.imetaTagsForMedia(draft.media),
+          ...SC.imetaTagsForMedia(draft.media, { videoImeta: settings.videoImeta }),
         ],
         content: SC.composeNoteContent(text, draft.media),
       };
@@ -1656,7 +1656,9 @@
           // (SC.composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
-          draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+          // A video carries its type and pixel size into its imeta tag (SC.readVideoMeta);
+          // an image has nothing to add and gets {}.
+          draft.media.push({ url, isVideo: file.type.startsWith('video/'), ...(await SC.readVideoMeta(file)) });
         }
         scheduleSave();
         paintCount();
