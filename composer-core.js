@@ -1562,7 +1562,29 @@ window.SidecarCore = (function () {
     return new File(parts, file.name || 'image.jpg', { type: 'image/jpeg' });
   }
 
+  // HEIC AND HEIF STOP HERE. An iPhone photo is HEIC, a browser cannot decode one (so the
+  // canvas redraw that re-encodes a PNG is not available), and many apps cannot open it,
+  // so it used to go up as chosen and show as a broken image in someone else's feed.
+  // Found by what it says and what it is: Windows hands over no type at all, and a file can
+  // be renamed, so the type, the extension and the ftyp box (its brands) each count.
+  // AVIF shares the box layout and the mif1 brand, so only the HEVC-coded brands decide.
+  const HEIC_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs']);
+  async function isHeic(file) {
+    if (/^image\/hei[cf]/i.test(file.type || '') || /\.hei[cf]s?$/i.test(file.name || '')) return true;
+    try {
+      const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+      const four = (at) => String.fromCharCode(head[at], head[at + 1], head[at + 2], head[at + 3]);
+      if (head.length < 12 || four(4) !== 'ftyp') return false;
+      const size = ((head[0] << 24) | (head[1] << 16) | (head[2] << 8) | head[3]) >>> 0;
+      const end = Math.min(size || 64, head.length);
+      if (HEIC_BRANDS.has(four(8))) return true;
+      for (let at = 16; at + 4 <= end; at += 4) if (HEIC_BRANDS.has(four(at))) return true;
+    } catch (_) {}
+    return false;
+  }
+
   async function uploadMedia(original, forPubkey, { pasted = false } = {}) {
+    if (await isHeic(original)) throw new Error(t('HEIC is not a supported image type. Try pasting the image instead.'));
     const isImg = original.type.startsWith('image/');
     const isVid = original.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error(t('Choose an image or video'));
