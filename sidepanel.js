@@ -22618,6 +22618,13 @@
       pay.addEventListener('click', async () => {
         const val = input.value.replace(/^lightning:/i, '').trim();
         if (!val) return (err.textContent = tSec('Paste an invoice or lightning address.'));
+        // A withdraw link is money coming IN, which is not what this sheet does. Hand it to
+        // Receive's Withdraw tab, which shows what the service offers before anything is sent.
+        if (window.SidecarLnurlWithdraw.looksLikeLink(val)) {
+          closeModal();
+          receiveModal({ withdraw: val });
+          return;
+        }
         err.textContent = '';
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
@@ -22720,9 +22727,51 @@
 
   const RECEIVE_PRESETS = [100, 1000, 5000, 10000];
 
-  function receiveModal() {
+  // The wallet's NIP-47 method list, asked once per client. Unknown (no answer, or a shape
+  // we do not read) is an empty list, which nothing treats as "no": see canMakeInvoice.
+  const walletMethodsCache = new WeakMap();
+  function walletMethodsOf(client) {
+    if (!walletMethodsCache.has(client)) {
+      walletMethodsCache.set(client, client.getInfo()
+        .then((info) => window.SidecarLnurlWithdraw.parseMethods(info && info.methods))
+        .catch(() => []));
+    }
+    return walletMethodsCache.get(client);
+  }
+
+  // What a failed withdrawal says. The module reports codes, never prose, so the sentences
+  // are whole here and a translator sees each one entire. `reason` and `domain` are the
+  // service's own words and name: data, never part of the sentence.
+  function withdrawErrorText(e) {
+    const domain = (e && e.domain) || '';
+    const reason = (e && e.reason) || '';
+    switch (e && e.code) {
+      case 'not-link':
+      case 'bad-link': return tSec("That doesn't read as a withdraw link.");
+      case 'insecure': return tSec("{{domain}} isn't using a secure connection, so Sidecar won't use it.", { domain });
+      case 'private': return tSec("That link points at a private address, so Sidecar won't open it.");
+      case 'unreachable': return tSec("Couldn't reach {{domain}}", { domain });
+      case 'bad-response': return tSec("{{domain}} didn't answer with a withdraw link.", { domain });
+      case 'not-withdraw': return tSec('That link is not a withdraw link.');
+      case 'bad-limits': return tSec('{{domain}} gave withdrawal limits that make no sense.', { domain });
+      case 'refused': return reason ? tSec('{{domain}} said: {{reason}}', { domain, reason }) : tSec('{{domain}} refused the withdrawal.', { domain });
+      case 'restricted': return tSec("This wallet connection doesn't allow creating invoices.");
+      case 'make-invoice': return reason ? tSec("Your wallet couldn't make an invoice: {{reason}}", { reason }) : tSec("Your wallet couldn't make an invoice.");
+      case 'unconfirmed': return tSec("Sidecar can't tell whether the first attempt was paid. Check your wallet's history before trying again.");
+      default: return (e && e.message) || tSec('Something went wrong.');
+    }
+  }
+
+  // opts.withdraw: a link to open straight on the Withdraw tab (Send hands one over).
+  function receiveModal(opts) {
     let pollTimer = null;
     const stopPoll = () => { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } };
+    // Set when the sheet closes, which ends any wait on a withdrawal. The payment itself
+    // does not depend on the sheet: the wallet's own monitor picks it up either way.
+    let withdrawStopped = false;
+    // The invoice last sent to a withdraw service, so a retry asks the wallet whether it was
+    // paid before making another. Kept for the life of the sheet, keyed by the link.
+    let lastAttempt = null;
 
     openModal((modal) => {
       const xClose = h('button', { className: 'modal-x', title: tSec('Close') });
@@ -22735,6 +22784,14 @@
       const tabInvoice = h('button', { className: 'compose-tab active', textContent: tSec('Invoice') });
       tabs.append(tabInvoice);
       modal.append(tabs);
+      // Address and Withdraw arrive when their lookups answer, in either order. Each takes
+      // its own slot (Invoice, Address, Withdraw) so the bar reads the same on every open.
+      const slots = [{ tab: tabInvoice, rank: 0 }];
+      function placeTab(tab, rank) {
+        const later = slots.find((x) => x.rank > rank);
+        if (later) tabs.insertBefore(tab, later.tab); else tabs.append(tab);
+        slots.push({ tab, rank });
+      }
       const body = h('div');
       modal.append(body);
 
@@ -22832,12 +22889,196 @@
         body.append(out);
       }
 
+      // ---- Withdraw: cash an LNURL-withdraw link (or an LNURLcash note) ----------------
+      //
+      // NIP-47 has no withdraw, so the panel does what a withdrawing wallet does: asks the
+      // wallet for an invoice, gives it to the service, and waits to see it land. The steps
+      // live in lnurl-withdraw.js; this is the sheet around them.
+      const W = window.SidecarLnurlWithdraw;
+      // While a withdrawal is in flight the tabs are held, so nothing on screen can drop the
+      // result of an invoice that has already gone to a service.
+      const lockTabs = (locked) => tabs.querySelectorAll('.compose-tab').forEach((b) => { b.disabled = locked; });
+
+      function showWithdrawMode(prefill, notice) {
+        stopPoll();
+        body.innerHTML = '';
+        const input = h('textarea', { className: 'compose-text', placeholder: tSec('Withdraw link (lnurl1…)'), spellcheck: false });
+        input.value = prefill || '';
+        const err = h('div', { className: 'error', textContent: notice || '' });
+        const go = h('button', { className: 'primary', textContent: tSec('Continue') });
+        go.addEventListener('click', async () => {
+          let u;
+          try { u = W.parseLink(input.value); } catch (e) { err.textContent = withdrawErrorText(e); return; }
+          err.textContent = '';
+          body.innerHTML = '';
+          body.append(waitingRow(tSec('Checking {{domain}}…', { domain: u.hostname })));
+          try {
+            const req = await W.fetchRequest(u);
+            if (!withdrawStopped) showWithdrawCard(req);
+          } catch (e) {
+            if (!withdrawStopped) showWithdrawMode(input.value, withdrawErrorText(e));
+          }
+        });
+        body.append(
+          h('label', { textContent: tSec('Withdraw link') }),
+          input,
+          h('p', { className: 'hint', textContent: tSec('Paste a withdraw link or an LNURLcash note to cash it into your wallet.') }),
+          err,
+          h('div', { className: 'actions' }, [go])
+        );
+        if (prefill && !notice) go.click();
+      }
+
+      // What the service offers, before anything is sent: its name and its terms. The
+      // service wrote all of it, so it is textContent and nothing else.
+      function showWithdrawCard(req) {
+        stopPoll();
+        body.innerHTML = '';
+        const range = W.amountRange(req);
+        const card = h('div', { className: 'ln-recipient' });
+        const who = h('div', { className: 'ln-recipient-who' });
+        who.append(h('span', { className: 'ln-recipient-name', textContent: req.domain }));
+        const wholeSats = range.fixedMsat % 1000 === 0;
+        who.append(h('span', {
+          className: 'ln-recipient-limits',
+          textContent: range.fixed
+            ? (wholeSats
+              ? tSec('{{amount}} sats only', { amount: fmtSats(range.fixedMsat / 1000) })
+              : tSec('{{amount}} msats only', { amount: I18N.fmtNum(range.fixedMsat) }))
+            : tSec('{{min}} to {{max}} sats', { min: fmtSats(range.minSats), max: fmtSats(range.maxSats) }),
+        }));
+        card.append(h('div', { className: 'ln-recipient-head' }, [who]));
+        if (req.description) card.append(h('p', { className: 'ln-recipient-desc', textContent: req.description }));
+
+        const amount = satsInput(tSec('Amount in sats'));
+        // Everything on offer is the usual wish: this is money coming in.
+        if (!range.fixed) amount.value = String(range.maxSats);
+        const err = h('div', { className: 'error' });
+        const go = h('button', { className: 'primary' });
+        const back = h('button', { className: 'ghost', textContent: tSec('Back') });
+        const paint = () => {
+          const sats = range.fixed ? (wholeSats ? range.fixedMsat / 1000 : null) : parseInt(amount.value, 10) || 0;
+          go.textContent = sats ? tn('Withdraw {{count}} sat', 'Withdraw {{count}} sats', sats) : tSec('Withdraw');
+        };
+        amount.addEventListener('input', () => { err.textContent = ''; paint(); });
+        paint();
+        back.addEventListener('click', () => showWithdrawMode(''));
+        go.addEventListener('click', () => {
+          const amountMsat = W.msatFor(req, parseInt(amount.value, 10));
+          if (amountMsat == null) {
+            err.textContent = tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(range.minSats), max: fmtSats(range.maxSats) });
+            return;
+          }
+          withdrawNow(req, amountMsat);
+        });
+        body.append(card);
+        if (!range.fixed) body.append(h('label', { textContent: tSec('Amount (sats)') }), amount);
+        body.append(err, h('div', { className: 'actions' }, [go, back]));
+      }
+
+      function showWithdrawProblem(req, text, retry) {
+        body.innerHTML = '';
+        const card = h('div', { className: 'ln-recipient failed' });
+        card.append(h('span', { className: 'ln-recipient-fail-title', textContent: text }));
+        const again = h('button', { className: 'primary', textContent: retry.label });
+        again.addEventListener('click', retry.run);
+        const done = h('button', { className: 'ghost', textContent: tSec('Done') });
+        done.addEventListener('click', closeModal);
+        body.append(card, h('div', { className: 'actions' }, [again, done]));
+      }
+
+      // Wait for the payment to reach the wallet. Reached after the service said OK, which
+      // may only mean the payment is in flight, and after a callback that may or may not
+      // have arrived. Never makes another invoice: that is claim()'s rule, and Try again
+      // goes back through it.
+      async function waitForWithdrawal(req, attempt) {
+        body.innerHTML = '';
+        body.append(waitingRow(tSec('Waiting for {{domain}} to pay…', { domain: req.domain })));
+        lockTabs(true);
+        let result = 'waiting';
+        try {
+          const client = await ensureNwc();
+          result = await W.watch({ client, attempt, isStopped: () => withdrawStopped });
+        } catch (_) {
+          // Could not even ask: the same position as a window that ran out. Nothing is
+          // known, so nothing is retried.
+        } finally {
+          lockTabs(false);
+        }
+        if (withdrawStopped || result === 'stopped') return;
+        if (result === 'settled') {
+          showReceiveSuccess(body, Math.floor(attempt.amountMsat / 1000));
+          renderWallet();
+          renderPinnedBalanceBar();
+        } else if (result === 'failed') {
+          showWithdrawProblem(req, tSec("{{domain}}'s payment didn't go through.", { domain: req.domain }),
+            { label: tSec('Try again'), run: () => showWithdrawCard(req) });
+        } else {
+          showWithdrawProblem(req, tSec('Still waiting for {{domain}}. The payment may yet arrive, so check your wallet before trying again.', { domain: req.domain }),
+            { label: tSec('Check again'), run: () => waitForWithdrawal(req, attempt) });
+        }
+      }
+
+      async function withdrawNow(req, amountMsat) {
+        body.innerHTML = '';
+        body.append(waitingRow(tSec('Asking {{domain}} to pay you…', { domain: req.domain })));
+        lockTabs(true);
+        let outcome;
+        const mine = lastAttempt && lastAttempt.url === req.url && lastAttempt.k1 === req.k1 ? lastAttempt.attempt : null;
+        try {
+          const client = await ensureNwc();
+          outcome = await W.claim({ req, amountMsat, client, previous: mine });
+          lastAttempt = { url: req.url, k1: req.k1, attempt: outcome.attempt };
+        } catch (e) {
+          lockTabs(false);
+          if (e && e.attempt) lastAttempt = { url: req.url, k1: req.k1, attempt: e.attempt };
+          if (withdrawStopped) return;
+          showWithdrawProblem(req, withdrawErrorText(e), { label: tSec('Try again'), run: () => showWithdrawCard(req) });
+          return;
+        }
+        lockTabs(false);
+        if (withdrawStopped) return;
+        if (outcome.state === 'settled') {
+          showReceiveSuccess(body, Math.floor(outcome.attempt.amountMsat / 1000));
+          renderWallet();
+          renderPinnedBalanceBar();
+          return;
+        }
+        waitForWithdrawal(req, outcome.attempt);
+      }
+
       tabInvoice.addEventListener('click', () => {
         tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
         tabInvoice.classList.add('active');
         showInvoiceMode();
       });
       showInvoiceMode();
+
+      // The Withdraw tab, once the wallet has said it can make an invoice. A wallet whose
+      // method list leaves make_invoice out never sees it; one that told us nothing does.
+      function addWithdrawTab(active, link) {
+        const tab = h('button', { className: 'compose-tab', textContent: tSec('Withdraw') });
+        tab.addEventListener('click', () => {
+          tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          showWithdrawMode('');
+        });
+        placeTab(tab, 2);
+        if (active) {
+          tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          showWithdrawMode(link);
+        }
+      }
+      ensureNwc().then((client) => (client ? walletMethodsOf(client) : [])).then((methods) => {
+        const link = opts && opts.withdraw;
+        if (W.canMakeInvoice(methods)) return addWithdrawTab(!!link, link);
+        if (link) {
+          // Handed a link by Send on a wallet that cannot cash it: say so, rather than land
+          // on an invoice form with no hint of why nothing happened.
+          showWithdrawProblem(null, withdrawErrorText({ code: 'restricted' }), { label: tSec('Back'), run: showInvoiceMode });
+        }
+      }).catch(() => {});
 
       // If a lightning address is available (NWC string or profile), add an
       // Address tab so the user can toggle between an invoice and their address.
@@ -22849,9 +23090,9 @@
           tabAddress.classList.add('active');
           showAddressMode(lud16);
         });
-        tabs.append(tabAddress);
+        placeTab(tabAddress, 1);
       });
-    }, stopPoll);
+    }, () => { stopPoll(); withdrawStopped = true; });
   }
 
   function showReceiveSuccess(container, sats) {

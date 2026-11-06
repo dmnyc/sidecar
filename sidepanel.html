@@ -1229,6 +1229,10 @@
   <!-- after qrcode-generator: pdf-backup draws the QR from its module matrix -->
   <script src="pdf-backup.js"></script>
   <script src="nwc-client.js"></script>
+  <!-- Cashing an LNURL-withdraw link through the wallet (Receive, Withdraw). The host guard
+       first: a link is somebody else's address, and lnurl-withdraw.js reads it before fetching. -->
+  <script src="private-host.js"></script>
+  <script src="lnurl-withdraw.js"></script>
   <!-- CLINK offers (noffer), the payer half. Before sidepanel.js, which installs it
        with this panel's signer and pool on the way up. -->
   <script src="clink.js"></script>
