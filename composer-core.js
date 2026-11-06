@@ -3513,16 +3513,39 @@ window.SidecarCore = (function () {
     };
   }
 
-  async function resolveEmbeds(embeds) {
-    for (const { el, ref } of embeds) {
+  // WHERE A LINKED NOTE IS LOOKED FOR. A nevent or note link usually carries no relay hint
+  // and no author, so the only relays to ask are the account's own, and a note that lives
+  // elsewhere read as "not found" while every other client showed it. The configured relays
+  // and the link's hints are asked first; only a miss goes on to these large public ones, so
+  // an id that the account's relays hold never leaves them.
+  const LOOKUP_FALLBACK_RELAYS = ['wss://relay.damus.io', 'wss://nostr.wine', 'wss://relay.ditto.pub'];
+  const LOOKUP_STAGE_MS = 4000;
+
+  async function findEvent(ref) {
+    const wanted = ref.filter && ref.filter.ids && ref.filter.ids[0];
+    const ask = async (relays) => {
       let ev = null;
       try {
-        const relays = [...new Set([...(await deps.relayUrls(false)), ...(ref.relays || [])])];
         ev = await Promise.race([
           deps.poolGet(relays, ref.filter),
-          new Promise((r) => setTimeout(() => r(null), 6000)),
+          new Promise((r) => setTimeout(() => r(null), LOOKUP_STAGE_MS)),
         ]);
       } catch (_) {}
+      // A relay that answers an id lookup with some other event has not found this one.
+      return ev && (!wanted || ev.id === wanted) ? ev : null;
+    };
+    let own = [];
+    try { own = await deps.relayUrls(false); } catch (_) {}
+    const first = [...new Set([...own, ...(ref.relays || [])])];
+    const ev = first.length ? await ask(first) : null;
+    if (ev) return ev;
+    const rest = LOOKUP_FALLBACK_RELAYS.filter((u) => !first.includes(u));
+    return rest.length ? ask(rest) : null;
+  }
+
+  async function resolveEmbeds(embeds) {
+    for (const { el, ref } of embeds) {
+      const ev = await findEvent(ref);
       if (!ev) {
         el.classList.remove('loading');
         el.classList.add('embed-missing');
@@ -3887,16 +3910,7 @@ window.SidecarCore = (function () {
       let d = null;
       try { d = deps.NT.nip19.decode(bech); } catch (_) {}
       const ref = d ? embedRef(d) : null;
-      let ev = null;
-      if (ref) {
-        try {
-          const relays = [...new Set([...(await deps.relayUrls(false)), ...(ref.relays || [])])];
-          ev = await Promise.race([
-            deps.poolGet(relays, ref.filter),
-            new Promise((r) => setTimeout(() => r(null), 6000)),
-          ]);
-        } catch (_) {}
-      }
+      const ev = ref ? await findEvent(ref) : null;
       el.classList.remove('loading');
       if (!ev) {
         el.textContent = t('quoted note'); // not found — today's plain link-out
