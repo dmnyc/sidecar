@@ -3950,7 +3950,12 @@ window.SidecarCore = (function () {
     actions.append(trash);
     if (c.canUp) actions.append(blockIconBtn('arrow-up', t('Move above the pictures'), c.onUp));
     if (c.canDown) actions.append(blockIconBtn('arrow-down', t('Move below the pictures'), c.onDown));
-    block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Quoting') }), actions]));
+    // The label row carries the quoted event's kind, the way the reply view
+    // does — REPLYING TO … KIND 1 — so the developer selector and the reader
+    // can both see what shape of thing the quote embeds. Empty until the
+    // quoted note lands; a failed lookup leaves it empty too.
+    const kindEl = h('span', { className: 'reply-target-kind quote-block-kind' });
+    block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Quoting') }), kindEl, actions]));
 
     const av = h('span', { className: 'avatar reply-target-av' });
     deps.applyAvatar(av, null);
@@ -3963,8 +3968,10 @@ window.SidecarCore = (function () {
       if (!ev) {
         name.textContent = t('Quoted note');
         body.textContent = t('Couldn’t load this note. It will still be quoted.');
+        kindEl.textContent = '';
         return;
       }
+      kindEl.textContent = t('kind {{kind}}', { kind: ev.kind });
       const titleTag = (ev.tags || []).find((tg) => tg[0] === 'title');
       const full = (titleTag && titleTag[1]) || ev.content || '';
       let open = quoteOpen.has(ref);

@@ -3318,6 +3318,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    author, clipped text), full width so a row of pictures ends where it begins. */
 .compose-thumbs .quote-block { flex: 0 0 100%; box-sizing: border-box; margin: 2px 0; min-width: 0; max-width: 100%; }
 .quote-block .reply-target-label { align-items: center; }
+/* The kind rides between the label and the action icons: pushed right as a
+   pair with the icons, the way the reply view's KIND sits at its row's end. */
+.quote-block .reply-target-kind { margin-inline-start: auto; }
 /* The pictures' label beside a quote: the quote block's label, without its gold rule. */
 .compose-thumbs .attach-group-label {
   flex: 0 0 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%;
