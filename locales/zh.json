@@ -1952,5 +1952,8 @@
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "留意本账户密钥可支配的比特币地址，以便把发到那里的币取回来。开启后，Sidecar 会向 mempool.space 查询这些地址；关闭期间不会查询任何内容。",
   "On-chain balance": "链上余额",
   "Show on-chain balance in the Wallet": "在 Wallet 显示链上余额",
-  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "粘贴任意比特币钱包的收款地址，清扫前请先核对。"
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "粘贴任意比特币钱包的收款地址，清扫前请先核对。",
+  "Fast": "快",
+  "Standard": "标准",
+  "Economy": "经济"
 }

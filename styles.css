@@ -4472,6 +4472,19 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .btc-sweep-review.hidden { display: none; }
 .btc-sweep-review .confirm-msg { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
 .btc-sweep-review .primary { width: 100%; }
+/* Fee tiers, chips in the price chart's idiom: the active one fills. */
+.btc-sweep-fees { display: flex; gap: 6px; }
+.btc-sweep-fee-chip {
+  flex: 1; border-radius: 999px; padding: 6px 0; font-size: 12px; cursor: pointer;
+  background: none; border: 1px solid var(--border); color: var(--muted);
+}
+.btc-sweep-fee-chip:hover { color: var(--text-2); }
+.btc-sweep-fee-chip.active {
+  color: var(--chip-ink, var(--btn-primary-text, #1a0e08));
+  background: var(--accent-fill, var(--gold)); border-color: transparent; font-weight: 600;
+}
+/* Armed: the first tap of the two-tap confirm turns the button red and says so. */
+.btc-sweep-review .primary.armed { background: var(--red); border-color: transparent; }
 
 /* centered loading/empty/error state inside list cards */
 .list-state {

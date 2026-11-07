@@ -2090,5 +2090,8 @@
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "Tieni d'occhio l'indirizzo bitcoin che la chiave di questo account può spendere, per recuperare monete inviate lì. Con l'interruttore attivo, Sidecar chiede a mempool.space le informazioni su quegli indirizzi. Finché è spento, non viene cercato nulla.",
   "On-chain balance": "Saldo on-chain",
   "Show on-chain balance in the Wallet": "Mostra il saldo on-chain nella Wallet",
-  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Incolla un indirizzo di ricezione da qualsiasi wallet bitcoin, e verificalo prima della spazzata."
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Incolla un indirizzo di ricezione da qualsiasi wallet bitcoin, e verificalo prima della spazzata.",
+  "Fast": "Veloce",
+  "Standard": "Standard",
+  "Economy": "Economico"
 }

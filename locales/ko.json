@@ -1952,5 +1952,8 @@
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "이 계정 키가 쓸 수 있는 비트코인 주소를 지켜 보아 보내진 코인을 건질 수 있게 합니다. 켜져 있으면 Sidecar가 mempool.space에 그 주소들을 문의합니다. 꺼져 있는 동안은 아무것도 조회하지 않습니다.",
   "On-chain balance": "온체인 잔액",
   "Show on-chain balance in the Wallet": "Wallet에 온체인 잔액 표시",
-  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "아무 비트코인 지갑의 받기 주소나 붙여넣고, 스위프 전에 확인하세요."
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "아무 비트코인 지갑의 받기 주소나 붙여넣고, 스위프 전에 확인하세요.",
+  "Fast": "빠르게",
+  "Standard": "표준",
+  "Economy": "경제적"
 }

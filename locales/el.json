@@ -2021,5 +2021,8 @@
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "Παρακολουθήστε τη διεύθυνση bitcoin που το κλειδί αυτού του λογαριασμού μπορεί να ξοδέψει, για να διασωθούν κέρματα που στάλθηκαν εκεί. Όταν είναι ενεργό, το Sidecar ρωτά το mempool.space για αυτές τις διευθύνσεις. Τίποτα δεν αναζητείται όσο είναι ανενεργό.",
   "On-chain balance": "Υπόλοιπο on-chain",
   "Show on-chain balance in the Wallet": "Εμφάνιση του υπολοίπου on-chain στο Wallet",
-  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Επικολλήστε διεύθυνση λήψης από οποιοδήποτε wallet bitcoin, και επαληθεύστε την πριν τη σάρωση."
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Επικολλήστε διεύθυνση λήψης από οποιοδήποτε wallet bitcoin, και επαληθεύστε την πριν τη σάρωση.",
+  "Fast": "Γρήγορο",
+  "Standard": "Κανονικό",
+  "Economy": "Οικονομικό"
 }

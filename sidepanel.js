@@ -22040,7 +22040,55 @@
     }
     scanBtn.addEventListener('click', scanDestination);
 
+    // Fee choice: three tiers off mempool's own recommendations. Standard is
+    // the half-hour rate the review always used; Fast takes fastestFee,
+    // Economy takes the hour rate — slower, cheaper, still a real target
+    // rather than mempool's floor. The chips repaint the review's fee line
+    // from the rates already fetched; no refetch, no refetch of UTXOs.
+    const FEE_TIERS = [
+      ['fast', () => t('Fast'), 'fastestFee'],
+      ['standard', () => t('Standard'), 'halfHourFee'],
+      ['economy', () => t('Economy'), 'hourFee'],
+    ];
+    let feeChoice = 'standard';
+    let feeRates = null;
+    let armed = false; // the sweep button's second-press confirmation
+    let disarmTimer = 0;
+
+    function disarm() {
+      armed = false;
+      clearTimeout(disarmTimer);
+      go.classList.remove('armed');
+      go.textContent = t('Sweep now');
+    }
+
+    const feeRow = h('div', { className: 'btc-sweep-fees' });
+    const feeChips = {};
+    for (const [key, label, rateKey] of FEE_TIERS) {
+      const chip = h('button', { type: 'button', className: 'btc-sweep-fee-chip' + (key === feeChoice ? ' active' : '') }, [
+        h('span', { textContent: label() }),
+      ]);
+      chip.addEventListener('click', () => {
+        if (feeChoice === key) return;
+        feeChoice = key;
+        for (const [k, el] of Object.entries(feeChips)) el.classList.toggle('active', k === key);
+        // A new fee rebuilds the plan, so the armed confirmation is stale.
+        disarm();
+        reviewDestination();
+      });
+      feeRow.append(chip);
+      feeChips[key] = chip;
+    }
+    // The chips lead the review: pick a tier, and the fee line beneath answers.
+    review.prepend(feeRow);
+
+    function rateFor(choice) {
+      const tier = FEE_TIERS.find(([k]) => k === choice);
+      return feeRates ? feeRates[tier[2]] : null;
+    }
+
     async function reviewDestination() {
+      disarm();
       err.textContent = '';
       pending = null;
       review.classList.add('hidden');
@@ -22057,11 +22105,16 @@
         err.textContent = t('That is one of these addresses — sweep to a different wallet.');
         return;
       }
-      let feeRate;
-      try {
-        const fees = await (await btcFetch('/v1/fees/recommended')).json();
-        feeRate = fees.halfHourFee;
-      } catch (_) {
+      if (!feeRates) {
+        try {
+          feeRates = await (await btcFetch('/v1/fees/recommended')).json();
+        } catch (_) {
+          err.textContent = t("Couldn't reach mempool.space. Try again.");
+          return;
+        }
+      }
+      const feeRate = rateFor(feeChoice);
+      if (feeRate == null || feeRate <= 0) {
         err.textContent = t("Couldn't reach mempool.space. Try again.");
         return;
       }
@@ -22094,8 +22147,21 @@
 
     // ---- the sweep -------------------------------------------------------
 
+    // Everything-out is irreversible, so the button carries the account
+    // switcher's two-tap confirm: the first press arms — same words, red —
+    // the second, within four seconds, fires. Editing the destination or the
+    // fee disarms, since the review those taps confirmed has changed.
     go.addEventListener('click', async () => {
       if (!pending) return;
+      if (!armed) {
+        armed = true;
+        go.classList.add('armed');
+        go.textContent = t('Tap again to confirm');
+        clearTimeout(disarmTimer);
+        disarmTimer = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
       go.disabled = true;
       go.textContent = t('Sweeping…');
       err.textContent = '';
