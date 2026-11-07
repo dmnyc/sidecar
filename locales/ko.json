@@ -1928,11 +1928,9 @@
   "{{domain}} said: {{reason}}": "{{domain}}의 응답: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}}의 지급이 완료되지 않았어요.",
   "Use for notifications only": "알림에만 사용",
-  "On-chain rescue": "온체인 구제",
   "Tweaked address": "Tweaked 주소",
   "Untweaked address": "Untweaked 주소",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "이 주소들은 공개되어 있으며 npub에 연결되어 있습니다. 언젠가 코인이 있다면 새 주소로 스위프하세요 — 그 스위프 자체가 두 주소를 온체인에서 연결합니다.",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "어떤 지갑의 받기 주소든 붙여넣으세요 — 자기관리는 Zeus, 코인을 라이트닝으로 옮기는 건 Rizful입니다.",
   "Destination address": "대상 주소",
   "Sweep now": "지금 스위프",
   "That QR holds a Lightning payment code, not a bitcoin address.": "이 QR은 라이트닝 결제 코드이지 비트코인 주소가 아닙니다.",
@@ -1952,5 +1950,7 @@
   "Scan a receive address": "받기 주소 스캔",
   "Point the camera at a receive-address QR code.": "받기 주소 QR 코드에 카메라를 향하세요.",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "이 계정 키가 쓸 수 있는 비트코인 주소를 지켜 보아 보내진 코인을 건질 수 있게 합니다. 켜져 있으면 Sidecar가 mempool.space에 그 주소들을 문의합니다. 꺼져 있는 동안은 아무것도 조회하지 않습니다.",
-  "Show the on-chain rescue card in the Wallet": "Wallet에 온체인 구제 카드 표시"
+  "On-chain balance": "온체인 잔액",
+  "Show on-chain balance in the Wallet": "Wallet에 온체인 잔액 표시",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "아무 비트코인 지갑의 받기 주소나 붙여넣고, 스위프 전에 확인하세요."
 }

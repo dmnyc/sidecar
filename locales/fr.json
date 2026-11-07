@@ -2066,11 +2066,9 @@
   "{{domain}} said: {{reason}}": "{{domain}} a répondu : {{reason}}",
   "{{domain}}'s payment didn't go through.": "Le paiement de {{domain}} n’a pas abouti.",
   "Use for notifications only": "Utiliser uniquement pour les notifications",
-  "On-chain rescue": "Sauvetage on-chain",
   "Tweaked address": "Adresse tweaked",
   "Untweaked address": "Adresse untweaked",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "Ces adresses sont publiques et liées à votre npub. Si elles détiennent un jour des pièces, balaiez-les vers une adresse neuve — le balayage lui-même lie les deux on-chain.",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "Collez une adresse de réception de n'importe quel wallet — Zeus pour l'autocustodie, ou Rizful pour envoyer les pièces sur Lightning.",
   "Destination address": "Adresse de destination",
   "Sweep now": "Balayer maintenant",
   "That QR holds a Lightning payment code, not a bitcoin address.": "Ce QR contient un code de paiement Lightning, pas une adresse bitcoin.",
@@ -2090,5 +2088,7 @@
   "Scan a receive address": "Scanner une adresse de réception",
   "Point the camera at a receive-address QR code.": "Visez un QR contenant une adresse de réception avec la caméra.",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "Surveillez l'adresse bitcoin que la clé de ce compte peut dépenser, pour récupérer des pièces envoyées là. Une fois activé, Sidecar interroge mempool.space sur ces adresses. Rien n'est consulté tant que ce n'est pas activé.",
-  "Show the on-chain rescue card in the Wallet": "Afficher la carte de sauvetage on-chain dans la Wallet"
+  "On-chain balance": "Solde on-chain",
+  "Show on-chain balance in the Wallet": "Afficher le solde on-chain dans la Wallet",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Collez une adresse de réception de n'importe quel wallet bitcoin, et vérifiez-la avant de balayer."
 }

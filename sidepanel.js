@@ -935,7 +935,7 @@
   // "Bitcoin only": no local currency anywhere. The tap cycles sats and BTC, the price
   // chart (which is priced in that currency) is hidden, and no rate is fetched.
   let fiatOff = false;
-  let btcSweepOn = false; // the on-chain rescue card is opt-in; nothing is looked up until it is on
+  let btcSweepOn = false; // on-chain balance is opt-in; nothing is looked up until it is on
   let zapFlash = true; // lightning bolt on payment — on unless turned off
   // The fourth zap preset. Cached here rather than read per form, the same way
   // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
@@ -21776,7 +21776,7 @@
     disc.addEventListener('click', () => disconnectModal());
     view.append(disc);
 
-    // On-chain rescue (opt-in; Settings → Wallet & payments). Sits at the foot
+    // On-chain balance (opt-in; Settings → Wallet & payments). Sits at the foot
     // of the Wallet tab, above the disclaimer it is morally adjacent to.
     if (btcSweepOn) appendBtcSweepCard(view);
 
@@ -21845,13 +21845,13 @@
     observeWalletCard(card, sentinel, spacer);
   }
 
-  // ---- On-chain rescue --------------------------------------------------------
+  // ---- On-chain balance --------------------------------------------------------
   //
   // The Bitcoin addresses a Nostr key can spend, and one way out of them. Two
   // forms hang off the account's pubkey: the BIP-86-style "tweaked" one and the
   // raw "untweaked" one, both plain OP_1 key-path outputs. Some nostr-key
-  // wallet tools have sent people's coins to these by accident; this card is
-  // the rescue hatch, not an endorsement — the disclaimer says the address is
+  // wallet tools have sent people's coins to these by accident; this is the
+  // rescue hatch, not an endorsement — the disclaimer says the address is
   // public, tied to the npub, and worth sweeping to a FRESH address.
   //
   // Opt-in from Settings, and inert until then: nothing is looked up, no
@@ -21862,8 +21862,8 @@
   // panel handles only public data (addresses, sighashes, serialization) and
   // the worker derives every key itself, so a sighash under any other key is
   // refused. One action: sweep EVERYTHING to a single pasted or scanned
-  // destination. No general send, no change output, no Lightning swap — the
-  // Lightning route is a Rizful deposit address pasted like any other.
+  // destination. No general send, no change output, no Lightning swap — any
+  // bitcoin wallet's receive address works, and the hint says to verify it.
   const MEMPOOL_API = 'https://mempool.space/api';
 
   async function btcFetch(path, opts) {
@@ -21895,14 +21895,15 @@
     // The header is a button (it toggles the card) but buttons may not carry
     // headings, so the title is a styled span.
     const head = h('button', { type: 'button', className: 'btc-sweep-head' }, [
-      h('span', { className: 'btc-sweep-title', textContent: t('On-chain rescue') }),
+      h('span', { className: 'btc-sweep-title', textContent: t('On-chain balance') }),
       h('span', { className: 'btc-sweep-total btc-sweep-amt', textContent: '…' }),
     ]);
     head.addEventListener('click', () => card.classList.toggle('open'));
     card.append(head, open);
 
-    // One row per form: address (tap to copy, no QR, no request amount — this
-    // is not a deposit address to share around) and what sits on it.
+    // One row per form: the type and its balance on a line, the address on its
+    // own line beneath — a ~360px row has no room for label, address AND
+    // balance side by side, and everything ellipsized into nothing.
     const rows = {};
     for (const [form, label] of [['tweaked', t('Tweaked address')], ['untweaked', t('Untweaked address')]]) {
       const addr = h('button', { className: 'address-value btc-sweep-addr', title: t('Copy address') }, [
@@ -21921,7 +21922,11 @@
         } catch (_) {}
       });
       open.append(h('div', { className: 'btc-sweep-row' }, [
-        h('span', { className: 'btc-sweep-label', textContent: label }), addr, amt,
+        h('div', { className: 'btc-sweep-line' }, [
+          h('span', { className: 'btc-sweep-label', textContent: label }),
+          amt,
+        ]),
+        addr,
       ]));
       rows[form] = { addr, amt };
     }
@@ -21933,7 +21938,7 @@
       }),
       h('p', {
         className: 'hint compact',
-        textContent: t('Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.'),
+        textContent: t('Paste a receive address from any bitcoin wallet, and verify it before you sweep.'),
       })
     );
 

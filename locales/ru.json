@@ -2135,11 +2135,9 @@
   "{{domain}} said: {{reason}}": "{{domain}} ответил: {{reason}}",
   "{{domain}}'s payment didn't go through.": "Платёж от {{domain}} не прошёл.",
   "Use for notifications only": "Использовать только для уведомлений",
-  "On-chain rescue": "Ончейн-спасение",
   "Tweaked address": "Tweaked-адрес",
   "Untweaked address": "Untweaked-адрес",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "Эти адресы публичны и привязаны к вашему npub. Если там когда-нибудь окажутся монеты, сметите их на свежий адрес — сама отправка связывает оба в блокчейне.",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "Вставьте адрес для получения из любого кошелька — Zeus для самохранения, или Rizful, чтобы монеты попали на Lightning.",
   "Destination address": "Адрес получателя",
   "Sweep now": "Сметти сейчас",
   "That QR holds a Lightning payment code, not a bitcoin address.": "Этот QR-код содержит код оплаты Lightning, а не адрес биткоина.",
@@ -2159,5 +2157,7 @@
   "Scan a receive address": "Сканировать адрес для получения",
   "Point the camera at a receive-address QR code.": "Наведите камеру на QR-код адреса для получения.",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "Следите за биткоин-адресом, который может тратить ключ этого аккаунта, чтобы спасти отправленные туда монеты. Когда включено, Sidecar спрашивает mempool.space об этих адресах. Пока выключено — никаких запросов.",
-  "Show the on-chain rescue card in the Wallet": "Показать карточку ончейн-спасения в кошельке"
+  "On-chain balance": "Ончейн-баланс",
+  "Show on-chain balance in the Wallet": "Показать ончейн-баланс в кошельке",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Вставьте адрес для получения из любого биткоин-кошелька и проверьте его перед отправкой."
 }

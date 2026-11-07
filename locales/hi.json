@@ -1997,11 +1997,9 @@
   "{{domain}} said: {{reason}}": "{{domain}} ने कहा: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} का भुगतान पूरा नहीं हुआ।",
   "Use for notifications only": "केवल सूचनाओं के लिए इस्तेमाल करें",
-  "On-chain rescue": "ऑन-चेन बचाव",
   "Tweaked address": "Tweaked पता",
   "Untweaked address": "Untweaked पता",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "ये पते सार्वजनिक हैं और आपके npub से जुड़े हैं। अगर इनमें कभी कॉइन आ जाएँ, तो उन्हें एक नए पते पर स्वीप करें — स्वीप खुद दोनों को ऑन-चेन पर जोड़ देता है।",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "किसी भी वॉलेट का प्राप्ति पता पेस्ट करें — स्व-निगरानी के लिए Zeus, या कॉइन को लाइटनिंग तक पहुँचाने के लिए Rizful।",
   "Destination address": "गंतव्य पता",
   "Sweep now": "अभी स्वीप करें",
   "That QR holds a Lightning payment code, not a bitcoin address.": "इस QR में लाइटनिंग भुगतान कोड है, बिटकॉइन पता नहीं।",
@@ -2021,5 +2019,7 @@
   "Scan a receive address": "प्राप्ति पता स्कैन करें",
   "Point the camera at a receive-address QR code.": "कैमरा प्राप्ति पते के QR पर रखें।",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "इस खाते की कुंजी जो बिटकॉइन पता खर्च कर सकती है उस पर नज़र रखें, ताकि वहाँ भेजे गए कॉइन बचाए जा सकें। चालू होने पर Sidecar इन पतों के बारे में mempool.space से पूछता है। बंद रहने तक कुछ नहीं पूछा जाता।",
-  "Show the on-chain rescue card in the Wallet": "Wallet में ऑन-चेन बचाव कार्ड दिखाएँ"
+  "On-chain balance": "ऑन-चेन बैलेंस",
+  "Show on-chain balance in the Wallet": "Wallet में ऑन-चेन बैलेंस दिखाएँ",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "किसी भी बिटकॉइन वॉलेट का प्राप्ति पता पेस्ट करें, और स्वीप से पहले उसे जाँच लें।"
 }

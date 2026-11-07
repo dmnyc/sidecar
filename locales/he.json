@@ -2066,11 +2066,9 @@
   "{{domain}} said: {{reason}}": "{{domain}} השיב: {{reason}}",
   "{{domain}}'s payment didn't go through.": "התשלום מ-{{domain}} לא עבר.",
   "Use for notifications only": "שימוש להתראות בלבד",
-  "On-chain rescue": "חילוץ בצ'יין",
   "Tweaked address": "כתובת tweaked",
   "Untweaked address": "כתובת untweaked",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "הכתובות האלה ציבוריות וקשורות ל־npub שלך. אם יישמרו בהן מטבעות מתישהו, טאטאו אותם לכתובת חדשה — הטאטוא עצמו מקשר בין השתיים בצ'יין.",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "הדביקו כתובת קבלה מכל ארנק — Zeus לשמירה עצמית, או Rizful כדי שהמטבעות יגיעו ללייטנינג.",
   "Destination address": "כתובת יעד",
   "Sweep now": "לטאטא עכשיו",
   "That QR holds a Lightning payment code, not a bitcoin address.": "קוד ה־QR הזה מכיל קוד תשלום Lightning, לא כתובת ביטקוין.",
@@ -2090,5 +2088,7 @@
   "Scan a receive address": "סריקת כתובת קבלה",
   "Point the camera at a receive-address QR code.": "כוונו את המצלמה ל־QR של כתובת קבלה.",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "עקבו אחרי כתובת הביטקוין שהמפתח של החשבון הזה יכול להוציא, כדי לחלץ מטבעות שנשלחו אליה. כשזה פעיל, Sidecar שואל את mempool.space על הכתובות האלה. כל עוד זה כבוי — שום שאילתה.",
-  "Show the on-chain rescue card in the Wallet": "הצגת כרטיס החילוץ בצ'יין בארנק"
+  "On-chain balance": "יתרה בצ'יין",
+  "Show on-chain balance in the Wallet": "הצגת היתרה בצ'יין בארנק",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "הדביקו כתובת קבלה מכל ארנק ביטקוין, ואמתו אותה לפני הטאטוא."
 }

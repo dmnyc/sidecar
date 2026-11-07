@@ -1997,11 +1997,9 @@
   "{{domain}} said: {{reason}}": "پاسخ {{domain}}: {{reason}}",
   "{{domain}}'s payment didn't go through.": "پرداخت {{domain}} انجام نشد.",
   "Use for notifications only": "فقط برای اعلان‌ها استفاده شود",
-  "On-chain rescue": "نجات روی زنجیره",
   "Tweaked address": "نشانی tweaked",
   "Untweaked address": "نشانی untweaked",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "این نشانی‌ها عمومی‌اند و به npub شما گره خورده‌اند. اگر روزی سکه‌ای در آن‌ها باشد، آن‌ها را به نشانی تازه‌ای جارو کنید — خودِ جارو دو سوی را روی زنجیره به هم پیوند می‌زند.",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "نشانی دریافت از هر کیفی را بچسبانید — Zeus برای نگه‌داری نزد خود، یا Rizful برای رساندن سکه‌ها به لایتنینگ.",
   "Destination address": "نشانی مقصد",
   "Sweep now": "هم‌اکنون جارو کن",
   "That QR holds a Lightning payment code, not a bitcoin address.": "این QR یک کد پرداخت لایتنینگ است، نه نشانی بیت‌کوین.",
@@ -2021,5 +2019,7 @@
   "Scan a receive address": "اسکن نشانی دریافت",
   "Point the camera at a receive-address QR code.": "دوربین را روی QR نشانی دریافت بگیرید.",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "مراقب نشانی بیت‌کوینی که کلید این حساب می‌تواند خرج کند باشید تا سکه‌های رسیده به آن نجات یابند. با روشن بودن، Sidecar از mempool.space دربارهٔ این نشانی‌ها می‌پرسد. تا وقتی خاموش است هیچ پرس‌وجویی نمی‌شود.",
-  "Show the on-chain rescue card in the Wallet": "نمایش کارت نجات روی زنجیره در Wallet"
+  "On-chain balance": "موجودی روی زنجیره",
+  "Show on-chain balance in the Wallet": "نمایش موجودی روی زنجیره در Wallet",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "نشانی دریافت از هر کیف بیت‌کوینی را بچسبانید و پیش از جارو کردن آن را بازبینی کنید."
 }

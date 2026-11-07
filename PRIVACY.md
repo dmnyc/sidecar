@@ -133,9 +133,9 @@ Sidecar only talks to services **you choose**:
   lists your currency, with the other as a fallback. At most the request names the
   currency; nothing about your keys or your wallet is sent. Prices are cached for
   five minutes. With **Bitcoin only** turned on in Settings, no price is fetched.
-- **On-chain rescue** — if you turn on the on-chain rescue card in Settings,
-  Sidecar asks **mempool.space** for the balances and confirmed outputs of the
-  two Bitcoin addresses this account's key can spend, so coins sent there can be
+- **On-chain balance** — if you turn on on-chain balance in Settings, Sidecar
+  asks **mempool.space** for the balances and confirmed outputs of the two
+  Bitcoin addresses this account's key can spend, so coins sent there can be
   swept back out. Those addresses are publicly derivable from your Nostr public
   key, so each request tells mempool.space which addresses you are checking, and
   shows it your IP address. Nothing is looked up until the switch is on, and a

@@ -2066,11 +2066,9 @@
   "{{domain}} said: {{reason}}": "{{domain}} disse: {{reason}}",
   "{{domain}}'s payment didn't go through.": "O pagamento de {{domain}} não foi concluído.",
   "Use for notifications only": "Usar apenas para notificações",
-  "On-chain rescue": "Resgate on-chain",
   "Tweaked address": "Endereço tweaked",
   "Untweaked address": "Endereço untweaked",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "Estes endereços são públicos e estão ligados ao seu npub. Se algum dia tiverem moedas, varra-as para um endereço novo — a própria varredura liga as duas on-chain.",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "Cole um endereço de receção de qualquer wallet — Zeus para autocustódia, ou Rizful para levar as moedas à Lightning.",
   "Destination address": "Endereço de destino",
   "Sweep now": "Varrer agora",
   "That QR holds a Lightning payment code, not a bitcoin address.": "Esse QR contém um código de pagamento Lightning, não um endereço bitcoin.",
@@ -2090,5 +2088,7 @@
   "Scan a receive address": "Digitalizar um endereço de receção",
   "Point the camera at a receive-address QR code.": "Aponte a câmara para um QR de endereço de receção.",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "Vigie o endereço bitcoin que a chave desta conta pode gastar, para resgatar moedas enviadas para lá. Com isto ligado, o Sidecar pergunta ao mempool.space sobre esses endereços. Nada é consultado enquanto estiver desligado.",
-  "Show the on-chain rescue card in the Wallet": "Mostrar o cartão de resgate on-chain na Wallet"
+  "On-chain balance": "Saldo on-chain",
+  "Show on-chain balance in the Wallet": "Mostrar o saldo on-chain na Wallet",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Cole um endereço de receção de qualquer wallet de bitcoin, e verifique antes de varrer."
 }

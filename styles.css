@@ -4435,13 +4435,16 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .btc-sweep-total { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
 .btc-sweep > .btc-sweep-body { display: none; }
 .btc-sweep.open > .btc-sweep-body { display: block; }
-.btc-sweep-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.btc-sweep-row { margin-top: 10px; }
+/* Type and balance share the top line; the address takes the full width
+   beneath, where a ~360px row would otherwise ellipsize all three. */
+.btc-sweep-line { display: flex; align-items: baseline; gap: 8px; }
 .btc-sweep-label {
-  flex-shrink: 0; width: 92px; font-size: 12px; color: var(--muted);
+  flex: 1; min-width: 0; font-size: 12px; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.btc-sweep .address-value { font-size: 12px; padding: 8px 10px; }
-.btc-sweep-row .btc-sweep-amt {
+.btc-sweep .address-value { font-size: 12px; padding: 8px 10px; width: 100%; margin-top: 5px; }
+.btc-sweep-line .btc-sweep-amt {
   flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; color: var(--text);
   white-space: nowrap;
 }

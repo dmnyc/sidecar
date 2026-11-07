@@ -1928,11 +1928,9 @@
   "{{domain}} said: {{reason}}": "{{domain}}からの応答：{{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}}からの支払いは完了しませんでした。",
   "Use for notifications only": "通知にのみ使用",
-  "On-chain rescue": "オンチェーン救済",
   "Tweaked address": "Tweakedアドレス",
   "Untweaked address": "Untweakedアドレス",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "これらのアドレスは公開され、あなたのnpubに紐付いています。もしいずれコインが届いたら、新しいアドレスへスイープしてください — スイープ自体が両者をオンチェーンで結びます。",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "どのウォレットの受取アドレスでも貼り付けてください — 自己保管にはZeus、コインをLightningへ届けるにはRizful。",
   "Destination address": "送り先アドレス",
   "Sweep now": "今すぐスイープ",
   "That QR holds a Lightning payment code, not a bitcoin address.": "このQRはLightningの支払いコードで、ビットコインアドレスではありません。",
@@ -1952,5 +1950,7 @@
   "Scan a receive address": "受取アドレスをスキャン",
   "Point the camera at a receive-address QR code.": "受取アドレスのQRコードにカメラを向けてください。",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "このアカウントの鍵が支出できるビットコインアドレスを見守り、送られたコインを救い出せるようにします。オンにすると、Sidecarはそれらのアドレスをmempool.spaceに問い合わせます。オフの間は何も照会しません。",
-  "Show the on-chain rescue card in the Wallet": "Walletにオンチェーン救済カードを表示"
+  "On-chain balance": "オンチェーン残高",
+  "Show on-chain balance in the Wallet": "Walletにオンチェーン残高を表示",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "任意のビットコインウォレットの受取アドレスを貼り付けて、スイープの前に必ず確認してください。"
 }

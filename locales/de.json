@@ -1997,11 +1997,9 @@
   "{{domain}} said: {{reason}}": "{{domain}} meldete: {{reason}}",
   "{{domain}}'s payment didn't go through.": "Die Zahlung von {{domain}} ist fehlgeschlagen.",
   "Use for notifications only": "Nur für Benachrichtigungen verwenden",
-  "On-chain rescue": "On-Chain-Rettung",
   "Tweaked address": "Tweaked-Adresse",
   "Untweaked address": "Untweaked-Adresse",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "Diese Adressen sind öffentlich und an deinen npub gebunden. Falls sie je Münzen halten, sweepe sie auf eine frische Adresse — der Sweep selbst verknüpft beide on-chain.",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "Füge eine Empfangsadresse aus einer beliebigen Wallet ein — Zeus für Selbstverwahrung oder Rizful, um die Münzen auf Lightning zu bringen.",
   "Destination address": "Zieladresse",
   "Sweep now": "Jetzt sweepen",
   "That QR holds a Lightning payment code, not a bitcoin address.": "Dieser QR-Code enthält einen Lightning-Zahlungscode, keine Bitcoin-Adresse.",
@@ -2021,5 +2019,7 @@
   "Scan a receive address": "Empfangsadresse scannen",
   "Point the camera at a receive-address QR code.": "Richte die Kamera auf einen QR-Code mit einer Empfangsadresse.",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "Beobachte die Bitcoin-Adresse, die der Schlüssel dieses Kontos ausgeben kann, damit dort hingesendete Münzen zurückgeholt werden können. Ist das an, fragt Sidecar mempool.space nach diesen Adressen. Nichts wird abgefragt, solange es aus ist.",
-  "Show the on-chain rescue card in the Wallet": "Zeige die On-Chain-Rettungskarte in der Wallet"
+  "On-chain balance": "On-Chain-Guthaben",
+  "Show on-chain balance in the Wallet": "Zeige das On-Chain-Guthaben in der Wallet",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Füge eine Empfangsadresse aus einer beliebigen Bitcoin-Wallet ein, und prüfe sie, bevor du sweepst."
 }

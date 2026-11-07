@@ -1997,11 +1997,9 @@
   "{{domain}} said: {{reason}}": "{{domain}} نے کہا: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} کی ادائیگی مکمل نہیں ہوئی۔",
   "Use for notifications only": "صرف اطلاعات کے لیے استعمال کریں",
-  "On-chain rescue": "آن چین بچاؤ",
   "Tweaked address": "Tweaked ایڈریس",
   "Untweaked address": "Untweaked ایڈریس",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "یہ ایڈریس عوامی ہیں اور آپ کے npub سے جڑے ہیں۔ اگر ان میں کبھی کوئن آئیں تو انہیں ایک نئے ایڈریس پر سویپ کریں — سویپ خود ہی دونوں کو آن چین پر جوڑتا ہے۔",
-  "Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.": "کسی بھی والٹ کا وصولی ایڈریس پیسٹ کریں — خود نگرانی کے لیے Zeus، یا کوئنز کو لائٹننگ تک پہنچانے کے لیے Rizful۔",
   "Destination address": "منزل کا ایڈریس",
   "Sweep now": "ابھی سویپ کریں",
   "That QR holds a Lightning payment code, not a bitcoin address.": "اس QR میں لائٹننگ ادائیگی کا کوڈ ہے، بٹ کوئن ایڈریس نہیں۔",
@@ -2021,5 +2019,7 @@
   "Scan a receive address": "وصولی ایڈریس سکین کریں",
   "Point the camera at a receive-address QR code.": "کیمرہ وصولی ایڈریس کے QR پر رکھیں۔",
   "Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.": "اس اکاؤنٹ کی کلید جو بٹ کوئن ایڈریس خرچ کر سکتی ہے اس پر نظر رکھیں تاکہ وہاں بھیجے گئے کوئنز بچ سکیں۔ آن ہونے پر Sidecar ‏mempool.space سے ان ایڈریسز کے بارے میں پوچھتا ہے۔ آف رہنے تک کوئی استفسار نہیں۔",
-  "Show the on-chain rescue card in the Wallet": "والٹ میں آن چین بچاؤ کارڈ دکھائیں"
+  "On-chain balance": "آن چین بیلنس",
+  "Show on-chain balance in the Wallet": "والٹ میں آن چین بیلنس دکھائیں",
+  "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "کسی بھی بٹ کوئن والٹ کا وصولی ایڈریس پیسٹ کریں، اور سویپ سے پہلے اس کی تصدیق کریں۔"
 }
