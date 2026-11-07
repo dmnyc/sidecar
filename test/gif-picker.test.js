@@ -164,7 +164,7 @@ test('both composers mount the picker and attach a pick by URL', () => {
     assert.match(src, /buildGifPicker\(\{/, name + ' builds the picker');
     assert.match(src, /gif: \(\) => gifPicker/, name + ' hands it to the poll editor');
     // With the GIF's title as the description to start from.
-    assert.match(src, /draft\.media\.push\(\{ url: gif\.url, isVideo: false, alt: gif\.title \|\| '' \}\)/, name + ' puts the pick in the media slot');
+    assert.match(src, /addMedia\(draft\.media, \{ url: gif\.url, isVideo: false, alt: gif\.title \|\| '' \}\)/, name + ' puts the pick in the media slot');
     assert.match(src, /gifPicker\.addBtn/, name + ' puts the button in the toolbar');
     assert.match(src, /gifPicker\.wrap/, name + ' mounts the picker');
   }

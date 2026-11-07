@@ -40,7 +40,7 @@ function build({ holders, own = ['wss://own.example'] }) {
   });
   vm.createContext(ctx);
   vm.runInContext(
-    (source.includes('const LOOKUP_FALLBACK_RELAYS') ? lift(/const LOOKUP_FALLBACK_RELAYS = [^;]+;/, 'fallbacks') + '\n' + lift(/const LOOKUP_STAGE_MS = [^;]+;/, 'stage') + '\n' + lift(/async function findEvent\(ref\) \{[\s\S]*?\n  \}\n/, 'findEvent') : '') + '\n' +
+    (source.includes('const LOOKUP_FALLBACK_RELAYS') ? lift(/const LOOKUP_FALLBACK_RELAYS = [^;]+;/, 'fallbacks') + '\n' + lift(/const LOOKUP_STAGE_MS = [^;]+;/, 'stage') + '\n' + lift(/const foundEvents = new Map\(\);[\s\S]*?async function askRelaysFor\(ref\) \{[\s\S]*?\n  \}\n/, 'findEvent') : '') + '\n' +
     lift(/async function resolveEmbeds\(embeds\) \{[\s\S]*?\n  \}\n/, 'resolveEmbeds') + '\nglobalThis.resolveEmbeds = resolveEmbeds;',
     ctx
   );
@@ -78,4 +78,35 @@ test('a note no relay holds still reads "not found"', async () => {
   assert.equal(rendered.length, 0);
   assert.equal(el.cls.has('embed-missing'), true);
   assert.equal(el.textContent, 'nostr event (not found)');
+});
+
+test('A FOUND NOTE IS ASKED FOR ONCE: a redraw of the preview does not go back to the relays', async () => {
+  const { ctx, asked, rendered } = build({ holders: ['wss://own.example'] });
+  const ref = () => ({ filter: { ids: [ID] }, relays: [] });
+  await ctx.resolveEmbeds([{ el: card(), ref: ref() }]);
+  await ctx.resolveEmbeds([{ el: card(), ref: ref() }]);
+  await ctx.resolveEmbeds([{ el: card(), ref: ref() }]);
+  assert.equal(rendered.length, 3, 'every redraw still paints the card');
+  assert.equal(asked.length, 1, 'but only the first one asked a relay');
+});
+
+test('TWO LOOKUPS AT ONCE SHARE ONE REQUEST', async () => {
+  const { ctx, asked, rendered } = build({ holders: ['wss://own.example'] });
+  const ref = () => ({ filter: { ids: [ID] }, relays: [] });
+  await Promise.all([
+    ctx.resolveEmbeds([{ el: card(), ref: ref() }]),
+    ctx.resolveEmbeds([{ el: card(), ref: ref() }]),
+  ]);
+  assert.equal(rendered.length, 2);
+  assert.equal(asked.length, 1);
+});
+
+test('A MISS IS NOT REMEMBERED: the relay may answer next time', async () => {
+  const { ctx, asked, rendered } = build({ holders: [] });
+  const ref = () => ({ filter: { ids: [ID] }, relays: [] });
+  await ctx.resolveEmbeds([{ el: card(), ref: ref() }]);
+  const firstAsks = asked.length;
+  await ctx.resolveEmbeds([{ el: card(), ref: ref() }]);
+  assert.equal(rendered.length, 0);
+  assert.ok(asked.length > firstAsks, 'the second lookup went back to the relays');
 });

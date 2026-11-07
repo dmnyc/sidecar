@@ -3180,6 +3180,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-thumb.is-broken img { opacity: 0; }
 .compose-thumb { position: relative; width: 72px; height: 72px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
 .compose-thumb img, .compose-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* THE EXPANDED COMPOSER GIVES THE PICTURES ROOM. 72px is the panel's square, sized for a
+   360px column; the card here is 672px of content, and 128px is five across it exactly
+   (5 x 128 + 4 x 8), which is enough to see what is attached and to tell two similar
+   screenshots apart. Narrower windows wrap, as the strip always has. */
+.compose-page .compose-thumb { width: 128px; height: 128px; border-radius: 12px; }
 /* A video's cover, opaque so the element under it never paints a frame. The element
    stays because it is what detects a 404; this is what you actually look at. The
    extension sits under the glyph because two videos in a strip are otherwise the
@@ -3245,6 +3250,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .compose-alt-head { display: flex; align-items: center; gap: 8px; }
 .compose-alt-thumb { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.compose-alt-thumb-vid { display: flex; align-items: center; justify-content: center; background: var(--velvet-2); color: var(--muted); }
+.compose-alt-thumb-vid svg { width: 18px; height: 18px; }
 .compose-alt-hint { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .compose-alt-remove { flex-shrink: 0; width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; }
 .compose-alt-remove svg { width: 13px; height: 13px; }
@@ -3289,6 +3296,43 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   flex: 1; min-width: 0; text-align: left;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* The quote offer, under the collapsed line: a plain text action in the accent color,
+   shown only while the words end on a quoted note and attachments are on the post. */
+.compose-media-offer {
+  display: block; background: none; border: none; padding: 2px 2px 4px 22px; cursor: pointer;
+  font: inherit; font-size: 12px; text-align: left; color: var(--gold);
+}
+.compose-media-offer:hover { text-decoration: underline; }
+/* The quoted note, as a block in the strip: the reply block's own look (gold rule, label,
+   author, clipped text), full width so a row of pictures ends where it begins. */
+.compose-thumbs .quote-block { flex: 0 0 100%; box-sizing: border-box; margin: 2px 0; min-width: 0; max-width: 100%; }
+.quote-block .reply-target-label { align-items: center; }
+/* The pictures' label beside a quote: the quote block's label, without its gold rule. */
+.compose-thumbs .attach-group-label {
+  flex: 0 0 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); margin: 6px 0 0;
+}
+.quote-block-actions { display: inline-flex; align-items: center; gap: 2px; }
+.quote-block-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;
+  background: none; border: none; border-radius: 6px; cursor: pointer; color: var(--muted);
+}
+.quote-block-btn:hover { color: var(--text); background: var(--hover-soft); }
+.quote-block-btn svg { width: 15px; height: 15px; }
+.quote-block-btn.is-armed { color: var(--red); background: rgba(240, 86, 107, 0.14); }
+/* The pictures' label is a button for the chevron and the count (it opens the links), and
+   the links list sits under the last picture, full width like the quote block. */
+.attach-group-toggle {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0; padding: 4px 4px 4px 0;
+  background: none; border: none; cursor: pointer; color: inherit;
+  font: inherit; letter-spacing: inherit; text-transform: inherit;
+}
+.attach-group-toggle svg { width: 14px; height: 14px; flex-shrink: 0; transition: transform 150ms ease; }
+.attach-group-toggle.open svg { transform: rotate(180deg); }
+/* min-width: 0 is what lets a long URL truncate. A flex item in a wrapping row will not go
+   narrower than its content, and an unbroken nowrap URL is 800px of content: without it the
+   list is as wide as the longest link and pushes the copy buttons off the screen. */
+.compose-thumbs .attach-group-list { flex: 0 0 100%; box-sizing: border-box; min-width: 0; max-width: 100%; }
 .compose-media-drawer { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 4px; }
 .compose-media-row { display: flex; align-items: center; gap: 8px; }
 .compose-media-url {
