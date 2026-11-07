@@ -2024,5 +2024,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Επικολλήστε διεύθυνση λήψης από οποιοδήποτε wallet bitcoin, και επαληθεύστε την πριν τη σάρωση.",
   "Fast": "Γρήγορο",
   "Standard": "Κανονικό",
-  "Economy": "Οικονομικό"
+  "Economy": "Οικονομικό",
+  "Copy txid": "Αντιγραφή ID συναλλαγής"
 }

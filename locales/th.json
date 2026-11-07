@@ -1955,5 +1955,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "วางที่อยู่รับจาก wallet bitcoin ใดก็ได้ และตรวจสอบก่อนกวาด",
   "Fast": "เร็ว",
   "Standard": "มาตรฐาน",
-  "Economy": "ประหยัด"
+  "Economy": "ประหยัด",
+  "Copy txid": "คัดลอก ID ธุรกรรม"
 }

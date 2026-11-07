@@ -2162,5 +2162,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Вставьте адрес для получения из любого биткоин-кошелька и проверьте его перед отправкой.",
   "Fast": "Быстро",
   "Standard": "Обычная",
-  "Economy": "Экономно"
+  "Economy": "Экономно",
+  "Copy txid": "Скопировать ID транзакции"
 }

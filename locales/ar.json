@@ -2300,5 +2300,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "الصق عنوان استلام من أي محفظة بيتكوين، وتحقق منه قبل الكنس.",
   "Fast": "سريع",
   "Standard": "قياسي",
-  "Economy": "اقتصادي"
+  "Economy": "اقتصادي",
+  "Copy txid": "نسخ معرّف المعاملة"
 }

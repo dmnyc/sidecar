@@ -22246,13 +22246,28 @@
           amount: btcSatsText(plan.outValueSats), address: parsed.address,
         });
         reviewFee.textContent = '';
+        // The txid itself is the copy affordance — the full id goes to the
+        // clipboard on tap, since pasting it into another tool is the reason
+        // anyone wants the string at all.
+        const txBtn = h('button', { type: 'button', className: 'btc-sweep-txid', title: t('Copy txid') }, [
+          h('span', { textContent: txid.slice(0, 10) + '…' }),
+        ]);
+        txBtn.addEventListener('click', async () => {
+          try {
+            await copyPlain(txid);
+            const s = txBtn.querySelector('span');
+            const prev = s.textContent;
+            s.textContent = t('Copied ✓');
+            setTimeout(() => (s.textContent = prev), 1200);
+          } catch (_) {}
+        });
         const link = h('a', { href: '#', className: 'explore-link', textContent: t('View on mempool.space') });
         link.addEventListener('click', (e) => {
           e.preventDefault();
           chrome.tabs.create({ url: 'https://mempool.space/tx/' + txid });
         });
         const doneLine = h('p', { className: 'hint compact' });
-        doneLine.append(document.createTextNode(txid.slice(0, 10) + '… '), link);
+        doneLine.append(txBtn, document.createTextNode(' '), link);
         review.append(doneLine);
         go.remove(); // the card is a receipt now, and stays held
       } catch (e) {

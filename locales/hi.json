@@ -2024,5 +2024,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "किसी भी बिटकॉइन वॉलेट का प्राप्ति पता पेस्ट करें, और स्वीप से पहले उसे जाँच लें।",
   "Fast": "तेज़",
   "Standard": "सामान्य",
-  "Economy": "किफ़ायती"
+  "Economy": "किफ़ायती",
+  "Copy txid": "ट्रांज़ैक्शन आईडी कॉपी करें"
 }

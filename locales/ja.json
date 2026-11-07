@@ -1955,5 +1955,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "任意のビットコインウォレットの受取アドレスを貼り付けて、スイープの前に必ず確認してください。",
   "Fast": "速い",
   "Standard": "標準",
-  "Economy": "経済的"
+  "Economy": "経済的",
+  "Copy txid": "トランザクションIDをコピー"
 }

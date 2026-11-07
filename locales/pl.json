@@ -2162,5 +2162,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "Wklej adres odbiorczy z dowolnego walleta bitcoin i sprawdź go przed zamiataniem.",
   "Fast": "Szybko",
   "Standard": "Standardowo",
-  "Economy": "Ekonomicznie"
+  "Economy": "Ekonomicznie",
+  "Copy txid": "Skopiuj ID transakcji"
 }

@@ -2024,5 +2024,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "کسی بھی بٹ کوئن والٹ کا وصولی ایڈریس پیسٹ کریں، اور سویپ سے پہلے اس کی تصدیق کریں۔",
   "Fast": "تیز",
   "Standard": "معیاری",
-  "Economy": "کفایتی"
+  "Economy": "کفایتی",
+  "Copy txid": "ٹرانزیکشن آئی ڈی کاپی کریں"
 }

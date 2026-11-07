@@ -1955,5 +1955,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "粘贴任意比特币钱包的收款地址，清扫前请先核对。",
   "Fast": "快",
   "Standard": "标准",
-  "Economy": "经济"
+  "Economy": "经济",
+  "Copy txid": "复制交易 ID"
 }

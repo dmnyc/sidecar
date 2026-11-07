@@ -1955,5 +1955,6 @@
   "Paste a receive address from any bitcoin wallet, and verify it before you sweep.": "아무 비트코인 지갑의 받기 주소나 붙여넣고, 스위프 전에 확인하세요.",
   "Fast": "빠르게",
   "Standard": "표준",
-  "Economy": "경제적"
+  "Economy": "경제적",
+  "Copy txid": "트랜잭션 ID 복사"
 }
