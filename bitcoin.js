@@ -372,41 +372,43 @@
   // tx: { version, inputs: [{txidHex, vout, sequence}], outputs: [{valueSats, script}], nLockTime }
   // witness: per input, an array of stack items (hex), or null to serialize the
   // legacy (stripped) form — which is also what the txid is taken over.
+  //
+  // BIP-144 layout: version, marker+flag, inputs, outputs, the WITNESSES, then
+  // the locktime last. The witnesses carry no count of their own — one per
+  // input, in input order, the input count already says how many — so a stray
+  // count, or a locktime ahead of them, makes a parser read the locktime's
+  // first byte as an empty witness: Core's "TX decode failed".
   function serializeTx(tx, witness) {
-    const parts = [];
-    const head = [];
-    Array.prototype.push.apply(head, u32le(tx.version));
+    const out = [];
+    Array.prototype.push.apply(out, u32le(tx.version));
     const hasWitness = !!witness;
-    if (hasWitness) head.push(0x00, 0x01); // segwit marker + flag
-    writeVarint(tx.inputs.length, head);
+    if (hasWitness && witness.length !== tx.inputs.length) throw new Error('tx: one witness per input');
+    if (hasWitness) out.push(0x00, 0x01); // segwit marker + flag
+    writeVarint(tx.inputs.length, out);
     for (const input of tx.inputs) {
-      Array.prototype.push.apply(head, hexToBytes(input.txidHex));
-      Array.prototype.push.apply(head, u32le(input.vout));
-      writeVarint(0, head); // empty scriptSig
-      Array.prototype.push.apply(head, u32le(input.sequence == null ? 0xfffffffd : input.sequence));
+      Array.prototype.push.apply(out, hexToBytes(input.txidHex));
+      Array.prototype.push.apply(out, u32le(input.vout));
+      writeVarint(0, out); // empty scriptSig
+      Array.prototype.push.apply(out, u32le(input.sequence == null ? 0xfffffffd : input.sequence));
     }
-    writeVarint(tx.outputs.length, head);
+    writeVarint(tx.outputs.length, out);
     for (const output of tx.outputs) {
-      Array.prototype.push.apply(head, u64le(output.valueSats));
-      writeVarint(output.script.length, head);
-      Array.prototype.push.apply(head, output.script);
+      Array.prototype.push.apply(out, u64le(output.valueSats));
+      writeVarint(output.script.length, out);
+      Array.prototype.push.apply(out, output.script);
     }
-    Array.prototype.push.apply(head, u32le(tx.nLockTime || 0));
-    parts.push(head);
     if (hasWitness) {
-      const w = [];
-      writeVarint(tx.inputs.length, w);
       for (const items of witness) {
-        writeVarint(items.length, w);
+        writeVarint(items.length, out);
         for (const item of items) {
           const bytes = hexToBytes(item);
-          writeVarint(bytes.length, w);
-          Array.prototype.push.apply(w, bytes);
+          writeVarint(bytes.length, out);
+          Array.prototype.push.apply(out, bytes);
         }
       }
-      parts.push(w);
     }
-    return concatBytes.apply(null, parts);
+    Array.prototype.push.apply(out, u32le(tx.nLockTime || 0));
+    return Uint8Array.from(out);
   }
   function txWeight(tx, witness) {
     const stripped = serializeTx(tx, null);

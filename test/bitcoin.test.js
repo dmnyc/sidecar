@@ -201,12 +201,50 @@ test('the sweep signing path produces verifiable key-path signatures for both fo
 
 // ---- serialization, size, txid ----------------------------------------------
 
+// The first Taproot key-path spend on mainnet (block 709635): one P2TR input
+// with an empty scriptSig and a single witness item — the sweep's own shape —
+// and a NONZERO locktime, so where the witness sits against the locktime shows
+// in the bytes. Its prevout txid is in display order, as an explorer prints it.
+const MAINNET_KEYPATH_TX = '01000000000101d1f1c1f8cdf6759167b90f52c9ad358a369f95284e841d7a2536cef31c0549580100000000fdffffff020000000000000000316a2f49206c696b65205363686e6f7272207369677320616e6420492063616e6e6f74206c69652e204062697462756734329e06010000000000225120a37c3903c8d0db6512e2b40b0dffa05e5a3ab73603ce8c9c4b7771e5412328f90140a60c383f71bac0ec919b1d7dbc3eb72dd56e7aa99583615564f9f99b8ae4e837b758773a5b2e4c51348854c8389f008e05029db7f464a5ff2e01d5e6e626174affd30a00';
+const MAINNET_KEYPATH_TXID = '33e794d097969002ee05d336686fc03c9e15a597c1b9827669460fac98799036';
+const MAINNET_KEYPATH_PREVOUT = '5849051cf3ce36257a1d844e28959f368a35adc9520fb9679175f6cdf8c1f1d1';
+
+test('serializeTx rebuilds a real mainnet key-path spend byte for byte', async () => {
+  // The outpoint goes through explorerUtxos exactly as the card's does, so
+  // this also pins the display-to-wire flip against a transaction that exists.
+  const [prev] = B.explorerUtxos([{ txid: MAINNET_KEYPATH_PREVOUT, vout: 1, value: 88480, status: { confirmed: true } }], 'tweaked');
+  const tx = {
+    version: 1,
+    inputs: [{ txidHex: prev.txidHex, vout: prev.vout, sequence: 0xfffffffd }],
+    outputs: [
+      { valueSats: 0n, script: h('6a2f49206c696b65205363686e6f7272207369677320616e6420492063616e6e6f74206c69652e20406269746275673432') },
+      { valueSats: 67230n, script: h('5120a37c3903c8d0db6512e2b40b0dffa05e5a3ab73603ce8c9c4b7771e5412328f9') },
+    ],
+    nLockTime: 709631,
+  };
+  const witness = [['a60c383f71bac0ec919b1d7dbc3eb72dd56e7aa99583615564f9f99b8ae4e837b758773a5b2e4c51348854c8389f008e05029db7f464a5ff2e01d5e6e626174a']];
+  assert.equal(B.bytesToHex(B.serializeTx(tx, witness)), MAINNET_KEYPATH_TX);
+  assert.equal(await B.txidOf(tx), MAINNET_KEYPATH_TXID);
+  // Core weighs it at 676: 152 stripped bytes, 220 in all.
+  assert.deepEqual(B.txWeight(tx, witness), { strippedSize: 152, totalSize: 220, weight: 676 });
+});
+
+test('serializeTx refuses a witness list that does not match the inputs', () => {
+  const plan = B.planSweep([
+    { txidHex: 'aa'.repeat(32), vout: 0, valueSats: 50000n, form: 'tweaked' },
+    { txidHex: 'bb'.repeat(32), vout: 0, valueSats: 50000n, form: 'tweaked' },
+  ], h('512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'), 5);
+  assert.throws(() => B.serializeTx(plan.tx, B.sweepWitness(['11'.repeat(64)])), /one witness per input/);
+});
+
 test('a one-input sweep has the size a key-path spend should have', () => {
   const dest = h('512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798');
   const plan = B.planSweep([{ txidHex: 'aa'.repeat(32), vout: 0, valueSats: 100000n, form: 'tweaked' }], dest, 10);
   // 4 (version) + 1 (nIn) + 41 (input) + 1 (nOut) + 43 (P2TR out) + 4 (locktime)
-  // stripped = 94; witness = 1 (nIn) + 1 (items) + 1 (len) + 65 (sig) = 68; total 164
-  assert.equal(plan.vsize, Math.ceil((94 * 3 + 164) / 4));
+  // stripped = 94; with the witness, + 2 (marker, flag) + 1 (items) + 1 (len)
+  // + 65 (sig) = 163. BIP-144 gives the witnesses no count of their own.
+  assert.deepEqual(B.txWeight(plan.tx, B.sweepWitness(['00'.repeat(64)])), { strippedSize: 94, totalSize: 163, weight: 94 * 3 + 163 });
+  assert.equal(plan.vsize, Math.ceil((94 * 3 + 163) / 4));
   assert.equal(plan.feeSats, BigInt(plan.vsize * 10));
   assert.equal(plan.outValueSats, 100000n - BigInt(plan.vsize * 10));
 });
@@ -221,8 +259,9 @@ test('serialization round trips and the txid is stable and value-sensitive', asy
   const hex = B.bytesToHex(B.serializeTx(tx, B.sweepWitness(['11'.repeat(64), '22'.repeat(64)])));
   // Wire order: inputs must be outpoint-sorted (aa before bb).
   assert.ok(hex.indexOf('aa'.repeat(32)) < hex.indexOf('bb'.repeat(32)));
-  // The witness sits between the inputs and the locktime.
-  assert.ok(hex.indexOf('22'.repeat(64)) > 0);
+  // BIP-144: the witnesses close the body and the locktime comes LAST — the
+  // second input's signature, its SIGHASH_ALL byte, then nLockTime 0.
+  assert.ok(hex.endsWith('01' + '41' + '22'.repeat(64) + '01' + '00000000'));
   const id1 = await B.txidOf(tx);
   const id2 = await B.txidOf(tx);
   assert.equal(id1, id2);
