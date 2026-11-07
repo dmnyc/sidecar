@@ -126,7 +126,9 @@
   --card-wash: rgba(163, 68, 58, 0.05);
   --accent-fill: var(--lav);
   --chip-ink: #FFFFFF;
-  --glow: var(--lav);
+  /* The received-payment glow: a warm amber halo, lighter than the ochre leaf. The olive
+     ink read as a gray smudge on the ivory card instead of a celebration. */
+  --glow: #E8A13A;
   --balloon-bg: #4A5528;
   --balloon-bg-hover: #5E6B35;
   --balloon-text: #FBF8F0;
