@@ -22125,7 +22125,13 @@
       return feeRates ? feeRates[tier[2]] : null;
     }
 
+    // Every edit starts a review, and the first one waits on the fee lookup. A
+    // review still waiting when a newer one starts is stale, and must never
+    // land on top of it: the armed sweep would carry a destination the field
+    // no longer shows.
+    let reviewSeq = 0;
     async function reviewDestination() {
+      const seq = ++reviewSeq;
       disarm();
       err.textContent = '';
       pending = null;
@@ -22144,12 +22150,15 @@
         return;
       }
       if (!feeRates) {
+        let rates;
         try {
-          feeRates = await (await btcFetch('/v1/fees/recommended')).json();
+          rates = await (await btcFetch('/v1/fees/recommended')).json();
         } catch (_) {
-          err.textContent = t("Couldn't reach mempool.space. Try again.");
+          if (seq === reviewSeq) err.textContent = t("Couldn't reach mempool.space. Try again.");
           return;
         }
+        feeRates = rates;
+        if (seq !== reviewSeq) return;
       }
       const feeRate = rateFor(feeChoice);
       if (feeRate == null || feeRate <= 0) {
@@ -22189,8 +22198,25 @@
     // switcher's two-tap confirm: the first press arms — same words, red —
     // the second, within four seconds, fires. Editing the destination or the
     // fee disarms, since the review those taps confirmed has changed.
+    //
+    // While a sweep is out, and after it lands, the field, the scanner and the
+    // fee chips hold still: an edit or a fee tap would tear the review down
+    // under a transaction already signed, or rebuild one over spent coins.
+    function holdStill(on) {
+      go.disabled = on;
+      dest.disabled = on;
+      scanBtn.disabled = on;
+      for (const chip of Object.values(feeChips)) chip.disabled = on;
+    }
     go.addEventListener('click', async () => {
       if (!pending) return;
+      // The review must still describe what the field holds; if not, review
+      // again rather than confirm.
+      const now = BTC.readDestination(dest.value.trim());
+      if (now.error || now.address !== pending.parsed.address) {
+        reviewDestination();
+        return;
+      }
       if (!armed) {
         armed = true;
         go.classList.add('armed');
@@ -22200,7 +22226,7 @@
         return;
       }
       disarm();
-      go.disabled = true;
+      holdStill(true);
       go.textContent = t('Sweeping…');
       err.textContent = '';
       const { plan, parsed } = pending;
@@ -22228,12 +22254,10 @@
         const doneLine = h('p', { className: 'hint compact' });
         doneLine.append(document.createTextNode(txid.slice(0, 10) + '… '), link);
         review.append(doneLine);
-        go.remove();
-        dest.disabled = true;
-        scanBtn.disabled = true;
+        go.remove(); // the card is a receipt now, and stays held
       } catch (e) {
         err.textContent = t('The sweep was refused: {{reason}}', { reason: (e && e.message) || 'error' });
-        go.disabled = false;
+        holdStill(false);
         go.textContent = t('Sweep now');
       }
     });
