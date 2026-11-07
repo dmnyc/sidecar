@@ -2111,6 +2111,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 // trade for not keeping an alarm alive for a 90-second hand-off.
 const QR_SECRET_TTL_MS = 90000;
 let qrSecret = null; // { value, at } | null
+let qrScan = null; // { value, at } | null — a scanned receive QR (an address or bitcoin: URI), same one-parking rule
 let swNwc = null; // { client, pubkey }
 async function getSwNwc(pubkey) {
   if (swNwc && swNwc.pubkey === pubkey) return swNwc.client;
@@ -3789,6 +3790,7 @@ async function lockKeystore(auto = false) {
   markPendingUnlocks();
   closeSwNwc();
   qrSecret = null; // a scanned key must not outlive the unlocked session
+  qrScan = null; // a scanned destination is account work too; clear it with the key
   chrome.alarms.clear(AUTO_LOCK_ALARM);
   chrome.storage.session.remove(AWAY_SINCE_KEY, () => void chrome.runtime.lastError);
   // Written before the 'locked' event below, so a panel that reacts to it finds the reason.
@@ -4594,10 +4596,13 @@ async function handleControl(message, sender, sendResponse) {
       // ---- QR scan hand-off (see the qrSecret notes above) ----
       case 'SIDECAR_OPEN_QR_SCANNER': {
         // Its own window, NOT the shared approval popup — reusing popupWindowId
-        // would let a scan and a signing prompt evict each other.
+        // would let a scan and a signing prompt evict each other. ?mode=address
+        // flips the scanner from backup-sheet keys to receive QRs (the rescue
+        // sweep's destination); scan-qr.js reads the query string.
+        const query = message.mode === 'address' ? '?mode=address' : '';
         await new Promise((res) => {
           chrome.windows.create(
-            { url: chrome.runtime.getURL('scan-qr.html'), type: 'popup', width: 420, height: 560, focused: true },
+            { url: chrome.runtime.getURL('scan-qr.html') + query, type: 'popup', width: 420, height: 560, focused: true },
             () => { void chrome.runtime.lastError; res(); }
           );
         });
@@ -4622,6 +4627,42 @@ async function handleControl(message, sender, sendResponse) {
         qrSecret = null;
         const fresh = parked && Date.now() - parked.at <= QR_SECRET_TTL_MS;
         result = { value: fresh ? parked.value : null };
+        break;
+      }
+      // The scanner's ADDRESS mode (scan-qr.html?mode=address): the rescue
+      // sweep card fills its destination from any wallet's receive QR. Raw
+      // text on purpose — bitcoin: URIs, bare addresses, whatever the wallet
+      // encodes; the panel does the parsing and shows what it made of it. Not
+      // in CONTENT_OK, so the sender gate already confines this to our pages.
+      case 'SIDECAR_QR_SCAN':
+        if (typeof message.value === 'string' && message.value.trim() && message.value.length <= 500) {
+          qrScan = { value: message.value.trim(), at: Date.now() };
+          result = { ok: true };
+        } else {
+          result = { ok: false };
+        }
+        break;
+      case 'SIDECAR_QR_SCAN_CLAIM': {
+        const parkedScan = qrScan;
+        qrScan = null;
+        const freshScan = parkedScan && Date.now() - parkedScan.at <= QR_SECRET_TTL_MS;
+        result = { value: freshScan ? parkedScan.value : null };
+        break;
+      }
+      // Sign the rescue sweep's SIGHASH_ALL messages. The panel sends sighash
+      // hashes plus which form each input was funded to; everything key-shaped
+      // is derived here from the unlocked keystore's active account — the
+      // panel never sends a key, and a sighash under any OTHER key is refused.
+      case 'SIDECAR_BTC_SIGN_INPUTS': {
+        if (!self.SidecarBitcoin) throw new Error('The bitcoin module is not loaded');
+        const active = await KS.getActivePubkey();
+        if (message.pubkey !== active) throw new Error('Sidecar switched accounts; reopen the Wallet tab.');
+        const inputs = message.inputs;
+        if (!Array.isArray(inputs) || !inputs.length || inputs.length > 64) {
+          throw new Error('Malformed signing request');
+        }
+        const privBytes = await KS.getPrivkey(active); // throws if locked
+        result = { sigs: await self.SidecarBitcoin.signSweepInputs(privBytes, active, inputs) };
         break;
       }
       // Throw away every relay connection the worker holds. Recovery from browser

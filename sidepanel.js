@@ -935,6 +935,7 @@
   // "Bitcoin only": no local currency anywhere. The tap cycles sats and BTC, the price
   // chart (which is priced in that currency) is hidden, and no rate is fetched.
   let fiatOff = false;
+  let btcSweepOn = false; // the on-chain rescue card is opt-in; nothing is looked up until it is on
   let zapFlash = true; // lightning bolt on payment — on unless turned off
   // The fourth zap preset. Cached here rather than read per form, the same way
   // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
@@ -1468,6 +1469,7 @@
     hideBalances = hideBalancesPref;
     autoHideBalances = !!(settings && settings.autoHideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
+    btcSweepOn = !!(settings && settings.btcSweep);
     reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
     showOnThisDay = !(settings && settings.onThisDay === false);
     showQuotes = !(settings && settings.literaryQuotes === false);
@@ -11908,6 +11910,7 @@
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('livevideo-toggle').checked = settings.liveVideoEnabled !== false;
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
+    $('btc-sweep-toggle').checked = settings.btcSweep === true; // default off — nothing is looked up until it is on
     $('hidebalance-toggle').checked = settings.hideBalances === true; // default off
     $('balancepeek-toggle').checked = settings.autoHideBalances === true; // default off
     syncPeekRow(); // greyed out until the switch above it is on
@@ -21773,6 +21776,10 @@
     disc.addEventListener('click', () => disconnectModal());
     view.append(disc);
 
+    // On-chain rescue (opt-in; Settings → Wallet & payments). Sits at the foot
+    // of the Wallet tab, above the disclaimer it is morally adjacent to.
+    if (btcSweepOn) appendBtcSweepCard(view);
+
     // Self-custody disclaimer (bottom of the wallet screen).
     view.append(
       h('p', { className: 'wallet-disclaimer' }, [
@@ -21836,6 +21843,301 @@
     // collapse trigger repeatedly and flicker (worst on the loading "…" state).
     await loadTransactions(txList, client);
     observeWalletCard(card, sentinel, spacer);
+  }
+
+  // ---- On-chain rescue --------------------------------------------------------
+  //
+  // The Bitcoin addresses a Nostr key can spend, and one way out of them. Two
+  // forms hang off the account's pubkey: the BIP-86-style "tweaked" one and the
+  // raw "untweaked" one, both plain OP_1 key-path outputs. Some nostr-key
+  // wallet tools have sent people's coins to these by accident; this card is
+  // the rescue hatch, not an endorsement — the disclaimer says the address is
+  // public, tied to the npub, and worth sweeping to a FRESH address.
+  //
+  // Opt-in from Settings, and inert until then: nothing is looked up, no
+  // explorer sees anything, and web pages never see any of it (no
+  // window.nostr surface). Balance and UTXO reads go to mempool.space —
+  // already a Sidecar price source — and only confirmed outputs sweep.
+  // Signing happens in the service worker against the unlocked keystore; the
+  // panel handles only public data (addresses, sighashes, serialization) and
+  // the worker derives every key itself, so a sighash under any other key is
+  // refused. One action: sweep EVERYTHING to a single pasted or scanned
+  // destination. No general send, no change output, no Lightning swap — the
+  // Lightning route is a Rizful deposit address pasted like any other.
+  const MEMPOOL_API = 'https://mempool.space/api';
+
+  async function btcFetch(path, opts) {
+    const r = await fetch(MEMPOOL_API + path, Object.assign({ credentials: 'omit' }, opts));
+    if (!r.ok) throw new Error('mempool ' + r.status);
+    return r;
+  }
+
+  // Confirmed UTXOs for one form, via the module's mapping. Mempool outputs
+  // sit in the mempool first; sweeping those would chase an RBF-able target.
+  async function btcConfirmedUtxos(address, form) {
+    const list = await (await btcFetch('/address/' + encodeURIComponent(address) + '/utxo')).json();
+    return window.SidecarBitcoin.explorerUtxos(list, form);
+  }
+
+  function btcSatsText(sats) {
+    // Real figures always paint; `main.balances-hidden` masks .btc-sweep-amt
+    // the same way it masks the wallet card and transaction rows.
+    const parts = denomParts(Number(sats));
+    return parts.text + ' ' + parts.unit;
+  }
+
+  function appendBtcSweepCard(view) {
+    const BTC = window.SidecarBitcoin;
+    if (!BTC || !state.activePubkey) return;
+
+    const card = h('div', { className: 'setting btc-sweep' });
+    const open = h('div', { className: 'btc-sweep-body' });
+    // The header is a button (it toggles the card) but buttons may not carry
+    // headings, so the title is a styled span.
+    const head = h('button', { type: 'button', className: 'btc-sweep-head' }, [
+      h('span', { className: 'btc-sweep-title', textContent: t('On-chain rescue') }),
+      h('span', { className: 'btc-sweep-total btc-sweep-amt', textContent: '…' }),
+    ]);
+    head.addEventListener('click', () => card.classList.toggle('open'));
+    card.append(head, open);
+
+    // One row per form: address (tap to copy, no QR, no request amount — this
+    // is not a deposit address to share around) and what sits on it.
+    const rows = {};
+    for (const [form, label] of [['tweaked', t('Tweaked address')], ['untweaked', t('Untweaked address')]]) {
+      const addr = h('button', { className: 'address-value btc-sweep-addr', title: t('Copy address') }, [
+        h('span', { textContent: '…' }),
+      ]);
+      const amt = h('span', { className: 'btc-sweep-amt', textContent: '' });
+      addr.addEventListener('click', async () => {
+        const text = addr.dataset.address;
+        if (!text) return;
+        try {
+          await copyPlain(text);
+          const s = addr.querySelector('span');
+          const prev = s.textContent;
+          s.textContent = t('Copied ✓');
+          setTimeout(() => (s.textContent = prev), 1200);
+        } catch (_) {}
+      });
+      open.append(h('div', { className: 'btc-sweep-row' }, [
+        h('span', { className: 'btc-sweep-label', textContent: label }), addr, amt,
+      ]));
+      rows[form] = { addr, amt };
+    }
+
+    open.append(
+      h('p', {
+        className: 'hint compact',
+        textContent: t('These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.'),
+      }),
+      h('p', {
+        className: 'hint compact',
+        textContent: t('Paste a receive address from any wallet — Zeus for self-custody, or Rizful to land the coins on Lightning.'),
+      })
+    );
+
+    // Destination: a full-width field, one icon beside it — a ~360px panel has
+    // no room for more on a row.
+    const dest = h('input', {
+      type: 'text', className: 'btc-sweep-dest', spellcheck: false, autocomplete: 'off',
+      placeholder: t('Destination address'),
+    });
+    const scanBtn = h('button', { type: 'button', className: 'btc-sweep-scan', title: t('Scan with camera') });
+    scanBtn.appendChild(icon('qr'));
+    const destRow = h('div', { className: 'btc-sweep-dest-row' }, [dest, scanBtn]);
+    const err = h('div', { className: 'error' });
+    const review = h('div', { className: 'btc-sweep-review hidden' });
+    const reviewMsg = h('p', { className: 'confirm-msg' });
+    const reviewFee = h('p', { className: 'hint compact' });
+    const go = h('button', { className: 'primary', textContent: t('Sweep now') });
+    review.append(reviewMsg, reviewFee, err, go);
+    open.append(destRow, err, review);
+
+    // ---- state -----------------------------------------------------------
+
+    let addresses = null; // { tweaked, untweaked }
+    let utxos = null; // confirmed only, form-tagged
+    let pending = null; // { address, utxos } the review is showing
+
+    function readDest(raw) {
+      const parsed = BTC.readDestination(raw);
+      if (!parsed.error) return parsed;
+      err.textContent = {
+        lightning: t('That QR holds a Lightning payment code, not a bitcoin address.'),
+        testnet: t('Testnet and signet addresses are not supported.'),
+        legacy: t('Use a bc1 address — legacy addresses are not supported here.'),
+        empty: '',
+        invalid: t("That doesn't look like a bitcoin address."),
+      }[parsed.error] || t("That doesn't look like a bitcoin address.");
+      return null;
+    }
+
+    function paintBalances() {
+      const per = { tweaked: 0n, untweaked: 0n };
+      let all = 0n;
+      for (const u of utxos || []) { per[u.form] += u.valueSats; all += u.valueSats; }
+      rows.tweaked.amt.textContent = utxos ? btcSatsText(per.tweaked) : '';
+      rows.untweaked.amt.textContent = utxos ? btcSatsText(per.untweaked) : '';
+      head.querySelector('.btc-sweep-total').textContent = utxos ? btcSatsText(all) : '…';
+      // Agreed behavior: the card opens itself when the address holds a balance.
+      if (all > 0n) card.classList.add('open');
+    }
+
+    // Fill in the background: derive, then look up. Runs only because the
+    // switch is on — appendBtcSweepCard is never called while it is off.
+    (async () => {
+      addresses = await BTC.deriveAddresses(state.activePubkey);
+      rows.tweaked.addr.dataset.address = addresses.tweaked;
+      rows.untweaked.addr.dataset.address = addresses.untweaked;
+      rows.tweaked.addr.querySelector('span').textContent = addresses.tweaked;
+      rows.untweaked.addr.querySelector('span').textContent = addresses.untweaked;
+      const [tw, un] = await Promise.all([
+        btcConfirmedUtxos(addresses.tweaked, 'tweaked'),
+        btcConfirmedUtxos(addresses.untweaked, 'untweaked'),
+      ]);
+      utxos = tw.concat(un);
+      paintBalances();
+    })().catch(() => {
+      head.querySelector('.btc-sweep-total').textContent = '—';
+    });
+
+    // ---- destination -----------------------------------------------------
+
+    async function scanDestination() {
+      err.textContent = '';
+      scanBtn.disabled = true;
+      try {
+        await call({ type: 'SIDECAR_OPEN_QR_SCANNER', mode: 'address' });
+      } catch (_) {
+        scanBtn.disabled = false;
+        err.textContent = t("Couldn't open the scanner window.");
+        return;
+      }
+      let tries = 0;
+      const timer = setInterval(async () => {
+        if (++tries > 180) return stopScan(); // ~90s, matching the worker's TTL
+        let value = null;
+        try {
+          value = (await call({ type: 'SIDECAR_QR_SCAN_CLAIM' })).value;
+        } catch (_) {
+          return; // worker momentarily asleep; keep polling
+        }
+        if (!value) return;
+        stopScan();
+        dest.value = value;
+        dest.dispatchEvent(new Event('input'));
+      }, 500);
+      function stopScan() {
+        clearInterval(timer);
+        scanBtn.disabled = false;
+      }
+    }
+    scanBtn.addEventListener('click', scanDestination);
+
+    async function reviewDestination() {
+      err.textContent = '';
+      pending = null;
+      review.classList.add('hidden');
+      const parsed = readDest(dest.value.trim());
+      if (!parsed) return;
+      if (!utxos || !utxos.length) {
+        err.textContent = t('Nothing to sweep yet.');
+        return;
+      }
+      if (!addresses) return;
+      // Refuse sweeping to one of the card's own addresses: the only outcome
+      // is paying a fee to churn coins between two keys you control.
+      if (parsed.address === addresses.tweaked || parsed.address === addresses.untweaked) {
+        err.textContent = t('That is one of these addresses — sweep to a different wallet.');
+        return;
+      }
+      let feeRate;
+      try {
+        const fees = await (await btcFetch('/v1/fees/recommended')).json();
+        feeRate = fees.halfHourFee;
+      } catch (_) {
+        err.textContent = t("Couldn't reach mempool.space. Try again.");
+        return;
+      }
+      let script;
+      try {
+        script = BTC.destScriptFor(parsed.address);
+      } catch (_) {
+        err.textContent = t("That doesn't look like a bitcoin address.");
+        return;
+      }
+      let plan;
+      try {
+        plan = BTC.planSweep(utxos, script, feeRate);
+      } catch (e) {
+        err.textContent = /fee/.test(e.message)
+          ? t('Balance does not cover the fee.')
+          : t('Nothing to sweep yet.');
+        return;
+      }
+      pending = { parsed, plan, feeRate, script };
+      const amount = btcSatsText(plan.outValueSats);
+      reviewMsg.textContent = t('Sweep {{amount}} to {{address}}', { amount, address: parsed.address });
+      reviewFee.textContent = t('Fee {{fee}} at {{rate}} sat/vB', {
+        fee: btcSatsText(plan.feeSats),
+        rate: String(feeRate),
+      });
+      review.classList.remove('hidden');
+    }
+    dest.addEventListener('input', reviewDestination);
+
+    // ---- the sweep -------------------------------------------------------
+
+    go.addEventListener('click', async () => {
+      if (!pending) return;
+      go.disabled = true;
+      go.textContent = t('Sweeping…');
+      err.textContent = '';
+      const { plan, parsed } = pending;
+      try {
+        // Scripts of the outputs being spent — one per form.
+        const tweak = await BTC.tapTweakInt(BTC.hexToBytes(state.activePubkey));
+        const spendScripts = {
+          tweaked: BTC.p2trScript(BTC.tweakedPubkeyFrom(state.activePubkey, tweak)),
+          untweaked: BTC.p2trScript(BTC.hexToBytes(state.activePubkey)),
+        };
+        const spent = plan.plan.map((u) => ({ valueSats: u.valueSats, script: spendScripts[u.form] }));
+        const inputs = [];
+        for (let i = 0; i < plan.tx.inputs.length; i++) {
+          inputs.push({ hash: BTC.bytesToHex(await BTC.sighashAll(plan.tx, i, spent)), form: plan.plan[i].form });
+        }
+        const { sigs } = await call({ type: 'SIDECAR_BTC_SIGN_INPUTS', pubkey: state.activePubkey, inputs });
+        const hex = BTC.bytesToHex(BTC.serializeTx(plan.tx, BTC.sweepWitness(sigs)));
+        const res = await btcFetch('/tx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: hex,
+        });
+        const txid = (await res.text()).trim();
+        reviewMsg.textContent = t('Swept {{amount}} to {{address}}', {
+          amount: btcSatsText(plan.outValueSats), address: parsed.address,
+        });
+        reviewFee.textContent = '';
+        const link = h('a', { href: '#', className: 'explore-link', textContent: t('View on mempool.space') });
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          chrome.tabs.create({ url: 'https://mempool.space/tx/' + txid });
+        });
+        const doneLine = h('p', { className: 'hint compact' });
+        doneLine.append(document.createTextNode(txid.slice(0, 10) + '… '), link);
+        review.append(doneLine);
+        go.remove();
+        dest.disabled = true;
+        scanBtn.disabled = true;
+      } catch (e) {
+        err.textContent = t('The sweep was refused: {{reason}}', { reason: (e && e.message) || 'error' });
+        go.disabled = false;
+        go.textContent = t('Sweep now');
+      }
+    });
+
+    view.append(card);
   }
 
   // Centered placeholder for list cards (loading / empty / error) so the text
@@ -23977,6 +24279,14 @@
 
   $('paypill-anywhere-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { payPillAnywhere: e.target.checked } });
+  });
+
+  $('btc-sweep-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { btcSweep: e.target.checked } });
+    // The card lives on the Wallet tab; render it (or take it away) right away.
+    btcSweepOn = e.target.checked;
+    const active = document.querySelector('.tab.active');
+    if (active && active.dataset.tab === 'wallet') renderWallet();
   });
 
   $('webln-takeover-toggle').addEventListener('change', async (e) => {

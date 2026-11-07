@@ -25,6 +25,9 @@ test('wallet catalog waits for its locale and translates descriptions and contro
 test('QR scanner waits for translations before requesting the camera and translates denial',async()=>{
  const f=fixture();await f.ctx.I18N.ready;let requests=0;
  f.ctx.navigator={mediaDevices:{getUserMedia:async()=>{requests++;throw {name:'NotAllowedError'};}}};
+ // The scanner reads its own query string now (?mode=address), so the stub
+ // browser gets a location like the stream test's does.
+ f.ctx.location={search:''};
  vm.runInNewContext(fs.readFileSync(require.resolve('../scan-qr'),'utf8'),f.ctx);
  assert.equal(requests,0);
  const key='Camera access was denied. Close this and use "Choose file" instead.';

@@ -833,6 +833,12 @@
           </div>
 
           <div class="setting">
+            <h3 data-i18n="On-chain rescue">On-chain rescue</h3>
+            <p class="hint" data-i18n="Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.">Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.</p>
+            <label class="toggle-row"><input type="checkbox" id="btc-sweep-toggle" /> <span data-i18n="Show the on-chain rescue card in the Wallet">Show the on-chain rescue card in the Wallet</span></label>
+          </div>
+
+          <div class="setting">
             <h3 data-i18n="Default zap amount" data-i18n-review>Default zap amount</h3>
             <p class="hint" data-i18n="Offered as a preset wherever you send a zap. Set for the account you are in." data-i18n-review>Offered as a preset wherever you send a zap. Set for the account you are in.</p>
             <label class="toggle-row">
@@ -1240,6 +1246,7 @@
   <script src="ws-guard.js"></script>
   <script src="nip49.js"></script>
   <script src="crypto.js"></script>
+  <script src="bitcoin.js"></script>
   <script src="qrcode-generator.js"></script>
   <script src="qr.js"></script>
   <!-- after qrcode-generator: pdf-backup draws the QR from its module matrix -->

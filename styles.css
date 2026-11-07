@@ -3941,13 +3941,15 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
    open on a browser that doesn't support it. */
 .balances-hidden .wallet-balance,
 .balances-hidden .tx-amt,
-.balances-hidden .pinned-balance-amt {
+.balances-hidden .pinned-balance-amt,
+.balances-hidden .btc-sweep-amt {
   position: relative;
   visibility: hidden;
 }
 .balances-hidden .wallet-balance::after,
 .balances-hidden .tx-amt::after,
-.balances-hidden .pinned-balance-amt::after {
+.balances-hidden .pinned-balance-amt::after,
+.balances-hidden .btc-sweep-amt::after {
   content: '••••';
   visibility: visible;
   position: absolute;
@@ -4417,6 +4419,56 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   background: rgba(var(--well-rgb), 0.4); max-width: 100%;
 }
 .recv-copy { width: 100%; }
+
+/* On-chain rescue (opt-in card at the foot of the Wallet tab). A collapsed
+   header row; the body opens under it. Amounts ride .btc-sweep-amt so the
+   balance-hiding rules find them next to .wallet-balance and .tx-amt. */
+.btc-sweep { margin-top: 10px; }
+.btc-sweep-head {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; padding: 0; cursor: pointer; text-align: start;
+}
+.btc-sweep-title {
+  flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.btc-sweep-total { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+.btc-sweep > .btc-sweep-body { display: none; }
+.btc-sweep.open > .btc-sweep-body { display: block; }
+.btc-sweep-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.btc-sweep-label {
+  flex-shrink: 0; width: 92px; font-size: 12px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.btc-sweep .address-value { font-size: 12px; padding: 8px 10px; }
+.btc-sweep-row .btc-sweep-amt {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; color: var(--text);
+  white-space: nowrap;
+}
+.btc-sweep-dest-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.btc-sweep-dest {
+  flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; color: var(--text);
+}
+.btc-sweep-dest:focus { border-color: var(--gold-soft); outline: none; }
+.btc-sweep-scan {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border); color: var(--muted);
+}
+.btc-sweep-scan:hover { color: var(--lav); border-color: var(--gold-soft); }
+.btc-sweep-scan:disabled { opacity: 0.4; pointer-events: none; }
+.btc-sweep-scan svg { width: 18px; height: 18px; }
+.btc-sweep-review {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  margin-top: 10px; padding: 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: rgba(var(--well-rgb), 0.4);
+}
+.btc-sweep-review.hidden { display: none; }
+.btc-sweep-review .confirm-msg { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.btc-sweep-review .primary { width: 100%; }
 
 /* centered loading/empty/error state inside list cards */
 .list-state {
