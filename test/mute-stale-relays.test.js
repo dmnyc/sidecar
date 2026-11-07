@@ -49,6 +49,7 @@ function world(events) {
     followListCache: null, followListPubkey: null, followCountCache: new Map(),
     NT: { nip19: { npubEncode: (h) => 'npub1' + h.slice(0, 6) } },
     shortNpub: (n) => n, forgetWot: () => {},
+    repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
     document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
     CustomEvent: class { constructor(type) { this.type = type; } },
     readRelayUrls: async () => [READ],

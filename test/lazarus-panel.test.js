@@ -155,6 +155,7 @@ function harness(deps = {}) {
     // lazarusAdopt's world
     seedBaseline: (pk, ev) => calls.push({ type: 'seed', pk, ev }),
     followCountCache: new Map(),
+    repaintFollowCounts: () => calls.push({ type: 'repaintFollowCounts' }),
     followListCache: 'stale', followListPubkey: 'stale',
     forgetWot: () => calls.push({ type: 'forgetWot' }),
     _muteLists: new Map(), _muteListPromises: new Map(),
