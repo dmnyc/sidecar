@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
+  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'bitcoin.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -2111,6 +2111,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 // trade for not keeping an alarm alive for a 90-second hand-off.
 const QR_SECRET_TTL_MS = 90000;
 let qrSecret = null; // { value, at } | null
+let qrScan = null; // { value, at } | null — a scanned receive QR (an address or bitcoin: URI), same one-parking rule
 let swNwc = null; // { client, pubkey }
 async function getSwNwc(pubkey) {
   if (swNwc && swNwc.pubkey === pubkey) return swNwc.client;
@@ -3789,6 +3790,7 @@ async function lockKeystore(auto = false) {
   markPendingUnlocks();
   closeSwNwc();
   qrSecret = null; // a scanned key must not outlive the unlocked session
+  qrScan = null; // a scanned destination is account work too; clear it with the key
   chrome.alarms.clear(AUTO_LOCK_ALARM);
   chrome.storage.session.remove(AWAY_SINCE_KEY, () => void chrome.runtime.lastError);
   // Written before the 'locked' event below, so a panel that reacts to it finds the reason.
@@ -4594,10 +4596,16 @@ async function handleControl(message, sender, sendResponse) {
       // ---- QR scan hand-off (see the qrSecret notes above) ----
       case 'SIDECAR_OPEN_QR_SCANNER': {
         // Its own window, NOT the shared approval popup — reusing popupWindowId
-        // would let a scan and a signing prompt evict each other.
+        // would let a scan and a signing prompt evict each other. ?mode=address
+        // flips the scanner from backup-sheet keys to receive QRs (the rescue
+        // sweep's destination); scan-qr.js reads the query string.
+        const query = message.mode === 'address' ? '?mode=address' : '';
+        // A new destination scan starts empty: a value an earlier scan parked
+        // and nobody claimed must not fill this one's field.
+        if (message.mode === 'address') qrScan = null;
         await new Promise((res) => {
           chrome.windows.create(
-            { url: chrome.runtime.getURL('scan-qr.html'), type: 'popup', width: 420, height: 560, focused: true },
+            { url: chrome.runtime.getURL('scan-qr.html') + query, type: 'popup', width: 420, height: 560, focused: true },
             () => { void chrome.runtime.lastError; res(); }
           );
         });
@@ -4622,6 +4630,45 @@ async function handleControl(message, sender, sendResponse) {
         qrSecret = null;
         const fresh = parked && Date.now() - parked.at <= QR_SECRET_TTL_MS;
         result = { value: fresh ? parked.value : null };
+        break;
+      }
+      // The scanner's ADDRESS mode (scan-qr.html?mode=address): the rescue
+      // sweep card fills its destination from any wallet's receive QR. Raw
+      // text on purpose — bitcoin: URIs, bare addresses, whatever the wallet
+      // encodes; the panel does the parsing and shows what it made of it. Not
+      // in CONTENT_OK, so the sender gate already confines this to our pages.
+      case 'SIDECAR_QR_SCAN':
+        // Never a key: a backup sheet scanned here by mistake would land in the
+        // destination field, on screen, which is everything the key scan's own
+        // one-claim parking exists to prevent.
+        if (typeof message.value === 'string' && message.value.trim() && message.value.length <= 500 &&
+            !/(?:nsec|ncryptsec)1[a-z0-9]{20,}/i.test(message.value)) {
+          qrScan = { value: message.value.trim(), at: Date.now() };
+          result = { ok: true };
+        } else {
+          result = { ok: false };
+        }
+        break;
+      case 'SIDECAR_QR_SCAN_CLAIM': {
+        const parkedScan = qrScan;
+        qrScan = null;
+        const freshScan = parkedScan && Date.now() - parkedScan.at <= QR_SECRET_TTL_MS;
+        result = { value: freshScan ? parkedScan.value : null };
+        break;
+      }
+      // Sign the rescue sweep. The panel sends the unsigned transaction and, per
+      // input, the coin's value and form — never a hash, never a key or script.
+      // signSweepTx derives the spent scripts from the active account's own
+      // pubkey and computes every SIGHASH_ALL message itself, so this signs
+      // only key-path spends of that account's two Taproot outputs. Never bytes
+      // a caller chose: the untweaked form signs under the Nostr key itself,
+      // and a signature over chosen bytes would be one over any event id.
+      case 'SIDECAR_BTC_SIGN_INPUTS': {
+        if (!self.SidecarBitcoin) throw new Error('The bitcoin module is not loaded');
+        const active = await KS.getActivePubkey();
+        if (message.pubkey !== active) throw new Error('Sidecar switched accounts; reopen the Wallet tab.');
+        const privBytes = await KS.getPrivkey(active); // throws if locked
+        result = { sigs: await self.SidecarBitcoin.signSweepTx(privBytes, active, message.sweep) };
         break;
       }
       // Throw away every relay connection the worker holds. Recovery from browser
