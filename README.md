@@ -47,6 +47,10 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 >
 > — [Fundamentals](https://jumble.social/users/npub12eml5kmtrjmdt0h8shgg32gye5yqsf2jha6a70jrqt82q9d960sspky99g), creator of [Magic Internet Math](https://magicinternetmath.com)
 
+> “Sidecar has been the Nostr tool I use most lately, and it’s my favorite. 🍸”
+>
+> — [Tomek K.](https://jumble.social/notes/nevent1qqsrx6ggamwthpfl5gw42zfr7p408k0nzurwljf33ay02ctkvzlqahqpzemhxue69uhhyetvv9ujuurjd9kkzmpwdejhgq3q4wxtsrj7g2jugh70pfkzjln43vgn4p7655pgky9j9w9d75u465pqfdy0uu), head of [The Bitcoin District](https://thebitcoindistrict.com/), on Nostr
+
 ## Features
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Generating a new key runs a quick guided setup (name, photo, bio). Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
