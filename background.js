@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
+  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'bitcoin.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
