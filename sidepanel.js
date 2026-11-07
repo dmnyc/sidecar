@@ -21899,13 +21899,20 @@
 
     const card = h('div', { className: 'setting btc-sweep' });
     const open = h('div', { className: 'btc-sweep-body' });
-    // The header is a button (it toggles the card) but buttons may not carry
-    // headings, so the title is a styled span.
-    const head = h('button', { type: 'button', className: 'btc-sweep-head' }, [
+    // The header row: the title+total area toggles the card (buttons may not
+    // carry headings, so the title is a styled span), and beside it a refresh
+    // that re-reads the balances without waiting for a tab rebuild — which is
+    // the only other way figures move, and the wrong pace while watching a
+    // faucet land.
+    const head = h('div', { className: 'btc-sweep-head' });
+    const headToggle = h('button', { type: 'button', className: 'btc-sweep-head-toggle' }, [
       h('span', { className: 'btc-sweep-title', textContent: t('On-chain balance') }),
       h('span', { className: 'btc-sweep-total btc-sweep-amt', textContent: '…' }),
     ]);
-    head.addEventListener('click', () => card.classList.toggle('open'));
+    headToggle.addEventListener('click', () => card.classList.toggle('open'));
+    const refresh = h('button', { type: 'button', className: 'btc-sweep-refresh', title: t('Refresh') });
+    refresh.appendChild(icon('refresh'));
+    head.append(headToggle, refresh);
     card.append(head, open);
 
     // One row per form: the type and its balance on a line, the address on its
@@ -21996,6 +22003,28 @@
       if (all > 0n) card.classList.add('open');
     }
 
+    // One lookup, shared by the first paint and the refresh button: both
+    // addresses in parallel, confirmed outputs only, then repaint.
+    let refreshing = false;
+    async function refreshBalances() {
+      if (refreshing || !addresses) return;
+      refreshing = true;
+      refresh.classList.add('spinning');
+      try {
+        const [tw, un] = await Promise.all([
+          btcConfirmedUtxos(addresses.tweaked, 'tweaked'),
+          btcConfirmedUtxos(addresses.untweaked, 'untweaked'),
+        ]);
+        utxos = tw.concat(un);
+        paintBalances();
+      } catch (_) {
+        head.querySelector('.btc-sweep-total').textContent = '—';
+      }
+      refresh.classList.remove('spinning');
+      refreshing = false;
+    }
+    refresh.addEventListener('click', refreshBalances);
+
     // Fill in the background: derive, then look up. Runs only because the
     // switch is on — appendBtcSweepCard is never called while it is off.
     (async () => {
@@ -22004,12 +22033,7 @@
       rows.untweaked.addr.dataset.address = addresses.untweaked;
       rows.tweaked.addr.querySelector('span').textContent = addresses.tweaked;
       rows.untweaked.addr.querySelector('span').textContent = addresses.untweaked;
-      const [tw, un] = await Promise.all([
-        btcConfirmedUtxos(addresses.tweaked, 'tweaked'),
-        btcConfirmedUtxos(addresses.untweaked, 'untweaked'),
-      ]);
-      utxos = tw.concat(un);
-      paintBalances();
+      await refreshBalances();
     })().catch(() => {
       head.querySelector('.btc-sweep-total').textContent = '—';
     });
