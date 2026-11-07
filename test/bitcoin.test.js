@@ -108,9 +108,25 @@ test('the TapTweak derivation matches the BIP-341 wallet vector', async () => {
   assert.equal(B.segwitAddressDecode(addrs.tweaked).version, 1);
 });
 
-test('the signing scalars match the vector tweaked private key', async () => {
+// keyPathSpending[0].inputSpending[0]: the vector's one input with no script
+// tree — exactly the tweaked address's shape — and its consensus witness
+// (SIGHASH_SINGLE, signed with all-zero aux), which re-signs byte for byte.
+const VEC0_SIGHASH = '2514a6272f85cfa0f45eb907fcb0d121b808ed37c6ea160a5a9046ed5526d555';
+const VEC0_WITNESS = 'ed7c1647cb97379e76892be0cacff57ec4a7102aa24296ca39af7541246d8ff14d38958d4cc1e2e478e4d4a764bbfd835b16d4e314b72937b29833060b87276c03';
+const G = { x: 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n, y: 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n };
+
+test('each form signs with its own output key: tweakedPrivkey for tweaked, the key itself for untweaked', async () => {
   const scalars = await B.signingScalars(h(VEC_INTERNAL_PRIV), VEC_INTERNAL);
-  assert.equal(B.bytesToHex(B.bigIntToBytes(scalars.untweaked, 32)), VEC_TWEAKED_PRIV);
+  // The vector's tweakedPrivkey spends the tweaked output key (53a1…) …
+  assert.equal(B.bytesToHex(B.bigIntToBytes(scalars.tweaked, 32)), VEC_TWEAKED_PRIV);
+  // … and the untweaked address carries the internal key itself.
+  assert.equal(B.bytesToHex(B.bigIntToBytes(B.scalarMult(scalars.untweaked, G).x, 32)), VEC_INTERNAL);
+});
+
+test('the tweaked form re-signs the BIP-341 consensus witness byte for byte', async () => {
+  const scalars = await B.signingScalars(h(VEC_INTERNAL_PRIV), VEC_INTERNAL);
+  const sig = await B.schnorrSign(h(VEC0_SIGHASH), B.bigIntToBytes(scalars.tweaked, 32), new Uint8Array(32));
+  assert.equal(B.bytesToHex(sig) + '03', VEC0_WITNESS); // 03: that input's SIGHASH_SINGLE byte
 });
 
 // ---- BIP-341: the signature message and sighash, exact -----------------------
@@ -183,20 +199,142 @@ test('the sighash is exact, and the vector signature verifies under it', async (
   assert.equal(await B.schnorrVerify(h(witnessSig.slice(0, 128)), sh, h('e4d810fd50586274face62b8a807eb9719cef49c04177cc6b76a9a4251d5450e')), true);
 });
 
-test('the sweep signing path produces verifiable key-path signatures for both forms', async () => {
+test('the sweep signing path signs under the key a node reads from the spent script', async () => {
+  // A node checks a key-path signature against the spent script's witness
+  // program and nothing else. The tweaked form spends SPENT_SCRIPTS[0], so it
+  // must verify under that script's key; the untweaked form's script carries
+  // the raw internal key, so it must verify under that.
   const sh = await B.sighashAll(vectorTx(), 0, vectorSpent());
   const sigs = await B.signSweepInputs(h(VEC_INTERNAL_PRIV), VEC_INTERNAL, [
     { hash: B.bytesToHex(sh), form: 'tweaked' },
     { hash: B.bytesToHex(sh), form: 'untweaked' },
   ]);
-  // Tweaked form: the output key Q was spent as an internal key, so a node
-  // verifies under Q + TapTweak(Q).
+  assert.equal(SPENT_SCRIPTS[0], '5120' + VEC_TWEAKED_PUB);
+  assert.equal(await B.schnorrVerify(h(sigs[0]), sh, h(VEC_TWEAKED_PUB)), true);
+  assert.equal(await B.schnorrVerify(h(sigs[1]), sh, h(VEC_INTERNAL)), true);
+  // The first build applied one tweak too many to each form — Q + TapTweak(Q)
+  // for tweaked, the tweaked key for untweaked — so no signature ever matched
+  // its script. Neither key may verify again.
   const t2 = await B.tapTweakInt(h(VEC_TWEAKED_PUB));
-  assert.equal(await B.schnorrVerify(h(sigs[0]), sh, B.tweakedPubkeyFrom(VEC_TWEAKED_PUB, t2)), true);
-  // Untweaked form: the raw key was the output key; a node verifies under
-  // internal + TapTweak(internal).
-  const t = await B.tapTweakInt(h(VEC_INTERNAL));
-  assert.equal(await B.schnorrVerify(h(sigs[1]), sh, B.tweakedPubkeyFrom(VEC_INTERNAL, t)), true);
+  assert.equal(await B.schnorrVerify(h(sigs[0]), sh, B.tweakedPubkeyFrom(VEC_TWEAKED_PUB, t2)), false);
+  assert.equal(await B.schnorrVerify(h(sigs[1]), sh, h(VEC_TWEAKED_PUB)), false);
+});
+
+test('every key can spend both addresses the card shows it, in all four Y parities', async () => {
+  // Bind signing to deriveAddresses: whatever the card displays, the worker
+  // must be able to spend, verified under that address's own witness program.
+  // Keys 1, 2, 6 and 11 cover every parity pairing of the account key P and
+  // the tweaked key Q, and the cover is asserted so an edit to this list
+  // cannot quietly drop the odd-Y cases.
+  const cover = new Set();
+  for (const k of [1n, 2n, 6n, 11n]) {
+    const P = B.scalarMult(k, G);
+    const pub = B.bytesToHex(B.bigIntToBytes(P.x, 32));
+    const addrs = await B.deriveAddresses(pub);
+    const msg = await B.sha256(new TextEncoder().encode('sweep ' + k));
+    const sigs = await B.signSweepInputs(B.bigIntToBytes(k, 32), pub, [
+      { hash: B.bytesToHex(msg), form: 'tweaked' },
+      { hash: B.bytesToHex(msg), form: 'untweaked' },
+    ]);
+    const progT = Uint8Array.from(B.segwitAddressDecode(addrs.tweaked).program);
+    const progU = Uint8Array.from(B.segwitAddressDecode(addrs.untweaked).program);
+    assert.equal(await B.schnorrVerify(h(sigs[0]), msg, progT), true, 'tweaked, key ' + k);
+    assert.equal(await B.schnorrVerify(h(sigs[1]), msg, progU), true, 'untweaked, key ' + k);
+    const Q = B.scalarMult((await B.signingScalars(B.bigIntToBytes(k, 32), pub)).tweaked, G);
+    assert.equal(Q.x, B.bytesToBigInt(progT)); // the tweaked scalar's point IS the address's key
+    cover.add((P.y % 2n ? 'P-odd' : 'P-even') + '/' + (Q.y % 2n ? 'Q-odd' : 'Q-even'));
+  }
+  assert.equal(cover.size, 4, 'parity cover: ' + [...cover].join(', '));
+});
+
+test('a mixed sweep built the way the card builds it carries only valid signatures', async () => {
+  // The panel's whole path, minus the network: plan two inputs of different
+  // forms, hash each against the scripts actually being spent (the card's
+  // spendScripts), sign, then check every witness item under its own input's
+  // script key and that each is 64 signature bytes plus SIGHASH_ALL.
+  const k = 6n; // P has an odd Y: the case the even-Y straightening exists for
+  const pub = B.bytesToHex(B.bigIntToBytes(B.scalarMult(k, G).x, 32));
+  const addrs = await B.deriveAddresses(pub);
+  const spendScripts = {
+    tweaked: B.p2trScript(B.tweakedPubkeyFrom(pub, await B.tapTweakInt(h(pub)))),
+    untweaked: B.p2trScript(h(pub)),
+  };
+  assert.deepEqual(Array.from(spendScripts.tweaked.subarray(2)), B.segwitAddressDecode(addrs.tweaked).program);
+  assert.deepEqual(Array.from(spendScripts.untweaked.subarray(2)), B.segwitAddressDecode(addrs.untweaked).program);
+  const plan = B.planSweep([
+    { txidHex: 'cd'.repeat(32), vout: 0, valueSats: 40000n, form: 'untweaked' },
+    { txidHex: 'ab'.repeat(32), vout: 3, valueSats: 25000n, form: 'tweaked' },
+  ], B.destScriptFor('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'), 2);
+  const spent = plan.plan.map((u) => ({ valueSats: u.valueSats, script: spendScripts[u.form] }));
+  const inputs = [];
+  for (let i = 0; i < plan.tx.inputs.length; i++) {
+    inputs.push({ hash: B.bytesToHex(await B.sighashAll(plan.tx, i, spent)), form: plan.plan[i].form });
+  }
+  const sigs = await B.signSweepInputs(B.bigIntToBytes(k, 32), pub, inputs);
+  const witness = B.sweepWitness(sigs);
+  for (let i = 0; i < witness.length; i++) {
+    const item = h(witness[i][0]);
+    assert.equal(item.length, 65);
+    assert.equal(item[64], 0x01);
+    assert.equal(await B.schnorrVerify(item.subarray(0, 64), h(inputs[i].hash), spent[i].script.subarray(2)), true, 'input ' + i);
+  }
+  // The planner sorted by outpoint, so the tweaked coin leads; the forms
+  // must have followed their coins rather than the order they were given in.
+  assert.deepEqual(plan.plan.map((u) => u.form), ['tweaked', 'untweaked']);
+});
+
+// ---- the worker signs a transaction, never a hash -----------------------------
+
+const K6_SK = B.bigIntToBytes(6n, 32); // P = 6G has an odd Y
+const K6_PUB = B.bytesToHex(B.bigIntToBytes(B.scalarMult(6n, G).x, 32));
+function k6Plan() {
+  return B.planSweep([
+    { txidHex: 'cd'.repeat(32), vout: 0, valueSats: 40000n, form: 'untweaked' },
+    { txidHex: 'ab'.repeat(32), vout: 3, valueSats: 25000n, form: 'tweaked' },
+  ], B.destScriptFor('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'), 2);
+}
+
+test('the worker signs a sweep from its transaction, delivered as runtime messaging delivers it', async () => {
+  const plan = k6Plan();
+  // Chrome's runtime messaging is JSON: no BigInt, no Uint8Array survive it.
+  const req = JSON.parse(JSON.stringify(B.sweepRequest(plan)));
+  const sigs = await B.signSweepTx(K6_SK, K6_PUB, req);
+  const scripts = {
+    tweaked: B.p2trScript(B.tweakedPubkeyFrom(K6_PUB, await B.tapTweakInt(h(K6_PUB)))),
+    untweaked: B.p2trScript(h(K6_PUB)),
+  };
+  const spent = plan.plan.map((u) => ({ valueSats: u.valueSats, script: scripts[u.form] }));
+  assert.equal(sigs.length, 2);
+  for (let i = 0; i < sigs.length; i++) {
+    const sh = await B.sighashAll(plan.tx, i, spent);
+    assert.equal(await B.schnorrVerify(h(sigs[i]), sh, spent[i].script.subarray(2)), true, 'input ' + i);
+  }
+});
+
+test('the worker refuses anything that is not a well-formed single-output sweep', async () => {
+  const good = () => JSON.parse(JSON.stringify(B.sweepRequest(k6Plan())));
+  const edit = (fn) => { const r = good(); fn(r); return r; };
+  const cases = {
+    'no request at all': null,
+    'the old contract, a bare hash': { inputs: [{ hash: 'ab'.repeat(32), form: 'untweaked' }] },
+    'a bare hash inside a sweep': edit((r) => { r.inputs = [{ hash: 'ab'.repeat(32), form: 'untweaked' }]; }),
+    'no inputs': edit((r) => { r.inputs = []; }),
+    'sixty-five inputs': edit((r) => { r.inputs = Array.from({ length: 65 }, () => r.inputs[0]); }),
+    'two outputs': edit((r) => { r.outputs.push(r.outputs[0]); }),
+    'a short txid': edit((r) => { r.inputs[0].txidHex = r.inputs[0].txidHex.slice(2); }),
+    'an uppercase txid': edit((r) => { r.inputs[0].txidHex = r.inputs[0].txidHex.toUpperCase(); }),
+    'a fractional vout': edit((r) => { r.inputs[0].vout = 0.5; }),
+    'a value as a number': edit((r) => { r.inputs[0].valueSats = 40000; }),
+    'a negative value': edit((r) => { r.inputs[0].valueSats = '-1'; }),
+    'more than all the bitcoin there is': edit((r) => { r.inputs[0].valueSats = '2100000000000001'; }),
+    'an unknown form': edit((r) => { r.inputs[0].form = 'constructor'; }),
+    'a non-witness output': edit((r) => { r.outputs[0].scriptHex = '76a914' + '00'.repeat(20) + '88ac'; }),
+    'an output worth more than its inputs': edit((r) => { r.outputs[0].valueSats = '65001'; }),
+    'a fractional version': edit((r) => { r.version = 2.5; }),
+  };
+  for (const [what, req] of Object.entries(cases)) {
+    await assert.rejects(B.signSweepTx(K6_SK, K6_PUB, req), /malformed sweep request/, what);
+  }
 });
 
 // ---- serialization, size, txid ----------------------------------------------

@@ -4649,20 +4649,19 @@ async function handleControl(message, sender, sendResponse) {
         result = { value: freshScan ? parkedScan.value : null };
         break;
       }
-      // Sign the rescue sweep's SIGHASH_ALL messages. The panel sends sighash
-      // hashes plus which form each input was funded to; everything key-shaped
-      // is derived here from the unlocked keystore's active account — the
-      // panel never sends a key, and a sighash under any OTHER key is refused.
+      // Sign the rescue sweep. The panel sends the unsigned transaction and, per
+      // input, the coin's value and form — never a hash, never a key or script.
+      // signSweepTx derives the spent scripts from the active account's own
+      // pubkey and computes every SIGHASH_ALL message itself, so this signs
+      // only key-path spends of that account's two Taproot outputs. Never bytes
+      // a caller chose: the untweaked form signs under the Nostr key itself,
+      // and a signature over chosen bytes would be one over any event id.
       case 'SIDECAR_BTC_SIGN_INPUTS': {
         if (!self.SidecarBitcoin) throw new Error('The bitcoin module is not loaded');
         const active = await KS.getActivePubkey();
         if (message.pubkey !== active) throw new Error('Sidecar switched accounts; reopen the Wallet tab.');
-        const inputs = message.inputs;
-        if (!Array.isArray(inputs) || !inputs.length || inputs.length > 64) {
-          throw new Error('Malformed signing request');
-        }
         const privBytes = await KS.getPrivkey(active); // throws if locked
-        result = { sigs: await self.SidecarBitcoin.signSweepInputs(privBytes, active, inputs) };
+        result = { sigs: await self.SidecarBitcoin.signSweepTx(privBytes, active, message.sweep) };
         break;
       }
       // Throw away every relay connection the worker holds. Recovery from browser

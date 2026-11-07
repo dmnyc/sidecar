@@ -17,10 +17,10 @@
 // Both reach it as the global `SidecarBitcoin`.
 //
 // Deliberately NOT on the window.nostr surface: web pages never see any of
-// this. The side panel builds and hashes (public data only); signing happens
-// in the service worker against the unlocked keystore, and the only thing it
-// will sign is a SIGHASH_ALL message under one of the active account's own two
-// Taproot keys.
+// this. The side panel builds the transaction (public data only); the service
+// worker computes every SIGHASH_ALL message itself (signSweepTx) and signs it
+// against the unlocked keystore under one of the active account's own two
+// Taproot keys — it never signs bytes handed to it.
 
 (function (root) {
   'use strict';
@@ -294,8 +294,10 @@
   // Two addresses hang off a Nostr key: the "tweaked" BIP-86-style one, whose
   // output key is Q = P + t·G with t = taggedHash('TapTweak', P) and no script
   // tree, and the "untweaked" one, whose output key is the raw Nostr pubkey
-  // itself. Spending either is a key-path spend — the tweak is always applied
-  // at signing time, which is why both are reachable with one private key.
+  // itself. Spending either is a key-path spend, and a node checks a key-path
+  // signature against the output key the spent script carries — it applies
+  // no tweak of its own (BIP-341: Verify(q, sighash, sig), q the witness
+  // program). So each form signs with the scalar of its own output key.
 
   async function tapTweakInt(xonly32) {
     const t = bytesToBigInt(await taggedHash('TapTweak', xonly32));
@@ -322,10 +324,15 @@
     return bigIntToBytes(Q.x, 32);
   }
   // Worker-side: from the account's private key, the signing scalars for both
-  // forms. The untweaked scalar q0 signs the raw-key address; q0 + TapTweak(Q)
-  // signs the BIP-86 address (its output key Q used as an internal key, again
-  // with no script tree). BIP-340's sign() straightens Y parity internally, so
-  // these scalars are handed to it as-is.
+  // forms — each the scalar of the output key its own address carries.
+  //   untweaked: the address carries P, so p0 signs it — the secret
+  //              straightened onto P's even-Y point, the point lift_x(P) names.
+  //   tweaked:   the address carries Q = P + t·G, so p0 + t signs it — the
+  //              BIP-341 vector's tweakedPrivkey. BIP-340's sign() straightens
+  //              Q's own Y parity internally.
+  // The even-Y step before adding t is the load-bearing one: t added to a raw
+  // secret whose point has an odd Y signs for -P + t·G, which nothing commits
+  // to. And no second tweak, anywhere: a node never adds one when it verifies.
   async function signingScalars(seckey32, pubkeyHex) {
     const p0 = evenYScalar(bytesToBigInt(seckey32));
     if (p0 === null) throw new Error('taproot: secret key out of range');
@@ -334,15 +341,7 @@
       throw new Error('taproot: key does not match the account pubkey');
     }
     const t = await tapTweakInt(xonly);
-    // The untweaked scalar is the vector's plain sum; BIP-340's sign() squares
-    // Y parity with the key it actually commits to. The tweaked form is not so
-    // forgiving: adding the second tweak to a scalar whose point has an odd Y
-    // signs under a different key than the one being spent, so the scalar is
-    // straightened onto the x-only key's implied even-Y point first.
-    const q0 = mod(p0 + t, ORDER_N);
-    const Qx = tweakedPubkeyFrom(pubkeyHex, t);
-    const t2 = await tapTweakInt(Qx);
-    return { untweaked: q0, tweaked: mod(evenYScalar(q0) + t2, ORDER_N) };
+    return { untweaked: p0, tweaked: mod(p0 + t, ORDER_N) };
   }
   // Sign SIGHASH_ALL messages for a sweep's inputs. Each entry names the form
   // its input was funded to ('tweaked' | 'untweaked'); the worker derives the
@@ -507,6 +506,72 @@
     return sigsHex.map((s) => [s + '01']);
   }
 
+  // ---- the panel→worker signing request ------------------------------------------
+  //
+  // The panel sends the unsigned transaction and, per input, the coin's value
+  // and form — JSON-safe, since runtime messaging carries neither BigInt nor
+  // Uint8Array — and deliberately no hash and no script. The worker derives
+  // the spent scripts from the account's own pubkey and computes every sighash
+  // itself (signSweepTx), so it never signs bytes a caller chose. That matters
+  // because the untweaked form signs under the Nostr key itself: a worker that
+  // signed any 32 bytes on request would sign any Nostr event id, around every
+  // check the event path makes.
+  function sweepRequest(plan) {
+    return {
+      version: plan.tx.version,
+      nLockTime: plan.tx.nLockTime || 0,
+      inputs: plan.tx.inputs.map((input, i) => ({
+        txidHex: input.txidHex,
+        vout: input.vout,
+        sequence: input.sequence,
+        valueSats: String(plan.plan[i].valueSats),
+        form: plan.plan[i].form,
+      })),
+      outputs: plan.tx.outputs.map((o) => ({ valueSats: String(o.valueSats), scriptHex: bytesToHex(o.script) })),
+    };
+  }
+
+  // Worker-side: sign a sweep from its transaction, never from a hash. Whatever
+  // asks, the most it can obtain is key-path signatures for a single-output
+  // transaction spending this account's own two Taproot outputs.
+  async function signSweepTx(seckey32, pubkeyHex, req) {
+    const bad = () => new Error('taproot: malformed sweep request');
+    const u32 = (n) => Number.isInteger(n) && n >= 0 && n <= 0xffffffff;
+    const sats = (s) => typeof s === 'string' && /^[0-9]{1,16}$/.test(s) && BigInt(s) <= 2100000000000000n;
+    if (!req || typeof req !== 'object' || !Array.isArray(req.inputs) || !Array.isArray(req.outputs)) throw bad();
+    if (!req.inputs.length || req.inputs.length > 64 || req.outputs.length !== 1) throw bad();
+    if (!u32(req.version) || !u32(req.nLockTime)) throw bad();
+    const xonly = hexToBytes(pubkeyHex);
+    if (!xonly || xonly.length !== 32) throw bad();
+    const scripts = {
+      tweaked: p2trScript(tweakedPubkeyFrom(pubkeyHex, await tapTweakInt(xonly))),
+      untweaked: p2trScript(xonly),
+    };
+    const tx = { version: req.version, nLockTime: req.nLockTime, inputs: [], outputs: [] };
+    const spent = [];
+    let inValue = 0n;
+    for (const i of req.inputs) {
+      if (!i || typeof i !== 'object' || (i.form !== 'tweaked' && i.form !== 'untweaked')) throw bad();
+      if (typeof i.txidHex !== 'string' || !/^[0-9a-f]{64}$/.test(i.txidHex) || !u32(i.vout) || !u32(i.sequence) || !sats(i.valueSats)) throw bad();
+      tx.inputs.push({ txidHex: i.txidHex, vout: i.vout, sequence: i.sequence });
+      spent.push({ valueSats: BigInt(i.valueSats), script: scripts[i.form] });
+      inValue += BigInt(i.valueSats);
+    }
+    const o = req.outputs[0];
+    const script = o && typeof o.scriptHex === 'string' ? hexToBytes(o.scriptHex) : null;
+    // A witness program, the only kind destScriptFor builds: OP_0 or OP_1..16,
+    // then one push of the whole 2..40-byte program.
+    if (!script || script.length < 4 || script.length > 42 || script[1] !== script.length - 2) throw bad();
+    if (script[0] !== 0x00 && (script[0] < 0x51 || script[0] > 0x60)) throw bad();
+    if (!sats(o.valueSats) || BigInt(o.valueSats) > inValue) throw bad();
+    tx.outputs.push({ valueSats: BigInt(o.valueSats), script });
+    const inputs = [];
+    for (let k = 0; k < tx.inputs.length; k++) {
+      inputs.push({ hash: bytesToHex(await sighashAll(tx, k, spent)), form: req.inputs[k].form });
+    }
+    return signSweepInputs(seckey32, pubkeyHex, inputs);
+  }
+
   // ---- BIP-21 and the scan -------------------------------------------------------
 
   // What a receive QR or a pasted string may hand us. Sweep-all ignores amounts,
@@ -555,6 +620,7 @@
     tapTweakInt, deriveAddresses, signingScalars, signSweepInputs, tweakedPubkeyFrom,
     // transactions
     serializeTx, txWeight, vsizeOf, txidOf, sighashMessage, sighashAll, planSweep, sweepWitness, explorerUtxos,
+    sweepRequest, signSweepTx,
     readDestination,
   };
 })(typeof self !== 'undefined' ? self : this);

@@ -21866,9 +21866,9 @@
   // window.nostr surface). Balance and UTXO reads go to mempool.space —
   // already a Sidecar price source — and only confirmed outputs sweep.
   // Signing happens in the service worker against the unlocked keystore; the
-  // panel handles only public data (addresses, sighashes, serialization) and
-  // the worker derives every key itself, so a sighash under any other key is
-  // refused. One action: sweep EVERYTHING to a single pasted or scanned
+  // panel handles only public data (addresses, the unsigned transaction,
+  // serialization) and the worker derives every key and computes every
+  // sighash itself, so it never signs bytes the panel chose. One action: sweep EVERYTHING to a single pasted or scanned
   // destination. No general send, no change output, no Lightning swap — any
   // bitcoin wallet's receive address works, and the hint says to verify it.
   const MEMPOOL_API = 'https://mempool.space/api';
@@ -22205,18 +22205,10 @@
       err.textContent = '';
       const { plan, parsed } = pending;
       try {
-        // Scripts of the outputs being spent — one per form.
-        const tweak = await BTC.tapTweakInt(BTC.hexToBytes(state.activePubkey));
-        const spendScripts = {
-          tweaked: BTC.p2trScript(BTC.tweakedPubkeyFrom(state.activePubkey, tweak)),
-          untweaked: BTC.p2trScript(BTC.hexToBytes(state.activePubkey)),
-        };
-        const spent = plan.plan.map((u) => ({ valueSats: u.valueSats, script: spendScripts[u.form] }));
-        const inputs = [];
-        for (let i = 0; i < plan.tx.inputs.length; i++) {
-          inputs.push({ hash: BTC.bytesToHex(await BTC.sighashAll(plan.tx, i, spent)), form: plan.plan[i].form });
-        }
-        const { sigs } = await call({ type: 'SIDECAR_BTC_SIGN_INPUTS', pubkey: state.activePubkey, inputs });
+        // The worker hashes what it signs: it gets the unsigned transaction
+        // and each coin's value and form, derives the spent scripts itself,
+        // and computes every sighash itself (SidecarBitcoin.signSweepTx).
+        const { sigs } = await call({ type: 'SIDECAR_BTC_SIGN_INPUTS', pubkey: state.activePubkey, sweep: BTC.sweepRequest(plan) });
         const hex = BTC.bytesToHex(BTC.serializeTx(plan.tx, BTC.sweepWitness(sigs)));
         const res = await btcFetch('/tx', {
           method: 'POST',
