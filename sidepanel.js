@@ -7481,6 +7481,11 @@
       }
     }
     forgetWot();
+    // The Overview drawer and the Profile tab are holding the number this just
+    // changed, and nothing else tells them. The cache above is already fresh,
+    // so announcing it lets both repaint in place instead of staying stale
+    // until the tab happens to be rebuilt.
+    if (changed) document.dispatchEvent(new CustomEvent('sidecar-follows-changed'));
     return changed;
   }
 
@@ -9985,6 +9990,16 @@
         followNum.classList.add('account-stat-num');
       });
     }
+
+    // A follow or unfollow anywhere in the panel announces itself on this event
+    // after refreshing followCountCache, so this drawer's figure repaints in
+    // place instead of sitting stale until the tab is rebuilt. The listener
+    // rides the drawer, so it dies with the render that made it.
+    drawer.addEventListener('sidecar-follows-changed', () => {
+      if (!drawer.dataset.loaded) return;
+      const n = followCountCache.get(pubkey);
+      if (n != null) setWaiting(followNum, I18N.fmtNum(n), false);
+    });
 
     // Same shape as notSetLink, for a read that failed rather than came back empty.
     function retryLink() {
@@ -13003,6 +13018,13 @@
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
       setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
+    });
+    // The repaint-on-follow contract the Overview drawer honors too: a follow
+    // or unfollow elsewhere in the panel lands here at once. Rides followNum,
+    // so it dies with this render.
+    followNum.addEventListener('sidecar-follows-changed', () => {
+      const n = followCountCache.get(active.pubkey);
+      if (n != null) setWaiting(followNum, I18N.fmtNum(n), false);
     });
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
