@@ -34,7 +34,7 @@ const WRITER = [
 ].join('\n');
 
 function world({ list = null, profile = true, relayDown = false, known = [], active = ME, signFails = null } = {}) {
-  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [] };
+  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [], announced: [] };
   const ctx = withI18n({
     state: { activePubkey: active },
     followListCache: known.length ? known.map((pubkey) => ({ pubkey, name: 'x', picture: null })) : null,
@@ -43,6 +43,9 @@ function world({ list = null, profile = true, relayDown = false, known = [], act
     NT: { nip19: { npubEncode: (h) => 'npub1' + h.slice(0, 6) } },
     shortNpub: (n) => n.slice(0, 10),
     forgetWot: () => { w.wot++; },
+    repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
+    document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
+    CustomEvent: class { constructor(type) { this.type = type; } },
     readRelayUrls: async () => ['wss://read.test'],
     postRelays: async () => ['wss://write.test'],
     poolQuerySync: async (relays, f) => {
