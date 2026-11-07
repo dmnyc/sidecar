@@ -4684,6 +4684,23 @@
   // the profile screen's refresh button clears it alongside _profileCache — declared
   // here rather than beside its function so both caches sit together.
   const followCountCache = new Map(); // pubkey -> number|null
+  // Writers (a follow, an unfollow, a Lazarus restore) call repaintFollowCounts
+  // after refreshing the cache, and every live figure — the Overview drawer's,
+  // the Profile tab's — registers a repainter here when it renders. Repainters
+  // capture their own element and drop themselves once it is no longer in the
+  // document, so nothing piles up across renders. A DOM event does NOT work
+  // here: one dispatched on document never reaches listeners on descendants.
+  const followCountRepainters = new Set();
+  function registerFollowRepainter(el, fn) {
+    const repainter = () => {
+      if (!el.isConnected) { followCountRepainters.delete(repainter); return; }
+      fn();
+    };
+    followCountRepainters.add(repainter);
+  }
+  function repaintFollowCounts() {
+    for (const fn of [...followCountRepainters]) fn();
+  }
   // Whether the collapsible stats drawer under the active account row is open, once
   // the user has opened or closed it; null until then. Until they choose, it is open for
   // up to three accounts, so a short list is not sparse, and closed past that: open, it
@@ -7472,6 +7489,7 @@
     }
     // What the panel already holds about this list, brought into line without a reload.
     const total = new Set(tags.filter(isP).map((x) => x[1].toLowerCase())).size;
+    const prior = followCountCache.get(pubkey);
     followCountCache.set(pubkey, total);
     if (followListCache && followListPubkey === pubkey) {
       const at = followListCache.findIndex((c) => c.pubkey === target);
@@ -7483,9 +7501,10 @@
     forgetWot();
     // The Overview drawer and the Profile tab are holding the number this just
     // changed, and nothing else tells them. The cache above is already fresh,
-    // so announcing it lets both repaint in place instead of staying stale
-    // until the tab happens to be rebuilt.
-    if (changed) document.dispatchEvent(new CustomEvent('sidecar-follows-changed'));
+    // so the repainters read it and redraw in place. Announce whenever the
+    // cached figure moved, not only when a publish happened: a no-op follow
+    // that corrected a stale cache moved the number just as much.
+    if (changed || prior !== total) repaintFollowCounts();
     return changed;
   }
 
@@ -9991,11 +10010,9 @@
       });
     }
 
-    // A follow or unfollow anywhere in the panel announces itself on this event
-    // after refreshing followCountCache, so this drawer's figure repaints in
-    // place instead of sitting stale until the tab is rebuilt. The listener
-    // rides the drawer, so it dies with the render that made it.
-    drawer.addEventListener('sidecar-follows-changed', () => {
+    // A follow or unfollow anywhere in the panel repaints this drawer's figure
+    // through the registered repainter, in place instead of stale-until-rebuild.
+    registerFollowRepainter(drawer, () => {
       if (!drawer.dataset.loaded) return;
       const n = followCountCache.get(pubkey);
       if (n != null) setWaiting(followNum, I18N.fmtNum(n), false);
@@ -13020,9 +13037,8 @@
       setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
     });
     // The repaint-on-follow contract the Overview drawer honors too: a follow
-    // or unfollow elsewhere in the panel lands here at once. Rides followNum,
-    // so it dies with this render.
-    followNum.addEventListener('sidecar-follows-changed', () => {
+    // or unfollow elsewhere in the panel lands here at once.
+    registerFollowRepainter(followNum, () => {
       const n = followCountCache.get(active.pubkey);
       if (n != null) setWaiting(followNum, I18N.fmtNum(n), false);
     });
@@ -19026,6 +19042,7 @@
     if (signed.kind === 3) {
       const follows = new Set(signed.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
       followCountCache.set(pubkey, follows.size);
+      repaintFollowCounts(); // the restore just moved the number the drawer is showing
       followListCache = null;
       followListPubkey = null;
       forgetWot();
