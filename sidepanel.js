@@ -21515,6 +21515,13 @@
     browseBtn.addEventListener('click', () => openExtensionPage('wallets.html'));
     quick.append(browseBtn);
     view.append(quick);
+
+    // On-chain balance rides the UNCONNECTED view too. The person it exists
+    // for — coins sitting on an address their Nostr key can spend — may well
+    // have no Lightning wallet at all, and gating the rescue behind a wallet
+    // connection would hide it from exactly them. It needs no NWC: it reads
+    // from the account's key and the explorer, and signs against the keystore.
+    if (btcSweepOn) appendBtcSweepCard(view);
   }
 
   async function renderWalletConnected(view) {
