@@ -164,11 +164,11 @@ test('the panel\'s own copies follow the list: cache, count, and the web of trus
   await w.api.addFollow(ME, BOB, { name: 'Bob', picture: 'p.png' });
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [CAL, BOB]);
   assert.equal(w.ctx.followListCache[1].name, 'Bob');
-  assert.equal(w.ctx.followCountCache.get(ME), 2);
+  assert.equal(w.ctx.followCountCache.get(ME).v, 2);
   assert.equal(w.wot, 1);
   await w.api.removeFollow(ME, CAL);
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [BOB]);
-  assert.equal(w.ctx.followCountCache.get(ME), 1);
+  assert.equal(w.ctx.followCountCache.get(ME).v, 1);
 });
 
 // ---- the buttons ----

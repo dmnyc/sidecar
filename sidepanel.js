@@ -4680,10 +4680,15 @@
   const PROFILE_TTL = 5 * 60 * 1000;
   const _profileCache = new Map();    // pubkey -> { content, name, picture, expiresAt }
   const _profileInflight = new Map(); // pubkey -> Promise
-  // Follow count per pubkey (see getFollowCount below). Session-lived with no TTL, so
-  // the profile screen's refresh button clears it alongside _profileCache — declared
-  // here rather than beside its function so both caches sit together.
-  const followCountCache = new Map(); // pubkey -> number|null
+  // Follow count per pubkey (see getFollowCount below). Cached with the profile
+  // cache's five-minute TTL: inside the window the session value is served
+  // as-is, past it the next read re-queries — so a follow list another client
+  // restored shows up here within minutes instead of living until a reload.
+  // The profile screen's refresh button still clears it alongside _profileCache
+  // for a forced read. Declared here rather than beside its function so both
+  // caches sit together.
+  const FOLLOW_COUNT_TTL = PROFILE_TTL;
+  const followCountCache = new Map(); // pubkey -> { v: number|null, at: epoch ms }
   // Writers (a follow, an unfollow, a Lazarus restore) call repaintFollowCounts
   // after refreshing the cache, and every live figure — the Overview drawer's,
   // the Profile tab's — registers a repainter here when it renders. Repainters
@@ -7490,7 +7495,7 @@
     // What the panel already holds about this list, brought into line without a reload.
     const total = new Set(tags.filter(isP).map((x) => x[1].toLowerCase())).size;
     const prior = followCountCache.get(pubkey);
-    followCountCache.set(pubkey, total);
+    followCountCache.set(pubkey, { v: total, at: Date.now() });
     if (followListCache && followListPubkey === pubkey) {
       const at = followListCache.findIndex((c) => c.pubkey === target);
       if (remove && at >= 0) followListCache.splice(at, 1);
@@ -7504,7 +7509,7 @@
     // so the repainters read it and redraw in place. Announce whenever the
     // cached figure moved, not only when a publish happened: a no-op follow
     // that corrected a stale cache moved the number just as much.
-    if (changed || prior !== total) repaintFollowCounts();
+    if (changed || !prior || prior.v !== total) repaintFollowCounts();
     return changed;
   }
 
@@ -9913,6 +9918,13 @@
     const open = accountStatsOpen();
     drawer.className = 'account-stats' + (open ? '' : ' collapsed');
 
+    // The header row: the toggle (chevron + Overview) opens and closes, and
+    // beside it a refresh re-reads the stats in place — the manual half of the
+    // staleness contract, since another client can move these numbers without
+    // anything in the panel announcing it. The spinner covers the follow read,
+    // the slowest of the three.
+    const head = document.createElement('div');
+    head.className = 'account-stats-head';
     const header = document.createElement('button');
     header.className = 'account-stats-toggle';
     const chev = icon('chevron-down');
@@ -9932,6 +9944,21 @@
       statsCollapsedForPlayer = false;
       applyOpen();
     });
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'account-stats-refresh';
+    refreshBtn.title = t('Refresh');
+    refreshBtn.setAttribute('aria-label', t('Refresh'));
+    refreshBtn.appendChild(icon('refresh'));
+    let refreshingStats = false;
+    refreshBtn.addEventListener('click', async () => {
+      if (refreshingStats) return;
+      refreshingStats = true;
+      refreshBtn.classList.add('spinning');
+      try { await loadStats(); } catch (_) {}
+      refreshBtn.classList.remove('spinning');
+      refreshingStats = false;
+    });
+    head.append(header, refreshBtn);
 
     const body = document.createElement('div');
     body.className = 'account-stats-body';
@@ -10003,7 +10030,7 @@
     // nothing), which the retry above turns back into a number once the relays reply.
     function loadFollows() {
       setWaiting(followNum, '…', true);
-      getFollowCount(pubkey).then((n) => {
+      return getFollowCount(pubkey).then((n) => {
         followsFailed = n == null;
         setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
         followNum.classList.add('account-stat-num');
@@ -10015,7 +10042,7 @@
     registerFollowRepainter(drawer, () => {
       if (!drawer.dataset.loaded) return;
       const n = followCountCache.get(pubkey);
-      if (n != null) setWaiting(followNum, I18N.fmtNum(n), false);
+      if (n && Date.now() - n.at < FOLLOW_COUNT_TTL && n.v != null) setWaiting(followNum, I18N.fmtNum(n.v), false);
     });
 
     // Same shape as notSetLink, for a read that failed rather than came back empty.
@@ -10050,7 +10077,7 @@
     });
 
     body.append(topRow, idSection, profileLink);
-    drawer.append(header, body);
+    drawer.append(head, body);
 
     // Identity rows — need the profile. A null record is a read that got no answer
     // at all, which says nothing about whether these are set: saying "Not set" there
@@ -10106,8 +10133,10 @@
       drawer.dataset.loaded = '1';
       overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
-      // Numeric stats.
-      loadFollows();
+      // Numeric stats. The header's refresh button awaits this read before
+      // clearing its spinner; alerts and relays repaint when their own reads
+      // land.
+      await loadFollows();
 
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
@@ -13040,7 +13069,7 @@
     // or unfollow elsewhere in the panel lands here at once.
     registerFollowRepainter(followNum, () => {
       const n = followCountCache.get(active.pubkey);
-      if (n != null) setWaiting(followNum, I18N.fmtNum(n), false);
+      if (n && Date.now() - n.at < FOLLOW_COUNT_TTL && n.v != null) setWaiting(followNum, I18N.fmtNum(n.v), false);
     });
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
@@ -13188,7 +13217,8 @@
   // fresh account); only a thrown error returns null, which the UI renders as "—".
   async function getFollowCount(pubkey) {
     if (!pubkey) return null;
-    if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
+    const cached = followCountCache.get(pubkey);
+    if (cached && Date.now() - cached.at < FOLLOW_COUNT_TTL) return cached.v;
     let count = null;
     let answered = false;
     try {
@@ -13216,7 +13246,7 @@
         count = 0;
       }
     } catch (_) {}
-    if (answered) followCountCache.set(pubkey, count);
+    if (answered) followCountCache.set(pubkey, { v: count, at: Date.now() });
     return count;
   }
 
@@ -19041,7 +19071,7 @@
     seedBaseline(pubkey, signed); // the wipe check now measures against the restore
     if (signed.kind === 3) {
       const follows = new Set(signed.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
-      followCountCache.set(pubkey, follows.size);
+      followCountCache.set(pubkey, { v: follows.size, at: Date.now() });
       repaintFollowCounts(); // the restore just moved the number the drawer is showing
       followListCache = null;
       followListPubkey = null;
