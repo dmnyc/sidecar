@@ -1550,18 +1550,16 @@
         cell.classList.remove('dragging');
         host.querySelectorAll('.drop-target').forEach((t) => t.classList.remove('drop-target'));
       });
-      if (!m.isVideo) {
-        // Same chip the panel's composer wears: + ALT until the image is described,
-        // ✓ ALT once it is. The tag itself only goes out for described images.
-        const alt = h('button', {
-          className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
-          title: m.alt ? t('Edit the image description') : t('Add a description'),
-          type: 'button',
-        });
-        alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
-        alt.addEventListener('click', () => openAltEditor(i));
-        cell.append(alt);
-      }
+      // Same chip the panel's composer wears: + ALT until the image is described,
+      // ✓ ALT once it is. The tag itself only goes out for described media.
+      const alt = h('button', {
+        className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
+        title: m.alt ? (m.isVideo ? t('Edit the video description') : t('Edit the image description')) : t('Add a description'),
+        type: 'button',
+      });
+      alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
+      alt.addEventListener('click', () => openAltEditor(i));
+      cell.append(alt);
       // THE STRIP REORDERS BY MORE THAN DRAG. HTML5 drag-and-drop never fires
       // on touch, so a touchscreen had no way to reorder at all and a keyboard
       // had none either; the steppers are the cheapest reorder there is, and
@@ -1663,7 +1661,9 @@
     }
     altRow = SC.buildAltEditorRow({
       url: m.url,
+      isVideo: !!m.isVideo,
       alt: m.alt,
+      count: draft.media.filter((x) => x && x.url).length,
       onChange: (value) => saveAltInto(i, value),
       onSave: (value) => {
         closeAltEditor();
@@ -1956,6 +1956,21 @@
           scheduleSave();
           paintCount();
           renderThumbs();
+          // A note no relay shows us does not stay a quote block: it goes back to the text it
+          // was pasted as, and the toast says why.
+          composer.checkPastedQuote(quotes[0], () => {
+            const at = draft.media.indexOf(quotes[0]);
+            if (at < 0) return; // already removed, moved on or replaced: nothing to undo
+            draft.media.splice(at, 1);
+            closeAltEditor(false); // the row edits a media slot that may no longer exist
+            const words = String(draft.text || '').replace(/\s+$/, '');
+            editorApi.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
+            editorApi.sync();
+            scheduleSave();
+            paintCount();
+            renderThumbs();
+            toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
+          });
           return;
         }
         if (plain) document.execCommand('insertText', false, plain);

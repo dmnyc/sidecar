@@ -274,8 +274,8 @@ test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
   // paintPoll's own call moved with it; the media mutations still live in the panel.
   const inCore = (coreBare.match(/paintEitherOr\(\);/g) || []).length;
   const inPanel = (panelBare.match(/paintEitherOr\(\);/g) || []).length;
-  assert.equal(inCore + inPanel, 10,
-    'paintPoll + the media mutations (uploads, removal, attach, stepper, a picked GIF, a quote moved in, pasted or removed) must repaint the pair, '
+  assert.equal(inCore + inPanel, 11,
+    'paintPoll + the media mutations (uploads, removal, attach, stepper, a picked GIF, a quote moved in, pasted, taken back as text or removed) must repaint the pair, '
     + 'found ' + inCore + ' in the core and ' + inPanel + ' in the panel');
 });
 
@@ -290,18 +290,23 @@ test('ATTACHING AN ALREADY-ATTACHED URL CONVERTS, NEVER DUPLICATES', () => {
   }
 });
 
-test('THE CHIP IS ON EVERY IMAGE THUMB IN BOTH COMPOSERS', () => {
-  // "+ ALT" until described, "✓ ALT" after, accent-colored so a strip of images shows
-  // at a glance which ones still need the words. Videos are out of scope — sidecar
-  // writes IMAGE alt text, and the chip says which media it edits.
+test('THE CHIP IS ON EVERY THUMB IN BOTH COMPOSERS, VIDEOS INCLUDED', () => {
+  // "+ ALT" until described, "✓ ALT" after, accent-colored so a strip shows at a glance which
+  // ones still need the words. A video is described like a picture: NIP-92's alt is the
+  // description of any file, and buildImetaTag has always written it for whichever one holds it.
   for (const [name, src] of [['sidepanel.js', panelBare], ['compose.js', pageBare]]) {
     assert.ok(src.includes("compose-thumb-alt' + (m.alt ? ' has-alt' : '')"), name + ' never builds the chip');
     assert.ok(src.includes("m.alt ? '✓ ALT' : '+ ALT'"), name + ' never labels the chip');
-    // And only on a still: the chip sits inside the not-a-video branch.
+    // Not behind a not-a-video branch any more.
     const at = src.indexOf("compose-thumb-alt' + (m.alt ? ' has-alt' : '')");
-    const branch = src.slice(src.lastIndexOf('if (!m.isVideo)', at), at);
-    assert.ok(branch.length > 0 && branch.length < 400, name + ' offers the chip outside the image branch');
+    assert.doesNotMatch(src.slice(Math.max(0, at - 400), at), /if \(!m\.isVideo\) \{/, name + ' hides the chip on a video');
+    // The title and the editor name what they edit.
+    assert.match(src, /m\.isVideo \? t\('Edit the video description'\)/, name + ' words the chip for a video');
+    assert.match(src, /isVideo: !!m\.isVideo,\s*\n\s*alt: m\.alt,/, name + ' tells the editor row it is describing a video');
   }
+  const row = core.slice(core.indexOf('function buildAltEditorRow'), core.indexOf('function buildAltEditorRow') + 2400);
+  assert.match(row, /opts\.isVideo \? t\('Describe this video for anyone/);
+  assert.match(row, /opts\.isVideo \? t\('What does the video show\?'\)/);
 });
 
 test('THE ROW EDITS ONE SLOT AND THE DRAFT KEEPS WHAT IT WROTE', () => {
@@ -347,7 +352,7 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
     const taps = name === 'sidepanel.js'
       ? src.match(/scheduleSave\(\);\n\s*updatePostState\(\);\n\s*renderThumbs\(\);/g) || []
       : src.match(/scheduleSave\(\);\n\s*paintCount\(\);\n\s*renderThumbs\(\);/g) || [];
-    const want = name === 'sidepanel.js' ? 8 : 7;
+    const want = name === 'sidepanel.js' ? 9 : 8; // each includes the pasted quote that no relay showed
     assert.equal(taps.length, want, name + ' repaints the button at every media change (found ' + taps.length + ')');
   }
 });
@@ -757,4 +762,15 @@ test('A LONG LINK TRUNCATES INSIDE THE CARD INSTEAD OF PUSHING THE COPY BUTTON O
   assert.ok(rule, 'the list has its rule');
   assert.match(rule[0], /min-width: 0/);
   assert.match(rule[0], /max-width: 100%/);
+});
+
+test('THE SAVE BUTTON IS PLURAL WHEN THE STRIP HOLDS MORE THAN ONE FILE', () => {
+  // Every description autosaves as it is typed, so with several files the button
+  // that closes the editor is keeping all of them; the count comes from each page.
+  assert.match(core, /tn\('Save description', 'Save descriptions', opts\.count \|\| 1\)/);
+  for (const [name, src] of [['compose.js', fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8')], ['sidepanel.js', fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8')]]) {
+    const at = src.indexOf('buildAltEditorRow({');
+    assert.ok(at > 0, name);
+    assert.match(src.slice(at, at + 400), /count: draft\.media\.filter\(\(x\) => x && x\.url\)\.length/, name + ' passes the file count');
+  }
 });

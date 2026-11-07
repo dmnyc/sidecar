@@ -159,6 +159,13 @@ attachments on the post, only when the words end on a lone quote line and nothin
 follows); it is never moved silently, and a quote left in the words publishes exactly as it
 always did.
 
+**A pasted note must be found.** The block appears at once, and the lookup runs behind it
+(`checkPastedQuote`). If no relay shows the note, the block is removed, the reference goes
+back into the words after a blank line, and a toast says so; the move offer skips a
+reference that was looked for and missed. This is for a paste only: a restored draft or the
+Quote button's prefill names a note that exists, and keeps its block ("It will still be
+quoted") when a relay is slow.
+
 Publishing writes the words, then the strip in order, one line per entry and a blank line
 wherever the kind changes (`composeNoteContent`). The q and p tags are read from the words
 plus the strip's quote (`proseWithQuotes`), so the quote is tagged as one, once. The note
@@ -168,4 +175,6 @@ anything in it (the either-or rule), so a paste into a poll is text.
 ## Video details
 
 An uploaded video's imeta tag carries its type and pixel size (`m`, `dim`), read from
-the file before it goes up. Settings turns it off with `videoImeta`.
+the file before it goes up, while it uploads. Settings turns it off with `videoImeta`. A video
+takes an ALT description like a picture, written last (`url`, `m`, `dim`, `alt`), and that
+tag is published even with Video details off.

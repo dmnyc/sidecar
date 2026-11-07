@@ -899,7 +899,7 @@ test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
   const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
   const at = page.indexOf("editorApi.editor.addEventListener('paste'");
   assert.ok(at > -1, 'the tab has no paste handler of its own');
-  const body = page.slice(at, at + 1400);
+  const body = page.slice(at, at + 2600);
   assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
   assert.match(body, /e\.preventDefault\(\);/);
   assert.match(body, /document\.execCommand\('insertText', false, plain\)/);

@@ -412,7 +412,7 @@ window.SidecarCore = (function () {
       // uploader tries Blossom first. Every one of them is a name that used to be in the
       // panel's scope for free.
       renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
-      paintCountdownNum, buildQuoteBlock,
+      paintCountdownNum, buildQuoteBlock, checkPastedQuote,
     };
   }
 
@@ -1749,7 +1749,10 @@ window.SidecarCore = (function () {
     const row = h('div', { className: 'compose-alt-row' });
 
     const head = h('div', { className: 'compose-alt-head' });
-    if (opts.url) {
+    if (opts.url && opts.isVideo) {
+      // A video is never decoded for a 36px square: its cover glyph stands in for it.
+      head.append(h('span', { className: 'compose-alt-thumb compose-alt-thumb-vid' }, [icon('video')]));
+    } else if (opts.url) {
       const im = document.createElement('img');
       im.className = 'compose-alt-thumb';
       // Same reason every other media element here carries it: media hosts 403 a
@@ -1758,7 +1761,7 @@ window.SidecarCore = (function () {
       im.src = opts.url;
       head.append(im);
     }
-    head.append(h('span', { className: 'compose-alt-hint', textContent: t('Describe this image for anyone who may not be able to see it.') }));
+    head.append(h('span', { className: 'compose-alt-hint', textContent: opts.isVideo ? t('Describe this video for anyone who may not be able to see it.') : t('Describe this image for anyone who may not be able to see it.') }));
     if (initial) {
       const rm = h('button', { className: 'mini ghost compose-alt-remove', title: t('Remove the description'), type: 'button' });
       rm.append(icon('trash'));
@@ -1767,7 +1770,7 @@ window.SidecarCore = (function () {
     }
     row.append(head);
 
-    const field = h('textarea', { className: 'compose-alt-text', maxLength: ALT_MAX, placeholder: t('What does the image show?') });
+    const field = h('textarea', { className: 'compose-alt-text', maxLength: ALT_MAX, placeholder: opts.isVideo ? t('What does the video show?') : t('What does the image show?') });
     field.value = initial;
     row.append(field);
 
@@ -1788,7 +1791,7 @@ window.SidecarCore = (function () {
       '<circle cx="10" cy="10" r="' + RING_R + '" class="ring-fill" ' +
       'stroke-dasharray="' + RING_C + '" stroke-dashoffset="' + RING_C + '" transform="rotate(-90 10 10)"/>';
     const count = h('span', { className: 'compose-alt-count' });
-    const save = h('button', { className: 'ghost compose-alt-save', type: 'button', textContent: t('Save description') });
+    const save = h('button', { className: 'ghost compose-alt-save', type: 'button', textContent: tn('Save description', 'Save descriptions', opts.count || 1) });
     row.append(h('div', { className: 'compose-alt-foot' }, [ring, count, save]));
 
     function paintMeter() {
@@ -2430,12 +2433,18 @@ window.SidecarCore = (function () {
         return;
       }
       wrap.classList.remove('hidden');
-      const quoted = !!(opts && opts.getText && takeTrailingQuote(opts.getText(), media).quotes.length);
+      const trailing = opts && opts.getText ? takeTrailingQuote(opts.getText(), media).quotes : [];
+      const quoted = trailing.length > 0 && !quoteMissed.has(trailing[0].quote);
       offer.classList.toggle('hidden', !quoted);
       label.textContent = tn('{{count}} attachment, added to the end of your post', '{{count}} attachments, added to the end of your post', urls.length);
+      // The rows only when the links changed: sync also runs on every keystroke, for the offer.
+      const shown = urls.map((m) => m.url).join('\n');
+      if (shown === rowsFor) return;
+      rowsFor = shown;
       drawer.innerHTML = '';
       for (const m of urls) drawer.append(buildUrlRow(m.url));
     }
+    let rowsFor = null;
     toggle.addEventListener('click', () => {
       drawer.classList.toggle('hidden');
       toggle.classList.toggle('open', !drawer.classList.contains('hidden'));
@@ -3756,24 +3765,27 @@ window.SidecarCore = (function () {
   const LOOKUP_STAGE_MS = 4000;
 
   // REMEMBERED FOR THE LIFE OF THE PAGE, found notes only. The preview pane redraws on every
-  // change to the strip (moving the quote is one), and each redraw used to go back to the
-  // relays for a note that had not changed. The quote block reads the same cache, so the two
-  // never ask twice. A miss is dropped as soon as it lands: the relay may answer next time.
-  // A lookup already in flight is shared, so two callers asking at once cost one request.
+  // change to the strip (moving the quote is one), and each redraw would go back to the relays
+  // for a note that had not changed; the quote block reads the same cache. A miss is dropped as
+  // soon as it lands: the relay may answer next time. A lookup already in flight is shared, but
+  // only between callers with the same relay hints, so a hinted ask is never answered by an
+  // unhinted one that is still looking.
   const foundEvents = new Map();   // filter key -> event
-  const pendingLookups = new Map(); // filter key -> Promise<event | null>
+  const pendingLookups = new Map(); // filter key + relay hints -> Promise<event | null>
+  const peekEvent = (ref) => foundEvents.get(JSON.stringify(ref.filter)) || null;
   function findEvent(ref) {
     const key = JSON.stringify(ref.filter);
     if (foundEvents.has(key)) return Promise.resolve(foundEvents.get(key));
-    if (!pendingLookups.has(key)) {
+    const pendingKey = key + JSON.stringify(ref.relays || []);
+    if (!pendingLookups.has(pendingKey)) {
       const p = askRelaysFor(ref).catch(() => null).then((ev) => {
-        pendingLookups.delete(key);
+        pendingLookups.delete(pendingKey);
         if (ev) foundEvents.set(key, ev);
         return ev;
       });
-      pendingLookups.set(key, p);
+      pendingLookups.set(pendingKey, p);
     }
-    return pendingLookups.get(key);
+    return pendingLookups.get(pendingKey);
   }
 
   async function askRelaysFor(ref) {
@@ -3847,23 +3859,31 @@ window.SidecarCore = (function () {
   // It is a REFERENCE: what is published is the nostr: line the entry holds, whether or not
   // the note could be found, so a lookup that fails says so and the quote still goes out.
   // `ctl`: { canUp, canDown, onUp, onDown, onRemove }, the page's say over the order.
-  const quoteLookups = new Map(); // nostr: ref -> Promise<event | null>
-  const quoteFound = new Map();   // nostr: ref -> event, for a synchronous first paint
-  const quoteOpen = new Set();    // refs whose block was opened with Show more
+  const quoteOpen = new Set(); // refs whose block was opened with Show more
+  function quotedRef(ref) {
+    try { return embedRef(deps.NT.nip19.decode(ref.replace(/^nostr:/, ''))); } catch (_) { return null; }
+  }
   function lookUpQuoted(ref) {
-    if (quoteFound.has(ref)) return Promise.resolve(quoteFound.get(ref));
-    if (!quoteLookups.has(ref)) {
-      let p;
-      try { p = findEvent(embedRef(deps.NT.nip19.decode(ref.replace(/^nostr:/, '')))); } catch (_) { p = Promise.resolve(null); }
-      p = Promise.resolve(p).catch(() => null).then((ev) => {
-        // A miss is not remembered: the relay may answer next time.
-        quoteLookups.delete(ref);
-        if (ev) quoteFound.set(ref, ev);
-        return ev;
-      });
-      quoteLookups.set(ref, p);
-    }
-    return quoteLookups.get(ref);
+    const r = quotedRef(ref);
+    return r ? findEvent(r) : Promise.resolve(null);
+  }
+
+  // A PASTED REFERENCE MUST BE A NOTE WE CAN SEE. The paste makes the block at once (a lookup can
+  // take several seconds, and a paste that seems to do nothing is worse), and this runs the
+  // check behind it: on a miss `onMiss` undoes the block and the page puts the reference back
+  // as text, so a note that no relay shows us never becomes an empty quote block. The ref is
+  // remembered as missed, so the drawer does not offer to move it into the strip either.
+  // Only for a paste: a draft restored from storage or the Quote button's prefill names a note
+  // that exists, and a relay missing it right now is no reason to take the block away.
+  const quoteMissed = new Set(); // nostr: refs that were looked for and not found
+  function checkPastedQuote(entry, onMiss) {
+    const ref = entry && entry.quote;
+    if (!ref) return;
+    lookUpQuoted(ref).then((ev) => {
+      if (ev) return;
+      quoteMissed.add(ref);
+      onMiss();
+    });
   }
 
   const QUOTE_BLOCK_CAP = 240;
@@ -3956,7 +3976,9 @@ window.SidecarCore = (function () {
       }).catch(() => {});
     };
 
-    if (quoteFound.has(ref)) paintQuoted(quoteFound.get(ref));
+    const r = quotedRef(ref);
+    const cached = r && peekEvent(r);
+    if (cached) paintQuoted(cached);
     else {
       body.textContent = t('Loading the quoted note…');
       lookUpQuoted(ref).then(paintQuoted);

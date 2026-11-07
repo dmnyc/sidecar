@@ -3250,6 +3250,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .compose-alt-head { display: flex; align-items: center; gap: 8px; }
 .compose-alt-thumb { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+.compose-alt-thumb-vid { display: flex; align-items: center; justify-content: center; background: var(--velvet-2); color: var(--muted); }
+.compose-alt-thumb-vid svg { width: 18px; height: 18px; }
 .compose-alt-hint { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .compose-alt-remove { flex-shrink: 0; width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; }
 .compose-alt-remove svg { width: 13px; height: 13px; }

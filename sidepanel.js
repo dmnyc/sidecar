@@ -13948,7 +13948,7 @@
     resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
     powSetting, postCountdownSetting,
     renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
-    paintCountdownNum, buildQuoteBlock,
+    paintCountdownNum, buildQuoteBlock, checkPastedQuote,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
       // Said when the account's own Blossom servers took none of a file and nostr.build did.
@@ -15217,19 +15217,17 @@
             cell.classList.remove('dragging');
             thumbs.querySelectorAll('.drop-target').forEach((t) => t.classList.remove('drop-target'));
           });
-          if (!m.isVideo) {
-            // The chip zap.cooking puts on its own thumbnails: + ALT until the image
-            // is described, ✓ ALT once it is. Tapping it opens the editor row below
-            // the strip; the tag itself only goes out for described images.
-            const alt = h('button', {
-              className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
-              title: m.alt ? t('Edit the image description') : t('Add a description'),
-              type: 'button',
-            });
-            alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
-            alt.addEventListener('click', () => openAltEditor(i));
-            cell.append(alt);
-          }
+          // The chip zap.cooking puts on its own thumbnails: + ALT until the image
+          // is described, ✓ ALT once it is. Tapping it opens the editor row below
+          // the strip; the tag itself only goes out for described media.
+          const alt = h('button', {
+            className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
+            title: m.alt ? (m.isVideo ? t('Edit the video description') : t('Edit the image description')) : t('Add a description'),
+            type: 'button',
+          });
+          alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
+          alt.addEventListener('click', () => openAltEditor(i));
+          cell.append(alt);
             // THE STRIP REORDERS BY MORE THAN DRAG. HTML5 drag-and-drop never fires
             // on touch, so a touchscreen had no way to reorder at all and a keyboard
             // had none either; the steppers are the cheapest reorder there is, and
@@ -15336,7 +15334,9 @@
         }
         altRow = buildAltEditorRow({
           url: m.url,
+          isVideo: !!m.isVideo,
           alt: m.alt,
+          count: draft.media.filter((x) => x && x.url).length,
           onChange: (value) => saveAltInto(i, value),
           onSave: (value) => {
             closeAltEditor();
@@ -15400,6 +15400,24 @@
             updatePostState();
             renderThumbs();
             paintEitherOr();
+            // A note no relay shows us does not stay a quote block: it goes back to the text
+            // it was pasted as, and the toast says why.
+            checkPastedQuote(quotes[0], () => {
+              const at = draft.media.indexOf(quotes[0]);
+              // Already removed, posted, handed to the tab or closed: nothing to undo, and no
+              // saved draft to bring back.
+              if (at < 0 || published || handedToTab || !editor.isConnected) return;
+              draft.media.splice(at, 1);
+              closeAltEditor(false); // the row edits a media slot that may no longer exist
+              const words = String(draft.text || '').replace(/\s+$/, '');
+              mentionEditor.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
+              mentionEditor.sync();
+              scheduleSave();
+              updatePostState();
+              renderThumbs();
+              paintEitherOr();
+              toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
+            });
             return;
           }
           if (plain) document.execCommand('insertText', false, plain);
