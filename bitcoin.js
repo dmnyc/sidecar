@@ -463,12 +463,17 @@
   // form}. Sorted by outpoint so the same coin set always builds the same tx.
   // No change output: the single destination takes everything not spent on fee.
   // The explorer's UTXO list mapped to what planSweep consumes: confirmed
-  // outputs only, values as BigInt, form-tagged. Lives here so the panel keeps
-  // no BigInt arithmetic of its own.
+  // outputs only, values as BigInt, form-tagged. The txid comes in display
+  // order — the string everyone quotes — but an outpoint on the wire carries
+  // those bytes REVERSED, so it is flipped here once and everything
+  // downstream (serialization, the prevouts hash) speaks wire order.
   function explorerUtxos(list, form) {
     return (Array.isArray(list) ? list : [])
       .filter((u) => u && u.status && u.status.confirmed)
-      .map((u) => ({ txidHex: String(u.txid), vout: u.vout, valueSats: BigInt(u.value), form }));
+      .map((u) => {
+        const wire = hexToBytes(String(u.txid)).slice().reverse();
+        return { txidHex: bytesToHex(wire), vout: u.vout, valueSats: BigInt(u.value), form };
+      });
   }
 
   function planSweep(utxos, destScript, feeRateSatVb) {

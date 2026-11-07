@@ -21875,7 +21875,14 @@
 
   async function btcFetch(path, opts) {
     const r = await fetch(MEMPOOL_API + path, Object.assign({ credentials: 'omit' }, opts));
-    if (!r.ok) throw new Error('mempool ' + r.status);
+    if (!r.ok) {
+      // The broadcast's rejection body carries Bitcoin Core's own reason
+      // ("bad-txns-inputs-missingorspent", "invalid Schnorr signature", …) —
+      // the one string that says WHAT went wrong, so it rides the error.
+      let detail = '';
+      try { detail = (await r.text()).trim().slice(0, 160); } catch (_) {}
+      throw new Error('mempool ' + r.status + (detail ? ': ' + detail : ''));
+    }
     return r;
   }
 

@@ -268,11 +268,20 @@ test('explorer UTXOs map to BigInt sweep inputs, confirmed only', () => {
   ];
   const mapped = B.explorerUtxos(list, 'tweaked');
   assert.equal(mapped.length, 1);
-  assert.equal(mapped[0].txidHex, 'aa');
   assert.equal(typeof mapped[0].valueSats, 'bigint');
   assert.equal(mapped[0].valueSats, 50000n);
   assert.equal(mapped[0].form, 'tweaked');
   assert.deepEqual(B.explorerUtxos(null, 'tweaked'), []);
+});
+
+test('the explorer txid flips into wire order for the outpoint', () => {
+  // The wire outpoint is the display txid REVERSED — get this wrong and the
+  // transaction references coins that no chain ever saw, which mempool
+  // reports as a bare 400. A palindrome hides the bug, so this one isn't.
+  const display = '1234567890abcdef';
+  const mapped = B.explorerUtxos([{ txid: display, vout: 0, value: 1, status: { confirmed: true } }], 'tweaked');
+  // Byte-wise, not nibble-wise: [12,34,56,78,90,ab,cd,ef] becomes [ef,cd,ab,90,78,56,34,12].
+  assert.equal(mapped[0].txidHex, 'efcdab9078563412');
 });
 
 test('the destination script mirrors the decoded address', () => {
