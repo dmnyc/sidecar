@@ -64,7 +64,7 @@ function writeHarness({ listTags, followListCache = null, prior } = {}) {
     forgetWot: () => {},
     repaintFollowCounts: () => repaints.push('repaint'),
   };
-  if (prior !== undefined) deps.followCountCache.set(PK, prior);
+  if (prior !== undefined) deps.followCountCache.set(PK, { v: prior, at: Date.now() });
   // eslint-disable-next-line no-new-func
   const writeFollow = new Function(...Object.keys(deps), `${liftFn('async function writeFollow(')}; return writeFollow;`)(...Object.values(deps));
   return { writeFollow, cache: deps.followCountCache, repaints };
@@ -74,7 +74,7 @@ test('FOLLOWING SOMEONE REFRESHES THE CACHE AND REPAINTS', async () => {
   const h = writeHarness({ listTags: [tag('1'), tag('2')] });
   const changed = await h.writeFollow(PK, '3'.repeat(64), false);
   assert.equal(changed, true);
-  assert.equal(h.cache.get(PK), 3, 'two follows plus the new one');
+  assert.equal(h.cache.get(PK).v, 3, 'two follows plus the new one');
   assert.equal(h.repaints.length, 1, 'the figures holding the old number are told');
 });
 
@@ -82,7 +82,7 @@ test('UNFOLLOWING DOES THE SAME', async () => {
   const h = writeHarness({ listTags: [tag('1'), tag('2'), tag('3')] });
   const changed = await h.writeFollow(PK, '3'.repeat(64), true);
   assert.equal(changed, true);
-  assert.equal(h.cache.get(PK), 2);
+  assert.equal(h.cache.get(PK).v, 2);
   assert.equal(h.repaints.length, 1);
 });
 
@@ -100,7 +100,7 @@ test('A NO-OP THAT CORRECTS A STALE CACHE STILL REPAINTS', async () => {
   const h = writeHarness({ listTags: [tag('1'), tag('2')], prior: 150 });
   const changed = await h.writeFollow(PK, '1'.repeat(64), false);
   assert.equal(changed, false);
-  assert.equal(h.cache.get(PK), 2, 'the cache now matches the list');
+  assert.equal(h.cache.get(PK).v, 2, 'the cache now matches the list');
   assert.equal(h.repaints.length, 1, 'the correction is announced');
 });
 
