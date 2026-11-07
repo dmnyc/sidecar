@@ -4600,6 +4600,9 @@ async function handleControl(message, sender, sendResponse) {
         // flips the scanner from backup-sheet keys to receive QRs (the rescue
         // sweep's destination); scan-qr.js reads the query string.
         const query = message.mode === 'address' ? '?mode=address' : '';
+        // A new destination scan starts empty: a value an earlier scan parked
+        // and nobody claimed must not fill this one's field.
+        if (message.mode === 'address') qrScan = null;
         await new Promise((res) => {
           chrome.windows.create(
             { url: chrome.runtime.getURL('scan-qr.html') + query, type: 'popup', width: 420, height: 560, focused: true },
@@ -4635,7 +4638,11 @@ async function handleControl(message, sender, sendResponse) {
       // encodes; the panel does the parsing and shows what it made of it. Not
       // in CONTENT_OK, so the sender gate already confines this to our pages.
       case 'SIDECAR_QR_SCAN':
-        if (typeof message.value === 'string' && message.value.trim() && message.value.length <= 500) {
+        // Never a key: a backup sheet scanned here by mistake would land in the
+        // destination field, on screen, which is everything the key scan's own
+        // one-claim parking exists to prevent.
+        if (typeof message.value === 'string' && message.value.trim() && message.value.length <= 500 &&
+            !/(?:nsec|ncryptsec)1[a-z0-9]{20,}/i.test(message.value)) {
           qrScan = { value: message.value.trim(), at: Date.now() };
           result = { ok: true };
         } else {
