@@ -13021,15 +13021,9 @@
     // the whole session, so an edit made elsewhere can look stuck. This drops both for
     // the active account and refetches.
     const refreshBtn = h('button', { className: 'profile-backup-jump', title: t('Refresh profile, follow and mute counts') });
-    // Clockwise, near-closed circle with a short arrow at the top right — the
-    // conventional "reload" glyph. The old mark was counter-clockwise and filled,
-    // which reads more like "undo" than "refresh". Stroked so it inherits the same
-    // weight as the panel's other icons.
-    refreshBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M20 12a8 8 0 1 1-2.34-5.66"></path>' +
-      '<polyline points="20 4.5 20 9 15.5 9"></polyline></svg>';
+    // Same glyph as the Overview drawer's refresh (the two-arrow mark from the
+    // shared icon set), so every refresh affordance in the panel reads alike.
+    refreshBtn.appendChild(icon('refresh'));
     refreshBtn.addEventListener('click', async () => {
       if (refreshBtn.disabled) return;
       refreshBtn.disabled = true;
