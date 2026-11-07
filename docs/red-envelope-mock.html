@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Red Envelope mockup</title>
+<style>
+@font-face { font-family: 'Manrope'; src: url(../fonts/manrope-400.woff2) format('woff2'); font-weight: 400; }
+@font-face { font-family: 'Manrope'; src: url(../fonts/manrope-600.woff2) format('woff2'); font-weight: 600; }
+@font-face { font-family: 'Manrope'; src: url(../fonts/manrope-700.woff2) format('woff2'); font-weight: 700; }
+@font-face { font-family: 'Display'; src: url(../fonts/cormorant-garamond-var.woff2) format('woff2'); font-weight: 300 700; }
+html { font-variant-numeric: lining-nums; }
+
+:root {
+  --lacquer: #160B09;
+  --panel: #211412;
+  --panel-line: #3A2420;
+  --cream: #F3E6CF;
+  --muted: #BCA68B;
+  --red: #9A2014;
+  --red-lit: #AD2618;
+  --red-shadow: #8C1C10;
+  --gold: #E8BC57;
+  --gold-deep: #B0832C;
+  --gold-ink: #F4D27A;           /* gold on red paper: 4.68:1 or better */
+  --foil: linear-gradient(170deg, #FBE7A6 0%, #F4D27A 38%, #E9C064 62%, #F8E2A0 100%);
+  --paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.25  0 0 0 0 0.03  0 0 0 0 0.02  0 0 0 0.2 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* the linked-coin lattice as a blind emboss: a highlight and a shadow, no ink */
+  --emboss: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cg fill='none' stroke-width='1'%3E%3Cg stroke='rgba(0,0,0,.35)' transform='translate(.6 .8)'%3E%3Ccircle cx='0' cy='0' r='20'/%3E%3Ccircle cx='40' cy='0' r='20'/%3E%3Ccircle cx='0' cy='40' r='20'/%3E%3Ccircle cx='40' cy='40' r='20'/%3E%3Ccircle cx='20' cy='20' r='20'/%3E%3C/g%3E%3Cg stroke='rgba(255,214,170,.055)'%3E%3Ccircle cx='0' cy='0' r='20'/%3E%3Ccircle cx='40' cy='0' r='20'/%3E%3Ccircle cx='0' cy='40' r='20'/%3E%3Ccircle cx='40' cy='40' r='20'/%3E%3Ccircle cx='20' cy='20' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --emboss-red: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cg fill='none' stroke-width='1'%3E%3Cg stroke='rgba(60,4,2,.2)' transform='translate(.6 .8)'%3E%3Ccircle cx='0' cy='0' r='20'/%3E%3Ccircle cx='40' cy='0' r='20'/%3E%3Ccircle cx='0' cy='40' r='20'/%3E%3Ccircle cx='40' cy='40' r='20'/%3E%3Ccircle cx='20' cy='20' r='20'/%3E%3C/g%3E%3Cg stroke='rgba(255,190,150,.055)'%3E%3Ccircle cx='0' cy='0' r='20'/%3E%3Ccircle cx='40' cy='0' r='20'/%3E%3Ccircle cx='0' cy='40' r='20'/%3E%3Ccircle cx='40' cy='40' r='20'/%3E%3Ccircle cx='20' cy='20' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  /* lantern light: warm, red-tinted pools falling from above, out of frame */
+  --lanternlight:
+    radial-gradient(ellipse 70% 42% at 78% -6%, rgba(255,104,52,.30), rgba(255,104,52,0) 70%),
+    radial-gradient(ellipse 55% 34% at 12% -4%, rgba(255,128,64,.18), rgba(255,128,64,0) 70%),
+    radial-gradient(ellipse 90% 30% at 50% 108%, rgba(200,60,30,.10), rgba(200,60,30,0) 70%);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #232020; color: #e9e4dc; font-family: 'Manrope', sans-serif; padding: 36px 40px 40px; width: 1240px; }
+header { margin-bottom: 24px; }
+header h1 { font-family: 'Display'; font-weight: 700; font-size: 34px; color: var(--gold); }
+header p { color: #a9a196; font-size: 13.5px; margin-top: 4px; line-height: 1.5; max-width: 1080px; }
+.row { display: flex; gap: 40px; align-items: flex-start; }
+.col { width: 360px; }
+.col h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: #a9a196; font-weight: 700; margin-bottom: 10px; }
+.note { font-size: 12.5px; line-height: 1.55; color: #b8b0a4; margin-top: 12px; }
+
+.frame { position: relative; width: 360px; height: 780px; overflow: hidden; border-radius: 14px;
+  background: var(--emboss) 0 0 / 40px 40px, var(--lacquer); box-shadow: 0 0 0 1px #000, 0 20px 50px rgba(0,0,0,.5); }
+.light { position: absolute; inset: 106px 0 0 0; background: var(--lanternlight); pointer-events: none; }
+.abs { position: absolute; }
+svg.ico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.redpaper { background: var(--paper), radial-gradient(130% 150% at 28% 18%, var(--red-lit) 0%, var(--red) 48%, var(--red-shadow) 100%); color: var(--gold-ink); }
+.foil { background: var(--foil); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+.bar { left: 0; top: 0; width: 360px; height: 60px; display: flex; align-items: center; padding: 0 14px; background: #120807; box-shadow: inset 0 -1px 0 rgba(176,131,44,.55); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-family: 'Display'; font-weight: 700; font-size: 19px;
+  color: var(--cream); background: radial-gradient(circle at 35% 30%, #4a3326, #1b100c); box-shadow: 0 0 0 1.5px var(--gold-deep); }
+.bar .chev { width: 16px; height: 16px; margin: 0 auto 0 4px; color: var(--muted); }
+.bar .ico { color: var(--gold); margin-left: 10px; width: 19px; height: 19px; opacity: .9; }
+.tabs { left: 0; top: 60px; width: 360px; height: 46px; display: flex; border-bottom: 1px solid var(--panel-line); background: #120807; }
+.tabs div { flex: 1; text-align: center; padding-top: 13px; font-size: 13.5px; color: var(--muted); font-weight: 600; position: relative; }
+.tabs .on { color: var(--gold); }
+.tabs .on::after { content: ''; position: absolute; left: 22%; right: 22%; bottom: -1px; height: 2px; background: var(--gold); }
+.title { font-family: 'Display'; font-weight: 700; font-size: 38px; color: var(--cream); left: 18px; top: 124px; line-height: 1; }
+
+/* the balance card is the envelope: red paper, a foil rule, foil numerals */
+.wallet { left: 16px; top: 184px; width: 328px; height: 164px; border-radius: 10px; padding: 18px 20px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.45), 0 0 40px rgba(255,90,40,.08); }
+.wallet::before { content: ''; position: absolute; inset: 7px; border-radius: 6px; border: 1px solid rgba(244,210,122,.55); pointer-events: none; }
+.wallet .label { font-size: 10.5px; letter-spacing: .22em; font-weight: 700; text-transform: uppercase; color: var(--gold-ink); }
+.wallet .bal { font-family: 'Display'; font-weight: 700; font-size: 60px; line-height: 1.04; margin-top: 12px; }
+.wallet .unit { font-size: 13px; color: var(--gold-ink); margin-top: 2px; font-weight: 600; }
+.wallet .tools { position: absolute; right: 20px; top: 16px; display: flex; gap: 12px; color: var(--gold-ink); }
+.wallet .tools .ico, .wallet .chart { width: 18px; height: 18px; }
+.wallet .chart { position: absolute; right: 20px; bottom: 18px; color: var(--gold-ink); }
+
+.actions { left: 16px; top: 362px; width: 328px; display: flex; gap: 10px; }
+.btn { flex: 1; height: 44px; border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 14.5px; }
+.btn .ico { width: 17px; height: 17px; stroke-width: 2.1; }
+.btn.primary { box-shadow: inset 0 0 0 1px rgba(244,210,122,.6), 0 2px 0 rgba(0,0,0,.35); }
+.btn.secondary { background: var(--panel); color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-deep); }
+
+.list { left: 16px; top: 422px; width: 328px; border-radius: 12px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--panel-line); }
+.tx { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-bottom: 1px solid var(--panel-line); }
+.tx:last-child { border-bottom: 0; }
+.tx .ic { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--panel-line); color: var(--gold); background: #190e0c; }
+.tx .ic .ico { width: 17px; height: 17px; }
+.tx .t { flex: 1; min-width: 0; }
+.tx .t b { display: block; font-size: 14px; font-weight: 600; color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx .t span { font-size: 12px; color: var(--muted); }
+.tx .amt { font-size: 14px; font-weight: 700; color: var(--cream); }
+.tx .amt.in { color: var(--gold); }
+
+/* lock screen: the light out of focus, and the sealed envelope */
+.bokeh { border-radius: 50%; filter: blur(7px); }
+.env-lg { left: 108px; top: 120px; width: 144px; height: 196px; border-radius: 9px; box-shadow: 0 18px 40px rgba(0,0,0,.55), 0 0 60px rgba(255,90,40,.12); overflow: hidden; }
+.env-lg::before { content: ''; position: absolute; inset: 7px; border-radius: 5px; border: 1px solid rgba(244,210,122,.5); }
+.env-lg svg { position: absolute; left: 0; top: 0; }
+.lock-logo { left: 105px; top: 344px; width: 150px; }
+.lock-form { left: 40px; top: 410px; width: 280px; text-align: center; }
+.lock-form .lede { font-size: 14px; color: var(--cream); }
+.lock-form label { display: block; text-align: left; font-size: 12px; color: var(--muted); margin: 18px 0 6px; font-weight: 600; }
+.lock-form .input { height: 42px; border-radius: 9px; background: #0f0706; box-shadow: inset 0 0 0 1px var(--gold-deep); text-align: left; padding: 0 14px; font-size: 20px; line-height: 42px; color: var(--cream); letter-spacing: .25em; }
+.lock-form .btn { margin-top: 12px; width: 100%; flex: none; }
+.lock-form .forgot { margin-top: 14px; font-size: 12.5px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+
+/* pay card */
+.page { left: 0; top: 0; width: 360px; height: 446px; background: #F1EEE8; }
+.page i { position: absolute; left: 24px; height: 9px; border-radius: 5px; background: #DDD7CD; }
+.pay { left: 26px; top: 26px; width: 308px; border-radius: 16px; padding: 18px 20px 16px; text-align: center; overflow: hidden;
+  background: radial-gradient(ellipse 80% 40% at 70% -8%, rgba(255,104,52,.24), rgba(255,104,52,0) 70%), var(--emboss) 0 0 / 40px 40px, var(--lacquer);
+  box-shadow: 0 0 0 1px rgba(176,131,44,.7), 0 18px 40px rgba(0,0,0,.35); }
+.pay .logo { width: 112px; display: block; margin: 0 auto; }
+.pay .site { font-family: 'Display'; font-weight: 700; font-size: 25px; color: var(--gold); margin-top: 10px; }
+.pay .what { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.pay .amount { font-family: 'Display'; font-weight: 700; font-size: 46px; color: var(--cream); line-height: 1; margin-top: 14px; }
+.pay .amount small { font-family: 'Manrope'; font-size: 14px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.pay .as { font-size: 10px; letter-spacing: .2em; color: var(--muted); margin-top: 14px; font-weight: 700; }
+.pay .who { display: flex; align-items: center; gap: 10px; margin-top: 7px; padding: 9px 12px; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--panel-line); text-align: left; }
+.pay .who b { color: var(--cream); font-size: 14px; display: block; }
+.pay .who span { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); }
+.envelope { position: relative; margin-top: 14px; height: 74px; border-radius: 8px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(244,210,122,.55), 0 3px 0 rgba(0,0,0,.35); }
+.envelope svg.crease { position: absolute; left: 0; top: 0; width: 100%; height: 30px; }
+.seal { position: absolute; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 38% 32%, #FCEBB4, #F0CD72 45%, #C99A3E 100%); box-shadow: 0 1px 2px rgba(40,4,2,.5), inset 0 0 0 1px rgba(120,70,10,.4), inset 0 0 0 2.5px rgba(255,244,210,.45), inset 0 0 0 3.5px rgba(150,100,30,.3); }
+.envelope .seal { left: 50%; top: 9px; width: 32px; height: 32px; margin-left: -16px; }
+.envelope .pay-label { position: absolute; left: 0; right: 0; bottom: 9px; text-align: center; font-weight: 700; font-size: 14.5px; color: var(--gold-ink); }
+.seal-detail .seal { flex: none; }
+/* exactly as a missing avatar draws it: the light-ground cut, inset to 64%, at 72% */
+.seal-mark { width: 64%; height: 64%; object-fit: contain; opacity: .72; display: block;
+  /* the slice is half a circle: centre the whole circle it is cut from, at (16.59, 16.59) in the file */
+  transform: translate(6.28%, 6.28%); }
+.seal-detail { display: flex; align-items: center; gap: 18px; margin-top: 14px; }
+.seal-detail span { font-size: 12px; color: #a9a196; }
+.pay .reject { margin-top: 12px; font-size: 13.5px; color: var(--muted); font-weight: 600; }
+
+.season { left: 16px; top: 462px; width: 328px; border-radius: 14px; padding: 14px; background: var(--panel); box-shadow: inset 0 0 0 1px rgba(176,131,44,.6); }
+.season .head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--cream); }
+.season .head .ico { color: var(--gold); width: 17px; height: 17px; }
+.season .tile { position: relative; height: 96px; margin-top: 11px; border-radius: 9px; overflow: hidden;
+  background: radial-gradient(ellipse 70% 60% at 75% -10%, rgba(255,104,52,.34), rgba(255,104,52,0) 70%), radial-gradient(ellipse 50% 50% at 15% -10%, rgba(255,128,64,.2), rgba(255,128,64,0) 70%), var(--emboss) 0 0 / 30px 30px, var(--lacquer);
+  box-shadow: inset 0 0 0 1px var(--panel-line); }
+.season .plate { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 70px; height: 52px; border-radius: 6px; display: grid; place-items: center; box-shadow: 0 6px 14px rgba(0,0,0,.45); }
+.season .plate::before { content: ''; position: absolute; inset: 4px; border-radius: 3px; border: 1px solid rgba(244,210,122,.5); }
+.season .plate span { font-family: 'Display'; font-weight: 700; font-size: 32px; }
+.season .name { font-family: 'Display'; font-weight: 700; font-size: 27px; color: var(--gold); margin-top: 10px; }
+.season p { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin-top: 3px; }
+.season .acts { display: flex; gap: 8px; margin-top: 12px; }
+.season .btn { height: 40px; font-size: 14px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="bolt" viewBox="0 0 24 24">
+      <path d="M13.5 2 4.5 13.6h6.6L10 22l9.4-12.2h-6.7z" fill="#FFD600"/>
+      <path d="M12.6 5.5 8.6 12.3h4.1l-.9 5.6" fill="none" stroke="#fff" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+    </symbol>
+    <!-- Sidecar's coupe, struck into the seal -->
+    <symbol id="coupe" viewBox="0 0 24 24">
+      <path d="M4.5 6.5h15c-.4 4.2-3.6 7.2-7.5 7.2S4.9 10.7 4.5 6.5z" fill="#8C1C10" opacity=".85"/>
+      <path d="M12 13.7v5.3M8.6 19.6h6.8" stroke="#8C1C10" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header>
+  <h1>Red Envelope</h1>
+  <p>Special edition mockup, second direction · January 18 – February 8 · a sketch, not a build. Lantern light without lanterns, the envelope as the one object, and pattern only as a blind emboss on the dark ground. The envelope itself is plain red paper. No characters, banners or props. The display face is a stand-in (Cormorant Garamond, Constellation's); choosing the real one is part of the build.</p>
+</header>
+
+<div class="row">
+  <div class="col">
+    <h2>Panel · Wallet tab</h2>
+    <div class="frame">
+      <div class="light"></div>
+      <div class="abs bar">
+        <div class="avatar">G</div>
+        <svg class="ico chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5z"/></svg>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="m5.6 5.6 3.6 3.6M14.8 14.8l3.6 3.6M14.8 9.2l3.6-3.6M5.6 18.4l3.6-3.6"/></svg>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </div>
+      <div class="abs tabs"><div>Accounts</div><div>Activity</div><div>Profile</div><div class="on">Wallet</div></div>
+      <div class="abs title">Wallet</div>
+
+      <div class="abs wallet redpaper">
+        <div class="label">Balance</div>
+        <div class="tools">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg class="ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>
+        </div>
+        <div class="bal foil">21,000</div>
+        <div class="unit">sats</div>
+        <svg class="ico chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>
+      </div>
+
+      <div class="abs actions">
+        <div class="btn primary redpaper"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>Send</div>
+        <div class="btn secondary"><svg class="ico" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8"/></svg>Receive</div>
+      </div>
+
+      <div class="abs list">
+        <div class="tx"><div class="ic"><svg width="18" height="18"><use href="#bolt"/></svg></div><div class="t"><b>Zap from Satoshi</b><span>2m ago</span></div><div class="amt in">+2,100</div></div>
+        <div class="tx"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg></div><div class="t"><b>Paid zap.cooking</b><span>1h ago</span></div><div class="amt">−500</div></div>
+        <div class="tx"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8"/></svg></div><div class="t"><b>Received</b><span>Yesterday</span></div><div class="amt in">+8,800</div></div>
+        <div class="tx"><div class="ic"><svg width="18" height="18"><use href="#bolt"/></svg></div><div class="t"><b>Zapped a note by Hal</b><span>Feb 5</span></div><div class="amt">−888</div></div>
+      </div>
+    </div>
+    <p class="note">Lantern light falls from above and out of frame: warm and tinted red, as light through paper is. The balance card is the envelope: plain red paper, a fine foil rule, foil numerals. Reading stays on lacquer. The linked-coin lattice is only a blind emboss in the dark ground, felt rather than seen, and never on the envelope.</p>
+  </div>
+
+  <div class="col">
+    <h2>Lock screen · the sealed envelope</h2>
+    <div class="frame" style="background: var(--emboss) 0 0 / 40px 40px, radial-gradient(ellipse 120% 60% at 50% 0%, #2a1310, var(--lacquer) 70%);">
+      <div class="abs bokeh" style="left:236px;top:-30px;width:150px;height:150px;background:radial-gradient(circle, rgba(255,110,55,.42), rgba(255,110,55,0) 68%)"></div>
+      <div class="abs bokeh" style="left:-40px;top:20px;width:130px;height:130px;background:radial-gradient(circle, rgba(255,130,70,.30), rgba(255,130,70,0) 68%)"></div>
+      <div class="abs bokeh" style="left:150px;top:-50px;width:90px;height:90px;background:radial-gradient(circle, rgba(255,150,80,.26), rgba(255,150,80,0) 68%)"></div>
+      <div class="abs bokeh" style="left:300px;top:150px;width:70px;height:70px;background:radial-gradient(circle, rgba(255,100,50,.22), rgba(255,100,50,0) 68%)"></div>
+      <div class="abs bokeh" style="left:20px;top:200px;width:56px;height:56px;background:radial-gradient(circle, rgba(255,120,60,.18), rgba(255,120,60,0) 68%)"></div>
+
+      <div class="abs env-lg redpaper">
+        <svg width="144" height="196" viewBox="0 0 144 196">
+          <path d="M7 7 L72 58 L137 7" fill="none" stroke="rgba(60,4,2,.45)" stroke-width="1.4" transform="translate(0 1.2)"/>
+          <path d="M7 7 L72 58 L137 7" fill="none" stroke="rgba(244,210,122,.55)" stroke-width="1"/>
+        </svg>
+        <div class="seal" style="left:54px;top:40px;width:36px;height:36px"><img class="seal-mark" src="../icons/avatar-default-dark.svg" alt=""></div>
+      </div>
+
+      <img class="abs lock-logo" src="../icons/sidecar-logo.svg" alt="Sidecar">
+      <div class="abs lock-form">
+        <div class="lede">Enter your PIN to unlock.</div>
+        <label>PIN or passphrase</label>
+        <div class="input">••••••</div>
+        <div class="btn primary redpaper">Unlock</div>
+        <div class="forgot">Forgot your PIN?</div>
+      </div>
+    </div>
+    <p class="note">The light, seen out of focus, as lanterns hung far off would be. On the lock screen it may breathe slowly, and it holds still under Reduce motion. The envelope is sealed in gold, and the seal carries Sidecar's own garnish, drawn exactly as a missing avatar draws it: the half orange slice, a nod to the mandarin given at New Year for luck. The PIN is what opens it. The form keeps the full width it has today.</p>
+    <div class="seal-detail">
+      <div class="seal" style="position:relative;width:36px;height:36px"><img class="seal-mark" src="../icons/avatar-default-dark.svg" alt=""></div>
+      <div class="seal" style="position:relative;width:120px;height:120px"><img class="seal-mark" src="../icons/avatar-default-dark.svg" alt=""></div>
+      <span>The seal at actual size, and enlarged</span>
+    </div>
+  </div>
+
+  <div class="col">
+    <h2>Pay card on a page · the season card</h2>
+    <div class="frame">
+      <div class="abs page"><i style="top:20px;width:150px"></i><i style="top:404px;width:270px"></i><i style="top:422px;width:210px"></i></div>
+      <div class="abs pay">
+        <img class="logo" src="../icons/sidecar-logo.svg" alt="Sidecar">
+        <div class="site">zap.cooking</div>
+        <div class="what">wants you to zap Satoshi</div>
+        <div class="amount">1,000<small>sats</small></div>
+        <div class="as">PAYING AS</div>
+        <div class="who"><div class="avatar" style="width:30px;height:30px;font-size:16px">G</div><div><b>Gatsby</b><span>npub1p9wpmrhm6…76752r</span></div></div>
+        <div class="envelope redpaper">
+          <svg class="crease" viewBox="0 0 268 30" preserveAspectRatio="none">
+            <path d="M0 0 L134 25 L268 0" fill="none" stroke="rgba(60,4,2,.45)" stroke-width="1.4" transform="translate(0 1)"/>
+            <path d="M0 0 L134 25 L268 0" fill="none" stroke="rgba(244,210,122,.55)" stroke-width="1"/>
+          </svg>
+          <div class="seal"><img class="seal-mark" src="../icons/avatar-default-dark.svg" alt=""></div>
+          <div class="pay-label">Pay 1,000 sats</div>
+        </div>
+        <div class="reject">Reject</div>
+      </div>
+
+      <div class="abs season">
+        <div class="head"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Special edition theme</div>
+        <div class="tile"><div class="plate redpaper"><span class="foil">21</span></div></div>
+        <div class="name">Red Envelope</div>
+        <p>A theme for the season, here until February 8. When it ends, this account goes back to its own theme.</p>
+        <div class="acts"><div class="btn primary redpaper">Wear it</div><div class="btn secondary">Not now</div></div>
+      </div>
+    </div>
+    <p class="note">The pay button is the envelope: one crease and the same gold seal with the garnish, so the envelope that pays is the envelope that locks. The gallery tile is the same envelope with the "21" in foil, under the same light.</p>
+  </div>
+</div>
+</body>
+</html>
