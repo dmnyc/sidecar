@@ -51,6 +51,7 @@ vm.runInContext(
   lift(/function buildImetaTag\(url, alt, extra\) \{[\s\S]*?\n  \}/, 'buildImetaTag') + '\n' +
   lift(/function imetaTagsForMedia\(media, opts\) \{[\s\S]*?\n  \}/, 'imetaTagsForMedia') + '\n' +
   lift(/function composeNoteContent\(text, media\) \{[\s\S]*?\n  \}/, 'composeNoteContent') + '\n' +
+  lift(/const QUOTE_REF = [^;]+;/, 'QUOTE_REF') + '\n' +
   lift(/const QUOTE_REF_LINE = [^;]+;/, 'QUOTE_REF_LINE') + '\n' +
   lift(/function splitTrailingQuote\(text\) \{[\s\S]*?\n  \}/, 'splitTrailingQuote') + '\n' +
   lift(/function stripDraftMediaUrls\(text, media\) \{[\s\S]*?\n  \}/, 'stripDraftMediaUrls') + '\n' +
@@ -242,7 +243,7 @@ test('THE STRIP REORDERS BY MORE THAN DRAG', () => {
     assert.ok(at > -1, name + ' never builds the steppers');
     const block = src.slice(at - 2200, at + 900);
     // Steppers are for pictures stepping past pictures: a note beside them is pinned at its end.
-    assert.match(block, /pictureCount\(draft\.media\) > 1\) \{/, name + ' offers steppers on a single thumb');
+    assert.match(block, /if \(pics > 1\) \{/, name + ' offers steppers on a single thumb');
     assert.match(block, /closeAltEditor\(\); \/\/ flush first/, name + ' moves the row\'s slot before flushing it');
     assert.match(block, /movePicture\(draft\.media, i, i \+ dir\)/, name + ' never moves the picture');
     assert.match(block, /canMovePicture\(draft\.media, i, -1\)\) cell\.append\(step\(-1/, name + ' shows a left arrow at the first slot');
@@ -336,7 +337,7 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
     assert.ok(!src.includes('appendMediaUrl'), name + ' still appends URLs into the editor');
     // A single picture does not need reordering; more than one drags. The note is pinned at
     // its end, so a drop moves pictures among themselves (movePicture).
-    assert.match(src, /cell\.draggable = (window\.SidecarCore\.|SC\.)pictureCount\(draft\.media\) > 1;/, name + ' never offers the drag');
+    assert.match(src, /cell\.draggable = pics > 1;/, name + ' never offers the drag');
     assert.match(src, /movePicture\(draft\.media, dragFrom, i\)/, name + ' never reorders on drop');
     // The drawer, built once and re-read from the live draft — the draft is rebound
     // when the account moves, so a captured array would go stale.
@@ -385,7 +386,7 @@ test('THE QUOTE BLOCK COPIES ITS REFERENCE, AND THE ARROW ENDS BOTH ROWS', () =>
   // only one in the pictures' row, so the two arrows share a column without a spacer.
   const at = core.indexOf('function buildQuoteBlock');
   const fn = core.slice(at, core.indexOf('const av = h(', at));
-  const order = ['copyWithCheck(copy, ref)', "actions.append(trash)", "iconBtn('arrow-up'", "iconBtn('arrow-down'"].map((x) => fn.indexOf(x));
+  const order = ['copyWithCheck(copy, ref)', "actions.append(trash)", "blockIconBtn('arrow-up'", "blockIconBtn('arrow-down'"].map((x) => fn.indexOf(x));
   assert.ok(order.every((i) => i > -1), 'copy, trash and both arrows are built');
   assert.deepEqual(order, [...order].sort((a, b) => a - b), 'copy, then remove, then the arrows');
   const label = core.slice(core.indexOf('function buildAttachmentsLabel'), core.indexOf('function buildMediaDrawer'));

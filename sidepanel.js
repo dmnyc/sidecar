@@ -14329,8 +14329,8 @@
   // own; as a block under the field it shows the note being quoted rather than a line of
   // bech32, the same as a pasted one. Any other prefill is the words it always was.
   function seedFrom(text) {
-    const { head, quotes } = takeTrailingQuote(text || '');
-    return { text: head, media: quotes };
+    const quotes = quoteEntriesFromPaste(text, []);
+    return quotes.length ? { text: '', media: quotes } : { text: text || '', media: [] };
   }
 
   async function openComposer(initialText, opts) {
@@ -14389,7 +14389,9 @@
         // Seeded FIRST, or "Just setting up my Sidecar" and a quote-repost arrive in the
         // tab blank: those routes pass their text in rather than having it typed. Never
         // over what is already there, because a draft in progress outranks a prefill.
-        if (initialText && !(slot && slot.text && slot.text.trim())) {
+        // A quote already in the slot counts as work in progress too: the strip holds one.
+        const slotBusy = slot && ((slot.text && slot.text.trim()) || (slot.media || []).some((m) => m && m.quote));
+        if (initialText && !slotBusy) {
           const seed = seedFrom(initialText);
           all[dk] = { ...(slot || { media: [] }), text: seed.text, media: [...((slot && slot.media) || []), ...seed.media], savedAt: Date.now() };
           await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
@@ -15090,8 +15092,9 @@
       // drawer and the autosave read `draft.media` afresh, and the array is shared with them.
       function quoteBlockFor(m, i) {
         const moveTo = (dir) => {
+          closeAltEditor(); // flush first: the row's slot is about to change places
           const next = window.SidecarCore.moveQuoteEntry(draft.media, i, dir);
-          draft.media.splice(0, draft.media.length, ...next);
+          window.SidecarCore.replaceMedia(draft.media, next);
           scheduleSave();
           renderThumbs();
         };
@@ -15114,16 +15117,16 @@
         thumbs.innerHTML = '';
         const SCore = window.SidecarCore;
         const qi = draft.media.findIndex((m) => m && m.quote);
-        const hasQuote = qi >= 0;
+        const pics = SCore.pictureCount(draft.media);
         const firstPicture = draft.media.findIndex((m) => m && !m.quote);
-        const lastPicture = draft.media.map((m) => !!(m && !m.quote)).lastIndexOf(true);
+        const lastPicture = draft.media.findLastIndex((m) => m && !m.quote);
         // The arrow is the quote's, seen from the pictures: below the quote is the quote first.
-        const picturesGroup = hasQuote ? SCore.buildAttachmentsLabel(SCore.pictureCount(draft.media), {
+        const picturesGroup = qi >= 0 ? SCore.buildAttachmentsLabel(pics, {
           urls: draft.media.filter((x) => x && x.url).map((x) => x.url),
           canUp: qi === 0,
           canDown: qi > 0,
-          onUp: () => { draft.media.splice(0, draft.media.length, ...SCore.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
-          onDown: () => { draft.media.splice(0, draft.media.length, ...SCore.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
+          onUp: () => { closeAltEditor(); SCore.replaceMedia(draft.media, SCore.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
+          onDown: () => { closeAltEditor(); SCore.replaceMedia(draft.media, SCore.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
         }) : null;
         draft.media.forEach((m, i) => {
           // A quoted note is a block, not a thumbnail: it is shown as the note it quotes,
@@ -15188,7 +15191,7 @@
           // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the
           // editor and are appended at publish in this array's order, so with more
           // than one attachment the thumbs drag.
-          cell.draggable = window.SidecarCore.pictureCount(draft.media) > 1;
+          cell.draggable = pics > 1;
           cell.addEventListener('dragstart', (e) => {
             dragFrom = i;
             cell.classList.add('dragging');
@@ -15207,7 +15210,7 @@
             cell.classList.remove('drop-target');
             if (dragFrom === -1 || dragFrom === i) return;
             closeAltEditor(); // flush first: the row's slot is still where it was opened
-            draft.media.splice(0, draft.media.length, ...window.SidecarCore.movePicture(draft.media, dragFrom, i));
+            window.SidecarCore.replaceMedia(draft.media, window.SidecarCore.movePicture(draft.media, dragFrom, i));
             dragFrom = -1;
             scheduleSave();
             renderThumbs();
@@ -15233,14 +15236,14 @@
             // had none either; the steppers are the cheapest reorder there is, and
             // they are buttons, which touch and Tab both reach. The ends hide theirs,
             // because a disabled arrow is a control answering "you can't".
-            if (window.SidecarCore.pictureCount(draft.media) > 1) {
+            if (pics > 1) {
               const step = (dir, label) => {
                 const b = h('button', { className: 'compose-thumb-move ' + (dir < 0 ? 'left' : 'right'), title: label, type: 'button' });
                 b.append(icon(dir < 0 ? 'arrow-left' : 'arrow-right'));
                 b.addEventListener('click', () => {
                   if (!window.SidecarCore.canMovePicture(draft.media, i, dir)) return;
                   closeAltEditor(); // flush first: the row's slot is still where it was opened
-                  draft.media.splice(0, draft.media.length, ...window.SidecarCore.movePicture(draft.media, i, i + dir));
+                  window.SidecarCore.replaceMedia(draft.media, window.SidecarCore.movePicture(draft.media, i, i + dir));
                   scheduleSave();
                   renderThumbs();
                   paintEitherOr();
@@ -15361,13 +15364,14 @@
         // the stripes are what say it is busy.
         addBtn.classList.add('is-uploading');
         try {
-          const url = await uploadMedia(file, pubkey);
+          // The file is read for its type and size while it uploads, not after.
+          const [url, meta] = await Promise.all([uploadMedia(file, pubkey), readVideoMeta(file)]);
           // Into the media slot only. The URL is appended to the content at publish
           // (composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
           // A video carries its type and pixel size into its imeta tag; an image gets {}.
-          window.SidecarCore.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...(await readVideoMeta(file)) });
+          window.SidecarCore.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...meta });
           scheduleSave();
           updatePostState();
           renderThumbs();

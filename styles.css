@@ -3331,7 +3331,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .attach-group-toggle.open svg { transform: rotate(180deg); }
 /* min-width: 0 is what lets a long URL truncate. A flex item in a wrapping row will not go
    narrower than its content, and an unbroken nowrap URL is 800px of content: without it the
-   list was as wide as the longest link and pushed the copy buttons off the screen. */
+   list is as wide as the longest link and pushes the copy buttons off the screen. */
 .compose-thumbs .attach-group-list { flex: 0 0 100%; box-sizing: border-box; min-width: 0; max-width: 100%; }
 .compose-media-drawer { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 4px; }
 .compose-media-row { display: flex; align-items: center; gap: 8px; }

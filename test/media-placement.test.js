@@ -48,6 +48,7 @@ const tagsFor = (m, o) => plain(SC.imetaTagsForMedia(m, o));
 // ---- the strip is the order of the post ----
 
 const q1 = { quote: nevent };
+const q1b = { quote: nevent + 'b' };
 const q2 = { quote: nevent2 };
 
 test('pictures only: the words, a blank line, one URL per line (nothing changed)', () => {
@@ -162,6 +163,13 @@ test('pictures reorder among themselves and never past the note', () => {
   assert.equal(order(SC.movePicture([I1, I2, I3], 2, 0)), 'cab', 'no note: plain reorder');
   assert.equal(order(SC.movePicture([I1, I2, q1], 0, 2)), 'abQ', 'dropping onto the note moves nothing');
   assert.equal(order(SC.movePicture([I1, I2, q1], 2, 0)), 'abQ', 'dragging the note moves nothing');
+  // A strip that somehow holds two notes keeps both rather than dropping one on a reorder.
+  assert.equal(order(SC.movePicture([I1, I2, I3, q1, q1b], 0, 2)), 'bcaQQ');
+});
+
+test('a saved draft counts its files, not its quote', () => {
+  assert.equal(SC.draftSnippet({ text: '', media: [I1, q1] }), '1 attachment');
+  assert.equal(SC.draftSnippet({ text: '', media: [q1] }), 'A quoted note');
 });
 
 test('a picture offers a step only toward another picture', () => {

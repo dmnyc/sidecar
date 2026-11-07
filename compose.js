@@ -1450,8 +1450,9 @@
   // drawer and the autosave read `draft.media` afresh, and the array is shared with them.
   function quoteBlockFor(m, i) {
     const moveTo = (dir) => {
+      closeAltEditor(); // flush first: the row's slot is about to change places
       const next = SC.moveQuoteEntry(draft.media, i, dir);
-      draft.media.splice(0, draft.media.length, ...next);
+      SC.replaceMedia(draft.media, next);
       scheduleSave();
       renderThumbs();
     };
@@ -1482,16 +1483,16 @@
     // Where a dragged thumb will land, across renderThumbs' rebuilds.
     let dragFrom = -1;
     const qi = draft.media.findIndex((m) => m && m.quote);
-    const hasQuote = qi >= 0;
+    const pics = SC.pictureCount(draft.media);
     const firstPicture = draft.media.findIndex((m) => m && !m.quote);
-    const lastPicture = draft.media.map((m) => !!(m && !m.quote)).lastIndexOf(true);
+    const lastPicture = draft.media.findLastIndex((m) => m && !m.quote);
     // The arrow is the quote's, seen from the pictures: below the quote is the quote first.
-    const picturesGroup = hasQuote ? SC.buildAttachmentsLabel(SC.pictureCount(draft.media), {
+    const picturesGroup = qi >= 0 ? SC.buildAttachmentsLabel(pics, {
       urls: draft.media.filter((x) => x && x.url).map((x) => x.url),
       canUp: qi === 0,
       canDown: qi > 0,
-      onUp: () => { draft.media.splice(0, draft.media.length, ...SC.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
-      onDown: () => { draft.media.splice(0, draft.media.length, ...SC.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
+      onUp: () => { closeAltEditor(); SC.replaceMedia(draft.media, SC.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
+      onDown: () => { closeAltEditor(); SC.replaceMedia(draft.media, SC.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
     }) : null;
     draft.media.forEach((m, i) => {
       // A quoted note is a block, not a thumbnail: it is shown as the note it quotes, in
@@ -1521,7 +1522,7 @@
       // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the editor
       // and are appended at publish in this array's order, so with more than one
       // attachment the thumbs drag.
-      cell.draggable = SC.pictureCount(draft.media) > 1;
+      cell.draggable = pics > 1;
       cell.addEventListener('dragstart', (e) => {
         dragFrom = i;
         cell.classList.add('dragging');
@@ -1540,7 +1541,7 @@
         cell.classList.remove('drop-target');
         if (dragFrom === -1 || dragFrom === i) return;
         closeAltEditor(); // flush first: the row's slot is still where it was opened
-        draft.media.splice(0, draft.media.length, ...SC.movePicture(draft.media, dragFrom, i));
+        SC.replaceMedia(draft.media, SC.movePicture(draft.media, dragFrom, i));
         dragFrom = -1;
         scheduleSave();
         renderThumbs();
@@ -1565,14 +1566,14 @@
       // had none either; the steppers are the cheapest reorder there is, and
       // they are buttons, which touch and Tab both reach. The ends hide theirs,
       // because a disabled arrow is a control answering "you can't".
-      if (SC.pictureCount(draft.media) > 1) {
+      if (pics > 1) {
         const step = (dir, label) => {
           const b = h('button', { className: 'compose-thumb-move ' + (dir < 0 ? 'left' : 'right'), title: label, type: 'button' });
           b.append(icon(dir < 0 ? 'arrow-left' : 'arrow-right'));
           b.addEventListener('click', () => {
             if (!SC.canMovePicture(draft.media, i, dir)) return;
             closeAltEditor(); // flush first: the row's slot is still where it was opened
-            draft.media.splice(0, draft.media.length, ...SC.movePicture(draft.media, i, i + dir));
+            SC.replaceMedia(draft.media, SC.movePicture(draft.media, i, i + dir));
             scheduleSave();
             renderThumbs();
           });
@@ -1709,14 +1710,15 @@
       addBtn.classList.add('is-uploading');
       try {
         for (const file of files) {
-          const url = await composer.uploadMedia(file, state.activePubkey, { pasted });
+          // The file is read for its type and size while it uploads, not after.
+          const [url, meta] = await Promise.all([composer.uploadMedia(file, state.activePubkey, { pasted }), SC.readVideoMeta(file)]);
           // Into the media slot only. The URL is appended to the content at publish
           // (SC.composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
           // A video carries its type and pixel size into its imeta tag (SC.readVideoMeta);
           // an image has nothing to add and gets {}.
-          SC.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...(await SC.readVideoMeta(file)) });
+          SC.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...meta });
         }
         scheduleSave();
         paintCount();

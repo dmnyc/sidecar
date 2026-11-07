@@ -1890,7 +1890,15 @@ window.SidecarCore = (function () {
   // or naddr references (a bare one counts, linkBareRefs links it before publish) and
   // nothing else after them. A mention (npub), a reference in the middle of a sentence, or
   // text written under the quote leaves the order exactly as it always was.
-  const QUOTE_REF_LINE = /^\s*(?:(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+\s*)+$/;
+  const QUOTE_REF = '(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+';
+  const QUOTE_REF_LINE = new RegExp('^\\s*(?:' + QUOTE_REF + '\\s*)+$');
+  const QUOTE_REF_WORD = new RegExp('^' + QUOTE_REF + '$');
+  // One note named once or many times is one entry, in the nostr: form that publishes; two
+  // different notes are none, because the strip quotes one and never picks between two.
+  function singleQuote(refs) {
+    const distinct = [...new Set(refs.map((r) => 'nostr:' + r.replace(/^nostr:/, '')))];
+    return distinct.length === 1 ? [{ quote: distinct[0] }] : [];
+  }
 
   function splitTrailingQuote(text) {
     const whole = String(text || '').trim();
@@ -1913,10 +1921,8 @@ window.SidecarCore = (function () {
     const whole = String(text || '');
     if ((media || []).some((m) => m && m.quote)) return { head: whole, quotes: [] };
     const { head, tail } = splitTrailingQuote(whole);
-    const refs = tail.match(/(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+/g) || [];
-    const distinct = [...new Set(refs.map((r) => 'nostr:' + r.replace(/^nostr:/, '')))];
-    if (distinct.length !== 1) return { head: whole, quotes: [] };
-    return { head, quotes: [{ quote: distinct[0] }] };
+    const quotes = singleQuote(tail.match(new RegExp(QUOTE_REF, 'g')) || []);
+    return quotes.length ? { head, quotes } : { head: whole, quotes: [] };
   }
 
   // A paste that is nothing but one quoted note: a note1, nevent1 or naddr reference, with or
@@ -1931,10 +1937,7 @@ window.SidecarCore = (function () {
     const raw = String(text || '').trim();
     if (!raw) return [];
     const toks = raw.split(/\s+/);
-    const ref = /^(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+$/;
-    if (!toks.every((tk) => ref.test(tk))) return [];
-    const distinct = [...new Set(toks.map((tk) => 'nostr:' + tk.replace(/^nostr:/, '')))];
-    return distinct.length === 1 ? [{ quote: distinct[0] }] : [];
+    return toks.every((tk) => QUOTE_REF_WORD.test(tk)) ? singleQuote(toks) : [];
   }
 
   // THE STRIP IS TWO BLOCKS: the pictures (and videos), in their own order, and the quoted
@@ -1957,14 +1960,13 @@ window.SidecarCore = (function () {
   function movePicture(media, from, to) {
     const list = Array.isArray(media) ? media : [];
     if (!list[from] || !list[to] || list[from].quote || list[to].quote) return list;
-    const q = list.findIndex((m) => m && m.quote);
+    const quotes = list.filter((m) => m && m.quote);
     const pics = list.filter((m) => !(m && m.quote));
-    const pf = from - (q >= 0 && q < from ? 1 : 0);
-    const pt = to - (q >= 0 && q < to ? 1 : 0);
-    const [moved] = pics.splice(pf, 1);
-    pics.splice(pt, 0, moved);
-    if (q < 0) return pics;
-    return q === 0 ? [list[q], ...pics] : [...pics, list[q]];
+    const pt = pics.indexOf(list[to]);
+    pics.splice(pics.indexOf(list[from]), 1);
+    pics.splice(pt, 0, list[from]);
+    if (!quotes.length) return pics;
+    return list[0].quote ? [...quotes, ...pics] : [...pics, ...quotes];
   }
 
   // Whether the picture at `i` has another picture to step past in that direction.
@@ -1976,6 +1978,12 @@ window.SidecarCore = (function () {
 
   function pictureCount(media) {
     return (media || []).filter((m) => m && !m.quote).length;
+  }
+
+  // The strip takes a new order. The movers return copies, and the array is shared with the
+  // drawer and the autosave, so it is rewritten in place.
+  function replaceMedia(media, next) {
+    media.splice(0, media.length, ...next);
   }
 
   // A new attachment goes in with the pictures: when the note is last it goes in ahead of
@@ -2363,6 +2371,15 @@ window.SidecarCore = (function () {
     return rowEl;
   }
 
+  // An icon-only button in the label row of the pictures' block or the quote's.
+  function blockIconBtn(name, title, fn) {
+    const b = h('button', { className: 'quote-block-btn', title, type: 'button' });
+    b.setAttribute('aria-label', title);
+    b.append(icon(name));
+    b.addEventListener('click', fn);
+    return b;
+  }
+
   // The pictures' own block in the strip, shown only while a quote is attached beside them
   // (the strip is then two blocks and each one says what it is and which way it can go).
   // Returns { label, list }: the label goes above the first picture, the list of links
@@ -2387,15 +2404,8 @@ window.SidecarCore = (function () {
     toggle.addEventListener('click', () => { attachmentUrlsOpen = !attachmentUrlsOpen; paintOpen(); });
     paintOpen();
     const actions = h('span', { className: 'quote-block-actions' });
-    const btn = (name, title, fn) => {
-      const b = h('button', { className: 'quote-block-btn', title, type: 'button' });
-      b.setAttribute('aria-label', title);
-      b.append(icon(name));
-      b.addEventListener('click', fn);
-      return b;
-    };
-    if (c.canUp) actions.append(btn('arrow-up', t('Move above the quote'), c.onUp));
-    if (c.canDown) actions.append(btn('arrow-down', t('Move below the quote'), c.onDown));
+    if (c.canUp) actions.append(blockIconBtn('arrow-up', t('Move above the quote'), c.onUp));
+    if (c.canDown) actions.append(blockIconBtn('arrow-down', t('Move below the quote'), c.onDown));
     const label = h('div', { className: 'attach-group-label' }, [toggle, actions]);
     return { label, list };
   }
@@ -2683,8 +2693,9 @@ window.SidecarCore = (function () {
     // A poll with its options typed and no question yet still says what it is.
     const opts = (d.poll && d.poll.options || []).map((o) => (o || '').trim()).filter(Boolean);
     if (opts.length) return opts.join(' · ');
-    if (d.media && d.media.length) return tn('{{count}} attachment', '{{count}} attachments', d.media.length);
-    return '';
+    const files = pictureCount(d.media);
+    if (files) return tn('{{count}} attachment', '{{count}} attachments', files);
+    return (d.media || []).some((m) => m && m.quote) ? t('A quoted note') : '';
   }
   // What a row is called: a reply, a poll, or the note.
   function draftKindLabel(entry, name) {
@@ -3890,25 +3901,18 @@ window.SidecarCore = (function () {
   function buildQuoteBlock(ref, ctl) {
     const c = ctl || {};
     const block = h('div', { className: 'reply-target quote-block' });
-    const iconBtn = (name, title, fn) => {
-      const b = h('button', { className: 'quote-block-btn', title, type: 'button' });
-      b.setAttribute('aria-label', title);
-      b.append(icon(name));
-      b.addEventListener('click', fn);
-      return b;
-    };
     const actions = h('span', { className: 'quote-block-actions' });
     // COPY, REMOVE, MOVE, in that order: the move arrow ends the row, in the same column as the
     // pictures' own arrow, and the destructive button sits one step away from the edge a thumb
     // lands on. The reference leaves the text field when it is pasted, so this is how it comes back.
-    const copy = iconBtn('copy', t('Copy the note link'), () => copyWithCheck(copy, ref));
+    const copy = blockIconBtn('copy', t('Copy the note link'), () => copyWithCheck(copy, ref));
     actions.append(copy);
     // TWO TAPS TO REMOVE. The block holds a reference and nothing else, so once it is gone the
     // only way back is to paste the note again, and a tap meant for the arrow beside it is
     // easy to land. The first tap arms the button (red, and the tooltip says so); it stands
     // down after three seconds. The same two-tap the account switcher uses: no words added
     // to the row, which has no room for them.
-    const trash = iconBtn('trash', t('Remove the quote'), () => {
+    const trash = blockIconBtn('trash', t('Remove the quote'), () => {
       if (!trash.classList.contains('is-armed')) {
         trash.classList.add('is-armed');
         trash.title = t('Tap again to remove the quote');
@@ -3923,8 +3927,8 @@ window.SidecarCore = (function () {
       if (c.onRemove) c.onRemove();
     });
     actions.append(trash);
-    if (c.canUp) actions.append(iconBtn('arrow-up', t('Move above the pictures'), c.onUp));
-    if (c.canDown) actions.append(iconBtn('arrow-down', t('Move below the pictures'), c.onDown));
+    if (c.canUp) actions.append(blockIconBtn('arrow-up', t('Move above the pictures'), c.onUp));
+    if (c.canDown) actions.append(blockIconBtn('arrow-down', t('Move below the pictures'), c.onDown));
     block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Quoting') }), actions]));
 
     const av = h('span', { className: 'avatar reply-target-av' });
@@ -4576,7 +4580,7 @@ window.SidecarCore = (function () {
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, readVideoMeta, buildAltEditorRow,
     splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, moveQuoteEntry, buildAttachmentsLabel,
-    movePicture, canMovePicture, pictureCount, addMedia,
+    movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
