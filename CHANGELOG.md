@@ -33,6 +33,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Documentation
 - **The help guide’s pictures show the current panel.** Eleven screenshots were retaken with the demo accounts, and the guide describes the new approval card.
+- **The help guide’s wallet section covers the whole Wallet tab:** sending and receiving, zaps and Auto Zaps, paying on websites, the backup, and the on-chain card.
 
 ## [1.16.6] — 2026-11-03
 

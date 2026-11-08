@@ -613,18 +613,44 @@
 
     <!-- ===== Wallet ===== -->
     <section class="guide-section" id="wallet">
-      <h2>The wallet, briefly</h2>
+      <h2>The wallet</h2>
       <p>Sidecar's Wallet tab connects to a Lightning wallet you already have, using
       Nostr Wallet Connect. Sidecar never holds your funds; it just gives you balance,
       payments, and zaps right in the panel. Each account can have its own wallet
       connection.</p>
-      <p>If you don't have a wallet that speaks NWC yet, the wallet directory below has
-      good options for every taste, custodial to self-custodial.</p>
+      <p>If you don't have a wallet that speaks NWC yet, the
+      <a href="wallets.html">wallet directory</a> has good options for every taste,
+      custodial to self-custodial.</p>
 
-      <h3>Zap, or pay an offer</h3>
-      <p>A zap publishes a public receipt naming you and the amount, which is what zap
-      totals are counted from. A CLINK offer asks the payee's wallet directly, encrypted,
-      and publishes nothing, so it counts toward no total.</p>
+      <h3>Sending and receiving</h3>
+      <p><strong>Send</strong> takes a Lightning invoice or a Lightning address.
+      <strong>Receive</strong> makes an invoice for the amount you choose, and when your
+      account has a Lightning address, an <em>Address</em> tab shows it too.</p>
+
+      <h3>Zaps</h3>
+      <p>A zap is a payment that publishes a public receipt naming you and the amount,
+      which is what clients count zap totals from. <strong>Auto Zaps</strong> (Settings →
+      Wallet &amp; payments) let zaps you start in a client go through without a card,
+      under a limit per zap and per day that you set, capped at 1,000 sats a zap and
+      100,000 a day.</p>
+
+      <h3>Paying on websites</h3>
+      <p>A site that asks for a payment gets an approval card, like a signature. To stop
+      being asked on a site you use often, tick <em>Allow this site to spend up to</em>
+      on that card and set a daily limit; you can change or revoke it in
+      <strong>Connected Sites</strong>. When a page shows a Lightning invoice, Sidecar
+      can put a <em>Pay with Sidecar</em> button over it: Settings → <em>Pay button on web
+      pages</em> turns it on for Nostr sites and, separately, for sites you haven't
+      connected.</p>
+      <p class="fine-note">Additional features: a <em>Withdraw</em> tab on Receive cashes
+      LNURL-withdraw links, and you can pay users who include a CLINK offer in their
+      profile. These are recorded as profile zaps.</p>
+
+      <h3>Backing up the connection</h3>
+      <p>The Backup card on the Wallet tab encrypts your wallet connection to your own
+      key and stores it on your relays, so you can restore it on another device or after
+      a reset. <em>Delete backup</em> replaces that copy with an empty one and asks your
+      relays to forget it; the wallet itself stays connected.</p>
 
       <h3>When another wallet extension is installed</h3>
       <p>Sidecar offers <code>window.webln</code> to pages only when no other Lightning
@@ -635,6 +661,26 @@
       setting off hands the slot back. Nothing changes on pages that are already open
       until they reload or re-ask, so a payment always goes to the wallet the page
       actually asked.</p>
+
+      <h3>Coins sent to your Nostr key</h3>
+      <p>Your Nostr key can also spend two ordinary Bitcoin addresses, and some tools
+      have sent people's coins to them by mistake. Sidecar can watch those addresses and
+      move the coins out. It's off until you turn on Settings → Wallet &amp; payments →
+      <em>Show on-chain balance in the Wallet</em>, and until then nothing is looked up.
+      With it on, an <strong>On-chain balance</strong> card at the foot of the Wallet tab
+      shows both addresses, which you can copy, and what they hold, asking mempool.space.
+      The card works whether or not a Lightning wallet is connected.</p>
+      <p>It does one thing: send <em>everything</em> on those addresses to one receive
+      address you give it. Paste it, or scan it with the camera, and check it before you
+      go on. Pick <em>Fast</em>, <em>Standard</em>, or
+      <em>Economy</em>, and the card shows the exact fee before anything is signed.
+      <em>Sweep now</em> asks you to tap again to confirm, and changing the address or the
+      fee cancels that, so an old review can't go through. Afterward the card shows
+      what moved and where, with a link to the transaction on mempool.space.</p>
+      <p class="fine-note">These addresses are public and tied to your npub: anyone who
+      knows your npub can work them out. If they ever hold coins, sweep them to a fresh
+      address, and know that the sweep itself links the two on-chain. Web pages never
+      see any of this, and Sidecar only ever uses coins that have confirmed.</p>
     </section>
 
     <!-- ===== Boosts ===== -->
