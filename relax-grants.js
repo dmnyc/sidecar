@@ -81,19 +81,15 @@
     const dur = Math.min(ms || 0, MAX_MS);
     if (dur <= 0) return;
     const k = key(host, pubkey);
-    // One window at a time: clear any other grant (and its alarm) so the new site
-    // takes over the countdown. (The target's own alarm is cleared + re-armed
-    // below, so a re-grant extends rather than stacks.)
-    try {
-      const alarms = await chrome.alarms.getAll();
-      for (const a of alarms) {
-        if (a.name.startsWith(ALARM_PREFIX) && a.name !== ALARM_PREFIX + k) chrome.alarms.clear(a.name);
-      }
-    } catch (_) {}
-    const m = {};
+    // Per-account windows COEXIST. Wiping the map here — the old single-window
+    // rule — made a second profile's approval silently revoke the first
+    // profile's still-running window, which re-armed the prompt on every
+    // identity flip: the exact loop the scope row was built to end. Re-granting
+    // the same key replaces its entry (extends, never stacks); other keys keep
+    // their own expiry alarms, and onAlarm drops each as it lapses.
+    const m = await map();
     m[k] = { exp: Date.now() + dur, dur };
     await ssetS({ [STORAGE_KEY]: m });
-    try { await chrome.alarms.clear(ALARM_PREFIX + k); } catch (_) {}
     chrome.alarms.create(ALARM_PREFIX + k, { delayInMinutes: dur / 60000 });
     broadcast();
   }
@@ -142,7 +138,7 @@
   }
 
   // Active grants for the panel status bar; drops expired entries on the way out.
-  // In practice one entry (grant enforces single-window), but returns an array.
+  // One entry per (host, account) — a busy multi-profile session can hold several.
   async function active() {
     const m = await map();
     const now = Date.now();

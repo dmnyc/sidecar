@@ -3924,7 +3924,8 @@ const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
 function syncRelaxBadge() {
   RELAX.active().then((grants) => {
     if (grants && grants.length) {
-      const mins = Math.max(0, Math.round((grants[0].expiresAt - Date.now()) / 60000));
+      const soonest = Math.min(...grants.map((g) => g.expiresAt));
+      const mins = Math.max(0, Math.round((soonest - Date.now()) / 60000));
       chrome.action.setBadgeText({ text: String(mins) });
       chrome.action.setBadgeBackgroundColor({ color: '#cba14e' });
       if (chrome.action.setBadgeTextColor) chrome.action.setBadgeTextColor({ color: '#1a0a33' });
