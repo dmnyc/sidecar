@@ -123,8 +123,8 @@ function tickHarness({ visibility = 'visible', cache, getFollowCount } = {}) {
   const repaints = [];
   const asked = [];
   const read = getFollowCount || ((pk) => { asked.push(pk); return Promise.resolve(0); });
-  const chunk = lift(/let followRefreshInFlight = false;[\s\S]*?setInterval\(refreshStaleFollowCounts, FOLLOW_COUNT_TTL\);/, 'the live-update tick')
-    .replace('setInterval(refreshStaleFollowCounts, FOLLOW_COUNT_TTL);', '')
+  const chunk = lift(/let followRefreshInFlight = false;[\s\S]*?setInterval\(refreshStaleFollowCounts, 60 \* 1000\);/, 'the live-update tick')
+    .replace('setInterval(refreshStaleFollowCounts, 60 * 1000);', '')
     .replace('let followRefreshInFlight = false;', '');
   const deps = {
     isDevBuild: () => false,
