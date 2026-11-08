@@ -119,7 +119,7 @@ function registryHarness() {
 
 // The live-update tick, lifted with its guard variable and driven by injected
 // stubs — the real one runs on a five-minute interval in the panel.
-function tickHarness({ visibility = 'visible', cache, getFollowCount, activePubkey = PK } = {}) {
+function tickHarness({ visibility = 'visible', cache, getFollowCount, activePubkey = PK, dev = false } = {}) {
   const repaints = [];
   const asked = [];
   const read = getFollowCount || ((pk) => { asked.push(pk); return Promise.resolve(0); });
@@ -127,7 +127,7 @@ function tickHarness({ visibility = 'visible', cache, getFollowCount, activePubk
     .replace('setInterval(refreshStaleFollowCounts, 60 * 1000);', '')
     .replace('let followRefreshInFlight = false;', '');
   const deps = {
-    isDevBuild: () => false,
+    isDevBuild: () => dev,
     followRefreshInFlight: false,
     document: { visibilityState: visibility },
     state: { activePubkey },
@@ -300,4 +300,42 @@ test('THE LIVE TICK POLLS ONLY THE ACTIVE ACCOUNT', async () => {
   w.tick();
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(asked, [PK], 'the other account is left alone');
+});
+
+// ---- the dev / production split -------------------------------------------------
+
+// The real detection and the real TTL line, run under a stand-in `chrome`: a store
+// install carries an update_url in its manifest, an unpacked folder does not.
+function ttlFor(manifest) {
+  const detect = lift(/let devBuild = \(\(\) => \{[\s\S]*?\n  \}\)\(\);/, 'the dev-build probe');
+  const fn = lift(/function isDevBuild\(\) \{ return devBuild; \}/, 'isDevBuild');
+  const ttl = lift(/const FOLLOW_COUNT_TTL = [^\n]+/, 'FOLLOW_COUNT_TTL');
+  // eslint-disable-next-line no-new-func
+  return new Function('chrome', 'PROFILE_TTL', `${detect}\n${fn}\n${ttl}\nreturn { isDev: isDevBuild(), ttl: FOLLOW_COUNT_TTL };`)(
+    { runtime: { getManifest: () => manifest } }, 5 * 60 * 1000);
+}
+
+test('A STORE BUILD TAKES THE FIVE-MINUTE TTL, AN UNPACKED ONE THE MINUTE', () => {
+  const store = ttlFor({ update_url: 'https://clients2.google.com/service/update2/crx' });
+  assert.equal(store.isDev, false);
+  assert.equal(store.ttl, 5 * 60 * 1000, 'production keeps the profile cache window');
+  const unpacked = ttlFor({});
+  assert.equal(unpacked.isDev, true);
+  assert.equal(unpacked.ttl, 60 * 1000);
+});
+
+test('A PRODUCTION TICK IS SILENT, A DEV TICK LOGS', async () => {
+  const seen = [];
+  const orig = console.debug;
+  console.debug = (...a) => seen.push(a.join(' '));
+  try {
+    for (const dev of [false, true]) {
+      const cache = new Map([[PK, { v: 3, at: Date.now() - 6 * 60 * 1000 }]]);
+      const w = tickHarness({ dev, cache, getFollowCount: (pk) => { cache.set(pk, { v: 4, at: Date.now() }); return Promise.resolve(4); } });
+      w.tick();
+      await new Promise((r) => setImmediate(r));
+      if (!dev) assert.deepEqual(seen, [], 'nothing reaches the console in production');
+    }
+  } finally { console.debug = orig; }
+  assert.equal(seen.length, 2, 'the dev cycle says it started and finished');
 });
