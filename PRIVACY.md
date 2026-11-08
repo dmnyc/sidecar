@@ -133,6 +133,13 @@ Sidecar only talks to services **you choose**:
   lists your currency, with the other as a fallback. At most the request names the
   currency; nothing about your keys or your wallet is sent. Prices are cached for
   five minutes. With **Bitcoin only** turned on in Settings, no price is fetched.
+- **On-chain balance** — if you turn on on-chain balance in Settings, Sidecar
+  asks **mempool.space** for the balances and confirmed outputs of the two
+  Bitcoin addresses this account's key can spend, so coins sent there can be
+  swept back out. Those addresses are publicly derivable from your Nostr public
+  key, so each request tells mempool.space which addresses you are checking, and
+  shows it your IP address. Nothing is looked up until the switch is on, and a
+  sweep broadcast is an ordinary, public Bitcoin transaction.
 - **Data recovery** — a recovery scan asks your own relays, plus a fixed set of
   well-known public relays that keep long histories, for earlier versions of the
   data you chose to scan. The request is a read for your public key's events of

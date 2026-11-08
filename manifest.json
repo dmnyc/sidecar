@@ -25,6 +25,7 @@
       "nostr-tools.js",
       "ws-guard.js",
       "crypto.js",
+      "bitcoin.js",
       "keystore.js",
       "permissions.js",
       "signer.js",
