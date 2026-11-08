@@ -2035,5 +2035,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "A jövőben {{kind}} eseményeket ír alá itt kérdés nélkül — a Sidecarban aktív fiókkal. Ha ezen az oldalon fiókot váltasz, válts Sidecarban is.",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "Ez az oldal a fiókaid egynél többjét használja, ezért a Sidecar megerősíti, ki posztol. ",
   "You’ve signed in here with {{count}} account._one": "Egy fiókkal jelentkeztél be ide.",
-  "You’ve signed in here with {{count}} account._other": "{{count}} fiókkal jelentkeztél be ide."
+  "You’ve signed in here with {{count}} account._other": "{{count}} fiókkal jelentkeztél be ide.",
+  "Allow for 30 min": "Engedélyezés 30 percre"
 }

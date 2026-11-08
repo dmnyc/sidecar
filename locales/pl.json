@@ -2175,5 +2175,6 @@
   "You’ve signed in here with {{count}} account._one": "Jesteś tu zalogowany z {{count}} kontem.",
   "You’ve signed in here with {{count}} account._few": "Jesteś tu zalogowany z {{count}} kontami.",
   "You’ve signed in here with {{count}} account._many": "Jesteś tu zalogowany z {{count}} kontami.",
-  "You’ve signed in here with {{count}} account._other": "Jesteś tu zalogowany z {{count}} kontami."
+  "You’ve signed in here with {{count}} account._other": "Jesteś tu zalogowany z {{count}} kontami.",
+  "Allow for 30 min": "Zezwól na 30 minut"
 }

@@ -2315,5 +2315,6 @@
   "You’ve signed in here with {{count}} account._two": "سجّلت الدخول هنا بحسابين.",
   "You’ve signed in here with {{count}} account._few": "سجّلت الدخول هنا مع {{count}} حسابات.",
   "You’ve signed in here with {{count}} account._many": "سجّلت الدخول هنا مع {{count}} حسابًا.",
-  "You’ve signed in here with {{count}} account._other": "سجّلت الدخول هنا مع {{count}} حساب."
+  "You’ve signed in here with {{count}} account._other": "سجّلت الدخول هنا مع {{count}} حساب.",
+  "Allow for 30 min": "السماح لمدة 30 دقيقة"
 }

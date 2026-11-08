@@ -1966,5 +1966,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "不需询问即签署此网站未来的 {{kind}} 事件 — 使用 Sidecar 中当前激活的账号。在此网站切换资料时，请同步切换 Sidecar。",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "此网站使用了你一个以上的账号，因此 Sidecar 会确认发文者是谁。 ",
   "You’ve signed in here with {{count}} account._other": "您已在此登录 {{count}} 个账号。",
-  "You’ve signed in here with {{count}} account._one": "您已在此登录 {{count}} 个账号。"
+  "You’ve signed in here with {{count}} account._one": "您已在此登录 {{count}} 个账号。",
+  "Allow for 30 min": "允许 30 分钟"
 }

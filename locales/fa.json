@@ -2035,5 +2035,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "رویدادهای {{kind}} آینده اینجا را بدون پرسش امضا می‌کند — با حسابی که در Sidecar فعال است. اگر در این سایت پروفایل عوض کردید، Sidecar را هم عوض کنید.",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "این سایت بیش از یکی از حساب‌های شما را به کار می‌برد، پس Sidecar تأیید می‌کند چه کسی منتشر می‌کند. ",
   "You’ve signed in here with {{count}} account._other": "اینجا با {{count}} حساب وارد شده‌اید.",
-  "You’ve signed in here with {{count}} account._one": "شما اینجا با {{count}} حساب وارد شده‌اید."
+  "You’ve signed in here with {{count}} account._one": "شما اینجا با {{count}} حساب وارد شده‌اید.",
+  "Allow for 30 min": "اجازه برای ۳۰ دقیقه"
 }

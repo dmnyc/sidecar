@@ -2035,5 +2035,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "Bu sitede gelecekteki {{kind}} olaylarını sorumadan imzalar — Sidecar’da etkin hesapla. Bu sitede profil değiştirirseniz Sidecar’da da değiştirin.",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "Bu site hesaplarınızdan birden fazlasını kullanıyor, bu yüzden Sidecar kimin gönderdiğini onaylıyor. ",
   "You’ve signed in here with {{count}} account._other": "Bu siteye {{count}} hesapla oturum açtınız.",
-  "You’ve signed in here with {{count}} account._one": "Bu siteye {{count}} hesapla oturum açtınız."
+  "You’ve signed in here with {{count}} account._one": "Bu siteye {{count}} hesapla oturum açtınız.",
+  "Allow for 30 min": "30 dakika izin ver"
 }

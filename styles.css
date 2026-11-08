@@ -6749,11 +6749,11 @@ button.poll-bar-head {
    switching never moves the buttons; labels never wrap. ---- */
 .scope { border: 0; margin: 10px 0 4px; padding: 0; min-width: 0; }
 .scope legend { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 8px; padding: 0; }
-.seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(8, 2, 20, 0.55); border: 1px solid var(--border); }
+.seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(var(--well-rgb), 0.55); border: 1px solid var(--border); }
 .seg label { flex: 1 1 0; min-width: max-content; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; font: 600 12.5px/1.2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
 .seg label:hover { color: var(--text); }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
-.seg label:has(input:checked) { background: linear-gradient(180deg, #23114a, #160a30); border-color: var(--gold-soft); color: var(--gold); box-shadow: var(--sheen); }
+.seg label:has(input:checked) { background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); border-color: var(--gold-soft); color: var(--gold); box-shadow: var(--sheen); }
 .seg.stacked { flex-direction: column; }
 .seg.stacked label { justify-content: flex-start; }
 .scope-caps { display: grid; margin: 0 2px 8px; text-align: start; }

@@ -1966,5 +1966,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "このサイトの今後の{{kind}}イベントを尋ねずに署名します — Sidecarでアクティブなアカウントとして。このサイトでプロフィールを切り替えたら、Sidecarも切り替えてください。",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "このサイトは複数のアカウントを使用しているため、Sidecarは投稿者を確認します。 ",
   "You’ve signed in here with {{count}} account._other": "このサイトには{{count}}個のアカウントでサインインしています。",
-  "You’ve signed in here with {{count}} account._one": "このサイトには{{count}}個のアカウントでサインインしています。"
+  "You’ve signed in here with {{count}} account._one": "このサイトには{{count}}個のアカウントでサインインしています。",
+  "Allow for 30 min": "30分間許可"
 }
