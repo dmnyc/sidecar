@@ -467,8 +467,6 @@
   "No active account.": "Δεν υπάρχει ενεργός λογαριασμός.",
   "Edit status": "Επεξεργασία κατάστασης",
   "Show npub QR": "Εμφάνιση QR του npub",
-  "Refresh profile, follow and mute counts": "Ανανέωση προφίλ και μετρητών ακολούθησης και σίγασης",
-  "Profile refreshed": "Το προφίλ ανανεώθηκε",
   "Couldn’t reach your relays": "Δεν ήταν δυνατή η επικοινωνία με τα relay σας",
   "{{count}} muted": "{{count}} σε σίγαση",
   "{{count}} muted_one": "{{count}} σε σίγαση",
@@ -2025,5 +2023,6 @@
   "Fast": "Γρήγορο",
   "Standard": "Κανονικό",
   "Economy": "Οικονομικό",
-  "Copy txid": "Αντιγραφή ID συναλλαγής"
+  "Copy txid": "Αντιγραφή ID συναλλαγής",
+  "Refresh follow and mute counts": "Ανανέωση των μετρητών follow και mute"
 }

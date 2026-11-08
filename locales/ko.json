@@ -466,8 +466,6 @@
   "No active account.": "활성 계정이 없어요.",
   "Edit status": "상태 편집",
   "Show npub QR": "npub QR 표시",
-  "Refresh profile, follow and mute counts": "프로필, 팔로우, 뮤트 수 새로고침",
-  "Profile refreshed": "프로필을 새로고침했어요",
   "Couldn’t reach your relays": "릴레이에 연결하지 못했어요",
   "{{count}} muted": "{{count}} 뮤트",
   "{{count}} muted_other": "{{count}} 뮤트",
@@ -1956,5 +1954,6 @@
   "Fast": "빠르게",
   "Standard": "표준",
   "Economy": "경제적",
-  "Copy txid": "트랜잭션 ID 복사"
+  "Copy txid": "트랜잭션 ID 복사",
+  "Refresh follow and mute counts": "팔로우·뮤트 수 새로 고침"
 }

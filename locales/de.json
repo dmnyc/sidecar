@@ -430,8 +430,6 @@
   "No active account.": "Kein aktives Konto.",
   "Edit status": "Status bearbeiten",
   "Show npub QR": "npub-QR-Code anzeigen",
-  "Refresh profile, follow and mute counts": "Profil sowie Kontakt- und Stummschaltungszahlen aktualisieren",
-  "Profile refreshed": "Profil aktualisiert",
   "Couldn’t reach your relays": "Deine Relays konnten nicht erreicht werden",
   "{{count}} muted": "{{count}} stummgeschaltet",
   "{{count}} muted_one": "{{count}} stummgeschaltet",
@@ -2025,5 +2023,6 @@
   "Fast": "Schnell",
   "Standard": "Standard",
   "Economy": "Sparsam",
-  "Copy txid": "Transaktions-ID kopieren"
+  "Copy txid": "Transaktions-ID kopieren",
+  "Refresh follow and mute counts": "Follow- und Stummschaltungszähler aktualisieren"
 }

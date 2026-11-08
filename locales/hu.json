@@ -467,8 +467,6 @@
   "No active account.": "Nincs aktív fiók.",
   "Edit status": "Állapot szerkesztése",
   "Show npub QR": "npub QR-kód megjelenítése",
-  "Refresh profile, follow and mute counts": "Profil-, követési és némítási számok frissítése",
-  "Profile refreshed": "Profil frissítve",
   "Couldn’t reach your relays": "A relék nem érhetők el",
   "{{count}} muted": "{{count}} némított",
   "{{count}} muted_one": "{{count}} némított",
@@ -2025,5 +2023,6 @@
   "Fast": "Gyors",
   "Standard": "Normál",
   "Economy": "Takarékos",
-  "Copy txid": "Tranzakcióazonosító másolása"
+  "Copy txid": "Tranzakcióazonosító másolása",
+  "Refresh follow and mute counts": "Követési és némítási számok frissítése"
 }

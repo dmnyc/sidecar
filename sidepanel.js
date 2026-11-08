@@ -13059,10 +13059,11 @@
     // a refresh, so it is one now. Follow List Recovery already sits at the bottom of
     // this screen under its own clear label, so the jump wasn't earning the icon.
     //
-    // Profile data is cached for PROFILE_TTL (5 min) and the follow count is cached for
-    // the whole session, so an edit made elsewhere can look stuck. This drops both for
-    // the active account and refetches.
-    const refreshBtn = h('button', { className: 'profile-backup-jump', title: t('Refresh profile, follow and mute counts') });
+    // Profile data and the follow count are both cached for five minutes, so a
+    // follow list changed elsewhere can look stuck. This drops the two count
+    // caches for the active account, re-reads, and repaints the figures in
+    // place; profile data self-corrects on the next natural render.
+    const refreshBtn = h('button', { className: 'profile-backup-jump', title: t('Refresh follow and mute counts') });
     // Same glyph as the Overview drawer's refresh (the two-arrow mark from the
     // shared icon set), so every refresh affordance in the panel reads alike.
     refreshBtn.appendChild(icon('refresh'));
@@ -13071,21 +13072,18 @@
       refreshBtn.disabled = true;
       refreshBtn.classList.add('spinning');
       try {
-        _profileCache.delete(active.pubkey);
+        // Counts only, in place: drop the two count caches for the active
+        // account, re-read, and repaint the two figures — without rebuilding
+        // the screen this button sits on. Profile data (name, picture) keeps
+        // its own five-minute TTL and picks up on the next natural render.
         followCountCache.delete(active.pubkey);
-        // The mute list is cached as a PROMISE per account, and never expires on its own,
-        // so a mute added in another client is invisible until something drops it. The
-        // refresh has to reach this too, or the number beside the follow count is the one
-        // stat on the screen the button does not refresh.
         _muteListPromises.delete(active.pubkey);
-        profileFetchState.delete(active.pubkey); // clear tries + settled so it refetches
-        await fetchAndStoreProfile(active.pubkey);
-        renderProfile();
-        toast(t('Profile refreshed'), 'success');
+        const n = await getFollowCount(active.pubkey);
+        setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
+        paintMuteCount(active.pubkey, muteNum, muteStat);
       } catch (_) {
         toast(t('Couldn’t reach your relays'), 'error');
       } finally {
-        // renderProfile() may have replaced this button; guard against a detached node.
         refreshBtn.disabled = false;
         refreshBtn.classList.remove('spinning');
       }

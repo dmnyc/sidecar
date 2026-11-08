@@ -469,8 +469,6 @@
   "No active account.": "Нет активного аккаунта.",
   "Edit status": "Изменить статус",
   "Show npub QR": "Показать QR-код npub",
-  "Refresh profile, follow and mute counts": "Обновить профиль, число подписок и игнорируемых",
-  "Profile refreshed": "Профиль обновлён",
   "Couldn’t reach your relays": "Не удалось связаться с вашими релеями",
   "{{count}} muted": "Игнорируется: {{count}}",
   "{{count}} muted_few": "Игнорируется: {{count}}",
@@ -2163,5 +2161,6 @@
   "Fast": "Быстро",
   "Standard": "Обычная",
   "Economy": "Экономно",
-  "Copy txid": "Скопировать ID транзакции"
+  "Copy txid": "Скопировать ID транзакции",
+  "Refresh follow and mute counts": "Обновить счётчики подписок и mute"
 }

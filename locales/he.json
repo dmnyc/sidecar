@@ -468,8 +468,6 @@
   "No active account.": "אין חשבון פעיל.",
   "Edit status": "עריכת סטטוס",
   "Show npub QR": "הצגת קוד QR של npub",
-  "Refresh profile, follow and mute counts": "רענון מוני הפרופיל, המעקב וההשתקות",
-  "Profile refreshed": "הפרופיל רוענן",
   "Couldn’t reach your relays": "לא ניתן היה להגיע לריליים שלכם",
   "{{count}} muted": "{{count}} מושתקים",
   "{{count}} muted_one": "{{count}} מושתקים",
@@ -2094,5 +2092,6 @@
   "Fast": "מהיר",
   "Standard": "רגיל",
   "Economy": "חסכוני",
-  "Copy txid": "העתקת מזהה העסקה"
+  "Copy txid": "העתקת מזהה העסקה",
+  "Refresh follow and mute counts": "רענון מספרי המעקבים וההשתקות"
 }

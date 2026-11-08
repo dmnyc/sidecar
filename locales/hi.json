@@ -467,8 +467,6 @@
   "No active account.": "कोई सक्रिय अकाउंट नहीं है।",
   "Edit status": "स्टेटस संपादित करें",
   "Show npub QR": "npub QR दिखाएँ",
-  "Refresh profile, follow and mute counts": "प्रोफ़ाइल, फ़ॉलो और म्यूट की गिनती ताज़ा करें",
-  "Profile refreshed": "प्रोफ़ाइल ताज़ा हो गई",
   "Couldn’t reach your relays": "आपके रिले तक पहुँचा नहीं जा सका",
   "{{count}} muted": "{{count}} म्यूट",
   "{{count}} muted_one": "{{count}} म्यूट",
@@ -2025,5 +2023,6 @@
   "Fast": "तेज़",
   "Standard": "सामान्य",
   "Economy": "किफ़ायती",
-  "Copy txid": "ट्रांज़ैक्शन आईडी कॉपी करें"
+  "Copy txid": "ट्रांज़ैक्शन आईडी कॉपी करें",
+  "Refresh follow and mute counts": "फ़ॉलो और म्यूट गिनती रीफ़्रेश करें"
 }

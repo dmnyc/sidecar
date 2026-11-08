@@ -468,8 +468,6 @@
   "No active account.": "Nenhuma conta ativa.",
   "Edit status": "Editar estado",
   "Show npub QR": "Mostrar QR do npub",
-  "Refresh profile, follow and mute counts": "Atualizar perfil e contagens de seguidos e silenciados",
-  "Profile refreshed": "Perfil atualizado",
   "Couldn’t reach your relays": "Não foi possível contactar os teus relays",
   "{{count}} muted": "{{count}} silenciados",
   "{{count}} muted_many": "{{count}} de silenciados",
@@ -2094,5 +2092,6 @@
   "Fast": "Rápido",
   "Standard": "Padrão",
   "Economy": "Económico",
-  "Copy txid": "Copiar o ID da transação"
+  "Copy txid": "Copiar o ID da transação",
+  "Refresh follow and mute counts": "Atualizar as contagens de follows e silenciados"
 }

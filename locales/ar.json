@@ -471,8 +471,6 @@
   "No active account.": "لا يوجد حساب نشط.",
   "Edit status": "تعديل الحالة",
   "Show npub QR": "عرض رمز QR لـ npub",
-  "Refresh profile, follow and mute counts": "تحديث أعداد الملف الشخصي والمتابَعة والكتم",
-  "Profile refreshed": "تم تحديث الملف الشخصي",
   "Couldn’t reach your relays": "تعذّر الوصول إلى مرحّلاتك",
   "{{count}} muted": "{{count}} مكتوم",
   "{{count}} muted_few": "{{count}} مكتومين",
@@ -2301,5 +2299,6 @@
   "Fast": "سريع",
   "Standard": "قياسي",
   "Economy": "اقتصادي",
-  "Copy txid": "نسخ معرّف المعاملة"
+  "Copy txid": "نسخ معرّف المعاملة",
+  "Refresh follow and mute counts": "تحديث عدد المتابَعين والمكتومين"
 }

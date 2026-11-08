@@ -466,8 +466,6 @@
   "No active account.": "ไม่มีบัญชีที่ใช้งานอยู่",
   "Edit status": "แก้ไขสถานะ",
   "Show npub QR": "แสดง QR ของ npub",
-  "Refresh profile, follow and mute counts": "รีเฟรชจำนวนโปรไฟล์ ผู้ติดตาม และรายการปิดเสียง",
-  "Profile refreshed": "รีเฟรชโปรไฟล์แล้ว",
   "Couldn’t reach your relays": "เชื่อมต่อรีเลย์ของคุณไม่ได้",
   "{{count}} muted": "ปิดเสียง {{count}}",
   "{{count}} muted_other": "ปิดเสียง {{count}}",
@@ -1956,5 +1954,6 @@
   "Fast": "เร็ว",
   "Standard": "มาตรฐาน",
   "Economy": "ประหยัด",
-  "Copy txid": "คัดลอก ID ธุรกรรม"
+  "Copy txid": "คัดลอก ID ธุรกรรม",
+  "Refresh follow and mute counts": "รีเฟรชจำนวนติดตามและปิดเสียง"
 }

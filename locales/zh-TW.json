@@ -466,8 +466,6 @@
   "No active account.": "沒有使用中的帳號。",
   "Edit status": "編輯狀態",
   "Show npub QR": "顯示 npub QR 碼",
-  "Refresh profile, follow and mute counts": "重新整理個人檔案、追蹤與靜音數量",
-  "Profile refreshed": "個人檔案已重新整理",
   "Couldn’t reach your relays": "無法連線到您的中繼站",
   "{{count}} muted": "已靜音 {{count}} 位",
   "{{count}} muted_other": "已靜音 {{count}} 位",
@@ -1956,5 +1954,6 @@
   "Fast": "快",
   "Standard": "標準",
   "Economy": "經濟",
-  "Copy txid": "複製交易 ID"
+  "Copy txid": "複製交易 ID",
+  "Refresh follow and mute counts": "重新整理追蹤和靜音計數"
 }

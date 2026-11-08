@@ -466,8 +466,6 @@
   "No active account.": "没有当前账户。",
   "Edit status": "编辑状态",
   "Show npub QR": "显示 npub 二维码",
-  "Refresh profile, follow and mute counts": "刷新个人资料、关注和静音数量",
-  "Profile refreshed": "个人资料已刷新",
   "Couldn’t reach your relays": "无法连接你的 relay",
   "{{count}} muted": "已静音 {{count}}",
   "{{count}} muted_other": "已静音 {{count}}",
@@ -1956,5 +1954,6 @@
   "Fast": "快",
   "Standard": "标准",
   "Economy": "经济",
-  "Copy txid": "复制交易 ID"
+  "Copy txid": "复制交易 ID",
+  "Refresh follow and mute counts": "刷新关注和静音计数"
 }

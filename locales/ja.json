@@ -466,8 +466,6 @@
   "No active account.": "アクティブなアカウントがありません。",
   "Edit status": "ステータスを編集",
   "Show npub QR": "npubのQRを表示",
-  "Refresh profile, follow and mute counts": "プロフィール、フォロー、ミュートの数を更新",
-  "Profile refreshed": "プロフィールを更新しました",
   "Couldn’t reach your relays": "リレーに接続できませんでした",
   "{{count}} muted": "ミュート {{count}}",
   "{{count}} muted_other": "ミュート {{count}}",
@@ -1956,5 +1954,6 @@
   "Fast": "速い",
   "Standard": "標準",
   "Economy": "経済的",
-  "Copy txid": "トランザクションIDをコピー"
+  "Copy txid": "トランザクションIDをコピー",
+  "Refresh follow and mute counts": "フォローとミュートの数を更新"
 }
