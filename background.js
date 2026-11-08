@@ -1829,8 +1829,14 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // offered only where checking it would actually save a grant. The `d`
         // tag rides along so both surfaces can say what future requests the
         // grant would cover (one record, when the event carries a `d`).
-        canKindGrant: kindGrantEligible && !destructive,
+        // The row's "Always" segment is never offered on a shared-identity card:
+        // there the per-sign confirm is the guard, and a grant would sign past the
+        // very check the card exists for. kindGrantEligible still governs the kind.
+        canKindGrant: kindGrantEligible && !destructive && !sharedIdentity,
         kindDTag: signDTag,
+        // The shared caption's count: how many accounts have signed in to this
+        // host (0 when the host isn't shared, or the ask is a pure unlock).
+        sharedCount: sharedIdentity ? (authorizedPool ? authorizedPool.length : 0) : 0,
         // True once this (host, account) has been approved one-time a few times over —
         // the prompt turns it into a line pointing at Trust. Suppressed while a
         // destructive warning is showing: that screen is asking for full attention on

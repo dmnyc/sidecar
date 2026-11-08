@@ -12030,7 +12030,7 @@
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('videoimeta-toggle').checked = settings.videoImeta !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
-    // The way back from "Don't show this again": clears both flags in the local
+    // The way back from the old explainer's "never again" answer: clears both flags in the local
     // store both surfaces read, and refreshes this document's memo so the next
     // shared-site confirm in the panel explains again.
     $('headsup-restore').addEventListener('click', async () => {
@@ -25615,54 +25615,31 @@
       resolve();
     });
   });
-  async function renderSharedNote(data) {
+  async function renderSharedNote(data, relaxOffered) {
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
     // A payment's switch button is worded by the capsule ("Pay from a different account"); the
     // shared-identity wording below is for signing.
     if (isPaymentApproval(data)) return;
     if (!data.sharedIdentity) {
-      $('approval-switch-toggle').textContent = tSec('Sign in with a different account');
+      $('approval-switch-toggle').textContent = tSec('Use a different account');
       return;
     }
     await sharedHeadsUpReady; // the flags are known before a branch is taken
-    $('approval-switch-toggle').textContent = tSec('Sign as a different account');
+    $('approval-switch-toggle').textContent = tSec('Use a different account');
     const acct = $('approval-account');
     if (!acct) return;
-    // Opted out: no note at all. The confirm itself and the account picker stay —
+    // Opted out: no note at all. The confirm itself and the account menu stay —
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
-    let note;
-    if (sharedHeadsUp.dismissed) {
-      note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
-        icon('users'),
-        h('span', { textContent: tSec('Multiple accounts used') }),
-      ]);
-    } else {
-      note = h('div', { id: 'approval-shared-note', className: 'shared-headsup' }, [
-        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: t('Heads up!') })]),
-        h('p', {
-          className: 'shared-headsup-body',
-          textContent: tSec("Multiple accounts are signed in here. Confirm who's posting each time."),
-        }),
-      ]);
-      const got = h('button', { className: 'shared-headsup-btn', textContent: t('Got it') });
-      got.addEventListener('click', () => {
-        sharedHeadsUp.dismissed = true;
-        chrome.storage.local.set({ sharedHeadsUpDismissed: true });
-        renderSharedNote(data); // collapse to the compact caption immediately
-      });
-      // THE QUIET SECOND ANSWER. Some users have seen the explainer, understand the
-      // choice, and want the note gone altogether — "Got it" only ever collapsed it
-      // to the caption, and the caption never ended. This writes the opt-out both
-      // surfaces and the Settings restorer all read.
-      const never = h('button', { className: 'shared-headsup-btn shared-headsup-btn-quiet', textContent: t("Don't show this again") });
-      never.addEventListener('click', () => {
-        sharedHeadsUp.optedOut = true;
-        chrome.storage.local.set({ sharedHeadsUpOptOut: true });
-        renderSharedNote(data); // gone altogether, immediately
-      });
-      note.append(h('div', { className: 'shared-headsup-actions' }, [got, never]));
+    // ONE caption, no buttons. Why Sidecar asks (the client's own switcher is
+    // invisible to it) and — when the 30-minute window is on the card — the way
+    // to post as one account for a while. The old Heads-up card and its two
+    // buttons became this caption's second sentence.
+    const note = h('div', { id: 'approval-shared-note', className: 'shared-caption' });
+    note.append(h('span', { textContent: tSec('Multiple accounts are signed in here. Confirm who’s posting each time.') + ' ' }));
+    if (relaxOffered) {
+      note.append(h('b', { textContent: tSec('To post as one account for a while, choose 30 min.') }));
     }
     acct.parentNode.insertBefore(note, acct);
   }
@@ -25755,7 +25732,7 @@
     menu.innerHTML = '';
     hide(menu);
     // The same button serves both cards, so its words follow the card it is on.
-    toggle.textContent = payment ? t('Pay from a different account') : t('Sign in with a different account');
+    toggle.textContent = payment ? t('Pay from a different account') : t('Use a different account');
     // "Use {name} for all further payments on this site": offered once another account is
     // picked, unticked every time the pick changes, so keeping a site on an account is
     // always a deliberate tap and never a leftover from an earlier pick.
@@ -25774,7 +25751,7 @@
     show(toggle);
     toggle.onclick = () => {
       if (menu.classList.contains('hidden')) {
-        buildApprovalSwitchMenu(data, list, chosen.pubkey);
+        buildApprovalAccountMenu(data, list, chosen.pubkey);
         show(menu);
       } else {
         hide(menu);
@@ -25782,16 +25759,24 @@
     };
   }
 
-  function buildApprovalSwitchMenu(data, list, chosenPubkey) {
+  // ONE account menu with two groups, where the old card stacked two escape
+  // hatches. Group 1 ("Signed in here") is the switcher's own list: picking a row
+  // chooses who signs this event and the card stays open. Group 2 ("Other
+  // accounts") is the detach escape, shown when this host has 2+ signed-in
+  // accounts and the intended identity is not among the switcher's rows: picking
+  // a row cancels the request and makes that account active. The two lists are
+  // disjoint by construction, so no account repeats.
+  function buildApprovalAccountMenu(data, list, chosenPubkey) {
     const menu = $('approval-switch-menu');
     menu.innerHTML = '';
-    list.forEach((a) => {
-      const isChosen = a.pubkey === chosenPubkey;
-      const row = h('button', { className: 'acct-row' + (isChosen ? ' active' : '') });
+    const row = (a, opts) => {
+      opts = opts || {};
+      const isChosen = !detachRow && a.pubkey === chosenPubkey;
+      const b = h('button', { className: 'acct-row' + (isChosen ? ' active' : '') });
       const av = document.createElement('span');
       av.className = 'acct-row-av';
       applyAvatar(av, a);
-      row.append(
+      b.append(
         av,
         h('div', { className: 'acct-row-info' }, [
           h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
@@ -25801,9 +25786,13 @@
       if (isChosen) {
         const c = icon('check');
         c.classList.add('acct-row-check');
-        row.append(c);
+        b.append(c);
       }
-      row.addEventListener('click', () => {
+      b.addEventListener('click', () => {
+        if (detachRow) {
+          decideApproval('detach', { detachPubkey: a.pubkey });
+          return;
+        }
         if (isPaymentApproval(data) && data.payerPubkey) {
           // Paying from this account; the card's own account is "no pick".
           pendingApproval.payFrom = a.pubkey === data.payerPubkey ? null : a.pubkey;
@@ -25814,8 +25803,32 @@
         hide(menu);
         renderApprovalAccountCapsule(data);
       });
-      menu.append(row);
-    });
+      return b;
+    };
+    let detachRow = false;
+    if (!isPaymentApproval(data)) {
+      const g1 = h('div', { className: 'menu-group' });
+      g1.append(h('div', { className: 'menu-head', textContent: t('Signed in here') }));
+      list.forEach((a) => g1.append(row(a)));
+      menu.append(g1);
+      detachRow = true;
+      const others = data.wrongAccountEscape && Array.isArray(data.allAccounts)
+        ? data.allAccounts.filter((a) => !list.some((x) => x.pubkey === a.pubkey))
+        : [];
+      if (others.length) {
+        const g2 = h('div', { className: 'menu-group' });
+        g2.append(h('div', { className: 'menu-head', textContent: t('Other accounts') }));
+        g2.append(h('p', { className: 'menu-lede', textContent: t('Cancels this request and makes the selected account active.') }));
+        others.forEach((a) => {
+          const r = row(a);
+          if (a.active) r.append(h('span', { className: 'wrong-acct-tag', textContent: t('Active') }));
+          g2.append(r);
+        });
+        menu.append(g2);
+      }
+    } else {
+      list.forEach((a) => menu.append(row(a)));
+    }
   }
 
   // "Wrong account?" escape. Offers exactly the accounts the switcher above cannot: it
@@ -25831,63 +25844,6 @@
   // Shown generously (see the gate in background.js — any content sign with 2+ accounts).
   // Sidecar can't see the client's UI, so it can't tell a correct prompt from a wrong one;
   // only the user can.
-  function renderWrongAcctEscape(data) {
-    const hint = $('approval-wrong-acct');
-    const toggle = $('approval-wrong-acct-toggle');
-    const list = $('approval-wrong-acct-list');
-    if (!hint || !toggle || !list) return;
-    // Collapse on every render, not just the first: the panel re-shows the approval on
-    // queue advance and unlock, and an expanded list left over from the previous request
-    // would be offering to detach a different host.
-    list.innerHTML = '';
-    hide(list);
-    toggle.setAttribute('aria-expanded', 'false');
-    const accts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
-    if (!data.wrongAccountEscape || !accts.length) {
-      hide(hint);
-      return;
-    }
-    show(hint);
-    toggle.onclick = () => {
-      if (list.classList.contains('hidden')) {
-        buildWrongAcctList(data, accts);
-        show(list);
-        toggle.setAttribute('aria-expanded', 'true');
-      } else {
-        hide(list);
-        toggle.setAttribute('aria-expanded', 'false');
-      }
-    };
-  }
-
-  function buildWrongAcctList(data, accts) {
-    const list = $('approval-wrong-acct-list');
-    list.innerHTML = '';
-    // Only the two things the user can't learn afterwards: that this cancels, and that the
-    // switch is app-wide rather than just this site. "Makes the selected account active"
-    // carries the second in Sidecar's own vocabulary, tying to the ACTIVE tag on the row
-    // below.
-    // The reconnect instruction is deliberately NOT here — it lands as a toast the moment
-    // the detach settles, with the account name filled in, which this can't do. Three lines
-    // of lede in a sidebar to pre-announce it was too much.
-    list.append(h('p', { className: 'wrong-acct-lede', textContent: tSec('Cancels this request and makes the selected account active.') }));
-    accts.forEach((a) => {
-      const row = h('button', { className: 'acct-row' });
-      const av = document.createElement('span');
-      av.className = 'acct-row-av';
-      applyAvatar(av, a);
-      row.append(
-        av,
-        h('div', { className: 'acct-row-info' }, [
-          h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
-          h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
-        ])
-      );
-      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: t('Active') }));
-      row.addEventListener('click', () => decideApproval('detach', { detachPubkey: a.pubkey }));
-      list.append(row);
-    });
-  }
 
   function showApproval() {
     if (!pendingApproval) return;
@@ -25926,11 +25882,24 @@
       : approvalAsk(data);
 
     renderApprovalAccountCapsule(data);
-    renderWrongAcctEscape(data);
 
-    // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
-    // "who's posting" choice explicit; relabel the switcher for signing context.
-    renderSharedNote(data);
+    // THE SCOPE ROW flags, for this render: 30 min when the kind can relax on a
+    // single-account content sign, Always when the kind can carry a standing grant
+    // and the card is not the shared-identity check (there the confirm is the
+    // guard, and a grant would sign past it). renderSharedNote names the window
+    // in its caption when the window is on the card.
+    const scopeRelax =
+      !payment && (pendingApproval.groupIds ? pendingApproval.groupIds.length : 1) === 1 &&
+      data.needApproval && !data.destructive && data.relaxEligible !== false &&
+      (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
+    const scopeAlways =
+      !payment && (pendingApproval.groupIds ? pendingApproval.groupIds.length : 1) === 1 &&
+      data.needApproval && data.canKindGrant && !data.destructive && !data.sharedIdentity;
+
+    // The account escape is ONE menu: rows the switcher offers, then — when this
+    // host has 2+ signed-in accounts — the detach rows beneath their own heading.
+    // (Was two stacked escape hatches; merged here.)
+    renderSharedNote(data, scopeRelax, scopeAlways);
 
     renderApprovalPreview(data);
 
@@ -26053,43 +26022,56 @@
     // unwarned. Honoring the flag rather than re-deriving the rule is the point: this
     // gate, prompt.js's, and the background's were three separate copies, and a
     // profile edit that wasn't itself destructive slipped past all but the background.
-    const relaxRow = $('approval-relax-row');
     const offerRelax =
       !payment && groupN === 1 && data.needApproval && !data.destructive &&
       data.relaxEligible !== false &&
       (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
-    if (offerRelax) {
-      show(relaxRow);
-      relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
-        chip.onclick = () => decideApproval('relax', { relaxMs: Number(chip.dataset.mins) * 60000 });
-      });
-    } else {
-      hide(relaxRow);
-    }
-
-    // "Always allow this event type" (#482): on a single card whose kind a
-    // standing grant may cover, offer the checkbox and say exactly what
-    // ticking it signs from now on — site, account, kind, and the record's
-    // `d` tag when the event carries one. textContent only: host and `d` are
-    // page-controlled. Single cards only — a batch shares its kind but not
-    // necessarily its `d` record, so one checkbox cannot describe what it
-    // would save. Toggled on every render (this card is reused) and unticked
-    // on every fresh card, like the payment offers above.
-    const alwaysKindOffer = $('approval-always-kind-offer');
-    const offerAlwaysKind = !payment && groupN === 1 && data.needApproval && data.canKindGrant;
-    if (offerAlwaysKind) {
+    const scopeFs = $('approval-scope');
+    const signCard = data.method === 'signEvent' && !isPaymentApproval(data);
+    // The Always segment shares the relax row's single-card rule, and adds the
+    // background's grantability verdict for this kind (canKindGrant already
+    // excludes the kinds RELAX.neverRelaxes names).
+    const offerAlwaysKind =
+      !payment && groupN === 1 && data.needApproval &&
+      data.canKindGrant && signCard;
+    if (offerRelax || offerAlwaysKind) {
+      // THE SCOPE ROW: Once is the default on every card; the 30-minute window
+      // and Always appear only when this render offers them, and the caption
+      // under the row says what the chosen segment does. The primary button's
+      // label follows the segment on sign cards (Sign · Sign for 30 min ·
+      // Always sign); every other method keeps "Allow once".
+      show(scopeFs);
+      $('approval-scope-relax-opt').classList.toggle('hidden', !offerRelax);
+      $('approval-scope-always-opt').classList.toggle('hidden', !offerAlwaysKind);
+      if (!offerRelax) $('approval-scope-once').checked = true;
       const kindEv = data.params && (data.params.event || data.params);
       const kind = kindEv ? kindEv.kind : null;
       const kindName = approvalKindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
       const who = data.accountName || shortNpub(data.npub);
-      $('approval-always-kind-note').textContent = data.kindDTag != null
-        ? tSec('Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
-        : tSec('Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
-      $('approval-always-kind-box').checked = false;
-      show(alwaysKindOffer);
+      $('approval-scope-cap-once').textContent = signCard
+        ? tSec('Signs this event. Asks again next time.')
+        : tSec('Approves this request. Asks again next time.');
+      $('approval-scope-cap-relax').textContent = signCard
+        ? tSec('Signs here without asking for 30 minutes. Profile and follow edits still ask.')
+        : tSec('Approves this kind here without asking for 30 minutes.');
+      $('approval-scope-cap-always').textContent = data.kindDTag != null
+        ? tSec('Signs future {{kind}} events named “{{d}}” here as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
+        : tSec('Signs future {{kind}} events here as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
+      const radios = [$('approval-scope-once'), $('approval-scope-relax'), $('approval-scope-always')];
+      const applyScope = () => {
+        if (!signCard) { $('approval-allow').textContent = t('Allow once'); return; }
+        if ($('approval-scope-always').checked) $('approval-allow').textContent = t('Always sign');
+        else if ($('approval-scope-relax').checked) $('approval-allow').textContent = t('Sign for 30 min');
+        else $('approval-allow').textContent = t('Sign');
+      };
+      radios.forEach((r) => { r.addEventListener('change', applyScope); });
+      applyScope();
     } else {
-      hide(alwaysKindOffer);
+      hide(scopeFs);
     }
+
+    // The standing-grant checkbox (#482) is gone: its offer is the scope row's
+    // Always segment above, and offerAlwaysKind is computed there.
 
     // Point at Trust once this site has been approved one-time several times over.
     // textContent, never innerHTML — `host` is attacker-controlled.
@@ -26180,7 +26162,7 @@
     }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {
-      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
+      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 30 * 60000 });
     }
     // Carry the still-ticked auto-zap offer back with the approval. Only an approval
     // reaches here, so declining the payment can never enable the setting.
@@ -26197,7 +26179,7 @@
     // re-validates eligibility before writing anything. The box is hidden on
     // batch cards, so an "Allow all" can never attach a grant.
     if (pendingApproval && pendingApproval.data && pendingApproval.data.canKindGrant &&
-        action === 'once' && $('approval-always-kind-box').checked) {
+        action === 'once' && $('approval-scope-always') && $('approval-scope-always').checked) {
       extra = Object.assign({}, extra, { alwaysKind: true });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
@@ -26239,7 +26221,14 @@
     if (action === 'relax') setTimeout(syncRelax, 500);
   }
 
-  $('approval-allow').addEventListener('click', () => decideApproval('once'));
+  const scopeRelaxChecked = () => $('approval-scope-relax') && $('approval-scope-relax').checked;
+  $('approval-allow').addEventListener('click', () => {
+    if (scopeRelaxChecked()) {
+      decideApproval('relax', { relaxMs: 30 * 60000 });
+      return;
+    }
+    decideApproval('once');
+  });
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
   // Escape hatch: reject the whole backlog at once (this request + all waiting).
@@ -26284,7 +26273,13 @@
     // Respect the destructive lock: Enter here calls decideApproval directly, so
     // without this check it would approve a wipe that the disabled Allow button is
     // supposed to be holding back.
-    if (e.key === 'Enter' && !$('approval-allow').disabled) decideApproval('once');
+    if (e.key === 'Enter' && !$('approval-allow').disabled) {
+      if (scopeRelaxChecked()) {
+        decideApproval('relax', { relaxMs: 30 * 60000 });
+        return;
+      }
+      decideApproval('once');
+    }
   });
   // Numeric-only, capped budget input (static element, so not built via satsInput).
   $('approval-budget-amount').addEventListener('input', (e) => {
