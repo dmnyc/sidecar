@@ -1104,7 +1104,7 @@
       <!-- Account capsule ABOVE the event preview — mirrors the popup (prompt.html).
            Below the preview it was pushed off-screen by a long event. -->
       <div class="approval-account" id="approval-account"></div>
-      <button class="approval-switch-toggle hidden" id="approval-switch-toggle" data-i18n="Sign in with a different account" data-i18n-review>Sign in with a different account</button>
+      <button class="approval-switch-toggle hidden" id="approval-switch-toggle" aria-expanded="false" data-i18n="Use a different account" data-i18n-review>Use a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
       <!-- Payment cards: keep the site on the account picked above, instead of only this payment. -->
       <div id="approval-bind-payer" class="remember hidden">
@@ -1122,11 +1122,9 @@
            the same primitive as Settings -> Sites -> "Use <account>", so both routes leave
            identical state. See the 'detach' branch in background.js for why signing this
            request as a different account would be worse than failing it. -->
-      <div class="approval-wrong-acct hidden" id="approval-wrong-acct">
-        <strong data-i18n="Not the right account?" data-i18n-review>Not the right account?</strong>
-        <button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle" aria-expanded="false" data-i18n="Detach and use another identity." data-i18n-review>Detach and use another identity.</button>
-        <div class="approval-wrong-acct-list hidden" id="approval-wrong-acct-list"></div>
-      </div>
+      <!-- The account escape: ONE menu with two groups (see renderWrongAcctEscape).
+           "Signed in here" picks who signs this event; "Other accounts" detaches —
+           the old Detach row, folded into the same menu. -->
 
       <div id="approval-preview" class="card hidden"></div>
 
@@ -1178,11 +1176,24 @@
              (data.canKindGrant) only on kinds a grant may ever cover; the note below names
              the site, account, kind, and record. Panel twin of the popup's
              #always-kind-offer; see prompt.html. -->
-        <div id="approval-always-kind-offer" class="remember hidden">
-          <label class="check"><input type="checkbox" id="approval-always-kind-box" />
-          <span data-i18n="Always allow this event type for this site" data-i18n-review>Always allow this event type for this site</span></label>
-          <div id="approval-always-kind-note" class="always-kind-note"></div>
-        </div>
+        <!-- THE SCOPE ROW: one control where the checkbox and the duration chips used
+             to be. Once is the default on every card; 30 min opens the relaxed-signing
+             window; Always writes the standing per-kind grant (#482) — never on a
+             shared-identity card, where the confirm is the guard. The caption under
+             the row says what the chosen segment does. -->
+        <fieldset class="scope hidden" id="approval-scope">
+          <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="approval-scope" value="once" checked data-i18n="Once" data-i18n-review>Once</label>
+            <label class="hidden" id="approval-scope-relax-opt"><input type="radio" name="approval-scope" value="relax" data-i18n="30 min" data-i18n-review>30 min</label>
+            <label class="hidden" id="approval-scope-always-opt"><input type="radio" name="approval-scope" value="always" data-i18n="Always" data-i18n-review>Always</label>
+          </div>
+          <div class="scope-caps" aria-live="polite">
+            <div class="scope-cap on" id="approval-scope-cap-once"></div>
+            <div class="scope-cap" id="approval-scope-cap-relax"></div>
+            <div class="scope-cap" id="approval-scope-cap-always"></div>
+          </div>
+        </fieldset>
 
         <div id="approval-remember" class="remember hidden">
           <label class="check"><input type="checkbox" id="approval-remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
@@ -1193,14 +1204,6 @@
         </div>
         </div>
 
-        <div id="approval-relax-row" class="relax-row hidden">
-          <div class="relax-label" data-i18n="Auto-sign for the next" data-i18n-review>Auto-sign for the next</div>
-          <div class="relax-chips">
-            <button type="button" class="relax-chip" data-mins="5" data-i18n="5 min" data-i18n-review>5 min</button>
-            <button type="button" class="relax-chip" data-mins="15" data-i18n="15 min" data-i18n-review>15 min</button>
-            <button type="button" class="relax-chip" data-mins="30" data-i18n="30 min" data-i18n-review>30 min</button>
-          </div>
-        </div>
 
         <div class="error" id="approval-error"></div>
 

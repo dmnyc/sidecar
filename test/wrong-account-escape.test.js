@@ -399,30 +399,41 @@ const COPY_TITLE = 'Not the right account?';
 const COPY_TOGGLE = 'Detach and use another identity.';
 const COPY_LEDE = 'Cancels this request and makes the selected account active.';
 
-test('both surfaces carry the hint, the toggle and the list', () => {
-  assert.match(sidepanelHtml, /id="approval-wrong-acct"/);
-  assert.match(sidepanelHtml, /id="approval-wrong-acct-toggle"/);
-  assert.match(sidepanelHtml, /id="approval-wrong-acct-list"/);
-  assert.match(promptHtml, /id="wrong-acct"/);
-  assert.match(promptHtml, /id="wrong-acct-toggle"/);
-  assert.match(promptHtml, /id="wrong-acct-list"/);
+function liftBraces(decl, src) {
+  const at = src.indexOf(decl);
+  if (at === -1) throw new Error('could not find ' + decl);
+  const open = src.indexOf('{', at);
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(at, i + 1); }
+  }
+  throw new Error('unbalanced braces after ' + decl);
+}
+
+test('both surfaces carry the merged account menu', () => {
+  assert.match(sidepanelHtml, /class="approval-switch-toggle hidden" id="approval-switch-toggle"/);
+  assert.match(sidepanelHtml, /class="approval-switch-menu hidden" id="approval-switch-menu"/);
+  assert.match(promptHtml, /class="switch-toggle hidden" id="switch-toggle"/);
+  assert.match(promptHtml, /class="switch-menu hidden"/);
 });
 
 test('both surfaces start hidden and collapsed', () => {
-  assert.match(sidepanelHtml, /class="approval-wrong-acct hidden"/);
-  assert.match(sidepanelHtml, /class="approval-wrong-acct-list hidden"/);
-  assert.match(promptHtml, /class="wrong-acct hidden"/);
-  assert.match(promptHtml, /class="wrong-acct-list hidden"/);
+  assert.match(sidepanelJs, /menu\.innerHTML = '';/);
+  assert.match(sidepanelJs, /closeAcctMenu\(\)/);
+  assert.match(promptJs, /els\.switchMenu\.classList\.add\('hidden'\)/);
 });
 
-test('both surfaces use the same title and toggle copy, word for word', () => {
-  // Two files, one explanation. Drift means the same situation reads differently depending
-  // on whether the panel happened to be open.
-  for (const [label, src] of [['sidepanel.html', sidepanelHtml], ['prompt.html', promptHtml]]) {
-    // The data-i18n key is the same English, so the two files also share one translation.
-    assert.ok(src.includes('<strong data-i18n="' + COPY_TITLE + '" data-i18n-review>' + COPY_TITLE + '</strong>'), label + ' title');
-    assert.ok(src.includes('data-i18n="' + COPY_TOGGLE + '" data-i18n-review>' + COPY_TOGGLE + '</button>'), label + ' toggle');
-  }
+test('both surfaces word the escape the same way, word for word', () => {
+  assert.match(sidepanelJs, /t\('Use a different account'\)/);
+  assert.match(promptJs, /tSec\('Use a different account'\)/);
+});
+
+test('both surfaces group the menu: who signs here, then the detach escape', () => {
+  assert.match(sidepanelJs, /menu-head', textContent: t\('Signed in here'\)/);
+  assert.match(sidepanelJs, /menu-head', textContent: t\('Other accounts'\)/);
+  assert.match(promptJs, /tSec\('Signed in here'\)/);
+  assert.match(promptJs, /tSec\('Other accounts'\)/);
 });
 
 test('both surfaces use the same lede copy, word for word', () => {
@@ -430,7 +441,7 @@ test('both surfaces use the same lede copy, word for word', () => {
   // one surface's lede grew an extra sentence, which is precisely the drift it was meant to
   // catch — parity claims have to be pinned at both ends of the string.
   const LEDE_RE = [
-    ['sidepanel.js', sidepanelJs, /className: 'wrong-acct-lede', textContent: tSec\('([^']*)'\)/],
+    ['sidepanel.js', sidepanelJs, /menu-lede', textContent: t\('([^']*)'\)/],
     ['prompt.js', promptJs, /lede\.textContent = tSec\('([^']*)'\);/],
   ];
   for (const [label, src, re] of LEDE_RE) {
@@ -441,8 +452,6 @@ test('both surfaces use the same lede copy, word for word', () => {
 });
 
 test('the lede carries both facts the user cannot learn afterwards', () => {
-  // That it cancels, and that the switch is app-wide rather than just this site. Everything
-  // else was cut — three lines of lede in a sidebar was too much.
   for (const src of [sidepanelJs, promptJs]) {
     assert.match(src, /Cancels this request/);
     assert.match(src, /makes the selected account active/);
@@ -452,11 +461,9 @@ test('the lede carries both facts the user cannot learn afterwards', () => {
 test('the lede does not pre-announce the reconnect instruction', () => {
   // It arrives as a toast the moment detach settles, with the account name filled in —
   // which the lede can't do. Saying it twice is what made this three lines deep.
-  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    const fn = src.match(/function buildWrongAcctList\([\s\S]*?\n {2}\}/)[0];
-    const lede = fn.match(/wrong-acct-lede[\s\S]*?;/)[0];
-    assert.ok(!/sign out/i.test(lede), label + ': reconnect instruction belongs in the toast');
-  }
+  const lede = sidepanelJs.match(/menu-lede', textContent: t\('([^']*)'\)/);
+  assert.ok(lede, 'the merged menu carries the lede');
+  assert.ok(!/sign out/i.test(lede[1]), 'reconnect instruction belongs in the toast');
 });
 
 test('a settled detach toasts the reconnect instruction in Sidecar', () => {
@@ -473,8 +480,7 @@ test('a settled detach toasts the reconnect instruction in Sidecar', () => {
 
 test('the detach toast reads the same as the Settings route', () => {
   // switchSiteModal already toasts this. Two wordings for one outcome is how the same fix
-  // starts looking like two different features.
-  // One key, so the two also stay one translation.
+  // starts looking like two different features. One key, so the two also stay one translation.
   const uses = sidepanelJs.match(/t\('Detached\. Sign out of \{\{host\}\} and back in as \{\{name\}\}\.'/g) || [];
   assert.equal(uses.length, 2, 'switchSiteModal and decideApproval both toast the same key');
 });
@@ -486,116 +492,78 @@ test('the copy never promises to sign as the other account', () => {
   }
 });
 
-test('the toggle is a button on both surfaces', () => {
-  assert.match(sidepanelHtml, /<button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle"/);
-  assert.match(promptHtml, /<button class="wrong-acct-toggle" id="wrong-acct-toggle"/);
+test('the escape is a button on both surfaces', () => {
+  assert.match(sidepanelHtml, /<button class="approval-switch-toggle hidden" id="approval-switch-toggle"/);
+  assert.match(promptHtml, /<button class="switch-toggle hidden" id="switch-toggle"/);
 });
 
-test('picking a row sends detach with that pubkey, on both surfaces', () => {
+test('picking a detach row sends detach with that pubkey, on both surfaces', () => {
   assert.match(sidepanelJs, /decideApproval\('detach', \{ detachPubkey: a\.pubkey \}\)/);
   assert.match(promptJs, /decide\('detach', \{ detachPubkey: a\.pubkey \}\)/);
 });
 
-test('picking a row never approves', () => {
+test('picking a detach row never approves', () => {
   // One character away from the worst bug in the extension: a control tapped *because* the
-  // identity is wrong must not approve under that identity.
-  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    const fn = src.match(/function buildWrongAcctList\([\s\S]*?\n {2}\}/);
-    assert.ok(fn, 'could not find buildWrongAcctList in ' + label);
-    const m = fn[0].match(/row\.addEventListener\('click',[^;]*;/);
-    assert.ok(m, 'could not find the row binding in ' + label);
-    assert.match(m[0], /'detach'/, label + ': row must send detach');
-    assert.ok(!/'once'|'trust'|'relax'|'budget'|'reject'/.test(m[0]), label + ': row must not approve');
-  }
+  // identity is wrong must not approve under that identity. The whole menu builder may only
+  // ever decide one thing: detach.
+  const panel = liftBraces('function buildApprovalAccountMenu(data, list, chosenPubkey) {', sidepanelJs);
+  const popup = liftBraces('function buildSwitchMenu(list, detachTargets, chosenPk) {', promptJs);
+  // Both builders have two branches that decide detach (the popup's: the ALL case and the
+  // filtered case). Every decision either builder makes must be a detach — never an approve.
+  const panelDecides = panel.match(/decideApproval\('([a-z]+)'/g) || [];
+  assert.ok(panelDecides.length >= 1, 'the panel menu detaches');
+  assert.ok(panelDecides.every((d) => d === "decideApproval('detach'"), 'the panel menu builder detaches and does nothing else');
+  const popupDecides = popup.match(/decide\('([a-z]+)'/g) || [];
+  assert.ok(popupDecides.length >= 1, 'the popup menu detaches');
+  assert.ok(popupDecides.every((d) => d === "decide('detach'"), 'the popup menu builder detaches and does nothing else');
 });
 
-test('the active account is tagged on both surfaces', () => {
-  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    assert.match(src, /a\.active/, label + ' should read the active flag');
-    assert.match(src, /'Active'/, label + ' should render the tag');
-  }
+test('the panel tags the active account on its detach rows', () => {
+  assert.match(sidepanelJs, /a\.active/);
+  assert.match(sidepanelJs, /'Active'/);
 });
 
-test('both surfaces gate the hint on the payload flag', () => {
+test('both surfaces gate the escape on the payload flag', () => {
   assert.match(sidepanelJs, /data\.wrongAccountEscape/);
   assert.match(promptJs, /data\.wrongAccountEscape/);
 });
 
 test('both surfaces read the account list from allAccounts', () => {
   assert.match(sidepanelJs, /Array\.isArray\(data\.allAccounts\)/);
-  assert.match(promptJs, /Array\.isArray\(data\.allAccounts\)/);
+  assert.match(promptJs, /allAccts\.length > 0/);
 });
 
-test('an empty account list hides the hint entirely', () => {
+test('an empty detach list hides the group entirely', () => {
   // The gate can be true while the list is empty (every other account deleted). A visible
-  // "Detach and use another identity" that expands to nothing is worse than no hint.
-  assert.match(sidepanelJs, /!data\.wrongAccountEscape \|\| !accts\.length/);
-  assert.match(promptJs, /!data\.wrongAccountEscape \|\| !accts\.length/);
+  // escape that expands to nothing is worse than no hint.
+  assert.match(sidepanelJs, /others\.length/);
+  assert.match(promptJs, /detachTargets\.length/);
 });
 
-test('the hint is re-evaluated every time an approval is shown', () => {
-  // Not once at load: the panel re-shows the approval on queue advance and unlock.
-  assert.match(sidepanelJs, /renderApprovalAccountCapsule\(data\);\s*\n\s*renderWrongAcctEscape\(data\);/);
-  assert.match(promptJs, /buildAccountCapsule\(\);\s*\n\s*buildWrongAcct\(\);/);
+test('the menu is rebuilt from scratch on every render', () => {
+  // An expanded menu left over from the previous request would offer accounts for a
+  // different host than the one now on screen.
+  const builder = sidepanelJs.match(/function buildApprovalAccountMenu\(data, list, chosenPubkey\) \{[\s\S]*?\n {2}\}/)[0];
+  assert.match(builder, /menu\.innerHTML = '';/);
+  assert.match(promptJs, /els\.switchMenu\.innerHTML = '';/);
 });
 
-test('the list re-collapses on every render', () => {
-  // An expanded list left over from the previous request would offer to detach a different
-  // host than the one now on screen.
-  const panel = sidepanelJs.match(/function renderWrongAcctEscape\(data\) \{[\s\S]*?\n {2}\}/)[0];
-  assert.match(panel, /list\.innerHTML = '';/);
-  assert.match(panel, /hide\(list\);/);
-  assert.match(panel, /setAttribute\('aria-expanded', 'false'\)/);
-  const popup = promptJs.match(/function buildWrongAcct\(\) \{[\s\S]*?\n {2}\}/)[0];
-  assert.match(popup, /innerHTML = '';/);
-  assert.match(popup, /classList\.add\('hidden'\)/);
-  assert.match(popup, /setAttribute\('aria-expanded', 'false'\)/);
+test('account names are set as text, never as HTML, in both menus', () => {
+  // Profile metadata and the host are both attacker-controlled. The only innerHTML
+  // assignment either builder makes is the empty-string clear.
+  const panel = liftBraces('function buildApprovalAccountMenu(data, list, chosenPubkey) {', sidepanelJs);
+  const panelClears = panel.replace(/innerHTML\s*=\s*'';?/g, '');
+  assert.equal((panelClears.match(/innerHTML/g) || []).length, 0, 'panel assigns no untrusted innerHTML');
+  assert.match(panel, /textContent/);
+  const popup = liftBraces('function buildSwitchMenu(list, detachTargets, chosenPk) {', promptJs);
+  const popupClears = popup.replace(/innerHTML\s*=\s*'';?/g, '');
+  assert.equal((popupClears.match(/innerHTML/g) || []).length, 0, 'popup assigns no untrusted innerHTML');
+  assert.match(popup, /textContent/);
 });
 
-test('the hint hides again when the flag is false', () => {
-  // A show-only render leaks the hint onto the next request in the queue.
-  assert.match(sidepanelJs, /hide\(hint\);/);
-  assert.match(promptJs, /els\.wrongAcct\.classList\.toggle\('hidden', !data\.wrongAccountEscape/);
-});
 
-test('account names and the host are set as text, never as HTML', () => {
-  // Profile metadata and the host are both attacker-controlled.
-  for (const [label, src] of [['sidepanel.js', sidepanelJs], ['prompt.js', promptJs]]) {
-    const fn = src.match(/function buildWrongAcctList\([\s\S]*?\n {2}\}/);
-    assert.ok(fn, 'could not find buildWrongAcctList in ' + label);
-    assert.ok(!/innerHTML\s*=\s*[^']/.test(fn[0].replace(/innerHTML = '';/g, '')),
-      label + ' should not assign untrusted innerHTML');
-    assert.match(fn[0], /textContent/);
-  }
-});
 
-test('the toggle is de-emphasized, not accented', () => {
-  // At --lav it competed with the account capsule directly above, which is the thing the
-  // user actually needs to read on a signing screen. The underline carries the affordance.
-  for (const [label, src, sel] of [
-    ['styles.css', css, '.approval-wrong-acct-toggle'],
-    ['prompt.html', promptHtml, '.wrong-acct-toggle'],
-  ]) {
-    const blk = src.match(new RegExp('\\' + sel + ' \\{[^}]*\\}'));
-    assert.ok(blk, 'could not find ' + sel + ' in ' + label);
-    assert.match(blk[0], /color: var\(--muted\)/, label + ': should use the secondary color');
-    assert.ok(!/var\(--lav\)/.test(blk[0]), label + ': should not use the accent');
-    assert.match(blk[0], /text-decoration: underline/, label + ': needs the link affordance');
-  }
-});
 
-test('the hint has styles on both surfaces', () => {
-  for (const sel of ['.approval-wrong-acct ', '.approval-wrong-acct-toggle ', '.approval-wrong-acct-list ']) {
-    assert.ok(css.includes(sel + '{'), 'styles.css missing ' + sel);
-  }
-  for (const sel of ['.wrong-acct ', '.wrong-acct-toggle ', '.wrong-acct-list ']) {
-    assert.ok(promptHtml.includes(sel + '{'), 'prompt.html missing ' + sel);
-  }
-  for (const src of [css, promptHtml]) {
-    assert.ok(src.includes('.wrong-acct-lede {'), 'missing the lede style');
-    assert.ok(src.includes('.wrong-acct-tag {'), 'missing the active-tag style');
-  }
-});
 
 test('the popup hint only uses CSS variables that exist', () => {
   // prompt.html is a separate document with its own inline styles; --line, --panel and

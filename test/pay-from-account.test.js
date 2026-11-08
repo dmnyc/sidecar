@@ -203,9 +203,9 @@ function panelCard(data) {
   vm.runInContext([
     'const isPaymentApproval = ' + panelSrc.match(/const isPaymentApproval = (\(data\) =>\s*[^;]*);/)[1] + ';',
     liftFrom(panelSrc, 'function approvalAccountList('), liftFrom(panelSrc, 'function approvalPayList('),
-    liftFrom(panelSrc, 'function renderApprovalAccountCapsule('), liftFrom(panelSrc, 'function buildApprovalSwitchMenu('),
+    liftFrom(panelSrc, 'function renderApprovalAccountCapsule('), liftFrom(panelSrc, 'function buildApprovalAccountMenu('),
     liftFrom(panelSrc, 'function payFromExtra('),
-    'this.render = renderApprovalAccountCapsule; this.menu = buildApprovalSwitchMenu; this.extra = payFromExtra; this.list = approvalPayList;',
+    'this.render = renderApprovalAccountCapsule; this.menu = buildApprovalAccountMenu; this.extra = payFromExtra; this.list = approvalPayList;',
   ].join('\n'), ctx);
   return { ctx, $, pendingApproval };
 }

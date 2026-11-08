@@ -23,7 +23,7 @@
   const STORAGE_KEY = 'sidecar_relax_grants';
   const ALARM_PREFIX = 'sidecar-relax:';
   const MAX_MS = 30 * 60 * 1000;      // hard cap, matching the prompt's presets
-  const DEFAULT_MS = 15 * 60 * 1000;  // fallback when a decision carries no duration
+  const DEFAULT_MS = 30 * 60 * 1000;  // fallback when a decision carries no duration — the row's only window
   // Kinds that hand control of the account/wallet to another app or device. These
   // never relax — a per-sign confirm is exactly what gates them, even mid-window.
   const CONTROL_KINDS = new Set([24133, 23194, 23195]);
