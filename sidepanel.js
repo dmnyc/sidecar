@@ -10218,6 +10218,10 @@
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.
       call({ type: 'SIDECAR_NWC_META' }).then(async ({ has }) => {
+        // The header's refresh re-runs this paint into the same cell — clear it
+        // first, or badges and "Add wallet" links pile up one per refresh.
+        walletVal.replaceChildren();
+        walletVal.classList.remove('account-stat-dim');
         if (!has) {
           const link = h('button', { className: 'account-stat-add-link', textContent: t('Add wallet →') });
           link.addEventListener('click', () => {
