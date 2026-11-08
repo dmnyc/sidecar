@@ -9989,7 +9989,9 @@
       if (refreshingStats) return;
       refreshingStats = true;
       refreshBtn.classList.add('spinning');
-      try { await loadStats(); } catch (_) {}
+      // force: the follow count is cached for five minutes, and a refresh that is
+      // handed the cache has refreshed nothing.
+      try { await loadStats({ force: true }); } catch (_) {}
       refreshBtn.classList.remove('spinning');
       refreshingStats = false;
     });
@@ -10063,7 +10065,8 @@
 
     // Following: a dash when no relay answered (getFollowCount returns null and caches
     // nothing), which the retry above turns back into a number once the relays reply.
-    function loadFollows() {
+    function loadFollows(force) {
+      if (force) followCountCache.delete(pubkey);
       setWaiting(followNum, '…', true);
       return getFollowCount(pubkey).then((n) => {
         followsFailed = n == null;
@@ -10164,14 +10167,14 @@
       }
     }
 
-    async function loadStats() {
+    async function loadStats({ force = false } = {}) {
       drawer.dataset.loaded = '1';
       overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
       // Numeric stats. The header's refresh button awaits this read before
       // clearing its spinner; alerts and relays repaint when their own reads
       // land.
-      await loadFollows();
+      await loadFollows(force);
 
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
