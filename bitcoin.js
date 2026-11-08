@@ -577,6 +577,18 @@
   // What a receive QR or a pasted string may hand us. Sweep-all ignores amounts,
   // so only the address matters; Lightning codes and off-mainnet addresses are
   // named rejections the card can show as-is.
+  //
+  // NATIVE SEGWIT ONLY (bc1q…, bc1p…), BY CHOICE. Legacy 1… and 3… addresses are
+  // refused with their own sentence. Nothing in Bitcoin forces this; it keeps the
+  // money path small. This module implements one address format (bech32/bech32m),
+  // each piece pinned to the published test vectors, and the worker's signer refuses
+  // any output that is not a witness program (see the check in the sweep signer
+  // above), the guard that closed a message which would have signed arbitrary bytes.
+  // Accepting 3… (exchanges still hand those out) and 1… means Base58Check decoding,
+  // the P2SH and P2PKH output scripts, and widening that guard to exactly those two
+  // shapes, each with tests against known transactions. Most wallets give a bc1
+  // address by default, so it waits with the other sweep follow-ups (dust-aware
+  // input selection, a fee ceiling).
   function readDestination(raw) {
     let text = String(raw || '').trim();
     if (!text) return { error: 'empty' };
