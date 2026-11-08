@@ -127,7 +127,7 @@
       <!-- screenshot: the Accounts tab listing accounts, the active one checkmarked -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/account-switcher.webp" alt="The Accounts tab listing two accounts, Gatsby (active, with a checkmark) and Amelia, plus an Add account button">
+          <img src="screenshots/account-switcher.webp" width="716" height="640" alt="The Accounts tab listing two accounts, Gatsby (active, with a checkmark and his Overview folded beneath) and Amelia, plus an Add account button">
         </div>
         <figcaption>Your accounts on the Accounts tab. The checkmark marks the active one; click another to switch, or add more.</figcaption>
       </figure>
@@ -173,7 +173,7 @@
 
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/backup-vault.webp" width="716" height="1260" alt="Sidecar Settings open at Security and backup: an Auto-lock dropdown set to After 15 minutes, a Change PIN button, and a Vault backup section with Export encrypted vault and Import vault buttons">
+          <img src="screenshots/backup-vault.webp" width="716" height="986" alt="Sidecar Settings at Security and backup: an Auto-lock dropdown set to After 30 minutes, a Change PIN button, and a Vault backup section with Export encrypted vault and Import vault buttons">
         </div>
         <figcaption>Auto-lock, your PIN, and the whole-vault export in one place.</figcaption>
       </figure>
@@ -208,7 +208,7 @@
       <!-- screenshot: the Activity tab's Connected sites, each with its pinned account -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/connected-sites.webp" alt="The Activity tab's Connected sites: jumble.social pinned to Amelia (shared by two accounts, Trusted), and primal.net pinned to Gatsby with a Use Amelia button to move it">
+          <img src="screenshots/connected-sites.webp" width="716" height="980" alt="The Activity tab's Connected sites: notes.example signs in as Amelia and signs reactions without asking, with an × to remove that, set to Ask every time; client.example signs in as Gatsby, with a Use Amelia button to move it">
         </div>
         <figcaption>Connected sites in the Activity tab. Each stays pinned to the account it signed in with; click <strong>Use</strong> to move one to your active account.</figcaption>
       </figure>
@@ -216,7 +216,7 @@
       <!-- screenshot: the Recent activity signing log below Connected sites -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/recent-activity.webp" width="716" height="1400" alt="The Recent activity list: a signed note, reaction, repost and app-data event plus a shared public key, each with its own icon and tagged with the site and how long ago. Every row that signed an event carries an open-in-client button on the right; the shared public key, which signed nothing, does not">
+          <img src="screenshots/recent-activity.webp" width="716" height="1208" alt="The Recent activity list: a signed reaction, app data, a repost, another reaction and a note, plus a shared public key, each with its own icon and tagged with the site and how long ago. Rows that signed an event carry an open-in-client button; app data carries a copy button for its event ID; the shared public key, which signed nothing, carries none">
         </div>
         <figcaption>Below it, the signing log — every request Sidecar has approved, newest first. Rows that signed an event open it in your client, so the log can be checked rather than believed.</figcaption>
       </figure>
@@ -237,7 +237,7 @@
       families. When a switch does call for a fresh login, the routine is the same
       everywhere: log out on the site, switch accounts in Sidecar, then log back in.</p>
       <p><strong>The shortcut.</strong> Whenever you switch the active account and a
-      paired site is open in the current tab, Sidecar offers a <strong>Reload [site]</strong>
+      paired site is open in the current tab, Sidecar offers a <strong>Reload client window</strong>
       button. For apps that re-check the extension on load, that single click usually
       does it.</p>
 
@@ -260,17 +260,17 @@
           <p>These apps have a single signed-in user: whoever the extension provided at
           login. There's no account menu inside the app, so the identity changes only
           when the login changes.</p>
-          <p>To switch, switch accounts in Sidecar and use the <strong>Reload [site]</strong>
+          <p>To switch, switch accounts in Sidecar and use the <strong>Reload client window</strong>
           button Sidecar offers right after. These apps ask the extension again when the
           page loads, so that reload re-pairs them with your newly active account. If a
           reload doesn't do it, the full log out and log back in routine always will.</p>
 
-          <!-- screenshot: Sidecar's Reload [site] offer after switching, for a single-user client -->
+          <!-- screenshot: Sidecar's Reload client window offer after switching, for a single-user client -->
           <figure class="shot shot-sm">
             <div class="shot-frame">
-              <img src="screenshots/single-user-switch.webp" alt="After switching to Gatsby in Sidecar, a one-click Reload primal.net button appears to re-pair the open single-user client">
+              <img src="screenshots/single-user-switch.webp" width="716" height="320" alt="The top of the Sidecar panel right after switching to Gatsby: under the tabs, a Reload client window button to re-pair the open single-user client, with an × to dismiss it">
             </div>
-            <figcaption>Switch in Sidecar, then click <strong>Reload [site]</strong> to re-pair the open app.</figcaption>
+            <figcaption>Switch in Sidecar, then click <strong>Reload client window</strong> to re-pair the open app.</figcaption>
           </figure>
         </div>
 
@@ -347,7 +347,7 @@
       <!-- screenshot: the relax status bar counting down -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/relax-status-bar.webp" width="720" height="300" alt="The bottom of the Sidecar panel below the wordmark and compose button: a status bar with a green dot, the account name Amelia, the site jumble.social, a partly depleted progress bar, a 13:37 countdown, and a round close button to end auto-signing">
+          <img src="screenshots/relax-status-bar.webp" width="720" height="300" alt="The bottom of the Sidecar panel below the wordmark and compose button: a status bar with a green dot, the account name Amelia, the site notes.example, a restart button and a close button, a partly depleted progress bar, and a 13:38 countdown">
         </div>
         <figcaption>One window at a time, always visible, always cancelable.</figcaption>
       </figure>
@@ -504,7 +504,7 @@
 
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/notifications-network.webp" width="716" height="700" alt="Sidecar Settings open at Notifications, headed Your network first, with a checked box reading Sort notifications by who you follow, a line reading Your network: 1,209 people, from 12,129 your follows follow, and a Rebuild network button">
+          <img src="screenshots/notifications-network.webp" width="716" height="900" alt="Sidecar Settings with Notifications open, headed Your network first, with a checked box reading Sort notifications by who you follow, a line reading Your network: 953 people, from 11,211 your follows follow, and a Rebuild network button">
         </div>
         <figcaption>The network is built from your follow list and theirs, and can be rebuilt on demand.</figcaption>
       </figure>
@@ -719,7 +719,7 @@
 
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/theme-gallery.webp" width="716" height="1500" alt="The Sidecar theme picker with Dark and Light tabs, showing a grid of live preview tiles for Speakeasy, Film Noir, Brownstone, Nixie, Cast Iron and Metropolis, each rendering the numerals 21 in that theme's own typeface and palette">
+          <img src="screenshots/theme-gallery.webp" width="716" height="1350" alt="The Sidecar theme picker: a Special edition card for Phantom Bouquet, until December 6, above Dark and Light tabs and live preview tiles for Speakeasy, Metropolis, Film Noir and Brownstone, each rendering the numerals 21 in that theme's own typeface and palette">
         </div>
         <figcaption>Each tile is a live preview, not a swatch.</figcaption>
       </figure>
