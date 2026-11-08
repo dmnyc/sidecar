@@ -119,7 +119,7 @@ function registryHarness() {
 
 // The live-update tick, lifted with its guard variable and driven by injected
 // stubs — the real one runs on a five-minute interval in the panel.
-function tickHarness({ visibility = 'visible', cache, getFollowCount } = {}) {
+function tickHarness({ visibility = 'visible', cache, getFollowCount, activePubkey = PK } = {}) {
   const repaints = [];
   const asked = [];
   const read = getFollowCount || ((pk) => { asked.push(pk); return Promise.resolve(0); });
@@ -130,6 +130,7 @@ function tickHarness({ visibility = 'visible', cache, getFollowCount } = {}) {
     isDevBuild: () => false,
     followRefreshInFlight: false,
     document: { visibilityState: visibility },
+    state: { activePubkey },
     followCountCache: cache,
     FOLLOW_COUNT_TTL: 5 * 60 * 1000,
     getFollowCount: read,
@@ -286,4 +287,17 @@ test('THE PROFILE REFRESH RE-ARMS EVEN WHEN A READ THROWS', async () => {
   await w.handler();
   assert.equal(w.btn.disabled, false);
   assert.ok(!w.cls.has('spinning'));
+});
+
+test('THE LIVE TICK POLLS ONLY THE ACTIVE ACCOUNT', async () => {
+  // A cached entry for an account that is no longer on screen — switched away from, or
+  // removed — would otherwise be re-read every cycle for as long as the panel is open.
+  const cache = new Map();
+  cache.set(PK, { v: 3, at: Date.now() - 6 * 60 * 1000 });
+  cache.set('e'.repeat(64), { v: 8, at: Date.now() - 6 * 60 * 1000 });
+  const asked = [];
+  const w = tickHarness({ cache, getFollowCount: (pk) => { asked.push(pk); cache.set(pk, { v: 4, at: Date.now() }); return Promise.resolve(4); } });
+  w.tick();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(asked, [PK], 'the other account is left alone');
 });

@@ -4717,15 +4717,20 @@
   // a fully occluded window counts as hidden, so the ticks were SKIPPED while
   // the user was away in another app — running on return is what makes the
   // figure right the moment they look at it instead of a minute later. Guards:
-  // entries only expire into a re-read, accounts never read this session are not
-  // polled, and one cycle never overlaps the last.
+  // entries only expire into a re-read, only the active account is polled, and one
+  // cycle never overlaps the last.
   let followRefreshInFlight = false;
   function refreshStaleFollowCounts() {
     // 'visible' is too strict a gate: Firefox's sidebar documents can sit at
     // other visibility states while plainly on screen, which would freeze the
     // figures forever. Run unless the document is outright hidden.
     if (followRefreshInFlight || document.visibilityState === 'hidden') return;
-    const stale = [...followCountCache.entries()].filter(([, e]) => Date.now() - e.at >= FOLLOW_COUNT_TTL);
+    // Only the active account has a figure on screen. Any other cached entry (an
+    // account read before a switch, one since removed) re-reads on its own next
+    // render, and polling it here would query the relays about a key nobody is
+    // looking at, every cycle, for as long as the panel stays open.
+    const live = state && state.activePubkey;
+    const stale = [...followCountCache.entries()].filter(([pk, e]) => pk === live && Date.now() - e.at >= FOLLOW_COUNT_TTL);
     if (!stale.length) return;
     followRefreshInFlight = true;
     if (isDevBuild()) console.debug(`[follows] tick: re-reading ${stale.length} stale count(s)`);
