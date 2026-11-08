@@ -2094,5 +2094,7 @@
   "Fast": "Rápido",
   "Standard": "Estándar",
   "Economy": "Económico",
-  "Copy txid": "Copiar el ID de la transacción"
+  "Copy txid": "Copiar el ID de la transacción",
+  "Resume keeps your draft and quotes this note instead.": "Al continuar se conserva tu borrador y se cita esta nota en su lugar.",
+  "Your draft now quotes this note.": "Tu borrador ahora cita esta nota."
 }

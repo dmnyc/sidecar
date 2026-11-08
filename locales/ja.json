@@ -1956,5 +1956,7 @@
   "Fast": "速い",
   "Standard": "標準",
   "Economy": "経済的",
-  "Copy txid": "トランザクションIDをコピー"
+  "Copy txid": "トランザクションIDをコピー",
+  "Resume keeps your draft and quotes this note instead.": "再開すると下書きはそのままで、代わりにこのノートを引用します。",
+  "Your draft now quotes this note.": "下書きはこのノートを引用するようになりました。"
 }

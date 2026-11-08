@@ -2025,5 +2025,7 @@
   "Fast": "سریع",
   "Standard": "استاندارد",
   "Economy": "اقتصادی",
-  "Copy txid": "کپی شناسه تراکنش"
+  "Copy txid": "کپی شناسه تراکنش",
+  "Resume keeps your draft and quotes this note instead.": "ادامه، پیش‌نویس شما را نگه می‌دارد و به‌جای قبلی این یادداشت را نقل می‌کند.",
+  "Your draft now quotes this note.": "پیش‌نویس شما اکنون این یادداشت را نقل می‌کند."
 }

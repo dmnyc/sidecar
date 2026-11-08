@@ -856,6 +856,24 @@
   // The panel pointing this tab at a draft. A tab showing its receipt has no editor to
   // switch, so it starts over on the requested draft, the same way "Write another" does;
   // switching would repaint an editor that is gone and fail without a word.
+  // The reference is rebuilt into an entry the same way a paste is, so only a lone
+  // note1/nevent1/naddr reference gets in. Not while posting, not into a poll (it carries
+  // no attachments), and not onto the receipt.
+  function takeQuote(ref) {
+    if (busy() || receiptShown || draft.poll) return;
+    const entry = SC.quoteEntriesFromPaste(typeof ref === 'string' ? ref : '', [])[0];
+    if (!entry) return;
+    const placed = SC.placeQuote(draft.media, entry);
+    if (!placed.change) return;
+    draft.media = placed.media;
+    closeAltEditor(false); // the row may be editing the slot that just changed
+    scheduleSave();
+    paintCount();
+    renderThumbs();
+    showTab('write');
+    if (placed.change === 'replaced') toast(t('Your draft now quotes this note.'), 'success');
+  }
+
   function handleComposeOpen(msg) {
     const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
       ? msg.replyId.toLowerCase() : null;
@@ -2013,7 +2031,17 @@
     // THE PANEL BESIDE THIS TAB NEVER TAKES ITS FOCUS. Unlocking there would otherwise
     // leave this page still saying Unlock to post until something else happened to it,
     // so the worker says so instead. It already broadcast the lock for the same reason.
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg, sender) => {
+      // A QUOTE TAPPED IN THE PANEL while this tab holds the draft. The note takes the
+      // quote slot (placeQuote) instead of being lost behind "already open in a tab".
+      // From one of Sidecar's own pages only. A content script also reaches this
+      // listener, but it speaks from the web page's address, never the extension's.
+      if (msg && msg.type === 'SIDECAR_COMPOSE_QUOTE') {
+        if (!sender || sender.id !== chrome.runtime.id ||
+            !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return;
+        takeQuote(msg.ref);
+        return;
+      }
       // SWITCH TO ANOTHER DRAFT, sent by the panel when Expand is pressed while this tab
       // is already open on something else. Focusing it without this showed whatever was
       // already here, which is how a reply arrived looking like a blank new note.

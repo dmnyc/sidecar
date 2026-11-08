@@ -2163,5 +2163,7 @@
   "Fast": "Быстро",
   "Standard": "Обычная",
   "Economy": "Экономно",
-  "Copy txid": "Скопировать ID транзакции"
+  "Copy txid": "Скопировать ID транзакции",
+  "Resume keeps your draft and quotes this note instead.": "При продолжении черновик сохранится, а вместо прежней будет процитирована эта заметка.",
+  "Your draft now quotes this note.": "Теперь ваш черновик цитирует эту заметку."
 }

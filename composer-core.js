@@ -1935,6 +1935,24 @@ window.SidecarCore = (function () {
   // it is: the strip quotes one note, and a paste never picks between two. Returns the entry
   // in the nostr: form that publishes, or [] when there is nothing to quote; and [] when the
   // strip already holds a quote, because a second paste does not silently replace the first.
+  // A QUOTE YOU ASKED FOR GOES INTO THE DRAFT. The Quote button is an explicit choice of
+  // note, so it takes the strip's quote slot: added when the draft has no quote, swapped in
+  // place of the old one when it has (same spot in the strip, so the pictures stay where
+  // they were), and nothing else in the draft moves. Without this a draft that already
+  // quoted something either dropped the new note or had to be thrown away whole, and the
+  // only way through was the old quote's two-tap trash. A PASTE still never replaces a
+  // quote (quoteEntriesFromPaste): pasting is ambiguous, tapping Quote is not.
+  // Returns the new media list and what changed: 'added', 'replaced' or null.
+  function placeQuote(media, entry) {
+    const out = Array.isArray(media) ? media.slice() : [];
+    if (!entry || typeof entry.quote !== 'string') return { media: out, change: null };
+    const at = out.findIndex((m) => m && m.quote);
+    if (at < 0) { out.push(entry); return { media: out, change: 'added' }; }
+    if (out[at].quote === entry.quote) return { media: out, change: null };
+    out[at] = entry;
+    return { media: out, change: 'replaced' };
+  }
+
   function quoteEntriesFromPaste(text, media) {
     if ((media || []).some((m) => m && m.quote)) return [];
     const raw = String(text || '').trim();
@@ -4600,7 +4618,7 @@ window.SidecarCore = (function () {
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, readVideoMeta, buildAltEditorRow,
-    splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, moveQuoteEntry, buildAttachmentsLabel,
+    splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,

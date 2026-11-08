@@ -2301,5 +2301,7 @@
   "Fast": "سريع",
   "Standard": "قياسي",
   "Economy": "اقتصادي",
-  "Copy txid": "نسخ معرّف المعاملة"
+  "Copy txid": "نسخ معرّف المعاملة",
+  "Resume keeps your draft and quotes this note instead.": "يحتفظ الاستئناف بمسودتك ويقتبس هذا المنشور بدلًا من السابق.",
+  "Your draft now quotes this note.": "مسودتك تقتبس هذا المنشور الآن."
 }

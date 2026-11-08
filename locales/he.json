@@ -2094,5 +2094,7 @@
   "Fast": "מהיר",
   "Standard": "רגיל",
   "Economy": "חסכוני",
-  "Copy txid": "העתקת מזהה העסקה"
+  "Copy txid": "העתקת מזהה העסקה",
+  "Resume keeps your draft and quotes this note instead.": "ההמשך שומר את הטיוטה ומצטט את הפוסט הזה במקום הקודם.",
+  "Your draft now quotes this note.": "הטיוטה שלכם מצטטת עכשיו את הפוסט הזה."
 }

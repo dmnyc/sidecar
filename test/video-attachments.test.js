@@ -86,7 +86,7 @@ test('BOTH COMPOSERS DRAW IT, FROM ONE BUILDER', () => {
   assert.match(bare(panel), /cell\.append\(videoThumbCover\(m\.url\)\);\s*\n\s*primeVideoThumb\(el, cell\);/);
   assert.match(bare(expanded), /cell\.append\(SC\.videoThumbCover\(m\.url\)\);\s*\n\s*SC\.primeVideoThumb\(el, cell\);/);
   // Imported, not reached for off the global, matching how this file takes the rest.
-  assert.match(panel, /buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste \} = window\.SidecarCore;/);
+  assert.match(panel, /buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste, placeQuote \} = window\.SidecarCore;/);
 });
 
 test('the cover is opaque and does not eat the controls', () => {

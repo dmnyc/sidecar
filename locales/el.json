@@ -2025,5 +2025,7 @@
   "Fast": "Γρήγορο",
   "Standard": "Κανονικό",
   "Economy": "Οικονομικό",
-  "Copy txid": "Αντιγραφή ID συναλλαγής"
+  "Copy txid": "Αντιγραφή ID συναλλαγής",
+  "Resume keeps your draft and quotes this note instead.": "Η συνέχιση κρατά το πρόχειρό σας και παραθέτει αυτή τη σημείωση στη θέση της άλλης.",
+  "Your draft now quotes this note.": "Το πρόχειρό σας παραθέτει τώρα αυτή τη σημείωση."
 }

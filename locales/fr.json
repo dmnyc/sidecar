@@ -2094,5 +2094,7 @@
   "Fast": "Rapide",
   "Standard": "Standard",
   "Economy": "Économique",
-  "Copy txid": "Copier l'identifiant de transaction"
+  "Copy txid": "Copier l'identifiant de transaction",
+  "Resume keeps your draft and quotes this note instead.": "Reprendre garde votre brouillon et cite cette note à la place.",
+  "Your draft now quotes this note.": "Votre brouillon cite maintenant cette note."
 }

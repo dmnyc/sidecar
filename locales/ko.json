@@ -1956,5 +1956,7 @@
   "Fast": "빠르게",
   "Standard": "표준",
   "Economy": "경제적",
-  "Copy txid": "트랜잭션 ID 복사"
+  "Copy txid": "트랜잭션 ID 복사",
+  "Resume keeps your draft and quotes this note instead.": "이어서 작성하면 초안은 그대로 두고 대신 이 노트를 인용해요.",
+  "Your draft now quotes this note.": "이제 초안이 이 노트를 인용해요."
 }

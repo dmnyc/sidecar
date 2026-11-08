@@ -2025,5 +2025,7 @@
   "Fast": "تیز",
   "Standard": "معیاری",
   "Economy": "کفایتی",
-  "Copy txid": "ٹرانزیکشن آئی ڈی کاپی کریں"
+  "Copy txid": "ٹرانزیکشن آئی ڈی کاپی کریں",
+  "Resume keeps your draft and quotes this note instead.": "جاری رکھنے پر آپ کا مسودہ برقرار رہتا ہے اور اس کی جگہ یہ نوٹ اقتباس ہوتا ہے۔",
+  "Your draft now quotes this note.": "آپ کا مسودہ اب یہ نوٹ اقتباس کرتا ہے۔"
 }

@@ -2025,5 +2025,7 @@
   "Fast": "तेज़",
   "Standard": "सामान्य",
   "Economy": "किफ़ायती",
-  "Copy txid": "ट्रांज़ैक्शन आईडी कॉपी करें"
+  "Copy txid": "ट्रांज़ैक्शन आईडी कॉपी करें",
+  "Resume keeps your draft and quotes this note instead.": "फिर शुरू करने पर आपका ड्राफ़्ट बना रहता है और उसकी जगह यह नोट कोट होता है।",
+  "Your draft now quotes this note.": "आपका ड्राफ़्ट अब यह नोट कोट करता है।"
 }

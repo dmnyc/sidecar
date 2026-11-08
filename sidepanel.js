@@ -39,7 +39,7 @@
   const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
-  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste } = window.SidecarCore;
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste, placeQuote } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
   const { loneMediaUrl, removeUrlFromEditor, urlIsVideo } = window.SidecarCore;
 
@@ -14366,6 +14366,10 @@
     const quotes = quoteEntriesFromPaste(text, []);
     return quotes.length ? { text: '', media: quotes } : { text: text || '', media: [] };
   }
+  // The quote a prefill carries, if it is one (the Quote button's), else null.
+  function quoteFrom(text) {
+    return seedFrom(text).media.find((m) => m && m.quote) || null;
+  }
 
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
@@ -14397,11 +14401,15 @@
       if (composeTabHoldsDraft(open, wantId)) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
+        // A Quote tap is handed over too, so the tab's draft takes the note (placeQuote)
+        // instead of the tap being lost behind "already open"; the tab says what changed.
+        const quote = quoteFrom(initialText);
+        if (quote) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_QUOTE', ref: quote.quote }).catch(() => {});
         try {
           await chrome.tabs.update(open.tabId, { active: true });
           await chrome.windows.update(open.windowId, { focused: true });
         } catch (_) { /* the tab went away between the query and the focus */ }
-        toast(t('Your draft is already open in a tab'), 'info');
+        if (!quote) toast(t('Your draft is already open in a tab'), 'info');
         return;
       }
     }
@@ -14429,6 +14437,17 @@
           const seed = seedFrom(initialText);
           all[dk] = { ...(slot || { media: [] }), text: seed.text, media: [...((slot && slot.media) || []), ...seed.media], savedAt: Date.now() };
           await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        } else if (slotBusy && !slot.poll) {
+          // EXCEPT A QUOTE. The words in progress stay; the note just tapped takes the
+          // quote slot (placeQuote), where it used to be dropped without a word. A poll
+          // carries no attachments, so there it stays dropped, as before.
+          const quote = quoteFrom(initialText);
+          const placed = quote ? placeQuote(slot.media, quote) : { change: null };
+          if (placed.change) {
+            all[dk] = { ...slot, media: placed.media, savedAt: Date.now() };
+            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+            if (placed.change === 'replaced') toast(t('Your draft now quotes this note.'), 'success');
+          }
         }
         await handOffToTab(dk, (opts && opts.replyTo) || null);
         // The bell's reply route hands back a way to the list it came from, and that is
@@ -15836,6 +15855,11 @@
         replyTo,
         poll: saved.poll || null,
       };
+      // Arrived by tapping Quote: the note comes into the resumed draft (placeQuote),
+      // in place of the one it quoted. Resuming used to bring the old draft back and
+      // drop the note you had just chosen. A poll has no attachments to put it in.
+      const arriving = quoteFrom(initialText);
+      if (arriving && !draft.poll) draft.media = placeQuote(draft.media, arriving).media;
       // The rung chosen for THIS draft, over the account's standing one. Resuming a
       // note and finding its difficulty reset is the same surprise as finding its
       // reply target reset, which is why that is restored on the line above.
@@ -15863,7 +15887,7 @@
         .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
       const when = saved.savedAt ? relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
-        ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
+        ? tn('{{count}} attachment', '{{count}} attachments', saved.media.length)
         : '';
 
       const resume = h('button', { className: 'primary', textContent: t('Resume draft') });
@@ -15898,6 +15922,12 @@
         parts.push(previewBox);
       }
       if (mediaNote) parts.push(h('p', { className: 'draft-preview-meta', textContent: mediaNote }));
+      // Say what Resume will do with the note you tapped Quote on, when it swaps out the
+      // draft's own quote: that is the one thing Resume changes in the draft.
+      const arriving = quoteFrom(initialText);
+      if (arriving && !saved.poll && placeQuote(saved.media, arriving).change === 'replaced') {
+        parts.push(h('p', { className: 'hint', textContent: t('Resume keeps your draft and quotes this note instead.') }));
+      }
       parts.push(h('div', { className: 'actions' }, [resume, fresh]));
       modal.append(...parts);
     }

@@ -1956,5 +1956,7 @@
   "Fast": "快",
   "Standard": "標準",
   "Economy": "經濟",
-  "Copy txid": "複製交易 ID"
+  "Copy txid": "複製交易 ID",
+  "Resume keeps your draft and quotes this note instead.": "繼續草稿會保留內容，並改為引用這則貼文。",
+  "Your draft now quotes this note.": "您的草稿現在引用這則貼文。"
 }

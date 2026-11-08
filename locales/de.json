@@ -2025,5 +2025,7 @@
   "Fast": "Schnell",
   "Standard": "Standard",
   "Economy": "Sparsam",
-  "Copy txid": "Transaktions-ID kopieren"
+  "Copy txid": "Transaktions-ID kopieren",
+  "Resume keeps your draft and quotes this note instead.": "Beim Fortsetzen bleibt dein Entwurf erhalten und zitiert stattdessen diese Notiz.",
+  "Your draft now quotes this note.": "Dein Entwurf zitiert jetzt diese Notiz."
 }
