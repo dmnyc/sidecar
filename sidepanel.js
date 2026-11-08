@@ -9996,7 +9996,7 @@
       refreshBtn.classList.add('spinning');
       // force: the follow count is cached for five minutes, and a refresh that is
       // handed the cache has refreshed nothing.
-      try { await loadStats({ force: true }); } catch (_) {}
+      try { await loadStats(true); } catch (_) {}
       refreshBtn.classList.remove('spinning');
       refreshingStats = false;
     });
@@ -10183,7 +10183,7 @@
     // clear happens before the backup read and the badge after it, so two overlapping
     // runs each cleared once and then each appended a badge.
     let walletRun = 0;
-    async function loadStats({ force = false } = {}) {
+    async function loadStats(force = false) {
       const run = ++walletRun;
       drawer.dataset.loaded = '1';
       overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
