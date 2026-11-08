@@ -195,6 +195,46 @@ test('THE REFRESH REACHES THE RELAYS, NOT THE FIVE-MINUTE CACHE', async () => {
   assert.equal(num.textContent, '3', 'and the figure moves to what they said');
 });
 
+test('ALERTS: a dimmed zero does not stay dim once there is something unseen', async () => {
+  const d = drawerHarness();
+  await settle();
+  const notif = d.drawer.querySelectorAll('account-stat-num')[1];
+  assert.ok(notif.classList.contains('account-stat-dim'), 'zero unseen reads dim');
+  d.s.unseen = 4;
+  await refreshBtn(d).click();
+  await settle();
+  assert.equal(notif.textContent, '4');
+  assert.ok(!notif.classList.contains('account-stat-dim'), 'four unseen must not be dimmed');
+});
+
+test('RELAYS: a flagged or dimmed count is cleared when the next read has neither', async () => {
+  // First run: nothing declared and bootstrap relays off → the 0 is flagged.
+  const d = drawerHarness({ nip65: null, only: true });
+  await settle();
+  const relays = () => d.drawer.querySelectorAll('account-stat-num')[2];
+  assert.ok(relays().classList.contains('account-stat-warn'), 'the first run flags the fault');
+  // The user publishes a relay list; the refresh reads a healthy account.
+  d.s.nip65 = { read: ['wss://r1', 'wss://r2'], write: ['wss://r1'] };
+  d.s.only = false;
+  await refreshBtn(d).click();
+  await settle();
+  assert.equal(relays().textContent, '2');
+  assert.ok(!relays().classList.contains('account-stat-warn'), 'a healthy count must not keep the warning color');
+  assert.ok(!relays().classList.contains('account-stat-dim'));
+});
+
+test('RELAYS: the tooltip of a past state does not outlive it', async () => {
+  const d = drawerHarness({ nip65: null, only: false });
+  await settle();
+  assert.ok(d.one('account-stat-block-label'), 'sanity');
+  const block = d.drawer.querySelectorAll('account-stat-block')[2];
+  assert.match(block.title, /bootstrap relays/i, 'the bootstrap run explains itself');
+  d.s.nip65 = { read: ['wss://r1'], write: [] };
+  await refreshBtn(d).click();
+  await settle();
+  assert.ok(!block.title, 'a declared list must not keep the bootstrap explanation');
+});
+
 test('WALLET: refreshing a settled drawer repaints the cell, never appends', async () => {
   const d = drawerHarness({ nwc: { has: true } });
   await settle();

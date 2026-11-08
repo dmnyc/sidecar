@@ -10179,7 +10179,9 @@
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
       notifNum.classList.add('account-stat-num');
-      if (!unseen) notifNum.classList.add('account-stat-dim');
+      // toggle, not add: a refresh that finds something unseen must undo the dim
+      // an earlier zero put there.
+      notifNum.classList.toggle('account-stat-dim', !unseen);
 
       // This number has to say WHICH relays, because it was misleading in both
       // directions when it didn't. It counted only the declared NIP-65 set, so an
@@ -10192,25 +10194,31 @@
         let count = declared;
         let label = t('Relays');
         let warn = false;
+        let title = null;
         if (!declared) {
           if (only) {
             // Fail-closed with nothing declared: this account genuinely cannot
             // publish. 0 is accurate here, but it's a fault to flag, not a neutral
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
-            relayBlock.title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
+            title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
             // keeps the number honest instead of silently reporting a different set.
             count = (await relayUrls(false)).length;
             label = t('Bootstrap');
-            relayBlock.title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
+            title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
           }
         }
         relayNum.textContent = String(count);
         relayNum.classList.add('account-stat-num');
-        if (warn) relayNum.classList.add('account-stat-warn');
-        else if (!count) relayNum.classList.add('account-stat-dim');
+        // Every state is set from this run's answer: a refresh paints into the same
+        // elements, so a warning, a dim or an explanation left by an earlier run
+        // would outlive the condition that earned it.
+        relayNum.classList.toggle('account-stat-warn', warn);
+        relayNum.classList.toggle('account-stat-dim', !warn && !count);
+        if (title) relayBlock.title = title;
+        else relayBlock.removeAttribute('title');
         relayLabel.textContent = label;
       });
 
