@@ -4723,7 +4723,10 @@
   // polled, and one cycle never overlaps the last.
   let followRefreshInFlight = false;
   function refreshStaleFollowCounts() {
-    if (followRefreshInFlight || document.visibilityState !== 'visible') return;
+    // 'visible' is too strict a gate: Firefox's sidebar documents can sit at
+    // other visibility states while plainly on screen, which would freeze the
+    // figures forever. Run unless the document is outright hidden.
+    if (followRefreshInFlight || document.visibilityState === 'hidden') return;
     const stale = [...followCountCache.entries()].filter(([, e]) => Date.now() - e.at >= FOLLOW_COUNT_TTL);
     if (!stale.length) return;
     followRefreshInFlight = true;
