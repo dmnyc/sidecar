@@ -82,13 +82,24 @@ test('grant then has() is true only for that exact (host, pubkey)', async () => 
   assert.equal(await RELAX.has('other.host', pkA), false, 'a different host must not borrow it');
 });
 
-test('a new grant takes over: relaxing on a second site revokes the first', async () => {
+test('grants coexist per (host, account): a second profile never revokes the first', async () => {
+  // THE RE-ASK LOOP: on a multi-profile host, wiping the map on every grant meant
+  // profile A's still-running window died the moment profile B approved theirs —
+  // so the client's picker flipping between them re-armed the prompt forever.
   await RELAX.grant(HOST, pkA, 60000);
   assert.equal(await RELAX.has(HOST, pkA), true);
+  await RELAX.grant(HOST, pkB, 60000);
+  assert.equal(await RELAX.has(HOST, pkA), true, 'the first profile keeps its window');
+  assert.equal(await RELAX.has(HOST, pkB), true, 'the second profile gets its own');
   await RELAX.grant('other.host', pkA, 60000);
-  assert.equal(await RELAX.has(HOST, pkA), false, 'the first window is revoked');
-  assert.equal(await RELAX.has('other.host', pkA), true, 'the new window is active');
-  assert.equal((await RELAX.active()).length, 1, 'only one window is active at a time');
+  assert.equal(await RELAX.has(HOST, pkA), true, 'another site never revokes this one either');
+  assert.equal((await RELAX.active()).length, 3, 'three live windows, one per (host, account)');
+});
+
+test('re-granting the same account extends rather than stacks', async () => {
+  await RELAX.grant(HOST, pkA, 60000);
+  await RELAX.grant(HOST, pkA, 60000);
+  assert.equal((await RELAX.active()).filter((g) => g.pubkey === pkA).length, 1, 'one entry per (host, account)');
 });
 
 test('has() self-expires after the window', async () => {
