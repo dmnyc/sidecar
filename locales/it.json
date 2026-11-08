@@ -468,7 +468,6 @@
   "No active account.": "Nessun account attivo.",
   "Edit status": "Modifica stato",
   "Show npub QR": "Mostra QR dell’npub",
-  "Profile refreshed": "Profilo aggiornato",
   "Couldn’t reach your relays": "Impossibile raggiungere i tuoi relay",
   "{{count}} muted": "{{count}} silenziati",
   "{{count}} muted_many": "{{count}} di silenziati",

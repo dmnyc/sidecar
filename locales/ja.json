@@ -466,7 +466,6 @@
   "No active account.": "アクティブなアカウントがありません。",
   "Edit status": "ステータスを編集",
   "Show npub QR": "npubのQRを表示",
-  "Profile refreshed": "プロフィールを更新しました",
   "Couldn’t reach your relays": "リレーに接続できませんでした",
   "{{count}} muted": "ミュート {{count}}",
   "{{count}} muted_other": "ミュート {{count}}",

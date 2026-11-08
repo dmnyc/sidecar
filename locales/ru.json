@@ -469,7 +469,6 @@
   "No active account.": "Нет активного аккаунта.",
   "Edit status": "Изменить статус",
   "Show npub QR": "Показать QR-код npub",
-  "Profile refreshed": "Профиль обновлён",
   "Couldn’t reach your relays": "Не удалось связаться с вашими релеями",
   "{{count}} muted": "Игнорируется: {{count}}",
   "{{count}} muted_few": "Игнорируется: {{count}}",

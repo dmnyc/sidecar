@@ -466,7 +466,6 @@
   "No active account.": "ไม่มีบัญชีที่ใช้งานอยู่",
   "Edit status": "แก้ไขสถานะ",
   "Show npub QR": "แสดง QR ของ npub",
-  "Profile refreshed": "รีเฟรชโปรไฟล์แล้ว",
   "Couldn’t reach your relays": "เชื่อมต่อรีเลย์ของคุณไม่ได้",
   "{{count}} muted": "ปิดเสียง {{count}}",
   "{{count}} muted_other": "ปิดเสียง {{count}}",

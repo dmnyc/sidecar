@@ -431,7 +431,6 @@
   "No active account.": "Aucun compte actif.",
   "Edit status": "Modifier le statut",
   "Show npub QR": "Afficher le QR du npub",
-  "Profile refreshed": "Profil actualisé",
   "Couldn’t reach your relays": "Impossible de joindre vos relais",
   "{{count}} muted": "{{count}} masqués",
   "{{count}} muted_one": "{{count}} masqué",

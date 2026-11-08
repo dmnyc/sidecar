@@ -471,7 +471,6 @@
   "No active account.": "لا يوجد حساب نشط.",
   "Edit status": "تعديل الحالة",
   "Show npub QR": "عرض رمز QR لـ npub",
-  "Profile refreshed": "تم تحديث الملف الشخصي",
   "Couldn’t reach your relays": "تعذّر الوصول إلى مرحّلاتك",
   "{{count}} muted": "{{count}} مكتوم",
   "{{count}} muted_few": "{{count}} مكتومين",

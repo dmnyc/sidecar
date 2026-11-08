@@ -466,7 +466,6 @@
   "No active account.": "沒有使用中的帳號。",
   "Edit status": "編輯狀態",
   "Show npub QR": "顯示 npub QR 碼",
-  "Profile refreshed": "個人檔案已重新整理",
   "Couldn’t reach your relays": "無法連線到您的中繼站",
   "{{count}} muted": "已靜音 {{count}} 位",
   "{{count}} muted_other": "已靜音 {{count}} 位",

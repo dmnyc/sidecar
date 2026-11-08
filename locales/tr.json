@@ -467,7 +467,6 @@
   "No active account.": "Etkin hesap yok.",
   "Edit status": "Durumu düzenle",
   "Show npub QR": "npub QR’ını göster",
-  "Profile refreshed": "Profil yenilendi",
   "Couldn’t reach your relays": "Relay’lerinize ulaşılamadı",
   "{{count}} muted": "{{count}} sessize alınan",
   "{{count}} muted_one": "{{count}} sessize alınan",

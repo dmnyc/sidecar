@@ -466,7 +466,6 @@
   "No active account.": "활성 계정이 없어요.",
   "Edit status": "상태 편집",
   "Show npub QR": "npub QR 표시",
-  "Profile refreshed": "프로필을 새로고침했어요",
   "Couldn’t reach your relays": "릴레이에 연결하지 못했어요",
   "{{count}} muted": "{{count}} 뮤트",
   "{{count}} muted_other": "{{count}} 뮤트",

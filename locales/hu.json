@@ -467,7 +467,6 @@
   "No active account.": "Nincs aktív fiók.",
   "Edit status": "Állapot szerkesztése",
   "Show npub QR": "npub QR-kód megjelenítése",
-  "Profile refreshed": "Profil frissítve",
   "Couldn’t reach your relays": "A relék nem érhetők el",
   "{{count}} muted": "{{count}} némított",
   "{{count}} muted_one": "{{count}} némított",

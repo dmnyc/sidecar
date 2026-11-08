@@ -466,7 +466,6 @@
   "No active account.": "没有当前账户。",
   "Edit status": "编辑状态",
   "Show npub QR": "显示 npub 二维码",
-  "Profile refreshed": "个人资料已刷新",
   "Couldn’t reach your relays": "无法连接你的 relay",
   "{{count}} muted": "已静音 {{count}}",
   "{{count}} muted_other": "已静音 {{count}}",

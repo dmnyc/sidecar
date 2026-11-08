@@ -469,7 +469,6 @@
   "No active account.": "Brak aktywnego konta.",
   "Edit status": "Edytuj status",
   "Show npub QR": "Pokaż kod QR npub",
-  "Profile refreshed": "Profil odświeżony",
   "Couldn’t reach your relays": "Nie udało się połączyć z twoimi przekaźnikami",
   "{{count}} muted": "Wyciszonych: {{count}}",
   "{{count}} muted_few": "{{count}} wyciszonych",

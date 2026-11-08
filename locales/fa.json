@@ -467,7 +467,6 @@
   "No active account.": "حساب فعالی وجود ندارد.",
   "Edit status": "ویرایش وضعیت",
   "Show npub QR": "نمایش QR مربوط به npub",
-  "Profile refreshed": "نمایه تازه‌سازی شد",
   "Couldn’t reach your relays": "دسترسی به ریلی‌های شما ممکن نشد",
   "{{count}} muted": "{{count}} بی‌صداشده",
   "{{count}} muted_one": "{{count}} بی‌صداشده",
