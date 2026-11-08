@@ -2036,5 +2036,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "Υπογράφει μελλοντικά συμβάντα {{kind}} εδώ χωρίς ερώτηση — με τον ενεργό λογαριασμό του Sidecar. Όταν αλλάζετε προφίλ σε αυτόν τον ιστότοπο, αλλάξτε και στο Sidecar.",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "Αυτός ο ιστότοπος χρησιμοποιεί περισσότερους από έναν λογαριασμούς σου, οπότε το Sidecar επιβεβαιώνει ποιος δημοσιεύει. ",
   "You’ve signed in here with {{count}} account._one": "Έχετε συνδεθεί εδώ με {{count}} λογαριασμό.",
-  "You’ve signed in here with {{count}} account._other": "Έχετε συνδεθεί εδώ με {{count}} λογαριασμούς."
+  "You’ve signed in here with {{count}} account._other": "Έχετε συνδεθεί εδώ με {{count}} λογαριασμούς.",
+  "Allow for 30 min": "Να επιτρέπεται για 30 λ."
 }

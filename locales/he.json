@@ -2107,5 +2107,6 @@
   "You’ve signed in here with {{count}} account._one": "נכנסתם לכאן עם חשבון אחד.",
   "You’ve signed in here with {{count}} account._two": "נכנסתם לכאן עם שני חשבונות.",
   "You’ve signed in here with {{count}} account._many": "נכנסתם לכאן עם {{count}} חשבונות.",
-  "You’ve signed in here with {{count}} account._other": "נכנסתם לכאן עם {{count}} חשבונות."
+  "You’ve signed in here with {{count}} account._other": "נכנסתם לכאן עם {{count}} חשבונות.",
+  "Allow for 30 min": "אישור ל-30 דק׳"
 }

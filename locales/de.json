@@ -2036,5 +2036,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "Signiert künftige {{kind}}-Ereignisse hier ohne Nachfrage — mit dem in Sidecar aktiven Konto. Wenn du auf dieser Seite das Konto wechselst, wechsle es auch in Sidecar.",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "Diese Seite nutzt mehr als eines deiner Konten, deshalb bestätigt Sidecar, wer postet. ",
   "You’ve signed in here with {{count}} account._one": "Du bist hier mit {{count}} Konto angemeldet.",
-  "You’ve signed in here with {{count}} account._other": "Du bist hier mit {{count}} Konten angemeldet."
+  "You’ve signed in here with {{count}} account._other": "Du bist hier mit {{count}} Konten angemeldet.",
+  "Allow for 30 min": "Für 30 Min. erlauben"
 }

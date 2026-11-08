@@ -25924,13 +25924,25 @@
         : tSec('Signs future {{kind}} events here as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
       const radios = [$('approval-scope-once'), $('approval-scope-relax'), $('approval-scope-always')];
       const applyScope = () => {
+        // The button says what pressing it does for THIS segment — on every card,
+        // not just sign cards: a 30-minute window under an "Allow once" label is
+        // the same lie that started this redesign.
+        if (!signCard && $('approval-scope-relax').checked) { $('approval-allow').textContent = t('Allow for 30 min'); return; }
         if (!signCard) { $('approval-allow').textContent = t('Allow once'); return; }
         if ($('approval-scope-always').checked) $('approval-allow').textContent = t('Always sign');
         else if ($('approval-scope-relax').checked) $('approval-allow').textContent = t('Sign for 30 min');
         else $('approval-allow').textContent = t('Sign');
       };
-      radios.forEach((r) => { r.addEventListener('change', applyScope); });
+      // The caption under the row follows the selection too — without this the
+      // Once caption stayed visible over a 30-minute selection.
+      const setCap = () => {
+        $('approval-scope-cap-once').classList.toggle('on', $('approval-scope-once').checked);
+        $('approval-scope-cap-relax').classList.toggle('on', offerRelax && $('approval-scope-relax').checked);
+        $('approval-scope-cap-always').classList.toggle('on', offerAlwaysKind && $('approval-scope-always').checked);
+      };
+      radios.forEach((r) => { r.addEventListener('change', () => { applyScope(); setCap(); }); });
       applyScope();
+      setCap();
     } else {
       hide(scopeFs);
     }

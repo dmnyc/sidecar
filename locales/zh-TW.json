@@ -1967,5 +1967,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "不需詢問即簽署此網站未來的 {{kind}} 事件 — 使用 Sidecar 中作用中的帳號。在此網站切換設定檔時，也請切換 Sidecar。",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "此網站使用了你一個以上的帳號，因此 Sidecar 會確認發文者是誰。 ",
   "You’ve signed in here with {{count}} account._other": "您已在此登入 {{count}} 個帳號。",
-  "You’ve signed in here with {{count}} account._one": "您已在此登入 {{count}} 個帳號。"
+  "You’ve signed in here with {{count}} account._one": "您已在此登入 {{count}} 個帳號。",
+  "Allow for 30 min": "允許 30 分鐘"
 }

@@ -2106,5 +2106,6 @@
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "Ce site utilise plus d’un de vos comptes, alors Sidecar confirme qui publie. ",
   "You’ve signed in here with {{count}} account._one": "Vous êtes connecté ici avec {{count}} compte.",
   "You’ve signed in here with {{count}} account._many": "Vous êtes connecté ici avec {{count}} comptes.",
-  "You’ve signed in here with {{count}} account._other": "Vous êtes connecté ici avec {{count}} comptes."
+  "You’ve signed in here with {{count}} account._other": "Vous êtes connecté ici avec {{count}} comptes.",
+  "Allow for 30 min": "Autoriser pendant 30 min"
 }

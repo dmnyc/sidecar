@@ -2036,5 +2036,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "यहाँ आने वाले {{kind}} इवेंट बिना पूछे साइन करता है — Sidecar में जो अकाउंट सक्रिय है उससे। इस साइट पर प्रोफ़ाइल बदलने पर Sidecar भी बदलें।",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "यह साइट आपके एक से ज़्यादा अकाउंट इस्तेमाल करती है, इसलिए Sidecar पुष्टि करता है कि कौन पोस्ट कर रहा है। ",
   "You’ve signed in here with {{count}} account._one": "आपने यहाँ {{count}} अकाउंट से साइन इन किया है।",
-  "You’ve signed in here with {{count}} account._other": "आपने यहाँ {{count}} अकाउंट से साइन इन किया है।"
+  "You’ve signed in here with {{count}} account._other": "आपने यहाँ {{count}} अकाउंट से साइन इन किया है।",
+  "Allow for 30 min": "30 मिनट के लिए अनुमति दें"
 }

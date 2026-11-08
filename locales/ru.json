@@ -2176,5 +2176,6 @@
   "You’ve signed in here with {{count}} account._one": "Вы вошли сюда с {{count}} аккаунтом.",
   "You’ve signed in here with {{count}} account._few": "Вы вошли сюда с {{count}} аккаунтами.",
   "You’ve signed in here with {{count}} account._many": "Вы вошли сюда с {{count}} аккаунтами.",
-  "You’ve signed in here with {{count}} account._other": "Вы вошли сюда с {{count}} аккаунтами."
+  "You’ve signed in here with {{count}} account._other": "Вы вошли сюда с {{count}} аккаунтами.",
+  "Allow for 30 min": "Разрешить на 30 минут"
 }

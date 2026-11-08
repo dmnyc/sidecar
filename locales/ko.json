@@ -1967,5 +1967,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "이 사이트의 앞으로의 {{kind}} 이벤트를 묻지 않고 서명합니다 — Sidecar에서 활성인 계정으로. 이 사이트에서 프로필을 바꾸면 Sidecar도 바꿔 주세요.",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "이 사이트는 여러분의 계정 두 개 이상을 사용하므로 Sidecar가 게시자를 확인합니다. ",
   "You’ve signed in here with {{count}} account._other": "이 사이트에 {{count}}개의 계정으로 로그인했습니다.",
-  "You’ve signed in here with {{count}} account._one": "이 사이트에 {{count}}개의 계정으로 로그인했습니다."
+  "You’ve signed in here with {{count}} account._one": "이 사이트에 {{count}}개의 계정으로 로그인했습니다.",
+  "Allow for 30 min": "30분간 허용"
 }

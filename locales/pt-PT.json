@@ -2106,5 +2106,6 @@
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "Este site usa mais do que uma das suas contas, por isso o Sidecar confirma quem publica. ",
   "You’ve signed in here with {{count}} account._one": "Iniciou sessão aqui com {{count}} conta.",
   "You’ve signed in here with {{count}} account._many": "Iniciou sessão aqui com {{count}} contas.",
-  "You’ve signed in here with {{count}} account._other": "Iniciou sessão aqui com {{count}} contas."
+  "You’ve signed in here with {{count}} account._other": "Iniciou sessão aqui com {{count}} contas.",
+  "Allow for 30 min": "Permitir durante 30 min"
 }

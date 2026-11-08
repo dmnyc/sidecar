@@ -1967,5 +1967,6 @@
   "Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.": "ลงนามเหตุการณ์ {{kind}} ในอนาคตที่นี่โดยไม่ถาม — ด้วยบัญชีที่ใช้งานอยู่ใน Sidecar เมื่อคุณสลับโปรไฟล์บนไซต์นี้ ให้สลับใน Sidecarด้วย",
   "This host uses more than one of your accounts, so Sidecar confirms who’s posting. ": "ไซต์นี้ใช้บัญชีของคุณมากกว่าหนึ่งบัญชี Sidecar จึงยืนยันว่าใครเป็นผู้โพสต์ ",
   "You’ve signed in here with {{count}} account._other": "คุณลงชื่อเข้าใช้ที่นี่ด้วย {{count}} บัญชี",
-  "You’ve signed in here with {{count}} account._one": "คุณลงชื่อเข้าใช้ที่นี่ด้วย {{count}} บัญชี"
+  "You’ve signed in here with {{count}} account._one": "คุณลงชื่อเข้าใช้ที่นี่ด้วย {{count}} บัญชี",
+  "Allow for 30 min": "อนุญาต 30 นาที"
 }
