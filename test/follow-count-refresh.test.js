@@ -117,6 +117,28 @@ function registryHarness() {
   return { ...fns, set };
 }
 
+// The live-update tick, lifted with its guard variable and driven by injected
+// stubs — the real one runs on a five-minute interval in the panel.
+function tickHarness({ visibility = 'visible', cache, getFollowCount } = {}) {
+  const repaints = [];
+  const asked = [];
+  const read = getFollowCount || ((pk) => { asked.push(pk); return Promise.resolve(0); });
+  const chunk = lift(/let followRefreshInFlight = false;[\s\S]*?setInterval\(refreshStaleFollowCounts, FOLLOW_COUNT_TTL\);/, 'the live-update tick')
+    .replace('setInterval(refreshStaleFollowCounts, FOLLOW_COUNT_TTL);', '')
+    .replace('let followRefreshInFlight = false;', '');
+  const deps = {
+    followRefreshInFlight: false,
+    document: { visibilityState: visibility },
+    followCountCache: cache,
+    FOLLOW_COUNT_TTL: 5 * 60 * 1000,
+    getFollowCount: read,
+    repaintFollowCounts: () => repaints.push('repaint'),
+  };
+  // eslint-disable-next-line no-new-func
+  const fn = new Function(...Object.keys(deps), chunk + '; return refreshStaleFollowCounts;')(...Object.values(deps));
+  return { tick: fn, repaints, asked, cache };
+}
+
 test('A REPAINTER RUNS WHILE ITS ELEMENT IS CONNECTED', () => {
   const r = registryHarness();
   const el = { isConnected: true };
@@ -151,4 +173,53 @@ test('BOTH SURFACES REGISTER A REPAINTER, AND THE WRITERS ANNOUNCE', () => {
   assert.match(bare, /repaintFollowCounts\(\); \/\/ the restore just moved the number/);
   const writer = bare.slice(bare.indexOf('async function writeFollow('), bare.indexOf('async function isFollowing('));
   assert.match(writer, /repaintFollowCounts\(\)/);
+});
+
+// ---- live update -------------------------------------------------------------
+
+test('THE LIVE TICK RE-READS ONLY STALE ENTRIES AND REPAINTS', async () => {
+  const cache = new Map();
+  cache.set(PK, { v: 3, at: Date.now() - 6 * 60 * 1000 });            // stale
+  cache.set('f'.repeat(64), { v: 9, at: Date.now() });                // fresh
+  const asked = [];
+  // Emulates the real reader's contract: answers AND lands fresh in the cache.
+  const w = tickHarness({ cache, getFollowCount: (pk) => { asked.push(pk); cache.set(pk, { v: 7, at: Date.now() }); return Promise.resolve(7); } });
+  w.tick();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(asked, [PK], 'only the stale account re-queries');
+  assert.equal(w.repaints.length, 1, 'the figures repaint with the new numbers');
+  assert.equal(w.cache.get(PK).v, 7, 'the re-read landed fresh');
+  w.tick(); // now everything is fresh
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(asked, [PK], 'a second tick with nothing stale asks nobody');
+});
+
+test('A HIDDEN PANEL DOES NO RELAY CHATTER', async () => {
+  const cache = new Map();
+  cache.set(PK, { v: 3, at: Date.now() - 6 * 60 * 1000 });
+  const asked = [];
+  const w = tickHarness({ visibility: 'hidden', cache, getFollowCount: (pk) => { asked.push(pk); return Promise.resolve(3); } });
+  w.tick();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(asked, []);
+  assert.equal(w.repaints.length, 0);
+});
+
+test('AN EMPTY CACHE QUERIES NOTHING AND REPAINTS NOTHING', () => {
+  const w = tickHarness({ cache: new Map(), getFollowCount: () => Promise.resolve(1) });
+  w.tick();
+  assert.equal(w.repaints.length, 0);
+});
+
+test('ONE CYCLE NEVER OVERLAPS THE LAST', async () => {
+  const cache = new Map();
+  cache.set(PK, { v: 3, at: Date.now() - 6 * 60 * 1000 });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const w = tickHarness({ cache, getFollowCount: () => { w.asked.push(PK); return gate; } });
+  w.tick();
+  w.tick(); // the first cycle is still waiting on its read
+  release();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(w.asked, [PK], 'the overlapping tick was skipped');
 });

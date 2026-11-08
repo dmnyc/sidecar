@@ -4706,6 +4706,25 @@
   function repaintFollowCounts() {
     for (const fn of [...followCountRepainters]) fn();
   }
+  // Live update: while the panel is open AND visible, any count whose entry has
+  // gone stale re-reads from the relays and the figures repaint by themselves —
+  // a follow list restored in another client moves the number without the user
+  // touching a tab. Visibility-gated so a hidden panel does no relay chatter,
+  // restricted to accounts actually read this session, and one cycle never
+  // overlaps the last. Expired-but-unread entries just wait: their next render
+  // re-queries as always.
+  let followRefreshInFlight = false;
+  function refreshStaleFollowCounts() {
+    if (followRefreshInFlight || document.visibilityState !== 'visible') return;
+    const stale = [...followCountCache.entries()].filter(([, e]) => Date.now() - e.at >= FOLLOW_COUNT_TTL);
+    if (!stale.length) return;
+    followRefreshInFlight = true;
+    Promise.all(stale.map(([pk]) => getFollowCount(pk)))
+      .then(() => repaintFollowCounts())
+      .catch(() => {})
+      .finally(() => { followRefreshInFlight = false; });
+  }
+  setInterval(refreshStaleFollowCounts, FOLLOW_COUNT_TTL);
   // Whether the collapsible stats drawer under the active account row is open, once
   // the user has opened or closed it; null until then. Until they choose, it is open for
   // up to three accounts, so a short list is not sparse, and closed past that: open, it
