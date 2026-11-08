@@ -4719,15 +4719,20 @@
   // a fully occluded window counts as hidden, so the ticks were SKIPPED while
   // the user was away in another app — running on return is what makes the
   // figure right the moment they look at it instead of a minute later. Guards:
-  // entries only expire into a re-read, accounts never read this session are not
-  // polled, and one cycle never overlaps the last.
+  // entries only expire into a re-read, only the active account is polled, and one
+  // cycle never overlaps the last.
   let followRefreshInFlight = false;
   function refreshStaleFollowCounts() {
     // 'visible' is too strict a gate: Firefox's sidebar documents can sit at
     // other visibility states while plainly on screen, which would freeze the
     // figures forever. Run unless the document is outright hidden.
     if (followRefreshInFlight || document.visibilityState === 'hidden') return;
-    const stale = [...followCountCache.entries()].filter(([, e]) => Date.now() - e.at >= FOLLOW_COUNT_TTL);
+    // Only the active account has a figure on screen. Any other cached entry (an
+    // account read before a switch, one since removed) re-reads on its own next
+    // render, and polling it here would query the relays about a key nobody is
+    // looking at, every cycle, for as long as the panel stays open.
+    const live = state && state.activePubkey;
+    const stale = [...followCountCache.entries()].filter(([pk, e]) => pk === live && Date.now() - e.at >= FOLLOW_COUNT_TTL);
     if (!stale.length) return;
     followRefreshInFlight = true;
     if (isDevBuild()) console.debug(`[follows] tick: re-reading ${stale.length} stale count(s)`);
@@ -9991,7 +9996,9 @@
       if (refreshingStats) return;
       refreshingStats = true;
       refreshBtn.classList.add('spinning');
-      try { await loadStats(); } catch (_) {}
+      // force: the follow count is cached for five minutes, and a refresh that is
+      // handed the cache has refreshed nothing.
+      try { await loadStats(true); } catch (_) {}
       refreshBtn.classList.remove('spinning');
       refreshingStats = false;
     });
@@ -10065,7 +10072,8 @@
 
     // Following: a dash when no relay answered (getFollowCount returns null and caches
     // nothing), which the retry above turns back into a number once the relays reply.
-    function loadFollows() {
+    function loadFollows(force) {
+      if (force) followCountCache.delete(pubkey);
       setWaiting(followNum, '…', true);
       return getFollowCount(pubkey).then((n) => {
         followsFailed = n == null;
@@ -10120,13 +10128,20 @@
     // at all, which says nothing about whether these are set: saying "Not set" there
     // told a user their NIP-05 and lightning address were missing when the relays had
     // simply not replied. It gets a retry instead.
+    // Runs overlap — the refresh pressed while an earlier read is still out, or the
+    // retry link — and each paints into the same cells. A run that finds a newer one
+    // has started drops its answer: the older read can land AFTER the newer one, and
+    // would otherwise be the one left on screen.
+    let identityRun = 0;
     async function loadIdentity() {
+      const run = ++identityRun;
       // A word, not the stats' "…": the shimmer needs something to sweep across, and a
       // row can take up to the 8s backstop, long enough that a static mark looks stuck.
       nip05Val.textContent = '';
       lud16Val.textContent = '';
       const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), t('Loading…'), true)));
       const rec = await getProfile(pubkey);
+      if (run !== identityRun) return;
       idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
       lud16Val.textContent = '';
@@ -10166,19 +10181,26 @@
       }
     }
 
-    async function loadStats() {
+    // Same rule for the wallet cell, which paints in two steps around an await: the
+    // clear happens before the backup read and the badge after it, so two overlapping
+    // runs each cleared once and then each appended a badge.
+    let walletRun = 0;
+    async function loadStats(force = false) {
+      const run = ++walletRun;
       drawer.dataset.loaded = '1';
       overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
       // Numeric stats. The header's refresh button awaits this read before
       // clearing its spinner; alerts and relays repaint when their own reads
       // land.
-      await loadFollows();
+      await loadFollows(force);
 
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
       notifNum.classList.add('account-stat-num');
-      if (!unseen) notifNum.classList.add('account-stat-dim');
+      // toggle, not add: a refresh that finds something unseen must undo the dim
+      // an earlier zero put there.
+      notifNum.classList.toggle('account-stat-dim', !unseen);
 
       // This number has to say WHICH relays, because it was misleading in both
       // directions when it didn't. It counted only the declared NIP-65 set, so an
@@ -10191,25 +10213,31 @@
         let count = declared;
         let label = t('Relays');
         let warn = false;
+        let title = null;
         if (!declared) {
           if (only) {
             // Fail-closed with nothing declared: this account genuinely cannot
             // publish. 0 is accurate here, but it's a fault to flag, not a neutral
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
-            relayBlock.title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
+            title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
             // keeps the number honest instead of silently reporting a different set.
             count = (await relayUrls(false)).length;
             label = t('Bootstrap');
-            relayBlock.title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
+            title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
           }
         }
         relayNum.textContent = String(count);
         relayNum.classList.add('account-stat-num');
-        if (warn) relayNum.classList.add('account-stat-warn');
-        else if (!count) relayNum.classList.add('account-stat-dim');
+        // Every state is set from this run's answer: a refresh paints into the same
+        // elements, so a warning, a dim or an explanation left by an earlier run
+        // would outlive the condition that earned it.
+        relayNum.classList.toggle('account-stat-warn', warn);
+        relayNum.classList.toggle('account-stat-dim', !warn && !count);
+        if (title) relayBlock.title = title;
+        else relayBlock.removeAttribute('title');
         relayLabel.textContent = label;
       });
 
@@ -10218,6 +10246,7 @@
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.
       call({ type: 'SIDECAR_NWC_META' }).then(async ({ has }) => {
+        if (run !== walletRun) return;
         // The header's refresh re-runs this paint into the same cell — clear it
         // first, or badges and "Add wallet" links pile up one per refresh.
         walletVal.replaceChildren();
@@ -10245,6 +10274,7 @@
           if (attempt) await new Promise((r) => setTimeout(r, 4000));
           if (!walletVal.isConnected && attempt) return;
           try { backupState = (await nwcBackupState()).state; } catch (_) { backupState = 'unknown'; }
+          if (run !== walletRun) return;
           if (backupState !== 'unknown') break;
         }
         const backupOk = backupState === 'current' ? true : backupState === 'unknown' ? null : false;
@@ -10260,6 +10290,7 @@
           walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Not backed up')]));
         }
       }).catch(() => {
+        if (run !== walletRun) return;
         walletVal.textContent = '—';
         walletVal.classList.add('account-stat-dim');
       });
@@ -13078,9 +13109,13 @@
         // its own five-minute TTL and picks up on the next natural render.
         followCountCache.delete(active.pubkey);
         _muteListPromises.delete(active.pubkey);
+        // Both reads start together and the button waits for both: the spinner and
+        // the disabled flag cover the whole refresh, and a second press cannot start
+        // a mute read that races the first.
+        const muted = paintMuteCount(active.pubkey, muteNum, muteStat);
         const n = await getFollowCount(active.pubkey);
         setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
-        paintMuteCount(active.pubkey, muteNum, muteStat);
+        await muted;
       } catch (_) {
         toast(t('Couldn’t reach your relays'), 'error');
       } finally {
