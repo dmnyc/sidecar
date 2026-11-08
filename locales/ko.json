@@ -466,7 +466,6 @@
   "No active account.": "활성 계정이 없어요.",
   "Edit status": "상태 편집",
   "Show npub QR": "npub QR 표시",
-  "Refresh profile, follow and mute counts": "프로필, 팔로우, 뮤트 수 새로고침",
   "Profile refreshed": "프로필을 새로고침했어요",
   "Couldn’t reach your relays": "릴레이에 연결하지 못했어요",
   "{{count}} muted": "{{count}} 뮤트",
@@ -1927,5 +1926,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}}에서 출금을 거부했어요.",
   "{{domain}} said: {{reason}}": "{{domain}}의 응답: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}}의 지급이 완료되지 않았어요.",
-  "Use for notifications only": "알림에만 사용"
+  "Use for notifications only": "알림에만 사용",
+  "Refresh follow and mute counts": "팔로우·뮤트 수 새로 고침"
 }

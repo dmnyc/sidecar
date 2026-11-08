@@ -430,7 +430,6 @@
   "No active account.": "Kein aktives Konto.",
   "Edit status": "Status bearbeiten",
   "Show npub QR": "npub-QR-Code anzeigen",
-  "Refresh profile, follow and mute counts": "Profil sowie Kontakt- und Stummschaltungszahlen aktualisieren",
   "Profile refreshed": "Profil aktualisiert",
   "Couldn’t reach your relays": "Deine Relays konnten nicht erreicht werden",
   "{{count}} muted": "{{count}} stummgeschaltet",
@@ -1996,5 +1995,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} hat die Abhebung abgelehnt.",
   "{{domain}} said: {{reason}}": "{{domain}} meldete: {{reason}}",
   "{{domain}}'s payment didn't go through.": "Die Zahlung von {{domain}} ist fehlgeschlagen.",
-  "Use for notifications only": "Nur für Benachrichtigungen verwenden"
+  "Use for notifications only": "Nur für Benachrichtigungen verwenden",
+  "Refresh follow and mute counts": "Follow- und Stummschaltungszähler aktualisieren"
 }

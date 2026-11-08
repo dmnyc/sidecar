@@ -467,7 +467,6 @@
   "No active account.": "Nincs aktív fiók.",
   "Edit status": "Állapot szerkesztése",
   "Show npub QR": "npub QR-kód megjelenítése",
-  "Refresh profile, follow and mute counts": "Profil-, követési és némítási számok frissítése",
   "Profile refreshed": "Profil frissítve",
   "Couldn’t reach your relays": "A relék nem érhetők el",
   "{{count}} muted": "{{count}} némított",
@@ -1996,5 +1995,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} elutasította a pénzfelvételt.",
   "{{domain}} said: {{reason}}": "{{domain}} válasza: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} kifizetése nem sikerült.",
-  "Use for notifications only": "Csak értesítésekhez"
+  "Use for notifications only": "Csak értesítésekhez",
+  "Refresh follow and mute counts": "Követési és némítási számok frissítése"
 }

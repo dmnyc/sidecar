@@ -467,7 +467,6 @@
   "No active account.": "حساب فعالی وجود ندارد.",
   "Edit status": "ویرایش وضعیت",
   "Show npub QR": "نمایش QR مربوط به npub",
-  "Refresh profile, follow and mute counts": "تازه‌سازی نمایه و شمارندهٔ دنبال‌شونده‌ها و بی‌صداشده‌ها",
   "Profile refreshed": "نمایه تازه‌سازی شد",
   "Couldn’t reach your relays": "دسترسی به ریلی‌های شما ممکن نشد",
   "{{count}} muted": "{{count}} بی‌صداشده",
@@ -1996,5 +1995,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} برداشت را رد کرد.",
   "{{domain}} said: {{reason}}": "پاسخ {{domain}}: {{reason}}",
   "{{domain}}'s payment didn't go through.": "پرداخت {{domain}} انجام نشد.",
-  "Use for notifications only": "فقط برای اعلان‌ها استفاده شود"
+  "Use for notifications only": "فقط برای اعلان‌ها استفاده شود",
+  "Refresh follow and mute counts": "به‌روزرسانی شمارنده‌های پیگیری و بی‌صدا"
 }

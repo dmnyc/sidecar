@@ -469,7 +469,6 @@
   "No active account.": "Нет активного аккаунта.",
   "Edit status": "Изменить статус",
   "Show npub QR": "Показать QR-код npub",
-  "Refresh profile, follow and mute counts": "Обновить профиль, число подписок и игнорируемых",
   "Profile refreshed": "Профиль обновлён",
   "Couldn’t reach your relays": "Не удалось связаться с вашими релеями",
   "{{count}} muted": "Игнорируется: {{count}}",
@@ -2134,5 +2133,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} отклонил вывод.",
   "{{domain}} said: {{reason}}": "{{domain}} ответил: {{reason}}",
   "{{domain}}'s payment didn't go through.": "Платёж от {{domain}} не прошёл.",
-  "Use for notifications only": "Использовать только для уведомлений"
+  "Use for notifications only": "Использовать только для уведомлений",
+  "Refresh follow and mute counts": "Обновить счётчики подписок и mute"
 }

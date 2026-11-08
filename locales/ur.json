@@ -467,7 +467,6 @@
   "No active account.": "کوئی فعال اکاؤنٹ نہیں۔",
   "Edit status": "اسٹیٹس میں ترمیم کریں",
   "Show npub QR": "npub QR دکھائیں",
-  "Refresh profile, follow and mute counts": "پروفائل، فالو اور میوٹ کی گنتی تازہ کریں",
   "Profile refreshed": "پروفائل تازہ ہو گئی",
   "Couldn’t reach your relays": "آپ کے ریلے تک رسائی نہیں ہو سکی",
   "{{count}} muted": "{{count}} میوٹ",
@@ -1996,5 +1995,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} نے رقم نکالنے سے انکار کر دیا۔",
   "{{domain}} said: {{reason}}": "{{domain}} نے کہا: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} کی ادائیگی مکمل نہیں ہوئی۔",
-  "Use for notifications only": "صرف اطلاعات کے لیے استعمال کریں"
+  "Use for notifications only": "صرف اطلاعات کے لیے استعمال کریں",
+  "Refresh follow and mute counts": "فالو اور میوٹ کاؤنٹس ریفریش کریں"
 }

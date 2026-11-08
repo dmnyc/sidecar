@@ -468,7 +468,6 @@
   "No active account.": "אין חשבון פעיל.",
   "Edit status": "עריכת סטטוס",
   "Show npub QR": "הצגת קוד QR של npub",
-  "Refresh profile, follow and mute counts": "רענון מוני הפרופיל, המעקב וההשתקות",
   "Profile refreshed": "הפרופיל רוענן",
   "Couldn’t reach your relays": "לא ניתן היה להגיע לריליים שלכם",
   "{{count}} muted": "{{count}} מושתקים",
@@ -2065,5 +2064,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} דחה את המשיכה.",
   "{{domain}} said: {{reason}}": "{{domain}} השיב: {{reason}}",
   "{{domain}}'s payment didn't go through.": "התשלום מ-{{domain}} לא עבר.",
-  "Use for notifications only": "שימוש להתראות בלבד"
+  "Use for notifications only": "שימוש להתראות בלבד",
+  "Refresh follow and mute counts": "רענון מספרי המעקבים וההשתקות"
 }

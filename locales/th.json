@@ -466,7 +466,6 @@
   "No active account.": "ไม่มีบัญชีที่ใช้งานอยู่",
   "Edit status": "แก้ไขสถานะ",
   "Show npub QR": "แสดง QR ของ npub",
-  "Refresh profile, follow and mute counts": "รีเฟรชจำนวนโปรไฟล์ ผู้ติดตาม และรายการปิดเสียง",
   "Profile refreshed": "รีเฟรชโปรไฟล์แล้ว",
   "Couldn’t reach your relays": "เชื่อมต่อรีเลย์ของคุณไม่ได้",
   "{{count}} muted": "ปิดเสียง {{count}}",
@@ -1927,5 +1926,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} ปฏิเสธการถอนเงิน",
   "{{domain}} said: {{reason}}": "{{domain}} แจ้งว่า: {{reason}}",
   "{{domain}}'s payment didn't go through.": "การชำระเงินของ {{domain}} ไม่สำเร็จ",
-  "Use for notifications only": "ใช้สำหรับการแจ้งเตือนเท่านั้น"
+  "Use for notifications only": "ใช้สำหรับการแจ้งเตือนเท่านั้น",
+  "Refresh follow and mute counts": "รีเฟรชจำนวนติดตามและปิดเสียง"
 }

@@ -467,7 +467,6 @@
   "No active account.": "Etkin hesap yok.",
   "Edit status": "Durumu düzenle",
   "Show npub QR": "npub QR’ını göster",
-  "Refresh profile, follow and mute counts": "Profil, takip ve sessize alma sayılarını yenile",
   "Profile refreshed": "Profil yenilendi",
   "Couldn’t reach your relays": "Relay’lerinize ulaşılamadı",
   "{{count}} muted": "{{count}} sessize alınan",
@@ -1996,5 +1995,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} para çekme işlemini reddetti.",
   "{{domain}} said: {{reason}}": "{{domain}} şu yanıtı verdi: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} sitesinin ödemesi gerçekleşmedi.",
-  "Use for notifications only": "Yalnızca bildirimler için kullan"
+  "Use for notifications only": "Yalnızca bildirimler için kullan",
+  "Refresh follow and mute counts": "Takip ve sessize alma sayısını yenile"
 }

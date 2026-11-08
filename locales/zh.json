@@ -466,7 +466,6 @@
   "No active account.": "没有当前账户。",
   "Edit status": "编辑状态",
   "Show npub QR": "显示 npub 二维码",
-  "Refresh profile, follow and mute counts": "刷新个人资料、关注和静音数量",
   "Profile refreshed": "个人资料已刷新",
   "Couldn’t reach your relays": "无法连接你的 relay",
   "{{count}} muted": "已静音 {{count}}",
@@ -1927,5 +1926,6 @@
   "{{domain}} refused the withdrawal.": "{{domain}} 拒绝了提现。",
   "{{domain}} said: {{reason}}": "{{domain}} 表示：{{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} 的付款未成功。",
-  "Use for notifications only": "仅用于通知"
+  "Use for notifications only": "仅用于通知",
+  "Refresh follow and mute counts": "刷新关注和静音计数"
 }
