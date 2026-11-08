@@ -4708,13 +4708,16 @@
   function repaintFollowCounts() {
     for (const fn of [...followCountRepainters]) fn();
   }
-  // Live update: while the panel is open AND visible, any count whose entry has
-  // gone stale re-reads from the relays and the figures repaint by themselves —
-  // a follow list restored in another client moves the number without the user
-  // touching a tab. Visibility-gated so a hidden panel does no relay chatter,
-  // restricted to accounts actually read this session, and one cycle never
-  // overlaps the last. Expired-but-unread entries just wait: their next render
-  // re-queries as always.
+  // Live update: while the panel is open AND visible, stale counts re-read from
+  // the relays and the figures repaint by themselves — a follow list restored in
+  // another client moves the number on screen without the user touching a tab.
+  // The check runs every minute, and the moment the panel returns to view. Both
+  // matter: a minute is the longest an expired count waits for the cadence, and
+  // a fully occluded window counts as hidden, so the ticks were SKIPPED while
+  // the user was away in another app — running on return is what makes the
+  // figure right the moment they look at it instead of a minute later. Guards:
+  // entries only expire into a re-read, accounts never read this session are not
+  // polled, and one cycle never overlaps the last.
   let followRefreshInFlight = false;
   function refreshStaleFollowCounts() {
     if (followRefreshInFlight || document.visibilityState !== 'visible') return;
@@ -4726,7 +4729,10 @@
       .catch(() => {})
       .finally(() => { followRefreshInFlight = false; });
   }
-  setInterval(refreshStaleFollowCounts, FOLLOW_COUNT_TTL);
+  setInterval(refreshStaleFollowCounts, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshStaleFollowCounts();
+  });
   // Whether the collapsible stats drawer under the active account row is open, once
   // the user has opened or closed it; null until then. Until they choose, it is open for
   // up to three accounts, so a short list is not sparse, and closed past that: open, it
