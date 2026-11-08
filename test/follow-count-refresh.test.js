@@ -127,6 +127,7 @@ function tickHarness({ visibility = 'visible', cache, getFollowCount } = {}) {
     .replace('setInterval(refreshStaleFollowCounts, 60 * 1000);', '')
     .replace('let followRefreshInFlight = false;', '');
   const deps = {
+    isDevBuild: () => false,
     followRefreshInFlight: false,
     document: { visibilityState: visibility },
     followCountCache: cache,

@@ -4689,7 +4689,10 @@
   // The profile screen's refresh button still clears it alongside _profileCache
   // for a forced read. Declared here rather than beside its function so both
   // caches sit together.
-  const FOLLOW_COUNT_TTL = PROFILE_TTL;
+  // Dev builds run the whole cycle at one minute so the live-update path can
+  // be rehearsed without a coffee break; production keeps the five-minute
+  // window. The tick's cadence and this TTL are separate knobs on purpose.
+  const FOLLOW_COUNT_TTL = isDevBuild() ? 60 * 1000 : PROFILE_TTL;
   const followCountCache = new Map(); // pubkey -> { v: number|null, at: epoch ms }
   // Writers (a follow, an unfollow, a Lazarus restore) call repaintFollowCounts
   // after refreshing the cache, and every live figure — the Overview drawer's,
@@ -4724,8 +4727,12 @@
     const stale = [...followCountCache.entries()].filter(([, e]) => Date.now() - e.at >= FOLLOW_COUNT_TTL);
     if (!stale.length) return;
     followRefreshInFlight = true;
+    if (isDevBuild()) console.debug(`[follows] tick: re-reading ${stale.length} stale count(s)`);
     Promise.all(stale.map(([pk]) => getFollowCount(pk)))
-      .then(() => repaintFollowCounts())
+      .then(() => {
+        if (isDevBuild()) console.debug('[follows] re-read done, repainting figures');
+        repaintFollowCounts();
+      })
       .catch(() => {})
       .finally(() => { followRefreshInFlight = false; });
   }
