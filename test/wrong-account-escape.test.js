@@ -582,3 +582,55 @@ test('the popup hint only uses CSS variables that exist', () => {
     }
   }
 });
+
+// RUNS the panel's menu builder rather than reading it. The merged menu once decided a
+// row's action from a variable that flipped to "detach" after the first group was built,
+// so at click time EVERY row detached: choosing who signs, under "Signed in here",
+// canceled the request and unbound the site. The source-text tests above all passed.
+function runPanelMenu({ payment = false } = {}) {
+  const vm = require('node:vm');
+  const el = (tag, props) => {
+    const e = { tag, children: [], handlers: {}, className: '', textContent: '',
+      classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+      append(...k) { this.children.push(...k); }, addEventListener(ev, f) { this.handlers[ev] = f; },
+      set innerHTML(_) { this.children = []; } };
+    return Object.assign(e, props || {});
+  };
+  const menu = el('div');
+  const calls = { decide: [], rerender: 0 };
+  const ctx = {
+    $: (id) => (id === 'approval-switch-menu' ? menu : el('input')),
+    h: (tag, props, kids) => { const e = el(tag, props); if (kids) e.append(...kids); return e; },
+    document: { createElement: (tag) => el(tag) },
+    applyAvatar() {}, icon: () => el('svg'), t: (s) => s, shortNpub: (n) => n,
+    hide() {}, isPaymentApproval: () => payment,
+    decideApproval: (action, opts) => calls.decide.push({ action, opts }),
+    renderApprovalAccountCapsule: () => { calls.rerender++; },
+    pendingApproval: { chosenPubkey: 'aa' },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(liftBraces('function buildApprovalAccountMenu(data, list, chosenPubkey) {', sidepanelJs) + ';globalThis.build = buildApprovalAccountMenu;', ctx);
+  const list = [{ pubkey: 'aa', npub: 'npubA', name: 'A' }, { pubkey: 'bb', npub: 'npubB', name: 'B' }];
+  const data = { wrongAccountEscape: true, allAccounts: [...list, { pubkey: 'cc', npub: 'npubC', name: 'C' }], payerPubkey: payment ? 'aa' : null };
+  ctx.build(data, list, 'aa');
+  const rows = [];
+  const walk = (n) => { if (n.className && n.className.startsWith('acct-row')) rows.push(n); (n.children || []).forEach(walk); };
+  walk(menu);
+  const rowFor = (name) => rows.find((r) => JSON.stringify(r.children.map((k) => k.children && k.children.map((x) => x.textContent))).includes('"' + name + '"'));
+  return { ctx, calls, rowFor };
+}
+
+test('picking an account under "Signed in here" chooses the signer and never detaches', () => {
+  const { ctx, calls, rowFor } = runPanelMenu();
+  rowFor('B').handlers.click();
+  assert.deepEqual(calls.decide, [], 'no decision is sent: the card stays open');
+  assert.equal(ctx.pendingApproval.chosenPubkey, 'bb', 'B becomes the signer');
+  assert.equal(calls.rerender, 1, 'the capsule repaints with B');
+});
+
+test('picking an account under "Other accounts" detaches to it', () => {
+  const { calls, rowFor } = runPanelMenu();
+  rowFor('C').handlers.click();
+  // Through JSON: the opts object was made inside the vm, a different realm.
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.decide)), [{ action: 'detach', opts: { detachPubkey: 'cc' } }]);
+});

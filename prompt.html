@@ -51,7 +51,7 @@
     }
     /* THE SCOPE ROW: segmented radios, one decision. Labels never wrap and never
        shrink; a locale that outgrows the row stacks it instead (set by JS). */
-    .scope { border: 0; margin: 0 0 6px; padding: 0; min-width: 0; }
+    .scope { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; width: 100%; }
     .scope legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     .seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(var(--well-rgb), 0.7); border: 1px solid var(--border); }
     .seg label { flex: 1 1 0; min-width: max-content; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; font: 600 13px/1.2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
@@ -61,8 +61,8 @@
     .seg label:has(input:focus-visible) { outline: 2px solid var(--gold-soft); outline-offset: 1px; }
     .seg.stacked { flex-direction: column; }
     .seg.stacked label { justify-content: flex-start; }
-    .scope-caps { display: grid; margin: 0 2px 10px; text-align: start; }
-    .scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+    .scope-caps { display: grid; margin: 0 0 7px; text-align: center; }
+    .scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 12px; line-height: 1.4; color: var(--muted); }
     .scope-cap.on { visibility: visible; }
     .scope-cap.always { color: var(--text); }
     /* The account menu's two groups: who signs here, and the detach escape. */
@@ -172,12 +172,9 @@
       background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft);
       color: var(--text); font-size: 12px; line-height: 1.45; text-align: start;
     }
-    .shared-caption {
-      margin: 2px 0 14px; padding: 10px 12px; border-radius: 10px; text-align: start;
-      background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft);
-      color: var(--text); font-size: 12px; line-height: 1.5;
-    }
-    .shared-caption b { color: var(--gold); font-weight: 600; }
+    .shared-caption { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
+    .shared-caption span, .shared-caption strong { display: block; }
+    .shared-caption strong { color: var(--text); font-weight: 600; font-size: 12.5px; }
     .card {
       position: relative; text-align: start;
       background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
@@ -298,6 +295,21 @@
       color: var(--lav); font-size: 12.5px; text-align: center; margin: -10px 0 14px; padding: 4px;
     }
     .switch-toggle:hover { color: var(--text); }
+    /* The capsule IS the account switch, as in the panel (styles.css). */
+    .acct-capsule { position: relative; }
+    .acct-capsule.switchable { cursor: pointer; padding-inline-end: 38px; }
+    .acct-capsule.switchable:hover { border-color: var(--gold-soft); }
+    .acct-capsule.switchable::after {
+      content: ''; position: absolute; inset-inline-end: 18px; top: 50%; width: 7px; height: 7px;
+      border-inline-end: 2px solid var(--lav); border-bottom: 2px solid var(--lav);
+      transform: translateY(-70%) rotate(45deg); transition: transform 0.15s ease;
+    }
+    .acct-capsule.switchable.open::after { transform: translateY(-25%) rotate(-135deg); }
+    .acct-capsule .switch-toggle {
+      position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: inherit;
+      background: none; cursor: pointer; color: transparent; font-size: 0;
+    }
+    .acct-capsule .switch-toggle:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
     .switch-menu {
       text-align: start;
       background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
@@ -432,7 +444,9 @@
        tie it to "Trust this site" right below. */
     .trust-nudge { font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; margin: 0 0 12px; }
     .trust-nudge strong { color: var(--lav); font-weight: 600; }
-    .hidden { display: none; }
+    /* !important, like the panel's: a class rule such as `.seg label { display: flex }`
+       outranks a bare .hidden, and a segment the card did not offer showed anyway. */
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -483,6 +497,26 @@
     </div>
     <!-- The payment's checkboxes, one group so that when more than one shows they share a
          left edge. Each row centered on its own width put the boxes at different points. -->
+    <!-- THE SCOPE ROW: Once is the default on every card; 30 min opens the timed
+         window; Always writes the standing per-kind grant (#482), offered only where
+         the identity check isn't running. One line above the row says what the chosen
+         segment does; the three share one cell, so the row never moves. Outside the
+         check group, which sizes to its content: the row spans the card like the
+         button under it. Same structure as sidepanel.html. -->
+    <fieldset class="scope hidden" id="scope">
+      <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
+      <div class="scope-caps" aria-live="polite">
+        <div class="scope-cap on" id="scope-cap-once"></div>
+        <div class="scope-cap" id="scope-cap-relax"></div>
+        <div class="scope-cap" id="scope-cap-always"></div>
+      </div>
+      <div class="seg" role="radiogroup">
+        <label><input type="radio" name="scope" value="once" checked><span data-i18n="Once" data-i18n-review>Once</span></label>
+        <label class="hidden" id="scope-relax"><input type="radio" name="scope" value="relax"><span data-i18n="30 min" data-i18n-review>30 min</span></label>
+        <label class="hidden" id="scope-always"><input type="radio" name="scope" value="always"><span data-i18n="Always" data-i18n-review>Always</span></label>
+      </div>
+    </fieldset>
+
     <div class="check-group">
     <!-- Offered by the payment card; confirmed here because a page must not be able
          to switch automatic spending on by itself. Ticked by default since the user
@@ -498,26 +532,6 @@
       <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
     </div>
 
-    <!-- THE SCOPE ROW: one control where the checkbox and the duration chips used
-         to be. Once is the default on every card; 30 min opens the relaxed-signing
-         window; Always writes the standing per-kind grant (#482) — offered only on
-         hosts where the identity check isn't running, because a grant there would
-         sign past the very check the card exists for. The caption under the row
-         says what the chosen segment does; the grid keeps it to a fixed cell so
-         switching segments never moves the buttons. -->
-    <fieldset class="scope hidden" id="scope">
-      <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
-      <div class="seg" role="radiogroup">
-        <label><input type="radio" name="scope" value="once" checked data-i18n="Once" data-i18n-review>Once</label>
-        <label class="hidden" id="scope-relax"><input type="radio" name="scope" value="relax" data-i18n="30 min" data-i18n-review>30 min</label>
-        <label class="hidden" id="scope-always"><input type="radio" name="scope" value="always" data-i18n="Always" data-i18n-review>Always</label>
-      </div>
-      <div class="scope-caps" aria-live="polite">
-        <div class="scope-cap on" id="scope-cap-once"></div>
-        <div class="scope-cap" id="scope-cap-relax"></div>
-        <div class="scope-cap" id="scope-cap-always"></div>
-      </div>
-    </fieldset>
 
     <div id="remember" class="remember hidden">
     <label class="check"><input type="checkbox" id="remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>

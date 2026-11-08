@@ -1158,6 +1158,26 @@
           <div class="error" id="approval-pin-error"></div>
         </div>
 
+        <!-- THE SCOPE ROW: Once is the default on every card; 30 min opens the timed
+             window; Always writes the standing per-kind grant (#482), never on a
+             shared-identity card. One line above the row says what the chosen segment
+             does; the three lines share one cell, so the row never moves. Outside the
+             check group, which sizes to its content: the row spans the card like the
+             button under it. -->
+        <fieldset class="scope hidden" id="approval-scope">
+          <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
+          <div class="scope-caps" aria-live="polite">
+            <div class="scope-cap on" id="approval-scope-cap-once"></div>
+            <div class="scope-cap" id="approval-scope-cap-relax"></div>
+            <div class="scope-cap" id="approval-scope-cap-always"></div>
+          </div>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="approval-scope" value="once" id="approval-scope-once" checked><span data-i18n="Once" data-i18n-review>Once</span></label>
+            <label class="hidden" id="approval-scope-relax-opt"><input type="radio" name="approval-scope" value="relax" id="approval-scope-relax"><span data-i18n="30 min" data-i18n-review>30 min</span></label>
+            <label class="hidden" id="approval-scope-always-opt"><input type="radio" name="approval-scope" value="always" id="approval-scope-always"><span data-i18n="Always" data-i18n-review>Always</span></label>
+          </div>
+        </fieldset>
+
         <!-- One group, so stacked checkboxes share a left edge — see prompt.html. -->
         <div class="check-group">
         <!-- Offered by the payment card, confirmed here — see prompt.html. -->
@@ -1170,30 +1190,6 @@
           <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
         </div>
 
-        <!-- "Always allow this event type" (#482): a standing, revocable grant for one
-             event kind — or, when the event carries a `d` tag, that one record — from this
-             site, signed by the account that granted it. The background offers it
-             (data.canKindGrant) only on kinds a grant may ever cover; the note below names
-             the site, account, kind, and record. Panel twin of the popup's
-             #always-kind-offer; see prompt.html. -->
-        <!-- THE SCOPE ROW: one control where the checkbox and the duration chips used
-             to be. Once is the default on every card; 30 min opens the relaxed-signing
-             window; Always writes the standing per-kind grant (#482) — never on a
-             shared-identity card, where the confirm is the guard. The caption under
-             the row says what the chosen segment does. -->
-        <fieldset class="scope hidden" id="approval-scope">
-          <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
-          <div class="seg" role="radiogroup">
-            <label><input type="radio" name="approval-scope" value="once" checked data-i18n="Once" data-i18n-review>Once</label>
-            <label class="hidden" id="approval-scope-relax-opt"><input type="radio" name="approval-scope" value="relax" data-i18n="30 min" data-i18n-review>30 min</label>
-            <label class="hidden" id="approval-scope-always-opt"><input type="radio" name="approval-scope" value="always" data-i18n="Always" data-i18n-review>Always</label>
-          </div>
-          <div class="scope-caps" aria-live="polite">
-            <div class="scope-cap on" id="approval-scope-cap-once"></div>
-            <div class="scope-cap" id="approval-scope-cap-relax"></div>
-            <div class="scope-cap" id="approval-scope-cap-always"></div>
-          </div>
-        </fieldset>
 
         <div id="approval-remember" class="remember hidden">
           <label class="check"><input type="checkbox" id="approval-remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>

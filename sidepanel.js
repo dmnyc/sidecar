@@ -1189,7 +1189,7 @@
     show(bar);
     if (view) view.classList.add('relax-active'); // lift the floating compose FAB off the bar
     if (!relaxTick) relaxTick = setInterval(renderRelaxStatus, 1000);
-    const g = relaxGrants[0]; // one window at a time (grant enforces it)
+    const g = relaxGrants[0]; // the window that lapses next (active() sorts soonest-first)
     const accts = (state && state.accounts) || [];
     const acct = accts.find((a) => a.pubkey === g.pubkey);
     $('relax-status-name').textContent = acct ? displayName(acct) : 'this account';
@@ -25480,32 +25480,25 @@
       resolve();
     });
   });
-  async function renderSharedNote(data, relaxOffered) {
+  async function renderSharedNote(data) {
     const existing = $('approval-shared-note');
     if (existing) existing.remove();
     // A payment's switch button is worded by the capsule ("Pay from a different account"); the
     // shared-identity wording below is for signing.
     if (isPaymentApproval(data)) return;
-    if (!data.sharedIdentity) {
-      $('approval-switch-toggle').textContent = tSec('Use a different account');
-      return;
-    }
+    if (!data.sharedIdentity) return;
     await sharedHeadsUpReady; // the flags are known before a branch is taken
-    $('approval-switch-toggle').textContent = tSec('Use a different account');
     const acct = $('approval-account');
     if (!acct) return;
     // Opted out: no note at all. The confirm itself and the account menu stay —
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
-    // ONE caption, no buttons. Why Sidecar asks (the client's own switcher is
-    // invisible to it) and — when the 30-minute window is on the card — the way
-    // to post as one account for a while. The old Heads-up card and its two
-    // buttons became this caption's second sentence.
-    const note = h('div', { id: 'approval-shared-note', className: 'shared-caption' });
-    note.append(h('span', { textContent: tSec('Multiple accounts are signed in here. Confirm who’s posting each time.') + ' ' }));
-    if (relaxOffered) {
-      note.append(h('b', { textContent: tSec('To post as one account for a while, choose 30 min.') }));
-    }
+    // Two lines, no buttons: the fact, then the ask, which carries the weight. The
+    // 30-minute window sits in the scope row on the same card, so this does not point at it.
+    const note = h('p', { id: 'approval-shared-note', className: 'shared-caption' }, [
+      h('span', { textContent: tSec('Multiple accounts are signed in here.') }),
+      h('strong', { textContent: tSec('Confirm who’s posting each time.') }),
+    ]);
     acct.parentNode.insertBefore(note, acct);
   }
 
@@ -25569,6 +25562,7 @@
     ];
   }
 
+  let approvalSwitchToggle = null;
   function renderApprovalAccountCapsule(data) {
     const payment = isPaymentApproval(data);
     const payOptions = payment ? (data.payFromOptions || []) : [];
@@ -25579,21 +25573,26 @@
     const acct = $('approval-account');
     acct.innerHTML = '';
     acct.append(h('div', { className: 'approval-as', textContent: payment ? tSec('Paying from') : tSec('Signing as') }));
-    acct.append(
-      h('div', { className: 'active-account approval-capsule' }, [
-        avatarEl({ picture: chosen.picture }, 'aa-avatar'),
-        h('div', { className: 'aa-info' }, [
-          h('div', { className: 'aa-label', textContent: chosen.name || shortNpub(chosen.npub) }),
-          h('div', { className: 'aa-npub', textContent: shortNpub(chosen.npub) }),
-        ]),
-      ])
-    );
+    const capsule = h('div', { className: 'active-account approval-capsule' }, [
+      avatarEl({ picture: chosen.picture }, 'aa-avatar'),
+      h('div', { className: 'aa-info' }, [
+        h('div', { className: 'aa-label', textContent: chosen.name || shortNpub(chosen.npub) }),
+        h('div', { className: 'aa-npub', textContent: shortNpub(chosen.npub) }),
+      ]),
+    ]);
+    acct.append(capsule);
 
-    const toggle = $('approval-switch-toggle');
+    // Held, not looked up: the toggle lives inside the capsule while it is offered, and
+    // the capsule is rebuilt (and the old one dropped from the document) on every render.
+    const toggle = approvalSwitchToggle || (approvalSwitchToggle = $('approval-switch-toggle'));
     const menu = $('approval-switch-menu');
+    // The detach group ("Other accounts") opens the menu too, as in prompt.js: on a host
+    // with one account signed in, it is the only way to reach the others.
+    const detachable = !payment && !!data.wrongAccountEscape && Array.isArray(data.allAccounts) &&
+      data.allAccounts.some((a) => !list.some((x) => x.pubkey === a.pubkey));
     const canSwitch = payment
       ? payOptions.length > 0 && !!data.payerPubkey
-      : Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+      : (Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0) || detachable;
     menu.innerHTML = '';
     hide(menu);
     // The same button serves both cards, so its words follow the card it is on.
@@ -25613,14 +25612,22 @@
       hide(toggle);
       return;
     }
+    // The capsule IS the switch: the toggle covers it (styles.css), keeping its words for
+    // screen readers, and a chevron on the capsule says it opens.
     show(toggle);
+    capsule.classList.add('switchable');
+    capsule.append(toggle);
+    toggle.setAttribute('aria-expanded', 'false');
     toggle.onclick = () => {
-      if (menu.classList.contains('hidden')) {
+      const open = menu.classList.contains('hidden');
+      if (open) {
         buildApprovalAccountMenu(data, list, chosen.pubkey);
         show(menu);
       } else {
         hide(menu);
       }
+      toggle.setAttribute('aria-expanded', String(open));
+      capsule.classList.toggle('open', open);
     };
   }
 
@@ -25634,9 +25641,12 @@
   function buildApprovalAccountMenu(data, list, chosenPubkey) {
     const menu = $('approval-switch-menu');
     menu.innerHTML = '';
-    const row = (a, opts) => {
-      opts = opts || {};
-      const isChosen = !detachRow && a.pubkey === chosenPubkey;
+    // `detach` is fixed per row when the row is built. It used to be read from a
+    // variable that flipped to true once the first group was built, so by click time
+    // every row detached: picking an account under "Signed in here" canceled the
+    // request and unbound the site instead of choosing who signs.
+    const row = (a, detach) => {
+      const isChosen = !detach && a.pubkey === chosenPubkey;
       const b = h('button', { className: 'acct-row' + (isChosen ? ' active' : '') });
       const av = document.createElement('span');
       av.className = 'acct-row-av';
@@ -25654,7 +25664,7 @@
         b.append(c);
       }
       b.addEventListener('click', () => {
-        if (detachRow) {
+        if (detach) {
           decideApproval('detach', { detachPubkey: a.pubkey });
           return;
         }
@@ -25670,13 +25680,11 @@
       });
       return b;
     };
-    let detachRow = false;
     if (!isPaymentApproval(data)) {
       const g1 = h('div', { className: 'menu-group' });
       g1.append(h('div', { className: 'menu-head', textContent: t('Signed in here') }));
-      list.forEach((a) => g1.append(row(a)));
+      list.forEach((a) => g1.append(row(a, false)));
       menu.append(g1);
-      detachRow = true;
       const others = data.wrongAccountEscape && Array.isArray(data.allAccounts)
         ? data.allAccounts.filter((a) => !list.some((x) => x.pubkey === a.pubkey))
         : [];
@@ -25685,14 +25693,14 @@
         g2.append(h('div', { className: 'menu-head', textContent: t('Other accounts') }));
         g2.append(h('p', { className: 'menu-lede', textContent: t('Cancels this request and makes the selected account active.') }));
         others.forEach((a) => {
-          const r = row(a);
+          const r = row(a, true);
           if (a.active) r.append(h('span', { className: 'wrong-acct-tag', textContent: t('Active') }));
           g2.append(r);
         });
         menu.append(g2);
       }
     } else {
-      list.forEach((a) => menu.append(row(a)));
+      list.forEach((a) => menu.append(row(a, false)));
     }
   }
 
@@ -25710,6 +25718,7 @@
   // Sidecar can't see the client's UI, so it can't tell a correct prompt from a wrong one;
   // only the user can.
 
+  let scopeCardId = null; // the card the scope row's selection belongs to
   function showApproval() {
     if (!pendingApproval) return;
     // Tell the worker this is actually on screen. It hands an approval to the panel and
@@ -25748,23 +25757,7 @@
 
     renderApprovalAccountCapsule(data);
 
-    // THE SCOPE ROW flags, for this render: 30 min when the kind can relax on a
-    // single-account content sign, Always when the kind can carry a standing grant
-    // and the card is not the shared-identity check (there the confirm is the
-    // guard, and a grant would sign past it). renderSharedNote names the window
-    // in its caption when the window is on the card.
-    const scopeRelax =
-      !payment && (pendingApproval.groupIds ? pendingApproval.groupIds.length : 1) === 1 &&
-      data.needApproval && !data.destructive && data.relaxEligible !== false &&
-      (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
-    const scopeAlways =
-      !payment && (pendingApproval.groupIds ? pendingApproval.groupIds.length : 1) === 1 &&
-      data.needApproval && data.canKindGrant && !data.destructive && !data.sharedIdentity;
-
-    // The account escape is ONE menu: rows the switcher offers, then — when this
-    // host has 2+ signed-in accounts — the detach rows beneath their own heading.
-    // (Was two stacked escape hatches; merged here.)
-    renderSharedNote(data, scopeRelax, scopeAlways);
+    renderSharedNote(data);
 
     renderApprovalPreview(data);
 
@@ -25899,6 +25892,13 @@
     const offerAlwaysKind =
       !payment && groupN === 1 && data.needApproval &&
       data.canKindGrant && signCard;
+    // Every card starts at Once — per card, not per render: the panel re-shows a
+    // pending card on incidental refreshes, and that must not undo a pick, while a
+    // pick made on the last card (even one with no scope row) must not carry over.
+    if (scopeCardId !== pendingApproval.id) {
+      scopeCardId = pendingApproval.id;
+      $('approval-scope-once').checked = true;
+    }
     if (offerRelax || offerAlwaysKind) {
       // THE SCOPE ROW: Once is the default on every card; the 30-minute window
       // and Always appear only when this render offers them, and the caption
@@ -25908,20 +25908,18 @@
       show(scopeFs);
       $('approval-scope-relax-opt').classList.toggle('hidden', !offerRelax);
       $('approval-scope-always-opt').classList.toggle('hidden', !offerAlwaysKind);
-      if (!offerRelax) $('approval-scope-once').checked = true;
       const kindEv = data.params && (data.params.event || data.params);
       const kind = kindEv ? kindEv.kind : null;
       const kindName = approvalKindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
-      const who = data.accountName || shortNpub(data.npub);
-      $('approval-scope-cap-once').textContent = signCard
-        ? tSec('Signs this event. Asks again next time.')
-        : tSec('Approves this request. Asks again next time.');
+      // A one-line header over the row, one sentence per segment, the same as
+      // prompt.js. All three share one cell (styles.css), so the row never moves.
+      $('approval-scope-cap-once').textContent = tSec('Asks again next time.');
       $('approval-scope-cap-relax').textContent = signCard
-        ? tSec('Signs here without asking for 30 minutes. Profile and follow edits still ask.')
+        ? tSec('Signs here without asking for 30 minutes.')
         : tSec('Approves this kind here without asking for 30 minutes.');
       $('approval-scope-cap-always').textContent = data.kindDTag != null
-        ? tSec('Signs future {{kind}} events named “{{d}}” here as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
-        : tSec('Signs future {{kind}} events here as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
+        ? tSec('Signs future versions of “{{d}}” here without asking.', { d: data.kindDTag })
+        : tSec('Signs future {{kind}} events here without asking.', { kind: kindName });
       const radios = [$('approval-scope-once'), $('approval-scope-relax'), $('approval-scope-always')];
       const applyScope = () => {
         // The button says what pressing it does for THIS segment — on every card,
@@ -25940,7 +25938,10 @@
         $('approval-scope-cap-relax').classList.toggle('on', offerRelax && $('approval-scope-relax').checked);
         $('approval-scope-cap-always').classList.toggle('on', offerAlwaysKind && $('approval-scope-always').checked);
       };
-      radios.forEach((r) => { r.addEventListener('change', () => { applyScope(); setCap(); }); });
+      // Assigned, not added: the radios are static and this runs on every card, so
+      // addEventListener would stack one handler per card, each holding that card's
+      // signCard/offerRelax.
+      radios.forEach((r) => { r.onchange = () => { applyScope(); setCap(); }; });
       applyScope();
       setCap();
     } else {
@@ -26098,7 +26099,12 @@
     if (action === 'relax') setTimeout(syncRelax, 500);
   }
 
-  const scopeRelaxChecked = () => $('approval-scope-relax') && $('approval-scope-relax').checked;
+  // Only a segment the card is showing counts, as in prompt.js: a batch card hides the
+  // row, and a hidden radio left checked must not turn "Allow all" into a window.
+  const scopeRelaxChecked = () =>
+    $('approval-scope-relax').checked &&
+    !$('approval-scope').classList.contains('hidden') &&
+    !$('approval-scope-relax-opt').classList.contains('hidden');
   $('approval-allow').addEventListener('click', () => {
     if (scopeRelaxChecked()) {
       decideApproval('relax', { relaxMs: 30 * 60000 });

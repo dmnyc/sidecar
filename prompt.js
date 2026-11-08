@@ -693,7 +693,7 @@
     const canRelax =
       data.needApproval && isContentSign && !isPayment && !data.destructive && data.relaxEligible !== false;
     const canAlways = data.canKindGrant && data.needApproval && !data.sharedIdentity;
-    renderSharedNote(data, canRelax);
+    renderSharedNote(data);
 
     // The row's wiring: reset to Once on every card (the old checkbox's own rule),
     // the caption under the row follows the selection, and the primary button's
@@ -705,11 +705,15 @@
       const ev = data.params && (data.params.event || data.params);
       const kind = ev ? ev.kind : null;
       const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      // A one-line header over the row, one sentence per segment, the same as the
+      // panel (sidepanel.js). All three share one cell, so the row never moves.
       els.scopeCapOnce.textContent = tSec('Asks again next time.');
-      els.scopeCapRelax.textContent = tSec('Signs this site’s events for 30 minutes without asking. Profile and follow edits still ask.');
-      els.scopeCapAlways.textContent = data.sharedIdentity
-        ? tSec('Signs future {{kind}} events here without asking — as whichever account is active in Sidecar. When you switch profiles on this site, switch Sidecar to match.', { kind: kindName })
-        : tSec('Signs future {{kind}} events here without asking. Undo in Activity.', { kind: kindName });
+      els.scopeCapRelax.textContent = data.method === 'signEvent'
+        ? tSec('Signs here without asking for 30 minutes.')
+        : tSec('Approves this kind here without asking for 30 minutes.');
+      els.scopeCapAlways.textContent = data.kindDTag != null
+        ? tSec('Signs future versions of “{{d}}” here without asking.', { d: data.kindDTag })
+        : tSec('Signs future {{kind}} events here without asking.', { kind: kindName });
       els.scopeOnce.checked = true;
       els.scopeRelax.checked = false;
       els.scopeAlways.checked = false;
@@ -717,10 +721,13 @@
         els.scopeCapOnce.classList.toggle('on', els.scopeOnce.checked);
         els.scopeCapRelax.classList.toggle('on', canRelax && els.scopeRelax.checked);
         els.scopeCapAlways.classList.toggle('on', canAlways && els.scopeAlways.checked);
+        // The button says what pressing it does, on every card (as in the panel).
         if (data.method === 'signEvent' && !isPayment) {
           els.allow.textContent = els.scopeAlways.checked ? t('Always sign')
             : els.scopeRelax.checked ? t('Sign for 30 min')
             : t('Sign');
+        } else {
+          els.allow.textContent = els.scopeRelax.checked ? t('Allow for 30 min') : t('Allow once');
         }
       };
       els.scopeOnce.addEventListener('change', setScopeUi);
@@ -790,7 +797,7 @@
   // flip identities with zero signal to Sidecar), so trust can't skip it. The first
   // such confirm shows a one-time "Heads up!" explainer; later ones show a compact
   // "Multiple accounts used" caption.
-  async function renderSharedNote(d, relaxOffered) {
+  async function renderSharedNote(d) {
     const prev = $('shared-note-box');
     if (prev) prev.remove();
     if (!d.sharedIdentity) return;
@@ -800,28 +807,16 @@
     // Opted out: no note at all. The confirm itself and the account menu stay —
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
-    // ONE caption, no buttons. Why Sidecar asks (the client's own switcher is
-    // invisible to it) and — when the 30-minute window is on the card — the way
-    // to post as one account for a while. The old Heads-up card and its two
-    // buttons became this caption's second sentence.
-    const note = document.createElement('div');
+    // Two lines, no buttons: the fact, then the ask, which carries the weight. Same as
+    // the panel. The 30-minute window sits in the scope row on the same card.
+    const note = document.createElement('p');
     note.id = 'shared-note-box';
     note.className = 'shared-caption';
-    const count = d.sharedCount || 0;
-    if (count > 0) {
-      note.append(document.createTextNode(
-        tn('You’ve signed in here with {{count}} account.', 'You’ve signed in here with {{count}} accounts.', count) + ' '
-      ));
-    } else {
-      note.append(document.createTextNode(
-        tSec('This host uses more than one of your accounts, so Sidecar confirms who’s posting. ')
-      ));
-    }
-    if (relaxOffered) {
-      const pointer = document.createElement('b');
-      pointer.textContent = tSec('To post as one account for a while, choose 30 min.');
-      note.append(pointer);
-    }
+    const fact = document.createElement('span');
+    fact.textContent = tSec('Multiple accounts are signed in here.');
+    const ask = document.createElement('strong');
+    ask.textContent = tSec('Confirm who’s posting each time.');
+    note.append(fact, ask);
     els.account.parentNode.insertBefore(note, els.account);
   }
 
@@ -919,14 +914,22 @@
       els.switchToggle.classList.add('hidden');
       return;
     }
+    // The capsule IS the switch, as in the panel: the toggle covers it, keeping its
+    // words for screen readers, and a chevron on the capsule says it opens.
     els.switchToggle.classList.remove('hidden');
+    cap.classList.add('switchable');
+    cap.append(els.switchToggle);
+    els.switchToggle.setAttribute('aria-expanded', 'false');
     els.switchToggle.onclick = () => {
-      if (els.switchMenu.classList.contains('hidden')) {
+      const open = els.switchMenu.classList.contains('hidden');
+      if (open) {
         buildSwitchMenu(list, detachTargets, chosen.pubkey);
         els.switchMenu.classList.remove('hidden');
       } else {
         els.switchMenu.classList.add('hidden');
       }
+      els.switchToggle.setAttribute('aria-expanded', String(open));
+      cap.classList.toggle('open', open);
     };
   }
 
@@ -935,7 +938,10 @@
     const rows = (accts, chosenPk_, onPick, group) => {
       const g = document.createElement('div');
       g.className = 'acct-menu-group';
-      g.append(el('div', 'acct-menu-head', group));
+      const head = document.createElement('div');
+      head.className = 'acct-menu-head';
+      head.textContent = group;
+      g.append(head);
       accts.forEach((a) => {
         const isChosen = chosenPk_ != null && a.pubkey === chosenPk_;
         const row = document.createElement('button');
@@ -977,7 +983,10 @@
     } else if (detachTargets.length) {
       const g = document.createElement('div');
       g.className = 'acct-menu-group';
-      g.append(el('div', 'acct-menu-head', tSec('Other accounts')));
+      const head = document.createElement('div');
+      head.className = 'acct-menu-head';
+      head.textContent = tSec('Other accounts');
+      g.append(head);
       const lede = document.createElement('p');
       lede.className = 'acct-menu-lede';
       // Copy asserted identical to the panel's — see buildWrongAcctList in sidepanel.js

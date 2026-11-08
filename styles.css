@@ -5284,22 +5284,33 @@ html:has(#view-approval:not(.hidden)) .toasts {
 }
 .shared-headsup-btn-quiet:hover { filter: none; color: var(--text); border-color: var(--gold-soft); }
 /* compact reminder once the explainer has been dismissed */
-.shared-caption {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin: 2px 0 8px; color: var(--muted); font-size: 11.5px; letter-spacing: 0.02em;
-}
+/* One centered line above "Signing as". Block, not flex: as a flex row its sentences
+   became side-by-side columns in a 300px card. */
+.shared-caption { margin: 2px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
+.shared-caption span, .shared-caption strong { display: block; }
+.shared-caption strong { color: var(--text); font-weight: 600; font-size: 12.5px; }
 .shared-caption svg { width: 13px; height: 13px; opacity: 0.85; }
 .approval-account { margin: 4px 0 18px; }
-.approval-switch-toggle {
-  display: block; width: 100%; background: none; border: none; cursor: pointer;
-  color: var(--lav); font-size: 12.5px; text-align: center; margin: -10px 0 14px; padding: 4px;
+/* The capsule IS the account switch when another account can be picked: the toggle
+   button covers it (its words stay for screen readers), and a chevron says it opens. */
+.approval-capsule.switchable { cursor: pointer; padding-inline-end: 38px; }
+.approval-capsule.switchable:hover { border-color: var(--gold-soft); }
+.approval-capsule.switchable::after {
+  content: ''; position: absolute; inset-inline-end: 18px; top: 50%; width: 7px; height: 7px;
+  border-inline-end: 2px solid var(--lav); border-bottom: 2px solid var(--lav);
+  transform: translateY(-70%) rotate(45deg); transition: transform 0.15s ease;
 }
-.approval-switch-toggle:hover { color: var(--text); }
+.approval-capsule.switchable.open::after { transform: translateY(-25%) rotate(-135deg); }
+.approval-capsule .approval-switch-toggle {
+  position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: inherit;
+  background: none; cursor: pointer; color: transparent; font-size: 0;
+}
+.approval-capsule .approval-switch-toggle:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
 .approval-switch-menu {
   text-align: start;
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--border-strong); border-radius: 14px;
-  padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
+  padding: 6px; margin: -10px 0 14px; box-shadow: var(--sheen);
 }
 /* "Wrong account?" hint (see renderWrongAcctEscape in sidepanel.js). Matches
    .trust-nudge, the other advisory line on this screen — muted, so it doesn't compete
@@ -6734,8 +6745,8 @@ button.poll-bar-head {
 /* ---- The approval scope row: Once / 30 min / Always, one control where the
    checkbox and the duration chips used to be. Captions occupy one grid cell so
    switching never moves the buttons; labels never wrap. ---- */
-.scope { border: 0; margin: 10px 0 4px; padding: 0; min-width: 0; }
-.scope legend { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.22em; margin-bottom: 8px; padding: 0; }
+.scope { border: 0; margin: 4px 0 12px; padding: 0; min-width: 0; width: 100%; }
+.scope legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(var(--well-rgb), 0.55); border: 1px solid var(--border); }
 .seg label { flex: 1 1 0; min-width: max-content; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; font: 600 12.5px/1.2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
 .seg label:hover { color: var(--text); }
@@ -6743,8 +6754,10 @@ button.poll-bar-head {
 .seg label:has(input:checked) { background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); border-color: var(--gold-soft); color: var(--gold); box-shadow: var(--sheen); }
 .seg.stacked { flex-direction: column; }
 .seg.stacked label { justify-content: flex-start; }
-.scope-caps { display: grid; margin: 0 2px 8px; text-align: start; }
-.scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+/* One line over the row; the three captions share one cell, so switching segments
+   never moves the row or the buttons. */
+.scope-caps { display: grid; margin: 0 0 7px; text-align: center; }
+.scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 12px; line-height: 1.4; color: var(--muted); }
 .scope-cap.on { visibility: visible; }
 .scope-cap.always { color: var(--text); }
 
