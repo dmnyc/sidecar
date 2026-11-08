@@ -649,6 +649,12 @@
       els.decryptNote.classList.remove('hidden');
     }
 
+    // The button names the act, as in the panel: Sign on a sign card, Allow once on
+    // anything else (a login, a decrypt). The markup's own label is Sign, so a login
+    // card used to offer to "Sign". The scope row, a payment, a WebLN read and a pure
+    // unlock relabel it further down.
+    els.allow.textContent = data.method === 'signEvent' ? t('Sign') : t('Allow once');
+
     // Same honesty for WebLN reads: one Allow covers this site's balance/info/
     // invoice reads for the rest of the session (until Sidecar locks), not just
     // the request in front of you. Sites legitimately poll the balance, so a

@@ -25835,10 +25835,12 @@
         // WebLN reads grant the rest of the session (the consent note under the
         // preview says so) — the button can't claim "once" when it means "until
         // Sidecar locks". Mirrors the payment relabel just above.
+        // Sign on a sign card, as in prompt.js, even when the card has no scope row
+        // (an overwrite warning, a wallet-control kind); Allow once on anything else.
         allow.textContent =
           data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice'
             ? tSec('Allow this session')
-            : tSec('Allow once');
+            : data.method === 'signEvent' ? t('Sign') : tSec('Allow once');
         show(trust);
       }
     }

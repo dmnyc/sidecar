@@ -270,7 +270,7 @@ const isB = (pk) => pk === accounts[1];
 const S = 'sec-single';
 kase(S, { id: '1.1', host: 'single', title: 'Log in',
   steps: ['Make sure Sidecar’s active account is the one you want as A.', 'Press Log in and approve the card.'],
-  expect: ['The pubkey line names it A.'],
+  expect: ['The card’s button reads “Allow once”: a login is not a signature.', 'The pubkey line names it A.'],
   buttons: [{ label: 'Log in', go: (id) => run(id, 'log in', REQ.login, null) }] });
 
 kase(S, { id: '1.2', host: 'single', title: 'Once signs one note, and asks again',
@@ -290,7 +290,7 @@ kase(S, { id: '1.3', host: 'single', title: '30 min opens the window',
 
 kase(S, { id: '1.4', host: 'single', title: 'The window does not cover a never-relax kind',
   steps: ['With the window from 1.3 still running, press Sign a wallet-control event (kind 23194).', 'Reject the card.'],
-  expect: ['A card appears even though the window is open.', 'The card has no 30 min and no Always.', 'The log shows a rejection.'],
+  expect: ['A card appears even though the window is open.', 'The card has no 30 min and no Always, and its button still reads “Sign”.', 'The log shows a rejection.'],
   buttons: [{ label: 'Sign a wallet-control event', go: (id) => run(id, 'kind 23194', REQ.control, 'reject') }] });
 
 kase(S, { id: '1.5', host: 'single', title: 'The window covers an encrypt',
@@ -365,7 +365,7 @@ kase(PO, { id: '3.1', host: 'single', title: 'The popup matches the panel',
 
 kase(PO, { id: '3.2', host: 'single', title: 'The popup hides what it does not offer',
   steps: ['Press End on the bar, then close the panel.', 'Press Sign a wallet-control event and look at the popup. Reject it.'],
-  expect: ['No scope row at all: no Once, no 30 min, no Always.'],
+  expect: ['No scope row at all: no Once, no 30 min, no Always.', 'The button reads “Sign”, as in the panel.'],
   buttons: [{ label: 'Sign a wallet-control event', go: (id) => run(id, 'kind 23194 (popup)', REQ.control, 'reject') }] });
 
 kase(PO, { id: '3.3', host: 'single', title: 'The popup’s account menu opens',

@@ -2,7 +2,7 @@
 
 The approval card now asks one question in one row: **Once · 30 min · Always**, plus Sign and Reject. This records every scenario that was tested against that design, on both approval surfaces (the side panel and the popup window), and what each one showed. The lab that ran them ships with this pull request at `test/manual/approval-lab.html`, so any case here can be rerun.
 
-Tested on November 8, 2026: an automated run of all 23 cases in a clean Chrome profile with two throwaway accounts, then a pass by hand in Chrome, including on jumble.social. **21 cases pass. The 2 that fail (4.5, 4.6) depend on a separate fix that is not in this pull request**, described under [Known failures](#known-failures).
+Tested on November 8, 2026: an automated run of all 23 cases (rerun after the last fix) in a clean Chrome profile with two throwaway accounts, then a pass by hand in Chrome, including on jumble.social. **21 cases pass. The 2 that fail (4.5, 4.6) depend on a separate fix that is not in this pull request**, described under [Known failures](#known-failures).
 
 ![Light theme: a two-account card on Once and on 30 min, and a one-account card on Always](images/approval-lab/light-once-30min-always.webp)
 
@@ -23,10 +23,10 @@ Times are from the automated run. “No card” means the request was answered i
 
 | Case | What it checks | Result |
 |---|---|---|
-| 1.1 | Log in | Pass |
+| 1.1 | Log in; the button reads Allow once, since a login is not a signature | Pass |
 | 1.2 | Once signs one note and asks again. The row shows Once · 30 min · Always, as wide as the Sign button, under “Asks again next time.”; the button reads Sign; Trust is offered | Pass: both notes answered by card |
 | 1.3 | 30 min opens the window: the line reads “Signs here without asking for 30 minutes.”, the button “Sign for 30 min”; the bar and badge appear | Pass: bar at 29:59, badge 30; three more notes signed with no card |
-| 1.4 | The window does not cover a never-relax kind (a wallet-control event, kind 23194) | Pass: card shown mid-window, with no scope row |
+| 1.4 | The window does not cover a never-relax kind (a wallet-control event, kind 23194) | Pass: card shown mid-window, with no scope row and the button still reading Sign |
 | 1.5 | The window covers an encrypt | Pass: no card |
 | 1.6 | Restart and End | Pass: Restart put the window back to 30:00 from under 29:00; End removed the bar and cleared the badge; the next note asked |
 | 1.7 | An encrypt card’s wording | Pass: Once · 30 min, no Always; “Allow once”, then “Allow for 30 min” |
@@ -48,7 +48,7 @@ Times are from the automated run. “No card” means the request was answered i
 | Case | What it checks | Result |
 |---|---|---|
 | 3.1 | The popup matches the panel, and its 30-minute choice opens the window | Pass: same row, line and button; the panel showed the bar afterwards |
-| 3.2 | The popup hides what it does not offer | Pass: no scope row on a wallet-control event |
+| 3.2 | The popup hides what it does not offer | Pass: no scope row on a wallet-control event, and the button reads Sign, as in the panel |
 | 3.3 | The popup’s account menu opens | Pass: both groups shown; the capsule is the switch |
 
 ### 4 · Two accounts on one site
@@ -77,6 +77,7 @@ The windows themselves now coexist: a second account’s approval no longer repl
 5. **On a host with one account signed in, the panel’s menu could not be opened,** so “Other accounts” was unreachable there; the popup allowed it.
 6. **A scope choice could carry over to the next card.** It now resets per card, and an incidental redraw of the same card keeps the pick.
 7. **A hidden 30-minute radio could turn “Allow all” into a window** in the panel; only a segment the card shows now counts, as in the popup.
+8. **The two surfaces labeled the button differently.** A sign card with no scope row (an overwrite warning, a wallet-control kind) read “Allow once” in the panel and “Sign” in the popup, and a popup login card offered to “Sign”. Both now say Sign on a sign card and Allow once on anything else.
 
 ## Tests added
 
