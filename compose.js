@@ -818,8 +818,10 @@
     const btn = $('compose-drafts-btn');
     if (!btn || !state || !state.activePubkey) return;
     const inPanel = await draftOpenInPanel();
+    // Notes set aside come back through the note slot, so while the panel is writing it
+    // they are the panel's to bring back, the same as the note itself.
     const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
-      .filter((e) => e.key !== inPanel);
+      .filter((e) => e.key !== inPanel && !(e.shelved && inPanel === state.activePubkey));
     const pane = $('compose-drafts-pane');
     const listing = !pane.classList.contains('hidden');
     // Not while the list is up: the list is what it opens, and "Back to your draft" is
@@ -838,7 +840,7 @@
     pane.append(SC.buildSavedDraftList({
       entries: others,
       nameFor: (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null),
-      onPick: (entry) => switchToDraft(entry.replyId),
+      onPick: (entry) => (entry.shelved ? unshelve(entry.key) : switchToDraft(entry.replyId)),
       onDelete: async (entry) => {
         // A pending save writes the whole store back, so it lands first rather than
         // putting the deleted draft back a moment later.
@@ -853,27 +855,59 @@
     pane.append(back);
   }
 
+  // A QUOTE TAPPED IN THE PANEL while this tab holds the note. The note being written may
+  // have nothing to do with the one just chosen, so it is set aside under Saved drafts
+  // (shelveNoteDraft) and the quote opens here in a fresh note. A draft holding nothing
+  // but an older quote has nothing to keep, and the new quote takes its place.
+  // The reference is rebuilt into an entry the same way a paste is, so only a lone
+  // note1/nevent1/naddr reference gets in. Not while posting, not onto the receipt, and
+  // not into a reply: the panel sends this only when the tab is on the note.
+  async function takeQuote(ref) {
+    if (busy() || receiptShown || replyId) return;
+    const entry = SC.quoteEntriesFromPaste(typeof ref === 'string' ? ref : '', [])[0];
+    if (!entry) return;
+    if (!SC.draftHasWork(draft)) {
+      const placed = SC.placeQuote(draft.poll ? [] : draft.media, entry);
+      if (!placed.change && !draft.poll) return;
+      draft.media = placed.media;
+      draft.poll = null;
+      closeAltEditor(false); // the row may be editing the slot that just changed
+      if (pollEditor) pollEditor.paint();
+      scheduleSave();
+      paintCount();
+      renderThumbs();
+      showTab('write');
+      return;
+    }
+    await flushDraft();
+    const all = await readAllDrafts();
+    const kept = SC.shelveNoteDraft(all, dkey, Date.now());
+    all[dkey] = { text: '', media: [entry], savedAt: Date.now() };
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    await reopenDraft();
+    showTab('write');
+    if (kept) toast(t('Your draft is in Saved drafts.'), 'success');
+  }
+
+  // A NOTE SET ASIDE, picked from Saved drafts: it comes back into the note slot, and
+  // whatever the note slot held goes aside in its place, so nothing is written over.
+  async function unshelve(key) {
+    if (busy()) return;
+    const leavingReply = !!replyTo && draftHasContent(draft);
+    await flushDraft();
+    const all = await readAllDrafts();
+    if (!SC.unshelveNoteDraft(all, state.activePubkey, key, Date.now())) return;
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    replyId = null;
+    try { history.replaceState(null, '', location.pathname); } catch (_) {}
+    await reopenDraft();
+    showTab('write');
+    if (leavingReply) toast(t('Your reply is saved.'), 'info');
+  }
+
   // The panel pointing this tab at a draft. A tab showing its receipt has no editor to
   // switch, so it starts over on the requested draft, the same way "Write another" does;
   // switching would repaint an editor that is gone and fail without a word.
-  // The reference is rebuilt into an entry the same way a paste is, so only a lone
-  // note1/nevent1/naddr reference gets in. Not while posting, not into a poll (it carries
-  // no attachments), and not onto the receipt.
-  function takeQuote(ref) {
-    if (busy() || receiptShown || draft.poll) return;
-    const entry = SC.quoteEntriesFromPaste(typeof ref === 'string' ? ref : '', [])[0];
-    if (!entry) return;
-    const placed = SC.placeQuote(draft.media, entry);
-    if (!placed.change) return;
-    draft.media = placed.media;
-    closeAltEditor(false); // the row may be editing the slot that just changed
-    scheduleSave();
-    paintCount();
-    renderThumbs();
-    showTab('write');
-    if (placed.change === 'replaced') toast(t('Your draft now quotes this note.'), 'success');
-  }
-
   function handleComposeOpen(msg) {
     const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
       ? msg.replyId.toLowerCase() : null;
@@ -2032,14 +2066,14 @@
     // leave this page still saying Unlock to post until something else happened to it,
     // so the worker says so instead. It already broadcast the lock for the same reason.
     chrome.runtime.onMessage.addListener((msg, sender) => {
-      // A QUOTE TAPPED IN THE PANEL while this tab holds the draft. The note takes the
-      // quote slot (placeQuote) instead of being lost behind "already open in a tab".
+      // A QUOTE TAPPED IN THE PANEL while this tab holds the note (takeQuote), instead of
+      // the tap being lost behind "already open in a tab".
       // From one of Sidecar's own pages only. A content script also reaches this
       // listener, but it speaks from the web page's address, never the extension's.
       if (msg && msg.type === 'SIDECAR_COMPOSE_QUOTE') {
         if (!sender || sender.id !== chrome.runtime.id ||
             !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return;
-        takeQuote(msg.ref);
+        takeQuote(msg.ref).catch(() => {});
         return;
       }
       // SWITCH TO ANOTHER DRAFT, sent by the panel when Expand is pressed while this tab

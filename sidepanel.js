@@ -39,7 +39,7 @@
   const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
-  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste, placeQuote } = window.SidecarCore;
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste, draftHasWork, shelveNoteDraft, unshelveNoteDraft } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
   const { loneMediaUrl, removeUrlFromEditor, urlIsVideo } = window.SidecarCore;
 
@@ -14401,8 +14401,9 @@
       if (composeTabHoldsDraft(open, wantId)) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
-        // A Quote tap is handed over too, so the tab's draft takes the note (placeQuote)
-        // instead of the tap being lost behind "already open"; the tab says what changed.
+        // A Quote tap is handed over too, so the tab opens the note in a fresh draft and
+        // sets aside the one it had (takeQuote), instead of the tap being lost behind
+        // "already open"; the tab says what it did.
         const quote = quoteFrom(initialText);
         if (quote) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_QUOTE', ref: quote.quote }).catch(() => {});
         try {
@@ -14433,21 +14434,19 @@
         // over what is already there, because a draft in progress outranks a prefill.
         // A quote already in the slot counts as work in progress too: the strip holds one.
         const slotBusy = slot && ((slot.text && slot.text.trim()) || (slot.media || []).some((m) => m && m.quote));
-        if (initialText && !slotBusy) {
+        // EXCEPT A QUOTE, which is an explicit choice of note: it opens in a fresh note,
+        // and the one in progress is set aside under Saved drafts (shelveNoteDraft) rather
+        // than having the quote dropped into it or the tap dropped without a word.
+        const quote = quoteFrom(initialText);
+        if (quote && !(opts && opts.replyTo)) {
+          const kept = draftHasWork(slot) ? shelveNoteDraft(all, dk, Date.now()) : null;
+          all[dk] = { text: '', media: [quote], savedAt: Date.now() };
+          await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+          if (kept) toast(t('Your draft is in Saved drafts.'), 'success');
+        } else if (initialText && !slotBusy) {
           const seed = seedFrom(initialText);
           all[dk] = { ...(slot || { media: [] }), text: seed.text, media: [...((slot && slot.media) || []), ...seed.media], savedAt: Date.now() };
           await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
-        } else if (slotBusy && !slot.poll) {
-          // EXCEPT A QUOTE. The words in progress stay; the note just tapped takes the
-          // quote slot (placeQuote), where it used to be dropped without a word. A poll
-          // carries no attachments, so there it stays dropped, as before.
-          const quote = quoteFrom(initialText);
-          const placed = quote ? placeQuote(slot.media, quote) : { change: null };
-          if (placed.change) {
-            all[dk] = { ...slot, media: placed.media, savedAt: Date.now() };
-            await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
-            if (placed.change === 'replaced') toast(t('Your draft now quotes this note.'), 'success');
-          }
         }
         await handOffToTab(dk, (opts && opts.replyTo) || null);
         // The bell's reply route hands back a way to the list it came from, and that is
@@ -14635,7 +14634,10 @@
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
       const open = await liveComposeTab();
       const tabKey = open ? draftKey(pubkey, open.replyId ? { id: open.replyId } : null) : null;
-      return otherDraftEntries(all, pubkey, dkey).filter((e) => e.key !== tabKey);
+      // Notes set aside come back through the note slot, so while the tab is writing it
+      // they are the tab's to bring back, the same as the note itself.
+      return otherDraftEntries(all, pubkey, dkey)
+        .filter((e) => e.key !== tabKey && !(e.shelved && tabKey === pubkey));
     }
 
     function addCorner(withDrafts) {
@@ -14708,6 +14710,14 @@
         target = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content };
       }
       await flushDraftNow();
+      // A NOTE SET ASIDE comes back into the note slot, and whatever the note slot held
+      // goes aside in its place, so picking one never writes over another.
+      if (entry.shelved) {
+        const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+        if (!unshelveNoteDraft(all, pubkey, entry.key, Date.now())) return;
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        target = null;
+      }
       const wasReply = !!replyTo && !!((draft.text || '').trim() || (draft.media || []).length);
       switchingDraft = true;
       closeModal();
@@ -15855,11 +15865,6 @@
         replyTo,
         poll: saved.poll || null,
       };
-      // Arrived by tapping Quote: the note comes into the resumed draft (placeQuote),
-      // in place of the one it quoted. Resuming used to bring the old draft back and
-      // drop the note you had just chosen. A poll has no attachments to put it in.
-      const arriving = quoteFrom(initialText);
-      if (arriving && !draft.poll) draft.media = placeQuote(draft.media, arriving).media;
       // The rung chosen for THIS draft, over the account's standing one. Resuming a
       // note and finding its difficulty reset is the same surprise as finding its
       // reply target reset, which is why that is restored on the line above.
@@ -15922,18 +15927,25 @@
         parts.push(previewBox);
       }
       if (mediaNote) parts.push(h('p', { className: 'draft-preview-meta', textContent: mediaNote }));
-      // Say what Resume will do with the note you tapped Quote on, when it swaps out the
-      // draft's own quote: that is the one thing Resume changes in the draft.
-      const arriving = quoteFrom(initialText);
-      if (arriving && !saved.poll && placeQuote(saved.media, arriving).change === 'replaced') {
-        parts.push(h('p', { className: 'hint', textContent: t('Resume keeps your draft and quotes this note instead.') }));
-      }
       parts.push(h('div', { className: 'actions' }, [resume, fresh]));
       modal.append(...parts);
     }
 
     const saved = await loadComposeDraft(dkey);
-    const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+    let hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+    // TAPPED QUOTE OVER A NOTE IN PROGRESS. No "Resume your draft?": the quote opens in a
+    // fresh note, and the note in progress is set aside under Saved drafts, where the
+    // folder in the corner leads back to it. A draft holding nothing but an older quote
+    // has nothing to keep, and the new quote simply takes its place.
+    let setAside = false;
+    if (hasSaved && !replyTo && quoteFrom(initialText)) {
+      if (draftHasWork(saved)) {
+        const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+        setAside = !!shelveNoteDraft(all, dkey, Date.now());
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+      }
+      hasSaved = false;
+    }
 
     openModal(
       () => {
@@ -15955,6 +15967,7 @@
         if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
         else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
         else showEditor();
+        if (setAside) toast(t('Your draft is in Saved drafts.'), 'success');
         // The close box comes with each view (addCorner). An X is where people look for
         // the way out, and someone who does not find one clicks the background instead,
         // which is guarded and does nothing, so without it the guard would read as a

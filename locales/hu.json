@@ -2026,6 +2026,5 @@
   "Standard": "Normál",
   "Economy": "Takarékos",
   "Copy txid": "Tranzakcióazonosító másolása",
-  "Resume keeps your draft and quotes this note instead.": "A folytatás megtartja a piszkozatot, és helyette ezt a bejegyzést idézi.",
-  "Your draft now quotes this note.": "A piszkozat most ezt a bejegyzést idézi."
+  "Your draft is in Saved drafts.": "A piszkozat a Mentett piszkozatok között van."
 }

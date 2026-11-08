@@ -1,11 +1,12 @@
 'use strict';
 
-// TAPPING QUOTE WITH A DRAFT ALREADY QUOTING SOMETHING. The draft kept its old quote and
-// the note just tapped was dropped: Resume brought the old draft back without it, Start
-// fresh threw the words away, a full-size composer counted the old quote as work in
-// progress and ignored the tap, and an open composer tab said "already open" and nothing
-// else. The only way through was the old quote's two-tap trash. placeQuote is the one rule
-// all of those routes now share: an explicit Quote takes the quote slot, in place.
+// TAPPING QUOTE WITH A DRAFT IN PROGRESS. The note just tapped was dropped: Resume brought
+// the old draft back without it, Start fresh threw the words away, a full-size composer
+// counted the draft as work in progress and ignored the tap, and an open composer tab said
+// "already open" and nothing else. Now the quote always opens in a fresh note, and a draft
+// with anything of its own in it is set aside under Saved drafts (shelveNoteDraft), since
+// the note being written may have nothing to do with the one just chosen. A draft holding
+// nothing but an older quote is re-pointed instead (placeQuote): there is nothing to keep.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -79,6 +80,82 @@ test('a paste still never replaces a quote: only the Quote button does', () => {
   assert.deepEqual(plain(SC.quoteEntriesFromPaste(refB, [{ quote: refA }])), []);
 });
 
+// ---- setting a note aside ------------------------------------------------------------
+
+const PK = 'f'.repeat(64);
+
+test('a draft has work of its own when it has words, a picture, or a typed poll option', () => {
+  assert.equal(SC.draftHasWork({ text: 'hi', media: [] }), true);
+  assert.equal(SC.draftHasWork({ text: '', media: [pic1] }), true);
+  assert.equal(SC.draftHasWork({ text: '', media: [], poll: { options: ['Tea', ''] } }), true);
+  // Nothing to lose: an older quote alone, blank space, an untouched poll, nothing.
+  assert.equal(SC.draftHasWork({ text: '  ', media: [{ quote: refA }] }), false);
+  assert.equal(SC.draftHasWork({ text: '', media: [], poll: { options: ['', ''] } }), false);
+  assert.equal(SC.draftHasWork(null), false);
+});
+
+test('setting the note aside moves it to its own slot and empties the note slot', () => {
+  const all = { [PK]: { text: 'my words', media: [{ quote: refA }], expandRelays: ['wss://r.example'], savedAt: 1 } };
+  const key = SC.shelveNoteDraft(all, PK, 5000);
+  assert.equal(key, PK + '|n:5000');
+  assert.equal(all[PK], undefined);
+  assert.deepEqual(plain(all[key]), { text: 'my words', media: [{ quote: refA }], savedAt: 5000 });
+});
+
+test('two set aside in the same millisecond do not write over each other', () => {
+  const all = { [PK + '|n:5000']: { text: 'first', savedAt: 5000 }, [PK]: { text: 'second' } };
+  assert.equal(SC.shelveNoteDraft(all, PK, 5000), PK + '|n:5001');
+  assert.equal(all[PK + '|n:5000'].text, 'first');
+});
+
+test('an empty note slot keeps nothing', () => {
+  const all = { [PK]: { text: '', media: [] } };
+  assert.equal(SC.shelveNoteDraft(all, PK, 5000), null);
+  assert.deepEqual(Object.keys(all), []);
+});
+
+test('only the newest notes set aside are kept, and replies are not touched', () => {
+  const all = { [PK + '|r:' + 'a'.repeat(64)]: { text: 'a reply', savedAt: 1 } };
+  for (let i = 0; i < SC.SHELVED_NOTE_MAX; i++) all[PK + '|n:' + i] = { text: 'n' + i, savedAt: 100 + i };
+  all[PK] = { text: 'newest' };
+  SC.shelveNoteDraft(all, PK, 9999);
+  const shelf = Object.keys(all).filter((k) => k.includes('|n:'));
+  assert.equal(shelf.length, SC.SHELVED_NOTE_MAX);
+  assert.equal(all[PK + '|n:0'], undefined, 'the oldest was kept');
+  assert.equal(all[PK + '|n:9999'].text, 'newest');
+  assert.ok(all[PK + '|r:' + 'a'.repeat(64)], 'a reply was pruned');
+});
+
+test('picking a note set aside swaps it with the note slot, so neither is lost', () => {
+  const all = { [PK]: { text: 'current' }, [PK + '|n:10']: { text: 'older', savedAt: 10 } };
+  assert.equal(SC.unshelveNoteDraft(all, PK, PK + '|n:10', 7000), true);
+  assert.equal(all[PK].text, 'older');
+  assert.equal(all[PK + '|n:10'], undefined);
+  assert.equal(all[PK + '|n:7000'].text, 'current');
+});
+
+test('picking anything but a note set aside changes nothing', () => {
+  const all = { [PK]: { text: 'current' }, [PK + '|r:' + 'a'.repeat(64)]: { text: 'r' } };
+  const before = plain(all);
+  for (const k of [PK, PK + '|r:' + 'a'.repeat(64), PK + '|n:404', 'x'.repeat(64) + '|n:1', null]) {
+    assert.equal(SC.unshelveNoteDraft(all, PK, k, 1), false);
+  }
+  assert.deepEqual(plain(all), before);
+});
+
+test('Saved drafts lists notes set aside with the notes, before the replies', () => {
+  const all = {
+    [PK]: { text: 'note', savedAt: 5 },
+    [PK + '|n:9']: { text: 'set aside', savedAt: 9 },
+    [PK + '|r:' + 'a'.repeat(64)]: { text: 'reply', savedAt: 20 },
+    ['e'.repeat(64) + '|n:1']: { text: 'another account', savedAt: 30 },
+  };
+  const got = plain(SC.otherDraftEntries(all, PK, 'none'));
+  assert.deepEqual(got.map((e) => e.key), [PK + '|n:9', PK, PK + '|r:' + 'a'.repeat(64)]);
+  assert.deepEqual(got.map((e) => [e.shelved, e.reply, e.replyId]),
+    [[true, false, null], [false, false, null], [false, true, 'a'.repeat(64)]]);
+});
+
 // ---- the composer tab, run --------------------------------------------------------------
 
 function liftBraces(src, decl) {
@@ -92,53 +169,62 @@ function liftBraces(src, decl) {
   throw new Error('unbalanced ' + decl);
 }
 
-function tab(draft, { busy = false, receipt = false } = {}) {
-  const calls = { toast: [], saved: 0, thumbs: 0 };
+function tab(draft, store, { busy = false, receipt = false, replyId = null } = {}) {
+  const calls = { toast: [], saved: 0, thumbs: 0, reopened: 0, flushed: 0, written: null };
   const ctx = {
-    SC, draft, receiptShown: receipt,
+    SC, draft, receiptShown: receipt, replyId, dkey: PK, pollEditor: null,
     busy: () => busy,
     closeAltEditor() {}, paintCount() {}, showTab() {},
     scheduleSave: () => { calls.saved++; },
     renderThumbs: () => { calls.thumbs++; },
+    flushDraft: async () => { calls.flushed++; },
+    readAllDrafts: async () => JSON.parse(JSON.stringify(store)),
+    call: async (msg) => { calls.written = msg.value; },
+    reopenDraft: async () => { calls.reopened++; },
     toast: (m) => calls.toast.push(m),
     t: (s) => s,
   };
   vm.createContext(ctx);
-  vm.runInContext(liftBraces(read('compose.js'), 'function takeQuote(') + ';globalThis.takeQuote = takeQuote;', ctx);
+  vm.runInContext(liftBraces(read('compose.js'), 'async function takeQuote(') + ';globalThis.takeQuote = takeQuote;', ctx);
   return { ctx, calls };
 }
 
-test('the tab swaps its quote for the tapped note, keeps the words, and says so', () => {
+test('the tab sets the note in progress aside and opens the tapped quote in a fresh one', async () => {
   const draft = { text: 'my words', media: [pic1, { quote: refA }], poll: null };
-  const { ctx, calls } = tab(draft);
-  ctx.takeQuote(refB);
-  assert.equal(draft.text, 'my words');
-  assert.deepEqual(plain(draft.media), [pic1, { quote: refB }]);
-  assert.equal(calls.saved, 1, 'saved');
-  assert.equal(calls.thumbs, 1, 'the strip is redrawn');
-  assert.deepEqual(calls.toast, ['Your draft now quotes this note.']);
+  const { ctx, calls } = tab(draft, { [PK]: { text: 'my words', media: [pic1, { quote: refA }] } });
+  await ctx.takeQuote(refB);
+  assert.equal(calls.flushed, 1, 'the words on screen were not saved first');
+  const w = plain(calls.written);
+  const shelved = Object.keys(w).filter((k) => k.startsWith(PK + '|n:'));
+  assert.equal(shelved.length, 1);
+  assert.equal(w[shelved[0]].text, 'my words');
+  assert.deepEqual(w[shelved[0]].media, [pic1, { quote: refA }]);
+  assert.equal(w[PK].text, '');
+  assert.deepEqual(w[PK].media, [{ quote: refB }]);
+  assert.equal(calls.reopened, 1, 'the editor was not reloaded from the fresh slot');
+  assert.deepEqual(calls.toast, ['Your draft is in Saved drafts.']);
 });
 
-test('the tab adds a quote to a draft without one, without a toast', () => {
-  const draft = { text: '', media: [pic1], poll: null };
-  const { ctx, calls } = tab(draft);
-  ctx.takeQuote(refB);
-  assert.deepEqual(plain(draft.media), [pic1, { quote: refB }]);
+test('the tab re-points a draft holding only an older quote, with nothing set aside', async () => {
+  const draft = { text: '', media: [{ quote: refA }], poll: null };
+  const { ctx, calls } = tab(draft, {});
+  await ctx.takeQuote(refB);
+  assert.deepEqual(plain(draft.media), [{ quote: refB }]);
+  assert.equal(calls.written, null);
+  assert.equal(calls.saved, 1);
   assert.deepEqual(calls.toast, []);
 });
 
-test('the tab takes nothing while posting, onto a receipt, into a poll, or that is not a reference', () => {
-  for (const [opts, draft, ref] of [
-    [{ busy: true }, { text: '', media: [{ quote: refA }], poll: null }, refB],
-    [{ receipt: true }, { text: '', media: [{ quote: refA }], poll: null }, refB],
-    [{}, { text: '', media: [], poll: { options: ['a', 'b'] } }, refB],
-    [{}, { text: '', media: [{ quote: refA }], poll: null }, 'https://evil.example'],
-    [{}, { text: '', media: [{ quote: refA }], poll: null }, refA + ' ' + refB],
+test('the tab takes nothing while posting, onto a receipt, into a reply, or that is not a reference', async () => {
+  for (const [opts, ref] of [
+    [{ busy: true }, refB], [{ receipt: true }, refB], [{ replyId: 'a'.repeat(64) }, refB],
+    [{}, 'https://evil.example'], [{}, refA + ' ' + refB],
   ]) {
-    const before = plain(draft.media);
-    const { ctx, calls } = tab(draft, opts);
-    ctx.takeQuote(ref);
-    assert.deepEqual(plain(draft.media), before);
+    const draft = { text: 'words', media: [{ quote: refA }], poll: null };
+    const { ctx, calls } = tab(draft, { [PK]: { text: 'words' } }, opts);
+    await ctx.takeQuote(ref);
+    assert.deepEqual(plain(draft.media), [{ quote: refA }]);
+    assert.equal(calls.written, null);
     assert.equal(calls.saved, 0);
   }
 });
@@ -154,50 +240,24 @@ test('the tab listens for Sidecar’s own pages only, never a web page', () => {
   assert.match(guard, /startsWith\(chrome\.runtime\.getURL\(''\)\)\) return;/);
 });
 
-test('every panel route hands a tapped quote on: resume, the busy slot, and the open tab', () => {
+test('every panel route sets the note aside: the panel composer, the tab slot, and the open tab', () => {
   const src = read('sidepanel.js');
-  const resume = liftBraces(src, 'function resumeFrom(');
-  assert.match(resume, /placeQuote\(draft\.media, arriving\)/);
-  assert.match(src, /slotBusy && !slot\.poll\)[\s\S]{0,400}placeQuote\(slot\.media, quote\)/);
+  assert.match(src, /hasSaved && !replyTo && quoteFrom\(initialText\)\)[\s\S]{0,200}draftHasWork\(saved\)[\s\S]{0,200}shelveNoteDraft\(all, dkey, Date\.now\(\)\)/);
+  assert.match(src, /quote && !\(opts && opts\.replyTo\)\)[\s\S]{0,200}draftHasWork\(slot\) \? shelveNoteDraft\(all, dk, Date\.now\(\)\)/);
   assert.match(src, /type: 'SIDECAR_COMPOSE_QUOTE', ref: quote\.quote/);
-  assert.match(liftBraces(src, 'function showDraftChooser('), /Resume keeps your draft and quotes this note instead\./);
+  // Gone with the chooser's quote line: Resume no longer changes the draft.
+  assert.doesNotMatch(liftBraces(src, 'function resumeFrom('), /placeQuote|quoteFrom/);
 });
 
-// ---- the panel's Resume, run ------------------------------------------------------------
-
-function panelResume(initialText, saved) {
-  const src = read('sidepanel.js');
-  const ctx = {
-    initialText, opts: {}, replyTo: null, draft: null, powForThisPost: null,
-    quoteEntriesFromPaste: SC.quoteEntriesFromPaste, placeQuote: SC.placeQuote,
-    stripDraftMediaUrls: SC.stripDraftMediaUrls, showEditor() {},
-  };
-  vm.createContext(ctx);
-  vm.runInContext([
-    liftBraces(src, 'function seedFrom('), liftBraces(src, 'function quoteFrom('),
-    liftBraces(src, 'function resumeFrom('),
-    'resumeFrom(' + JSON.stringify(saved) + '); globalThis.out = draft;',
-  ].join('\n'), ctx);
-  return plain(ctx.out);
-}
-
-test('Resume after tapping Quote keeps the words and pictures and swaps in the new quote', () => {
-  const d = panelResume('\n\n' + refB, { text: 'my words', media: [{ quote: refA }, pic1] });
-  assert.equal(d.text, 'my words');
-  assert.deepEqual(d.media, [{ quote: refB }, pic1]);
+test('a note set aside comes back through the note slot, in both composers', () => {
+  const panel = liftBraces(read('sidepanel.js'), 'async function switchToSavedDraft(');
+  assert.match(panel, /if \(entry\.shelved\)[\s\S]{0,200}unshelveNoteDraft\(all, pubkey, entry\.key, Date\.now\(\)\)/);
+  const page = read('compose.js');
+  assert.match(page, /onPick: \(entry\) => \(entry\.shelved \? unshelve\(entry\.key\) : switchToDraft\(entry\.replyId\)\)/);
+  assert.match(liftBraces(page, 'async function unshelve('), /SC\.unshelveNoteDraft\(all, state\.activePubkey, key, Date\.now\(\)\)/);
 });
 
-test('Resume after tapping Quote on a draft with no quote adds it', () => {
-  const d = panelResume('\n\n' + refB, { text: 'my words', media: [pic1] });
-  assert.deepEqual(d.media, [pic1, { quote: refB }]);
-});
-
-test('Resume from Saved drafts, or with a text prefill, leaves the draft as it was', () => {
-  assert.deepEqual(panelResume('', { text: 'x', media: [{ quote: refA }] }).media, [{ quote: refA }]);
-  assert.deepEqual(panelResume('Just setting up', { text: 'x', media: [{ quote: refA }] }).media, [{ quote: refA }]);
-});
-
-test('Resume into a poll draft adds no quote', () => {
-  const d = panelResume('\n\n' + refB, { text: '', media: [], poll: { options: ['a', 'b'] } });
-  assert.deepEqual(d.media, []);
+test('notes set aside belong to whichever composer has the note open', () => {
+  assert.match(read('sidepanel.js'), /!\(e\.shelved && tabKey === pubkey\)/);
+  assert.match(read('compose.js'), /!\(e\.shelved && inPanel === state\.activePubkey\)/);
 });

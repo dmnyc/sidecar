@@ -1957,6 +1957,5 @@
   "Standard": "มาตรฐาน",
   "Economy": "ประหยัด",
   "Copy txid": "คัดลอก ID ธุรกรรม",
-  "Resume keeps your draft and quotes this note instead.": "การเขียนต่อจะเก็บฉบับร่างไว้และอ้างอิงโน้ตนี้แทน",
-  "Your draft now quotes this note.": "ตอนนี้ฉบับร่างของคุณอ้างอิงโน้ตนี้แล้ว"
+  "Your draft is in Saved drafts.": "ฉบับร่างของคุณอยู่ในฉบับร่างที่บันทึกไว้"
 }

@@ -2698,15 +2698,66 @@ window.SidecarCore = (function () {
   }
   // Every draft of this account but the one on screen, the note first and then replies
   // newest first. `replyId` is the note a reply answers, or null for the note draft.
+  // A note set aside (shelveNoteDraft) is listed with the notes, as `shelved`, and picking
+  // it brings it back into the note slot (unshelveNoteDraft) rather than opening it where it
+  // sits: the note slot is the one every route, Expand included, knows how to open.
   function otherDraftEntries(all, pubkey, currentKey) {
     return Object.keys(all || {})
-      .filter((k) => k !== currentKey && (k === pubkey || k.startsWith(pubkey + '|r:'))
+      .filter((k) => k !== currentKey
+        && (k === pubkey || k.startsWith(pubkey + '|r:') || k.startsWith(pubkey + '|n:'))
         && draftHasContent(all[k]))
-      .map((k) => ({
-        key: k, draft: all[k], reply: k !== pubkey,
-        replyId: k === pubkey ? null : k.slice(k.indexOf('|r:') + 3),
-      }))
+      .map((k) => {
+        const reply = k.startsWith(pubkey + '|r:');
+        return {
+          key: k, draft: all[k], reply, shelved: k.startsWith(pubkey + '|n:'),
+          replyId: reply ? k.slice(k.indexOf('|r:') + 3) : null,
+        };
+      })
       .sort((a, b) => (a.reply - b.reply) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
+  }
+
+  // ---- a note set aside ----
+  //
+  // TAPPING QUOTE OVER A NOTE IN PROGRESS. The note you were writing may have nothing to do
+  // with the one you just chose, so it is set aside under Saved drafts and the quote opens
+  // in a fresh note. Only a draft with something of its own in it is kept: one holding
+  // nothing but an older quote is simply re-pointed (placeQuote), since there is nothing
+  // in it to lose. Shelved notes sit beside the reply slots, under `pubkey|n:` and a time.
+  const SHELVED_NOTE_MAX = 20;
+  function draftHasWork(d) {
+    return !!(d && ((d.text && d.text.trim()) || (d.media || []).some((m) => m && !m.quote)
+      || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))));
+  }
+  // Moves the note slot's draft aside if it has content. Mutates `all`; returns the new
+  // key, or null when there was nothing to keep. A key already taken this millisecond
+  // (two taps at once) moves on rather than writing over it.
+  function shelveNoteDraft(all, pubkey, now) {
+    const d = all[pubkey];
+    if (!draftHasContent(d)) { delete all[pubkey]; return null; }
+    let t0 = now;
+    while (all[pubkey + '|n:' + t0]) t0++;
+    const key = pubkey + '|n:' + t0;
+    const kept = { ...d, savedAt: now };
+    delete kept.expandRelays; // the tab's relay set for one post, not part of the note
+    delete kept.replyTo;      // never set on the note slot; a note set aside stays a note
+    all[key] = kept;
+    delete all[pubkey];
+    const shelf = Object.keys(all).filter((k) => k.startsWith(pubkey + '|n:'));
+    if (shelf.length > SHELVED_NOTE_MAX) {
+      shelf.sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0))
+        .slice(SHELVED_NOTE_MAX).forEach((k) => delete all[k]);
+    }
+    return key;
+  }
+  // Picking a note set aside: whatever is in the note slot goes aside in its place, and
+  // the picked one becomes the note. Mutates `all`; false if the key is not a shelved note.
+  function unshelveNoteDraft(all, pubkey, key, now) {
+    if (typeof key !== 'string' || !key.startsWith(pubkey + '|n:') || !all[key]) return false;
+    const picked = all[key];
+    delete all[key];
+    shelveNoteDraft(all, pubkey, now);
+    all[pubkey] = { ...picked, savedAt: now };
+    return true;
   }
   function draftSnippet(d) {
     const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
@@ -4633,6 +4684,7 @@ window.SidecarCore = (function () {
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
+    draftHasWork, shelveNoteDraft, unshelveNoteDraft, SHELVED_NOTE_MAX,
     publishFailed, publishRefusal, publishToRelays, groupRefusals, PUBLISH_CAP_MS,
     refusalLines, acceptedLine, relayReportNode,
   };
