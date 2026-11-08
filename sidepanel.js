@@ -299,6 +299,9 @@
     // 1.16.6. Checked against the Project Gutenberg text of Lord Jim (1900), chapter 20,
     // Stein speaking; Conrad is a writer the list did not already have.
     { text: 'A man that is born falls into a dream like a man who falls into the sea.', who: 'Joseph Conrad, 1900' },
+    // 1.17.0. Checked against the Project Gutenberg text of The Awakening (1899), chapter 6;
+    // Chopin is a writer the list did not already have.
+    { text: 'The voice of the sea speaks to the soul.', who: 'Kate Chopin, 1899' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

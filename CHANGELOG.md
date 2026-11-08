@@ -9,18 +9,30 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
-## [Unreleased]
+## [1.17.0] — 2026-11-09
 
 ### Added
 - **Sidecar in 21 languages.** Arabic, German, Greek, Spanish, Persian, French, Hebrew, Hindi, Hungarian, Italian, Japanese, Korean, Polish, Brazilian and European Portuguese, Russian, Thai, Turkish, Urdu, and Simplified and Traditional Chinese. Settings → Appearance has a **Language** choice, set to follow the browser until you pick one, and the first screen offers the same choice, so the PIN and backup warnings can be read in your language from the start. It changes the panel, the approval screens, the welcome page, the composer, the wallet pages and the QR scanner, and numbers, dates and “5m ago” follow the language you chose. Arabic, Persian, Hebrew and Urdu mirror the whole panel, and Greek, Cyrillic and the Central European letters use the panel’s own typeface. The pay pill and card on a web page follow the browser’s language instead, so a site learns nothing new from them. The help guide, the “On this day” lines, the literary quotes and Relay Rider stay English. The translations are drafts; Settings says so and links to GitHub for corrections. The Arabic security wording and terms were reviewed by [tkhumush](https://github.com/tkhumush), and no native speaker has read the other languages yet.
 - **Phantom Bouquet, the second special edition (November 9 – December 6).** After the Victorian skeleton-leaf bouquet: ivory skeleton leaves of maple, oak and four companions lying on linen over larger ones bleached white, a few dyed madder, ochre, rust, olive and plum, set in Sorts Mill Goudy. The balance drifts down into place a figure at a time. On the lock screen twelve leaves fall slowly down the cloth, seven or eight in sight at a time, each turning at its own steady pace, and stay still under Reduce motion.
+- **You can cash an LNURL-withdraw link into your wallet.** Paste an `lnurl1…`, `lnurlw://` or `lightning:` link, or an LNURLcash note, into Send or the new Withdraw tab on the Receive sheet. Sidecar shows the service and the amount range, has your wallet make the invoice, and waits for the payment. A retry never pays twice, and the tab appears only when your wallet can make invoices.
+- **A pasted note comes into the composer as a block beside your pictures.** Paste a `note1`, `nevent1` or `naddr` link and the note appears in the attachments strip, drawn like the reply block, and either the note or your pictures can move above the other with an arrow. If no relay has the note, the link goes back into your text and a toast says so.
+- **Videos say what they are, and take a description.** An uploaded video’s post carries its type and size (Settings → Add video details to posts, on by default), and videos take the + ALT chip in both composers.
+- **An optional on-chain card in the Wallet tab.** Settings → Wallet & payments → Show on-chain balance shows the two Bitcoin addresses your account’s key can spend and what they hold, and sweeps everything to one address you paste or scan, after a review of the exact fee and a second tap. It is off by default, and nothing is looked up until you turn it on.
 
 ### Changed
+- **Approval cards ask one question in one row: Once · 30 min · Always.** A line above the row says what the choice does, and the Sign button follows it. Always takes the place of the “Always allow this event type” box, and a single 30-minute window takes the place of the 5, 15 and 30-minute chips. Tap the account on the card to sign as another, or to detach the site; on a site where several of your accounts are signed in, the card says so in two lines and asks you to confirm who’s posting.
+- **The auto-sign bar, its restart button and the toolbar badge always describe the same window,** the one that ends first.
 - **The switch under Use bootstrap relays now reads “Use for notifications only”,** which says what it does: with bootstrap relays off, they are still read for notifications and nothing else.
 - **Each special edition's art ships only in a release tagged inside its window.** A store package is downloaded whole at install and at every update, so the tag is the only moment packaging can respect the calendar: Phantom Bouquet's art rides only in a release tagged November 9 through December 6, that release is the one Sleepy Hollow's art (438 KB) leaves, and next October's releases bring Sleepy Hollow back without anyone having to remember. The two never ride together — a build tagged on November 8, Sleepy Hollow's last day, still ships Sleepy Hollow and no Phantom Bouquet, and the November 9 build swaps them; one edition missing a build beats both riding in it. Edition stylesheets stay in the package at 15–19 KB, so every document's stylesheet link stays valid, and the gallery — which only offers an edition inside its window — never asks for a file that is not there.
 
 ### Fixed
+- **The Following count changes the moment you follow or unfollow someone.** It used to wait for the tab to be rebuilt. A change made in another app now shows within five minutes while the panel is open, and the Overview has its own refresh button.
+- **A linked note that other apps show is found in the composer too.** A `note` or `nevent` link that came up “not found” now also asks a few large public relays when your own relays don’t have it.
+- **Attaching a HEIC photo says it isn’t supported,** instead of uploading an image most apps show broken. AVIF still uploads.
 - **“1 h ago” no longer reads “-1 h”.** Chrome’s compact time data gave French, Russian and European Portuguese a bare negative number in sentences such as “a draft from -1 h”; Sidecar now asks for the longer form when that happens.
+
+### Documentation
+- **The help guide’s pictures show the current panel.** Eleven screenshots were retaken with the demo accounts, and the guide describes the new approval card.
 
 ## [1.16.6] — 2026-11-03
 
