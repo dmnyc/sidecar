@@ -7,8 +7,8 @@
 // until the timer ends. The safety of the whole feature rests on this module's
 // invariants, so they're pinned here:
 //   - a grant answers "yes" only for its exact (host, pubkey);
-//   - ONE window at a time — relaxing on a new site revokes the prior one so the
-//     panel's single countdown always reflects the active site;
+//   - windows COEXIST per (host, account), so a second profile never revokes the
+//     first; active() lists them soonest-first, the one the panel bar shows;
 //   - it self-expires (lazy on read) and via the alarm hook, and reports the
 //     duration so the panel can draw a depleting progress bar;
 //   - wallet/account-control kinds are flagged so the caller still prompts for them.
@@ -94,6 +94,18 @@ test('grants coexist per (host, account): a second profile never revokes the fir
   await RELAX.grant('other.host', pkA, 60000);
   assert.equal(await RELAX.has(HOST, pkA), true, 'another site never revokes this one either');
   assert.equal((await RELAX.active()).length, 3, 'three live windows, one per (host, account)');
+});
+
+test('active() lists the soonest-expiring window first (the one the bar and badge show)', async () => {
+  // The panel bar and its Restart button act on grants[0], and the badge counts it
+  // down; storage order is grant order, so without the sort the bar would show the
+  // first window granted while the badge showed another.
+  await RELAX.grant(HOST, pkA, 20 * 60000);
+  await RELAX.grant(HOST, pkB, 5 * 60000);
+  await RELAX.grant('other.host', pkA, 10 * 60000);
+  const list = await RELAX.active();
+  assert.deepEqual(list.map((g) => g.duration), [5 * 60000, 10 * 60000, 20 * 60000]);
+  assert.equal(list[0].pubkey, pkB);
 });
 
 test('re-granting the same account extends rather than stacks', async () => {

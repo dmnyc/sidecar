@@ -84,9 +84,10 @@
     // Per-account windows COEXIST. Wiping the map here — the old single-window
     // rule — made a second profile's approval silently revoke the first
     // profile's still-running window, which re-armed the prompt on every
-    // identity flip: the exact loop the scope row was built to end. Re-granting
-    // the same key replaces its entry (extends, never stacks); other keys keep
-    // their own expiry alarms, and onAlarm drops each as it lapses.
+    // identity flip, however many times you approved. Re-granting the same key
+    // replaces its entry and its alarm (chrome.alarms.create with a taken name
+    // replaces it: extends, never stacks); other keys keep their own expiry
+    // alarms, and onAlarm drops each as it lapses.
     const m = await map();
     m[k] = { exp: Date.now() + dur, dur };
     await ssetS({ [STORAGE_KEY]: m });
@@ -139,6 +140,8 @@
 
   // Active grants for the panel status bar; drops expired entries on the way out.
   // One entry per (host, account) — a busy multi-profile session can hold several.
+  // Soonest expiry first, so the status bar, its Restart button and the action badge
+  // all speak about the same window.
   async function active() {
     const m = await map();
     const now = Date.now();
@@ -154,7 +157,7 @@
       for (const k of expired) delete m[k];
       await ssetS({ [STORAGE_KEY]: m });
     }
-    return out;
+    return out.sort((a, b) => a.expiresAt - b.expiresAt);
   }
 
   // chrome.alarms.onAlarm handler hook: if this is one of our expiry alarms,

@@ -3924,8 +3924,8 @@ const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
 function syncRelaxBadge() {
   RELAX.active().then((grants) => {
     if (grants && grants.length) {
-      const soonest = Math.min(...grants.map((g) => g.expiresAt));
-      const mins = Math.max(0, Math.round((soonest - Date.now()) / 60000));
+      // active() sorts soonest-first: the badge counts down the window that lapses next.
+      const mins = Math.max(0, Math.round((grants[0].expiresAt - Date.now()) / 60000));
       chrome.action.setBadgeText({ text: String(mins) });
       chrome.action.setBadgeBackgroundColor({ color: '#cba14e' });
       if (chrome.action.setBadgeTextColor) chrome.action.setBadgeTextColor({ color: '#1a0a33' });
@@ -5167,7 +5167,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     RELAX.revoke(message.host, message.pubkey).then(() => { syncRelaxBadge(); sendResponse({ ok: true }); });
     return true; // async response
   }
-  // Panel's restart button on the relax status bar. Wind the running window back to
+  // Panel's restart button on the relax status bar. Wind the shown window (the
+  // soonest to lapse: active() sorts that way, and the bar shows grants[0]) back to
   // its full stored duration — a re-grant extends rather than stacks and re-arms the
   // expiry alarm (relax-grants.js), so this is grant() with the grant's own numbers.
   // Host and pubkey come from the stored grant, never the message: at most this can
