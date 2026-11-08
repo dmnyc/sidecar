@@ -10121,13 +10121,20 @@
     // at all, which says nothing about whether these are set: saying "Not set" there
     // told a user their NIP-05 and lightning address were missing when the relays had
     // simply not replied. It gets a retry instead.
+    // Runs overlap — the refresh pressed while an earlier read is still out, or the
+    // retry link — and each paints into the same cells. A run that finds a newer one
+    // has started drops its answer: the older read can land AFTER the newer one, and
+    // would otherwise be the one left on screen.
+    let identityRun = 0;
     async function loadIdentity() {
+      const run = ++identityRun;
       // A word, not the stats' "…": the shimmer needs something to sweep across, and a
       // row can take up to the 8s backstop, long enough that a static mark looks stuck.
       nip05Val.textContent = '';
       lud16Val.textContent = '';
       const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), t('Loading…'), true)));
       const rec = await getProfile(pubkey);
+      if (run !== identityRun) return;
       idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
       lud16Val.textContent = '';
@@ -10167,7 +10174,12 @@
       }
     }
 
+    // Same rule for the wallet cell, which paints in two steps around an await: the
+    // clear happens before the backup read and the badge after it, so two overlapping
+    // runs each cleared once and then each appended a badge.
+    let walletRun = 0;
     async function loadStats({ force = false } = {}) {
+      const run = ++walletRun;
       drawer.dataset.loaded = '1';
       overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
@@ -10227,6 +10239,7 @@
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.
       call({ type: 'SIDECAR_NWC_META' }).then(async ({ has }) => {
+        if (run !== walletRun) return;
         // The header's refresh re-runs this paint into the same cell — clear it
         // first, or badges and "Add wallet" links pile up one per refresh.
         walletVal.replaceChildren();
@@ -10254,6 +10267,7 @@
           if (attempt) await new Promise((r) => setTimeout(r, 4000));
           if (!walletVal.isConnected && attempt) return;
           try { backupState = (await nwcBackupState()).state; } catch (_) { backupState = 'unknown'; }
+          if (run !== walletRun) return;
           if (backupState !== 'unknown') break;
         }
         const backupOk = backupState === 'current' ? true : backupState === 'unknown' ? null : false;
@@ -10269,6 +10283,7 @@
           walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Not backed up')]));
         }
       }).catch(() => {
+        if (run !== walletRun) return;
         walletVal.textContent = '—';
         walletVal.classList.add('account-stat-dim');
       });

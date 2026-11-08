@@ -235,6 +235,21 @@ test('RELAYS: the tooltip of a past state does not outlive it', async () => {
   assert.ok(!block.title, 'a declared list must not keep the bootstrap explanation');
 });
 
+test('WALLET: two runs in flight leave one set of badges', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const d = drawerHarness({ nwc: { has: true }, backup: async () => { await gate; return { state: 'current' }; } });
+  await settle();
+  // The first run is parked on its backup read; a second begins and parks too.
+  await refreshBtn(d).click();
+  await settle();
+  release();
+  await settle();
+  const wallet = d.drawer.querySelectorAll('wallet-status')[0];
+  const badges = wallet.querySelectorAll('wallet-badge');
+  assert.equal(badges.length, 2, 'Connected + Backed up, once each: ' + wallet.textContent);
+});
+
 test('WALLET: refreshing a settled drawer repaints the cell, never appends', async () => {
   const d = drawerHarness({ nwc: { has: true } });
   await settle();
@@ -265,4 +280,22 @@ test('TWO PRESSES RACING RUN ONE RE-READ', async () => {
   await Promise.all([a, b]);
   await settle();
   assert.equal(d.asked.length - before, 1, 'the second press while the first is in flight is ignored');
+});
+
+test('IDENTITY: a slow read from an earlier run does not overwrite a newer one', async () => {
+  const d = drawerHarness();
+  await settle();
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  let n = 0;
+  d.s.profileFn = () => (++n === 1
+    ? gate.then(() => ({ content: { lud16: 'stale@example.org' } }))
+    : Promise.resolve({ content: { lud16: 'fresh@example.org' } }));
+  await refreshBtn(d).click(); // run 1: its profile read is parked
+  await refreshBtn(d).click(); // run 2: answers at once
+  await settle();
+  release();
+  await settle();
+  const lud = d.drawer.querySelectorAll('account-stat-id-val')[1];
+  assert.equal(lud.textContent, 'fresh@example.org', 'the late answer from the older run is discarded');
 });
