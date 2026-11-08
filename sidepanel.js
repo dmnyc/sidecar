@@ -13101,9 +13101,13 @@
         // its own five-minute TTL and picks up on the next natural render.
         followCountCache.delete(active.pubkey);
         _muteListPromises.delete(active.pubkey);
+        // Both reads start together and the button waits for both: the spinner and
+        // the disabled flag cover the whole refresh, and a second press cannot start
+        // a mute read that races the first.
+        const muted = paintMuteCount(active.pubkey, muteNum, muteStat);
         const n = await getFollowCount(active.pubkey);
         setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
-        paintMuteCount(active.pubkey, muteNum, muteStat);
+        await muted;
       } catch (_) {
         toast(t('Couldn’t reach your relays'), 'error');
       } finally {

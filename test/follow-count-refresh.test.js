@@ -224,3 +224,66 @@ test('ONE CYCLE NEVER OVERLAPS THE LAST', async () => {
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(w.asked, [PK], 'the overlapping tick was skipped');
 });
+
+// ---- the Profile tab's refresh handler, run for real --------------------------
+//
+// The handler is inline in renderProfile, so the arrow function is sliced out of the
+// source by its anchor and run against stubs. `muted` is what paintMuteCount hands
+// back: the real one is async and settles on its own relay read.
+function profileRefreshHarness({ followRead, muteRead } = {}) {
+  const anchor = bare.indexOf("const refreshBtn = h('button', { className: 'profile-backup-jump'");
+  if (anchor === -1) throw new Error('Could not find the Profile refresh button');
+  const fnAt = bare.indexOf('async () => {', bare.indexOf("refreshBtn.addEventListener('click'", anchor));
+  const open = bare.indexOf('{', fnAt);
+  let depth = 0, end = -1;
+  for (let j = open; j < bare.length; j++) {
+    if (bare[j] === '{') depth++;
+    else if (bare[j] === '}' && --depth === 0) { end = j + 1; break; }
+  }
+  const fnSrc = bare.slice(fnAt, end);
+  const cls = new Set();
+  const btn = { disabled: false, classList: { add: (c) => cls.add(c), remove: (c) => cls.delete(c), contains: (c) => cls.has(c) } };
+  const painted = [];
+  const deps = {
+    refreshBtn: btn,
+    active: { pubkey: PK },
+    followCountCache: new Map([[PK, { v: 5, at: Date.now() }]]),
+    _muteListPromises: new Map([[PK, Promise.resolve()]]),
+    getFollowCount: followRead || (async () => 7),
+    paintMuteCount: () => { painted.push('mute'); return (muteRead || (async () => {}))(); },
+    setWaiting: (el, text) => { el.text = text; return el; },
+    I18N: { fmtNum: String },
+    followNum: {}, muteNum: {}, muteStat: {},
+    toast: () => {}, t: (s) => s,
+  };
+  // eslint-disable-next-line no-new-func
+  const handler = new Function(...Object.keys(deps), `return (${fnSrc});`)(...Object.values(deps));
+  return { handler, btn, cls, deps, painted };
+}
+
+test('THE PROFILE REFRESH IS NOT DONE UNTIL THE MUTE FIGURE IS', async () => {
+  // paintMuteCount used to be fired and forgotten: the spinner stopped and the button
+  // re-armed while the muted figure was still sweeping, and a second press started a
+  // second mute read racing the first.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const w = profileRefreshHarness({ muteRead: () => gate });
+  const done = w.handler();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(w.deps.followNum.text, '7', 'the follow figure has landed');
+  assert.equal(w.btn.disabled, true, 'the button stays disabled while the mute read is out');
+  assert.ok(w.cls.has('spinning'), 'and the spinner keeps turning');
+  await w.handler(); // a second press now is ignored
+  assert.deepEqual(w.painted, ['mute'], 'no second mute read starts');
+  release();
+  await done;
+  assert.equal(w.btn.disabled, false);
+  assert.ok(!w.cls.has('spinning'));
+});
+
+test('THE PROFILE REFRESH RE-ARMS EVEN WHEN A READ THROWS', async () => {
+  const w = profileRefreshHarness({ muteRead: async () => { throw new Error('boom'); } });
+  await w.handler();
+  assert.equal(w.btn.disabled, false);
+  assert.ok(!w.cls.has('spinning'));
+});
