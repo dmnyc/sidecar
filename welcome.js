@@ -303,18 +303,6 @@ function apps() {
     desc: t('Full-text search across Nostr’s history: find profiles and notes going back years.'),
   },
   {
-    name: 'Nostrich',
-    url: 'https://nostrich.org',
-    domain: 'nostrich.org',
-    cat: 'social',
-    // Their logo.svg is already an app-icon tile: a rounded rect clipped at
-    // rx=114 over an opaque cream field, so it takes the flush treatment rather
-    // than being inset in Sidecar's velvet frame.
-    icon: 'icons/apps/nostrich.svg',
-    flush: true,
-    desc: t('Notes, articles, chat and zaps in one client, with native apps for iOS, Android and Mac.'),
-  },
-  {
     name: 'Ditto',
     url: 'https://ditto.pub',
     domain: 'ditto.pub',
