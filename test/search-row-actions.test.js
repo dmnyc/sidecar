@@ -34,7 +34,7 @@ const WRITER = [
 ].join('\n');
 
 function world({ list = null, profile = true, relayDown = false, known = [], active = ME, signFails = null } = {}) {
-  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [] };
+  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [], announced: [] };
   const ctx = withI18n({
     state: { activePubkey: active },
     followListCache: known.length ? known.map((pubkey) => ({ pubkey, name: 'x', picture: null })) : null,
@@ -43,6 +43,9 @@ function world({ list = null, profile = true, relayDown = false, known = [], act
     NT: { nip19: { npubEncode: (h) => 'npub1' + h.slice(0, 6) } },
     shortNpub: (n) => n.slice(0, 10),
     forgetWot: () => { w.wot++; },
+    repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
+    document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
+    CustomEvent: class { constructor(type) { this.type = type; } },
     readRelayUrls: async () => ['wss://read.test'],
     postRelays: async () => ['wss://write.test'],
     poolQuerySync: async (relays, f) => {
@@ -161,11 +164,11 @@ test('the panel\'s own copies follow the list: cache, count, and the web of trus
   await w.api.addFollow(ME, BOB, { name: 'Bob', picture: 'p.png' });
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [CAL, BOB]);
   assert.equal(w.ctx.followListCache[1].name, 'Bob');
-  assert.equal(w.ctx.followCountCache.get(ME), 2);
+  assert.equal(w.ctx.followCountCache.get(ME).v, 2);
   assert.equal(w.wot, 1);
   await w.api.removeFollow(ME, CAL);
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [BOB]);
-  assert.equal(w.ctx.followCountCache.get(ME), 1);
+  assert.equal(w.ctx.followCountCache.get(ME).v, 1);
 });
 
 // ---- the buttons ----

@@ -1631,6 +1631,19 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   cursor: pointer;
 }
 .account-stats-toggle:hover { color: var(--text); }
+/* The header row wraps the toggle so a refresh can sit beside it without
+   living inside the button it sits beside. */
+.account-stats-head { display: flex; align-items: center; }
+.account-stats-head .account-stats-toggle { flex: 1; min-width: 0; }
+.account-stats-refresh {
+  flex-shrink: 0; width: 26px; height: 26px; margin-right: 10px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
+}
+.account-stats-refresh:hover { color: var(--text); }
+.account-stats-refresh svg { width: 14px; height: 14px; }
+.account-stats-refresh.spinning svg { animation: spin 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .account-stats-refresh.spinning svg { animation: none; opacity: 0.5; } }
 .account-stats-chevron {
   width: 14px; height: 14px;
   transition: transform 0.2s ease;
