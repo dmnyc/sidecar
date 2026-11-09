@@ -3561,8 +3561,8 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-sub { font-size: 12px; color: var(--muted); }
 .compose-count {
   font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
-  /* Pushes the two ways out of the page to the right edge, leaving the status line the
-     whole left half to say something in. */
+  /* Pushes Post to the right edge, leaving the status line the whole left half to say
+     something in. */
   margin-inline-end: auto;
 }
 /* THE POINT OF THE PAGE. 17px over the panel's 14, with the line height to match: the

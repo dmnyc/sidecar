@@ -1894,9 +1894,9 @@
       if (which !== 'write') closeEmojiPicker();
       if (emojiBtn) emojiBtn.classList.toggle('hidden', which !== 'write' || !SC.emojiGroups());
       // And Post goes with it. From a list of other drafts it would publish the one you
-      // cannot see; Cancel and the setting beside it still apply, so they stay.
+      // cannot see; the setting beside it still applies, so it stays.
       $('compose-post').classList.toggle('hidden', which === 'drafts');
-      // Invisible rather than gone: it is the spacer that holds Cancel to the right.
+      // Invisible rather than gone: it is the spacer that holds the footer's end to the right.
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
       // THE FOLDER COMES BACK WITH THE EDITOR. It stands down while the list is up, and
@@ -2116,7 +2116,6 @@
     const leave = () => { flushDraft().then(() => window.close()); };
     const x = $('compose-x');
     x.addEventListener('click', leave);
-    $('compose-close').addEventListener('click', leave);
 
     // WRITE HERE NEXT TIME. The panel's switch writes the same setting, so this one
     // follows storage rather than only its own clicks: flipping it in either place shows
