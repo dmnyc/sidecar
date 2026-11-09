@@ -1955,5 +1955,6 @@
   "Fast": "빠르게",
   "Standard": "표준",
   "Economy": "경제적",
-  "Copy txid": "트랜잭션 ID 복사"
+  "Copy txid": "트랜잭션 ID 복사",
+  "Your draft is in Saved drafts.": "초안은 저장된 초안에 있어요."
 }

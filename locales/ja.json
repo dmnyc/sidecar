@@ -1955,5 +1955,6 @@
   "Fast": "速い",
   "Standard": "標準",
   "Economy": "経済的",
-  "Copy txid": "トランザクションIDをコピー"
+  "Copy txid": "トランザクションIDをコピー",
+  "Your draft is in Saved drafts.": "下書きは「保存した下書き」にあります。"
 }

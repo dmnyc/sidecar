@@ -705,9 +705,8 @@ test('THE TOOLBAR\'S CELLS ARE EQUAL, SO NOTHING A BUTTON SAYS MOVES THE ROW', (
 
 test('THE WAY OUT IS SETTINGS\' CLOSE BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER', () => {
   // The box is on the page's bar, at its far end, and it is the box Settings closes with:
-  // the same classes, so the same size and every theme's dressing, and the same glyph. The
-  // word in the footer is for anyone reading the row rather than the bar. Both keep the
-  // draft, because neither is a decision to throw it away.
+  // the same classes, so the same size and every theme's dressing, and the same glyph. It
+  // keeps the draft, because closing is not a decision to throw it away.
   const bar = pageHtml.slice(pageHtml.indexOf('<header class="compose-topbar">'), pageHtml.indexOf('</header>'));
   assert.match(bar, /class="icon-btn settings-close compose-x" id="compose-x"/);
   const sidepanelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
@@ -717,15 +716,12 @@ test('THE WAY OUT IS SETTINGS\' CLOSE BOX AND A WORD, AND THE WAY TO PUBLISH IS 
   // height, and the bar matches the guide's.
   assert.match(css, /\.compose-topbar \.compose-x \{ margin-block: -12px -12px; margin-inline: auto 0; flex-shrink: 0; \}/);
   assert.match(bare, /x\.addEventListener\('click', leave\)/);
-  assert.match(bare, /\$\('compose-close'\)\.addEventListener\('click', leave\)/);
   assert.match(bare, /const leave = \(\) => \{ flushDraft\(\)\.then\(\(\) => window\.close\(\)\); \};/);
 
-  // Cancel is not a button. Leaving is not an action with the same weight as publishing,
-  // and two filled controls side by side claim it is.
-  assert.match(pageHtml, /class="compose-cancel" id="compose-close"[^>]*>Cancel</);
-  const cancel = css.slice(css.indexOf('.compose-cancel {'), css.indexOf('.compose-cancel:hover'));
-  assert.match(cancel, /background: none/);
-  assert.match(cancel, /border: none/);
+  // NO CANCEL BESIDE POST. It did what the × does, and its name said the draft would be
+  // thrown away, which nothing here does. The footer's way out is the bar's ×.
+  const foot = pageHtml.slice(pageHtml.indexOf('<footer class="compose-foot">'), pageHtml.indexOf('</footer>'));
+  assert.doesNotMatch(foot.replace(/<!--[\s\S]*?-->/g, ''), /Cancel|compose-close/);
   // And the one that cannot be taken back is the biggest thing in the row.
   const postRule = css.slice(css.indexOf('.compose-post {'), css.indexOf('.compose-post {') + 160);
   assert.match(postRule, /font-size: 15px/);

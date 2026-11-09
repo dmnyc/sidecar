@@ -1955,5 +1955,6 @@
   "Fast": "เร็ว",
   "Standard": "มาตรฐาน",
   "Economy": "ประหยัด",
-  "Copy txid": "คัดลอก ID ธุรกรรม"
+  "Copy txid": "คัดลอก ID ธุรกรรม",
+  "Your draft is in Saved drafts.": "ฉบับร่างของคุณอยู่ในฉบับร่างที่บันทึกไว้"
 }

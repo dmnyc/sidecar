@@ -2093,5 +2093,6 @@
   "Fast": "Rapide",
   "Standard": "Standard",
   "Economy": "Économique",
-  "Copy txid": "Copier l'identifiant de transaction"
+  "Copy txid": "Copier l'identifiant de transaction",
+  "Your draft is in Saved drafts.": "Votre brouillon est dans Brouillons enregistrés."
 }

@@ -818,8 +818,10 @@
     const btn = $('compose-drafts-btn');
     if (!btn || !state || !state.activePubkey) return;
     const inPanel = await draftOpenInPanel();
+    // Notes set aside come back through the note slot, so while the panel is writing it
+    // they are the panel's to bring back, the same as the note itself.
     const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
-      .filter((e) => e.key !== inPanel);
+      .filter((e) => e.key !== inPanel && !(e.shelved && inPanel === state.activePubkey));
     const pane = $('compose-drafts-pane');
     const listing = !pane.classList.contains('hidden');
     // Not while the list is up: the list is what it opens, and "Back to your draft" is
@@ -838,7 +840,7 @@
     pane.append(SC.buildSavedDraftList({
       entries: others,
       nameFor: (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null),
-      onPick: (entry) => switchToDraft(entry.replyId),
+      onPick: (entry) => (entry.shelved ? unshelve(entry.key) : switchToDraft(entry.replyId)),
       onDelete: async (entry) => {
         // A pending save writes the whole store back, so it lands first rather than
         // putting the deleted draft back a moment later.
@@ -851,6 +853,56 @@
       },
     }));
     pane.append(back);
+  }
+
+  // A QUOTE TAPPED IN THE PANEL while this tab holds the note. The note being written may
+  // have nothing to do with the one just chosen, so it is set aside under Saved drafts
+  // (shelveNoteDraft) and the quote opens here in a fresh note. A draft holding nothing
+  // but an older quote has nothing to keep, and the new quote takes its place.
+  // The reference is rebuilt into an entry the same way a paste is, so only a lone
+  // note1/nevent1/naddr reference gets in. Not while posting, not onto the receipt, and
+  // not into a reply: the panel sends this only when the tab is on the note.
+  async function takeQuote(ref) {
+    if (busy() || receiptShown || replyId) return;
+    const entry = SC.quoteEntriesFromPaste(typeof ref === 'string' ? ref : '', [])[0];
+    if (!entry) return;
+    if (!SC.draftHasWork(draft)) {
+      const placed = SC.placeQuote(draft.poll ? [] : draft.media, entry);
+      if (!placed.change && !draft.poll) return;
+      draft.media = placed.media;
+      draft.poll = null;
+      closeAltEditor(false); // the row may be editing the slot that just changed
+      if (pollEditor) pollEditor.paint();
+      scheduleSave();
+      paintCount();
+      renderThumbs();
+      showTab('write');
+      return;
+    }
+    await flushDraft();
+    const all = await readAllDrafts();
+    const kept = SC.shelveNoteDraft(all, dkey, Date.now());
+    all[dkey] = { text: '', media: [entry], savedAt: Date.now() };
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    await reopenDraft();
+    showTab('write');
+    if (kept) toast(t('Your draft is in Saved drafts.'), 'success');
+  }
+
+  // A NOTE SET ASIDE, picked from Saved drafts: it comes back into the note slot, and
+  // whatever the note slot held goes aside in its place, so nothing is written over.
+  async function unshelve(key) {
+    if (busy()) return;
+    const leavingReply = !!replyTo && draftHasContent(draft);
+    await flushDraft();
+    const all = await readAllDrafts();
+    if (!SC.unshelveNoteDraft(all, state.activePubkey, key, Date.now())) return;
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    replyId = null;
+    try { history.replaceState(null, '', location.pathname); } catch (_) {}
+    await reopenDraft();
+    showTab('write');
+    if (leavingReply) toast(t('Your reply is saved.'), 'info');
   }
 
   // The panel pointing this tab at a draft. A tab showing its receipt has no editor to
@@ -1813,6 +1865,7 @@
     const list = $('compose-drafts-pane');
     const slot = $('compose-slot');
     showTab = (which) => {
+      const wasListing = !list.classList.contains('hidden');
       // THE LIST TAKES THE EDITOR'S PLACE AT THE EDITOR'S SIZE, measured before the
       // editor is hidden, so the card does not jump when you open it.
       if (which === 'drafts' && !slot.classList.contains('hidden') && slot.offsetHeight) {
@@ -1829,16 +1882,27 @@
       // The toolbar edits this draft, so it stands down while another draft is being
       // chosen rather than offering to attach a photo to a list.
       $('compose-actions').classList.toggle('hidden', which === 'drafts');
-      if (which === 'drafts') closeGifPicker();
+      // AND SO DOES WHAT BELONGS TO IT: the attachment strip, the media drawer and the dev
+      // fields. Left up under the list, the open draft's quoted note read as part of the
+      // list. A class of its own rather than .hidden, which each of them sets for its own
+      // reasons and would get back wrong.
+      for (const el of [$('compose-thumbs'), mediaDrawer.wrap, $('compose-dev')]) {
+        el.classList.toggle('drafts-away', which === 'drafts');
+      }
+      if (which === 'drafts') { closeGifPicker(); closeAltEditor(); }
       // It writes into the editor, which Preview and the drafts list both put away.
       if (which !== 'write') closeEmojiPicker();
       if (emojiBtn) emojiBtn.classList.toggle('hidden', which !== 'write' || !SC.emojiGroups());
       // And Post goes with it. From a list of other drafts it would publish the one you
-      // cannot see; Cancel and the setting beside it still apply, so they stay.
+      // cannot see; the setting beside it still applies, so it stays.
       $('compose-post').classList.toggle('hidden', which === 'drafts');
-      // Invisible rather than gone: it is the spacer that holds Cancel to the right.
+      // Invisible rather than gone: it is the spacer that holds the footer's end to the right.
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
+      // THE FOLDER COMES BACK WITH THE EDITOR. It stands down while the list is up, and
+      // repainting it is what brings it back: Back to your draft, and a pick (whose own
+      // repaint ran while the list was still showing), left it hidden with drafts saved.
+      if (wasListing) paintSavedDrafts();
       paintPreview();
     };
     paintPreview = () => {
@@ -2013,7 +2077,17 @@
     // THE PANEL BESIDE THIS TAB NEVER TAKES ITS FOCUS. Unlocking there would otherwise
     // leave this page still saying Unlock to post until something else happened to it,
     // so the worker says so instead. It already broadcast the lock for the same reason.
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg, sender) => {
+      // A QUOTE TAPPED IN THE PANEL while this tab holds the note (takeQuote), instead of
+      // the tap being lost behind "already open in a tab".
+      // From one of Sidecar's own pages only. A content script also reaches this
+      // listener, but it speaks from the web page's address, never the extension's.
+      if (msg && msg.type === 'SIDECAR_COMPOSE_QUOTE') {
+        if (!sender || sender.id !== chrome.runtime.id ||
+            !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return;
+        takeQuote(msg.ref).catch(() => {});
+        return;
+      }
       // SWITCH TO ANOTHER DRAFT, sent by the panel when Expand is pressed while this tab
       // is already open on something else. Focusing it without this showed whatever was
       // already here, which is how a reply arrived looking like a blank new note.
@@ -2042,7 +2116,6 @@
     const leave = () => { flushDraft().then(() => window.close()); };
     const x = $('compose-x');
     x.addEventListener('click', leave);
-    $('compose-close').addEventListener('click', leave);
 
     // WRITE HERE NEXT TIME. The panel's switch writes the same setting, so this one
     // follows storage rather than only its own clicks: flipping it in either place shows

@@ -2093,5 +2093,6 @@
   "Fast": "Rápido",
   "Standard": "Estándar",
   "Economy": "Económico",
-  "Copy txid": "Copiar el ID de la transacción"
+  "Copy txid": "Copiar el ID de la transacción",
+  "Your draft is in Saved drafts.": "Tu borrador está en Borradores guardados."
 }

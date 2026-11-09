@@ -1955,5 +1955,6 @@
   "Fast": "快",
   "Standard": "標準",
   "Economy": "經濟",
-  "Copy txid": "複製交易 ID"
+  "Copy txid": "複製交易 ID",
+  "Your draft is in Saved drafts.": "您的草稿在「已儲存的草稿」中。"
 }
