@@ -2105,6 +2105,6 @@
   "End this timer": "Encerrar este cronômetro",
   "this account": "esta conta",
   "Auto-sign with multiple accounts": "Assinatura automática com várias contas",
-  "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no card.": "Para várias contas no mesmo cliente. Mais arriscado: uma confusão pode publicar com a conta errada sem cartão.",
+  "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no warning.": "Para várias contas no mesmo cliente. Mais arriscado: uma confusão pode publicar com a conta errada sem aviso.",
   "Keep a 30-minute timer for each account": "Manter um cronômetro de 30 minutos para cada conta"
 }
