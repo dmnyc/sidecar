@@ -39,7 +39,7 @@
   const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
-  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste } = window.SidecarCore;
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste, draftHasWork, shelveNoteDraft, unshelveNoteDraft } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
   const { loneMediaUrl, removeUrlFromEditor, urlIsVideo } = window.SidecarCore;
 
@@ -4762,10 +4762,72 @@
   const PROFILE_TTL = 5 * 60 * 1000;
   const _profileCache = new Map();    // pubkey -> { content, name, picture, expiresAt }
   const _profileInflight = new Map(); // pubkey -> Promise
-  // Follow count per pubkey (see getFollowCount below). Session-lived with no TTL, so
-  // the profile screen's refresh button clears it alongside _profileCache — declared
-  // here rather than beside its function so both caches sit together.
-  const followCountCache = new Map(); // pubkey -> number|null
+  // Follow count per pubkey (see getFollowCount below). Cached with the profile
+  // cache's five-minute TTL: inside the window the session value is served
+  // as-is, past it the next read re-queries — so a follow list another client
+  // restored shows up here within minutes instead of living until a reload.
+  // The profile screen's refresh button still clears it alongside _profileCache
+  // for a forced read. Declared here rather than beside its function so both
+  // caches sit together.
+  // Dev builds run the whole cycle at one minute so the live-update path can
+  // be rehearsed without a coffee break; production keeps the five-minute
+  // window. The tick's cadence and this TTL are separate knobs on purpose.
+  const FOLLOW_COUNT_TTL = isDevBuild() ? 60 * 1000 : PROFILE_TTL;
+  const followCountCache = new Map(); // pubkey -> { v: number|null, at: epoch ms }
+  // Writers (a follow, an unfollow, a Lazarus restore) call repaintFollowCounts
+  // after refreshing the cache, and every live figure — the Overview drawer's,
+  // the Profile tab's — registers a repainter here when it renders. Repainters
+  // capture their own element and drop themselves once it is no longer in the
+  // document, so nothing piles up across renders. A DOM event does NOT work
+  // here: one dispatched on document never reaches listeners on descendants.
+  const followCountRepainters = new Set();
+  function registerFollowRepainter(el, fn) {
+    const repainter = () => {
+      if (!el.isConnected) { followCountRepainters.delete(repainter); return; }
+      fn();
+    };
+    followCountRepainters.add(repainter);
+  }
+  function repaintFollowCounts() {
+    for (const fn of [...followCountRepainters]) fn();
+  }
+  // Live update: while the panel is open AND visible, stale counts re-read from
+  // the relays and the figures repaint by themselves — a follow list restored in
+  // another client moves the number on screen without the user touching a tab.
+  // The check runs every minute, and the moment the panel returns to view. Both
+  // matter: a minute is the longest an expired count waits for the cadence, and
+  // a fully occluded window counts as hidden, so the ticks were SKIPPED while
+  // the user was away in another app — running on return is what makes the
+  // figure right the moment they look at it instead of a minute later. Guards:
+  // entries only expire into a re-read, only the active account is polled, and one
+  // cycle never overlaps the last.
+  let followRefreshInFlight = false;
+  function refreshStaleFollowCounts() {
+    // 'visible' is too strict a gate: Firefox's sidebar documents can sit at
+    // other visibility states while plainly on screen, which would freeze the
+    // figures forever. Run unless the document is outright hidden.
+    if (followRefreshInFlight || document.visibilityState === 'hidden') return;
+    // Only the active account has a figure on screen. Any other cached entry (an
+    // account read before a switch, one since removed) re-reads on its own next
+    // render, and polling it here would query the relays about a key nobody is
+    // looking at, every cycle, for as long as the panel stays open.
+    const live = state && state.activePubkey;
+    const stale = [...followCountCache.entries()].filter(([pk, e]) => pk === live && Date.now() - e.at >= FOLLOW_COUNT_TTL);
+    if (!stale.length) return;
+    followRefreshInFlight = true;
+    if (isDevBuild()) console.debug(`[follows] tick: re-reading ${stale.length} stale count(s)`);
+    Promise.all(stale.map(([pk]) => getFollowCount(pk)))
+      .then(() => {
+        if (isDevBuild()) console.debug('[follows] re-read done, repainting figures');
+        repaintFollowCounts();
+      })
+      .catch(() => {})
+      .finally(() => { followRefreshInFlight = false; });
+  }
+  setInterval(refreshStaleFollowCounts, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshStaleFollowCounts();
+  });
   // Whether the collapsible stats drawer under the active account row is open, once
   // the user has opened or closed it; null until then. Until they choose, it is open for
   // up to three accounts, so a short list is not sparse, and closed past that: open, it
@@ -7554,7 +7616,8 @@
     }
     // What the panel already holds about this list, brought into line without a reload.
     const total = new Set(tags.filter(isP).map((x) => x[1].toLowerCase())).size;
-    followCountCache.set(pubkey, total);
+    const prior = followCountCache.get(pubkey);
+    followCountCache.set(pubkey, { v: total, at: Date.now() });
     if (followListCache && followListPubkey === pubkey) {
       const at = followListCache.findIndex((c) => c.pubkey === target);
       if (remove && at >= 0) followListCache.splice(at, 1);
@@ -7563,6 +7626,12 @@
       }
     }
     forgetWot();
+    // The Overview drawer and the Profile tab are holding the number this just
+    // changed, and nothing else tells them. The cache above is already fresh,
+    // so the repainters read it and redraw in place. Announce whenever the
+    // cached figure moved, not only when a publish happened: a no-op follow
+    // that corrected a stale cache moved the number just as much.
+    if (changed || !prior || prior.v !== total) repaintFollowCounts();
     return changed;
   }
 
@@ -9971,6 +10040,13 @@
     const open = accountStatsOpen();
     drawer.className = 'account-stats' + (open ? '' : ' collapsed');
 
+    // The header row: the toggle (chevron + Overview) opens and closes, and
+    // beside it a refresh re-reads the stats in place — the manual half of the
+    // staleness contract, since another client can move these numbers without
+    // anything in the panel announcing it. The spinner covers the follow read,
+    // the slowest of the three.
+    const head = document.createElement('div');
+    head.className = 'account-stats-head';
     const header = document.createElement('button');
     header.className = 'account-stats-toggle';
     const chev = icon('chevron-down');
@@ -9990,6 +10066,23 @@
       statsCollapsedForPlayer = false;
       applyOpen();
     });
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'account-stats-refresh';
+    refreshBtn.title = t('Refresh');
+    refreshBtn.setAttribute('aria-label', t('Refresh'));
+    refreshBtn.appendChild(icon('refresh'));
+    let refreshingStats = false;
+    refreshBtn.addEventListener('click', async () => {
+      if (refreshingStats) return;
+      refreshingStats = true;
+      refreshBtn.classList.add('spinning');
+      // force: the follow count is cached for five minutes, and a refresh that is
+      // handed the cache has refreshed nothing.
+      try { await loadStats(true); } catch (_) {}
+      refreshBtn.classList.remove('spinning');
+      refreshingStats = false;
+    });
+    head.append(header, refreshBtn);
 
     const body = document.createElement('div');
     body.className = 'account-stats-body';
@@ -10059,14 +10152,23 @@
 
     // Following: a dash when no relay answered (getFollowCount returns null and caches
     // nothing), which the retry above turns back into a number once the relays reply.
-    function loadFollows() {
+    function loadFollows(force) {
+      if (force) followCountCache.delete(pubkey);
       setWaiting(followNum, '…', true);
-      getFollowCount(pubkey).then((n) => {
+      return getFollowCount(pubkey).then((n) => {
         followsFailed = n == null;
         setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
         followNum.classList.add('account-stat-num');
       });
     }
+
+    // A follow or unfollow anywhere in the panel repaints this drawer's figure
+    // through the registered repainter, in place instead of stale-until-rebuild.
+    registerFollowRepainter(drawer, () => {
+      if (!drawer.dataset.loaded) return;
+      const n = followCountCache.get(pubkey);
+      if (n && Date.now() - n.at < FOLLOW_COUNT_TTL && n.v != null) setWaiting(followNum, I18N.fmtNum(n.v), false);
+    });
 
     // Same shape as notSetLink, for a read that failed rather than came back empty.
     function retryLink() {
@@ -10100,19 +10202,26 @@
     });
 
     body.append(topRow, idSection, profileLink);
-    drawer.append(header, body);
+    drawer.append(head, body);
 
     // Identity rows — need the profile. A null record is a read that got no answer
     // at all, which says nothing about whether these are set: saying "Not set" there
     // told a user their NIP-05 and lightning address were missing when the relays had
     // simply not replied. It gets a retry instead.
+    // Runs overlap — the refresh pressed while an earlier read is still out, or the
+    // retry link — and each paints into the same cells. A run that finds a newer one
+    // has started drops its answer: the older read can land AFTER the newer one, and
+    // would otherwise be the one left on screen.
+    let identityRun = 0;
     async function loadIdentity() {
+      const run = ++identityRun;
       // A word, not the stats' "…": the shimmer needs something to sweep across, and a
       // row can take up to the 8s backstop, long enough that a static mark looks stuck.
       nip05Val.textContent = '';
       lud16Val.textContent = '';
       const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), t('Loading…'), true)));
       const rec = await getProfile(pubkey);
+      if (run !== identityRun) return;
       idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
       lud16Val.textContent = '';
@@ -10152,17 +10261,26 @@
       }
     }
 
-    async function loadStats() {
+    // Same rule for the wallet cell, which paints in two steps around an await: the
+    // clear happens before the backup read and the badge after it, so two overlapping
+    // runs each cleared once and then each appended a badge.
+    let walletRun = 0;
+    async function loadStats(force = false) {
+      const run = ++walletRun;
       drawer.dataset.loaded = '1';
       overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
-      // Numeric stats.
-      loadFollows();
+      // Numeric stats. The header's refresh button awaits this read before
+      // clearing its spinner; alerts and relays repaint when their own reads
+      // land.
+      await loadFollows(force);
 
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
       notifNum.classList.add('account-stat-num');
-      if (!unseen) notifNum.classList.add('account-stat-dim');
+      // toggle, not add: a refresh that finds something unseen must undo the dim
+      // an earlier zero put there.
+      notifNum.classList.toggle('account-stat-dim', !unseen);
 
       // This number has to say WHICH relays, because it was misleading in both
       // directions when it didn't. It counted only the declared NIP-65 set, so an
@@ -10175,25 +10293,31 @@
         let count = declared;
         let label = t('Relays');
         let warn = false;
+        let title = null;
         if (!declared) {
           if (only) {
             // Fail-closed with nothing declared: this account genuinely cannot
             // publish. 0 is accurate here, but it's a fault to flag, not a neutral
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
-            relayBlock.title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
+            title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
             // keeps the number honest instead of silently reporting a different set.
             count = (await relayUrls(false)).length;
             label = t('Bootstrap');
-            relayBlock.title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
+            title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
           }
         }
         relayNum.textContent = String(count);
         relayNum.classList.add('account-stat-num');
-        if (warn) relayNum.classList.add('account-stat-warn');
-        else if (!count) relayNum.classList.add('account-stat-dim');
+        // Every state is set from this run's answer: a refresh paints into the same
+        // elements, so a warning, a dim or an explanation left by an earlier run
+        // would outlive the condition that earned it.
+        relayNum.classList.toggle('account-stat-warn', warn);
+        relayNum.classList.toggle('account-stat-dim', !warn && !count);
+        if (title) relayBlock.title = title;
+        else relayBlock.removeAttribute('title');
         relayLabel.textContent = label;
       });
 
@@ -10202,6 +10326,11 @@
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.
       call({ type: 'SIDECAR_NWC_META' }).then(async ({ has }) => {
+        if (run !== walletRun) return;
+        // The header's refresh re-runs this paint into the same cell — clear it
+        // first, or badges and "Add wallet" links pile up one per refresh.
+        walletVal.replaceChildren();
+        walletVal.classList.remove('account-stat-dim');
         if (!has) {
           const link = h('button', { className: 'account-stat-add-link', textContent: t('Add wallet →') });
           link.addEventListener('click', () => {
@@ -10225,6 +10354,7 @@
           if (attempt) await new Promise((r) => setTimeout(r, 4000));
           if (!walletVal.isConnected && attempt) return;
           try { backupState = (await nwcBackupState()).state; } catch (_) { backupState = 'unknown'; }
+          if (run !== walletRun) return;
           if (backupState !== 'unknown') break;
         }
         const backupOk = backupState === 'current' ? true : backupState === 'unknown' ? null : false;
@@ -10240,6 +10370,7 @@
           walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Not backed up')]));
         }
       }).catch(() => {
+        if (run !== walletRun) return;
         walletVal.textContent = '—';
         walletVal.classList.add('account-stat-dim');
       });
@@ -13040,39 +13171,35 @@
     // a refresh, so it is one now. Follow List Recovery already sits at the bottom of
     // this screen under its own clear label, so the jump wasn't earning the icon.
     //
-    // Profile data is cached for PROFILE_TTL (5 min) and the follow count is cached for
-    // the whole session, so an edit made elsewhere can look stuck. This drops both for
-    // the active account and refetches.
-    const refreshBtn = h('button', { className: 'profile-backup-jump', title: t('Refresh profile, follow and mute counts') });
-    // Clockwise, near-closed circle with a short arrow at the top right — the
-    // conventional "reload" glyph. The old mark was counter-clockwise and filled,
-    // which reads more like "undo" than "refresh". Stroked so it inherits the same
-    // weight as the panel's other icons.
-    refreshBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M20 12a8 8 0 1 1-2.34-5.66"></path>' +
-      '<polyline points="20 4.5 20 9 15.5 9"></polyline></svg>';
+    // Profile data and the follow count are both cached for five minutes, so a
+    // follow list changed elsewhere can look stuck. This drops the two count
+    // caches for the active account, re-reads, and repaints the figures in
+    // place; profile data self-corrects on the next natural render.
+    const refreshBtn = h('button', { className: 'profile-backup-jump', title: t('Refresh follow and mute counts') });
+    // Same glyph as the Overview drawer's refresh (the two-arrow mark from the
+    // shared icon set), so every refresh affordance in the panel reads alike.
+    refreshBtn.appendChild(icon('refresh'));
     refreshBtn.addEventListener('click', async () => {
       if (refreshBtn.disabled) return;
       refreshBtn.disabled = true;
       refreshBtn.classList.add('spinning');
       try {
-        _profileCache.delete(active.pubkey);
+        // Counts only, in place: drop the two count caches for the active
+        // account, re-read, and repaint the two figures — without rebuilding
+        // the screen this button sits on. Profile data (name, picture) keeps
+        // its own five-minute TTL and picks up on the next natural render.
         followCountCache.delete(active.pubkey);
-        // The mute list is cached as a PROMISE per account, and never expires on its own,
-        // so a mute added in another client is invisible until something drops it. The
-        // refresh has to reach this too, or the number beside the follow count is the one
-        // stat on the screen the button does not refresh.
         _muteListPromises.delete(active.pubkey);
-        profileFetchState.delete(active.pubkey); // clear tries + settled so it refetches
-        await fetchAndStoreProfile(active.pubkey);
-        renderProfile();
-        toast(t('Profile refreshed'), 'success');
+        // Both reads start together and the button waits for both: the spinner and
+        // the disabled flag cover the whole refresh, and a second press cannot start
+        // a mute read that races the first.
+        const muted = paintMuteCount(active.pubkey, muteNum, muteStat);
+        const n = await getFollowCount(active.pubkey);
+        setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
+        await muted;
       } catch (_) {
         toast(t('Couldn’t reach your relays'), 'error');
       } finally {
-        // renderProfile() may have replaced this button; guard against a detached node.
         refreshBtn.disabled = false;
         refreshBtn.classList.remove('spinning');
       }
@@ -13087,6 +13214,12 @@
     body.append(followStat);
     getFollowCount(active.pubkey).then((n) => {
       setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
+    });
+    // The repaint-on-follow contract the Overview drawer honors too: a follow
+    // or unfollow elsewhere in the panel lands here at once.
+    registerFollowRepainter(followNum, () => {
+      const n = followCountCache.get(active.pubkey);
+      if (n && Date.now() - n.at < FOLLOW_COUNT_TTL && n.v != null) setWaiting(followNum, I18N.fmtNum(n.v), false);
     });
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
@@ -13234,7 +13367,8 @@
   // fresh account); only a thrown error returns null, which the UI renders as "—".
   async function getFollowCount(pubkey) {
     if (!pubkey) return null;
-    if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
+    const cached = followCountCache.get(pubkey);
+    if (cached && Date.now() - cached.at < FOLLOW_COUNT_TTL) return cached.v;
     let count = null;
     let answered = false;
     try {
@@ -13262,7 +13396,7 @@
         count = 0;
       }
     } catch (_) {}
-    if (answered) followCountCache.set(pubkey, count);
+    if (answered) followCountCache.set(pubkey, { v: count, at: Date.now() });
     return count;
   }
 
@@ -14447,6 +14581,10 @@
     const quotes = quoteEntriesFromPaste(text, []);
     return quotes.length ? { text: '', media: quotes } : { text: text || '', media: [] };
   }
+  // The quote a prefill carries, if it is one (the Quote button's), else null.
+  function quoteFrom(text) {
+    return seedFrom(text).media.find((m) => m && m.quote) || null;
+  }
 
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
@@ -14478,11 +14616,16 @@
       if (composeTabHoldsDraft(open, wantId)) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
+        // A Quote tap is handed over too, so the tab opens the note in a fresh draft and
+        // sets aside the one it had (takeQuote), instead of the tap being lost behind
+        // "already open"; the tab says what it did.
+        const quote = quoteFrom(initialText);
+        if (quote) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_QUOTE', ref: quote.quote }).catch(() => {});
         try {
           await chrome.tabs.update(open.tabId, { active: true });
           await chrome.windows.update(open.windowId, { focused: true });
         } catch (_) { /* the tab went away between the query and the focus */ }
-        toast(t('Your draft is already open in a tab'), 'info');
+        if (!quote) toast(t('Your draft is already open in a tab'), 'info');
         return;
       }
     }
@@ -14506,7 +14649,16 @@
         // over what is already there, because a draft in progress outranks a prefill.
         // A quote already in the slot counts as work in progress too: the strip holds one.
         const slotBusy = slot && ((slot.text && slot.text.trim()) || (slot.media || []).some((m) => m && m.quote));
-        if (initialText && !slotBusy) {
+        // EXCEPT A QUOTE, which is an explicit choice of note: it opens in a fresh note,
+        // and the one in progress is set aside under Saved drafts (shelveNoteDraft) rather
+        // than having the quote dropped into it or the tap dropped without a word.
+        const quote = quoteFrom(initialText);
+        if (quote && !(opts && opts.replyTo)) {
+          const kept = draftHasWork(slot) ? shelveNoteDraft(all, dk, Date.now()) : null;
+          all[dk] = { text: '', media: [quote], savedAt: Date.now() };
+          await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+          if (kept) toast(t('Your draft is in Saved drafts.'), 'success');
+        } else if (initialText && !slotBusy) {
           const seed = seedFrom(initialText);
           all[dk] = { ...(slot || { media: [] }), text: seed.text, media: [...((slot && slot.media) || []), ...seed.media], savedAt: Date.now() };
           await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
@@ -14697,7 +14849,10 @@
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
       const open = await liveComposeTab();
       const tabKey = open ? draftKey(pubkey, open.replyId ? { id: open.replyId } : null) : null;
-      return otherDraftEntries(all, pubkey, dkey).filter((e) => e.key !== tabKey);
+      // Notes set aside come back through the note slot, so while the tab is writing it
+      // they are the tab's to bring back, the same as the note itself.
+      return otherDraftEntries(all, pubkey, dkey)
+        .filter((e) => e.key !== tabKey && !(e.shelved && tabKey === pubkey));
     }
 
     function addCorner(withDrafts) {
@@ -14770,6 +14925,14 @@
         target = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content };
       }
       await flushDraftNow();
+      // A NOTE SET ASIDE comes back into the note slot, and whatever the note slot held
+      // goes aside in its place, so picking one never writes over another.
+      if (entry.shelved) {
+        const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+        if (!unshelveNoteDraft(all, pubkey, entry.key, Date.now())) return;
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        target = null;
+      }
       const wasReply = !!replyTo && !!((draft.text || '').trim() || (draft.media || []).length);
       switchingDraft = true;
       closeModal();
@@ -15944,7 +16107,7 @@
         .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
       const when = saved.savedAt ? relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
-        ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
+        ? tn('{{count}} attachment', '{{count}} attachments', saved.media.length)
         : '';
 
       const resume = h('button', { className: 'primary', textContent: t('Resume draft') });
@@ -15984,7 +16147,20 @@
     }
 
     const saved = await loadComposeDraft(dkey);
-    const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+    let hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+    // TAPPED QUOTE OVER A NOTE IN PROGRESS. No "Resume your draft?": the quote opens in a
+    // fresh note, and the note in progress is set aside under Saved drafts, where the
+    // folder in the corner leads back to it. A draft holding nothing but an older quote
+    // has nothing to keep, and the new quote simply takes its place.
+    let setAside = false;
+    if (hasSaved && !replyTo && quoteFrom(initialText)) {
+      if (draftHasWork(saved)) {
+        const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+        setAside = !!shelveNoteDraft(all, dkey, Date.now());
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+      }
+      hasSaved = false;
+    }
 
     openModal(
       () => {
@@ -16006,6 +16182,7 @@
         if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
         else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
         else showEditor();
+        if (setAside) toast(t('Your draft is in Saved drafts.'), 'success');
         // The close box comes with each view (addCorner). An X is where people look for
         // the way out, and someone who does not find one clicks the background instead,
         // which is guarded and does nothing, so without it the guard would read as a
@@ -19087,7 +19264,8 @@
     seedBaseline(pubkey, signed); // the wipe check now measures against the restore
     if (signed.kind === 3) {
       const follows = new Set(signed.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
-      followCountCache.set(pubkey, follows.size);
+      followCountCache.set(pubkey, { v: follows.size, at: Date.now() });
+      repaintFollowCounts(); // the restore just moved the number the drawer is showing
       followListCache = null;
       followListPubkey = null;
       forgetWot();
@@ -23918,7 +24096,9 @@
     wrap.append(
       badge,
       h('div', { className: 'recv-success-title', textContent: tSec('Payment received') }),
-      h('div', { className: 'recv-success-amt', textContent: '+' + tn('{{count}} sat', '{{count}} sats', sats) })
+      // The LRM in front keeps the "+" on the left of the number on a right-to-left page,
+      // where a sign at the start of a line would otherwise land on its far side ("21+").
+      h('div', { className: 'recv-success-amt', textContent: '\u200E+' + tn('{{count}} sat', '{{count}} sats', sats) })
     );
     const done = h('button', { className: 'primary', textContent: tSec('Done') });
     done.addEventListener('click', closeModal);

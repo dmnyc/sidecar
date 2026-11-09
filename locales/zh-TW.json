@@ -466,8 +466,6 @@
   "No active account.": "沒有使用中的帳號。",
   "Edit status": "編輯狀態",
   "Show npub QR": "顯示 npub QR 碼",
-  "Refresh profile, follow and mute counts": "重新整理個人檔案、追蹤與靜音數量",
-  "Profile refreshed": "個人檔案已重新整理",
   "Couldn’t reach your relays": "無法連線到您的中繼站",
   "{{count}} muted": "已靜音 {{count}} 位",
   "{{count}} muted_other": "已靜音 {{count}} 位",
@@ -1966,5 +1964,7 @@
   "this account": "這個帳號",
   "Auto-sign with multiple accounts": "多帳號自動簽署",
   "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no warning.": "適用於多個帳號共用一個用戶端。風險較高：一旦混淆，可能在沒有任何警告的情況下用錯誤的帳號發布。",
-  "Keep a 30-minute timer for each account": "為每個帳號保留 30 分鐘計時器"
+  "Keep a 30-minute timer for each account": "為每個帳號保留 30 分鐘計時器",
+  "Refresh follow and mute counts": "重新整理追蹤和靜音計數",
+  "Your draft is in Saved drafts.": "您的草稿在「已儲存的草稿」中。"
 }

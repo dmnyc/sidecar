@@ -467,8 +467,6 @@
   "No active account.": "حساب فعالی وجود ندارد.",
   "Edit status": "ویرایش وضعیت",
   "Show npub QR": "نمایش QR مربوط به npub",
-  "Refresh profile, follow and mute counts": "تازه‌سازی نمایه و شمارندهٔ دنبال‌شونده‌ها و بی‌صداشده‌ها",
-  "Profile refreshed": "نمایه تازه‌سازی شد",
   "Couldn’t reach your relays": "دسترسی به ریلی‌های شما ممکن نشد",
   "{{count}} muted": "{{count}} بی‌صداشده",
   "{{count}} muted_one": "{{count}} بی‌صداشده",
@@ -2036,5 +2034,7 @@
   "this account": "این حساب",
   "Auto-sign with multiple accounts": "امضای خودکار با چند حساب",
   "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no warning.": "برای چند حسابی که در یک کلاینت مشترک‌اند. پرخطرتر: یک اشتباه می‌تواند بدون هیچ هشداری با حساب نادرست منتشر کند.",
-  "Keep a 30-minute timer for each account": "نگه‌داشتن زمان‌سنج ۳۰ دقیقه‌ای برای هر حساب"
+  "Keep a 30-minute timer for each account": "نگه‌داشتن زمان‌سنج ۳۰ دقیقه‌ای برای هر حساب",
+  "Refresh follow and mute counts": "به‌روزرسانی شمارنده‌های پیگیری و بی‌صدا",
+  "Your draft is in Saved drafts.": "پیش‌نویس شما در پیش‌نویس‌های ذخیره‌شده است."
 }

@@ -466,8 +466,6 @@
   "No active account.": "활성 계정이 없어요.",
   "Edit status": "상태 편집",
   "Show npub QR": "npub QR 표시",
-  "Refresh profile, follow and mute counts": "프로필, 팔로우, 뮤트 수 새로고침",
-  "Profile refreshed": "프로필을 새로고침했어요",
   "Couldn’t reach your relays": "릴레이에 연결하지 못했어요",
   "{{count}} muted": "{{count}} 뮤트",
   "{{count}} muted_other": "{{count}} 뮤트",
@@ -1966,5 +1964,7 @@
   "this account": "이 계정",
   "Auto-sign with multiple accounts": "여러 계정으로 자동 서명",
   "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no warning.": "여러 계정이 한 클라이언트를 함께 쓸 때. 더 위험해요: 계정이 뒤바뀌면 경고 없이 다른 계정으로 게시될 수 있어요.",
-  "Keep a 30-minute timer for each account": "계정마다 30분 타이머 유지"
+  "Keep a 30-minute timer for each account": "계정마다 30분 타이머 유지",
+  "Refresh follow and mute counts": "팔로우·뮤트 수 새로 고침",
+  "Your draft is in Saved drafts.": "초안은 저장된 초안에 있어요."
 }

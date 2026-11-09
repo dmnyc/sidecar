@@ -468,8 +468,6 @@
   "No active account.": "Nenhuma conta ativa.",
   "Edit status": "Editar estado",
   "Show npub QR": "Mostrar QR do npub",
-  "Refresh profile, follow and mute counts": "Atualizar perfil e contagens de seguidos e silenciados",
-  "Profile refreshed": "Perfil atualizado",
   "Couldn’t reach your relays": "Não foi possível contactar os teus relays",
   "{{count}} muted": "{{count}} silenciados",
   "{{count}} muted_many": "{{count}} de silenciados",
@@ -2106,5 +2104,7 @@
   "this account": "esta conta",
   "Auto-sign with multiple accounts": "Assinatura automática com várias contas",
   "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no warning.": "Para várias contas no mesmo cliente. Mais arriscado: uma confusão pode publicar com a conta errada sem aviso.",
-  "Keep a 30-minute timer for each account": "Manter um temporizador de 30 minutos para cada conta"
+  "Keep a 30-minute timer for each account": "Manter um temporizador de 30 minutos para cada conta",
+  "Refresh follow and mute counts": "Atualizar as contagens de follows e silenciados",
+  "Your draft is in Saved drafts.": "O teu rascunho está em Rascunhos guardados."
 }
