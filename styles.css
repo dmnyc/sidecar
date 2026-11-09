@@ -4242,6 +4242,19 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    a full button treatment would fight the card's typography. */
 .wallet-balance, .pinned-balance-amt { cursor: pointer; user-select: none; }
 .wallet-balance:hover, .pinned-balance-amt:hover { filter: brightness(1.12); }
+/* A figure reads left to right on a right-to-left page. splitGlyphs deals every
+   character into its own inline-block span, and the bidi algorithm treats an
+   inline-block as an opaque object, so under dir="rtl" the row laid itself out from the
+   right and 48,422 came out as 224,84. The same goes for the countdown digits (30 read
+   03) and for a sign sitting beside a number: the "+" and "−" of a transaction row went
+   to the far end ("21,000+"). Setting the direction on the figure itself, and isolating
+   it, keeps the order whatever the page's direction is; text-align and the flex centering
+   around it are untouched, so the card still mirrors. Not the "1 BTC = 1 BTC" line:
+   that is a translated sentence and follows the page. */
+.wallet-balance:not(.btc-joke), .pinned-balance-amt, .countdown-num, .tx-amt,
+.wallet-chart-lowhigh, .wallet-chart-price {
+  direction: ltr; unicode-bidi: isolate;
+}
 /* Currency symbols set in Playfair at the balance's size swamp the digits — worst
    for the currencies Intl renders as a three-letter code ("CHF", "NGN"). Set them in
    the UI face at ~0.6-0.7em, nudged up toward the numerals' cap height, and slightly
