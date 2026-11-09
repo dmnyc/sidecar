@@ -187,8 +187,8 @@ test('both folders are named in words, not by their count', () => {
 test('neither composer lists the draft the other one has open', () => {
   // Listed, it could be deleted while the other composer writes it, and that one's
   // autosave would put it straight back.
-  assert.match(panel, /\.filter\(\(e\) => e\.key !== tabKey\)/);
-  assert.match(page, /\.filter\(\(e\) => e\.key !== inPanel\)/);
+  assert.match(panel, /\.filter\(\(e\) => e\.key !== tabKey && /);
+  assert.match(page, /\.filter\(\(e\) => e\.key !== inPanel && /);
   // The panel says which draft it holds, and clears it on close.
   assert.match(panel, /chrome\.storage\.session\.set\(\{ sidecar_panel_compose: dkey \}\)/);
   assert.match(panel, /chrome\.storage\.session\.remove\('sidecar_panel_compose'\)/);

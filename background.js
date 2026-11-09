@@ -1511,6 +1511,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     let activePubkey;
     let authorSwitched = false;
     let authorNamed = false;
+    let relaxJustGrantedFor = null; // the account a 'relax' decision on this request opened a window for
     if (method === 'getPublicKey') {
       activePubkey = await KS.getActivePubkey();
     } else {
@@ -1740,7 +1741,6 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // block further down (which drops a now-stale relax window on an account
     // change) can tell "stale window for the account we're leaving" apart from
     // "the window we just opened for the account we're arriving at" — see there.
-    let relaxJustGrantedFor = null;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -1829,8 +1829,14 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // offered only where checking it would actually save a grant. The `d`
         // tag rides along so both surfaces can say what future requests the
         // grant would cover (one record, when the event carries a `d`).
-        canKindGrant: kindGrantEligible && !destructive,
+        // The row's "Always" segment is never offered on a shared-identity card:
+        // there the per-sign confirm is the guard, and a grant would sign past the
+        // very check the card exists for. kindGrantEligible still governs the kind.
+        canKindGrant: kindGrantEligible && !destructive && !sharedIdentity,
         kindDTag: signDTag,
+        // The shared caption's count: how many accounts have signed in to this
+        // host (0 when the host isn't shared, or the ask is a pure unlock).
+        sharedCount: sharedIdentity ? (authorizedPool ? authorizedPool.length : 0) : 0,
         // True once this (host, account) has been approved one-time a few times over —
         // the prompt turns it into a line pointing at Trust. Suppressed while a
         // destructive warning is showing: that screen is asking for full attention on
@@ -1982,6 +1988,9 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // 'relax' → open a timed auto-approve window for this (host, account), then
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {
+        // ONE SIGNING ACCOUNT AT A TIME, by default: opening a window for this account
+        // ends any other account's, on every site.
+        if (!(await relaxPerAccount())) await RELAX.revokeOtherAccounts(activePubkey);
         await RELAX.grant(host, activePubkey, decision.relaxMs || RELAX.DEFAULT_MS);
         relaxJustGrantedFor = activePubkey;
         syncRelaxBadge();
@@ -2038,19 +2047,14 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // sharedIdentity is also an explicit choice (the user just confirmed who's
     // posting in the prompt), so it may move the binding too.
     if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
-      // A re-login to a DIFFERENT account is the one detectable moment the identity
-      // context for this host can change, so a prior relax window for it is no
-      // longer trustworthy — drop it. A same-account re-fetch leaves the binding
-      // unchanged and is left alone. Exception: if THIS request is the one that
-      // just opened the relax window for the account we're rebinding TO (the
-      // shared-host relax chip, granted a few lines up), it's not stale — it's
-      // the window the user just asked for. Without this guard, choosing "relax"
-      // on a shared host where the site's prior pin differs from the signing
-      // account would grant the window and then immediately revoke that same
-      // grant in this same request, so the status bar never appears.
+      // A re-login or a post as another account moves the binding, and ends the
+      // site's 30-minute windows unless Settings keeps a timer for each account (see
+      // SIDECAR_SET_ACTIVE). Not the window this very request just opened for the
+      // account arriving: that one is the window the user just asked for.
       const prevBound = await getSiteAccount(host);
       await setSiteAccount(host, activePubkey);
-      if (prevBound && prevBound !== activePubkey && relaxJustGrantedFor !== activePubkey) {
+      if (prevBound && prevBound !== activePubkey && relaxJustGrantedFor !== activePubkey &&
+          !(await relaxPerAccount())) {
         await RELAX.revokeForHost(host); syncRelaxBadge();
       }
     }
@@ -3915,10 +3919,19 @@ if (chrome.idle && chrome.idle.onStateChanged) {
 // active" signal, and clicking the icon opens the panel to that bar. A 1-min
 // alarm ticks the countdown down; both clear when no window is live.
 const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
+// Settings → Auto-sign with multiple accounts → "Keep a 30-minute timer for each account". Off by default: one
+// account signs without asking at a time.
+async function relaxPerAccount() {
+  return ((await sget('sidecar_settings')).sidecar_settings || {}).relaxPerAccount === true;
+}
+
 function syncRelaxBadge() {
-  RELAX.active().then((grants) => {
+  RELAX.active().then(async (grants) => {
     if (grants && grants.length) {
-      const mins = Math.max(0, Math.round((grants[0].expiresAt - Date.now()) / 60000));
+      // The window the panel's bar shows: the active account's, else the one that lapses
+      // next (active() sorts soonest-first).
+      const shown = RELAX.shownFor(grants, await KS.getActivePubkey().catch(() => null));
+      const mins = Math.max(0, Math.round((shown.expiresAt - Date.now()) / 60000));
       chrome.action.setBadgeText({ text: String(mins) });
       chrome.action.setBadgeBackgroundColor({ color: '#cba14e' });
       if (chrome.action.setBadgeTextColor) chrome.action.setBadgeTextColor({ color: '#1a0a33' });
@@ -4190,15 +4203,17 @@ async function handleControl(message, sender, sendResponse) {
         result = await KS.setProfile(message.pubkey, { name: message.name, picture: message.picture });
         break;
       case 'SIDECAR_SET_ACTIVE': {
+        // SWITCHING ENDS THE 30-MINUTE WINDOWS, unless Settings keeps a timer for each
+        // account (relaxPerAccount, off by default). Two accounts each able to sign
+        // without asking is how a multi-account client's slot mix-up goes out under the
+        // wrong account with no card; one at a time, the wrong one still asks. Only on a
+        // real change: tapping the account already active must not end its window.
         const prevActive = await KS.getActivePubkey();
         result = await KS.setActive(message.pubkey);
-        // Switching identity ends any active relax window: its countdown is for an
-        // account you've moved off of, and a lingering auto-sign shouldn't follow
-        // you across an identity change. Only on a real change — tapping the
-        // already-active account is a no-op and must not kill the window. Awaited
-        // so the panel's immediate re-query finds the grants already gone (no
-        // flicker of the disappearing indicator).
-        if (prevActive && prevActive !== message.pubkey) { await RELAX.revokeAll(); syncRelaxBadge(); }
+        if (prevActive && prevActive !== message.pubkey && !(await relaxPerAccount())) {
+          await RELAX.revokeAll();
+        }
+        syncRelaxBadge(); // the badge follows the active account's window
         break;
       }
       case 'SIDECAR_CHANGE_PIN':
@@ -4473,6 +4488,12 @@ async function handleControl(message, sender, sendResponse) {
         if (message.settings && 'autoLockMinutes' in message.settings) {
           await chrome.alarms.clear(AUTO_LOCK_ALARM);
           bumpAutoLock();
+        }
+        // Turning "Keep a 30-minute timer for each account" off leaves the active account's windows
+        // and ends the rest, so the one-account rule holds from that moment.
+        if (prev.relaxPerAccount === true && merged.relaxPerAccount !== true) {
+          await RELAX.revokeOtherAccounts(await KS.getActivePubkey());
+          syncRelaxBadge();
         }
         // Push the pay-pill setting to content scripts so it toggles live.
         pushPageSettings(merged);
@@ -5160,14 +5181,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     RELAX.revoke(message.host, message.pubkey).then(() => { syncRelaxBadge(); sendResponse({ ok: true }); });
     return true; // async response
   }
-  // Panel's restart button on the relax status bar. Wind the running window back to
+  // Panel's restart button on the relax status bar. Wind the shown window (the
+  // soonest to lapse: active() sorts that way, and the bar shows grants[0]) back to
   // its full stored duration — a re-grant extends rather than stacks and re-arms the
   // expiry alarm (relax-grants.js), so this is grant() with the grant's own numbers.
   // Host and pubkey come from the stored grant, never the message: at most this can
   // reset a window that is already open, not start one for an arbitrary site.
   if (message.type === 'SIDECAR_RESTART_RELAX') {
     RELAX.active().then(async (grants) => {
-      const g = grants[0];
+      // The window the bar is showing, named by the panel; else the one that ends first.
+      const g = grants.find((x) => x.host === message.host && x.pubkey === message.pubkey) || grants[0];
       if (!g) { sendResponse({ ok: false }); return; }
       await RELAX.grant(g.host, g.pubkey, g.duration);
       syncRelaxBadge();

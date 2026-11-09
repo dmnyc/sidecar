@@ -53,6 +53,14 @@
     accounts, because the bell drops your own events.</p>
   </a>
 
+  <a class="lab" href="approval-lab.html" id="approval">
+    <h2>Approval lab</h2>
+    <p>The approval card's Once · 30 min · Always row, the 30-minute window, standing Always
+    grants and the two-account confirm, in both the panel and the popup. Times each request, so
+    it can tell a silent signature from an answered card. Open it on <code>single.localhost</code>
+    and <code>shared.localhost</code>. Signs, never publishes.</p>
+  </a>
+
   <a class="lab" href="theme-sweep.html" id="theme-sweep">
     <h2>Theme sweep</h2>
     <p>Every theme the panel offers, side by side, with the measurable checks run on each: square
@@ -72,7 +80,7 @@
 </div>
 <script>
   // Mark whichever lab isn't present on this branch, rather than leaving a 404 to click.
-  for (const id of ['invoice', 'encrypt', 'comment']) {
+  for (const id of ['invoice', 'encrypt', 'comment', 'approval']) {
     const a = document.getElementById(id);
     fetch(a.getAttribute('href'), { method: 'HEAD' })
       .then((r) => { if (!r.ok) a.classList.add('gone'); })

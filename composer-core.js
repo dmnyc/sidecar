@@ -1940,6 +1940,24 @@ window.SidecarCore = (function () {
   // it is: the strip quotes one note, and a paste never picks between two. Returns the entry
   // in the nostr: form that publishes, or [] when there is nothing to quote; and [] when the
   // strip already holds a quote, because a second paste does not silently replace the first.
+  // A QUOTE YOU ASKED FOR GOES INTO THE DRAFT. The Quote button is an explicit choice of
+  // note, so it takes the strip's quote slot: added when the draft has no quote, swapped in
+  // place of the old one when it has (same spot in the strip, so the pictures stay where
+  // they were), and nothing else in the draft moves. Without this a draft that already
+  // quoted something either dropped the new note or had to be thrown away whole, and the
+  // only way through was the old quote's two-tap trash. A PASTE still never replaces a
+  // quote (quoteEntriesFromPaste): pasting is ambiguous, tapping Quote is not.
+  // Returns the new media list and what changed: 'added', 'replaced' or null.
+  function placeQuote(media, entry) {
+    const out = Array.isArray(media) ? media.slice() : [];
+    if (!entry || typeof entry.quote !== 'string') return { media: out, change: null };
+    const at = out.findIndex((m) => m && m.quote);
+    if (at < 0) { out.push(entry); return { media: out, change: 'added' }; }
+    if (out[at].quote === entry.quote) return { media: out, change: null };
+    out[at] = entry;
+    return { media: out, change: 'replaced' };
+  }
+
   function quoteEntriesFromPaste(text, media) {
     if ((media || []).some((m) => m && m.quote)) return [];
     const raw = String(text || '').trim();
@@ -2685,15 +2703,66 @@ window.SidecarCore = (function () {
   }
   // Every draft of this account but the one on screen, the note first and then replies
   // newest first. `replyId` is the note a reply answers, or null for the note draft.
+  // A note set aside (shelveNoteDraft) is listed with the notes, as `shelved`, and picking
+  // it brings it back into the note slot (unshelveNoteDraft) rather than opening it where it
+  // sits: the note slot is the one every route, Expand included, knows how to open.
   function otherDraftEntries(all, pubkey, currentKey) {
     return Object.keys(all || {})
-      .filter((k) => k !== currentKey && (k === pubkey || k.startsWith(pubkey + '|r:'))
+      .filter((k) => k !== currentKey
+        && (k === pubkey || k.startsWith(pubkey + '|r:') || k.startsWith(pubkey + '|n:'))
         && draftHasContent(all[k]))
-      .map((k) => ({
-        key: k, draft: all[k], reply: k !== pubkey,
-        replyId: k === pubkey ? null : k.slice(k.indexOf('|r:') + 3),
-      }))
+      .map((k) => {
+        const reply = k.startsWith(pubkey + '|r:');
+        return {
+          key: k, draft: all[k], reply, shelved: k.startsWith(pubkey + '|n:'),
+          replyId: reply ? k.slice(k.indexOf('|r:') + 3) : null,
+        };
+      })
       .sort((a, b) => (a.reply - b.reply) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
+  }
+
+  // ---- a note set aside ----
+  //
+  // TAPPING QUOTE OVER A NOTE IN PROGRESS. The note you were writing may have nothing to do
+  // with the one you just chose, so it is set aside under Saved drafts and the quote opens
+  // in a fresh note. Only a draft with something of its own in it is kept: one holding
+  // nothing but an older quote is simply re-pointed (placeQuote), since there is nothing
+  // in it to lose. Shelved notes sit beside the reply slots, under `pubkey|n:` and a time.
+  const SHELVED_NOTE_MAX = 20;
+  function draftHasWork(d) {
+    return !!(d && ((d.text && d.text.trim()) || (d.media || []).some((m) => m && !m.quote)
+      || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))));
+  }
+  // Moves the note slot's draft aside if it has content. Mutates `all`; returns the new
+  // key, or null when there was nothing to keep. A key already taken this millisecond
+  // (two taps at once) moves on rather than writing over it.
+  function shelveNoteDraft(all, pubkey, now) {
+    const d = all[pubkey];
+    if (!draftHasContent(d)) { delete all[pubkey]; return null; }
+    let t0 = now;
+    while (all[pubkey + '|n:' + t0]) t0++;
+    const key = pubkey + '|n:' + t0;
+    const kept = { ...d, savedAt: now };
+    delete kept.expandRelays; // the tab's relay set for one post, not part of the note
+    delete kept.replyTo;      // never set on the note slot; a note set aside stays a note
+    all[key] = kept;
+    delete all[pubkey];
+    const shelf = Object.keys(all).filter((k) => k.startsWith(pubkey + '|n:'));
+    if (shelf.length > SHELVED_NOTE_MAX) {
+      shelf.sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0))
+        .slice(SHELVED_NOTE_MAX).forEach((k) => delete all[k]);
+    }
+    return key;
+  }
+  // Picking a note set aside: whatever is in the note slot goes aside in its place, and
+  // the picked one becomes the note. Mutates `all`; false if the key is not a shelved note.
+  function unshelveNoteDraft(all, pubkey, key, now) {
+    if (typeof key !== 'string' || !key.startsWith(pubkey + '|n:') || !all[key]) return false;
+    const picked = all[key];
+    delete all[key];
+    shelveNoteDraft(all, pubkey, now);
+    all[pubkey] = { ...picked, savedAt: now };
+    return true;
   }
   function draftSnippet(d) {
     const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
@@ -3955,7 +4024,12 @@ window.SidecarCore = (function () {
     actions.append(trash);
     if (c.canUp) actions.append(blockIconBtn('arrow-up', t('Move above the pictures'), c.onUp));
     if (c.canDown) actions.append(blockIconBtn('arrow-down', t('Move below the pictures'), c.onDown));
-    block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Quoting') }), actions]));
+    // The label row carries the quoted event's kind, the way the reply view
+    // does — REPLYING TO … KIND 1 — so the developer selector and the reader
+    // can both see what shape of thing the quote embeds. Empty until the
+    // quoted note lands; a failed lookup leaves it empty too.
+    const kindEl = h('span', { className: 'reply-target-kind quote-block-kind' });
+    block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Quoting') }), kindEl, actions]));
 
     const av = h('span', { className: 'avatar reply-target-av' });
     deps.applyAvatar(av, null);
@@ -3968,8 +4042,10 @@ window.SidecarCore = (function () {
       if (!ev) {
         name.textContent = t('Quoted note');
         body.textContent = t('Couldn’t load this note. It will still be quoted.');
+        kindEl.textContent = '';
         return;
       }
+      kindEl.textContent = t('kind {{kind}}', { kind: ev.kind });
       const titleTag = (ev.tags || []).find((tg) => tg[0] === 'title');
       const full = (titleTag && titleTag[1]) || ev.content || '';
       let open = quoteOpen.has(ref);
@@ -4605,7 +4681,7 @@ window.SidecarCore = (function () {
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
     ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, readVideoMeta, buildAltEditorRow,
-    splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, moveQuoteEntry, buildAttachmentsLabel,
+    splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
@@ -4620,6 +4696,7 @@ window.SidecarCore = (function () {
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
+    draftHasWork, shelveNoteDraft, unshelveNoteDraft, SHELVED_NOTE_MAX,
     publishFailed, publishRefusal, publishToRelays, groupRefusals, PUBLISH_CAP_MS,
     refusalLines, acceptedLine, relayReportNode,
   };
