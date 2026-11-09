@@ -466,8 +466,6 @@
   "No active account.": "ไม่มีบัญชีที่ใช้งานอยู่",
   "Edit status": "แก้ไขสถานะ",
   "Show npub QR": "แสดง QR ของ npub",
-  "Refresh profile, follow and mute counts": "รีเฟรชจำนวนโปรไฟล์ ผู้ติดตาม และรายการปิดเสียง",
-  "Profile refreshed": "รีเฟรชโปรไฟล์แล้ว",
   "Couldn’t reach your relays": "เชื่อมต่อรีเลย์ของคุณไม่ได้",
   "{{count}} muted": "ปิดเสียง {{count}}",
   "{{count}} muted_other": "ปิดเสียง {{count}}",
@@ -1928,6 +1926,7 @@
   "{{domain}} said: {{reason}}": "{{domain}} แจ้งว่า: {{reason}}",
   "{{domain}}'s payment didn't go through.": "การชำระเงินของ {{domain}} ไม่สำเร็จ",
   "Use for notifications only": "ใช้สำหรับการแจ้งเตือนเท่านั้น",
+  "Refresh follow and mute counts": "รีเฟรชจำนวนติดตามและปิดเสียง",
   "Tweaked address": "ที่อยู่ tweaked",
   "Untweaked address": "ที่อยู่ untweaked",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "ที่อยู่เหล่านี้เป็นสาธารณะและผูกกับ npub ของคุณ หากมีเหรียญอยู่สักวัน ให้กวาดไปยังที่อยู่ใหม่ — การกวาดเองเชื่อมทั้งสองบนเชน",
@@ -1956,5 +1955,6 @@
   "Fast": "เร็ว",
   "Standard": "มาตรฐาน",
   "Economy": "ประหยัด",
-  "Copy txid": "คัดลอก ID ธุรกรรม"
+  "Copy txid": "คัดลอก ID ธุรกรรม",
+  "Your draft is in Saved drafts.": "ฉบับร่างของคุณอยู่ในฉบับร่างที่บันทึกไว้"
 }

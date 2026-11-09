@@ -467,8 +467,6 @@
   "No active account.": "کوئی فعال اکاؤنٹ نہیں۔",
   "Edit status": "اسٹیٹس میں ترمیم کریں",
   "Show npub QR": "npub QR دکھائیں",
-  "Refresh profile, follow and mute counts": "پروفائل، فالو اور میوٹ کی گنتی تازہ کریں",
-  "Profile refreshed": "پروفائل تازہ ہو گئی",
   "Couldn’t reach your relays": "آپ کے ریلے تک رسائی نہیں ہو سکی",
   "{{count}} muted": "{{count}} میوٹ",
   "{{count}} muted_one": "{{count}} میوٹ",
@@ -1997,6 +1995,7 @@
   "{{domain}} said: {{reason}}": "{{domain}} نے کہا: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} کی ادائیگی مکمل نہیں ہوئی۔",
   "Use for notifications only": "صرف اطلاعات کے لیے استعمال کریں",
+  "Refresh follow and mute counts": "فالو اور میوٹ کاؤنٹس ریفریش کریں",
   "Tweaked address": "Tweaked ایڈریس",
   "Untweaked address": "Untweaked ایڈریس",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "یہ ایڈریس عوامی ہیں اور آپ کے npub سے جڑے ہیں۔ اگر ان میں کبھی کوئن آئیں تو انہیں ایک نئے ایڈریس پر سویپ کریں — سویپ خود ہی دونوں کو آن چین پر جوڑتا ہے۔",
@@ -2025,5 +2024,6 @@
   "Fast": "تیز",
   "Standard": "معیاری",
   "Economy": "کفایتی",
-  "Copy txid": "ٹرانزیکشن آئی ڈی کاپی کریں"
+  "Copy txid": "ٹرانزیکشن آئی ڈی کاپی کریں",
+  "Your draft is in Saved drafts.": "آپ کا مسودہ محفوظ شدہ مسودوں میں ہے۔"
 }

@@ -467,8 +467,6 @@
   "No active account.": "Etkin hesap yok.",
   "Edit status": "Durumu düzenle",
   "Show npub QR": "npub QR’ını göster",
-  "Refresh profile, follow and mute counts": "Profil, takip ve sessize alma sayılarını yenile",
-  "Profile refreshed": "Profil yenilendi",
   "Couldn’t reach your relays": "Relay’lerinize ulaşılamadı",
   "{{count}} muted": "{{count}} sessize alınan",
   "{{count}} muted_one": "{{count}} sessize alınan",
@@ -1997,6 +1995,7 @@
   "{{domain}} said: {{reason}}": "{{domain}} şu yanıtı verdi: {{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} sitesinin ödemesi gerçekleşmedi.",
   "Use for notifications only": "Yalnızca bildirimler için kullan",
+  "Refresh follow and mute counts": "Takip ve sessize alma sayısını yenile",
   "Tweaked address": "Tweaked adres",
   "Untweaked address": "Untweaked adres",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "Bu adresler açıktır ve npub'unuza bağlıdır. Bir gün coin tutarlarsa bunları taze bir adrese süpürün — süpürmenin kendisi ikisini on-chain bağlar.",
@@ -2025,5 +2024,6 @@
   "Fast": "Hızlı",
   "Standard": "Standart",
   "Economy": "Ekonomik",
-  "Copy txid": "İşlem kimliğini kopyala"
+  "Copy txid": "İşlem kimliğini kopyala",
+  "Your draft is in Saved drafts.": "Taslağınız Kayıtlı taslaklar içinde."
 }

@@ -466,8 +466,6 @@
   "No active account.": "没有当前账户。",
   "Edit status": "编辑状态",
   "Show npub QR": "显示 npub 二维码",
-  "Refresh profile, follow and mute counts": "刷新个人资料、关注和静音数量",
-  "Profile refreshed": "个人资料已刷新",
   "Couldn’t reach your relays": "无法连接你的 relay",
   "{{count}} muted": "已静音 {{count}}",
   "{{count}} muted_other": "已静音 {{count}}",
@@ -1928,6 +1926,7 @@
   "{{domain}} said: {{reason}}": "{{domain}} 表示：{{reason}}",
   "{{domain}}'s payment didn't go through.": "{{domain}} 的付款未成功。",
   "Use for notifications only": "仅用于通知",
+  "Refresh follow and mute counts": "刷新关注和静音计数",
   "Tweaked address": "Tweaked 地址",
   "Untweaked address": "Untweaked 地址",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "这些地址是公开的，并与你的 npub 绑定。如果它们哪天有了币，请把它们清扫到一个全新地址 —— 清扫本身会在链上把两者连起来。",
@@ -1956,5 +1955,6 @@
   "Fast": "快",
   "Standard": "标准",
   "Economy": "经济",
-  "Copy txid": "复制交易 ID"
+  "Copy txid": "复制交易 ID",
+  "Your draft is in Saved drafts.": "你的草稿在“已保存的草稿”中。"
 }

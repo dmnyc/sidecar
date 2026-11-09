@@ -468,8 +468,6 @@
   "No active account.": "אין חשבון פעיל.",
   "Edit status": "עריכת סטטוס",
   "Show npub QR": "הצגת קוד QR של npub",
-  "Refresh profile, follow and mute counts": "רענון מוני הפרופיל, המעקב וההשתקות",
-  "Profile refreshed": "הפרופיל רוענן",
   "Couldn’t reach your relays": "לא ניתן היה להגיע לריליים שלכם",
   "{{count}} muted": "{{count}} מושתקים",
   "{{count}} muted_one": "{{count}} מושתקים",
@@ -2066,6 +2064,7 @@
   "{{domain}} said: {{reason}}": "{{domain}} השיב: {{reason}}",
   "{{domain}}'s payment didn't go through.": "התשלום מ-{{domain}} לא עבר.",
   "Use for notifications only": "שימוש להתראות בלבד",
+  "Refresh follow and mute counts": "רענון מספרי המעקבים וההשתקות",
   "Tweaked address": "כתובת tweaked",
   "Untweaked address": "כתובת untweaked",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "הכתובות האלה ציבוריות וקשורות ל־npub שלך. אם יישמרו בהן מטבעות מתישהו, טאטאו אותם לכתובת חדשה — הטאטוא עצמו מקשר בין השתיים בצ'יין.",
@@ -2094,5 +2093,6 @@
   "Fast": "מהיר",
   "Standard": "רגיל",
   "Economy": "חסכוני",
-  "Copy txid": "העתקת מזהה העסקה"
+  "Copy txid": "העתקת מזהה העסקה",
+  "Your draft is in Saved drafts.": "הטיוטה שלכם נמצאת בטיוטות שמורות."
 }

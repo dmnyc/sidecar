@@ -353,7 +353,9 @@ test('THE PUBLISHERS COMPOSE; THE UPLOADS NEVER TOUCH THE EDITOR', () => {
     const taps = name === 'sidepanel.js'
       ? src.match(/scheduleSave\(\);\n\s*updatePostState\(\);\n\s*renderThumbs\(\);/g) || []
       : src.match(/scheduleSave\(\);\n\s*paintCount\(\);\n\s*renderThumbs\(\);/g) || [];
-    const want = name === 'sidepanel.js' ? 9 : 8; // each includes the pasted quote that no relay showed
+    // Each includes the pasted quote that no relay showed; the tab adds the Quote the panel
+    // hands it while it holds the draft (takeQuote).
+    const want = 9;
     assert.equal(taps.length, want, name + ' repaints the button at every media change (found ' + taps.length + ')');
   }
 });

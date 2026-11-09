@@ -469,8 +469,6 @@
   "No active account.": "Brak aktywnego konta.",
   "Edit status": "Edytuj status",
   "Show npub QR": "Pokaż kod QR npub",
-  "Refresh profile, follow and mute counts": "Odśwież profil oraz liczby obserwowanych i wyciszonych",
-  "Profile refreshed": "Profil odświeżony",
   "Couldn’t reach your relays": "Nie udało się połączyć z twoimi przekaźnikami",
   "{{count}} muted": "Wyciszonych: {{count}}",
   "{{count}} muted_few": "{{count}} wyciszonych",
@@ -2135,6 +2133,7 @@
   "{{domain}} said: {{reason}}": "{{domain}} odpowiada: {{reason}}",
   "{{domain}}'s payment didn't go through.": "Płatność od {{domain}} nie doszła do skutku.",
   "Use for notifications only": "Używaj tylko do powiadomień",
+  "Refresh follow and mute counts": "Odśwież liczniki obserwowanych i wyciszonych",
   "Tweaked address": "Adres tweaked",
   "Untweaked address": "Adres untweaked",
   "These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.": "Te adresy są publiczne i związane z twoim npub. Jeśli kiedyś będą na nich monety, zamieć je na świeży adres — samo zamiatanie łączy oba on-chain.",
@@ -2163,5 +2162,6 @@
   "Fast": "Szybko",
   "Standard": "Standardowo",
   "Economy": "Ekonomicznie",
-  "Copy txid": "Skopiuj ID transakcji"
+  "Copy txid": "Skopiuj ID transakcji",
+  "Your draft is in Saved drafts.": "Twój szkic jest w Zapisanych szkicach."
 }

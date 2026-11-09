@@ -42,6 +42,7 @@ const follows = (n, author = PK) => ({
 function followHarness(answer) {
   const calls = { queries: 0, seeded: 0 };
   const deps = {
+    FOLLOW_COUNT_TTL: 5 * 60 * 1000,
     followCountCache: new Map(),
     readRelayUrls: async () => ['wss://declared'],
     poolQueryAnswered: async (relays, filter, params) => { calls.queries++; calls.last = { relays, filter, params }; return answer(); },
@@ -63,7 +64,24 @@ test('NOBODY ANSWERING IS NOT "FOLLOWS NOBODY"', async () => {
 test('relays that answered with no kind:3 is a real 0, and is cached', async () => {
   const h = followHarness(() => ({ events: [], answered: true }));
   assert.equal(await h.getFollowCount(PK), 0);
-  assert.equal(h.cache.get(PK), 0);
+  assert.equal(h.cache.get(PK).v, 0);
+});
+
+test('a fresh cached count is served without asking again', async () => {
+  const h = followHarness(() => ({ events: [follows(3)], answered: true }));
+  await h.getFollowCount(PK);
+  assert.equal(h.calls.queries, 1);
+  assert.equal(await h.getFollowCount(PK), 3);
+  assert.equal(h.calls.queries, 1, 'inside the window, the cache answers');
+});
+
+test('a count older than the window is asked again', async () => {
+  const h = followHarness(() => ({ events: [follows(3)], answered: true }));
+  await h.getFollowCount(PK);
+  // Age the single entry past the five-minute window.
+  h.cache.get(PK).at -= 6 * 60 * 1000;
+  assert.equal(await h.getFollowCount(PK), 3);
+  assert.equal(h.calls.queries, 2, 'expired cache, re-queried — this is how another client’s restore shows up');
 });
 
 test('a follow list is counted by distinct people', async () => {

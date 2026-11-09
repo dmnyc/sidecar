@@ -1631,6 +1631,19 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   cursor: pointer;
 }
 .account-stats-toggle:hover { color: var(--text); }
+/* The header row wraps the toggle so a refresh can sit beside it without
+   living inside the button it sits beside. */
+.account-stats-head { display: flex; align-items: center; }
+.account-stats-head .account-stats-toggle { flex: 1; min-width: 0; }
+.account-stats-refresh {
+  flex-shrink: 0; width: 26px; height: 26px; margin-right: 10px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
+}
+.account-stats-refresh:hover { color: var(--text); }
+.account-stats-refresh svg { width: 14px; height: 14px; }
+.account-stats-refresh.spinning svg { animation: spin 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .account-stats-refresh.spinning svg { animation: none; opacity: 0.5; } }
 .account-stats-chevron {
   width: 14px; height: 14px;
   transition: transform 0.2s ease;
@@ -3318,6 +3331,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    author, clipped text), full width so a row of pictures ends where it begins. */
 .compose-thumbs .quote-block { flex: 0 0 100%; box-sizing: border-box; margin: 2px 0; min-width: 0; max-width: 100%; }
 .quote-block .reply-target-label { align-items: center; }
+/* The kind rides between the label and the action icons: pushed right as a
+   pair with the icons, the way the reply view's KIND sits at its row's end. */
+.quote-block .reply-target-kind { margin-inline-start: auto; }
 /* The pictures' label beside a quote: the quote block's label, without its gold rule. */
 .compose-thumbs .attach-group-label {
   flex: 0 0 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%;
@@ -3561,8 +3577,8 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-sub { font-size: 12px; color: var(--muted); }
 .compose-count {
   font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
-  /* Pushes the two ways out of the page to the right edge, leaving the status line the
-     whole left half to say something in. */
+  /* Pushes Post to the right edge, leaving the status line the whole left half to say
+     something in. */
   margin-inline-end: auto;
 }
 /* THE POINT OF THE PAGE. 17px over the panel's 14, with the line height to match: the
@@ -3637,6 +3653,8 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-sheet .compose-drafts-btn { top: 24px; inset-inline-end: 26px; }
 .compose-drafts-title { margin: 0 0 12px; }
 .compose-drafts-back { align-self: center; margin-top: 12px; }
+/* The open draft's own parts, put away while the list of other drafts is up (showTab). */
+.drafts-away { display: none !important; }
 .compose-drafts-pane {
   display: flex; flex-direction: column; box-sizing: border-box; min-height: var(--compose-pane-h);
 }
@@ -4229,6 +4247,19 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    a full button treatment would fight the card's typography. */
 .wallet-balance, .pinned-balance-amt { cursor: pointer; user-select: none; }
 .wallet-balance:hover, .pinned-balance-amt:hover { filter: brightness(1.12); }
+/* A figure reads left to right on a right-to-left page. splitGlyphs deals every
+   character into its own inline-block span, and the bidi algorithm treats an
+   inline-block as an opaque object, so under dir="rtl" the row laid itself out from the
+   right and 48,422 came out as 224,84. The same goes for the countdown digits (30 read
+   03) and for a sign sitting beside a number: the "+" and "−" of a transaction row went
+   to the far end ("21,000+"). Setting the direction on the figure itself, and isolating
+   it, keeps the order whatever the page's direction is; text-align and the flex centering
+   around it are untouched, so the card still mirrors. Not the "1 BTC = 1 BTC" line:
+   that is a translated sentence and follows the page. */
+.wallet-balance:not(.btc-joke), .pinned-balance-amt, .countdown-num, .tx-amt,
+.wallet-chart-lowhigh, .wallet-chart-price {
+  direction: ltr; unicode-bidi: isolate;
+}
 /* Currency symbols set in Playfair at the balance's size swamp the digits — worst
    for the currencies Intl renders as a three-letter code ("CHF", "NGN"). Set them in
    the UI face at ~0.6-0.7em, nudged up toward the numerals' cap height, and slightly
