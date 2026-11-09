@@ -609,7 +609,8 @@
     const isLight = LIGHT_THEMES.includes(theme);
     if (isLight) {
       const mark = document.querySelector('.brand img');
-      if (mark) mark.src = 'icons/sidecar-logo-deco.svg';
+      // Phantom Bouquet wears its own cut, drawn in its dyes (logoSrcFor in composer-core.js).
+      if (mark) mark.src = theme === 'phantom-bouquet' ? 'icons/sidecar-logo-phantom-bouquet.svg' : 'icons/sidecar-logo-deco.svg';
     }
     // Keyed off the VALIDATED theme rather than data.theme, so an unrecognised value
     // falls back with everything else instead of picking a cut of its own.

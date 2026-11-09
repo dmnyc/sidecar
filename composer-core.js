@@ -351,7 +351,12 @@ window.SidecarCore = (function () {
   // black plate while its panel bars are white, and Turnstile's name tablet is on both.
   const COMPOSE_DARK_BAR_THEMES = new Set(['ben-day', 'turnstile']);
   const PANEL_DARK_BAR_THEMES = new Set(['turnstile']);
+  // A theme that wears its own cut of the logo. Phantom Bouquet's is drawn in its dyes:
+  // the glass in madder, the wordmark in the balance's plum. Its siblings are in
+  // content.js (the pay card recolors its inline copy) and prompt.js (the approval window).
+  const THEME_LOGOS = { 'phantom-bouquet': 'icons/sidecar-logo-phantom-bouquet.svg' };
   function logoSrcFor(themeName) {
+    if (Object.prototype.hasOwnProperty.call(THEME_LOGOS, themeName)) return THEME_LOGOS[themeName];
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.
     // A set rather than a chain of ||, because this is the fourth place a theme
