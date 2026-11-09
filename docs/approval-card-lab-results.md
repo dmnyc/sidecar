@@ -2,7 +2,7 @@
 
 The approval card now asks one question in one row: **Once · 30 min · Always**, plus Sign and Reject. This records every scenario that was tested against that design, on both approval surfaces (the side panel and the popup window), and what each one showed. The lab that ran them ships with this pull request at `test/manual/approval-lab.html`, so any case here can be rerun.
 
-Tested on November 8, 2026: an automated run of all 23 cases (rerun after the last fix) in a clean Chrome profile with two throwaway accounts, then a pass by hand in Chrome, including on jumble.social. **21 cases pass. The 2 that fail (4.5, 4.6) depend on a separate fix that is not in this pull request**, described under [Known failures](#known-failures).
+Tested on November 8, 2026: an automated run of all 23 cases (rerun after the last fix) in a clean Chrome profile with two throwaway accounts, then a pass by hand in Chrome, including on jumble.social. **All 23 cases pass.**
 
 ![Light theme: a two-account card on Once and on 30 min, and a one-account card on Always](images/approval-lab/light-once-30min-always.webp)
 
@@ -59,14 +59,14 @@ Times are from the automated run. “No card” means the request was answered i
 | 4.2 | The multi-account card: “Multiple accounts are signed in here.” over a bold “Confirm who’s posting each time.”; Once · 30 min only; no Trust; the menu lists both | Pass: signed as the active account |
 | 4.3 | A 30-minute window for one account | Pass: bar shows that account; three notes signed with no card, as that account |
 | 4.4 | Picking the other account in the card signs as it | Pass: the capsule changed, the card stayed open, signed as the picked account, which became active |
-| 4.5 | Two windows at once, one per account | **Fail** (see below) |
-| 4.6 | Restart and End with two windows | **Fail** (depends on 4.5) |
+| 4.5 | Two windows at once, one per account | Pass: a window for each account, both running after the switch between them; the bar shows the one that ends first; a note as either account signed with no card |
+| 4.6 | Restart and End with two windows | Pass: started from two windows; End cleared the bar and the badge; the next note asked |
 
-## Known failures
+## Switching accounts no longer ends the windows
 
-4.5 and 4.6 fail because switching accounts still ends every window on the site: switching Sidecar’s active account revokes all windows, and so does posting as a different account than the one the site last used. In 4.5 each account’s approval opened its window, and the switch between them ended the other one.
+4.5 and 4.6 failed on the first runs: switching Sidecar’s active account ended every window, and so did posting on a site as a different account than the one it last used, so opening the second account’s window closed the first one’s. Each window covers signing as its own account only, so neither rule protected anything; both are removed. Windows still end on lock, when the site is forgotten, and when a site is detached from the wrong identity.
 
-The windows themselves now coexist: a second account’s approval no longer replaces the first account’s window, and the status bar, its Restart button and the badge all follow the window that ends first (covered by `test/relax-grant.test.js`). Removing the two revoke-on-switch rules is a separate change.
+The windows coexist: a second account’s approval no longer replaces the first account’s window, and the status bar, its Restart button and the badge all follow the window that ends first (covered by `test/relax-grant.test.js`).
 
 ## Bugs the lab found, all fixed here
 
@@ -85,6 +85,7 @@ The windows themselves now coexist: a second account’s approval no longer repl
 - `test/composer-core.test.js`: the popup now gets the same check for undeclared names the panel has. Fails on bug 3.
 - `test/wrong-account-escape.test.js`: runs the panel’s real menu builder and clicks its rows. Fails on bug 2.
 - `test/relax-grant.test.js`: windows coexist per site and account, and are listed soonest-first.
+- `test/relax-survives-switch.test.js`: runs the account switch and the site rebind from `background.js` and checks that neither ends a window. Fails on the old rules.
 
 ## What the automated run could not cover
 

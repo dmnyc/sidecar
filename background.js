@@ -1740,7 +1740,6 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // block further down (which drops a now-stale relax window on an account
     // change) can tell "stale window for the account we're leaving" apart from
     // "the window we just opened for the account we're arriving at" — see there.
-    let relaxJustGrantedFor = null;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -1989,7 +1988,6 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {
         await RELAX.grant(host, activePubkey, decision.relaxMs || RELAX.DEFAULT_MS);
-        relaxJustGrantedFor = activePubkey;
         syncRelaxBadge();
       }
       // 'once' | 'trust' | 'relax' → proceed (after a successful unlock, if one was needed)
@@ -2044,21 +2042,11 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // sharedIdentity is also an explicit choice (the user just confirmed who's
     // posting in the prompt), so it may move the binding too.
     if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
-      // A re-login to a DIFFERENT account is the one detectable moment the identity
-      // context for this host can change, so a prior relax window for it is no
-      // longer trustworthy — drop it. A same-account re-fetch leaves the binding
-      // unchanged and is left alone. Exception: if THIS request is the one that
-      // just opened the relax window for the account we're rebinding TO (the
-      // shared-host relax chip, granted a few lines up), it's not stale — it's
-      // the window the user just asked for. Without this guard, choosing "relax"
-      // on a shared host where the site's prior pin differs from the signing
-      // account would grant the window and then immediately revoke that same
-      // grant in this same request, so the status bar never appears.
-      const prevBound = await getSiteAccount(host);
+      // A re-login or a post as another account moves the binding and leaves the
+      // site's 30-minute windows alone: each covers signing as its own account only,
+      // so the previous account's window cannot sign for the one arriving. Ending
+      // them here is what made a second account's window close the first one's.
       await setSiteAccount(host, activePubkey);
-      if (prevBound && prevBound !== activePubkey && relaxJustGrantedFor !== activePubkey) {
-        await RELAX.revokeForHost(host); syncRelaxBadge();
-      }
     }
     // Record every account that acts on a host, so a second one makes it "shared".
     await addAuthorizedAccount(host, activePubkey);
@@ -4197,15 +4185,12 @@ async function handleControl(message, sender, sendResponse) {
         result = await KS.setProfile(message.pubkey, { name: message.name, picture: message.picture });
         break;
       case 'SIDECAR_SET_ACTIVE': {
-        const prevActive = await KS.getActivePubkey();
+        // SWITCHING LEAVES THE 30-MINUTE WINDOWS ALONE. Each one is keyed to a site AND
+        // an account, and only ever covers signing as that account (RELAX.has(host,
+        // activePubkey)), so a window cannot follow you onto the account you switch to.
+        // Ending them all here made two accounts' windows on one site impossible: opening
+        // the second account's ended the first one's. Lock still ends every window.
         result = await KS.setActive(message.pubkey);
-        // Switching identity ends any active relax window: its countdown is for an
-        // account you've moved off of, and a lingering auto-sign shouldn't follow
-        // you across an identity change. Only on a real change — tapping the
-        // already-active account is a no-op and must not kill the window. Awaited
-        // so the panel's immediate re-query finds the grants already gone (no
-        // flicker of the disappearing indicator).
-        if (prevActive && prevActive !== message.pubkey) { await RELAX.revokeAll(); syncRelaxBadge(); }
         break;
       }
       case 'SIDECAR_CHANGE_PIN':

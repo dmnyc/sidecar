@@ -7,12 +7,11 @@
 // outlive a service-worker restart, so it lives in chrome.storage.session with a
 // chrome.alarm firing the revoke.
 //
-// ONE WINDOW AT A TIME: relaxing on a new site takes over the countdown — a fresh
-// grant revokes any prior one, so the panel's single status bar always reflects
-// the one active site/account. Revoked early on a re-login to a different account
-// on the same host and on lock; the residual, undetectable case (a pure in-client
-// switcher flip that fires no getPublicKey) is what the panel's relax bar reminds
-// the user about.
+// ONE WINDOW PER SITE AND ACCOUNT, and they coexist: a window only ever covers
+// signing as its own account, so switching accounts or posting as another one
+// leaves every window running. The panel's status bar, its Restart button and the
+// badge follow the one that ends first. Revoked early on lock, on forgetting the
+// site, and on detaching it from a wrong identity.
 //
 // Isolated (like keystore.js / permissions.js) so it can be unit-tested directly
 // against a chrome mock — see test/relax-grant.test.js.
