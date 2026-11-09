@@ -11,6 +11,9 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ## [Unreleased]
 
+### Added
+- **Nostr Vault joins the clients a note or profile can open in.** Its threads take the same `nevent`, `note` and `naddr` links the other clients do, at nostrvault.app/thread/, and profiles live at nostrvault.app/p/. It sits in the "view notes in" choice under Settings → Posting where Nostrich used to be.
+
 ### Removed
 - **Nostrich is no longer offered as a client.** The app directory on the Welcome page drops nostrich.org, and so does the "view notes in" choice under Settings → Posting; a saved choice of Nostrich now opens notes and profiles in the default client instead.
 

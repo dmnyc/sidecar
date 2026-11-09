@@ -4216,6 +4216,7 @@ window.SidecarCore = (function () {
     zapcooking: { label: 'Zap Cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
     noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
     jank: { label: 'JANK', url: (ne) => 'https://jank.army/notes/' + ne, profile: (np) => 'https://jank.army/users/' + np },
+    nostrvault: { label: 'Nostr Vault', url: (ne) => 'https://nostrvault.app/thread/' + ne, profile: (np) => 'https://nostrvault.app/p/' + np },
     ditto: { label: 'Ditto', url: (ne) => 'https://ditto.pub/' + ne, profile: (np) => 'https://ditto.pub/' + np },
     // ROUTES, not a catch-all: /e/ for an event and /p/ for a profile. Its own links are
     // /e/note1… and /e/naddr…, built with encodeNote, so /e/ is known to take a note1
