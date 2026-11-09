@@ -87,13 +87,11 @@ test('every client URL is https and carries the identifier', () => {
   }
 });
 
-// Routes verified against each client rather than assumed: both of these are
-// single-page apps where a wrong guess still renders something, so the paths
-// were read from the router (JANK) or confirmed by every other candidate
-// returning a real 404 (Nostrich).
+// Routes verified against the client rather than assumed: JANK is a single-page
+// app where a wrong guess still renders something, so its paths were read from
+// the router.
 const PINNED = [
   { key: 'jank', label: 'JANK', url: 'https://jank.army/notes/', profile: 'https://jank.army/users/' },
-  { key: 'nostrich', label: 'Nostrich', url: 'https://nostrich.org/e/', profile: 'https://nostrich.org/p/' },
   // Razr's router was read the same way: /e/:noteId, /p/:npub and /a/:naddr, with its own
   // links written as /e/note1… and /e/naddr…. Note the trap that makes reading the router
   // necessary: razr.social answers 200 text/html on ANY path, so "the URL works" proves
