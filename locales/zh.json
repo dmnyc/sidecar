@@ -1964,7 +1964,7 @@
   "{{count}} other timer running_other": "另有 {{count}} 个计时器正在运行",
   "End this timer": "结束这个计时器",
   "this account": "这个账号",
-  "Auto-sign timers": "自动签名计时器",
-  "By default, one account signs without asking at a time, and switching ends its timer.": "默认一次只有一个账号可以不经询问签名，切换账号会结束它的计时器。",
-  "Keep a timer for each account": "为每个账号保留计时器"
+  "Auto-sign with multiple accounts": "多账号自动签名",
+  "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no card.": "适用于多个账号共用一个客户端。风险更高：一旦混淆，可能不经卡片就用错误的账号发布。",
+  "Keep a 30-minute timer for each account": "为每个账号保留 30 分钟计时器"
 }

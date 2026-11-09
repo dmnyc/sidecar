@@ -2174,7 +2174,7 @@
   "{{count}} other timer running_other": "Работает ещё {{count}} таймера",
   "End this timer": "Остановить этот таймер",
   "this account": "этот аккаунт",
-  "Auto-sign timers": "Таймеры автоподписи",
-  "By default, one account signs without asking at a time, and switching ends its timer.": "По умолчанию без вопросов подписывает только один аккаунт за раз, а переключение аккаунта останавливает его таймер.",
-  "Keep a timer for each account": "Отдельный таймер для каждого аккаунта"
+  "Auto-sign with multiple accounts": "Автоподпись с несколькими аккаунтами",
+  "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no card.": "Для нескольких аккаунтов в одном клиенте. Рискованнее: путаница может опубликовать от не того аккаунта без карточки.",
+  "Keep a 30-minute timer for each account": "Отдельный 30-минутный таймер для каждого аккаунта"
 }

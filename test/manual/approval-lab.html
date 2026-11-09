@@ -400,7 +400,7 @@ kase(SH, { id: '4.4', host: 'shared', title: 'Signing as A from the card',
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick A in the card)', REQ.note, 'ask', isA) }] });
 
 kase(SH, { id: '4.5', host: 'shared', title: 'Two windows at once, with a timer for each account',
-  steps: ['Turn on Settings → Auto-sign timers → Keep a timer for each account.',
+  steps: ['Turn on Settings → Auto-sign with multiple accounts → Keep a 30-minute timer for each account.',
     'Switch Sidecar back to B (4.4 made A active). Press Sign a note, choose 30 min, and sign.', 'Switch Sidecar to A.', 'Press Sign a note (as A), choose 30 min, and sign.',
     'Press Sign as A, no card expected.', 'Switch Sidecar back to B, then press Sign as B, no card expected.'],
   expect: ['After step 4 two windows are running: the bar shows the active account’s (A’s) with a +1, and the badge counts down the same one. +1 lists B’s.',
@@ -416,7 +416,7 @@ kase(SH, { id: '4.6', host: 'shared', title: 'Restart and End with two windows',
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note after End', REQ.note, 'ask') }] });
 
 kase(SH, { id: '4.7', host: 'shared', title: 'One account at a time (the default): switching ends the window',
-  steps: ['Turn Settings → Auto-sign timers → Keep a timer for each account back off.',
+  steps: ['Turn Settings → Auto-sign with multiple accounts → Keep a 30-minute timer for each account back off.',
     'With Sidecar on B, press Sign a note, choose 30 min, and sign.', 'Switch Sidecar to A.', 'Press Sign a note.'],
   expect: ['After step 3 the bar is gone.', 'Step 4 gets a card.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask') }] });

@@ -2034,7 +2034,7 @@
   "{{count}} other timer running_other": "{{count}} और टाइमर चल रहे हैं",
   "End this timer": "यह टाइमर बंद करें",
   "this account": "यह खाता",
-  "Auto-sign timers": "ऑटो-साइन टाइमर",
-  "By default, one account signs without asking at a time, and switching ends its timer.": "डिफ़ॉल्ट रूप से एक समय में एक ही खाता बिना पूछे साइन करता है, और खाता बदलने पर उसका टाइमर खत्म हो जाता है।",
-  "Keep a timer for each account": "हर खाते के लिए अलग टाइमर रखें"
+  "Auto-sign with multiple accounts": "कई खातों के साथ ऑटो-साइन",
+  "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no card.": "एक ही क्लाइंट में कई खातों के लिए। ज़्यादा जोखिम: गड़बड़ी होने पर बिना कार्ड के गलत खाते से पोस्ट हो सकती है।",
+  "Keep a 30-minute timer for each account": "हर खाते के लिए 30 मिनट का टाइमर रखें"
 }

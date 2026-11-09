@@ -2034,7 +2034,7 @@
   "{{count}} other timer running_other": "{{count}} اور ٹائمر چل رہے ہیں",
   "End this timer": "یہ ٹائمر ختم کریں",
   "this account": "یہ اکاؤنٹ",
-  "Auto-sign timers": "خودکار دستخط کے ٹائمر",
-  "By default, one account signs without asking at a time, and switching ends its timer.": "پہلے سے طے شدہ طور پر ایک وقت میں صرف ایک اکاؤنٹ پوچھے بغیر دستخط کرتا ہے، اور اکاؤنٹ بدلنے سے اس کا ٹائمر ختم ہو جاتا ہے۔",
-  "Keep a timer for each account": "ہر اکاؤنٹ کے لیے الگ ٹائمر رکھیں"
+  "Auto-sign with multiple accounts": "متعدد اکاؤنٹس کے ساتھ خودکار دستخط",
+  "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no card.": "ایک کلائنٹ میں کئی اکاؤنٹس کے لیے۔ زیادہ خطرہ: گڑبڑ ہونے پر کارڈ کے بغیر غلط اکاؤنٹ سے پوسٹ ہو سکتی ہے۔",
+  "Keep a 30-minute timer for each account": "ہر اکاؤنٹ کے لیے 30 منٹ کا ٹائمر رکھیں"
 }

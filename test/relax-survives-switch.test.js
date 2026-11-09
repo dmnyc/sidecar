@@ -4,7 +4,7 @@
 // accounts each able to sign without asking is how a multi-account client's slot mix-up
 // goes out under the wrong account with no card, so by default switching accounts, posting
 // on a site as another account, and opening a window for another account all end the
-// other account's windows. With "Keep a timer for each account" on, none of them does
+// other account's windows. With "Keep a 30-minute timer for each account" on, none of them does
 // (lab cases 4.5 and 4.6). The handlers are run here, lifted from background.js.
 
 const { test } = require('node:test');

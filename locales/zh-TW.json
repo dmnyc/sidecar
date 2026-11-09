@@ -1964,7 +1964,7 @@
   "{{count}} other timer running_other": "另有 {{count}} 個計時器正在執行",
   "End this timer": "結束這個計時器",
   "this account": "這個帳號",
-  "Auto-sign timers": "自動簽署計時器",
-  "By default, one account signs without asking at a time, and switching ends its timer.": "預設一次只有一個帳號可以不經詢問簽署，切換帳號會結束它的計時器。",
-  "Keep a timer for each account": "為每個帳號保留計時器"
+  "Auto-sign with multiple accounts": "多帳號自動簽署",
+  "For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no card.": "適用於多個帳號共用一個用戶端。風險較高：一旦混淆，可能不經卡片就用錯誤的帳號發布。",
+  "Keep a 30-minute timer for each account": "為每個帳號保留 30 分鐘計時器"
 }

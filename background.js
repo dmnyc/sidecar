@@ -3919,7 +3919,7 @@ if (chrome.idle && chrome.idle.onStateChanged) {
 // active" signal, and clicking the icon opens the panel to that bar. A 1-min
 // alarm ticks the countdown down; both clear when no window is live.
 const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
-// Settings → Auto-sign timers → "Keep a timer for each account". Off by default: one
+// Settings → Auto-sign with multiple accounts → "Keep a 30-minute timer for each account". Off by default: one
 // account signs without asking at a time.
 async function relaxPerAccount() {
   return ((await sget('sidecar_settings')).sidecar_settings || {}).relaxPerAccount === true;
@@ -4489,7 +4489,7 @@ async function handleControl(message, sender, sendResponse) {
           await chrome.alarms.clear(AUTO_LOCK_ALARM);
           bumpAutoLock();
         }
-        // Turning "Keep a timer for each account" off leaves the active account's windows
+        // Turning "Keep a 30-minute timer for each account" off leaves the active account's windows
         // and ends the rest, so the one-account rule holds from that moment.
         if (prev.relaxPerAccount === true && merged.relaxPerAccount !== true) {
           await RELAX.revokeOtherAccounts(await KS.getActivePubkey());
