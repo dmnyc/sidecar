@@ -1865,6 +1865,7 @@
     const list = $('compose-drafts-pane');
     const slot = $('compose-slot');
     showTab = (which) => {
+      const wasListing = !list.classList.contains('hidden');
       // THE LIST TAKES THE EDITOR'S PLACE AT THE EDITOR'S SIZE, measured before the
       // editor is hidden, so the card does not jump when you open it.
       if (which === 'drafts' && !slot.classList.contains('hidden') && slot.offsetHeight) {
@@ -1898,6 +1899,10 @@
       // Invisible rather than gone: it is the spacer that holds Cancel to the right.
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
+      // THE FOLDER COMES BACK WITH THE EDITOR. It stands down while the list is up, and
+      // repainting it is what brings it back: Back to your draft, and a pick (whose own
+      // repaint ran while the list was still showing), left it hidden with drafts saved.
+      if (wasListing) paintSavedDrafts();
       paintPreview();
     };
     paintPreview = () => {

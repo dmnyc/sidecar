@@ -275,11 +275,11 @@ test('the tab puts the open draft’s strip, drawer and dev fields away while Sa
     addEventListener() {}, prepend() {}, append() {},
   });
   const drawer = el('drawer');
-  const calls = { alt: 0, gif: 0 };
+  const calls = { alt: 0, gif: 0, folder: 0 };
   const ctx = {
     $: el, mediaDrawer: { wrap: drawer }, emojiBtn: null, SC: { emojiGroups: () => [], composeNoteContent: () => '' },
     closeGifPicker: () => { calls.gif++; }, closeAltEditor: () => { calls.alt++; }, closeEmojiPicker() {},
-    paintSavedDrafts() {}, busy: () => false, icon: () => ({}), h: () => ({}), t: (s) => s,
+    paintSavedDrafts: () => { calls.folder++; }, busy: () => false, icon: () => ({}), h: () => ({}), t: (s) => s,
     draft: { text: '', media: [] }, composer: {},
   };
   vm.createContext(ctx);
@@ -289,8 +289,13 @@ test('the tab puts the open draft’s strip, drawer and dev fields away while Sa
   ctx.show('drafts');
   assert.deepEqual(away(), [true, true, true]);
   assert.equal(calls.alt, 1, 'the ALT row was left open over the list');
+  assert.equal(calls.folder, 1);
   ctx.show('write');
   assert.deepEqual(away(), [false, false, false]);
+  // Back to the editor repaints the folder, or it stays hidden with drafts saved.
+  assert.equal(calls.folder, 2, 'the folder was not repainted on the way back');
+  ctx.show('preview');
+  assert.equal(calls.folder, 2, 'a Write/Preview switch need not reread the store');
   ctx.show('preview');
   assert.deepEqual(away(), [false, false, false], 'Preview still shows the strip');
   assert.match(read('styles.css'), /\.drafts-away \{ display: none !important; \}/);
