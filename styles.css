@@ -3637,6 +3637,8 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-sheet .compose-drafts-btn { top: 24px; inset-inline-end: 26px; }
 .compose-drafts-title { margin: 0 0 12px; }
 .compose-drafts-back { align-self: center; margin-top: 12px; }
+/* The open draft's own parts, put away while the list of other drafts is up (showTab). */
+.drafts-away { display: none !important; }
 .compose-drafts-pane {
   display: flex; flex-direction: column; box-sizing: border-box; min-height: var(--compose-pane-h);
 }

@@ -1881,7 +1881,14 @@
       // The toolbar edits this draft, so it stands down while another draft is being
       // chosen rather than offering to attach a photo to a list.
       $('compose-actions').classList.toggle('hidden', which === 'drafts');
-      if (which === 'drafts') closeGifPicker();
+      // AND SO DOES WHAT BELONGS TO IT: the attachment strip, the media drawer and the dev
+      // fields. Left up under the list, the open draft's quoted note read as part of the
+      // list. A class of its own rather than .hidden, which each of them sets for its own
+      // reasons and would get back wrong.
+      for (const el of [$('compose-thumbs'), mediaDrawer.wrap, $('compose-dev')]) {
+        el.classList.toggle('drafts-away', which === 'drafts');
+      }
+      if (which === 'drafts') { closeGifPicker(); closeAltEditor(); }
       // It writes into the editor, which Preview and the drafts list both put away.
       if (which !== 'write') closeEmojiPicker();
       if (emojiBtn) emojiBtn.classList.toggle('hidden', which !== 'write' || !SC.emojiGroups());

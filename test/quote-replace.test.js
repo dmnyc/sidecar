@@ -261,3 +261,37 @@ test('notes set aside belong to whichever composer has the note open', () => {
   assert.match(read('sidepanel.js'), /!\(e\.shelved && tabKey === pubkey\)/);
   assert.match(read('compose.js'), /!\(e\.shelved && inPanel === state\.activePubkey\)/);
 });
+
+// ---- the tab's Saved drafts list, run ----------------------------------------------------
+
+test('the tab puts the open draft’s strip, drawer and dev fields away while Saved drafts is up', () => {
+  const els = {};
+  const el = (id) => els[id] || (els[id] = {
+    id, style: {}, offsetHeight: 200, _c: new Set(['hidden'].filter(() => id === 'compose-drafts-pane')),
+    classList: {
+      toggle(c, on) { const s = els[id]._c; if (on === undefined) on = !s.has(c); on ? s.add(c) : s.delete(c); },
+      contains(c) { return els[id]._c.has(c); },
+    },
+    addEventListener() {}, prepend() {}, append() {},
+  });
+  const drawer = el('drawer');
+  const calls = { alt: 0, gif: 0 };
+  const ctx = {
+    $: el, mediaDrawer: { wrap: drawer }, emojiBtn: null, SC: { emojiGroups: () => [], composeNoteContent: () => '' },
+    closeGifPicker: () => { calls.gif++; }, closeAltEditor: () => { calls.alt++; }, closeEmojiPicker() {},
+    paintSavedDrafts() {}, busy: () => false, icon: () => ({}), h: () => ({}), t: (s) => s,
+    draft: { text: '', media: [] }, composer: {},
+  };
+  vm.createContext(ctx);
+  vm.runInContext('let showTab, paintPreview;\n' + liftBraces(read('compose.js'), 'function buildTabs(')
+    + '\nbuildTabs(); globalThis.show = showTab;', ctx);
+  const away = () => ['compose-thumbs', 'drawer', 'compose-dev'].map((id) => el(id).classList.contains('drafts-away'));
+  ctx.show('drafts');
+  assert.deepEqual(away(), [true, true, true]);
+  assert.equal(calls.alt, 1, 'the ALT row was left open over the list');
+  ctx.show('write');
+  assert.deepEqual(away(), [false, false, false]);
+  ctx.show('preview');
+  assert.deepEqual(away(), [false, false, false], 'Preview still shows the strip');
+  assert.match(read('styles.css'), /\.drafts-away \{ display: none !important; \}/);
+});
