@@ -604,7 +604,6 @@
   "Could not read your bookmarks, so nothing was published.": "Não foi possível ler seus favoritos, então nada foi publicado.",
   "Bookmarks": "Favoritos",
   "Highlights": "Destaques",
-  "Saved": "Salvo",
   "Reading your relays…": "Lendo seus relays…",
   "Highlight a passage on any web page and it shows up here.": "Destaque um trecho em qualquer página da web e ele aparecerá aqui.",
   "Nostr article by {{name}}": "Artigo Nostr de {{name}}",

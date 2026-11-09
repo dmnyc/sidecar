@@ -639,7 +639,6 @@
   "Could not read your bookmarks, so nothing was published.": "A könyvjelzők nem olvashatók, ezért semmi sem lett közzétéve.",
   "Bookmarks": "Könyvjelzők",
   "Highlights": "Kiemelések",
-  "Saved": "Mentett",
   "Reading your relays…": "A relék olvasása…",
   "Highlight a passage on any web page and it shows up here.": "Emeljen ki egy szövegrészt bármely weboldalon, és itt megjelenik.",
   "Nostr article by {{name}}": "Nostr-cikk, szerző: {{name}}",

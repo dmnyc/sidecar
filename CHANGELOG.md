@@ -12,6 +12,7 @@ has entries, and that heading becomes the version heading when the release is cu
 ## [Unreleased]
 
 ### Added
+- **The Saved sheet keeps your reactions and your web-page comments, and opens a comment enlarged.** Four icon tabs now — reactions, bookmarks, highlights, comments — each counted, each read from your own relays. A comment row names the note or page it answers; opening one shows Sidecar's own view of it: what it answers, the comment in full, and its replies, because many clients render a kind 1111 nowhere at all. Replying hands the thread to the expanded composer, and every open names the client it will use.
 - **Nostr Vault joins the clients a note or profile can open in.** Its threads take the same `nevent`, `note` and `naddr` links the other clients do, at nostrvault.app/thread/, and profiles live at nostrvault.app/p/. It sits in the "view notes in" choice under Settings → Posting where Nostrich used to be.
 
 ### Removed

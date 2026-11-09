@@ -641,7 +641,6 @@
   "Could not read your bookmarks, so nothing was published.": "לא ניתן היה לקרוא את הסימניות שלכם, ולכן לא פורסם דבר.",
   "Bookmarks": "סימניות",
   "Highlights": "הדגשות",
-  "Saved": "שמור",
   "Reading your relays…": "קורא את הריליים שלכם…",
   "Highlight a passage on any web page and it shows up here.": "הדגישו קטע בכל דף אינטרנט והוא יופיע כאן.",
   "Nostr article by {{name}}": "מאמר Nostr מאת {{name}}",

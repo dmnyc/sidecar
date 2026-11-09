@@ -17395,6 +17395,27 @@
   // modal, not something content has to grow into. A modal closed mid-fetch
   // leaves its DOM merely hidden, so "gone" is the overlay check, not
   // isConnected.
+  // Tab capsules cap at two digits — a heart with 424 is not a number a capsule can
+  // carry, and the fetch behind it is a window anyway — while the lists page in
+  // screens of thirty, appending under a Show more button like the wallet history
+  // does. The {{count}}+ template is the bell badge's, already translated.
+  const SAVED_PAGE = 30;
+  const tabCount = (n) => n > 99
+    ? t('{{count}}+', { count: I18N.fmtNum(99) })
+    : I18N.fmtNum(n);
+  const paged = (list, evs, makeRow) => {
+    let shown = 0;
+    const more = h('button', { className: 'ghost show-more-btn', type: 'button', textContent: t('Show more') });
+    const showMore = () => {
+      more.remove();
+      for (const ev of evs.slice(shown, shown + SAVED_PAGE)) list.append(makeRow(ev));
+      shown = Math.min(shown + SAVED_PAGE, evs.length);
+      if (shown < evs.length) list.append(more);
+    };
+    more.addEventListener('click', showMore);
+    showMore();
+  };
+
   function renderBookmarks() {
     if (!state?.activePubkey) return;
     openModal((modal) => {
@@ -17403,29 +17424,60 @@
       x.appendChild(icon('x'));
       x.addEventListener('click', closeModal);
       const scroll = h('div', { className: 'bm-scroll' });
-      // TWO VIEWS OF WHAT THIS ACCOUNT HAS SAVED: its bookmarks, and the passages it has
-      // highlighted. Separate tabs because they are separate things on Nostr, a list the
-      // account keeps and events it published, and one list mixing them would read as
-      // bookmarks that cannot be removed the same way. The heading names both.
-      const tabBm = h('button', { className: 'modal-tab active', type: 'button', textContent: t('Bookmarks') });
-      const tabHl = h('button', { className: 'modal-tab', type: 'button', textContent: t('Highlights') });
+      // FOUR VIEWS OF WHAT THIS ACCOUNT HAS PUT INTO THE WORLD: its bookmarks (a
+      // NIP-51 list it keeps), the passages it has highlighted (NIP-84 events it
+      // published), the web pages it has commented on (its own kind 1111s over web
+      // addresses), and the notes it has reacted to (its kind 7s). Separate tabs
+      // because they are separate things on Nostr — a list the account keeps versus
+      // events it published — and one list mixing them would read as bookmarks that
+      // cannot be removed the same way. The heading names none of them individually;
+      // the icons do.
+      // FOUR ICON TABS, not four labeled ones: three labels plus three count
+      // capsules wrapped at the panel's width, so the tabs went icon-only and each
+      // carries its name in title and aria-label instead. The count capsule is the
+      // only text a tab ever shows.
+      const iconTab = (title, iconName) => {
+        const tab = h('button', { className: 'modal-tab icon-tab', type: 'button', title, 'aria-label': title });
+        tab.append(icon(iconName));
+        return tab;
+      };
+      const tabRc = iconTab(t('Reactions'), 'heart');
+      const tabBm = iconTab(t('Bookmarks'), 'bookmark');
+      const tabHl = iconTab(t('Highlights'), 'highlighter');
+      const tabCm = iconTab(t('Comments'), 'comment');
+      tabBm.classList.add('active');
       const hlPane = h('div', { className: 'bm-scroll hidden' });
-      modal.append(x, h('h3', { textContent: t('Saved') }), h('div', { className: 'modal-tabs' }, [tabBm, tabHl]), scroll, hlPane);
+      const cmPane = h('div', { className: 'bm-scroll hidden' });
+      const rcPane = h('div', { className: 'bm-scroll hidden' });
+      modal.append(x, h('h3', { textContent: t('Yours') }), h('div', { className: 'modal-tabs' }, [tabRc, tabBm, tabHl, tabCm]), scroll, hlPane, cmPane, rcPane);
       let hlFilled = false;
-      const pick = (hl) => {
-        tabBm.classList.toggle('active', !hl);
-        tabHl.classList.toggle('active', hl);
-        scroll.classList.toggle('hidden', hl);
-        hlPane.classList.toggle('hidden', !hl);
-        // On the first switch only, so opening bookmarks never pays for a highlights query
+      let cmFilled = false;
+      let rcFilled = false;
+      const tabs = { reactions: [tabRc, rcPane], bookmarks: [tabBm, scroll], highlights: [tabHl, hlPane], comments: [tabCm, cmPane] };
+      const pick = (which) => {
+        for (const [name, [tab, pane]] of Object.entries(tabs)) {
+          tab.classList.toggle('active', name === which);
+          pane.classList.toggle('hidden', name !== which);
+        }
+        // On the first switch only, so opening bookmarks never pays for a query
         // nobody asked for.
-        if (hl && !hlFilled) {
+        if (which === 'highlights' && !hlFilled) {
           hlFilled = true;
           fillHighlights(hlPane, () => $('modal-overlay').classList.contains('hidden'), tabHl);
         }
+        if (which === 'comments' && !cmFilled) {
+          cmFilled = true;
+          fillComments(cmPane, () => $('modal-overlay').classList.contains('hidden'), tabCm);
+        }
+        if (which === 'reactions' && !rcFilled) {
+          rcFilled = true;
+          fillReactions(rcPane, () => $('modal-overlay').classList.contains('hidden'), tabRc);
+        }
       };
-      tabBm.addEventListener('click', () => pick(false));
-      tabHl.addEventListener('click', () => pick(true));
+      tabRc.addEventListener('click', () => pick('reactions'));
+      tabBm.addEventListener('click', () => pick('bookmarks'));
+      tabHl.addEventListener('click', () => pick('highlights'));
+      tabCm.addEventListener('click', () => pick('comments'));
       const gone = () => $('modal-overlay').classList.contains('hidden');
       if (_bmCache.pubkey === state.activePubkey && _bmCache.evs) {
         fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
@@ -17491,12 +17543,13 @@
     const setCount = (n) => {
       const cap = tab.querySelector('.modal-tab-count');
       if (!n) { if (cap) cap.remove(); return; }
-      if (cap) cap.textContent = I18N.fmtNum(n);
-      else tab.append(h('span', { className: 'modal-tab-count', textContent: I18N.fmtNum(n) }));
+      if (cap) cap.textContent = tabCount(n);
+      else tab.append(h('span', { className: 'modal-tab-count', textContent: tabCount(n) }));
     };
     const quote = pickQuote();
     const paint = async (evs) => {
       setCount(evs.length);
+      const client = await preferredClient();
       if (!evs.length) {
         pane.textContent = '';
         pane.append(emptyQuote(t('Highlight a passage on any web page and it shows up here.'), quote));
@@ -17519,7 +17572,7 @@
       // Cleared only now, after the lookups, so the loading quote stays up through them.
       pane.textContent = '';
       const list = h('div', { className: 'bm-list' });
-      for (const ev of evs) {
+      const makeRow = (ev) => {
         const src = sources.get(ev.id);
         let from = '';
         if (src && src.kind === 'page') from = src.host;
@@ -17532,7 +17585,7 @@
             : (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
         }
         const comment = mentionsAsNames(comments.get(ev.id), profiles);
-        const item = h('div', { className: 'bm-item hl-item', title: t('Open in your web client') });
+        const item = h('div', { className: 'bm-item hl-item', title: t('Open in {{client}}', { client: client.label }) });
         // The same ⋮ as a notification's; its npub is the quoted author's, not yours.
         const menu = buildEventMenu(ev, null, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
         item.append(h('div', { className: 'bm-main' }, [
@@ -17545,9 +17598,10 @@
           const client = await preferredClient();
           try { openInClient(client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 9802, relays: [] }))); } catch (_) {}
         });
-        list.append(item);
-      }
+        return item;
+      };
       pane.append(list);
+      paged(list, evs, makeRow);
       pane.append(endQuote(quote));
     };
     if (_hlCache.pubkey === pubkey && _hlCache.evs) await paint(_hlCache.evs);
@@ -17561,6 +17615,302 @@
     const changed = _hlCache.pubkey !== pubkey || (_hlCache.evs || []).map((e) => e.id).join() !== evs.map((e) => e.id).join();
     _hlCache.pubkey = pubkey;
     _hlCache.evs = evs;
+    _cmCache.pubkey = pubkey;
+    _cmCache.evs = evs;
+    if (changed) paint(evs);
+  }
+
+  // ---- the account's own web comments (NIP-22 kind 1111 over NIP-73 targets),
+  // the Saved sheet's third tab ----
+  //
+  // A webpage comment is a kind 1111 whose scope tag (uppercase I) is a web address,
+  // so the query asks the account's relays for its own 1111s and the rows keep only
+  // those with an http(s) scope — comments on Nostr threads belong to other clients,
+  // not to the sheet that lists pages.
+  // The direct parent of a comment: NIP-22's lowercase e tags read root-to-leaf, so
+  // the last one names what this comment answers.
+  function commentParentId(ev) {
+    const es = (ev.tags || []).filter((tg) => tg[0] === 'e');
+    return es.length ? es[es.length - 1][1] : '';
+  }
+  const _cmCache = { pubkey: null, evs: null };
+  async function fetchComments(pubkey) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return [];
+    const got = await poolQuerySync(relays, { kinds: [1111], authors: [pubkey], limit: 100 }, { maxWait: 6000 });
+    const byId = new Map();
+    for (const ev of got || []) {
+      if (!ev || ev.kind !== 1111 || ev.pubkey !== pubkey) continue;
+      const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+      if (!scope || !/^https?:\/\//i.test(scope[1] || '')) continue;
+      byId.set(ev.id, ev);
+    }
+    return [...byId.values()].sort((a, b) => b.created_at - a.created_at);
+  }
+  function commentPage(ev) {
+    const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+    try { return new URL(scope[1]).host; } catch (_) { return ''; }
+  }
+  async function fillComments(pane, gone, tab) {
+    const pubkey = state.activePubkey;
+    const setCount = (n) => {
+      const cap = tab.querySelector('.modal-tab-count');
+      if (!n) { if (cap) cap.remove(); return; }
+      if (cap) cap.textContent = tabCount(n);
+      else tab.append(h('span', { className: 'modal-tab-count', textContent: tabCount(n) }));
+    };
+    const quote = pickQuote();
+    const paint = async (evs) => {
+      setCount(evs.length);
+      const profiles = await profilesFor([...evs.flatMap((ev) => [...mentionPubkeys(ev.content)])]);
+      if (gone()) return;
+      // A comment on a Nostr thread answers a note; name that note, or the row is a
+      // bare sentence with nowhere to point. The parents hydrate in one batch.
+      const parentIds = [...new Set(evs.map(commentParentId).filter(Boolean))];
+      const parents = parentIds.length ? await fetchEventsByIds(parentIds).catch(() => new Map()) : new Map();
+      const parentProfiles = await profilesFor([...new Set([...parents.values()].map((p) => p.pubkey))]);
+      if (gone()) return;
+      // Cleared only after the lookups, so the loading quote stays up through them.
+      pane.textContent = '';
+      if (!evs.length) {
+        pane.append(emptyQuote(t('Comment on a web page through Sidecar and it shows up here.'), quote));
+        return;
+      }
+      const list = h('div', { className: 'bm-list' });
+      const makeRow = (ev) => {
+        const host = commentPage(ev);
+        const parent = parents.get(commentParentId(ev));
+        const pWho = parent ? (parentProfiles.get(parent.pubkey) || {}).name || '' : '';
+        const item = h('div', { className: 'bm-item', title: t('Open this comment') });
+        const menu = buildEventMenu(ev, null, {});
+        item.append(h('div', { className: 'bm-main' }, [
+          parent ? h('div', { className: 'cm-ref', dir: 'auto', textContent: (pWho ? t('Replying to {{name}}', { name: pWho }) : t('Replying to a note')) + ' · ' + mentionsAsNames(parent.content, parentProfiles).slice(0, 90) }) : null,
+          h('div', { className: 'bm-snippet', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
+          h('div', { className: 'bm-meta', textContent: (host ? host + ' · ' : '') + relativeTime(ev.created_at) }),
+          menu.panel,
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        // Most clients render a kind 1111 nowhere at all, so the row opens Sidecar's
+        // own enlarged view of the comment rather than betting on a client.
+        item.addEventListener('click', () => openCommentThread(ev));
+        return item;
+      };
+      pane.append(list);
+      paged(list, evs, makeRow);
+      pane.append(endQuote(quote));
+    };
+    if (_cmCache.pubkey === pubkey && _cmCache.evs) await paint(_cmCache.evs);
+    else pane.append(loadingQuote(t('Reading your relays…'), quote));
+    let evs;
+    try { evs = await fetchComments(pubkey); } catch (_) { evs = null; }
+    if (gone() || !evs || state.activePubkey !== pubkey) {
+      if (!_cmCache.evs && !gone()) { pane.textContent = ''; pane.append(emptyQuote(t('Couldn’t read your comments from your relays.'), quote)); }
+      return;
+    }
+    const changed = _cmCache.pubkey !== pubkey || (_cmCache.evs || []).map((e) => e.id).join() !== evs.map((e) => e.id).join();
+    _cmCache.pubkey = pubkey;
+    _cmCache.evs = evs;
+    if (changed) await paint(evs);
+  }
+
+  // ---- one comment, enlarged: the parent it answers, the comment itself, and
+  // whatever replies it has gathered ----
+  //
+  // Most clients render a kind 1111 nowhere at all, so opening one "in your web
+  // client" lands on nothing. This sheet is Sidecar's own view of a single comment:
+  // what it answers (a Nostr note, hydrated by id, or the web page it was written
+  // on), the comment in full, and its replies beneath. Replies query #e, which
+  // relays index; a reply that addresses its parent through #i alone is filtered by
+  // hand afterwards rather than trusted to the index.
+  async function fetchCommentReplies(id, relays) {
+    const got = await poolQuerySync(relays, { kinds: [1111], '#e': [id], limit: 100 }, { maxWait: 6000 });
+    return (got || [])
+      .filter((ev) => ev && ev.kind === 1111 && (ev.tags || []).some((tg) => (tg[0] === 'e' || tg[0] === 'i') && tg[1] === id))
+      .sort((a, b) => a.created_at - b.created_at);
+  }
+  async function openCommentThread(ev, backTo) {
+    const parentId = commentParentId(ev);
+    const parent = parentId ? await fetchEventsByIds([parentId]).then((m) => m.get(parentId)).catch(() => null) : null;
+    const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+    const pageUrl = scope && /^https?:\/\//i.test(scope[1] || '') ? scope[1] : '';
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(state.activePubkey))])]; } catch (_) {}
+    openModal((modal) => {
+      modal.classList.add('modal-sheet');
+      const x = h('button', { className: 'modal-x', title: t('Close') });
+      x.appendChild(icon('x'));
+      x.addEventListener('click', closeModal);
+      const body = h('div', { className: 'cm-thread' });
+      modal.append(x, h('h3', { textContent: t('Comments') }), body);
+      const gone = () => $('modal-overlay').classList.contains('hidden');
+      const openEvent = (e) => {
+        try { openInClient(client.url(NT.nip19.neventEncode({ id: e.id, author: e.pubkey, kind: e.kind, relays: [] }))); } catch (_) {}
+      };
+      // Reached from another comment's thread, so say so and give the walk back.
+      if (backTo) {
+        const back = h('button', { className: 'cm-back', type: 'button' });
+        back.append(icon('chevron-down'), h('span', { textContent: t('Back') }));
+        back.addEventListener('click', () => openCommentThread(backTo));
+        body.append(back);
+      }
+      body.append(h('div', { className: 'bm-meta', textContent: t('Reading your relays…') }));
+      // Parent first (muted, and it opens like any note — a kind 1 renders everywhere),
+      // then the comment itself, then the actions, then the replies as they arrive.
+      const paintParent = (profiles) => {
+        if (!parent) {
+          body.append(h('div', { className: 'cm-parent' }, [
+            h('div', { className: 'bm-meta', textContent: commentPage(ev) }),
+            h('a', { className: 'bm-snippet', href: pageUrl, target: '_blank', rel: 'noreferrer noopener', textContent: pageUrl }),
+          ]));
+          return;
+        }
+        const who = (profiles.get(parent.pubkey) || {}).name || '';
+        const parentItem = h('div', { className: 'cm-parent', role: 'button', tabIndex: 0, title: t('Open in your web client') }, [
+          h('div', { className: 'bm-meta', textContent: who ? t('Replying to {{name}}', { name: who }) : t('Replying to a note') }),
+          h('div', { className: 'bm-snippet', dir: 'auto', textContent: mentionsAsNames(parent.content, profiles) }),
+        ]);
+        parentItem.addEventListener('click', () => openEvent(parent));
+        body.append(parentItem);
+      };
+      (async () => {
+        const client = await preferredClient();
+        const profiles = await profilesFor([...(parent ? [parent.pubkey] : []), ...mentionPubkeys(ev.content)]).catch(() => new Map());
+        if (gone()) return;
+        body.textContent = '';
+        paintParent(profiles);
+        body.append(h('div', { className: 'cm-text', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }));
+        body.append(h('div', { className: 'bm-meta', textContent: (pageUrl ? commentPage(ev) + ' · ' : '') + relativeTime(ev.created_at) }));
+        const actions = h('div', { className: 'release-actions' });
+        const replyBtn = h('button', { className: 'btn', type: 'button', textContent: t('Reply') });
+        // Replying happens on the dedicated composer page, where the target rides
+        // through the draft store whole and replyTags copies the thread's scope.
+        replyBtn.addEventListener('click', () => { handOffToTab(state.activePubkey + '|r:' + ev.id, ev); });
+        actions.append(replyBtn);
+        const clientBtn = h('button', { className: 'btn', type: 'button', textContent: t('Open in {{client}}', { client: client.label }) });
+        clientBtn.addEventListener('click', () => openEvent(ev));
+        actions.append(clientBtn);
+        if (pageUrl) {
+          const j = h('button', { className: 'btn', type: 'button', textContent: t('See all comments on this page') });
+          j.addEventListener('click', () => { openInClient(jumbleThreadUrl(pageUrl)); });
+          actions.append(j);
+        }
+        body.append(actions);
+        const repliesHead = h('div', { className: 'cm-replies-head', textContent: t('Replies') });
+        const repliesList = h('div', { className: 'bm-list' });
+        repliesList.append(h('div', { className: 'bm-meta', textContent: t('Reading your relays…') }));
+        body.append(repliesHead, repliesList);
+        let replies = null;
+        try { replies = await fetchCommentReplies(ev.id, relays); } catch (_) {}
+        if (gone()) return;
+        repliesList.textContent = '';
+        if (!replies) { repliesList.append(h('div', { className: 'bm-meta', textContent: t('Couldn’t read your replies from your relays.') })); return; }
+        if (!replies.length) { repliesList.append(h('div', { className: 'bm-meta', textContent: t('No replies yet.') })); return; }
+        const rProfiles = await profilesFor([...new Set(replies.flatMap((r) => [r.pubkey, ...mentionPubkeys(r.content)]))]);
+        if (gone()) return;
+        for (const r of replies) {
+          const who = (rProfiles.get(r.pubkey) || {}).name
+            || (() => { try { return shortNpub(NT.nip19.npubEncode(r.pubkey)); } catch (_) { return ''; } })();
+          const row = h('div', { className: 'bm-item', title: t('Open this comment') });
+          const menu = buildEventMenu(r, null, {});
+          row.append(h('div', { className: 'bm-main' }, [
+            h('div', { className: 'bm-meta', textContent: who + ' · ' + relativeTime(r.created_at) }),
+            h('div', { className: 'bm-snippet', dir: 'auto', textContent: mentionsAsNames(r.content, rProfiles) }),
+            menu.panel,
+          ]), h('div', { className: 'item-actions' }, [menu.btn]));
+          // A reply is a comment too: its own enlarged view answers it in turn,
+          // and hands this comment over as the way back.
+          row.addEventListener('click', () => openCommentThread(r, ev));
+          repliesList.append(row);
+        }
+      })();
+    });
+  }
+
+  // ---- the account's own reactions (kind 7), the Saved sheet's heart ----
+  //
+  // A reaction is only a marker on the note it reacted to, so a row shows the two
+  // together: the mark first, then the author and the opening of the note's text.
+  // The targets hydrate in one batch; a reaction aimed at a profile rather than a
+  // note shows the profile's name and opens the profile.
+  const _rctCache = { pubkey: null, evs: null };
+  async function fetchReactions(pubkey) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return [];
+    const got = await poolQuerySync(relays, { kinds: [7], authors: [pubkey], limit: 200 }, { maxWait: 6000 });
+    const byId = new Map();
+    for (const ev of got || []) if (ev && ev.kind === 7 && ev.pubkey === pubkey) byId.set(ev.id, ev);
+    return [...byId.values()].sort((a, b) => b.created_at - a.created_at);
+  }
+  async function fillReactions(pane, gone, tab) {
+    const pubkey = state.activePubkey;
+    const setCount = (n) => {
+      const cap = tab.querySelector('.modal-tab-count');
+      if (!n) { if (cap) cap.remove(); return; }
+      if (cap) cap.textContent = tabCount(n);
+      else tab.append(h('span', { className: 'modal-tab-count', textContent: tabCount(n) }));
+    };
+    const quote = pickQuote();
+    const client = await preferredClient();
+    const paint = async (evs) => {
+      setCount(evs.length);
+      const noteIds = new Set();
+      const profileIds = new Set();
+      for (const ev of evs) {
+        for (const tg of (ev.tags || [])) {
+          if (tg[0] === 'e' && HEX_ID.test(tg[1] || '')) noteIds.add(tg[1]);
+          else if (tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || '')) profileIds.add(tg[1]);
+        }
+      }
+      const notes = noteIds.size ? await fetchEventsByIds([...noteIds]).catch(() => new Map()) : new Map();
+      const profiles = await profilesFor([...profileIds, ...[...notes.values()].map((n) => n.pubkey)]);
+      if (gone()) return;
+      pane.textContent = '';
+      if (!evs.length) {
+        pane.append(emptyQuote(t('React to a note and it shows up here.'), quote));
+        return;
+      }
+      const list = h('div', { className: 'bm-list' });
+      const makeRow = (ev) => {
+        const es = (ev.tags || []).filter((tg) => tg[0] === 'e' && HEX_ID.test(tg[1] || ''));
+        const note = es.length ? notes.get(es[0][1]) : null;
+        const mark = (ev.content || '+').slice(0, 8);
+        let subject = t('A profile');
+        if (note) {
+          const who = (profiles.get(note.pubkey) || {}).name
+            || (() => { try { return shortNpub(NT.nip19.npubEncode(note.pubkey)); } catch (_) { return ''; } })();
+          subject = (who ? who + ' · ' : '') + mentionsAsNames(note.content, profiles).slice(0, 80);
+        }
+        const item = h('div', { className: 'bm-item', title: note ? t('Open in {{client}}', { client: client.label }) : '' });
+        const menu = buildEventMenu(ev, null, {});
+        item.append(h('div', { className: 'bm-main' }, [
+          h('div', { className: 'cm-reaction-mark', dir: 'auto', textContent: mark }),
+          h('div', { className: 'bm-snippet', dir: 'auto', textContent: subject }),
+          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
+          menu.panel,
+        ]), h('div', { className: 'item-actions' }, [menu.btn]));
+        // The note renders everywhere, so the row opens the target, not the reaction.
+        if (note) item.addEventListener('click', async () => {
+          const client = await preferredClient();
+          try { openInClient(client.url(NT.nip19.neventEncode({ id: note.id, author: note.pubkey, kind: note.kind, relays: [] }))); } catch (_) {}
+        });
+        return item;
+      };
+      pane.append(list);
+      paged(list, evs, makeRow);
+      pane.append(endQuote(quote));
+    };
+    if (_rctCache.pubkey === pubkey && _rctCache.evs) await paint(_rctCache.evs);
+    else pane.append(loadingQuote(t('Reading your relays…'), quote));
+    let evs;
+    try { evs = await fetchReactions(pubkey); } catch (_) { evs = null; }
+    if (gone() || !evs || state.activePubkey !== pubkey) {
+      if (!_rctCache.evs && !gone()) { pane.textContent = ''; pane.append(emptyQuote(t('Couldn’t read your reactions from your relays.'), quote)); }
+      return;
+    }
+    const changed = _rctCache.pubkey !== pubkey || (_rctCache.evs || []).map((e) => e.id).join() !== evs.map((e) => e.id).join();
+    _rctCache.pubkey = pubkey;
+    _rctCache.evs = evs;
     if (changed) await paint(evs);
   }
 

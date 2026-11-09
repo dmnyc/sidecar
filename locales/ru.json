@@ -643,7 +643,6 @@
   "Could not read your bookmarks, so nothing was published.": "Не удалось прочитать закладки, поэтому ничего не опубликовано.",
   "Bookmarks": "Закладки",
   "Highlights": "Выделения",
-  "Saved": "Сохранённое",
   "Reading your relays…": "Читаем ваши релеи…",
   "Highlight a passage on any web page and it shows up here.": "Выделите фрагмент на любой веб-странице, и он появится здесь.",
   "Nostr article by {{name}}": "Статья Nostr от {{name}}",

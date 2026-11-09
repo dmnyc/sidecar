@@ -643,7 +643,6 @@
   "Could not read your bookmarks, so nothing was published.": "Nie udało się odczytać twoich zakładek, więc nic nie opublikowano.",
   "Bookmarks": "Zakładki",
   "Highlights": "Wyróżnienia",
-  "Saved": "Zapisane",
   "Reading your relays…": "Odczytywanie twoich przekaźników…",
   "Highlight a passage on any web page and it shows up here.": "Wyróżnij fragment na dowolnej stronie, a pojawi się tutaj.",
   "Nostr article by {{name}}": "Artykuł Nostr autorstwa: {{name}}",

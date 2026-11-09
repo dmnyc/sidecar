@@ -602,7 +602,6 @@
   "Could not read your bookmarks, so nothing was published.": "Deine Lesezeichen konnten nicht gelesen werden, deshalb wurde nichts veröffentlicht.",
   "Bookmarks": "Lesezeichen",
   "Highlights": "Markierungen",
-  "Saved": "Gespeichert",
   "Reading your relays…": "Deine Relays werden gelesen…",
   "Highlight a passage on any web page and it shows up here.": "Markiere eine Textstelle auf einer beliebigen Webseite, und sie erscheint hier.",
   "Nostr article by {{name}}": "Nostr-Artikel von {{name}}",

@@ -637,7 +637,6 @@
   "Could not read your bookmarks, so nothing was published.": "북마크를 읽을 수 없어서 아무것도 게시하지 않았어요.",
   "Bookmarks": "북마크",
   "Highlights": "하이라이트",
-  "Saved": "저장됨",
   "Reading your relays…": "릴레이를 읽는 중…",
   "Highlight a passage on any web page and it shows up here.": "웹 페이지에서 구절을 하이라이트하면 여기에 표시돼요.",
   "Nostr article by {{name}}": "{{name}} 님의 Nostr 아티클",

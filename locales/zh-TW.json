@@ -637,7 +637,6 @@
   "Could not read your bookmarks, so nothing was published.": "無法讀取您的書籤，因此沒有發布任何內容。",
   "Bookmarks": "書籤",
   "Highlights": "標註",
-  "Saved": "已儲存",
   "Reading your relays…": "正在讀取您的中繼站…",
   "Highlight a passage on any web page and it shows up here.": "在任何網頁上標註一段文字，就會顯示在這裡。",
   "Nostr article by {{name}}": "{{name}} 的 Nostr 文章",

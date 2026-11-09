@@ -637,7 +637,6 @@
   "Could not read your bookmarks, so nothing was published.": "ブックマークを読み取れなかったため、何も公開していません。",
   "Bookmarks": "ブックマーク",
   "Highlights": "ハイライト",
-  "Saved": "保存済み",
   "Reading your relays…": "リレーを読み取り中…",
   "Highlight a passage on any web page and it shows up here.": "ウェブページで文章をハイライトすると、ここに表示されます。",
   "Nostr article by {{name}}": "{{name}}によるNostr記事",

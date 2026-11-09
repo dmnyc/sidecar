@@ -637,7 +637,6 @@
   "Could not read your bookmarks, so nothing was published.": "อ่านบุ๊กมาร์กของคุณไม่ได้ จึงไม่มีการเผยแพร่",
   "Bookmarks": "บุ๊กมาร์ก",
   "Highlights": "ไฮไลต์",
-  "Saved": "บันทึกไว้",
   "Reading your relays…": "กำลังอ่านรีเลย์ของคุณ…",
   "Highlight a passage on any web page and it shows up here.": "ไฮไลต์ข้อความในหน้าเว็บใดก็ได้ แล้วจะแสดงที่นี่",
   "Nostr article by {{name}}": "บทความ Nostr โดย {{name}}",

@@ -639,7 +639,6 @@
   "Could not read your bookmarks, so nothing was published.": "Δεν ήταν δυνατή η ανάγνωση των σελιδοδεικτών σας, οπότε δεν δημοσιεύτηκε τίποτα.",
   "Bookmarks": "Σελιδοδείκτες",
   "Highlights": "Επισημάνσεις",
-  "Saved": "Αποθηκευμένα",
   "Reading your relays…": "Ανάγνωση των relay σας…",
   "Highlight a passage on any web page and it shows up here.": "Επισημάνετε ένα απόσπασμα σε οποιαδήποτε ιστοσελίδα και εμφανίζεται εδώ.",
   "Nostr article by {{name}}": "Άρθρο Nostr από {{name}}",

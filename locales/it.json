@@ -641,7 +641,6 @@
   "Could not read your bookmarks, so nothing was published.": "Impossibile leggere i tuoi segnalibri, quindi non è stato pubblicato nulla.",
   "Bookmarks": "Segnalibri",
   "Highlights": "Evidenziazioni",
-  "Saved": "Salvati",
   "Reading your relays…": "Lettura dei tuoi relay…",
   "Highlight a passage on any web page and it shows up here.": "Evidenzia un brano su qualsiasi pagina web e comparirà qui.",
   "Nostr article by {{name}}": "Articolo Nostr di {{name}}",

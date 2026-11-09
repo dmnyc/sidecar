@@ -639,7 +639,6 @@
   "Could not read your bookmarks, so nothing was published.": "Yer imleriniz okunamadı, bu yüzden hiçbir şey yayınlanmadı.",
   "Bookmarks": "Yer imleri",
   "Highlights": "Vurgular",
-  "Saved": "Kaydedilenler",
   "Reading your relays…": "Relay’leriniz okunuyor…",
   "Highlight a passage on any web page and it shows up here.": "Herhangi bir web sayfasında bir pasajı vurgulayın, burada görünür.",
   "Nostr article by {{name}}": "{{name}} tarafından Nostr makalesi",

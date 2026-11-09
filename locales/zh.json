@@ -637,7 +637,6 @@
   "Could not read your bookmarks, so nothing was published.": "无法读取你的书签，因此未发布任何内容。",
   "Bookmarks": "书签",
   "Highlights": "高亮",
-  "Saved": "已保存",
   "Reading your relays…": "正在读取你的 relay……",
   "Highlight a passage on any web page and it shows up here.": "在任意网页上高亮一段文字，它就会显示在这里。",
   "Nostr article by {{name}}": "{{name}} 的 Nostr 文章",

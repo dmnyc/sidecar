@@ -639,7 +639,6 @@
   "Could not read your bookmarks, so nothing was published.": "نشانک‌های شما خوانده نشد، بنابراین چیزی منتشر نشد.",
   "Bookmarks": "نشانک‌ها",
   "Highlights": "هایلایت‌ها",
-  "Saved": "ذخیره‌شده",
   "Reading your relays…": "در حال خواندن ریلی‌های شما…",
   "Highlight a passage on any web page and it shows up here.": "بخشی از هر صفحهٔ وب را هایلایت کنید تا اینجا نمایش داده شود.",
   "Nostr article by {{name}}": "مقالهٔ Nostr از {{name}}",

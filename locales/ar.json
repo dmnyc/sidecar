@@ -647,7 +647,6 @@
   "Could not read your bookmarks, so nothing was published.": "تعذّرت قراءة إشاراتك المرجعية، لذا لم يُنشر شيء.",
   "Bookmarks": "الإشارات المرجعية",
   "Highlights": "التمييزات",
-  "Saved": "المحفوظات",
   "Reading your relays…": "جارٍ قراءة مرحّلاتك…",
   "Highlight a passage on any web page and it shows up here.": "ميّز مقطعًا في أي صفحة ويب وسيظهر هنا.",
   "Nostr article by {{name}}": "مقال Nostr بقلم {{name}}",

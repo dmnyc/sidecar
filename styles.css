@@ -2594,6 +2594,44 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bm-snippet { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .bm-meta { font-size: 11px; color: var(--faint); margin-top: 2px; }
+/* A comment's enlarged view: the parent it answers sits muted above the comment
+   proper, and the replies read like the list rows they are. min-width 0 keeps a
+   long page address inside the sheet instead of through its padding. */
+.cm-thread { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cm-parent { border-left: 2px solid var(--border); padding: 2px 0 2px 10px; cursor: pointer; }
+.cm-parent:hover { background: var(--hover-soft); }
+.cm-text { font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.cm-replies-head { font-weight: 700; color: var(--text); }
+.cm-ref { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-reaction-mark { display: inline-block; margin-right: 8px; font-size: 14px; }
+/* The parent's text wraps and clamps; its address sits on one line and ends in an
+   ellipsis. Both need a block box: an inline anchor ignores overflow entirely,
+   which is how a long address once ran through the sheet's padding. */
+.cm-parent a.bm-snippet { display: block; white-space: nowrap; text-overflow: ellipsis; }
+.cm-parent div.bm-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  white-space: normal;
+}
+/* The walk back down the thread. The chevron points down in the map; a quarter
+   turn points it left, and a right-to-left page turns it the other way. */
+.cm-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.cm-back:hover { color: var(--text); }
+.cm-back svg { width: 15px; height: 15px; transform: rotate(90deg); }
+:root[dir='rtl'] .cm-back svg { transform: rotate(-90deg); }
 /* A highlight row: the passage leads, in the reading face, up to three lines. */
 .hl-item-passage {
   font-size: 13px; line-height: 1.45; color: var(--text);
@@ -4833,6 +4871,17 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 }
 .modal-tab:hover { color: var(--text); }
 .modal-tab.active { color: var(--lav); }
+/* The Saved sheet's tabs went icon-only when three labels plus three count capsules
+   started wrapping at the panel's width. An icon tab has no text to read, so the
+   name rides in title and aria-label, and the capsule hangs off the corner the way
+   the bell's badge does. */
+.modal-tab.icon-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 0;
+}
+.modal-tab.icon-tab svg { width: 18px; height: 18px; }
 /* A count inside a tab label, as a capsule rather than a bare number. Filled from
    currentColor so it follows the tab it sits in: muted beside an unselected label, --lav
    beside the active one. A fixed tint would have to be picked per theme, and whichever
@@ -4848,6 +4897,14 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   font-weight: 700;
   line-height: 16px;
   vertical-align: 1px;
+}
+/* On an icon tab the capsule is the only text, so it hangs off the corner like the
+   bell's badge does instead of sitting beside a label that is not there. */
+.modal-tab.icon-tab .modal-tab-count {
+  position: absolute;
+  top: 0;
+  right: 7px;
+  margin: 0;
 }
 /* Buttons/text appended directly to .modal stretch full-width because .modal
    itself is a flex column (see below); this wrapper needs the same layout so
