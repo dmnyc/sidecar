@@ -1094,6 +1094,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-19': [
     { year: 1863, text: "Lincoln spoke for about two minutes at Gettysburg." },
+    { year: 1493, text: "On his second voyage, Columbus landed on Puerto Rico and named it San Juan Bautista, for John the Baptist." }, // Wikipedia, History of Puerto Rico
   ],
   '11-20': [
     { year: 1945, text: "Twenty-four former Nazi leaders went on trial for war crimes at Nuremberg." },
@@ -1116,6 +1117,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-25': [
     { year: 1915, text: "Albert Einstein presented the field equations of general relativity to the Prussian Academy." }, // Berlin
+    { year: 1120, text: "The White Ship sank off Barfleur, drowning William Adelin, heir to Henry I of England." }, // Wikipedia, White Ship
   ],
   '11-26': [
     { year: 1922, text: "Howard Carter and Lord Carnarvon stood before the sealed door of Tutankhamun's tomb." }, // Valley of the Kings
@@ -1125,6 +1127,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-28': [
     { year: 1520, text: "Magellan sailed out of his treacherous strait and reached the open waters of the Pacific." }, // Strait of Magellan
+    { year: 1925, text: "WSM in Nashville aired its first Barn Dance, with the fiddler Uncle Jimmy Thompson; the show became the Grand Ole Opry." }, // Wikipedia, Grand Ole Opry
   ],
   '11-29': [
     { year: 1929, text: "Richard Byrd flew over the South Pole and turned straight round, having dumped food to gain height." }, // 19 hours
