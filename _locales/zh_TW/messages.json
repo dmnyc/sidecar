@@ -1,0 +1,206 @@
+{
+  "extName": {
+    "message": "Sidecar | 優雅的 Nostr 簽署工具",
+    "description": "The extension's name, as the browser and the add-on stores show it. Keep \"Sidecar\" untranslated; the part after the bar may be translated."
+  },
+  "extDescription": {
+    "message": "多帳號 NIP-07 Nostr 簽署工具，內建 Lightning 錢包，就在瀏覽器側邊欄。",
+    "description": "One line under the name in the browser's extension list and the store listings. Keep \"NIP-07\", \"Nostr\" and \"Lightning\" as written."
+  },
+  "actionTitle": {
+    "message": "開啟 Sidecar",
+    "description": "Tooltip on the toolbar button."
+  },
+  "sidebarTitle": {
+    "message": "Sidecar",
+    "description": "Title of the sidebar in Firefox. The product name, not translated."
+  },
+  "payPillPayable": {
+    "message": "可支付 $AMOUNT$ sats",
+    "description": "The corner pill for a Lightning invoice found on a web page. AMOUNT is the number, shown in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "payPillInvoicePayable": {
+    "message": "有一張可支付的發票",
+    "description": "The same pill for an invoice with no amount of its own."
+  },
+  "payPillLabel": {
+    "message": "$SITE$ 上有一張 $AMOUNT$ sat 的 Lightning 發票可供支付。開啟 Sidecar 即可付款。",
+    "description": "Screen-reader label for the pill. SITE is the web page's host.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      },
+      "site": {
+        "content": "$2",
+        "example": "example.com"
+      }
+    }
+  },
+  "payPillLabelNoAmount": {
+    "message": "$SITE$ 上有一張 Lightning 發票可供支付。開啟 Sidecar 即可付款。",
+    "description": "Screen-reader label for the pill when the invoice has no amount.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "dismiss": {
+    "message": "關閉",
+    "description": "Screen-reader label for the pill's close button."
+  },
+  "hide": {
+    "message": "隱藏",
+    "description": "Screen-reader label for the close button on the payment-in-progress pill. Hides the indicator; it does not cancel the payment."
+  },
+  "flightSending": {
+    "message": "正在傳送 $AMOUNT$ sats",
+    "description": "The corner pill while a payment is going out. AMOUNT in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "flightZapping": {
+    "message": "正在 Zap $AMOUNT$ sats",
+    "description": "The same pill for an automatic zap.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "flightSendingPayment": {
+    "message": "正在傳送付款",
+    "description": "The pill while a payment with no stated amount goes out."
+  },
+  "flightZappingPayment": {
+    "message": "正在 Zap 付款",
+    "description": "The same, for an automatic zap."
+  },
+  "flightPaid": {
+    "message": "已付款 $AMOUNT$ sats",
+    "description": "The pill once the payment has settled. AMOUNT in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "paid": {
+    "message": "已付款",
+    "description": "A payment has settled."
+  },
+  "cardEyebrow": {
+    "message": "付款請求",
+    "description": "Small heading on the payment card. A REQUEST, not a charge: nothing has been paid yet. Keep that sense."
+  },
+  "unitSats": {
+    "message": "sats",
+    "description": "The unit under the amount on the payment card (satoshis)."
+  },
+  "cardNoAmountMemo": {
+    "message": "一張 Lightning 發票。請在 Sidecar 中選擇金額。",
+    "description": "Shown on the card for an invoice with no amount of its own."
+  },
+  "cardAutoZapOffer": {
+    "message": "開啟自動 Zap（上限 $MAX$ sats）",
+    "description": "Switch on the card that turns on automatic zaps up to MAX.",
+    "placeholders": {
+      "max": {
+        "content": "$1",
+        "example": "1,000"
+      }
+    }
+  },
+  "cardLabel": {
+    "message": "用 Sidecar 付款",
+    "description": "Screen-reader label for the payment card."
+  },
+  "cardFoundOn": {
+    "message": "發現於 $SITE$",
+    "description": "Under the amount: where the invoice was found. SITE in bold.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "cardPay": {
+    "message": "用 Sidecar 付款",
+    "description": "The card's pay button. Pressing it asks Sidecar; nothing is sent until approved there."
+  },
+  "cardNotNow": {
+    "message": "暫時不要",
+    "description": "Closes the card without paying."
+  },
+  "cardDontShow": {
+    "message": "不要再顯示此提示",
+    "description": "Switch that stops the card appearing for invoices found on pages."
+  },
+  "cardConfirmInSidecar": {
+    "message": "在 Sidecar 中確認",
+    "description": "The pay button while Sidecar asks for approval."
+  },
+  "cardAwaiting": {
+    "message": "請在 Sidecar 中核准後才會送出。您的錢包尚未動用任何款項。",
+    "description": "Status under the button while waiting for approval. Must stay clear that nothing has been paid yet."
+  },
+  "cardTryAgain": {
+    "message": "再試一次",
+    "description": "The pay button after a payment failed."
+  },
+  "cardFailed": {
+    "message": "付款失敗。請再試一次。",
+    "description": "Shown when a payment fails with no reason given."
+  },
+  "cardOtherWallet": {
+    "message": "用其他錢包開啟",
+    "description": "On the pay card: hands the invoice to whichever Lightning app is registered on this computer instead of paying with Sidecar."
+  },
+  "cardOfferEyebrow": {
+    "message": "Sidecar 可以支付此發票",
+    "description": "Heading of the pay card when it is offered on a site not signed in with Sidecar, after the person taps a Lightning link."
+  },
+  "cardOfferDontAsk": {
+    "message": "不要再詢問",
+    "description": "On the offer card: stop offering to pay Lightning links on sites not signed in with Sidecar."
+  },
+  "firstOfferEyebrow": {
+    "message": "Sidecar 可以支付發票",
+    "description": "Heading of the first-time card shown when a Lightning invoice appears on a site not signed in with Sidecar."
+  },
+  "firstOfferBody": {
+    "message": "在任何頁面都可以，不限於已連線的網站。",
+    "description": "Body of the first-time card offering to pay invoices on any page."
+  },
+  "firstOfferAny": {
+    "message": "在任何頁面付款",
+    "description": "First-time card choice: turn on paying invoices on sites not signed in with Sidecar. Confirmed in Sidecar's panel."
+  },
+  "firstOfferSignedIn": {
+    "message": "僅限我已登入的網站",
+    "description": "First-time card choice: keep Sidecar's pay prompts to sites signed in with Sidecar."
+  },
+  "firstOfferConfirm": {
+    "message": "請開啟 Sidecar 確認。",
+    "description": "First-time card, after choosing Pay on any page: points to Sidecar's panel."
+  },
+  "firstOfferClose": {
+    "message": "關閉",
+    "description": "First-time card: closes it after Pay on any page was chosen."
+  }
+}

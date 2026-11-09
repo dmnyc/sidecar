@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
+  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'bitcoin.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -1511,6 +1511,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     let activePubkey;
     let authorSwitched = false;
     let authorNamed = false;
+    let relaxJustGrantedFor = null; // the account a 'relax' decision on this request opened a window for
     if (method === 'getPublicKey') {
       activePubkey = await KS.getActivePubkey();
     } else {
@@ -1740,7 +1741,6 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // block further down (which drops a now-stale relax window on an account
     // change) can tell "stale window for the account we're leaving" apart from
     // "the window we just opened for the account we're arriving at" — see there.
-    let relaxJustGrantedFor = null;
 
     // Once unlocked, signing only needs site approval — no PIN re-entry.
     if (needApproval || needUnlock) {
@@ -1829,8 +1829,14 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // offered only where checking it would actually save a grant. The `d`
         // tag rides along so both surfaces can say what future requests the
         // grant would cover (one record, when the event carries a `d`).
-        canKindGrant: kindGrantEligible && !destructive,
+        // The row's "Always" segment is never offered on a shared-identity card:
+        // there the per-sign confirm is the guard, and a grant would sign past the
+        // very check the card exists for. kindGrantEligible still governs the kind.
+        canKindGrant: kindGrantEligible && !destructive && !sharedIdentity,
         kindDTag: signDTag,
+        // The shared caption's count: how many accounts have signed in to this
+        // host (0 when the host isn't shared, or the ask is a pure unlock).
+        sharedCount: sharedIdentity ? (authorizedPool ? authorizedPool.length : 0) : 0,
         // True once this (host, account) has been approved one-time a few times over —
         // the prompt turns it into a line pointing at Trust. Suppressed while a
         // destructive warning is showing: that screen is asking for full attention on
@@ -1982,6 +1988,9 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // 'relax' → open a timed auto-approve window for this (host, account), then
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {
+        // ONE SIGNING ACCOUNT AT A TIME, by default: opening a window for this account
+        // ends any other account's, on every site.
+        if (!(await relaxPerAccount())) await RELAX.revokeOtherAccounts(activePubkey);
         await RELAX.grant(host, activePubkey, decision.relaxMs || RELAX.DEFAULT_MS);
         relaxJustGrantedFor = activePubkey;
         syncRelaxBadge();
@@ -2038,19 +2047,14 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // sharedIdentity is also an explicit choice (the user just confirmed who's
     // posting in the prompt), so it may move the binding too.
     if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
-      // A re-login to a DIFFERENT account is the one detectable moment the identity
-      // context for this host can change, so a prior relax window for it is no
-      // longer trustworthy — drop it. A same-account re-fetch leaves the binding
-      // unchanged and is left alone. Exception: if THIS request is the one that
-      // just opened the relax window for the account we're rebinding TO (the
-      // shared-host relax chip, granted a few lines up), it's not stale — it's
-      // the window the user just asked for. Without this guard, choosing "relax"
-      // on a shared host where the site's prior pin differs from the signing
-      // account would grant the window and then immediately revoke that same
-      // grant in this same request, so the status bar never appears.
+      // A re-login or a post as another account moves the binding, and ends the
+      // site's 30-minute windows unless Settings keeps a timer for each account (see
+      // SIDECAR_SET_ACTIVE). Not the window this very request just opened for the
+      // account arriving: that one is the window the user just asked for.
       const prevBound = await getSiteAccount(host);
       await setSiteAccount(host, activePubkey);
-      if (prevBound && prevBound !== activePubkey && relaxJustGrantedFor !== activePubkey) {
+      if (prevBound && prevBound !== activePubkey && relaxJustGrantedFor !== activePubkey &&
+          !(await relaxPerAccount())) {
         await RELAX.revokeForHost(host); syncRelaxBadge();
       }
     }
@@ -2111,6 +2115,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
 // trade for not keeping an alarm alive for a 90-second hand-off.
 const QR_SECRET_TTL_MS = 90000;
 let qrSecret = null; // { value, at } | null
+let qrScan = null; // { value, at } | null — a scanned receive QR (an address or bitcoin: URI), same one-parking rule
 let swNwc = null; // { client, pubkey }
 async function getSwNwc(pubkey) {
   if (swNwc && swNwc.pubkey === pubkey) return swNwc.client;
@@ -3357,6 +3362,47 @@ function notify(message) {
   );
 }
 
+// Notifications use the extension locale; payment responses sent to websites keep
+// their protocol-facing English errors. A cold service worker may still be loading
+// its locale when a payment finishes.
+async function notifyPaymentSent(sats) {
+  const I18N = self.SidecarI18n;
+  await I18N.ready;
+  notify(sats != null
+    ? I18N.tSec('Payment sent — {{amount}} sats', { amount: I18N.fmtNum(sats) })
+    : I18N.tSec('Payment sent'));
+}
+
+// Translate known failures only at the notification boundary. Unknown wallet or
+// network details are data; preserve them, and never change the error sent to a page.
+async function notifyPaymentFailure(error) {
+  const I18N = self.SidecarI18n;
+  await I18N.ready;
+  const { tSec } = I18N;
+  const reason = typeof error === 'string' ? error : error?.message;
+  let message;
+  switch (reason) {
+    case 'Sidecar has no accounts set up yet': message = tSec('Sidecar has no accounts set up yet'); break;
+    case 'No active Sidecar account': message = tSec('No active Sidecar account'); break;
+    case 'This site is blocked in Sidecar': message = tSec('This site is blocked in Sidecar'); break;
+    case 'No wallet connected in Sidecar': message = tSec('No wallet connected in Sidecar'); break;
+    case 'You rejected this payment': message = tSec('You rejected this payment'); break;
+    case 'Keystore is locked': message = tSec('Keystore is locked'); break;
+    case 'No invoice provided': message = tSec('No invoice provided'); break;
+    case 'Not a BOLT11 Lightning invoice': message = tSec('Not a BOLT11 Lightning invoice'); break;
+    case 'No image to read': message = tSec('No image to read'); break;
+    case 'Not a readable image URL': message = tSec('Not a readable image URL'); break;
+    case 'No QR code found in that image': message = tSec('No QR code found in that image'); break;
+    case 'That QR is not a Lightning invoice': message = tSec('That QR is not a Lightning invoice'); break;
+    case 'No Lightning invoice found in the selection.': message = tSec('No Lightning invoice found in the selection.'); break;
+    case undefined:
+    case '':
+    case 'Payment failed': message = tSec('Payment failed'); break;
+    default: message = tSec('Payment failed: {{reason}}', { reason });
+  }
+  notify(message);
+}
+
 // Tell a tab a page invoice was paid, so its "Pay with Sidecar" pill clears
 // (the invoice link often lingers in the DOM after the modal shows "Paid").
 // Tell the tabs on `host` that a payment settled, so the content script can throw its
@@ -3561,17 +3607,16 @@ function createPayMenu() {
     // if a build ever rejects the lightning: pattern, fall back to a pattern-less
     // link item — the click handler's extractInvoice already fails safe on
     // non-lightning links with a "no invoice found" notice.
-    create(
-      { id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'], targetUrlPatterns: ['lightning:*'] },
-      () => create({ id: 'sidecar-pay-link', title: 'Pay this invoice with Sidecar', contexts: ['link'] })
-    );
-    create({ id: 'sidecar-pay-selection', title: 'Pay Lightning invoice with Sidecar', contexts: ['selection'] });
-    create({ id: 'sidecar-pay-qr', title: 'Pay QR code with Sidecar', contexts: ['image'] });
-    // NIP-84: quote the selected passage as a kind:9802 highlight, sourced to the page.
-    // Waits for the language file, since the title is fixed once the item exists.
     const I18N = self.SidecarI18n;
-    Promise.resolve(I18N && I18N.ready).catch(() => {}).then(() => {
-      const t = I18N ? I18N.t : (s) => s;
+    Promise.resolve(I18N.ready).then(() => {
+      const { t, tSec } = I18N;
+      create(
+        { id: 'sidecar-pay-link', title: tSec('Pay this invoice with Sidecar'), contexts: ['link'], targetUrlPatterns: ['lightning:*'] },
+        () => create({ id: 'sidecar-pay-link', title: tSec('Pay this invoice with Sidecar'), contexts: ['link'] })
+      );
+      create({ id: 'sidecar-pay-selection', title: tSec('Pay Lightning invoice with Sidecar'), contexts: ['selection'] });
+      create({ id: 'sidecar-pay-qr', title: tSec('Pay QR code with Sidecar'), contexts: ['image'] });
+      // NIP-84: quote a selected passage as a kind:9802 highlight.
       create({ id: 'sidecar-highlight', title: t('Highlight with Sidecar'), contexts: ['selection'] });
     });
   });
@@ -3682,10 +3727,10 @@ chrome.contextMenus &&
       Promise.resolve(getInvoice)
         .then((inv) => payFromPage(inv, host, originWindowId).then((r) => ({ r, inv })))
         .then(({ r, inv }) => {
-          notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+          void notifyPaymentSent(r.sats);
           notifyTabPaid(tab && tab.id, inv, r.preimage);
         })
-        .catch((e) => notify((e && e.message) || 'Payment failed'));
+        .catch((e) => { void notifyPaymentFailure(e); });
 
     if (info.menuItemId === 'sidecar-highlight') {
       startHighlight(info, tab);
@@ -3695,7 +3740,7 @@ chrome.contextMenus &&
       pay(invoiceFromQrImage(info.srcUrl));
     } else if (info.menuItemId === 'sidecar-pay-link' || info.menuItemId === 'sidecar-pay-selection') {
       const invoice = extractInvoice(info.linkUrl || info.selectionText);
-      if (!invoice) return notify('No Lightning invoice found in the selection.');
+      if (!invoice) { void notifyPaymentFailure('No Lightning invoice found in the selection.'); return; }
       pay(invoice);
     }
   });
@@ -3749,6 +3794,7 @@ async function lockKeystore(auto = false) {
   markPendingUnlocks();
   closeSwNwc();
   qrSecret = null; // a scanned key must not outlive the unlocked session
+  qrScan = null; // a scanned destination is account work too; clear it with the key
   chrome.alarms.clear(AUTO_LOCK_ALARM);
   chrome.storage.session.remove(AWAY_SINCE_KEY, () => void chrome.runtime.lastError);
   // Written before the 'locked' event below, so a panel that reacts to it finds the reason.
@@ -3873,10 +3919,19 @@ if (chrome.idle && chrome.idle.onStateChanged) {
 // active" signal, and clicking the icon opens the panel to that bar. A 1-min
 // alarm ticks the countdown down; both clear when no window is live.
 const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
+// Settings → Auto-sign with multiple accounts → "Keep a 30-minute timer for each account". Off by default: one
+// account signs without asking at a time.
+async function relaxPerAccount() {
+  return ((await sget('sidecar_settings')).sidecar_settings || {}).relaxPerAccount === true;
+}
+
 function syncRelaxBadge() {
-  RELAX.active().then((grants) => {
+  RELAX.active().then(async (grants) => {
     if (grants && grants.length) {
-      const mins = Math.max(0, Math.round((grants[0].expiresAt - Date.now()) / 60000));
+      // The window the panel's bar shows: the active account's, else the one that lapses
+      // next (active() sorts soonest-first).
+      const shown = RELAX.shownFor(grants, await KS.getActivePubkey().catch(() => null));
+      const mins = Math.max(0, Math.round((shown.expiresAt - Date.now()) / 60000));
       chrome.action.setBadgeText({ text: String(mins) });
       chrome.action.setBadgeBackgroundColor({ color: '#cba14e' });
       if (chrome.action.setBadgeTextColor) chrome.action.setBadgeTextColor({ color: '#1a0a33' });
@@ -3931,7 +3986,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 async function guardPinAttempt(attempt) {
   const guard = await loadUnlockGuard();
   const waitMs = unlockDelayMs(guard.fails) - (Date.now() - guard.lastAt);
-  if (waitMs > 0) throw new Error('Too many attempts — try again in ' + Math.ceil(waitMs / 1000) + 's');
+  if (waitMs > 0) throw Object.assign(new Error('Too many attempts — try again in ' + Math.ceil(waitMs / 1000) + 's'), { errorKey: 'pin-cooldown', errorParams: { seconds: Math.ceil(waitMs / 1000) } });
   let result;
   try {
     result = await attempt();
@@ -3947,7 +4002,7 @@ async function guardPinAttempt(attempt) {
     await saveUnlockGuard({ fails, lastAt: Date.now() });
     const remaining = MAX_UNLOCK_FAILS - fails;
     if (remaining <= 5) {
-      throw new Error(e.message + ' — ' + remaining + (remaining === 1 ? ' attempt' : ' attempts') + ' left before Sidecar erases itself');
+      throw Object.assign(new Error(e.message + ' — ' + remaining + (remaining === 1 ? ' attempt' : ' attempts') + ' left before Sidecar erases itself'), { errorKey: 'pin-remaining', errorParams: { count: remaining } });
     }
     throw e;
   }
@@ -4148,15 +4203,17 @@ async function handleControl(message, sender, sendResponse) {
         result = await KS.setProfile(message.pubkey, { name: message.name, picture: message.picture });
         break;
       case 'SIDECAR_SET_ACTIVE': {
+        // SWITCHING ENDS THE 30-MINUTE WINDOWS, unless Settings keeps a timer for each
+        // account (relaxPerAccount, off by default). Two accounts each able to sign
+        // without asking is how a multi-account client's slot mix-up goes out under the
+        // wrong account with no card; one at a time, the wrong one still asks. Only on a
+        // real change: tapping the account already active must not end its window.
         const prevActive = await KS.getActivePubkey();
         result = await KS.setActive(message.pubkey);
-        // Switching identity ends any active relax window: its countdown is for an
-        // account you've moved off of, and a lingering auto-sign shouldn't follow
-        // you across an identity change. Only on a real change — tapping the
-        // already-active account is a no-op and must not kill the window. Awaited
-        // so the panel's immediate re-query finds the grants already gone (no
-        // flicker of the disappearing indicator).
-        if (prevActive && prevActive !== message.pubkey) { await RELAX.revokeAll(); syncRelaxBadge(); }
+        if (prevActive && prevActive !== message.pubkey && !(await relaxPerAccount())) {
+          await RELAX.revokeAll();
+        }
+        syncRelaxBadge(); // the badge follows the active account's window
         break;
       }
       case 'SIDECAR_CHANGE_PIN':
@@ -4420,6 +4477,10 @@ async function handleControl(message, sender, sendResponse) {
           merged.autoZapDailyMaxSats = Math.min(Math.max(1, Number(merged.autoZapDailyMaxSats) || 1), AUTOZAP_ABS_DAILY_MAX);
         }
         await sset({ sidecar_settings: merged });
+        if (merged.language !== prev.language) {
+          await self.SidecarI18n.reload();
+          createPayMenu();
+        }
         // Apply an auto-lock change immediately: drop any alarm armed under the
         // old value, then re-arm from the new one (no-op when Never or locked).
         // Without this the change only took effect on the next sign/pay/unlock —
@@ -4427,6 +4488,12 @@ async function handleControl(message, sender, sendResponse) {
         if (message.settings && 'autoLockMinutes' in message.settings) {
           await chrome.alarms.clear(AUTO_LOCK_ALARM);
           bumpAutoLock();
+        }
+        // Turning "Keep a 30-minute timer for each account" off leaves the active account's windows
+        // and ends the rest, so the one-account rule holds from that moment.
+        if (prev.relaxPerAccount === true && merged.relaxPerAccount !== true) {
+          await RELAX.revokeOtherAccounts(await KS.getActivePubkey());
+          syncRelaxBadge();
         }
         // Push the pay-pill setting to content scripts so it toggles live.
         pushPageSettings(merged);
@@ -4550,10 +4617,16 @@ async function handleControl(message, sender, sendResponse) {
       // ---- QR scan hand-off (see the qrSecret notes above) ----
       case 'SIDECAR_OPEN_QR_SCANNER': {
         // Its own window, NOT the shared approval popup — reusing popupWindowId
-        // would let a scan and a signing prompt evict each other.
+        // would let a scan and a signing prompt evict each other. ?mode=address
+        // flips the scanner from backup-sheet keys to receive QRs (the rescue
+        // sweep's destination); scan-qr.js reads the query string.
+        const query = message.mode === 'address' ? '?mode=address' : '';
+        // A new destination scan starts empty: a value an earlier scan parked
+        // and nobody claimed must not fill this one's field.
+        if (message.mode === 'address') qrScan = null;
         await new Promise((res) => {
           chrome.windows.create(
-            { url: chrome.runtime.getURL('scan-qr.html'), type: 'popup', width: 420, height: 560, focused: true },
+            { url: chrome.runtime.getURL('scan-qr.html') + query, type: 'popup', width: 420, height: 560, focused: true },
             () => { void chrome.runtime.lastError; res(); }
           );
         });
@@ -4578,6 +4651,45 @@ async function handleControl(message, sender, sendResponse) {
         qrSecret = null;
         const fresh = parked && Date.now() - parked.at <= QR_SECRET_TTL_MS;
         result = { value: fresh ? parked.value : null };
+        break;
+      }
+      // The scanner's ADDRESS mode (scan-qr.html?mode=address): the rescue
+      // sweep card fills its destination from any wallet's receive QR. Raw
+      // text on purpose — bitcoin: URIs, bare addresses, whatever the wallet
+      // encodes; the panel does the parsing and shows what it made of it. Not
+      // in CONTENT_OK, so the sender gate already confines this to our pages.
+      case 'SIDECAR_QR_SCAN':
+        // Never a key: a backup sheet scanned here by mistake would land in the
+        // destination field, on screen, which is everything the key scan's own
+        // one-claim parking exists to prevent.
+        if (typeof message.value === 'string' && message.value.trim() && message.value.length <= 500 &&
+            !/(?:nsec|ncryptsec)1[a-z0-9]{20,}/i.test(message.value)) {
+          qrScan = { value: message.value.trim(), at: Date.now() };
+          result = { ok: true };
+        } else {
+          result = { ok: false };
+        }
+        break;
+      case 'SIDECAR_QR_SCAN_CLAIM': {
+        const parkedScan = qrScan;
+        qrScan = null;
+        const freshScan = parkedScan && Date.now() - parkedScan.at <= QR_SECRET_TTL_MS;
+        result = { value: freshScan ? parkedScan.value : null };
+        break;
+      }
+      // Sign the rescue sweep. The panel sends the unsigned transaction and, per
+      // input, the coin's value and form — never a hash, never a key or script.
+      // signSweepTx derives the spent scripts from the active account's own
+      // pubkey and computes every SIGHASH_ALL message itself, so this signs
+      // only key-path spends of that account's two Taproot outputs. Never bytes
+      // a caller chose: the untweaked form signs under the Nostr key itself,
+      // and a signature over chosen bytes would be one over any event id.
+      case 'SIDECAR_BTC_SIGN_INPUTS': {
+        if (!self.SidecarBitcoin) throw new Error('The bitcoin module is not loaded');
+        const active = await KS.getActivePubkey();
+        if (message.pubkey !== active) throw new Error('Sidecar switched accounts; reopen the Wallet tab.');
+        const privBytes = await KS.getPrivkey(active); // throws if locked
+        result = { sigs: await self.SidecarBitcoin.signSweepTx(privBytes, active, message.sweep) };
         break;
       }
       // Throw away every relay connection the worker holds. Recovery from browser
@@ -4708,7 +4820,7 @@ async function handleControl(message, sender, sendResponse) {
     // `destructive` rides along when the wipe check refused SIDECAR_OWNER_SIGN, as it
     // does from the site path: without it the panel's call() has nothing to read, and
     // a caller can only relay a bare sentence instead of offering the confirmation.
-    sendResponse({ ok: false, error: e.message, destructive: e.destructive || undefined });
+    sendResponse({ ok: false, error: e.message, errorKey: e.errorKey, errorParams: e.errorParams, destructive: e.destructive || undefined });
   }
 }
 
@@ -5016,13 +5128,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     payFromPage(message.invoice, host, originWindowId, message.enableAutoZap === true, message.offerPayAnywhere === true)
       .then((r) => {
         payTabs.delete(key);
-        notify(r.sats != null ? 'Payment sent — ' + r.sats.toLocaleString('en-US') + ' sats' : 'Payment sent');
+        void notifyPaymentSent(r.sats);
         notifyTabPaid(tabId, message.invoice, r.preimage);
       })
       .catch((e) => {
         payTabs.delete(key);
         const m = (e && e.message) || 'Payment failed';
-        notify(m);
+        void notifyPaymentFailure(e);
         notifyTabPayFailed(tabId, message.invoice, m);
       });
     sendResponse({ ok: true });
@@ -5069,14 +5181,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     RELAX.revoke(message.host, message.pubkey).then(() => { syncRelaxBadge(); sendResponse({ ok: true }); });
     return true; // async response
   }
-  // Panel's restart button on the relax status bar. Wind the running window back to
+  // Panel's restart button on the relax status bar. Wind the shown window (the
+  // soonest to lapse: active() sorts that way, and the bar shows grants[0]) back to
   // its full stored duration — a re-grant extends rather than stacks and re-arms the
   // expiry alarm (relax-grants.js), so this is grant() with the grant's own numbers.
   // Host and pubkey come from the stored grant, never the message: at most this can
   // reset a window that is already open, not start one for an arbitrary site.
   if (message.type === 'SIDECAR_RESTART_RELAX') {
     RELAX.active().then(async (grants) => {
-      const g = grants[0];
+      // The window the bar is showing, named by the panel; else the one that ends first.
+      const g = grants.find((x) => x.host === message.host && x.pubkey === message.pubkey) || grants[0];
       if (!g) { sendResponse({ ok: false }); return; }
       await RELAX.grant(g.host, g.pubkey, g.duration);
       syncRelaxBadge();

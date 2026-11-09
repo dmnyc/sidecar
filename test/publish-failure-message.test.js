@@ -29,7 +29,8 @@ function lift(pattern, label) {
   return m[0];
 }
 
-const ctx = { console, URL, Map, Set, String, Number, Array };
+const { withI18n } = require('./helpers/i18n.js');
+const ctx = withI18n({ console, URL, Map, Set, String, Number, Array });
 vm.createContext(ctx);
 vm.runInContext(
   lift(/function publishFailureMessage\(targets, results\) \{[\s\S]*?\n  \}/, 'publishFailureMessage') + '\n' +
@@ -122,7 +123,7 @@ test('raw relay noise is translated to plain language', () => {
     ['blocked: pubkey not allowed', /refused the note/],
     ['restricted: not permitted', /refused the note/],
     ['rate-limited: slow down', /rate-limited us/],
-    ['auth-required: please authenticate', /wants authentication/],
+    ['auth-required: please authenticate', /wants? authentication/],
   ];
   for (const [raw, expected] of cases) {
     const m = msg(['wss://a.example/', 'wss://b.example/'],

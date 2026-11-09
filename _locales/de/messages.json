@@ -1,0 +1,206 @@
+{
+  "extName": {
+    "message": "Sidecar | Ein stilvoller Nostr-Signer",
+    "description": "The extension's name, as the browser and the add-on stores show it. Keep \"Sidecar\" untranslated; the part after the bar may be translated."
+  },
+  "extDescription": {
+    "message": "Ein NIP-07-Nostr-Signer für mehrere Konten mit integrierter Lightning-Wallet in der Seitenleiste deines Browsers.",
+    "description": "One line under the name in the browser's extension list and the store listings. Keep \"NIP-07\", \"Nostr\" and \"Lightning\" as written."
+  },
+  "actionTitle": {
+    "message": "Sidecar öffnen",
+    "description": "Tooltip on the toolbar button."
+  },
+  "sidebarTitle": {
+    "message": "Sidecar",
+    "description": "Title of the sidebar in Firefox. The product name, not translated."
+  },
+  "payPillPayable": {
+    "message": "$AMOUNT$ Sats zahlbar",
+    "description": "The corner pill for a Lightning invoice found on a web page. AMOUNT is the number, shown in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "payPillInvoicePayable": {
+    "message": "Eine zahlbare Rechnung",
+    "description": "The same pill for an invoice with no amount of its own."
+  },
+  "payPillLabel": {
+    "message": "Auf $SITE$ ist eine Lightning-Rechnung über $AMOUNT$ Sats zahlbar. Öffne Sidecar, um sie zu bezahlen.",
+    "description": "Screen-reader label for the pill. SITE is the web page's host.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      },
+      "site": {
+        "content": "$2",
+        "example": "example.com"
+      }
+    }
+  },
+  "payPillLabelNoAmount": {
+    "message": "Auf $SITE$ ist eine Lightning-Rechnung zahlbar. Öffne Sidecar, um sie zu bezahlen.",
+    "description": "Screen-reader label for the pill when the invoice has no amount.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "dismiss": {
+    "message": "Schließen",
+    "description": "Screen-reader label for the pill's close button."
+  },
+  "hide": {
+    "message": "Ausblenden",
+    "description": "Screen-reader label for the close button on the payment-in-progress pill. Hides the indicator; it does not cancel the payment."
+  },
+  "flightSending": {
+    "message": "$AMOUNT$ Sats werden gesendet",
+    "description": "The corner pill while a payment is going out. AMOUNT in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "flightZapping": {
+    "message": "Zap über $AMOUNT$ Sats wird gesendet",
+    "description": "The same pill for an automatic zap.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "flightSendingPayment": {
+    "message": "Zahlung wird gesendet",
+    "description": "The pill while a payment with no stated amount goes out."
+  },
+  "flightZappingPayment": {
+    "message": "Zap wird gesendet",
+    "description": "The same, for an automatic zap."
+  },
+  "flightPaid": {
+    "message": "$AMOUNT$ Sats bezahlt",
+    "description": "The pill once the payment has settled. AMOUNT in bold.",
+    "placeholders": {
+      "amount": {
+        "content": "$1",
+        "example": "21"
+      }
+    }
+  },
+  "paid": {
+    "message": "Bezahlt",
+    "description": "A payment has settled."
+  },
+  "cardEyebrow": {
+    "message": "Zahlungsanfrage",
+    "description": "Small heading on the payment card. A REQUEST, not a charge: nothing has been paid yet. Keep that sense."
+  },
+  "unitSats": {
+    "message": "Sats",
+    "description": "The unit under the amount on the payment card (satoshis)."
+  },
+  "cardNoAmountMemo": {
+    "message": "Eine Lightning-Rechnung. Wähle den Betrag in Sidecar.",
+    "description": "Shown on the card for an invoice with no amount of its own."
+  },
+  "cardAutoZapOffer": {
+    "message": "Automatische Zaps einschalten (max. $MAX$ Sats)",
+    "description": "Switch on the card that turns on automatic zaps up to MAX.",
+    "placeholders": {
+      "max": {
+        "content": "$1",
+        "example": "1,000"
+      }
+    }
+  },
+  "cardLabel": {
+    "message": "Mit Sidecar bezahlen",
+    "description": "Screen-reader label for the payment card."
+  },
+  "cardFoundOn": {
+    "message": "gefunden auf $SITE$",
+    "description": "Under the amount: where the invoice was found. SITE in bold.",
+    "placeholders": {
+      "site": {
+        "content": "$1",
+        "example": "example.com"
+      }
+    }
+  },
+  "cardPay": {
+    "message": "Mit Sidecar bezahlen",
+    "description": "The card's pay button. Pressing it asks Sidecar; nothing is sent until approved there."
+  },
+  "cardNotNow": {
+    "message": "Jetzt nicht",
+    "description": "Closes the card without paying."
+  },
+  "cardDontShow": {
+    "message": "Diese Anfrage nicht mehr anzeigen",
+    "description": "Switch that stops the card appearing for invoices found on pages."
+  },
+  "cardConfirmInSidecar": {
+    "message": "In Sidecar bestätigen",
+    "description": "The pay button while Sidecar asks for approval."
+  },
+  "cardAwaiting": {
+    "message": "Bestätige in Sidecar, um die Zahlung zu senden. Aus deiner Wallet ist noch nichts abgeflossen.",
+    "description": "Status under the button while waiting for approval. Must stay clear that nothing has been paid yet."
+  },
+  "cardTryAgain": {
+    "message": "Erneut versuchen",
+    "description": "The pay button after a payment failed."
+  },
+  "cardFailed": {
+    "message": "Zahlung fehlgeschlagen. Bitte versuche es erneut.",
+    "description": "Shown when a payment fails with no reason given."
+  },
+  "cardOtherWallet": {
+    "message": "In einer anderen Wallet öffnen",
+    "description": "On the pay card: hands the invoice to whichever Lightning app is registered on this computer instead of paying with Sidecar."
+  },
+  "cardOfferEyebrow": {
+    "message": "Sidecar kann diese Rechnung bezahlen",
+    "description": "Heading of the pay card when it is offered on a site not signed in with Sidecar, after the person taps a Lightning link."
+  },
+  "cardOfferDontAsk": {
+    "message": "Nicht mehr fragen",
+    "description": "On the offer card: stop offering to pay Lightning links on sites not signed in with Sidecar."
+  },
+  "firstOfferEyebrow": {
+    "message": "Sidecar kann Rechnungen bezahlen",
+    "description": "Heading of the first-time card shown when a Lightning invoice appears on a site not signed in with Sidecar."
+  },
+  "firstOfferBody": {
+    "message": "Auf jeder Seite, nicht nur auf verbundenen.",
+    "description": "Body of the first-time card offering to pay invoices on any page."
+  },
+  "firstOfferAny": {
+    "message": "Auf jeder Seite bezahlen",
+    "description": "First-time card choice: turn on paying invoices on sites not signed in with Sidecar. Confirmed in Sidecar's panel."
+  },
+  "firstOfferSignedIn": {
+    "message": "Nur Seiten, bei denen ich angemeldet bin",
+    "description": "First-time card choice: keep Sidecar's pay prompts to sites signed in with Sidecar."
+  },
+  "firstOfferConfirm": {
+    "message": "Öffne Sidecar zum Bestätigen.",
+    "description": "First-time card, after choosing Pay on any page: points to Sidecar's panel."
+  },
+  "firstOfferClose": {
+    "message": "Schließen",
+    "description": "First-time card: closes it after Pay on any page was chosen."
+  }
+}

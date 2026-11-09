@@ -35,6 +35,8 @@ test('it reads data-i18n attributes from the HTML, entities decoded', () => {
 test('EVERY t() IN THE SOURCE TAKES A LITERAL, OR NO TRANSLATOR EVER SEES IT', () => {
   const offenders = [];
   for (const f of K.JS_FILES) {
+    // The translator implementation necessarily accepts variable keys.
+    if (f === 'i18n.js') continue;
     const p = path.join(K.ROOT, f);
     if (!fs.existsSync(p)) continue;
     for (const hit of K.nonLiteralCalls(fs.readFileSync(p, 'utf8'))) offenders.push(f + ':' + hit);
@@ -63,4 +65,42 @@ test('A LOCALE FILE CARRIES ONLY KEYS THE CODE STILL USES', () => {
 
 test('the test locale is git-ignored, so it never ships', () => {
   assert.match(fs.readFileSync(path.join(K.ROOT, '.gitignore'), 'utf8'), /^locales\/en-XB\.json$/m);
+});
+
+test('qualified I18N calls expose literal keys and dynamic calls remain detectable',()=>{
+  assert.deepEqual(K.extractFromJs("SidecarI18n.t('Zap comment'); I18N.tSec('Secret'); SidecarI18n.tn('one', 'many', 2); unrelated.t('ignore');"),[
+    {key:'Zap comment'},{key:'Secret',security:true},{key:'one',other:'many',plural:true},
+  ]);
+  assert.equal(K.nonLiteralCalls('SidecarI18n.t(condition ? a : b); I18N.tSec(key);').length,2);
+});
+
+test('mixed plain and plural uses retain both lookup shapes regardless of source order', () => {
+  const os = require('node:os');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-i18n-keys-'));
+  try {
+    fs.writeFileSync(path.join(root, 'sidepanel.js'), "t('Followers'); tn('Followers', 'Many followers', n); tSec('Followers');");
+    const [key] = K.allKeys(root);
+    assert.deepEqual(key, {key:'Followers',simple:true,plural:true,other:'Many followers',security:true});
+    // Calls in different files exercise both encounter orders, independent of
+    // extractFromJs grouping the two call syntaxes during extraction.
+    fs.writeFileSync(path.join(root, 'sidepanel.js'), "tn('Followers', 'Many followers', n);");
+    fs.writeFileSync(path.join(root, 'prompt.js'), "tSec('Followers');");
+    assert.deepEqual(K.allKeys(root), [{key:'Followers',other:'Many followers',plural:true,security:true,simple:true}]);
+  } finally { fs.rmSync(root, {recursive:true,force:true}); }
+});
+
+test('the generated translation template includes plain and plural count labels', () => {
+  const {execFileSync}=require('node:child_process');
+  const catalog=JSON.parse(execFileSync(process.execPath,[path.join(K.ROOT,'scripts/i18n-keys.mjs'),'--json'],{encoding:'utf8'}));
+  for (const key of ['{{count}} following','{{count}} muted']) {
+    assert.ok(Object.hasOwn(catalog,key));
+    assert.ok(Object.hasOwn(catalog,key+'_one'));
+    assert.ok(Object.hasOwn(catalog,key+'_other'));
+  }
+});
+
+test('HTML keys decode numeric entities once to match DOM attributes', () => {
+  const { extractFromHtml } = require('../scripts/i18n-keys-core');
+  assert.deepEqual(extractFromHtml('<p data-i18n="Sidecar can&#x27;t &amp; won&#39;t &amp;lt;"></p>'),
+    [{ key: "Sidecar can't & won't &lt;" }]);
 });

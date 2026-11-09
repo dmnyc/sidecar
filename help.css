@@ -162,7 +162,7 @@ html { scroll-behavior: smooth; }
      margin, but it collided with the last item of a list. */
   margin-top: 18px;
   padding: 14px 18px;
-  border-left: 2px solid rgba(167, 139, 250, 0.35);
+  border-inline-start: 2px solid rgba(167, 139, 250, 0.35);
   background: rgba(167, 139, 250, 0.05);
   border-radius: 0 10px 10px 0;
 }
@@ -178,7 +178,7 @@ html { scroll-behavior: smooth; }
    a .guide-section too and carry their own styling. */
 .guide-section ul:not([class]) {
   margin: 14px 0 18px;
-  padding-left: 20px;
+  padding-inline-start: 20px;
   list-style: none;
 }
 .guide-section ul:not([class]) > li {
@@ -192,7 +192,7 @@ html { scroll-behavior: smooth; }
 .guide-section ul:not([class]) > li::before {
   content: '';
   position: absolute;
-  left: -14px;
+  inset-inline-start: -14px;
   top: 0.62em;
   width: 5px;
   height: 5px;
@@ -204,7 +204,7 @@ html { scroll-behavior: smooth; }
 /* ===== What's new (release-notes list; mirrors the CHANGELOG.md highlights) ===== */
 
 .guide-section .whatsnew-version { color: var(--gold); font-size: 15px; margin-bottom: 4px; }
-.whatsnew-list { margin: 0 0 14px; padding-left: 22px; }
+.whatsnew-list { margin: 0 0 14px; padding-inline-start: 22px; }
 .whatsnew-list li { font-size: 15px; color: var(--text-2); line-height: 1.7; margin: 8px 0; }
 
 /* ===== Resources grid (reuses welcome.css .card) ===== */

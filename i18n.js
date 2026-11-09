@@ -23,10 +23,31 @@
 (function (root) {
   'use strict';
 
-  // The languages the picker offers, each named in itself. English is the only one
-  // until a translation ships; en-XA is the developer's pseudo-locale.
+  // The languages the picker offers, each named in itself,
+  // with draft launch catalogs available for review; en-XA is the pseudo-locale.
   const LANGUAGES = [
     { code: 'en', name: 'English' },
+    { code: 'ar', name: 'العربية' },
+    { code: 'de', name: 'Deutsch' },
+    { code: 'el', name: 'Ελληνικά' },
+    { code: 'es', name: 'Español' },
+    { code: 'fa', name: 'فارسی' },
+    { code: 'fr', name: 'Français' },
+    { code: 'he', name: 'עברית' },
+    { code: 'hi', name: 'हिन्दी' },
+    { code: 'hu', name: 'Magyar' },
+    { code: 'it', name: 'Italiano' },
+    { code: 'ja', name: '日本語' },
+    { code: 'ko', name: '한국어' },
+    { code: 'pl', name: 'Polski' },
+    { code: 'pt-BR', name: 'Português (Brasil)' },
+    { code: 'pt-PT', name: 'Português (Portugal)' },
+    { code: 'ru', name: 'Русский' },
+    { code: 'th', name: 'ไทย' },
+    { code: 'tr', name: 'Türkçe' },
+    { code: 'ur', name: 'اردو' },
+    { code: 'zh', name: '简体中文' },
+    { code: 'zh-TW', name: '繁體中文' },
   ];
   const PSEUDO = 'en-XA';
   // en-XB, the developer's TEST locale: a real locale file (locales/en-XB.json, written by
@@ -56,6 +77,13 @@
       const simplified = /^zh(-(cn|sg|hans))?$/i.test(want);
       const pick = simplified ? 'zh' : 'zh-TW';
       if (codes.includes(pick)) return pick;
+    }
+    // Portuguese has two catalogs and a bare `pt` names neither: it goes to Brazil, which has
+    // far more speakers, and every other pt-XX (PT, AO, MZ, CV…) goes to Portugal.
+    if (base === 'pt') {
+      const pick = /^pt(-br)?$/i.test(want) ? 'pt-BR' : 'pt-PT';
+      if (codes.includes(pick)) return pick;
+      if (codes.includes('pt-BR')) return 'pt-BR';
     }
     return codes.find((c) => c.toLowerCase() === base) || 'en';
   }
@@ -156,9 +184,16 @@
   }
   // fmtRelative(-5, 'minute') → "5 min. ago" in English, the language's own words
   // elsewhere, with no translation work for any of them.
+  //
+  // The compact (`narrow`) data is thin for some languages: Chrome gives Russian, French and
+  // European Portuguese a bare "-1 ч" / "-1 h" with no word for "ago", which reads as a negative
+  // quantity inside a sentence. A result that starts with a sign is that gap, so it is asked
+  // again in the `short` style, which spells the direction out ("1 ч назад", "il y a 1 h").
   function fmtRelative(value, unit, opts) {
-    return new Intl.RelativeTimeFormat(numLocale(), Object.assign({ numeric: 'auto', style: 'narrow' }, opts))
+    const make = (style) => new Intl.RelativeTimeFormat(numLocale(), Object.assign({ numeric: 'auto', style }, opts))
       .format(value, unit);
+    const out = make('narrow');
+    return /^[+\-\u2212]\s*\d/.test(out) ? make('short') : out;
   }
 
   // ---- static HTML --------------------------------------------------------------------
@@ -211,17 +246,22 @@
     });
   }
 
-  const ready = (async () => {
+  // A worker can outlive the panel that changes the language. Reload explicitly
+  // after a settings write, and ignore an older read/fetch that finishes later.
+  let localeRevision = 0;
+  async function reload() {
+    const revision = ++localeRevision;
     const setting = await readSetting();
     const code = resolve(setting === 'auto' ? browserLanguage() : setting);
-    if (code !== lang) {
-      lang = code;
-      plural = new Intl.PluralRules(lang === PSEUDO ? 'en' : lang);
-    }
+    const loaded = await loadDicts(code);
+    if (revision !== localeRevision) return lang;
+    lang = code;
+    plural = new Intl.PluralRules(lang === PSEUDO ? 'en' : lang);
+    dicts = loaded;
     writeCache(lang);
-    dicts = await loadDicts(lang);
     return lang;
-  })();
+  }
+  const ready = reload();
 
   // Switch language with its dictionaries already in hand: the tests use it, and so can
   // a live switch once there is one. dictionaries is [active, base], most specific first.
@@ -248,8 +288,36 @@
     });
   }
 
+  // Internal control responses keep their original English error for diagnostics.
+  // Translate only known cases; unknown details remain visible without guessing.
+  function controlError(response) {
+    if (!response) return '';
+    const params = response.errorParams || {};
+    switch (response.errorKey || response.error) {
+      case 'pin-cooldown':
+        if (Number.isFinite(params.seconds) && params.seconds >= 0) {
+          return tSec('Too many attempts — try again in {{duration}}', {
+            duration: fmtNum(params.seconds, { style: 'unit', unit: 'second', unitDisplay: 'long' }),
+          });
+        }
+        break;
+      case 'pin-remaining':
+        if (Number.isInteger(params.count) && params.count >= 0) {
+          return tSec('Incorrect PIN. Attempts remaining before Sidecar erases itself: {{count}}', { count: fmtNum(params.count) });
+        }
+        break;
+      case 'Incorrect PIN': return tSec('Incorrect PIN');
+      case 'Incorrect current PIN': return tSec('Incorrect current PIN');
+      case 'PIN required': return tSec('PIN required');
+      case 'Keystore not initialized': return tSec('Keystore not initialized');
+      case 'Keystore is locked': return tSec('Keystore is locked');
+      case 'Too many failed attempts — Sidecar has been erased': return tSec('Too many failed attempts — Sidecar has been erased');
+    }
+    return response.error || '';
+  }
+
   const api = {
-    t, tn, tSec, fill, fmtNum, fmtDate, fmtRelative, applyDom, ready, setLocale,
+    t, tn, tSec, fill, fmtNum, fmtDate, fmtRelative, applyDom, ready, reload, setLocale, controlError,
     get lang() { return lang; },
     get dir() { return RTL.has(lang.split('-')[0]) ? 'rtl' : 'ltr'; },
     languages: () => LANGUAGES.slice(),

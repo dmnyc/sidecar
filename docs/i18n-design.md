@@ -1,17 +1,30 @@
 # Multilingual support — design
 
-Status: phase 1 (infrastructure) implemented on `feat/i18n-core`; phases 2 to 5 to
-come. Where phase 1 settled something this proposal left open, §6 says what and why.
+Status (October 27, 2026): the language work lives on `feat/languages`, rebased onto
+`main` at 1.16.3. The extractor finds 1,857 keys, including the streaming UI and
+everything 1.16.0 through 1.16.3 added. German (de), Spanish (es), French (fr), and Brazilian
+Portuguese (pt-BR) have complete draft app and browser-message catalogs, and the
+coverage gate (`node scripts/i18n-coverage.mjs --check`) passes with no missing,
+invalid or unknown entries. European Portuguese (pt-PT) is deferred to a future
+phase. en-XA and en-XB are development tools. The four catalogs are model drafts
+and no native speaker has read them. On October 27, 2026 the maintainer decided
+to ship them that way and to accept corrections from users afterward (§3.7), and
+Settings → Appearance says so beside the Language choice. Full extension layout
+acceptance in the four languages and the guide release-scope decision remain
+open. The full guide is still English, with a translated notice. Catalog
+completeness is not evidence that the translations are right.
 
-Sidecar has no translation layer today. This document measures what would need
-to change, describes how Jumble (a Nostr web client that ships 19 languages)
-solves the same problem, and proposes a design that fits Sidecar's constraints:
-vanilla JS, no build step, and every third-party file vendored and hash-checked
-(see `VENDOR.md`).
+The observations in §1 and the Jumble comparison are the original design
+baseline, not a description of the current worktree. §6 records the implemented
+infrastructure decisions. The work-in-progress evidence and open maintainer
+questions are in `docs/i18n/1.16-audit.txt` and `docs/i18n/1.16-questions.txt`.
+
+This design fits Sidecar's constraints: vanilla JS, no build step, and every
+third-party file vendored and hash-checked (see `VENDOR.md`).
 
 The short version: copy Jumble's key format and conventions, not its library.
 
-## 1. What Sidecar has today
+## 1. Original baseline
 
 ### No translation layer
 
@@ -240,10 +253,14 @@ The service worker has no DOM, but produces user-visible text in three ways.
 - Keep amounts, hosts, pubkeys and kind numbers outside the translated text, as
   interpolated values formatted by code.
 - Always show the kind number next to its translated name.
-- Require a native-speaker review of `prompt.js` and unlock/backup strings
-  before a language ships. Mark these keys in the locale files (e.g. a
-  `security-critical` list the coverage test knows about) so a reviewer can find
-  them.
+- Native-speaker review of `prompt.js` and unlock/backup strings was the rule
+  before a language ships. Mark these keys so a reviewer can find them (the
+  packets in `docs/i18n/review/` do, and the coverage test knows the list).
+  **1.17 ships without that review** (decision of October 27, 2026: no
+  translator is available). Instead, a model re-read every packet entry for
+  meaning errors, the strings stay literal rather than idiomatic, and users'
+  corrections are accepted later. The packets stay `reviewed: false` until a
+  person has read them.
 
 ### 3.8 Layout and typography
 
@@ -314,6 +331,18 @@ the rule translations will stress.
    seeded from its locale files, with credit in `NOTICE`.
 5. **Right-to-left**, and `help.html` as whole translated pages
    (`help.<lang>.html`) rather than string-by-string.
+
+### Catalog coverage gate
+
+Run `node scripts/i18n-coverage.mjs --check` before releasing a new language.
+Use `--json` for the full missing-key and validation report. The command checks
+registered production catalogs, including regional fallback and each locale's
+plural categories. A release with no non-English production language does not
+satisfy the multilingual release goal and fails this gate.
+
+This check proves catalog structure and coverage only. It does not certify
+translation accuracy, native security review, guide completeness, or rendered
+layout. Those still need their own evidence.
 
 ## 5. Open questions
 

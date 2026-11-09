@@ -375,7 +375,7 @@ body {
 .open-pin-gate {
   position: fixed;
   top: 12px;
-  right: 22px;
+  inset-inline-end: 22px;
   z-index: 200;
   width: 330px;
   display: flex;
@@ -412,7 +412,7 @@ body {
 }
 
 .open-pin-x {
-  position: absolute; top: 8px; right: 9px;
+  position: absolute; top: 8px; inset-inline-end: 9px;
   background: none; border: none; color: var(--faint);
   font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 4px;
   border-radius: 6px;
@@ -420,10 +420,10 @@ body {
 .open-pin-x:hover { color: var(--text); background: var(--hover-soft); }
 
 /* Room for the dismiss button so the text never runs under it. */
-.open-pin-text { padding-right: 14px; }
+.open-pin-text { padding-inline-end: 14px; }
 
 @media (max-width: 620px) {
-  .open-pin-gate { left: 14px; right: 14px; width: auto; top: 10px; }
+  .open-pin-gate { inset-inline-start: 14px; inset-inline-end: 14px; width: auto; top: 10px; }
 }
 
 /* ===== Hidden cards (filtered out) ===== */
@@ -538,9 +538,9 @@ body {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
-  margin-left: auto;
-  padding-left: 14px;
-  border-left: 1px solid var(--border);
+  margin-inline-start: auto;
+  padding-inline-start: 14px;
+  border-inline-start: 1px solid var(--border);
 }
 
 .helpnav-pages a { color: var(--gold); }
@@ -550,7 +550,7 @@ body {
 
 .toc-dropdown {
   position: relative;
-  margin-left: 6px;
+  margin-inline-start: 6px;
 }
 .toc-toggle {
   display: inline-flex;
@@ -592,7 +592,7 @@ body {
 .toc-menu {
   position: absolute;
   top: 100%;
-  left: 0;
+  inset-inline-start: 0;
   width: 280px;
   background: rgba(10, 1, 24, 0.98);
   border: 1px solid var(--border);
@@ -617,10 +617,10 @@ body {
   .helpnav { padding: 10px 14px; gap: 10px; }
   .helpnav-burger {
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-    margin-left: auto; flex-shrink: 0;
+    margin-inline-start: auto; flex-shrink: 0;
     /* auto width, not a 38px square — the label sits beside the glyph. min-height
        keeps the tap target at the old size. */
-    min-height: 38px; padding: 0 9px 0 11px;
+    min-height: 38px; padding-block: 0 0; padding-inline: 11px 9px;
     color: var(--muted); background: none; border: none; border-radius: 9px; cursor: pointer;
   }
   /* "Menu" beside the glyph: three lines alone read as decoration to anyone who
@@ -632,7 +632,7 @@ body {
   .helpnav-burger svg { width: 22px; height: 22px; }
   .helpnav-menu {
     display: none;
-    position: absolute; top: 100%; left: 0; right: 0;
+    position: absolute; top: 100%; inset-inline-start: 0; inset-inline-end: 0;
     flex-direction: column; align-items: stretch;
     flex: none; gap: 2px; padding: 6px 10px 12px;
     background: rgba(10, 1, 24, 0.97);
@@ -661,7 +661,7 @@ body {
   .helpnav:has(.toc-dropdown) { padding: 8px 12px; gap: 8px; }
   .helpnav:has(.toc-dropdown) .toc-toggle { width: auto; max-width: 160px; padding: 5px 10px; font-size: 12px; }
   .helpnav:has(.toc-dropdown) .toc-menu { width: 240px; }
-  .helpnav:has(.toc-dropdown) .helpnav-pages { flex-direction: row; gap: 2px; margin-left: auto; padding-left: 8px; border: none; }
+  .helpnav:has(.toc-dropdown) .helpnav-pages { flex-direction: row; gap: 2px; margin-inline-start: auto; padding-inline-start: 8px; border: none; }
   .helpnav:has(.toc-dropdown) .helpnav-pages a { padding: 4px 8px; font-size: 12px; }
 }
 

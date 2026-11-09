@@ -155,6 +155,7 @@ function harness(deps = {}) {
     // lazarusAdopt's world
     seedBaseline: (pk, ev) => calls.push({ type: 'seed', pk, ev }),
     followCountCache: new Map(),
+    repaintFollowCounts: () => calls.push({ type: 'repaintFollowCounts' }),
     followListCache: 'stale', followListPubkey: 'stale',
     forgetWot: () => calls.push({ type: 'forgetWot' }),
     _muteLists: new Map(), _muteListPromises: new Map(),
@@ -486,7 +487,7 @@ test('ADOPT: FOLLOWS AND PROFILE TAKE THE RESTORED VERSION', async () => {
   const h = harness();
   const f = signed(3, [...follows(3), ...follows(1)]);
   await h.ctx.lazarusAdopt(L.candidate(f, 3), f, PK);
-  assert.equal(h.ctx.followCountCache.get(PK), 3);
+  assert.equal(h.ctx.followCountCache.get(PK).v, 3);
   assert.equal(h.ctx.followListCache, null);
   const p = signed(0, [], { content: JSON.stringify({ name: 'Me', picture: 'https://x/p.png' }) });
   await h.ctx.lazarusAdopt(L.candidate(p, 0), p, PK);
@@ -593,6 +594,16 @@ function modalHarness(deps = {}) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'replaceable-baseline.js'), 'utf8').replace(/\bself\.SidecarBaseline\b/, 'window.SidecarBaseline'), ctx);
   vm.runInContext([
     liftLine(/const describeFinding = \(f\) =>\n[^\n]+/, 'describeFinding'),
+    // What Lazarus says in English, translated where the panel shows it.
+    lift('function lzName('),
+    lift('function lzYour('),
+    lift('function lzYourCurrent('),
+    lift('function lzYourCurrentCap('),
+    lift('function lzCountOf('),
+    lift('function lzNote('),
+    lift('function lzOutcome('),
+    liftLine(/const LZ_NUM = [^\n]+/, 'LZ_NUM'),
+    lift('function lzBold('),
     lift('function iconButton('),
     liftLine(/const publishFailed = \(r\) =>\n[^\n]+\n[^\n]+/, 'publishFailed'),
     lift('function lazarusAttribution('),
@@ -644,7 +655,7 @@ test('SCREENS: SCAN, RECOMMEND, RESTORE, DONE, AND THE CONNECTIONS ARE RELEASED'
   assert.doesNotMatch(h.modal.textContent, /\.\./, 'no doubled full stop');
   const sign = h.calls.find((x) => x.type === 'SIDECAR_OWNER_SIGN');
   assert.equal(sign.confirmedDestructive, false, 'a restore that removes nothing leaves the wipe check on');
-  assert.equal(h.ctx.followCountCache.get(PK), 100, 'the local copy took the restored version');
+  assert.equal(h.ctx.followCountCache.get(PK).v, 100, 'the local copy took the restored version');
   button(h.modal, 'Done').click();
   await waitFor(() => h.calls.some((x) => x.type === 'reset'), 'the release');
   const released = h.calls.find((x) => x.type === 'reset').urls;

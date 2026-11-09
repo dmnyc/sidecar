@@ -14,6 +14,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -53,6 +54,7 @@ function harness(answers, pubkey = 'alice') {
     publishSigned: async (ev) => { published.push(ev); },
     _bmCache: { pubkey: 'alice', evs: [{ id: 'stale' }], events: new Map() },
   };
+  withI18n(ctx); // the errors go through t() now
   vm.createContext(ctx);
   vm.runInContext(lift('async function addBookmark(') + '\nglobalThis.out = addBookmark;', ctx);
   return { add: ctx.out, published, queries, cache: ctx._bmCache };
@@ -157,7 +159,7 @@ test('the row ends with the bookmark, after the four public actions', () => {
   // Appended last AND pushed to the far edge: the gap is what separates the private
   // action from the four public ones, the way every client the user came from groups them.
   assert.match(src, /bmBtn\.classList\.add\('notif-act-end'\)/, 'the button sits against the zap');
-  assert.match(css, /\.notif-actions \.notif-act-end \{[^}]*margin-left: auto/, 'nothing pushes it right');
+  assert.match(css, /\.notif-actions \.notif-act-end \{[^}]*margin-inline-start: auto/, 'nothing pushes it right');
 });
 
 test('a bookmarked button stops taking taps', () => {

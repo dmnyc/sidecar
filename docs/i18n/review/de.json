@@ -1,0 +1,4032 @@
+{
+  "language": "de",
+  "status": "Unreviewed draft",
+  "reviewer": null,
+  "reviewedAt": null,
+  "entries": [
+    {
+      "file": "locales/de.json",
+      "key": "Too many attempts — try again in {{duration}}",
+      "english": "Too many attempts — try again in {{duration}}",
+      "translation": "Zu viele Versuche — versuche es in {{duration}} erneut",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Incorrect PIN. Attempts remaining before Sidecar erases itself: {{count}}",
+      "english": "Incorrect PIN. Attempts remaining before Sidecar erases itself: {{count}}",
+      "translation": "Falsche PIN. Verbleibende Versuche, bevor Sidecar seine Daten löscht: {{count}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Incorrect PIN",
+      "english": "Incorrect PIN",
+      "translation": "Falsche PIN",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Incorrect current PIN",
+      "english": "Incorrect current PIN",
+      "translation": "Aktuelle PIN ist falsch",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "PIN required",
+      "english": "PIN required",
+      "translation": "PIN erforderlich",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Keystore not initialized",
+      "english": "Keystore not initialized",
+      "translation": "Schlüsselspeicher nicht eingerichtet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Keystore is locked",
+      "english": "Keystore is locked",
+      "translation": "Schlüsselspeicher ist gesperrt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Too many failed attempts — Sidecar has been erased",
+      "english": "Too many failed attempts — Sidecar has been erased",
+      "translation": "Zu viele Fehlversuche — die Daten von Sidecar wurden gelöscht",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sending payment",
+      "english": "Sending payment",
+      "translation": "Zahlung wird gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Payment sent",
+      "english": "Payment sent",
+      "translation": "Zahlung gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Payment failed",
+      "english": "Payment failed",
+      "translation": "Zahlung fehlgeschlagen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "That looks like a secret key. For safety, paste your nsec only into the key import field.",
+      "english": "That looks like a secret key. For safety, paste your nsec only into the key import field.",
+      "translation": "Das sieht wie ein geheimer Schlüssel aus. Füge deinen nsec aus Sicherheitsgründen nur in das Feld zum Importieren von Schlüsseln ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zapping {{amount}} sats",
+      "english": "Zapping {{amount}} sats",
+      "translation": "Zap über {{amount}} Sats wird gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sending {{amount}} sats",
+      "english": "Sending {{amount}} sats",
+      "translation": "{{amount}} Sats werden gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sent {{amount}} sats",
+      "english": "Sent {{amount}} sats",
+      "translation": "{{amount}} Sats gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Too many attempts",
+      "english": "Too many attempts",
+      "translation": "Zu viele Versuche",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Too many attempts. All data on this device was erased.",
+      "english": "Too many attempts. All data on this device was erased.",
+      "translation": "Zu viele Versuche. Alle Daten auf diesem Gerät wurden gelöscht.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh: all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered.",
+      "english": "If you've lost your PIN there is no way to recover it. You can erase everything and start fresh: all accounts and private keys, wallet connections, permissions, and settings on this device are gone for good. Any account without a backed-up nsec cannot be recovered.",
+      "translation": "Wenn du deine PIN verloren hast, kann sie nicht wiederhergestellt werden. Du kannst alles löschen und neu anfangen: Alle Konten und privaten Schlüssel, Wallet-Verbindungen, Berechtigungen und Einstellungen auf diesem Gerät werden endgültig gelöscht. Konten ohne gesicherten nsec können nicht wiederhergestellt werden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Type {{word}} to confirm",
+      "english": "Type {{word}} to confirm",
+      "translation": "Gib zur Bestätigung {{word}} ein",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Erase everything",
+      "english": "Erase everything",
+      "translation": "Alles löschen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Cancel",
+      "english": "Cancel",
+      "translation": "Abbrechen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Confirm",
+      "english": "Confirm",
+      "translation": "Bestätigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Close",
+      "english": "Close",
+      "translation": "Schließen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Copied ✓",
+      "english": "Copied ✓",
+      "translation": "Kopiert ✓",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scan or copy to pay from any wallet.",
+      "english": "Scan or copy to pay from any wallet.",
+      "translation": "Scannen oder kopieren, um mit einer beliebigen Wallet zu bezahlen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scan or copy to pay from any CLINK wallet.",
+      "english": "Scan or copy to pay from any CLINK wallet.",
+      "translation": "Scannen oder kopieren, um mit einer CLINK-Wallet zu bezahlen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scan or copy to show someone how to pay you.",
+      "english": "Scan or copy to show someone how to pay you.",
+      "translation": "Scannen oder kopieren, um jemandem zu zeigen, wie du bezahlt werden kannst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Pay",
+      "english": "Pay",
+      "translation": "Bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Pay {{amount}} sats",
+      "english": "Pay {{amount}} sats",
+      "translation": "{{amount}} Sats bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter an amount in sats.",
+      "english": "Enter an amount in sats.",
+      "translation": "Gib einen Betrag in Sats ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Paying…",
+      "english": "Paying…",
+      "translation": "Zahlung läuft…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Paying {{amount}} sats",
+      "english": "Paying {{amount}} sats",
+      "translation": "{{amount}} Sats werden bezahlt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Paying",
+      "english": "Paying",
+      "translation": "Zahlung läuft",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Paid {{amount}} sats",
+      "english": "Paid {{amount}} sats",
+      "translation": "{{amount}} Sats bezahlt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Paid",
+      "english": "Paid",
+      "translation": "Bezahlt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zap",
+      "english": "Zap",
+      "translation": "Zap",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Send zap",
+      "english": "Send zap",
+      "translation": "Zap senden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sending…",
+      "english": "Sending…",
+      "translation": "Wird gesendet…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zapped {{amount}} sats",
+      "english": "Zapped {{amount}} sats",
+      "translation": "Zap über {{amount}} Sats gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Repost",
+      "english": "Repost",
+      "translation": "Teilen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Loading…",
+      "english": "Loading…",
+      "translation": "Wird geladen…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.",
+      "english": "Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.",
+      "translation": "Sidecar hat ein neues Konto erstellt. Dieser nsec ist die einzige Möglichkeit, es wiederherzustellen — sichere ihn jetzt. Du kannst ihn später mit deiner PIN erneut anzeigen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Incorrect password, or not a valid ncryptsec key.",
+      "english": "Incorrect password, or not a valid ncryptsec key.",
+      "translation": "Falsches Passwort oder ungültiger ncryptsec-Schlüssel.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No image to read",
+      "english": "No image to read",
+      "translation": "Kein Bild zum Lesen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "That QR code is not a private key",
+      "english": "That QR code is not a private key",
+      "translation": "Dieser QR-Code ist kein privater Schlüssel",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No QR code found in that image",
+      "english": "No QR code found in that image",
+      "translation": "Kein QR-Code in diesem Bild gefunden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "nsec1…, ncryptsec1…, or 64-char hex",
+      "english": "nsec1…, ncryptsec1…, or 64-char hex",
+      "translation": "nsec1…, ncryptsec1… oder 64 Hex-Zeichen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Private key",
+      "english": "Private key",
+      "translation": "Privater Schlüssel",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Key read from PDF",
+      "english": "Key read from PDF",
+      "translation": "Schlüssel aus PDF gelesen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Key read from camera",
+      "english": "Key read from camera",
+      "translation": "Schlüssel mit Kamera gelesen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Key read from image",
+      "english": "Key read from image",
+      "translation": "Schlüssel aus Bild gelesen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Decryption password",
+      "english": "Decryption password",
+      "translation": "Entschlüsselungspasswort",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Password",
+      "english": "Password",
+      "translation": "Passwort",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Your nsec stays encrypted on this device. Sidecar signs locally, so sites only get signatures, never your key. Much safer than pasting it into a website.",
+      "english": "Your nsec stays encrypted on this device. Sidecar signs locally, so sites only get signatures, never your key. Much safer than pasting it into a website.",
+      "translation": "Dein nsec bleibt verschlüsselt auf diesem Gerät. Sidecar signiert lokal, sodass Websites nur Signaturen erhalten, niemals deinen Schlüssel. Das ist viel sicherer, als ihn in eine Website einzufügen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter an nsec, ncryptsec, or hex private key.",
+      "english": "Enter an nsec, ncryptsec, or hex private key.",
+      "translation": "Gib einen privaten Schlüssel als nsec, ncryptsec oder Hex-Wert ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Done",
+      "english": "Done",
+      "translation": "Fertig",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Hiding in {{seconds}}s. Reveal again with your PIN.",
+      "english": "Hiding in {{seconds}}s. Reveal again with your PIN.",
+      "translation": "Wird in {{seconds}} s ausgeblendet. Mit deiner PIN erneut anzeigen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scan to sign in on a mobile client that supports QR login.",
+      "english": "Scan to sign in on a mobile client that supports QR login.",
+      "translation": "Scannen, um dich bei einem mobilen Client mit QR-Anmeldung anzumelden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Anyone with this key fully controls the account. Store it somewhere safe and never share it.",
+      "english": "Anyone with this key fully controls the account. Store it somewhere safe and never share it.",
+      "translation": "Wer diesen Schlüssel besitzt, hat volle Kontrolle über das Konto. Bewahre ihn sicher auf und teile ihn niemals.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Saved — store it safely, never by email",
+      "english": "Saved — store it safely, never by email",
+      "translation": "Gespeichert — sicher aufbewahren, niemals per E-Mail",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "At least 8 characters",
+      "english": "At least 8 characters",
+      "translation": "Mindestens 8 Zeichen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Confirm password",
+      "english": "Confirm password",
+      "translation": "Passwort bestätigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This password is unique to the sheet — choose a new one, not one you use anywhere else.",
+      "english": "This password is unique to the sheet — choose a new one, not one you use anywhere else.",
+      "translation": "Dieses Passwort gilt nur für das Sicherungsblatt — wähle ein neues, das du nirgendwo sonst verwendest.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Set a password",
+      "english": "Set a password",
+      "translation": "Passwort festlegen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This unlocks the printed sheet. It is not your Sidecar PIN.",
+      "english": "This unlocks the printed sheet. It is not your Sidecar PIN.",
+      "translation": "Damit wird das gedruckte Sicherungsblatt entsperrt. Es ist nicht deine Sidecar-PIN.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Use a password of at least 8 characters.",
+      "english": "Use a password of at least 8 characters.",
+      "translation": "Verwende ein Passwort mit mindestens 8 Zeichen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Passwords do not match.",
+      "english": "Passwords do not match.",
+      "translation": "Die Passwörter stimmen nicht überein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "One page with your key and a QR code. Print it, or keep the file somewhere safe.",
+      "english": "One page with your key and a QR code. Print it, or keep the file somewhere safe.",
+      "translation": "Eine Seite mit deinem Schlüssel und einem QR-Code. Drucke sie aus oder bewahre die Datei sicher auf.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "I've saved it",
+      "english": "I've saved it",
+      "translation": "Ich habe es gesichert",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This PIN can't be recovered",
+      "english": "This PIN can't be recovered",
+      "translation": "Diese PIN kann nicht wiederhergestellt werden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.",
+      "english": "Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.",
+      "translation": "Schreibe sie auf oder speichere sie in einem Passwortmanager, bevor du fortfährst. {{warning}}. Nur mit einer separaten Sicherung deiner Schlüssel kannst du deine Konten wiederherstellen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Save your PIN somewhere safe",
+      "english": "Save your PIN somewhere safe",
+      "translation": "Bewahre deine PIN sicher auf",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "it can't be recovered",
+      "english": "it can't be recovered",
+      "translation": "sie kann nicht wiederhergestellt werden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Reveal",
+      "english": "Reveal",
+      "translation": "Anzeigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter your PIN.",
+      "english": "Enter your PIN.",
+      "translation": "Gib deine PIN ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Revealing…",
+      "english": "Revealing…",
+      "translation": "Wird angezeigt…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter your PIN to build a printable backup sheet for {{name}}.",
+      "english": "Enter your PIN to build a printable backup sheet for {{name}}.",
+      "translation": "Gib deine PIN ein, um ein druckbares Sicherungsblatt für {{name}} zu erstellen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter your PIN to reveal the key for {{name}}.",
+      "english": "Enter your PIN to reveal the key for {{name}}.",
+      "translation": "Gib deine PIN ein, um den Schlüssel für {{name}} anzuzeigen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "PIN",
+      "english": "PIN",
+      "translation": "PIN",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Encrypt & show",
+      "english": "Encrypt & show",
+      "translation": "Verschlüsseln und anzeigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it.",
+      "english": "This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it.",
+      "translation": "Dies ist nicht dasselbe wie dein nsec — es funktioniert nicht in Apps, die nur einen unverschlüsselten nsec akzeptieren. Wähle ein Passwort zum Verschlüsseln; beim Importieren musst du genau dieses Passwort eingeben.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.",
+      "english": "Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.",
+      "translation": "Wer diesen ncryptsec und das Passwort besitzt, hat volle Kontrolle über das Konto. Bewahre beides sicher und getrennt voneinander auf.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scan to import into another NIP-49-compatible app.",
+      "english": "Scan to import into another NIP-49-compatible app.",
+      "translation": "Scannen, um in eine andere NIP-49-kompatible App zu importieren.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Two formats of the same key for {{name}}: nsec works with most apps; ncryptsec is password-protected, for apps that support it.",
+      "english": "Two formats of the same key for {{name}}: nsec works with most apps; ncryptsec is password-protected, for apps that support it.",
+      "translation": "Zwei Formate desselben Schlüssels für {{name}}: nsec funktioniert mit den meisten Apps; ncryptsec ist passwortgeschützt und für Apps, die es unterstützen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Removing {{name}} deletes its encrypted key from this device. Make sure you have a backup of the nsec. This cannot be undone.",
+      "english": "Removing {{name}} deletes its encrypted key from this device. Make sure you have a backup of the nsec. This cannot be undone.",
+      "translation": "Wenn du {{name}} entfernst, wird der verschlüsselte Schlüssel von diesem Gerät gelöscht. Stelle sicher, dass du den nsec gesichert hast. Dies kann nicht rückgängig gemacht werden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Remove account",
+      "english": "Remove account",
+      "translation": "Konto entfernen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Remove account?",
+      "english": "Remove account?",
+      "translation": "Konto entfernen?",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "DM device key",
+      "english": "DM device key",
+      "translation": "Geräteschlüssel für Direktnachrichten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "DM key transfer",
+      "english": "DM key transfer",
+      "translation": "Schlüsselübertragung für Direktnachrichten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "DM encryption key",
+      "english": "DM encryption key",
+      "translation": "Verschlüsselungsschlüssel für Direktnachrichten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "DM relay list",
+      "english": "DM relay list",
+      "translation": "Relay-Liste für Direktnachrichten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "HTTP auth",
+      "english": "HTTP auth",
+      "translation": "HTTP-Authentifizierung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "kind {{kind}}",
+      "english": "kind {{kind}}",
+      "translation": "Art {{kind}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{kind}} · “{{d}}”",
+      "english": "{{kind}} · “{{d}}”",
+      "translation": "{{kind}} · „{{d}}“",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Don’t ask which account",
+      "english": "Don’t ask which account",
+      "translation": "Nicht nach dem Konto fragen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Posts may not match the client.",
+      "english": "Posts may not match the client.",
+      "translation": "Beiträge stimmen möglicherweise nicht mit dem Client-Konto überein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Refused an unreadable signing request",
+      "english": "Refused an unreadable signing request",
+      "translation": "Unlesbare Signaturanfrage abgelehnt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Forget every site? Pairings, permission tiers, and Recent activity are erased.",
+      "english": "Forget every site? Pairings, permission tiers, and Recent activity are erased.",
+      "translation": "Alle Websites vergessen? Verknüpfungen, Berechtigungsstufen und letzte Aktivitäten werden gelöscht.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Lightning address",
+      "english": "Lightning address",
+      "translation": "Lightning-Adresse",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "PIN (required to publish)",
+      "english": "PIN (required to publish)",
+      "translation": "PIN (zum Veröffentlichen erforderlich)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter your PIN to publish.",
+      "english": "Enter your PIN to publish.",
+      "translation": "Gib zum Veröffentlichen deine PIN ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter your PIN to export every account on this device.",
+      "english": "Enter your PIN to export every account on this device.",
+      "translation": "Gib deine PIN ein, um alle Konten auf diesem Gerät zu exportieren.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Set an export password",
+      "english": "Set an export password",
+      "translation": "Exportpasswort festlegen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it.",
+      "english": "Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it.",
+      "translation": "Wähle ein Passwort zum Verschlüsseln der Tresordatei. Verwende nicht deine Sidecar-PIN — zum Wiederherstellen brauchst du genau dieses Passwort.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Vault export password",
+      "english": "Vault export password",
+      "translation": "Exportpasswort für den Tresor",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter the export password.",
+      "english": "Enter the export password.",
+      "translation": "Gib das Exportpasswort ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Incorrect password, or a corrupted file.",
+      "english": "Incorrect password, or a corrupted file.",
+      "translation": "Falsches Passwort oder beschädigte Datei.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter the password this vault was exported with. Accounts already on this device are left untouched.",
+      "english": "Enter the password this vault was exported with. Accounts already on this device are left untouched.",
+      "translation": "Gib das Passwort ein, mit dem dieser Tresor exportiert wurde. Bereits auf diesem Gerät vorhandene Konten bleiben unverändert.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Follow list",
+      "english": "Follow list",
+      "translation": "Kontaktliste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Mute list",
+      "english": "Mute list",
+      "translation": "Stummschaltliste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Relay list",
+      "english": "Relay list",
+      "translation": "Relay-Liste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Restoring an old follow list re-follows the accounts it holds. That is mostly benign.",
+      "english": "Restoring an old follow list re-follows the accounts it holds. That is mostly benign.",
+      "translation": "Beim Wiederherstellen einer alten Kontaktliste folgst du den darin enthaltenen Konten erneut. Das ist meist unproblematisch.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This re-silences accounts you may have unmuted since: a moderation action taken on your behalf.",
+      "english": "This re-silences accounts you may have unmuted since: a moderation action taken on your behalf.",
+      "translation": "Dadurch werden Konten erneut stummgeschaltet, deren Stummschaltung du inzwischen aufgehoben haben könntest: eine Moderationsaktion in deinem Namen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This replaces your current profile fields with this version’s.",
+      "english": "This replaces your current profile fields with this version’s.",
+      "translation": "Dadurch werden deine aktuellen Profilfelder durch die dieser Version ersetzt.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Restoring an old bookmark list affects nobody but you.",
+      "english": "Restoring an old bookmark list affects nobody but you.",
+      "translation": "Das Wiederherstellen einer alten Lesezeichenliste betrifft nur dich.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Restoring these keys means clients will encrypt direct messages to them again.",
+      "english": "Restoring these keys means clients will encrypt direct messages to them again.",
+      "translation": "Wenn du diese Schlüssel wiederherstellst, verschlüsseln Clients Direktnachrichten wieder für sie.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This announces you no longer use NIP-4e, so clients stop encrypting direct messages to your keys.",
+      "english": "This announces you no longer use NIP-4e, so clients stop encrypting direct messages to your keys.",
+      "translation": "Damit gibst du bekannt, dass du NIP-4e nicht mehr verwendest. Clients verschlüsseln dann keine Direktnachrichten mehr für deine Schlüssel.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Your current version lists keys that clients encrypt direct messages to.",
+      "english": "Your current version lists keys that clients encrypt direct messages to.",
+      "translation": "Deine aktuelle Version enthält Schlüssel, für die Clients Direktnachrichten verschlüsseln.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Your current empty version announces that you do not use NIP-4e.",
+      "english": "Your current empty version announces that you do not use NIP-4e.",
+      "translation": "Deine aktuelle leere Version gibt bekannt, dass du NIP-4e nicht verwendest.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "An old relay list can strand you on dead relays and silently break delivery. Check them first.",
+      "english": "An old relay list can strand you on dead relays and silently break delivery. Check them first.",
+      "translation": "Eine alte Relay-Liste kann dich auf nicht mehr funktionierenden Relays zurücklassen und die Zustellung unbemerkt unterbrechen. Prüfe sie zuerst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "A wrong DM inbox list silently breaks direct-message delivery. Check the relays first.",
+      "english": "A wrong DM inbox list silently breaks direct-message delivery. Check the relays first.",
+      "translation": "Eine falsche Liste für den Direktnachrichteneingang unterbricht die Zustellung unbemerkt. Prüfe zuerst die Relays.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Low stakes: this only re-blocks relays you had blocked.",
+      "english": "Low stakes: this only re-blocks relays you had blocked.",
+      "translation": "Geringes Risiko: Dadurch werden nur zuvor blockierte Relays erneut blockiert.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This version’s encrypted items couldn’t be read, so the counts leave private items out.",
+      "english": "This version’s encrypted items couldn’t be read, so the counts leave private items out.",
+      "translation": "Die verschlüsselten Einträge dieser Version konnten nicht gelesen werden. Private Einträge sind deshalb nicht mitgezählt.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Your current encrypted items couldn’t be read. Restoring replaces them, so some may be lost.",
+      "english": "Your current encrypted items couldn’t be read. Restoring replaces them, so some may be lost.",
+      "translation": "Deine aktuellen verschlüsselten Einträge konnten nicht gelesen werden. Beim Wiederherstellen werden sie ersetzt, sodass einige verloren gehen können.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Restore this version?",
+      "english": "Restore this version?",
+      "translation": "Diese Version wiederherstellen?",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This republishes {{what}} everywhere and can’t be automatically undone.",
+      "english": "This republishes {{what}} everywhere and can’t be automatically undone.",
+      "translation": "Dadurch wird {{what}} überall erneut veröffentlicht. Dies kann nicht automatisch rückgängig gemacht werden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Your current version changed while you reviewed. The counts below are against the new one.",
+      "english": "Your current version changed while you reviewed. The counts below are against the new one.",
+      "translation": "Deine aktuelle Version hat sich während der Prüfung geändert. Die folgenden Zahlen beziehen sich auf die neue Version.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This version changes {{fields}}.",
+      "english": "This version changes {{fields}}.",
+      "translation": "Diese Version ändert {{fields}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This version adds {{fields}}.",
+      "english": "This version adds {{fields}}.",
+      "translation": "Diese Version fügt {{fields}} hinzu.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This version removes {{fields}}.",
+      "english": "This version removes {{fields}}.",
+      "translation": "Diese Version entfernt {{fields}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Adds {{added}}, removes {{removed}} against your current list.",
+      "english": "Adds {{added}}, removes {{removed}} against your current list.",
+      "translation": "Fügt {{added}} hinzu und entfernt {{removed}} gegenüber deiner aktuellen Liste.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Publish restore (removes {{count}})",
+      "english": "Publish restore (removes {{count}})",
+      "translation": "Wiederherstellung veröffentlichen (entfernt {{count}})",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Publish restore",
+      "english": "Publish restore",
+      "translation": "Wiederherstellung veröffentlichen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This restore removes items",
+      "english": "This restore removes items",
+      "translation": "Diese Wiederherstellung entfernt Einträge",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{What}} has encrypted items Sidecar couldn’t read. Restoring replaces them everywhere.",
+      "english": "{{What}} has encrypted items Sidecar couldn’t read. Restoring replaces them everywhere.",
+      "translation": "{{What}} enthält verschlüsselte Einträge, die Sidecar nicht lesen konnte. Die Wiederherstellung ersetzt sie überall.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Do you mean to stop using NIP-4e encryption keys?",
+      "english": "Do you mean to stop using NIP-4e encryption keys?",
+      "translation": "Möchtest du die Verwendung von NIP-4e-Verschlüsselungsschlüsseln beenden?",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Do you want direct messages encrypted to these keys again?",
+      "english": "Do you want direct messages encrypted to these keys again?",
+      "translation": "Sollen Direktnachrichten wieder für diese Schlüssel verschlüsselt werden?",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Yes, stop using NIP-4e",
+      "english": "Yes, stop using NIP-4e",
+      "translation": "Ja, NIP-4e nicht mehr verwenden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Yes, restore these keys",
+      "english": "Yes, restore these keys",
+      "translation": "Ja, diese Schlüssel wiederherstellen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Signing came back for a different account, so nothing was published.",
+      "english": "Signing came back for a different account, so nothing was published.",
+      "translation": "Die Signatur kam für ein anderes Konto zurück. Deshalb wurde nichts veröffentlicht.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Restore anyway",
+      "english": "Restore anyway",
+      "translation": "Trotzdem wiederherstellen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This restore removes data",
+      "english": "This restore removes data",
+      "translation": "Diese Wiederherstellung entfernt Daten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar’s wipe check flagged this restore.",
+      "english": "Sidecar’s wipe check flagged this restore.",
+      "translation": "Die Löschprüfung von Sidecar hat diese Wiederherstellung markiert.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Current version couldn’t be confirmed",
+      "english": "Current version couldn’t be confirmed",
+      "translation": "Aktuelle Version konnte nicht bestätigt werden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No write relay answered, so Sidecar can’t confirm your current version. Nothing was signed.",
+      "english": "No write relay answered, so Sidecar can’t confirm your current version. Nothing was signed.",
+      "translation": "Kein Schreib-Relay hat geantwortet. Daher kann Sidecar deine aktuelle Version nicht bestätigen. Nichts wurde signiert.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Restore without confirming",
+      "english": "Restore without confirming",
+      "translation": "Ohne Bestätigung wiederherstellen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Restoring now may overwrite edits made since your review. Sidecar won’t remember this choice.",
+      "english": "Restoring now may overwrite edits made since your review. Sidecar won’t remember this choice.",
+      "translation": "Die Wiederherstellung könnte Änderungen überschreiben, die seit deiner Prüfung vorgenommen wurden. Sidecar merkt sich diese Entscheidung nicht.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.",
+      "english": "Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.",
+      "translation": "Exportiere deinen geheimen Schlüssel als kopierbaren Text oder verschlüsselten ncryptsec oder drucke ihn auf einem einseitigen Blatt aus. Dies IST dein Schlüssel — sende ihn niemals per E-Mail oder Chat.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "under a minute",
+      "english": "under a minute",
+      "translation": "weniger als eine Minute",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{count}} min",
+      "english": "{{count}} min",
+      "translation": "{{count}} Min.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{count}} h",
+      "english": "{{count}} h",
+      "translation": "{{count}} Std.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Payment received",
+      "english": "Payment received",
+      "translation": "Zahlung empfangen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Send",
+      "english": "Send",
+      "translation": "Senden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Receive",
+      "english": "Receive",
+      "translation": "Empfangen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Copy address",
+      "english": "Copy address",
+      "translation": "Adresse kopieren",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "From",
+      "english": "From",
+      "translation": "Von",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "To",
+      "english": "To",
+      "translation": "An",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Note",
+      "english": "Note",
+      "translation": "Notiz",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Amount",
+      "english": "Amount",
+      "translation": "Betrag",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Invoice",
+      "english": "Invoice",
+      "translation": "Rechnung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No active account",
+      "english": "No active account",
+      "translation": "Kein aktives Konto",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No wallet connection saved for this account",
+      "english": "No wallet connection saved for this account",
+      "translation": "Keine Wallet-Verbindung für dieses Konto gespeichert",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Export wallet connection",
+      "english": "Export wallet connection",
+      "translation": "Wallet-Verbindung exportieren",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter your PIN to reveal the NWC connection string for this account.",
+      "english": "Enter your PIN to reveal the NWC connection string for this account.",
+      "translation": "Gib deine PIN ein, um die NWC-Verbindungszeichenfolge für dieses Konto anzuzeigen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet connection string",
+      "english": "Wallet connection string",
+      "translation": "Wallet-Verbindungszeichenfolge",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.",
+      "english": "Copy the string to connect the same wallet elsewhere, or show a QR to scan it into an NWC-compatible app.",
+      "translation": "Kopiere die Zeichenfolge, um dieselbe Wallet anderswo zu verbinden, oder zeige einen QR-Code zum Scannen mit einer NWC-kompatiblen App an.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scan in an NWC-compatible app to connect the same wallet.",
+      "english": "Scan in an NWC-compatible app to connect the same wallet.",
+      "translation": "Scanne mit einer NWC-kompatiblen App, um dieselbe Wallet zu verbinden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This string can spend from your wallet up to its limits. Store it safely and never share it.",
+      "english": "This string can spend from your wallet up to its limits. Store it safely and never share it.",
+      "translation": "Mit dieser Zeichenfolge kann Geld aus deiner Wallet ausgegeben werden, bis die festgelegten Limits erreicht sind. Bewahre sie sicher auf und teile sie niemals.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Site payments",
+      "english": "Site payments",
+      "translation": "Website-Zahlungen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sites allowed to pay from your wallet without asking, up to a daily budget. Revoke any time.",
+      "english": "Sites allowed to pay from your wallet without asking, up to a daily budget. Revoke any time.",
+      "translation": "Websites, die ohne Rückfrage innerhalb eines Tagesbudgets aus deiner Wallet bezahlen dürfen. Jederzeit widerrufbar.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No sites have a spending budget. Tick “remember a budget” when you approve a payment.",
+      "english": "No sites have a spending budget. Tick “remember a budget” when you approve a payment.",
+      "translation": "Keine Website hat ein Ausgabenbudget. Aktiviere „Budget merken“, wenn du eine Zahlung genehmigst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Could not load budgets.",
+      "english": "Could not load budgets.",
+      "translation": "Budgets konnten nicht geladen werden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{left}} of {{budget}} sats left today",
+      "english": "{{left}} of {{budget}} sats left today",
+      "translation": "Heute noch {{left}} von {{budget}} Sats übrig",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Edit budget",
+      "english": "Edit budget",
+      "translation": "Budget bearbeiten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Revoke budget",
+      "english": "Revoke budget",
+      "translation": "Budget widerrufen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Save budget",
+      "english": "Save budget",
+      "translation": "Budget speichern",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter a daily budget in sats.",
+      "english": "Enter a daily budget in sats.",
+      "translation": "Gib ein Tagesbudget in Sats ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Budget updated",
+      "english": "Budget updated",
+      "translation": "Budget aktualisiert",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Daily amount {{host}} can spend without a prompt. Saving resets the remaining amount for today.",
+      "english": "Daily amount {{host}} can spend without a prompt. Saving resets the remaining amount for today.",
+      "translation": "Täglicher Betrag, den {{host}} ohne Rückfrage ausgeben darf. Speichern setzt den verbleibenden Betrag für heute zurück.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Daily budget (sats)",
+      "english": "Daily budget (sats)",
+      "translation": "Tagesbudget (Sats)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Lightning invoice (lnbc…) or lightning address",
+      "english": "Lightning invoice (lnbc…) or lightning address",
+      "translation": "Lightning-Rechnung (lnbc…) oder Lightning-Adresse",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Amount (sats)",
+      "english": "Amount (sats)",
+      "translation": "Betrag (Sats)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Amount in sats",
+      "english": "Amount in sats",
+      "translation": "Betrag in Sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Comment (optional)",
+      "english": "Comment (optional)",
+      "translation": "Kommentar (optional)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Confirm amount above",
+      "english": "Confirm amount above",
+      "translation": "Betrag oben bestätigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{amount}} sats only",
+      "english": "{{amount}} sats only",
+      "translation": "Nur {{amount}} Sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{min}} to {{max}} sats",
+      "english": "{{min}} to {{max}} sats",
+      "translation": "{{min}} bis {{max}} Sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Comments up to {{count}}",
+      "english": "Comments up to {{count}}",
+      "translation": "Kommentare bis {{count}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No comments",
+      "english": "No comments",
+      "translation": "Keine Kommentare",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zappable",
+      "english": "Zappable",
+      "translation": "Zaps möglich",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This wallet does not accept comments",
+      "english": "This wallet does not accept comments",
+      "translation": "Diese Wallet akzeptiert keine Kommentare",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This invoice has already been paid",
+      "english": "This invoice has already been paid",
+      "translation": "Diese Rechnung wurde bereits bezahlt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar paid it {{when}}.",
+      "english": "Sidecar paid it {{when}}.",
+      "translation": "Sidecar hat sie {{when}} bezahlt.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar paid it earlier.",
+      "english": "Sidecar paid it earlier.",
+      "translation": "Sidecar hat sie bereits bezahlt.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "That invoice doesn't read correctly",
+      "english": "That invoice doesn't read correctly",
+      "translation": "Diese Rechnung kann nicht korrekt gelesen werden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Check it was copied whole, or ask for a new one.",
+      "english": "Check it was copied whole, or ask for a new one.",
+      "translation": "Prüfe, ob sie vollständig kopiert wurde, oder bitte um eine neue.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This invoice has expired",
+      "english": "This invoice has expired",
+      "translation": "Diese Rechnung ist abgelaufen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Ask the recipient for a new one.",
+      "english": "Ask the recipient for a new one.",
+      "translation": "Bitte den Empfänger um eine neue.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No amount set, enter one below",
+      "english": "No amount set, enter one below",
+      "translation": "Kein Betrag festgelegt, gib unten einen ein",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Expires in {{time}}",
+      "english": "Expires in {{time}}",
+      "translation": "Läuft in {{time}} ab",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Checking {{address}}…",
+      "english": "Checking {{address}}…",
+      "translation": "{{address}} wird geprüft…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Couldn't check that address",
+      "english": "Couldn't check that address",
+      "translation": "Diese Adresse konnte nicht geprüft werden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Check the spelling, or paste an invoice instead.",
+      "english": "Check the spelling, or paste an invoice instead.",
+      "translation": "Prüfe die Schreibweise oder füge stattdessen eine Rechnung ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Note (on this device)",
+      "english": "Note (on this device)",
+      "translation": "Notiz (auf diesem Gerät)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Paste an invoice or lightning address.",
+      "english": "Paste an invoice or lightning address.",
+      "translation": "Füge eine Rechnung oder Lightning-Adresse ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "That invoice doesn't read correctly. Check it was copied whole.",
+      "english": "That invoice doesn't read correctly. Check it was copied whole.",
+      "translation": "Diese Rechnung kann nicht korrekt gelesen werden. Prüfe, ob sie vollständig kopiert wurde.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This invoice has expired. Ask for a new one.",
+      "english": "This invoice has expired. Ask for a new one.",
+      "translation": "Diese Rechnung ist abgelaufen. Bitte um eine neue.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This invoice has already been paid.",
+      "english": "This invoice has already been paid.",
+      "translation": "Diese Rechnung wurde bereits bezahlt.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This invoice has no amount. Enter one in sats.",
+      "english": "This invoice has no amount. Enter one in sats.",
+      "translation": "Diese Rechnung enthält keinen Betrag. Gib einen in Sats ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This address only accepts {{amount}} sats.",
+      "english": "This address only accepts {{amount}} sats.",
+      "translation": "Diese Adresse akzeptiert nur {{amount}} Sats.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Amount must be between {{min}} and {{max}} sats.",
+      "english": "Amount must be between {{min}} and {{max}} sats.",
+      "translation": "Der Betrag muss zwischen {{min}} und {{max}} Sats liegen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter a BOLT11 invoice (lnbc…) or a lightning address.",
+      "english": "Enter a BOLT11 invoice (lnbc…) or a lightning address.",
+      "translation": "Gib eine BOLT11-Rechnung (lnbc…) oder eine Lightning-Adresse ein.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "fee {{fee}}",
+      "english": "fee {{fee}}",
+      "translation": "Gebühr {{fee}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Note (optional)",
+      "english": "Note (optional)",
+      "translation": "Notiz (optional)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Create invoice",
+      "english": "Create invoice",
+      "translation": "Rechnung erstellen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Creating…",
+      "english": "Creating…",
+      "translation": "Wird erstellt…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet returned no invoice",
+      "english": "Wallet returned no invoice",
+      "translation": "Wallet hat keine Rechnung zurückgegeben",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Your reusable lightning address — anyone can pay it any amount.",
+      "english": "Your reusable lightning address — anyone can pay it any amount.",
+      "translation": "Deine wiederverwendbare Lightning-Adresse — jeder kann dir einen beliebigen Betrag senden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Address",
+      "english": "Address",
+      "translation": "Adresse",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Copy invoice",
+      "english": "Copy invoice",
+      "translation": "Rechnung kopieren",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Waiting for payment…",
+      "english": "Waiting for payment…",
+      "translation": "Warten auf Zahlung…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Disconnect",
+      "english": "Disconnect",
+      "translation": "Trennen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet disconnected",
+      "english": "Wallet disconnected",
+      "translation": "Wallet getrennt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Disconnect wallet?",
+      "english": "Disconnect wallet?",
+      "translation": "Wallet trennen?",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected.",
+      "english": "Removes this account's saved NWC connection from Sidecar. Your wallet and funds are unaffected.",
+      "translation": "Entfernt die gespeicherte NWC-Verbindung dieses Kontos aus Sidecar. Deine Wallet und dein Geld bleiben unberührt.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Amount must be {{min}}–{{max}} sats",
+      "english": "Amount must be {{min}}–{{max}} sats",
+      "translation": "Der Betrag muss {{min}}–{{max}} Sats betragen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone. Any account without a backed-up nsec is lost for good.",
+      "english": "This erases everything on this device: all accounts and private keys, wallet connections, per-site permissions, and settings. It cannot be undone. Any account without a backed-up nsec is lost for good.",
+      "translation": "Dadurch wird alles auf diesem Gerät gelöscht: alle Konten und privaten Schlüssel, Wallet-Verbindungen, Website-Berechtigungen und Einstellungen. Dies kann nicht rückgängig gemacht werden. Konten ohne gesicherten nsec gehen dauerhaft verloren.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Reset Sidecar?",
+      "english": "Reset Sidecar?",
+      "translation": "Sidecar zurücksetzen?",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Current PIN",
+      "english": "Current PIN",
+      "translation": "Aktuelle PIN",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "New PIN",
+      "english": "New PIN",
+      "translation": "Neue PIN",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Confirm new PIN",
+      "english": "Confirm new PIN",
+      "translation": "Neue PIN bestätigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Change PIN",
+      "english": "Change PIN",
+      "translation": "PIN ändern",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to see your public key (npub)",
+      "english": "wants to see your public key (npub)",
+      "translation": "möchte deinen öffentlichen Schlüssel (npub) sehen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to sign an event with your key",
+      "english": "wants to sign an event with your key",
+      "translation": "möchte ein Ereignis mit deinem Schlüssel signieren",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to read your relay list",
+      "english": "wants to read your relay list",
+      "translation": "möchte deine Relay-Liste lesen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to encrypt a message (NIP-04)",
+      "english": "wants to encrypt a message (NIP-04)",
+      "translation": "möchte eine Nachricht verschlüsseln (NIP-04)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to decrypt a message (NIP-04)",
+      "english": "wants to decrypt a message (NIP-04)",
+      "translation": "möchte eine Nachricht entschlüsseln (NIP-04)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to encrypt a message (NIP-44)",
+      "english": "wants to encrypt a message (NIP-44)",
+      "translation": "möchte eine Nachricht verschlüsseln (NIP-44)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to decrypt a message (NIP-44)",
+      "english": "wants to decrypt a message (NIP-44)",
+      "translation": "möchte eine Nachricht entschlüsseln (NIP-44)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to see your wallet info",
+      "english": "wants to see your wallet info",
+      "translation": "möchte deine Wallet-Informationen sehen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to see your wallet balance",
+      "english": "wants to see your wallet balance",
+      "translation": "möchte dein Wallet-Guthaben sehen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to create a Lightning invoice",
+      "english": "wants to create a Lightning invoice",
+      "translation": "möchte eine Lightning-Rechnung erstellen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to {{method}}",
+      "english": "wants to {{method}}",
+      "translation": "möchte {{method}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Profile metadata",
+      "english": "Profile metadata",
+      "translation": "Profilmetadaten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Encrypted DM (legacy)",
+      "english": "Encrypted DM (legacy)",
+      "translation": "Verschlüsselte Direktnachricht (veraltet)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Delete request",
+      "english": "Delete request",
+      "translation": "Löschanfrage",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Reaction",
+      "english": "Reaction",
+      "translation": "Reaktion",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Badge award",
+      "english": "Badge award",
+      "translation": "Abzeichenvergabe",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Chat message",
+      "english": "Chat message",
+      "translation": "Chatnachricht",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Thread",
+      "english": "Thread",
+      "translation": "Thread",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Seal",
+      "english": "Seal",
+      "translation": "Versiegelung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Direct message",
+      "english": "Direct message",
+      "translation": "Direktnachricht",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "File message",
+      "english": "File message",
+      "translation": "Dateinachricht",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Generic repost",
+      "english": "Generic repost",
+      "translation": "Allgemein geteilter Beitrag",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Reaction (website)",
+      "english": "Reaction (website)",
+      "translation": "Reaktion (Website)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Picture",
+      "english": "Picture",
+      "translation": "Bild",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Video",
+      "english": "Video",
+      "translation": "Video",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Short video",
+      "english": "Short video",
+      "translation": "Kurzvideo",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Request to vanish",
+      "english": "Request to vanish",
+      "translation": "Anfrage zum vollständigen Löschen (Request to Vanish)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Poll response",
+      "english": "Poll response",
+      "translation": "Umfrageantwort",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "File metadata",
+      "english": "File metadata",
+      "translation": "Dateimetadaten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Poll",
+      "english": "Poll",
+      "translation": "Umfrage",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Comment",
+      "english": "Comment",
+      "translation": "Kommentar",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Voice message",
+      "english": "Voice message",
+      "translation": "Sprachnachricht",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Voice message reply",
+      "english": "Voice message reply",
+      "translation": "Sprachnachrichtenantwort",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Live chat message",
+      "english": "Live chat message",
+      "translation": "Livechat-Nachricht",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Code snippet",
+      "english": "Code snippet",
+      "translation": "Codeausschnitt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Report",
+      "english": "Report",
+      "translation": "Meldung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Label",
+      "english": "Label",
+      "translation": "Kennzeichnung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Community post approval",
+      "english": "Community post approval",
+      "translation": "Genehmigung eines Community-Beitrags",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zap goal",
+      "english": "Zap goal",
+      "translation": "Zap-Ziel",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Nutzap",
+      "english": "Nutzap",
+      "translation": "Nutzap",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zap request",
+      "english": "Zap request",
+      "translation": "Zap-Anfrage",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zap receipt",
+      "english": "Zap receipt",
+      "translation": "Zap-Beleg",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Highlight",
+      "english": "Highlight",
+      "translation": "Markierung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Pin list",
+      "english": "Pin list",
+      "translation": "Anheftungsliste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Bookmark list",
+      "english": "Bookmark list",
+      "translation": "Lesezeichenliste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Communities list",
+      "english": "Communities list",
+      "translation": "Community-Liste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Public chats list",
+      "english": "Public chats list",
+      "translation": "Liste öffentlicher Chats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Blocked relays list",
+      "english": "Blocked relays list",
+      "translation": "Liste blockierter Relays",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Search relays list",
+      "english": "Search relays list",
+      "translation": "Liste der Such-Relays",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Profile badges",
+      "english": "Profile badges",
+      "translation": "Profilabzeichen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Groups list",
+      "english": "Groups list",
+      "translation": "Gruppenliste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Favorite relays list",
+      "english": "Favorite relays list",
+      "translation": "Liste bevorzugter Relays",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Interests list",
+      "english": "Interests list",
+      "translation": "Interessenliste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Media follows",
+      "english": "Media follows",
+      "translation": "Medienabonnements",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Emoji list",
+      "english": "Emoji list",
+      "translation": "Emoji-Liste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Trust provider list",
+      "english": "Trust provider list",
+      "translation": "Liste der Vertrauensanbieter",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Blossom server list",
+      "english": "Blossom server list",
+      "translation": "Blossom-Serverliste",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet info",
+      "english": "Wallet info",
+      "translation": "Wallet-Informationen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Relay auth",
+      "english": "Relay auth",
+      "translation": "Relay-Authentifizierung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet request",
+      "english": "Wallet request",
+      "translation": "Wallet-Anfrage",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet response",
+      "english": "Wallet response",
+      "translation": "Wallet-Antwort",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Remote signing handshake",
+      "english": "Remote signing handshake",
+      "translation": "Handshake für Remote-Signierung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Blossom authorization",
+      "english": "Blossom authorization",
+      "translation": "Blossom-Autorisierung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Follow set",
+      "english": "Follow set",
+      "translation": "Kontaktgruppe",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Relay set",
+      "english": "Relay set",
+      "translation": "Relay-Gruppe",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Bookmark set",
+      "english": "Bookmark set",
+      "translation": "Lesezeichensammlung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Curation set",
+      "english": "Curation set",
+      "translation": "Kuratierte Sammlung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Video set",
+      "english": "Video set",
+      "translation": "Videosammlung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Badge set",
+      "english": "Badge set",
+      "translation": "Abzeichensammlung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Badge definition",
+      "english": "Badge definition",
+      "translation": "Abzeichendefinition",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Interest set",
+      "english": "Interest set",
+      "translation": "Interessengruppe",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Marketplace stall",
+      "english": "Marketplace stall",
+      "translation": "Marktplatzstand",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Marketplace product",
+      "english": "Marketplace product",
+      "translation": "Marktplatzprodukt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Long-form article",
+      "english": "Long-form article",
+      "translation": "Langer Artikel",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Article draft",
+      "english": "Article draft",
+      "translation": "Artikelentwurf",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Emoji set",
+      "english": "Emoji set",
+      "translation": "Emoji-Sammlung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Publication index",
+      "english": "Publication index",
+      "translation": "Publikationsverzeichnis",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Publication content",
+      "english": "Publication content",
+      "translation": "Publikationsinhalt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "App data",
+      "english": "App data",
+      "translation": "App-Daten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Live event",
+      "english": "Live event",
+      "translation": "Live-Ereignis",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Interactive room",
+      "english": "Interactive room",
+      "translation": "Interaktiver Raum",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Conference event",
+      "english": "Conference event",
+      "translation": "Konferenzereignis",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "User status",
+      "english": "User status",
+      "translation": "Benutzerstatus",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Classified listing",
+      "english": "Classified listing",
+      "translation": "Kleinanzeige",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Classified listing draft",
+      "english": "Classified listing draft",
+      "translation": "Kleinanzeigenentwurf",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wiki article",
+      "english": "Wiki article",
+      "translation": "Wiki-Artikel",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Draft event",
+      "english": "Draft event",
+      "translation": "Ereignisentwurf",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Calendar event (date)",
+      "english": "Calendar event (date)",
+      "translation": "Kalenderereignis (Datum)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Calendar event (time)",
+      "english": "Calendar event (time)",
+      "translation": "Kalenderereignis (Uhrzeit)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Calendar",
+      "english": "Calendar",
+      "translation": "Kalender",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Calendar RSVP",
+      "english": "Calendar RSVP",
+      "translation": "Kalender-Rückmeldung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Handler recommendation",
+      "english": "Handler recommendation",
+      "translation": "Handler-Empfehlung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Handler info",
+      "english": "Handler info",
+      "translation": "Handler-Informationen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Video (addressable)",
+      "english": "Video (addressable)",
+      "translation": "Video (adressierbar)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Short video (addressable)",
+      "english": "Short video (addressable)",
+      "translation": "Kurzvideo (adressierbar)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Community definition",
+      "english": "Community definition",
+      "translation": "Community-Definition",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Starter pack",
+      "english": "Starter pack",
+      "translation": "Starterpaket",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Media starter pack",
+      "english": "Media starter pack",
+      "translation": "Medien-Starterpaket",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Web bookmark",
+      "english": "Web bookmark",
+      "translation": "Web-Lesezeichen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Deletes other events. Make sure you intended this.",
+      "english": "Deletes other events. Make sure you intended this.",
+      "translation": "Löscht andere Ereignisse. Stelle sicher, dass du das beabsichtigst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Asks relays to delete all of your events. Make sure you intended this.",
+      "english": "Asks relays to delete all of your events. Make sure you intended this.",
+      "translation": "Fordert Relays auf, alle deine Ereignisse zu löschen. Stelle sicher, dass du das beabsichtigst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+      "english": "Wallet requests are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+      "translation": "Wallet-Anfragen werden normalerweise mit dem eigenen Schlüssel der Wallet-App signiert, nicht mit deinem Identitätsschlüssel. Eine solche Anfrage durch eine Website ist ungewöhnlich.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+      "english": "Wallet responses are normally signed by the wallet app's own key, not your identity key. Unusual for a site to ask for this.",
+      "translation": "Wallet-Antworten werden normalerweise mit dem eigenen Schlüssel der Wallet-App signiert, nicht mit deinem Identitätsschlüssel. Eine solche Anfrage durch eine Website ist ungewöhnlich.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This is a remote-signing handshake. Approving it could hand control of your account to another app or device.",
+      "english": "This is a remote-signing handshake. Approving it could hand control of your account to another app or device.",
+      "translation": "Dies ist ein Handshake für Remote-Signierung. Eine Genehmigung könnte einer anderen App oder einem anderen Gerät die Kontrolle über dein Konto geben.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{kind}} (unrecognized kind)",
+      "english": "{{kind}} (unrecognized kind)",
+      "translation": "{{kind}} (unbekannte Art)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Unrecognized event kind. Review carefully before approving.",
+      "english": "Unrecognized event kind. Review carefully before approving.",
+      "translation": "Unbekannte Ereignisart. Prüfe sie sorgfältig vor der Genehmigung.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Provider",
+      "english": "Provider",
+      "translation": "Anbieter",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{key}} at {{relay}}",
+      "english": "{{key}} at {{relay}}",
+      "translation": "{{key}} auf {{relay}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scores",
+      "english": "Scores",
+      "translation": "Bewertungen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "More providers",
+      "english": "More providers",
+      "translation": "Weitere Anbieter",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Private entries",
+      "english": "Private entries",
+      "translation": "Private Einträge",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Encrypted, not shown",
+      "english": "Encrypted, not shown",
+      "translation": "Verschlüsselt, nicht angezeigt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Providers",
+      "english": "Providers",
+      "translation": "Anbieter",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "None",
+      "english": "None",
+      "translation": "Keine",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This empty list stops every web-of-trust service from scoring for you, including any that another app set up.",
+      "english": "This empty list stops every web-of-trust service from scoring for you, including any that another app set up.",
+      "translation": "Diese leere Liste stoppt die Bewertungen aller Vertrauensnetzwerk-Dienste für dich, auch der von anderen Apps eingerichteten.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.",
+      "english": "Sidecar can't read this request as a nostr event. Don't allow it unless you know what this site is doing.",
+      "translation": "Sidecar kann diese Anfrage nicht als Nostr-Ereignis lesen. Erlaube sie nur, wenn du weißt, was diese Website tut.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "{{amount}} sats",
+      "english": "{{amount}} sats",
+      "translation": "{{amount}} Sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "set by invoice",
+      "english": "set by invoice",
+      "translation": "durch Rechnung festgelegt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Node",
+      "english": "Node",
+      "translation": "Knoten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Message from site",
+      "english": "Message from site",
+      "translation": "Nachricht der Website",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Memo",
+      "english": "Memo",
+      "translation": "Verwendungszweck",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Kind",
+      "english": "Kind",
+      "translation": "Art",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Unreadable",
+      "english": "Unreadable",
+      "translation": "Unlesbar",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Tags",
+      "english": "Tags",
+      "translation": "Tags",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Don't allow",
+      "english": "Don't allow",
+      "translation": "Nicht erlauben",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "I understand",
+      "english": "I understand",
+      "translation": "Ich verstehe",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Approval unlocked below.",
+      "english": "Approval unlocked below.",
+      "translation": "Genehmigung unten freigeschaltet.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This may be another account’s list",
+      "english": "This may be another account’s list",
+      "translation": "Dies könnte die Liste eines anderen Kontos sein",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This action erases data",
+      "english": "This action erases data",
+      "translation": "Diese Aktion löscht Daten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "If you didn't mean to do this, don't allow it. The version on your relays stays as it is.",
+      "english": "If you didn't mean to do this, don't allow it. The version on your relays stays as it is.",
+      "translation": "Wenn du das nicht beabsichtigt hast, erlaube es nicht. Die Version auf deinen Relays bleibt unverändert.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sealed content",
+      "english": "Sealed content",
+      "translation": "Versiegelter Inhalt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sealing",
+      "english": "Sealing",
+      "translation": "Versiegelung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sign in with a different account",
+      "english": "Sign in with a different account",
+      "translation": "Mit einem anderen Konto anmelden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sign as a different account",
+      "english": "Sign as a different account",
+      "translation": "Mit einem anderen Konto signieren",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Multiple accounts used",
+      "english": "Multiple accounts used",
+      "translation": "Mehrere Konten verwendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Multiple accounts are signed in here. Confirm who's posting each time.",
+      "english": "Multiple accounts are signed in here. Confirm who's posting each time.",
+      "translation": "Hier sind mehrere Konten angemeldet. Bestätige jedes Mal, wer veröffentlicht.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Allowing lets {{host}} decrypt your messages for about a minute, enough to load a conversation or inbox without asking for each one.",
+      "english": "Allowing lets {{host}} decrypt your messages for about a minute, enough to load a conversation or inbox without asking for each one.",
+      "translation": "Durch die Genehmigung darf {{host}} deine Nachrichten etwa eine Minute lang entschlüsseln. Das reicht zum Laden einer Unterhaltung oder eines Posteingangs, ohne für jede Nachricht zu fragen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Trust this site and it can read your messages without asking, until you revoke.",
+      "english": "Trust this site and it can read your messages without asking, until you revoke.",
+      "translation": "Wenn du dieser Website vertraust, kann sie deine Nachrichten ohne Rückfrage lesen, bis du die Erlaubnis widerrufst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Allowing lets {{host}} read wallet info from Sidecar for the rest of this session.",
+      "english": "Allowing lets {{host}} read wallet info from Sidecar for the rest of this session.",
+      "translation": "Durch die Genehmigung darf {{host}} für den Rest dieser Sitzung Wallet-Informationen von Sidecar lesen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "A boost is several payments, one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.",
+      "english": "A boost is several payments, one per recipient in the show’s split. Set a limit below to cover them all, or Sidecar asks for each one.",
+      "translation": "Ein Boost besteht aus mehreren Zahlungen, einer pro Empfänger in der Aufteilung der Sendung. Lege unten ein Limit für alle fest, sonst fragt Sidecar bei jeder Zahlung.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Paying from",
+      "english": "Paying from",
+      "translation": "Zahlung von",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Signing as",
+      "english": "Signing as",
+      "translation": "Signieren als",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Cancels this request and makes the selected account active.",
+      "english": "Cancels this request and makes the selected account active.",
+      "translation": "Bricht diese Anfrage ab und aktiviert das ausgewählte Konto.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "wants to send a Lightning payment",
+      "english": "wants to send a Lightning payment",
+      "translation": "möchte eine Lightning-Zahlung senden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Turn on Auto Zaps ({{max}} sats max)",
+      "english": "Turn on Auto Zaps ({{max}} sats max)",
+      "translation": "Auto-Zaps aktivieren (max. {{max}} Sats)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Allow this session",
+      "english": "Allow this session",
+      "translation": "Für diese Sitzung erlauben",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Allow once",
+      "english": "Allow once",
+      "translation": "Einmal erlauben",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Allow all ({{count}})",
+      "english": "Allow all ({{count}})",
+      "translation": "Alle erlauben ({{count}})",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.",
+      "english": "Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.",
+      "translation": "Sidecar signiert künftige Ereignisse der Art {{kind}} mit dem Namen „{{d}}“ von {{host}} als {{account}} ohne Nachfrage, bis du dies im Tab „Aktivität“ entfernst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.",
+      "english": "Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.",
+      "translation": "Sidecar signiert künftige Ereignisse der Art {{kind}} von {{host}} als {{account}} ohne Nachfrage, bis du dies im Tab „Aktivität“ entfernst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Approving this often? Trust {{host}} to stop being asked.",
+      "english": "Approving this often? Trust {{host}} to stop being asked.",
+      "translation": "Genehmigst du das oft? Vertraue {{host}}, um nicht mehr gefragt zu werden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Too many attempts. Try again in {{seconds}}s.",
+      "english": "Too many attempts. Try again in {{seconds}}s.",
+      "translation": "Zu viele Versuche. Versuche es in {{seconds}} s erneut.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enter a budget in sats, or uncheck the box.",
+      "english": "Enter a budget in sats, or uncheck the box.",
+      "translation": "Gib ein Budget in Sats ein oder deaktiviere das Kästchen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.",
+      "english": "You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.",
+      "translation": "Du bist hier mit mehreren Konten angemeldet. Der Kontowechsler eines Clients kann Sidecar nicht mitteilen, welches du gewählt hast. Bestätige deshalb jedes Mal, wer veröffentlicht.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Camera access was denied. Close this and use \"Choose file\" instead.",
+      "english": "Camera access was denied. Close this and use \"Choose file\" instead.",
+      "translation": "Kamerazugriff verweigert. Schließe dieses Fenster und verwende stattdessen „Datei auswählen“.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No camera was found. Close this and use \"Choose file\" instead.",
+      "english": "No camera was found. Close this and use \"Choose file\" instead.",
+      "translation": "Keine Kamera gefunden. Schließe dieses Fenster und verwende stattdessen „Datei auswählen“.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Couldn't start the camera. Close this and use \"Choose file\" instead.",
+      "english": "Couldn't start the camera. Close this and use \"Choose file\" instead.",
+      "translation": "Kamera konnte nicht gestartet werden. Schließe dieses Fenster und verwende stattdessen „Datei auswählen“.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Point the camera at the QR code on your sheet.",
+      "english": "Point the camera at the QR code on your sheet.",
+      "translation": "Richte die Kamera auf den QR-Code deines Sicherungsblatts.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Found it — sending to Sidecar…",
+      "english": "Found it — sending to Sidecar…",
+      "translation": "Gefunden — wird an Sidecar gesendet…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Couldn't hand that to Sidecar. Try again.",
+      "english": "Couldn't hand that to Sidecar. Try again.",
+      "translation": "Übergabe an Sidecar fehlgeschlagen. Versuche es erneut.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Payment sent — {{amount}} sats",
+      "english": "Payment sent — {{amount}} sats",
+      "translation": "Zahlung gesendet — {{amount}} Sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar has no accounts set up yet",
+      "english": "Sidecar has no accounts set up yet",
+      "translation": "In Sidecar sind noch keine Konten eingerichtet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No active Sidecar account",
+      "english": "No active Sidecar account",
+      "translation": "Kein aktives Sidecar-Konto",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "This site is blocked in Sidecar",
+      "english": "This site is blocked in Sidecar",
+      "translation": "Diese Website ist in Sidecar blockiert",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No wallet connected in Sidecar",
+      "english": "No wallet connected in Sidecar",
+      "translation": "Keine Wallet in Sidecar verbunden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "You rejected this payment",
+      "english": "You rejected this payment",
+      "translation": "Du hast diese Zahlung abgelehnt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No invoice provided",
+      "english": "No invoice provided",
+      "translation": "Keine Rechnung angegeben",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Not a BOLT11 Lightning invoice",
+      "english": "Not a BOLT11 Lightning invoice",
+      "translation": "Keine BOLT11-Lightning-Rechnung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Not a readable image URL",
+      "english": "Not a readable image URL",
+      "translation": "Keine lesbare Bild-URL",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "That QR is not a Lightning invoice",
+      "english": "That QR is not a Lightning invoice",
+      "translation": "Dieser QR-Code ist keine Lightning-Rechnung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "No Lightning invoice found in the selection.",
+      "english": "No Lightning invoice found in the selection.",
+      "translation": "Keine Lightning-Rechnung in der Auswahl gefunden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Payment failed: {{reason}}",
+      "english": "Payment failed: {{reason}}",
+      "translation": "Zahlung fehlgeschlagen: {{reason}}",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Pay this invoice with Sidecar",
+      "english": "Pay this invoice with Sidecar",
+      "translation": "Diese Rechnung mit Sidecar bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Pay Lightning invoice with Sidecar",
+      "english": "Pay Lightning invoice with Sidecar",
+      "translation": "Lightning-Rechnung mit Sidecar bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Pay QR code with Sidecar",
+      "english": "Pay QR code with Sidecar",
+      "translation": "QR-Code mit Sidecar bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Clears {{name}}’s {{fields}}.",
+      "english": "Clears {{name}}’s {{fields}}.",
+      "translation": "Löscht {{fields}} von {{name}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Clears your {{fields}}.",
+      "english": "Clears your {{fields}}.",
+      "translation": "Löscht deine {{fields}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Clears {{name}}’s trust provider list, for every web-of-trust service it names.",
+      "english": "Clears {{name}}’s trust provider list, for every web-of-trust service it names.",
+      "translation": "Leert die Liste der Vertrauensanbieter von {{name}} für alle darin genannten Vertrauensnetzwerk-Dienste.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Clears your trust provider list, for every web-of-trust service it names.",
+      "english": "Clears your trust provider list, for every web-of-trust service it names.",
+      "translation": "Leert deine Liste der Vertrauensanbieter für alle darin genannten Vertrauensnetzwerk-Dienste.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Drops {{name}}’s follows from {{from}} to {{to}}.",
+      "english": "Drops {{name}}’s follows from {{from}} to {{to}}.",
+      "translation": "Reduziert die Kontakte von {{name}} von {{from}} auf {{to}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Drops your follows from {{from}} to {{to}}.",
+      "english": "Drops your follows from {{from}} to {{to}}.",
+      "translation": "Reduziert deine Kontakte von {{from}} auf {{to}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Drops {{name}}’s mute list from {{from}} to {{to}}.",
+      "english": "Drops {{name}}’s mute list from {{from}} to {{to}}.",
+      "translation": "Reduziert die Stummschaltliste von {{name}} von {{from}} auf {{to}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Drops your mute list from {{from}} to {{to}}.",
+      "english": "Drops your mute list from {{from}} to {{to}}.",
+      "translation": "Reduziert deine Stummschaltliste von {{from}} auf {{to}}.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "bio",
+      "english": "bio",
+      "translation": "Biografie",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "profile picture",
+      "english": "profile picture",
+      "translation": "Profilbild",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "verified name",
+      "english": "verified name",
+      "translation": "verifizierter Name",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "display name",
+      "english": "display name",
+      "translation": "Anzeigename",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "At least 8 characters. There is no recovery if you forget it.",
+      "english": "At least 8 characters. There is no recovery if you forget it.",
+      "translation": "Mindestens 8 Zeichen. Wenn du sie vergisst, gibt es keine Wiederherstellung.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Searches an index that covers everyone. It sees what you type and who you follow.",
+      "english": "Searches an index that covers everyone. It sees what you type and who you follow.",
+      "translation": "Durchsucht einen Index aller Personen. Er sieht, was du eingibst und wem du folgst.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.",
+      "english": "Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.",
+      "translation": "Zeigt einen schwebenden „Mit Sidecar bezahlen“-Button, wenn eine Seite eine Lightning-Rechnung anzeigt.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Make default Lightning wallet",
+      "english": "Make default Lightning wallet",
+      "translation": "Als Standard-Lightning-Wallet festlegen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Sidecar becomes the default wallet on web pages, ahead of any other. Open pages need a reload.",
+      "english": "Sidecar becomes the default wallet on web pages, ahead of any other. Open pages need a reload.",
+      "translation": "Sidecar wird auf Webseiten zur Standard-Wallet, vor allen anderen. Offene Seiten müssen neu geladen werden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Default zap amount",
+      "english": "Default zap amount",
+      "translation": "Standard-Zap-Betrag",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Offered as a preset wherever you send a zap. Set for the account you are in.",
+      "english": "Offered as a preset wherever you send a zap. Set for the account you are in.",
+      "translation": "Wird überall beim Senden eines Zaps als Vorgabe angeboten. Gilt für dein aktuelles Konto.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "sats",
+      "english": "sats",
+      "translation": "Sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Auto Zaps",
+      "english": "Auto Zaps",
+      "translation": "Automatische Zaps",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day.",
+      "english": "Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day.",
+      "translation": "Zaps unter diesen Grenzen benötigen keine Bestätigung. Höchstens 1.000 Sats pro Zap und 100.000 pro Tag.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Enable Auto Zaps",
+      "english": "Enable Auto Zaps",
+      "translation": "Automatische Zaps aktivieren",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Max per zap",
+      "english": "Max per zap",
+      "translation": "Maximum pro Zap",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Max per day",
+      "english": "Max per day",
+      "translation": "Maximum pro Tag",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Covers zaps you start in a client. Other payments use a site's budget.",
+      "english": "Covers zaps you start in a client. Other payments use a site's budget.",
+      "translation": "Gilt für Zaps, die du in einem Client auslöst. Andere Zahlungen nutzen das Budget einer Website.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Security & backup",
+      "english": "Security & backup",
+      "translation": "Sicherheit und Sicherung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Auto-lock",
+      "english": "Auto-lock",
+      "translation": "Automatische Sperre",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "After 5 minutes",
+      "english": "After 5 minutes",
+      "translation": "Nach 5 Minuten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "After 15 minutes",
+      "english": "After 15 minutes",
+      "translation": "Nach 15 Minuten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "After 30 minutes",
+      "english": "After 30 minutes",
+      "translation": "Nach 30 Minuten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "After 1 hour",
+      "english": "After 1 hour",
+      "translation": "Nach 1 Stunde",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "After 8 hours",
+      "english": "After 8 hours",
+      "translation": "Nach 8 Stunden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "After 24 hours",
+      "english": "After 24 hours",
+      "translation": "Nach 24 Stunden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "When browser closes",
+      "english": "When browser closes",
+      "translation": "Wenn der Browser geschlossen wird",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.",
+      "english": "Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.",
+      "translation": "Sperrt nach der gewählten Zeit, wenn im Panel nichts signiert, genehmigt oder geschrieben wurde. Deine PIN ist einmal pro Browsersitzung erforderlich.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Change PIN…",
+      "english": "Change PIN…",
+      "translation": "PIN ändern…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Vault backup",
+      "english": "Vault backup",
+      "translation": "Tresorsicherung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Every account's key and wallet in one encrypted file, not a single account's nsec.",
+      "english": "Every account's key and wallet in one encrypted file, not a single account's nsec.",
+      "translation": "Schlüssel und Wallets aller Konten in einer verschlüsselten Datei, nicht der nsec eines einzelnen Kontos.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Export encrypted vault…",
+      "english": "Export encrypted vault…",
+      "translation": "Verschlüsselten Tresor exportieren…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Import vault…",
+      "english": "Import vault…",
+      "translation": "Tresor importieren…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Danger zone",
+      "english": "Danger zone",
+      "translation": "Gefahrenbereich",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Erases every account, key and wallet on this device. Cannot be undone — back up your nsecs first.",
+      "english": "Erases every account, key and wallet on this device. Cannot be undone — back up your nsecs first.",
+      "translation": "Löscht alle Konten, Schlüssel und Wallets auf diesem Gerät. Kann nicht rückgängig gemacht werden — sichere zuerst deine nsecs.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Reset Sidecar",
+      "english": "Reset Sidecar",
+      "translation": "Sidecar zurücksetzen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Not the right account?",
+      "english": "Not the right account?",
+      "translation": "Nicht das richtige Konto?",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Detach and use another identity.",
+      "english": "Detach and use another identity.",
+      "translation": "Trennen und eine andere Identität verwenden.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Turn on Auto Zaps",
+      "english": "Turn on Auto Zaps",
+      "translation": "Automatische Zaps einschalten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Offer Sidecar on sites like this",
+      "english": "Offer Sidecar on sites like this",
+      "translation": "Sidecar auf solchen Websites anbieten",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Always allow this event type for this site",
+      "english": "Always allow this event type for this site",
+      "translation": "Diese Ereignisart für diese Website immer erlauben",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Allow this site to spend up to",
+      "english": "Allow this site to spend up to",
+      "translation": "Dieser Website Ausgaben erlauben bis",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "sats / day without asking",
+      "english": "sats / day without asking",
+      "translation": "Sats / Tag ohne Nachfrage",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Auto-sign for the next",
+      "english": "Auto-sign for the next",
+      "translation": "Automatisch signieren für",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "5 min",
+      "english": "5 min",
+      "translation": "5 Min.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "15 min",
+      "english": "15 min",
+      "translation": "15 Min.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "30 min",
+      "english": "30 min",
+      "translation": "30 Min.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Trust this site",
+      "english": "Trust this site",
+      "translation": "Dieser Website vertrauen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Reject",
+      "english": "Reject",
+      "translation": "Ablehnen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Reject all",
+      "english": "Reject all",
+      "translation": "Alle ablehnen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Scan your backup sheet",
+      "english": "Scan your backup sheet",
+      "translation": "Sicherungsblatt scannen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "locales/de.json",
+      "key": "Starting the camera…",
+      "english": "Starting the camera…",
+      "translation": "Kamera wird gestartet…",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "extName",
+      "english": "Sidecar | A Classy Nostr Signer",
+      "context": "The extension's name, as the browser and the add-on stores show it. Keep \"Sidecar\" untranslated; the part after the bar may be translated.",
+      "translation": "Sidecar | Ein stilvoller Nostr-Signer",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "extDescription",
+      "english": "A multi-account NIP-07 Nostr signer with a built-in Lightning wallet, in your browser sidebar.",
+      "context": "One line under the name in the browser's extension list and the store listings. Keep \"NIP-07\", \"Nostr\" and \"Lightning\" as written.",
+      "translation": "Ein NIP-07-Nostr-Signer für mehrere Konten mit integrierter Lightning-Wallet in der Seitenleiste deines Browsers.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "actionTitle",
+      "english": "Open Sidecar",
+      "context": "Tooltip on the toolbar button.",
+      "translation": "Sidecar öffnen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "sidebarTitle",
+      "english": "Sidecar",
+      "context": "Title of the sidebar in Firefox. The product name, not translated.",
+      "translation": "Sidecar",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "payPillPayable",
+      "english": "$AMOUNT$ sats payable",
+      "context": "The corner pill for a Lightning invoice found on a web page. AMOUNT is the number, shown in bold.",
+      "translation": "$AMOUNT$ Sats zahlbar",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "payPillInvoicePayable",
+      "english": "An invoice payable",
+      "context": "The same pill for an invoice with no amount of its own.",
+      "translation": "Eine zahlbare Rechnung",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "payPillLabel",
+      "english": "$AMOUNT$ sat Lightning invoice is payable on $SITE$. Open Sidecar to pay it.",
+      "context": "Screen-reader label for the pill. SITE is the web page's host.",
+      "translation": "Auf $SITE$ ist eine Lightning-Rechnung über $AMOUNT$ Sats zahlbar. Öffne Sidecar, um sie zu bezahlen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "payPillLabelNoAmount",
+      "english": "A Lightning invoice is payable on $SITE$. Open Sidecar to pay it.",
+      "context": "Screen-reader label for the pill when the invoice has no amount.",
+      "translation": "Auf $SITE$ ist eine Lightning-Rechnung zahlbar. Öffne Sidecar, um sie zu bezahlen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "dismiss",
+      "english": "Dismiss",
+      "context": "Screen-reader label for the pill's close button.",
+      "translation": "Schließen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "hide",
+      "english": "Hide",
+      "context": "Screen-reader label for the close button on the payment-in-progress pill. Hides the indicator; it does not cancel the payment.",
+      "translation": "Ausblenden",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "flightSending",
+      "english": "Sending $AMOUNT$ sats",
+      "context": "The corner pill while a payment is going out. AMOUNT in bold.",
+      "translation": "$AMOUNT$ Sats werden gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "flightZapping",
+      "english": "Zapping $AMOUNT$ sats",
+      "context": "The same pill for an automatic zap.",
+      "translation": "Zap über $AMOUNT$ Sats wird gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "flightSendingPayment",
+      "english": "Sending payment",
+      "context": "The pill while a payment with no stated amount goes out.",
+      "translation": "Zahlung wird gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "flightZappingPayment",
+      "english": "Zapping payment",
+      "context": "The same, for an automatic zap.",
+      "translation": "Zap wird gesendet",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "flightPaid",
+      "english": "Paid $AMOUNT$ sats",
+      "context": "The pill once the payment has settled. AMOUNT in bold.",
+      "translation": "$AMOUNT$ Sats bezahlt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "paid",
+      "english": "Paid",
+      "context": "A payment has settled.",
+      "translation": "Bezahlt",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardEyebrow",
+      "english": "Request to pay",
+      "context": "Small heading on the payment card. A REQUEST, not a charge: nothing has been paid yet. Keep that sense.",
+      "translation": "Zahlungsanfrage",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "unitSats",
+      "english": "sats",
+      "context": "The unit under the amount on the payment card (satoshis).",
+      "translation": "Sats",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardNoAmountMemo",
+      "english": "A Lightning invoice. Choose the amount in Sidecar.",
+      "context": "Shown on the card for an invoice with no amount of its own.",
+      "translation": "Eine Lightning-Rechnung. Wähle den Betrag in Sidecar.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardAutoZapOffer",
+      "english": "Turn on Auto Zaps ($MAX$ sats max)",
+      "context": "Switch on the card that turns on automatic zaps up to MAX.",
+      "translation": "Automatische Zaps einschalten (max. $MAX$ Sats)",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardLabel",
+      "english": "Pay with Sidecar",
+      "context": "Screen-reader label for the payment card.",
+      "translation": "Mit Sidecar bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardFoundOn",
+      "english": "found on $SITE$",
+      "context": "Under the amount: where the invoice was found. SITE in bold.",
+      "translation": "gefunden auf $SITE$",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardPay",
+      "english": "Pay with Sidecar",
+      "context": "The card's pay button. Pressing it asks Sidecar; nothing is sent until approved there.",
+      "translation": "Mit Sidecar bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardNotNow",
+      "english": "Not now",
+      "context": "Closes the card without paying.",
+      "translation": "Jetzt nicht",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardDontShow",
+      "english": "Don't show this prompt again",
+      "context": "Switch that stops the card appearing for invoices found on pages.",
+      "translation": "Diese Anfrage nicht mehr anzeigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardConfirmInSidecar",
+      "english": "Confirm in Sidecar",
+      "context": "The pay button while Sidecar asks for approval.",
+      "translation": "In Sidecar bestätigen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardAwaiting",
+      "english": "Approve it in Sidecar to send it. Nothing has left your wallet yet.",
+      "context": "Status under the button while waiting for approval. Must stay clear that nothing has been paid yet.",
+      "translation": "Bestätige in Sidecar, um die Zahlung zu senden. Aus deiner Wallet ist noch nichts abgeflossen.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardTryAgain",
+      "english": "Try again",
+      "context": "The pay button after a payment failed.",
+      "translation": "Erneut versuchen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardFailed",
+      "english": "Payment failed. Please try again.",
+      "context": "Shown when a payment fails with no reason given.",
+      "translation": "Zahlung fehlgeschlagen. Bitte versuche es erneut.",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardOtherWallet",
+      "english": "Open in another wallet",
+      "context": "On the pay card: hands the invoice to whichever Lightning app is registered on this computer instead of paying with Sidecar.",
+      "translation": "In einer anderen Wallet öffnen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardOfferEyebrow",
+      "english": "Sidecar can pay this invoice",
+      "context": "Heading of the pay card when it is offered on a site not signed in with Sidecar, after the person taps a Lightning link.",
+      "translation": "Sidecar kann diese Rechnung bezahlen",
+      "reviewed": false,
+      "notes": ""
+    },
+    {
+      "file": "_locales/de/messages.json",
+      "key": "cardOfferDontAsk",
+      "english": "Don't ask again",
+      "context": "On the offer card: stop offering to pay Lightning links on sites not signed in with Sidecar.",
+      "translation": "Nicht mehr fragen",
+      "reviewed": false,
+      "notes": ""
+    }
+  ]
+}

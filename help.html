@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="themes/mycelium.css">
   <link rel="stylesheet" href="themes/ben-day.css">
   <link rel="stylesheet" href="themes/sleepy-hollow.css">
+  <link rel="stylesheet" href="themes/phantom-bouquet.css">
   <link rel="stylesheet" href="themes/patterns.css">
   <link rel="stylesheet" href="help.css">
 </head>
@@ -48,9 +49,9 @@
         <a href="#pairing">How sites pair</a>
         <a href="#switching">Switching</a>
         <a href="#clients">Clients compared</a>
-        <a href="#relax">Relax mode</a>
+        <a href="#relax">30 minutes</a>
         <a href="#batches">Allow all</a>
-        <a href="#always-kind">Always allow an event type</a>
+        <a href="#always-kind">Always</a>
         <a href="#erasing">Erasing data</a>
         <a href="#notifications">Notifications</a>
         <a href="#relays">Your relays</a>
@@ -73,6 +74,7 @@
   <div class="page" id="top">
 
     <header class="header">
+      <p id="guide-language-note" hidden></p>
       <h1>How Sidecar works.</h1>
       <p>A short guide to signing in, keeping several accounts, and understanding why
       different Nostr apps handle account switching differently.</p>
@@ -105,7 +107,7 @@
       <!-- screenshot: the approval prompt, a site asking to sign an event -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/approval-prompt.webp" alt="Sidecar's approval prompt: primal.net asking to see your public key, showing which account will sign, with Allow once, Trust this site, and Reject buttons">
+          <img src="screenshots/approval-prompt.webp" width="720" height="886" alt="Sidecar's approval prompt: notes.example wants to sign a note, signing as Amelia, in an account card with a chevron for picking another, above the note's kind, tags and text">
         </div>
         <figcaption>A site asking for a signature. You decide, every time, unless you choose to trust the site.</figcaption>
       </figure>
@@ -125,7 +127,7 @@
       <!-- screenshot: the Accounts tab listing accounts, the active one checkmarked -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/account-switcher.webp" alt="The Accounts tab listing two accounts, Gatsby (active, with a checkmark) and Amelia, plus an Add account button">
+          <img src="screenshots/account-switcher.webp" width="716" height="640" alt="The Accounts tab listing two accounts, Gatsby (active, with a checkmark and his Overview folded beneath) and Amelia, plus an Add account button">
         </div>
         <figcaption>Your accounts on the Accounts tab. The checkmark marks the active one; click another to switch, or add more.</figcaption>
       </figure>
@@ -171,7 +173,7 @@
 
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/backup-vault.webp" width="716" height="1260" alt="Sidecar Settings open at Security and backup: an Auto-lock dropdown set to After 15 minutes, a Change PIN button, and a Vault backup section with Export encrypted vault and Import vault buttons">
+          <img src="screenshots/backup-vault.webp" width="716" height="986" alt="Sidecar Settings at Security and backup: an Auto-lock dropdown set to After 30 minutes, a Change PIN button, and a Vault backup section with Export encrypted vault and Import vault buttons">
         </div>
         <figcaption>Auto-lock, your PIN, and the whole-vault export in one place.</figcaption>
       </figure>
@@ -206,7 +208,7 @@
       <!-- screenshot: the Activity tab's Connected sites, each with its pinned account -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/connected-sites.webp" alt="The Activity tab's Connected sites: jumble.social pinned to Amelia (shared by two accounts, Trusted), and primal.net pinned to Gatsby with a Use Amelia button to move it">
+          <img src="screenshots/connected-sites.webp" width="716" height="980" alt="The Activity tab's Connected sites: notes.example signs in as Amelia and signs reactions without asking, with an × to remove that, set to Ask every time; client.example signs in as Gatsby, with a Use Amelia button to move it">
         </div>
         <figcaption>Connected sites in the Activity tab. Each stays pinned to the account it signed in with; click <strong>Use</strong> to move one to your active account.</figcaption>
       </figure>
@@ -214,7 +216,7 @@
       <!-- screenshot: the Recent activity signing log below Connected sites -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/recent-activity.webp" width="716" height="1400" alt="The Recent activity list: a signed note, reaction, repost and app-data event plus a shared public key, each with its own icon and tagged with the site and how long ago. Every row that signed an event carries an open-in-client button on the right; the shared public key, which signed nothing, does not">
+          <img src="screenshots/recent-activity.webp" width="716" height="1208" alt="The Recent activity list: a signed reaction, app data, a repost, another reaction and a note, plus a shared public key, each with its own icon and tagged with the site and how long ago. Rows that signed an event carry an open-in-client button; app data carries a copy button for its event ID; the shared public key, which signed nothing, carries none">
         </div>
         <figcaption>Below it, the signing log — every request Sidecar has approved, newest first. Rows that signed an event open it in your client, so the log can be checked rather than believed.</figcaption>
       </figure>
@@ -235,7 +237,7 @@
       families. When a switch does call for a fresh login, the routine is the same
       everywhere: log out on the site, switch accounts in Sidecar, then log back in.</p>
       <p><strong>The shortcut.</strong> Whenever you switch the active account and a
-      paired site is open in the current tab, Sidecar offers a <strong>Reload [site]</strong>
+      paired site is open in the current tab, Sidecar offers a <strong>Reload client window</strong>
       button. For apps that re-check the extension on load, that single click usually
       does it.</p>
 
@@ -258,17 +260,17 @@
           <p>These apps have a single signed-in user: whoever the extension provided at
           login. There's no account menu inside the app, so the identity changes only
           when the login changes.</p>
-          <p>To switch, switch accounts in Sidecar and use the <strong>Reload [site]</strong>
+          <p>To switch, switch accounts in Sidecar and use the <strong>Reload client window</strong>
           button Sidecar offers right after. These apps ask the extension again when the
           page loads, so that reload re-pairs them with your newly active account. If a
           reload doesn't do it, the full log out and log back in routine always will.</p>
 
-          <!-- screenshot: Sidecar's Reload [site] offer after switching, for a single-user client -->
+          <!-- screenshot: Sidecar's Reload client window offer after switching, for a single-user client -->
           <figure class="shot shot-sm">
             <div class="shot-frame">
-              <img src="screenshots/single-user-switch.webp" alt="After switching to Gatsby in Sidecar, a one-click Reload primal.net button appears to re-pair the open single-user client">
+              <img src="screenshots/single-user-switch.webp" width="716" height="320" alt="The top of the Sidecar panel right after switching to Gatsby: under the tabs, a Reload client window button to re-pair the open single-user client, with an × to dismiss it">
             </div>
-            <figcaption>Switch in Sidecar, then click <strong>Reload [site]</strong> to re-pair the open app.</figcaption>
+            <figcaption>Switch in Sidecar, then click <strong>Reload client window</strong> to re-pair the open app.</figcaption>
           </figure>
         </div>
 
@@ -315,64 +317,75 @@
       been added.</p>
     </section>
 
-    <!-- ===== Relax mode (timed auto-sign) ===== -->
+    <!-- ===== The 30-minute window (timed auto-sign) ===== -->
     <section class="guide-section" id="relax">
-      <h2>When every action asks: relax mode</h2>
-      <p>On a site where two of your accounts have signed in, Sidecar confirms
-      <em>every</em> post, reaction, and DM — for the reason in the last section: only
-      you can see which account the client is actually showing. That's the right
-      default, but during a busy session it means a lot of tapping.</p>
+      <h2>When every action asks: 30 minutes at a time</h2>
+      <p>Every approval card that signs a post, a reaction or a message asks one question,
+      in one row above the Sign button: <em>Once</em>, <em>30 min</em> or <em>Always</em>.
+      A line above the row says what the choice does, and the button follows it.
+      <em>Once</em> signs this one and asks again next time. On a site where two of your
+      accounts have signed in, Sidecar asks about <em>every</em> post, reaction, and DM, for
+      the reason in the last section: only you can see which account the client is actually
+      showing. That's the right default, but during a busy session it means a lot of
+      tapping.</p>
 
-      <p><strong>Relax mode is the escape hatch.</strong> On any confirm you'll see
-      <em>Auto-sign for the next</em> with three choices — 5, 15, or 30 minutes. Pick one
-      and Sidecar signs that site's requests for that account without asking again until
-      the time runs out.</p>
+      <p><strong>30 min is the escape hatch.</strong> Choose it and press <em>Sign for
+      30 min</em>, and Sidecar signs that site's requests for that account without asking
+      again until the half hour is up.</p>
 
-      <!-- screenshot: the relax chips on an approval prompt -->
+      <!-- screenshot: the scope row on an approval prompt, 30 min chosen -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/relax-chips.webp" width="718" height="832" alt="An approval prompt: 'Signing as' above a card for the account Amelia with her avatar and npub, then an 'Auto-sign for the next' row with 5 min, 15 min, and 30 min buttons, followed by Allow once, Trust this site, and Reject">
+          <img src="screenshots/relax-chips.webp" width="720" height="518" alt="The foot of an approval prompt: the line 'Signs here without asking for 30 minutes.' above a row of Once, 30 min and Always with 30 min chosen, then Sign for 30 min, Trust this site, and Reject">
         </div>
-        <figcaption>Choosing a window instead of approving one event at a time.</figcaption>
+        <figcaption>Choosing half an hour instead of approving one event at a time.</figcaption>
       </figure>
 
       <p>While a window is open, a status bar sits at the bottom of the panel with the
       account, the site, a live countdown, and a depleting bar. The dot is green, turning
       amber under the last minute. The toolbar icon also carries a badge with the minutes
-      remaining, so you can tell at a glance from any tab. Tap the <strong>&times;</strong>
-      on the bar to end it immediately.</p>
+      remaining, so you can tell at a glance from any tab. The circular arrow on the bar
+      starts the half hour again; the <strong>&times;</strong> ends auto-signing at once.</p>
+
+      <p><strong>One account at a time.</strong> Switching accounts ends the window, and
+      opening one for another account ends the first, so a client that mixes up your
+      accounts still gets a card. To keep a window for each account, turn on
+      <em>Settings &rarr; Auto-sign with multiple accounts &rarr; Keep a 30-minute timer for each account</em>; the
+      bar then shows the active account's window, and <em>+1</em> lists the others.</p>
 
       <!-- screenshot: the relax status bar counting down -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/relax-status-bar.webp" width="720" height="300" alt="The bottom of the Sidecar panel below the wordmark and compose button: a status bar with a green dot, the account name Amelia, the site jumble.social, a partly depleted progress bar, a 13:37 countdown, and a round close button to end auto-signing">
+          <img src="screenshots/relax-status-bar.webp" width="720" height="300" alt="The bottom of the Sidecar panel below the wordmark and compose button: a status bar with a green dot, the account name Amelia, the site notes.example, a restart button and a close button, a partly depleted progress bar, and a 13:38 countdown">
         </div>
-        <figcaption>One window at a time, always visible, always cancelable.</figcaption>
+        <figcaption>Always visible, always cancelable.</figcaption>
       </figure>
 
-      <p><strong>What it deliberately doesn't cover.</strong> Relax mode skips the
+      <p><strong>What it deliberately doesn't cover.</strong> The window skips the
       repetitive confirms, not the ones that matter:</p>
       <ul>
+        <li><strong>Profile and follow edits still ask,</strong> and so do your mute and
+        trust lists: each new version replaces the old one everywhere, so each gets its
+        own look.</li>
         <li><strong>Handing over your account or wallet always asks.</strong> Pairing a
         remote signer and wallet-control requests still confirm individually, every time,
-        even mid-window — those are the requests worth reading closely.</li>
+        even mid-window. Those are the requests worth reading closely.</li>
         <li><strong>So does anything that erases your data.</strong> If a site asks to
         replace your follow list, mute list, or profile with a version that drops most of
-        it, Sidecar breaks the window to show you what would be lost — and doesn't offer
-        to auto-sign that one.</li>
-        <li><strong>One window at a time.</strong> Relaxing on a new site ends the
-        previous window, so there's never more than one site signing freely.</li>
+        it, Sidecar breaks the window to show you what would be lost, and doesn't offer
+        a window on that card.</li>
+        <li><strong>A window belongs to one site and one account.</strong> When more than
+        one is open, the bar and the badge show the one that ends first.</li>
         <li><strong>It ends on anything that changes who you are:</strong> locking
-        Sidecar, switching your active account, or logging into that site as a different
-        account — plus the timer itself.</li>
+        Sidecar, switching your active account, or that site signing in or posting as a
+        different account, plus the timer itself.</li>
       </ul>
 
-      <p class="fine-note">Worth being honest about the trade: within its window, relax
-      mode signs without showing you each event. That's the point of it, and it's why the
-      windows are minutes rather than hours, why only one runs at a time, and why the
-      countdown is always on screen. If you're on a shared host and unsure which account
-      the client has selected, approve one at a time instead — the per-signature confirm
-      is the thing that catches a wrong-account post.</p>
+      <p class="fine-note">Worth being honest about the trade: within its window, Sidecar
+      signs without showing you each event. That's the point of it, and it's why the window
+      is half an hour at most and why the countdown is always on screen. If you're on a
+      shared host and unsure which account the client has selected, sign once at a time
+      instead: the per-signature confirm is the thing that catches a wrong-account post.</p>
     </section>
 
     <!-- ===== Batches: Allow all, no Approve all ===== -->
@@ -385,21 +398,23 @@
       you have not read.</p>
     </section>
 
-    <!-- ===== Always allow an event type ===== -->
+    <!-- ===== Always (a standing grant for one event type) ===== -->
     <section class="guide-section" id="always-kind">
-      <h2>Always allow an event type</h2>
-      <p>Some requests come back from the same site forever — an app saving its settings
-      every time you open it. On those approval cards you can tick <em>Always allow this
-      event type for this site</em>. Sidecar then signs that kind of event from that site
-      without asking again.</p>
+      <h2>Always sign an event type</h2>
+      <p>Some requests come back from the same site forever, such as an app saving its
+      settings every time you open it. On those approval cards the row offers
+      <em>Always</em>: choose it and press <em>Always sign</em>, and Sidecar signs that kind
+      of event from that site without asking again.</p>
 
-      <p>The grant is narrow on purpose. It covers one event kind — and when the event
-      carries a <code>d</code> tag, that one record rather than everything of that kind —
+      <p>The grant is narrow on purpose. It covers one event kind (and when the event
+      carries a <code>d</code> tag, that one record rather than everything of that kind)
       for that site only, signed by the account that approved it. It covers signing only:
       the site can still never encrypt or decrypt anything without asking. Lock Sidecar
-      and the grant pauses with it — a locked keystore still asks for your PIN. Some kinds
-      can never carry the checkbox at all: anything that replaces your profile or follow
-      lists, anything that moves money, and the account-control kinds.</p>
+      and the grant pauses with it, because a locked keystore still asks for your PIN.
+      Some kinds never offer <em>Always</em> at all: anything that replaces your profile
+      or follow lists, anything that moves money, and the account-control kinds. Neither
+      does a site where several of your accounts are signed in, where the question of who
+      is posting is the reason the card is there.</p>
 
       <p>To see what you've granted, open the <strong>Activity</strong> tab: each site's
       row lists what it signs without asking, with an ✕ to revoke. Revoking puts the site
@@ -426,12 +441,12 @@
       <!-- screenshot: the destructive-overwrite warning on an approval prompt -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/destructive-warning.webp" width="716" height="876" alt="A Sidecar approval prompt headed 'Some Buggy Client wants to sign an event with your key', for a kind 3 follow list with 0 tags. A red-ruled warning reads 'This action erases data — Removes all 40 accounts you follow', followed by a prominent DON'T ALLOW button and a quieter 'I understand' button">
+          <img src="screenshots/destructive-warning.webp" width="720" height="1034" alt="A Sidecar approval prompt: client.example wants to sign a kind 3 follow list with 0 tags as Gatsby. A red-ruled warning reads 'This action erases data: Removes all 40 accounts Gatsby follows', followed by a prominent DON'T ALLOW button and a quieter I understand button">
         </div>
         <figcaption>The prompt names what would be lost, and won't let you approve it by reflex.</figcaption>
       </figure>
 
-      <p><strong>Approving takes a deliberate second step.</strong> <em>Allow once</em> and
+      <p><strong>Approving takes a deliberate second step.</strong> <em>Sign</em> and
       <em>Trust this site</em> start greyed out, and <em>Don't allow</em> sits right in the
       warning where your thumb already is. If the change really was intentional — you did
       just prune your follows — press <em>I understand</em> and the usual buttons come
@@ -502,7 +517,7 @@
 
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/notifications-network.webp" width="716" height="700" alt="Sidecar Settings open at Notifications, headed Your network first, with a checked box reading Sort notifications by who you follow, a line reading Your network: 1,209 people, from 12,129 your follows follow, and a Rebuild network button">
+          <img src="screenshots/notifications-network.webp" width="716" height="900" alt="Sidecar Settings with Notifications open, headed Your network first, with a checked box reading Sort notifications by who you follow, a line reading Your network: 953 people, from 11,211 your follows follow, and a Rebuild network button">
         </div>
         <figcaption>The network is built from your follow list and theirs, and can be rebuilt on demand.</figcaption>
       </figure>
@@ -611,18 +626,44 @@
 
     <!-- ===== Wallet ===== -->
     <section class="guide-section" id="wallet">
-      <h2>The wallet, briefly</h2>
+      <h2>The wallet</h2>
       <p>Sidecar's Wallet tab connects to a Lightning wallet you already have, using
       Nostr Wallet Connect. Sidecar never holds your funds; it just gives you balance,
       payments, and zaps right in the panel. Each account can have its own wallet
       connection.</p>
-      <p>If you don't have a wallet that speaks NWC yet, the wallet directory below has
-      good options for every taste, custodial to self-custodial.</p>
+      <p>If you don't have a wallet that speaks NWC yet, the
+      <a href="wallets.html">wallet directory</a> has good options for every taste,
+      custodial to self-custodial.</p>
 
-      <h3>Zap, or pay an offer</h3>
-      <p>A zap publishes a public receipt naming you and the amount, which is what zap
-      totals are counted from. A CLINK offer asks the payee's wallet directly, encrypted,
-      and publishes nothing, so it counts toward no total.</p>
+      <h3>Sending and receiving</h3>
+      <p><strong>Send</strong> takes a Lightning invoice or a Lightning address.
+      <strong>Receive</strong> makes an invoice for the amount you choose, and when your
+      account has a Lightning address, an <em>Address</em> tab shows it too.</p>
+
+      <h3>Zaps</h3>
+      <p>A zap is a payment that publishes a public receipt naming you and the amount,
+      which is what clients count zap totals from. <strong>Auto Zaps</strong> (Settings →
+      Wallet &amp; payments) let zaps you start in a client go through without a card,
+      under a limit per zap and per day that you set, capped at 1,000 sats a zap and
+      100,000 a day.</p>
+
+      <h3>Paying on websites</h3>
+      <p>A site that asks for a payment gets an approval card, like a signature. To stop
+      being asked on a site you use often, tick <em>Allow this site to spend up to</em>
+      on that card and set a daily limit; you can change or revoke it in
+      <strong>Connected Sites</strong>. When a page shows a Lightning invoice, Sidecar
+      can put a <em>Pay with Sidecar</em> button over it: Settings → <em>Pay button on web
+      pages</em> turns it on for Nostr sites and, separately, for sites you haven't
+      connected.</p>
+      <p class="fine-note">Additional features: a <em>Withdraw</em> tab on Receive cashes
+      LNURL-withdraw links, and you can pay users who include a CLINK offer in their
+      profile. These are recorded as profile zaps.</p>
+
+      <h3>Backing up the connection</h3>
+      <p>The Backup card on the Wallet tab encrypts your wallet connection to your own
+      key and stores it on your relays, so you can restore it on another device or after
+      a reset. <em>Delete backup</em> replaces that copy with an empty one and asks your
+      relays to forget it; the wallet itself stays connected.</p>
 
       <h3>When another wallet extension is installed</h3>
       <p>Sidecar offers <code>window.webln</code> to pages only when no other Lightning
@@ -633,6 +674,26 @@
       setting off hands the slot back. Nothing changes on pages that are already open
       until they reload or re-ask, so a payment always goes to the wallet the page
       actually asked.</p>
+
+      <h3>Coins sent to your Nostr key</h3>
+      <p>Your Nostr key can also spend two ordinary Bitcoin addresses, and some tools
+      have sent people's coins to them by mistake. Sidecar can watch those addresses and
+      move the coins out. It's off until you turn on Settings → Wallet &amp; payments →
+      <em>Show on-chain balance in the Wallet</em>, and until then nothing is looked up.
+      With it on, an <strong>On-chain balance</strong> card at the foot of the Wallet tab
+      shows both addresses, which you can copy, and what they hold, asking mempool.space.
+      The card works whether or not a Lightning wallet is connected.</p>
+      <p>It does one thing: send <em>everything</em> on those addresses to one receive
+      address you give it. Paste it, or scan it with the camera, and check it before you
+      go on. Pick <em>Fast</em>, <em>Standard</em>, or
+      <em>Economy</em>, and the card shows the exact fee before anything is signed.
+      <em>Sweep now</em> asks you to tap again to confirm, and changing the address or the
+      fee cancels that, so an old review can't go through. Afterward the card shows
+      what moved and where, with a link to the transaction on mempool.space.</p>
+      <p class="fine-note">These addresses are public and tied to your npub: anyone who
+      knows your npub can work them out. If they ever hold coins, sweep them to a fresh
+      address, and know that the sweep itself links the two on-chain. Web pages never
+      see any of this, and Sidecar only ever uses coins that have confirmed.</p>
     </section>
 
     <!-- ===== Boosts ===== -->
@@ -717,7 +778,7 @@
 
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/theme-gallery.webp" width="716" height="1500" alt="The Sidecar theme picker with Dark and Light tabs, showing a grid of live preview tiles for Speakeasy, Film Noir, Brownstone, Nixie, Cast Iron and Metropolis, each rendering the numerals 21 in that theme's own typeface and palette">
+          <img src="screenshots/theme-gallery.webp" width="716" height="1350" alt="The Sidecar theme picker: a Special edition card for Phantom Bouquet, until December 6, above Dark and Light tabs and live preview tiles for Speakeasy, Metropolis, Film Noir and Brownstone, each rendering the numerals 21 in that theme's own typeface and palette">
         </div>
         <figcaption>Each tile is a live preview, not a swatch.</figcaption>
       </figure>
@@ -728,7 +789,8 @@
       in that theme's own face and colors, so what you preview is what you get.</p>
 
       <p><strong>Special editions</strong> are themes for a season, and are only worn
-      while it lasts: <strong>Sleepy Hollow</strong> from October 1 to November 8. When one
+      while it lasts: <strong>Sleepy Hollow</strong> from October 1 to November 8, and
+      <strong>Phantom Bouquet</strong> from November 9 to December 6. When one
       arrives, a card on the Accounts tab offers it once. While it is in season it also has a
       place of its own above the Dark and Light tabs, and wearing one never replaces your
       theme: it goes on over it for the account you are in. Choose any other theme, or
@@ -750,13 +812,13 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
-      <p class="whatsnew-version">Version 1.16.6</p>
+      <p class="whatsnew-version">Version 1.17.0</p>
       <ul class="whatsnew-list">
-        <li><strong>New installs start with auto-lock at 30 minutes,</strong> and the PIN reminder lets you pick the time at once.</li>
-        <li><strong>Profiles with both a Lightning address and a CLINK offer pay through a Lightning | CLINK switch,</strong> and zapping a CLINK offer is a real zap now.</li>
-        <li><strong>You can delete your wallet backup from your relays,</strong> and restoring from the encrypted backup sheet’s PDF works.</li>
-        <li><strong>A zap with a comment shows in a livestream’s chat,</strong> and the chat has the composer’s emoji picker.</li>
-        <li><strong>Fixes:</strong> the lock screen after a manual lock, the notifications sheet opening empty, and the default Lightning wallet offer appearing too early. Snort and Aqstr join the apps.</li>
+        <li><strong>Sidecar speaks 21 languages.</strong> Pick one under Settings → Appearance, or on the first screen. The translations are drafts; the Arabic was reviewed by <a href="https://github.com/tkhumush" target="_blank" rel="noreferrer noopener">tkhumush</a> and the Italian by <a href="https://github.com/keithmeola" target="_blank" rel="noreferrer noopener">keithmeola</a>, and corrections are welcome on GitHub.</li>
+        <li><strong>Phantom Bouquet, the November special edition,</strong> runs until December 6.</li>
+        <li><strong>Approval cards ask one question:</strong> Once, 30 min or Always, and the account on the card is the way to sign as another.</li>
+        <li><strong>The wallet cashes LNURL-withdraw links,</strong> and an optional on-chain card can sweep coins sent to your account’s Bitcoin address.</li>
+        <li><strong>The composer takes a pasted note as a block beside your pictures,</strong> and videos take a description. Fixes: the Following count updates at once, linked notes are found on more relays, and HEIC photos are refused clearly.</li>
       </ul>
       <p>The full history, including earlier releases, is in the
       <a href="https://github.com/dmnyc/sidecar/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer noopener" id="changelog-link">changelog on GitHub</a>.</p>

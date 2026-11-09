@@ -49,7 +49,7 @@ test('THE LOADING QUOTE IS THE ONE THAT STAYS', () => {
   // those two have to be showing the same line.
   const src = stripComments(source);
   assert.match(src, /const waitQuote = pickQuote\(\)/, 'the loading screen draws no quote');
-  assert.match(src, /loadingQuote\('Reading your relays…', waitQuote\)/, 'the spinner is still bare');
+  assert.match(src, /loadingQuote\(t\('Reading your relays…'\), waitQuote\)/, 'the spinner is still bare');
   assert.match(
     src,
     /fillBookmarks\(scroll, gone, _bmCache\.evs, _bmCache\.events, waitQuote\)/,

@@ -33,7 +33,7 @@ function load({ settings = {}, uiLang = 'en-US', cache = null, worker = false } 
   ctx.self = ctx;
   vm.createContext(ctx);
   vm.runInContext(SRC, ctx);
-  return Object.assign(ctx.SidecarI18n, { _store: store });
+  return Object.assign(ctx.SidecarI18n, { _store: store, _ctx: ctx });
 }
 
 // ---- English, with nothing loaded ----------------------------------------------------
@@ -117,12 +117,53 @@ test('numbers and dates follow the language', () => {
   assert.match(i.fmtRelative(-5, 'minute'), /5/);
 });
 
+test('a compact relative time that is only a signed number is asked again in the short style', () => {
+  // Chrome's `narrow` data gives Russian, French and European Portuguese "-1 ч" / "-1 h", with
+  // no word for "ago". Standing in for that gap: `narrow` answers with a bare signed number,
+  // `short` spells it out. The panel must show the second.
+  const i = load();
+  i.setLocale('ru', []);
+  const asked = [];
+  class Gappy {
+    constructor(loc, opts) { this.style = opts && opts.style; asked.push(this.style); }
+    format(v) { return this.style === 'narrow' ? v + ' ч' : '1 ч назад'; }
+  }
+  // The page's own `Intl` is swapped for a copy with the stand-in class; the real one is untouched.
+  i._ctx.Intl = Object.assign({}, Intl, { RelativeTimeFormat: Gappy });
+  try {
+    assert.equal(i.fmtRelative(-1, 'hour'), '1 ч назад');
+    assert.deepEqual(asked, ['narrow', 'short']);
+    asked.length = 0;
+    // A language whose compact form already says "ago" is left alone.
+    Gappy.prototype.format = function () { return '1 ч назад'; };
+    assert.equal(i.fmtRelative(-1, 'hour'), '1 ч назад');
+    assert.deepEqual(asked, ['narrow']);
+  } finally { i._ctx.Intl = Intl; }
+});
+
 // ---- choosing the language --------------------------------------------------------------
 
 test('THE BROWSER LANGUAGE RESOLVES TO A SUPPORTED ONE, OR ENGLISH', () => {
   const i = load();
   assert.equal(i.resolve('en-GB'), 'en');
-  assert.equal(i.resolve('fr-CA'), 'en', 'no French yet, so English');
+  assert.equal(i.resolve('fr-CA'), 'fr');
+  assert.equal(i.resolve('pt-BR'), 'pt-BR');
+  // Portuguese has two catalogs: a bare `pt` goes to Brazil, which has far more speakers, and
+  // every other pt-XX (PT, AO, MZ, CV...) to Portugal.
+  assert.equal(i.resolve('pt-PT'), 'pt-PT');
+  assert.equal(i.resolve('pt'), 'pt-BR');
+  assert.equal(i.resolve('pt-AO'), 'pt-PT');
+  // Chinese follows script: zh, zh-CN and zh-SG are Simplified, every other zh-* Traditional.
+  assert.equal(i.resolve('zh'), 'zh');
+  assert.equal(i.resolve('zh-CN'), 'zh');
+  assert.equal(i.resolve('zh-Hans'), 'zh');
+  assert.equal(i.resolve('zh-TW'), 'zh-TW');
+  assert.equal(i.resolve('zh-HK'), 'zh-TW');
+  assert.equal(i.resolve('zh-Hant'), 'zh-TW');
+  // Regional variants fall to their base language; languages with no catalog fall to English.
+  assert.equal(i.resolve('ru-UA'), 'ru');
+  assert.equal(i.resolve('ar-EG'), 'ar');
+  assert.equal(i.resolve('vi'), 'en');
   assert.equal(i.resolve(''), 'en');
   assert.equal(i.resolve('en-XA'), 'en-XA');
 });
@@ -164,7 +205,7 @@ test('IT LOADS IN THE SERVICE WORKER, WHICH HAS NO DOM AND NO localStorage', asy
 });
 
 test('a broken or missing locale file falls back to English, never to blank', async () => {
-  const i = load({ settings: { language: 'de' } }); // no 'de' registered, and fetch fails
+  const i = load({ settings: { language: 'de' } }); // registered catalog fetch fails
   await i.ready;
   assert.equal(i.t('Copy'), 'Copy');
 });
@@ -194,4 +235,47 @@ test('THE PSEUDO-LOCALE KEEPS THE SLOT, SO THE NODE STILL LANDS', () => {
   i.setLocale('en-XA', []);
   const out = i.fill(i.t('Find more apps at {{first}} and {{second}}.'), { first: 'F', second: 'S' });
   assert.ok(out.includes('F') && out.includes('S'), JSON.stringify(out));
+});
+
+test('a long-lived worker can reload the language after settings change', async () => {
+  const settings = { language: 'en' };
+  const i = load({ settings, worker: true }); await i.ready;
+  assert.equal(i.t('Copy'), 'Copy');
+  settings.language = 'en-XA';
+  await i.reload();
+  assert.equal(i.lang, 'en-XA'); assert.notEqual(i.t('Copy'), 'Copy');
+  settings.language = 'en';
+  await i.reload();
+  assert.equal(i.t('Copy'), 'Copy');
+});
+
+test('an older locale read cannot override a newer reload', async () => {
+  const reads = [];
+  const ctx = { Intl, Promise, Object, String, Number, Math, Set, Array, JSON,
+    chrome: { i18n: { getUILanguage: () => 'en-US' },
+      storage: { local: { get: (_key, callback) => reads.push(callback) } },
+      runtime: { getURL: value => value } },
+    fetch: async () => ({ ok: false }),
+  };
+  ctx.self = ctx; vm.createContext(ctx); vm.runInContext(SRC, ctx);
+  const i = ctx.SidecarI18n;
+  const latest = i.reload();
+  reads[1]({ sidecar_settings: { language: 'en-XA' } }); await latest;
+  reads[0]({ sidecar_settings: { language: 'en' } }); await i.ready;
+  assert.equal(i.lang, 'en-XA'); assert.notEqual(i.t('Copy'), 'Copy');
+});
+
+test('internal PIN errors localize structured values without changing the original error', async () => {
+  const i=load(); await i.ready;
+  i.setLocale('de',[{
+    'Incorrect PIN':'Falsche PIN',
+    'Too many attempts — try again in {{duration}}':'Warten: {{duration}}',
+    'Incorrect PIN. Attempts remaining before Sidecar erases itself: {{count}}':'Vor dem Löschen verbleibend: {{count}}',
+  }]);
+  const response={error:'Incorrect PIN'};
+  assert.equal(i.controlError(response),'Falsche PIN');assert.equal(response.error,'Incorrect PIN');
+  assert.equal(i.controlError({error:'legacy',errorKey:'pin-cooldown',errorParams:{seconds:21}}),'Warten: 21 Sekunden');
+  assert.equal(i.controlError({error:'legacy',errorKey:'pin-remaining',errorParams:{count:3}}),'Vor dem Löschen verbleibend: 3');
+  assert.equal(i.controlError({error:'legacy',errorKey:'pin-remaining',errorParams:{count:'bad'}}),'legacy');
+  assert.equal(i.controlError({error:'Unknown diagnostic'}),'Unknown diagnostic');
 });

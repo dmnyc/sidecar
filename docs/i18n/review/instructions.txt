@@ -1,0 +1,62 @@
+Sidecar 1.16 translation review — four independent assignments
+
+Assign one native speaker to each language:
+- German: locales/de.json, _locales/de/messages.json, docs/i18n/review/de.json
+- Spanish: locales/es.json, _locales/es/messages.json, docs/i18n/review/es.json
+- French: locales/fr.json, _locales/fr/messages.json, docs/i18n/review/fr.json
+- Brazilian Portuguese: locales/pt-BR.json, _locales/pt_BR/messages.json,
+  docs/i18n/review/pt-BR.json. Do not normalize this to European Portuguese.
+
+These are complete, unreviewed drafts. A translation app or another agent can
+suggest corrections, but that is not a native-speaker security review.
+
+First pass: security and browser payment text
+Open the language's review JSON. Each entry includes the English source,
+draft translation, file, and key. Browser messages also include usage context.
+Review each of the 490 entries. Record corrections in the actual catalog and
+the packet, and set reviewed only after checking the meaning. Use notes for
+unresolved wording. Record your name and review date when complete.
+
+Verify especially:
+- Signing an event is different from sending a payment or encrypting data.
+- Requests and pending payments must not sound like completed payments.
+- A rejected request must not imply that a payment was sent.
+- Private keys, public keys, PINs, passphrases, and wallet connection strings
+  must remain distinct.
+- Backup, recovery, irreversible erasure, retry limits, and automatic approval
+  limits must preserve the exact warning and scope.
+- Never change {{parameters}}, browser $PARAMETERS$, identifiers, URLs,
+  NIP numbers, or placeholder definitions. Parameters hold the actual data.
+- Do not add markup. Translations are text, not HTML.
+- Keep technical names such as Nostr, Lightning, NWC, nsec, npub, and NIP-07.
+
+Second pass: the whole catalog
+Read every remaining translation for natural language and consistent terms.
+Preserve the chosen register within each language. Check plurals for 0, 1, 2,
+and 1,000,000; Spanish, French, and pt-BR need the many form as well as one/other.
+Do not shorten warnings or abbreviate labels just to make a layout fit.
+
+Third pass: use the app
+In the unpacked development build, select the language in Settings. Use only
+disposable test accounts and wallets. Check first run, PIN/unlock, import and
+backup, approvals, wallet, settings, notes/replies/polls, streams, and chat.
+Check the ~360px sidebar and the expanded composer at laptop and desktop widths.
+Switch themes, including light themes and the decorative lock screens.
+Report clipped controls with a screenshot and the exact steps. Text may wrap;
+actions must stay usable without reducing their size. Also check en-XA.
+
+Return:
+1. Corrected catalog files.
+2. Completed review packet with reviewer identity, date, and unresolved notes.
+3. List of tested screens/themes and any layout failures.
+4. An explicit statement of what has not been reviewed.
+
+Validation:
+  node scripts/i18n-coverage.mjs --check
+  node --test test/i18n*.test.js
+  npm test
+
+The full guide remains English and is labeled as such. Full guide translation
+is a separate outstanding task, not covered by catalog completeness.
+
+Do not publish, commit, push, merge, or tag as part of this review assignment.

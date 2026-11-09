@@ -268,7 +268,7 @@ test('A HANDOFF THAT DID NOT ARRIVE SAYS SO, INSTEAD OF LOOKING NORMAL', () => {
   assert.match(body, /'slot ' \+ dkey/);
   // Warn-colored: this is not context, it is a problem with what is about to publish.
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
-  assert.match(css, /\.reply-target-lost \{ border-left-color: var\(--warn\); \}/);
+  assert.match(css, /\.reply-target-lost \{ border-inline-start-color: var\(--warn\); \}/);
 });
 
 test('CLOSING THE MODAL DOES NOT DELETE THE SLOT IT JUST HANDED OVER', () => {

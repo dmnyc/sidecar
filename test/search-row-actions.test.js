@@ -34,7 +34,7 @@ const WRITER = [
 ].join('\n');
 
 function world({ list = null, profile = true, relayDown = false, known = [], active = ME, signFails = null } = {}) {
-  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [] };
+  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [], announced: [] };
   const ctx = withI18n({
     state: { activePubkey: active },
     followListCache: known.length ? known.map((pubkey) => ({ pubkey, name: 'x', picture: null })) : null,
@@ -43,6 +43,9 @@ function world({ list = null, profile = true, relayDown = false, known = [], act
     NT: { nip19: { npubEncode: (h) => 'npub1' + h.slice(0, 6) } },
     shortNpub: (n) => n.slice(0, 10),
     forgetWot: () => { w.wot++; },
+    repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
+    document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
+    CustomEvent: class { constructor(type) { this.type = type; } },
     readRelayUrls: async () => ['wss://read.test'],
     postRelays: async () => ['wss://write.test'],
     poolQuerySync: async (relays, f) => {
@@ -161,11 +164,11 @@ test('the panel\'s own copies follow the list: cache, count, and the web of trus
   await w.api.addFollow(ME, BOB, { name: 'Bob', picture: 'p.png' });
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [CAL, BOB]);
   assert.equal(w.ctx.followListCache[1].name, 'Bob');
-  assert.equal(w.ctx.followCountCache.get(ME), 2);
+  assert.equal(w.ctx.followCountCache.get(ME).v, 2);
   assert.equal(w.wot, 1);
   await w.api.removeFollow(ME, CAL);
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [BOB]);
-  assert.equal(w.ctx.followCountCache.get(ME), 1);
+  assert.equal(w.ctx.followCountCache.get(ME).v, 1);
 });
 
 // ---- the buttons ----
@@ -378,7 +381,7 @@ test('a second tap while the first is still in flight does nothing', async () =>
 test('results mount the buttons for other people only, and the layout keeps them at the right edge', () => {
   assert.match(source, /if \(state\.activePubkey && !\(\(state && state\.accounts\) \|\| \[\]\)\.some\(\(a\) => a\.pubkey === c\.pubkey\)\) item\.append\(personActions\(c, \{ onTier: paintTrust \}\)\);/);
   assert.match(css, /^\.ac-item-actions \{[^}]*flex-shrink: 0/m, 'the buttons keep their size and the name truncates');
-  assert.match(css, /^\.ac-item-name \+ \.ac-item-actions \{ margin-left: auto; \}/m, 'right edge when there is no trust mark');
+  assert.match(css, /^\.ac-item-name \+ \.ac-item-actions \{ margin-inline-start: auto; \}/m, 'right edge when there is no trust mark');
 });
 
 // ---- the same buttons on the profile card a result opens ----
@@ -725,7 +728,7 @@ test('the card reads: icons, then the lightning address, then the bio', () => {
 test('the left-aligned bio is set apart from the centered block by a thin line, which goes when there is no bio', () => {
   const rule = css.match(/^\.peek-about \{([^}]*)\}/m);
   assert.ok(rule, 'the bio rule exists');
-  assert.match(rule[1], /text-align: left/);
+  assert.match(rule[1], /text-align: start/);
   assert.match(rule[1], /border-top: 1px solid var\(--border\)/);
   assert.match(rule[1], /padding-top: \d+px/, 'room under the line');
   assert.match(css, /^\.peek-about:empty \{ display: none; \}/m, 'no bio, no line');

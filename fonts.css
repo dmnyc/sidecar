@@ -38,6 +38,7 @@
                  + Crimson Pro      old-style serif               the red faience tablet
      Sleepy Hollow IM FELL English SC 17th-c. book type, small caps  the title page of the tale
                  + Cormorant figures lining old-style figures      the balance (unicode-range)
+     Phantom Bouquet Sorts Mill Goudy  Goudy Oldstyle revival (1915) the pressed-flower book
 
    Cast Iron's single display face: Impressed Metal (GemFonts, 1998 freeware — license
    record in fonts/LICENSE-ImpressedMetal.txt, the one non-OFL face here) draws every
@@ -122,6 +123,7 @@
   font-weight: 400;
   font-display: swap;
   src: url('fonts/manrope-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: 'Manrope';
@@ -129,6 +131,7 @@
   font-weight: 500;
   font-display: swap;
   src: url('fonts/manrope-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: 'Manrope';
@@ -136,6 +139,7 @@
   font-weight: 600;
   font-display: swap;
   src: url('fonts/manrope-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: 'Manrope';
@@ -143,6 +147,39 @@
   font-weight: 700;
   font-display: swap;
   src: url('fonts/manrope-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Manrope beyond Latin. The four static weights above are a Latin subset; these three are
+   Google Fonts' own variable subsets of the same family (OFL, see fonts/OFL-Manrope.txt), each
+   spanning 400 to 700 in one file and used only for the characters in its unicode-range.
+   Latin-extended carries what Polish, Turkish and Hungarian need (ł ş ğ ő ű), and Cyrillic and
+   Greek the two other alphabets the interface is translated into. The statics above declare the
+   Latin range so they do not claim these characters; other scripts fall back to the system
+   font on purpose, which is the stack's `system-ui`. */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/manrope-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/manrope-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/manrope-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
 }
 
 /* The five per-theme display faces. The `font-weight` RANGE on each is what tells the
@@ -583,4 +620,37 @@
   font-display: swap;
   src: url('fonts/cormorant-garamond-var.woff2') format('woff2-variations');
   unicode-range: U+0030-0039, U+002C, U+002E, U+00A0, U+202F;
+}
+
+/* TYPE RULES FOR SCRIPTS THE THEMES WERE NOT DRAWN FOR. Every page loads this file, so the
+   rule lives here. The themes set their labels in capitals and widen their letter-spacing:
+   that is a Latin idea. Uppercase does nothing in these scripts, and letter-spacing does harm
+   in two of them: Arabic, Persian and Urdu join their letters, so spacing them pulls a word
+   apart into separate shapes, and Devanagari hangs its letters from a shared headline that
+   spacing breaks. CJK and Thai have no word gaps for the spacing to widen. `!important` is the
+   right tool here: the themes' rules are more specific than a language selector can beat, and
+   there are twenty of them. Greek and Turkish keep both, since their uppercase works and the
+   browser applies it by `lang` (Greek capitals drop their accents, Turkish gets İ). */
+:lang(ar), :lang(fa), :lang(he), :lang(ur), :lang(hi), :lang(th), :lang(ja), :lang(ko), :lang(zh),
+:lang(ar) *, :lang(fa) *, :lang(he) *, :lang(ur) *, :lang(hi) *, :lang(th) *, :lang(ja) *, :lang(ko) *, :lang(zh) *,
+:lang(ar) *::before, :lang(fa) *::before, :lang(he) *::before, :lang(ur) *::before, :lang(hi) *::before, :lang(th) *::before, :lang(ja) *::before, :lang(ko) *::before, :lang(zh) *::before,
+:lang(ar) *::after, :lang(fa) *::after, :lang(he) *::after, :lang(ur) *::after, :lang(hi) *::after, :lang(th) *::after, :lang(ja) *::after, :lang(ko) *::after, :lang(zh) *::after {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-variant-caps: normal !important;
+}
+
+/* Phantom Bouquet, the November special edition (seasons.js). Sorts Mill Goudy, Barry
+   Schwartz's revival of Frederic Goudy's Goudy Oldstyle (SIL OFL 1.1 with no Reserved
+   Font Name — see fonts/OFL-SortsMillGoudy.txt); the unmodified TTF from the Google
+   Fonts repository (ofl/sortsmillgoudy, sourced from The League of Moveable Type). One
+   weight, declared across 400 to 700 so the panel's bold display rules use it as it is
+   rather than synthesizing a bold. Its figures are old-style, which suits the face and
+   the period; the balance is large enough that they read. */
+@font-face {
+  font-family: 'Sorts Mill Goudy';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/sorts-mill-goudy.ttf') format('truetype');
 }

@@ -56,7 +56,7 @@
     cell.className = 'cell';
     cell.innerHTML = '<div class="n"></div><iframe></iframe>';
     cell.querySelector('.n').textContent = t;
-    cell.querySelector('iframe').src = 'theme-surfaces.html?theme=' + encodeURIComponent(t);
+    cell.querySelector('iframe').src = 'theme-surfaces.html?theme=' + encodeURIComponent(t) + (new URLSearchParams(location.search).get('dir') ? '&dir=' + new URLSearchParams(location.search).get('dir') : '');
     grid.append(cell);
     cells[t] = cell;
   }

@@ -77,8 +77,11 @@ vm.runInContext(
   liftFn('function effectivePanelWidth(') + '\n' +
   liftFn('function updatePanelNarrow(') + '\n' +
   liftLine('const TOPBAR_FOLD = ') + '\n' +
-  liftLine('let topbarFolded = false;') + '\n' +
+  liftLine('const TOPBAR_FOLD_FIRST = ') + '\n' +
+  liftLine('const TOPBAR_FIXED = ') + '\n' +
+  liftLine('let topbarFolded = 0;') + '\n' +
   liftLine('const topbarRestore = new Map();') + '\n' +
+  liftFn('function topbarFoldCount(') + '\n' +
   liftFn('function applyTopbarFold(') + '\n' +
   liftFn('function topbarMoreOpen(') + '\n' +
   liftFn('function closeTopbarMore(') + '\n' +
@@ -458,7 +461,7 @@ test('THE TRAVELING MARK FOLLOWS A WRAPPED TAB\u2019S OWN ROW', () => {
 
 test('THE ⋯ FOLDS THE REST INTO THE TRAY AND GIVES THEM BACK WHOLE', () => {
   __window.innerWidth = 400;
-  __document.body.style.zoom = '1.5';
+  __document.body.style.zoom = '2'; // 200px: no room for more than the three that never fold
   updatePanelNarrow();
   assert.equal(__els['topbar-more-btn'].attrs['aria-expanded'], 'true');
   assert.ok(!__els['topbar-more-btn'].classes.has('hidden'), 'the affordance shows');
@@ -484,13 +487,37 @@ test('THE ⋯ FOLDS THE REST INTO THE TRAY AND GIVES THEM BACK WHOLE', () => {
 });
 
 test('FOLDING IS IDEMPOTENT, AND A SECOND ROUND TRIP STILL RESTORES', () => {
-  __document.body.style.zoom = '1.5'; updatePanelNarrow(); updatePanelNarrow();
+  __document.body.style.zoom = '2'; updatePanelNarrow(); updatePanelNarrow();
   assert.equal(__els['stream-entry'].parentElement, __els['topbar-more-menu'], 'no double move');
   __document.body.style.zoom = ''; updatePanelNarrow(); updatePanelNarrow();
   assert.equal(__els['stream-entry'].parentElement.id, 'group-content', 'no double restore');
-  __document.body.style.zoom = '1.5'; updatePanelNarrow();
+  __document.body.style.zoom = '2'; updatePanelNarrow();
   assert.equal(__els['stream-entry'].parentElement, __els['topbar-more-menu'], 'folds again cleanly');
   __document.body.style.zoom = ''; updatePanelNarrow();
+});
+
+// A panel a little under 340px used to fold all four, leaving a hundred pixels of empty bar. It now folds
+// the fewest it must, the least used first, and never one alone (the ⬧ would take its place).
+test('THE TOPBAR FOLDS ONLY AS MANY ICONS AS THE WIDTH MAKES NECESSARY', () => {
+  const inTray = () => ['search-btn', 'stream-entry', 'bookmarks-btn', 'help-btn']
+    .filter((id) => __els[id].parentElement === __els['topbar-more-menu']).join(',');
+  const at = (width) => { __document.body.style.zoom = ''; __window.innerWidth = width; updatePanelNarrow(); return inTray(); };
+  assert.equal(at(420), '', 'room to spare');
+  assert.equal(at(340), '', 'the old line: all seven icons fit here');
+  assert.equal(at(332), '', 'and still fit below it, which is the bar that sat half empty');
+  assert.equal(at(321), 'bookmarks-btn,help-btn', 'two make room for the ⬧; help goes first, then bookmarks');
+  assert.equal(at(290), 'stream-entry,bookmarks-btn,help-btn', 'then the live streams');
+  assert.equal(at(250), 'search-btn,stream-entry,bookmarks-btn,help-btn', 'search stays longest');
+  assert.ok(!__els['topbar-more-btn'].classes.has('hidden'));
+  // Coming back through every step leaves the row exactly as it was, with the tray shut.
+  assert.equal(at(321), 'bookmarks-btn,help-btn', 'a partial unfold puts back only what fits');
+  assert.equal(__els['group-content'].children.map((c) => c.id).join(','), 'notif-bell-btn,search-btn,stream-entry');
+  assert.equal(at(420), '');
+  assert.ok(__els['topbar-more-btn'].classes.has('hidden'));
+  assert.equal(__els['group-content'].children.map((c) => c.id).join(','),
+    'notif-bell-btn,search-btn,stream-entry,bookmarks-btn');
+  assert.equal(__els['group-chrome'].children.map((c) => c.id).join(','), 'help-btn,settings-btn,lock-btn');
+  __window.innerWidth = 400;
 });
 
 test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => {
@@ -498,7 +525,7 @@ test('THE TRAY IS WIRED LIKE THE ACCOUNT MENU, ON EVERY NARROW JUDGMENT', () => 
   assert.match(fn, /topbar-more-btn'\)\.addEventListener\('click'/);
   assert.match(fn, /!menu\.contains\(e\.target\) && !\$\('topbar-more-btn'\)\.contains\(e\.target\)/,
     'a click outside the tray closes it');
-  assert.match(bare, /applyTopbarFold\(narrow\);/, 'every narrow judgment folds or unfolds');
+  assert.match(bare, /applyTopbarFold\(topbarFoldCount\(narrow\)\);/, 'every narrow judgment folds or unfolds');
   assert.match(bare,
     /const TOPBAR_FOLD = \['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn'\];/,
     'bell, settings and lock stay visible: the badge, and the ways out');

@@ -198,6 +198,10 @@ button, input, select, textarea { font-family: inherit; }
   padding: 30px 24px;
 }
 .brand-lg { display: flex; align-items: center; margin-bottom: 18px; }
+/* The language choice under the first-run form. A quiet row, not a form field: the label
+   above a full-width select, with room around it so it is not read as part of the PIN form. */
+.ob-language { margin-top: 22px; display: flex; flex-direction: column; gap: 6px; }
+.ob-language label { font-size: 11.5px; color: var(--muted); }
 /* The lock screen's clock and board belong to Departures (themes/departures.css); every
    other theme keeps them out of the layout. */
 .lock-station { display: none; }
@@ -337,7 +341,7 @@ input, select, textarea {
 select {
   appearance: none;
   -webkit-appearance: none;
-  padding-right: 34px;
+  padding-inline-end: 34px;
   background: var(--select-caret) var(--select-caret-geo),
               var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
@@ -368,10 +372,10 @@ input:focus, select:focus, textarea:focus {
 /* ===== PIN / passphrase strength + match indicators ===== */
 /* A wrapper that floats a check/x at the right edge of a password box. */
 .pin-field { position: relative; width: 100%; }
-.pin-field input { padding-right: 38px; }
+.pin-field input { padding-inline-end: 38px; }
 .pin-indicator {
   position: absolute;
-  right: 12px;
+  inset-inline-end: 12px;
   top: 50%;
   transform: translateY(-50%);
   width: 18px;
@@ -429,7 +433,7 @@ input:focus, select:focus, textarea:focus {
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* profile ↔ wallet lightning-address sync prompt */
 .lud16-sync {
-  text-align: left; margin: 6px 0 14px; padding: 14px;
+  text-align: start; margin: 6px 0 14px; padding: 14px;
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--gold-soft); border-radius: 12px; box-shadow: var(--sheen);
 }
@@ -474,7 +478,7 @@ input:focus, select:focus, textarea:focus {
   display: flex; align-items: center; gap: 6px; width: 100%;
   margin: 2px 0; padding: 0; border: none; background: none;
   font: inherit; font-size: 13px; color: var(--lav);
-  text-align: left; cursor: pointer;
+  text-align: start; cursor: pointer;
 }
 .profile-pay-line:hover { color: var(--text); }
 /* One rule, because both lines now draw the same glyph. They used to carry different
@@ -569,7 +573,7 @@ input:focus, select:focus, textarea:focus {
 }
 .profile-about {
   font-size: 14px; line-height: 1.55; color: var(--text); margin: 12px 0;
-  white-space: pre-wrap; overflow-wrap: anywhere; text-align: left;
+  white-space: pre-wrap; overflow-wrap: anywhere; text-align: start;
 }
 .profile-about a { color: var(--lav); text-decoration: none; }
 .profile-about a:hover { text-decoration: underline; }
@@ -667,17 +671,17 @@ input:focus, select:focus, textarea:focus {
 .wallet-notice { color: var(--gold); margin-bottom: 16px; }
 /* Backup nudge: one line, so it sits inline with its action and dismiss control
    rather than becoming a stacked banner in a ~360px panel. */
-.wallet-backup-nudge { position: relative; color: var(--warn); margin: 2px 0 16px; padding-right: 18px; }
+.wallet-backup-nudge { position: relative; color: var(--warn); margin: 2px 0 16px; padding-inline-end: 18px; }
 /* The action is a <button> (it performs something, it doesn't navigate), but
    .explore-link was only ever used on <a> so it resets no button chrome — without
    these the UA's gray box and padding show through. */
 .wallet-backup-nudge .explore-link {
-  display: inline; color: inherit; text-decoration: underline; text-align: left;
+  display: inline; color: inherit; text-decoration: underline; text-align: start;
   background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
 }
 .wallet-backup-nudge .explore-link:hover { color: var(--text); }
 .wallet-nudge-x {
-  position: absolute; top: -2px; right: 0; padding: 0 2px; line-height: 1;
+  position: absolute; top: -2px; inset-inline-end: 0; padding: 0 2px; line-height: 1;
   background: none; border: 0; color: var(--faint); font-size: 15px; cursor: pointer;
 }
 .wallet-nudge-x:hover { color: var(--text); }
@@ -824,7 +828,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
 /* 4px, not 2: with five icons the hover pills were close enough to touch and the
    row read as one undifferentiated strip. Wider than this and they stop reading
    as a set. */
-.topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.topbar-actions { display: flex; align-items: center; gap: 4px; margin-inline-start: auto; }
 /* Atomic at every width: the gaps inside a group match the gaps between groups, so
    one row of seven looks identical to before the groups existed. They matter only
    when body.panel-narrow wraps the row — a wrap lands between groups. */
@@ -834,7 +838,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    right, under the ⬧ button; the dip open and closed is the account menu's, on the
    same dropdown tokens. */
 .topbar-more-menu {
-  position: absolute; top: calc(100% + 4px); right: 10px;
+  position: absolute; top: calc(100% + 4px); inset-inline-end: 10px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--border-strong); border-radius: 14px;
@@ -863,7 +867,7 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rg
    Nothing shrinks: the rows stack, which is the narrow-panel rule this leans on.
    The traveling tab mark follows the active tab's row (wireTabSlider writes its top
    from the measured item). */
-body.panel-narrow .topbar { flex-wrap: wrap; row-gap: 4px; padding-left: 10px; padding-right: 10px; }
+body.panel-narrow .topbar { flex-wrap: wrap; row-gap: 4px; padding-inline-start: 10px; padding-inline-end: 10px; }
 body.panel-narrow .topbar-actions { flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
 body.panel-narrow .tabs { flex-wrap: wrap; }
 body.panel-narrow .tab { flex: 1 1 45%; }
@@ -985,7 +989,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 .search-status.error { color: var(--warn); }
 
 .acct-menu {
-  position: absolute; top: calc(100% + 4px); left: 10px; right: 10px;
+  position: absolute; top: calc(100% + 4px); inset-inline-start: 10px; inset-inline-end: 10px;
   width: auto; max-width: calc(100% - 20px);
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--border-strong); border-radius: 14px;
@@ -1016,13 +1020,13 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   .acct-menu { transition: none !important; }
 }
 .acct-row {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
   background: transparent; border: none; cursor: pointer; color: var(--text);
   padding: 9px 10px; border-radius: 10px;
 }
 .acct-row:hover { background: var(--hover-medium); }
 .acct-row.active { background: rgba(var(--accent-rgb), 0.08); }
-.acct-row-pending { background: rgba(var(--accent-rgb), 0.12) !important; border-left: 2px solid var(--gold); }
+.acct-row-pending { background: rgba(var(--accent-rgb), 0.12) !important; border-inline-start: 2px solid var(--gold); }
 /* Pending confirm ("Set as active?" / "Tap again to confirm").
    The sub-label used --gold-soft, which is a 50%-ALPHA token meant for borders. As a text
    color it blends toward whatever is behind it, so it can't be reasoned about from the
@@ -1043,7 +1047,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   display: flex; align-items: center; gap: 10px;
   flex: 1; min-width: 0;
   background: transparent; border: none; padding: 0;
-  font: inherit; color: inherit; text-align: left;
+  font: inherit; color: inherit; text-align: start;
   cursor: pointer;
 }
 .acct-row:has(.acct-row-main:not(button)) { cursor: default; }
@@ -1239,7 +1243,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 /* Centered in the game's 40px HUD band at 2x, the panel's usual scale. placeRiderClose()
    in sidepanel.js re-centers it for whatever scale the frame actually got. */
 .rider-close {
-  position: absolute; top: 5px; right: 5px; z-index: 2;
+  position: absolute; top: 5px; inset-inline-end: 5px; z-index: 2;
   width: 30px; height: 30px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(14, 14, 20, 0.72); border: 1px solid #2a2a36; border-radius: 8px;
@@ -1259,7 +1263,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 .modal.compose-modal { max-width: 620px; }
 
 .modal-x {
-  position: absolute; top: 12px; right: 12px; z-index: 2;
+  position: absolute; top: 12px; inset-inline-end: 12px; z-index: 2;
   width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
 }
@@ -1268,7 +1272,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 /* The other corner, for a sheet that was pushed on top of another one. Same metrics as
    the close box on purpose: they are a pair, and an arrow drawn smaller than the X beside
    it would read as the lesser of the two when it is the one people reach for. */
-.modal-back { left: 12px; right: auto; }
+.modal-back { inset-inline-start: 12px; inset-inline-end: auto; }
 /* A heading has to clear whatever is parked in the corner above it, and it sits centered
    between the two. Both corners are reserved whether or not a back arrow is there, which
    is what puts the title on the sheet's midline: the buttons are inset 12px and 30px wide,
@@ -1276,7 +1280,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
    mean a tally opened from the bell and the same tally opened from the banner after
    posting put their heading in two different places, and left-aligned it sat 34px in from
    the copy below it, which is a third position belonging to nothing. */
-.modal-sheet > h3 { padding-left: 34px; padding-right: 34px; text-align: center; }
+.modal-sheet > h3 { padding-inline-start: 34px; padding-inline-end: 34px; text-align: center; }
 
 /* filled lightning bolt (wordswithzaps bolt), inline with text */
 .bolt-ico { height: 0.92em; width: auto; display: inline-block; vertical-align: -0.1em; }
@@ -1300,7 +1304,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
    center and up to the top. Only one screen is ever visible, so there is no chance of two
    of these overlapping. */
 .pre-version-row {
-  position: fixed; left: 0; right: 0; bottom: 10px;
+  position: fixed; inset-inline-start: 0; inset-inline-end: 0; bottom: 10px;
   /* Above any background marking a theme paints on the section — Par Avion's postmarks
      sit down here, and this is the one element that shares the space with them. */
   z-index: 2;
@@ -1347,7 +1351,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 /* zap-the-creator inline send */
 .zap-inline { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
 .zap-inline input { flex: 1; min-width: 0; }
-.zap-inline .primary { flex: 0 0 auto; width: auto; min-width: 104px; padding-left: 18px; padding-right: 18px; }
+.zap-inline .primary { flex: 0 0 auto; width: auto; min-width: 104px; padding-inline-start: 18px; padding-inline-end: 18px; }
 .zap-noconnect { text-align: center; margin-top: 12px; }
 /* The caveat under the hint, dimmer than it: the hint tells you what to do with the
    code, this only says why there is no amount field. Two lines at the same weight
@@ -1408,7 +1412,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 }
 .active-account.welcome-mode::before { display: none; }
 .welcome { position: relative; }
-.welcome-sparks { position: absolute; left: 0; right: 0; top: 0; height: 120px; pointer-events: none; }
+.welcome-sparks { position: absolute; inset-inline-start: 0; inset-inline-end: 0; top: 0; height: 120px; pointer-events: none; }
 .welcome-mark { position: relative; width: 76px; height: 76px; margin: 6px auto 16px; display: flex; align-items: center; justify-content: center; }
 .welcome-mark::before {
   content: ''; position: absolute; inset: -18px; border-radius: 50%;
@@ -1419,7 +1423,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 .welcome-sub { font-size: 13.5px; line-height: 1.6; color: var(--muted); max-width: 300px; margin: 0 auto; text-wrap: balance; }
 .welcome-cta { font-size: 13px; line-height: 1.5; color: var(--lav); max-width: 300px; margin: 10px auto 0; text-wrap: balance; }
 .welcome-tip {
-  display: flex; align-items: center; gap: 9px; text-align: left;
+  display: flex; align-items: center; gap: 9px; text-align: start;
   max-width: 300px; margin: 18px auto 0; padding: 10px 13px;
   border: 1px solid var(--gold-soft); border-radius: 12px;
   background: rgba(var(--accent-rgb), 0.08);
@@ -1431,8 +1435,8 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
    welcome tip but dismissible and visible from any tab */
 .switch-tip {
   position: relative;
-  text-align: left;
-  margin: 10px 14px 0; padding: 11px 30px 12px 13px;
+  text-align: start;
+  margin: 10px 14px 0; padding-block: 11px 12px; padding-inline: 13px 30px;
   border: 1px solid var(--gold-soft); border-radius: 12px;
   background: rgba(var(--accent-rgb), 0.08);
   text-wrap: pretty;
@@ -1486,7 +1490,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
    the edition's own face (each edition's sheet sets that, keyed on data-edition), and the
    two buttons take their own full-width row beneath, stretched to share it (the
    narrow-panel rule in CLAUDE.md). */
-.season-card { padding-right: 13px; }
+.season-card { padding-inline-end: 13px; }
 .season-card-preview { margin: 8px 0 7px; }
 .season-card-preview .theme-preview { border-radius: 7px; }
 .season-card-name {
@@ -1562,7 +1566,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   transition: border-color 0.15s, transform 0.12s;
 }
 .item:hover { border-color: var(--border-strong); }
-.grip-handle { display: flex; align-items: center; color: var(--muted); opacity: 0.35; cursor: grab; flex-shrink: 0; margin-right: -2px; transition: opacity 0.15s; }
+.grip-handle { display: flex; align-items: center; color: var(--muted); opacity: 0.35; cursor: grab; flex-shrink: 0; margin-inline-end: -2px; transition: opacity 0.15s; }
 .grip-handle:active { cursor: grabbing; }
 .item:hover .grip-handle { opacity: 0.65; }
 .item.dragging { opacity: 0.4; transform: scale(0.98); }
@@ -1573,7 +1577,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 .item.drag-over-bottom::after {
   content: '';
   position: absolute;
-  left: 6px; right: 6px;
+  inset-inline-start: 6px; inset-inline-end: 6px;
   height: 3px;
   border-radius: 3px;
   background: var(--gold);
@@ -1627,6 +1631,19 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   cursor: pointer;
 }
 .account-stats-toggle:hover { color: var(--text); }
+/* The header row wraps the toggle so a refresh can sit beside it without
+   living inside the button it sits beside. */
+.account-stats-head { display: flex; align-items: center; }
+.account-stats-head .account-stats-toggle { flex: 1; min-width: 0; }
+.account-stats-refresh {
+  flex-shrink: 0; width: 26px; height: 26px; margin-right: 10px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
+}
+.account-stats-refresh:hover { color: var(--text); }
+.account-stats-refresh svg { width: 14px; height: 14px; }
+.account-stats-refresh.spinning svg { animation: spin 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .account-stats-refresh.spinning svg { animation: none; opacity: 0.5; } }
 .account-stats-chevron {
   width: 14px; height: 14px;
   transition: transform 0.2s ease;
@@ -1697,17 +1714,20 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   font-size: 12px;
   color: var(--muted);
   flex-shrink: 0;
-  width: 56px;
+  /* A floor, not a width: 56px fit English, and a longer or unbroken label (ウォレット, Кошелёк)
+     wrapped mid-word in it. The value beside it is the part that gives way, with an ellipsis. */
+  min-width: 56px;
+  white-space: nowrap;
 }
 .account-stat-id-val {
   font-size: 12px;
   font-weight: 600;
-  text-align: right;
+  text-align: end;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1772,7 +1792,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
 .notif-badge {
   position: absolute;
   top: -5px;
-  right: -5px;
+  inset-inline-end: -5px;
   background: var(--badge-bg, var(--orange));
   /* 9px/700 is small text, so the count needs 4.5:1 on whatever it sits on. White is
      right on a deep badge and wrong on a bright one — it measured 2.6-2.9 in Speakeasy,
@@ -1869,7 +1889,7 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 .notif-action {
   font-size: 12px;
   color: var(--muted);
-  margin: 2px 0 0 22px;
+  margin-block: 2px 0; margin-inline: 22px 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1877,8 +1897,8 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 
 /* What a reply is answering, above the editor. Same role as .webcomment-target. */
 .reply-target {
-  border-left: 2px solid var(--gold);
-  padding: 2px 0 2px 10px;
+  border-inline-start: 2px solid var(--gold);
+  padding-block: 2px 2px; padding-inline: 10px 0;
   margin: 10px 0 4px;
 }
 /* The word that says what this block is. Without it the quote read as decoration, and a
@@ -1927,8 +1947,8 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 .reply-target::after {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   bottom: 0;
   height: 22px;
   background: linear-gradient(to bottom, transparent, var(--velvet-2));
@@ -1951,7 +1971,7 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 /* The tab was sent to answer something and could not find it. Warn-colored rather
    than muted: what follows is a note that will publish detached from its thread,
    which is worth interrupting for. */
-.reply-target-lost { border-left-color: var(--warn); }
+.reply-target-lost { border-inline-start-color: var(--warn); }
 .reply-target-lost .reply-target-name { color: var(--warn); }
 .reply-target-dbg { opacity: 0.55; font-size: 10px; word-break: break-all; margin-top: 4px; }
 /* ---- code in a note ----
@@ -1964,7 +1984,7 @@ a.notif-clickable:hover { background: var(--hover-soft); }
    with the content the moment a long line was read. */
 .note-code-wrap { position: relative; }
 .note-code-copy {
-  position: absolute; top: 6px; right: 6px;
+  position: absolute; top: 6px; inset-inline-end: 6px;
   width: 24px; height: 24px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border); border-radius: 6px;
@@ -1974,7 +1994,7 @@ a.notif-clickable:hover { background: var(--hover-soft); }
 .note-code-copy:hover { color: var(--text); border-color: var(--border-strong); }
 .note-code-copy.ok { color: var(--success); border-color: var(--success); }
 /* Room for it, so the first line of code does not start underneath the button. */
-pre.note-code { padding-right: 36px; }
+pre.note-code { padding-inline-end: 36px; }
 pre.note-code {
   margin: 8px 0;
   padding: 9px 10px;
@@ -2037,7 +2057,7 @@ pre.note-code code {
   cursor: auto;
 }
 .media-lightbox-x {
-  position: absolute; top: 12px; right: 12px;
+  position: absolute; top: 12px; inset-inline-end: 12px;
   width: 32px; height: 32px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border); border-radius: 50%;
@@ -2046,7 +2066,7 @@ pre.note-code code {
 .media-lightbox-x svg { width: 15px; height: 15px; }
 .media-lightbox-x:hover { border-color: var(--gold-soft); }
 .note-media-zoom {
-  position: absolute; top: 6px; right: 6px;
+  position: absolute; top: 6px; inset-inline-end: 6px;
   width: 24px; height: 24px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border); border-radius: 6px;
@@ -2060,7 +2080,7 @@ pre.note-code code {
 .notif-content {
   font-size: 12.5px;
   color: var(--text-2);
-  margin: 4px 0 0 22px;
+  margin-block: 4px 0; margin-inline: 22px 0;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -2074,7 +2094,7 @@ pre.note-code code {
 .notif-link { display: flex; align-items: center; color: var(--faint); flex-shrink: 0; }
 a.notif-clickable:hover .notif-link { color: var(--lav); }
 .notif-link svg { width: 13px; height: 13px; }
-.notif-media { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 0 22px; }
+.notif-media { display: flex; flex-wrap: wrap; gap: 6px; margin-block: 7px 0; margin-inline: 22px 0; }
 .notif-thumb {
   width: 72px;
   height: 72px;
@@ -2088,7 +2108,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 7px 0 0 22px;
+  margin-block: 7px 0; margin-inline: 22px 0;
   padding: 3px 9px;
   background: var(--velvet-1);
   border: 1px solid var(--border);
@@ -2134,12 +2154,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    is display:block and centered, which breaks the sentence in half. Same treatment
    .wallet-notice .explore-link already gets, as a reusable modifier. */
 .explore-link.inline { display: inline; color: inherit; text-align: inherit; text-decoration: underline; }
+/* The drafts hint under the language picker: its link ends the sentence, so it stays inline
+   and left-aligned, and takes the accent color so it reads as a link. */
+#language-setting .explore-link { display: inline; text-align: inherit; color: var(--lav); text-decoration: underline; }
+#language-setting .explore-link:hover { color: var(--text); }
 .explore-link.share-link { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .share-link svg { width: 14px; height: 14px; }
 #share-sidecar-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 #share-sidecar-btn svg { width: 16px; height: 16px; }
 .first-post-balloon {
-  position: absolute; bottom: 90px; right: 12px; z-index: 49;
+  position: absolute; bottom: 90px; inset-inline-end: 12px; z-index: 49;
   background: var(--balloon-bg, var(--amber)); color: var(--balloon-text, #1a0e08);
   font-size: 12px; font-weight: 600;
   padding: 7px 13px; border-radius: 10px;
@@ -2224,7 +2248,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   background: none;
   font: inherit;
   color: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .settings-section-toggle:hover { color: var(--gold); }
@@ -2236,7 +2260,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   transition: transform 0.18s ease;
 }
 .settings-section.open .settings-section-toggle svg { transform: rotate(180deg); }
-.settings-section-body { padding-left: 2px; }
+.settings-section-body { padding-inline-start: 2px; }
 .settings-section:not(.open) .settings-section-body { display: none; }
 /* Closed rows carry no header-to-content gap either — every collapsed section
    pitches identically, and open ones add just the 8px step to their content. */
@@ -2281,7 +2305,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    DISABLED rather than hidden: a control that appears and disappears as you tick the
    one above reads as a glitch, and the stored answer is still there for when the
    parent comes back on. */
-.toggle-row.toggle-sub { margin-left: 26px; }
+.toggle-row.toggle-sub { margin-inline-start: 26px; }
 .toggle-row:has(input:disabled) { opacity: 0.4; cursor: default; }
 .toggle-row:has(input:disabled) input[type=checkbox] { cursor: default; }
 
@@ -2471,7 +2495,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   width: 16px; height: 16px; margin: 0; flex-shrink: 0; cursor: pointer;
   accent-color: var(--orange);
 }
-.nip65-rm { margin-left: auto; }
+.nip65-rm { margin-inline-start: auto; }
 /* The health verdict sits on its own line under the URL. .nip65-url is break-all and
    wraps to whatever the sidebar allows, so anything sharing that line interleaves with
    the wrap — this is the stacked answer, not a squeezed one. */
@@ -2574,7 +2598,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .hl-item-passage {
   font-size: 13px; line-height: 1.45; color: var(--text);
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-  border-left: 2px solid var(--gold-soft); padding-left: 8px;
+  border-inline-start: 2px solid var(--gold-soft); padding-inline-start: 8px;
 }
 /* entries whose events the relays no longer return: below the found ones,
    under a divider, dimmed — present (they're still bookmarks) but quiet */
@@ -2653,7 +2677,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .lazarus-relay .role, .lazarus-relay .state { flex-shrink: 0; }
 .lazarus-relay .role { color: var(--faint); }
 .lazarus-relay.bad .state { color: var(--warn); }
-.restore-list { margin: 4px 0 10px; padding-left: 20px; color: var(--text); }
+.restore-list { margin: 4px 0 10px; padding-inline-start: 20px; color: var(--text); }
 .restore-list li { margin: 3px 0 12px; }
 
 .show-more-btn { display: block; width: 100%; margin: 4px 0 10px; color: var(--lav); font-weight: 600; }
@@ -2710,7 +2734,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .site-shared svg { width: 13px; height: 13px; flex-shrink: 0; }
 .site-shared-manage {
-  margin-left: auto; background: none; border: none; cursor: pointer;
+  margin-inline-start: auto; background: none; border: none; cursor: pointer;
   color: var(--lav); font-size: 11.5px; font-weight: 600; padding: 2px 4px;
 }
 .site-shared-manage:hover { color: var(--text); text-decoration: underline; }
@@ -2728,7 +2752,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* The standing-grant explanation on the approval card, under its checkbox: names
    the site, account, kind, and `d` record the grant would cover. */
-.always-kind-note { font-size: 11.5px; color: var(--faint); line-height: 1.45; margin-top: 2px; }
 /* The shared-identity opt-out, under the account list in the site's Manage sheet. Just
    a separator and spacing: the row inside uses .toggle-row, which is the panel's own
    switch, and the explanation is a sibling .hint beneath it rather than a column wedged
@@ -2888,7 +2911,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .notif-offnet-toggle {
   display: flex; align-items: center; gap: 8px; width: 100%;
   background: transparent; border: none; cursor: pointer;
-  color: var(--muted); font-size: 12.5px; text-align: left;
+  color: var(--muted); font-size: 12.5px; text-align: start;
   padding: 10px 12px; border-radius: 8px;
 }
 .notif-offnet-toggle:hover { background: var(--hover-medium); color: var(--text); }
@@ -2952,7 +2975,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .webcomment-done { display: flex; flex-direction: column; gap: 7px; margin-top: 6px; }
 .webcomment-done-title { font-weight: 600; font-size: 13.5px; color: var(--success); }
-.webcomment-done .explore-link { text-align: left; }
+.webcomment-done .explore-link { text-align: start; }
 
 /* first-run profile setup wizard */
 .setup-progress { font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
@@ -2964,7 +2987,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 
 /* ===== compose note (FAB) ===== */
 .fab {
-  position: absolute; bottom: 18px; right: 16px; z-index: 50;
+  position: absolute; bottom: 18px; inset-inline-end: 16px; z-index: 50;
   width: 54px; height: 54px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   color: var(--fab-icon, #1a0e08); border: none; cursor: pointer;
@@ -3035,7 +3058,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* @mention autocomplete dropdown */
 .ac-dropdown {
-  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+  position: absolute; top: calc(100% + 4px); inset-inline-start: 0; inset-inline-end: 0; z-index: 50;
   background: var(--bg-2); border: 1px solid var(--border-strong); border-radius: 10px;
   box-shadow: var(--shadow); max-height: 200px; overflow-y: auto;
 }
@@ -3048,12 +3071,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    in a ~360px dropdown the mark is the part that distinguishes six identical rows,
    so it is the last thing that should be allowed to shrink. */
 .ac-item-trust {
-  margin-left: auto; flex-shrink: 0;
+  margin-inline-start: auto; flex-shrink: 0;
   font-size: 11px; color: var(--muted); white-space: nowrap;
 }
 .ac-item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 /* At the right edge when there is no trust mark to push it there. */
-.ac-item-name + .ac-item-actions { margin-left: auto; }
+.ac-item-name + .ac-item-actions { margin-inline-start: auto; }
 /* On the profile card: centered under the follower line, not on the card's own sheet
    when it is opened to zap a stream comment (the card is a payment there). */
 .peek-person-actions { justify-content: center; gap: 10px; margin: 14px 0 2px; }
@@ -3087,7 +3110,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    whole box. */
 .na-ask { padding: 9px 12px 10px; }
 .na-ask:not(:last-child) { border-bottom: 1px solid var(--border); }
-.na-ask-text { margin: 0 0 8px; font-size: 12px; line-height: 1.45; color: var(--muted); text-align: left; }
+.na-ask-text { margin: 0 0 8px; font-size: 12px; line-height: 1.45; color: var(--muted); text-align: start; }
 .na-ask-actions { display: flex; gap: 6px; }
 /* Yes carries the accent (it's the more interesting answer and the one the
    disclosure is about), No stays quiet — a coin-flip styling would make
@@ -3138,7 +3161,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    underline — the snippet is for reading, the click is the escape hatch. */
 .quote-inline {
   display: block; margin: 6px 0 2px; padding: 7px 10px;
-  border-left: 2px solid var(--border-strong); border-radius: 0 8px 8px 0;
+  border-inline-start: 2px solid var(--border-strong); border-radius: 0 8px 8px 0;
   background: rgba(var(--well-rgb), 0.4);
   font-size: 12px; line-height: 1.45; color: var(--text-2);
   text-decoration: none;
@@ -3154,7 +3177,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    quiet attribute line, so --muted — the caption says the note CONTAINS an
    invoice, it isn't asking for payment. */
 .quote-inline-meta { margin-top: 6px; color: var(--muted); font-size: 11.5px; }
-.quote-inline:hover { border-left-color: var(--gold-soft); color: var(--text); }
+.quote-inline:hover { border-inline-start-color: var(--gold-soft); color: var(--text); }
 .quote-inline.loading { color: var(--faint); }
 .embed-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .embed-av { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); border: 1px solid var(--border); }
@@ -3212,7 +3235,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-thumb.has-frame .compose-thumb-vid svg { width: 11px; height: 11px; }
 .compose-thumb.has-frame .compose-thumb-vid span { font-size: 8px; }
 .compose-thumb-x {
-  position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; padding: 0;
+  position: absolute; top: 3px; inset-inline-end: 3px; width: 22px; height: 22px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%; border: none; cursor: pointer; color: #fff; background: rgba(5, 0, 12, 0.7);
 }
@@ -3223,7 +3246,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    squeezed down. Accent when the image is described, so a strip of mixed images shows
    at a glance which ones still need the words. */
 .compose-thumb-alt {
-  position: absolute; top: 3px; left: 3px; height: 22px; padding: 0 7px;
+  position: absolute; top: 3px; inset-inline-start: 3px; height: 22px; padding: 0 7px;
   display: flex; align-items: center;
   border-radius: 7px; border: none; cursor: pointer;
   color: #fff; background: rgba(5, 0, 12, 0.85);
@@ -3270,14 +3293,14 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .compose-alt-ring.is-near .ring-fill { stroke: var(--amber); }
 .compose-alt-count {
-  flex-shrink: 0; min-width: 4ch; text-align: right;
+  flex-shrink: 0; min-width: 4ch; text-align: end;
   font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
 }
 .compose-alt-ring.is-near + .compose-alt-count { color: var(--amber); }
 /* A ghost at its natural width, not a filled one stretched across the row: saving
    a description is the least of the three decisions on this row, and the orange
    fill claimed a prominence the row does not have to give. */
-.compose-alt-save { margin-left: auto; }
+.compose-alt-save { margin-inline-start: auto; }
 /* ---- the attachments' reference drawer ----
    The URLs leave the editor and are appended to the content at publish, so the
    strip needs one line saying where they went, and a drawer for whoever wants to
@@ -3293,7 +3316,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .compose-media-toggle svg { width: 14px; height: 14px; flex-shrink: 0; transition: transform 150ms ease; }
 .compose-media-toggle.open svg { transform: rotate(180deg); }
 .compose-media-toggle-label {
-  flex: 1; min-width: 0; text-align: left;
+  flex: 1; min-width: 0; text-align: start;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* The quote offer, under the collapsed line: a plain text action in the accent color,
@@ -3307,6 +3330,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    author, clipped text), full width so a row of pictures ends where it begins. */
 .compose-thumbs .quote-block { flex: 0 0 100%; box-sizing: border-box; margin: 2px 0; min-width: 0; max-width: 100%; }
 .quote-block .reply-target-label { align-items: center; }
+/* The kind rides between the label and the action icons: pushed right as a
+   pair with the icons, the way the reply view's KIND sits at its row's end. */
+.quote-block .reply-target-kind { margin-inline-start: auto; }
 /* The pictures' label beside a quote: the quote block's label, without its gold rule. */
 .compose-thumbs .attach-group-label {
   flex: 0 0 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%;
@@ -3362,8 +3388,8 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%; border: none; cursor: pointer; color: #fff; background: rgba(5, 0, 12, 0.7);
 }
-.compose-thumb-move.left { left: 3px; }
-.compose-thumb-move.right { right: 3px; }
+.compose-thumb-move.left { inset-inline-start: 3px; }
+.compose-thumb-move.right { inset-inline-end: 3px; }
 .compose-thumb-move svg { width: 11px; height: 11px; }
 /* While the review window is up, the card shows the review window and nothing else.
    It renders the final post — prose and attachments, the composed string — so the
@@ -3450,9 +3476,9 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
    tab so the baseline lines up, and no bottom border so it never reads as a third tab that
    could be selected. */
 .compose-expand {
-  margin-left: auto;
+  margin-inline-start: auto;
   background: none; border: none; cursor: pointer;
-  color: var(--muted); padding: 6px 2px 6px 10px;
+  color: var(--muted); padding-block: 6px 6px; padding-inline: 10px 2px;
   display: inline-flex; align-items: center;
 }
 .compose-expand svg { width: 16px; height: 16px; }
@@ -3500,7 +3526,7 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
    the guide's height, which the card below subtracts. The margins are equal, so the box
    stays centered on the wordmark's line, and larger than any overhang, so no theme's
    border can push the bar taller. */
-.compose-topbar .compose-x { margin: -12px 0 -12px auto; flex-shrink: 0; }
+.compose-topbar .compose-x { margin-block: -12px -12px; margin-inline: auto 0; flex-shrink: 0; }
 .compose-body {
   display: flex; justify-content: center;
   min-height: calc(calc(100vh / var(--panel-zoom, 1)) - var(--compose-topbar-h));
@@ -3530,7 +3556,7 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
    saved-drafts folder here, and the highlight window's close box, which stays in its
    card. */
 .compose-sheet { position: relative; }
-.compose-x { top: 14px; right: 14px; }
+.compose-x { top: 14px; inset-inline-end: 14px; }
 /* Held back until boot has a theme and a draft to show (compose-boot.js): the card would
    otherwise paint empty, and the wordmark in the wrong cut, for as long as the worker
    takes to answer. The close box in the bar goes with them: it is painted in the theme's
@@ -3539,7 +3565,7 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 html.compose-booting .compose-sheet,
 html.compose-booting .compose-brand,
 html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
-.compose-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
+.compose-head { display: flex; align-items: center; gap: 12px; padding-inline-end: 34px; }
 .compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .compose-av { width: 40px; height: 40px; flex-shrink: 0; }
 .compose-who-text { display: flex; flex-direction: column; min-width: 0; }
@@ -3550,9 +3576,9 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-sub { font-size: 12px; color: var(--muted); }
 .compose-count {
   font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
-  /* Pushes the two ways out of the page to the right edge, leaving the status line the
-     whole left half to say something in. */
-  margin-right: auto;
+  /* Pushes Post to the right edge, leaving the status line the whole left half to say
+     something in. */
+  margin-inline-end: auto;
 }
 /* THE POINT OF THE PAGE. 17px over the panel's 14, with the line height to match: the
    panel's type is sized for a 360px column and reads as cramped the moment it is not in
@@ -3623,9 +3649,11 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
    stays reserved while the folder is hidden, so a draft arriving does not move the
    name's ellipsis. */
 /* Match the card's 24px content inset, including the count badge's 2px overhang. */
-.compose-sheet .compose-drafts-btn { top: 24px; right: 26px; }
+.compose-sheet .compose-drafts-btn { top: 24px; inset-inline-end: 26px; }
 .compose-drafts-title { margin: 0 0 12px; }
 .compose-drafts-back { align-self: center; margin-top: 12px; }
+/* The open draft's own parts, put away while the list of other drafts is up (showTab). */
+.drafts-away { display: none !important; }
 .compose-drafts-pane {
   display: flex; flex-direction: column; box-sizing: border-box; min-height: var(--compose-pane-h);
 }
@@ -3639,15 +3667,15 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 }
 .saved-draft:hover { border-color: var(--gold-soft); }
 .saved-draft-open {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: left;
-  padding: 10px 4px 10px 12px; background: none; border: none; cursor: pointer; color: var(--text);
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: start;
+  padding-block: 10px 10px; padding-inline: 12px 4px; background: none; border: none; cursor: pointer; color: var(--text);
 }
 .saved-draft-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .saved-draft-label {
   min-width: 0; font-size: 13px; font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.saved-draft-when { margin-left: auto; flex-shrink: 0; font-size: 12px; color: var(--muted); }
+.saved-draft-when { margin-inline-start: auto; flex-shrink: 0; font-size: 12px; color: var(--muted); }
 .saved-draft-snip {
   font-size: 13px; color: var(--text-2); line-height: 1.45;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -3725,14 +3753,14 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-done-relays summary::-webkit-details-marker { display: none; }
 .compose-done-relays summary::after {
   content: ''; width: 6px; height: 6px; margin-top: -3px;
-  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg);
+  border-inline-end: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg);
 }
 .compose-done-relays[open] summary::after { margin-top: 3px; transform: rotate(-135deg); }
 .compose-done-relays summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 4px; }
 .compose-done-relays p { margin: 6px 0 0; }
 /* The same row in the panel's post banner: left-aligned under the message, the stacked
    banner's full width, the way its other rows sit. */
-.post-banner-relays { margin: 2px 0 4px; text-align: left; }
+.post-banner-relays { margin: 2px 0 4px; text-align: start; }
 .compose-done-actions {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
   gap: 10px; margin-top: 14px;
@@ -3796,7 +3824,7 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
    the offer, not to its refusal — and it does not shrink the offer to fit: the row
    has room for both, and the button keeps its label whole. */
 .attach-x {
-  flex-shrink: 0; width: 26px; height: 26px; padding: 0; margin-left: 8px;
+  flex-shrink: 0; width: 26px; height: 26px; padding: 0; margin-inline-start: 8px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 6px; border: none; cursor: pointer; color: var(--muted); background: none;
 }
@@ -3930,13 +3958,15 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
    open on a browser that doesn't support it. */
 .balances-hidden .wallet-balance,
 .balances-hidden .tx-amt,
-.balances-hidden .pinned-balance-amt {
+.balances-hidden .pinned-balance-amt,
+.balances-hidden .btc-sweep-amt {
   position: relative;
   visibility: hidden;
 }
 .balances-hidden .wallet-balance::after,
 .balances-hidden .tx-amt::after,
-.balances-hidden .pinned-balance-amt::after {
+.balances-hidden .pinned-balance-amt::after,
+.balances-hidden .btc-sweep-amt::after {
   content: '••••';
   visibility: visible;
   position: absolute;
@@ -4003,7 +4033,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 /* Pin toggle on the balance card (bottom-right). Only visible while the bar is
    unpinned — the card hides once pinned — so it's a one-way "pin" affordance. */
 .wallet-pin {
-  position: absolute; bottom: 8px; right: 10px; width: 30px; height: 30px; padding: 0;
+  position: absolute; bottom: 8px; inset-inline-end: 10px; width: 30px; height: 30px; padding: 0;
   border-radius: 50%; cursor: pointer; background: transparent; border: 1px solid var(--border);
   color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
 }
@@ -4012,7 +4042,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 
 /* Price-chart toggle — mirrors .wallet-pin on the opposite corner. */
 .wallet-chart-btn {
-  position: absolute; bottom: 8px; left: 10px; width: 30px; height: 30px; padding: 0;
+  position: absolute; bottom: 8px; inset-inline-start: 10px; width: 30px; height: 30px; padding: 0;
   border-radius: 50%; cursor: pointer; background: transparent; border: 1px solid var(--border);
   color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
   transition: color 0.15s, border-color 0.15s;
@@ -4057,6 +4087,10 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
      breakable phrases, so a narrow card puts one on the next line, centered. */
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; justify-content: center;
   font-family: var(--font-ui); font-size: 11.5px; color: var(--muted); margin-top: 2px;
+  /* The chart is full-bleed (the slot cancels the card's 16px padding); the figures are
+     not, so they wrap at the card's inner edge instead of running to its border. A long
+     locale format ("US$77.275,06 – US$78.110,24") is what showed it. */
+  padding: 0 16px;
 }
 .wallet-chart-meta > span { white-space: nowrap; }
 .wallet-chart-delta.up { color: var(--success); }
@@ -4156,7 +4190,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    "refresh" click landed on the figure and cycled sats → BTC → fiat. A real
    control never loses a click to a decorative halo, in any theme. */
 .wallet-refresh {
-  position: absolute; top: 10px; right: 10px; z-index: 1;
+  position: absolute; top: 10px; inset-inline-end: 10px; z-index: 1;
   width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
 }
@@ -4169,7 +4203,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   .wallet-refresh.spinning svg { animation: none; opacity: 0.5; }
 }
 .wallet-eye {
-  position: absolute; top: 10px; left: 10px; z-index: 1; /* see .wallet-refresh */
+  position: absolute; top: 10px; inset-inline-start: 10px; z-index: 1; /* see .wallet-refresh */
   width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center;
   background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
 }
@@ -4212,6 +4246,19 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    a full button treatment would fight the card's typography. */
 .wallet-balance, .pinned-balance-amt { cursor: pointer; user-select: none; }
 .wallet-balance:hover, .pinned-balance-amt:hover { filter: brightness(1.12); }
+/* A figure reads left to right on a right-to-left page. splitGlyphs deals every
+   character into its own inline-block span, and the bidi algorithm treats an
+   inline-block as an opaque object, so under dir="rtl" the row laid itself out from the
+   right and 48,422 came out as 224,84. The same goes for the countdown digits (30 read
+   03) and for a sign sitting beside a number: the "+" and "−" of a transaction row went
+   to the far end ("21,000+"). Setting the direction on the figure itself, and isolating
+   it, keeps the order whatever the page's direction is; text-align and the flex centering
+   around it are untouched, so the card still mirrors. Not the "1 BTC = 1 BTC" line:
+   that is a translated sentence and follows the page. */
+.wallet-balance:not(.btc-joke), .pinned-balance-amt, .countdown-num, .tx-amt,
+.wallet-chart-lowhigh, .wallet-chart-price {
+  direction: ltr; unicode-bidi: isolate;
+}
 /* Currency symbols set in Playfair at the balance's size swamp the digits — worst
    for the currencies Intl renders as a three-letter code ("CHF", "NGN"). Set them in
    the UI face at ~0.6-0.7em, nudged up toward the numerals' cap height, and slightly
@@ -4232,7 +4279,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   font-weight: 600;
   color: var(--fiat-sym-ink, currentColor);
   opacity: var(--fiat-sym-opacity, 0.72);
-  margin-right: 0.14em;
+  margin-inline-end: 0.14em;
   vertical-align: baseline;
   display: inline-block;
 }
@@ -4402,6 +4449,87 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   background: rgba(var(--well-rgb), 0.4); max-width: 100%;
 }
 .recv-copy { width: 100%; }
+
+/* On-chain balance (opt-in card at the foot of the Wallet tab). A collapsed
+   header row; the body opens under it. Amounts ride .btc-sweep-amt so the
+   balance-hiding rules find them next to .wallet-balance and .tx-amt. */
+.btc-sweep { margin-top: 18px; }
+.btc-sweep-head { display: flex; align-items: center; gap: 6px; }
+.btc-sweep-head-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; padding: 0; cursor: pointer; text-align: start; color: inherit;
+}
+.btc-sweep-title {
+  flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.btc-sweep-total { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+.btc-sweep-refresh {
+  flex-shrink: 0; width: 28px; height: 28px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 8px; color: var(--muted); cursor: pointer;
+}
+.btc-sweep-refresh:hover { color: var(--text-2); }
+.btc-sweep-refresh svg { width: 15px; height: 15px; }
+.btc-sweep-refresh.spinning svg { animation: spin 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .btc-sweep-refresh.spinning svg { animation: none; opacity: 0.5; } }
+.btc-sweep > .btc-sweep-body { display: none; }
+.btc-sweep.open > .btc-sweep-body { display: block; }
+.btc-sweep-row { margin-top: 10px; }
+/* Type and balance share the top line; the address takes the full width
+   beneath, where a ~360px row would otherwise ellipsize all three. */
+.btc-sweep-line { display: flex; align-items: baseline; gap: 8px; }
+.btc-sweep-label {
+  flex: 1; min-width: 0; font-size: 12px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.btc-sweep .address-value { font-size: 12px; padding: 8px 10px; width: 100%; margin-top: 5px; }
+.btc-sweep-line .btc-sweep-amt {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; color: var(--text);
+  white-space: nowrap;
+}
+.btc-sweep-dest-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.btc-sweep-dest {
+  flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; color: var(--text);
+}
+.btc-sweep-dest:focus { border-color: var(--gold-soft); outline: none; }
+.btc-sweep-scan {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  border: 1px solid var(--border); color: var(--muted);
+}
+.btc-sweep-scan:hover { color: var(--lav); border-color: var(--gold-soft); }
+.btc-sweep-scan:disabled { opacity: 0.4; pointer-events: none; }
+.btc-sweep-scan svg { width: 18px; height: 18px; }
+.btc-sweep-review {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  margin-top: 10px; padding: 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: rgba(var(--well-rgb), 0.4);
+}
+.btc-sweep-review.hidden { display: none; }
+.btc-sweep-review .confirm-msg { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.btc-sweep-review .primary { width: 100%; }
+/* Fee tiers, chips in the price chart's idiom: the active one fills. */
+.btc-sweep-fees { display: flex; gap: 6px; }
+.btc-sweep-fee-chip {
+  flex: 1; border-radius: 999px; padding: 6px 0; font-size: 12px; cursor: pointer;
+  background: none; border: 1px solid var(--border); color: var(--muted);
+}
+.btc-sweep-fee-chip:hover { color: var(--text-2); }
+.btc-sweep-fee-chip.active {
+  color: var(--chip-ink, var(--btn-primary-text, #1a0e08));
+  background: var(--accent-fill, var(--gold)); border-color: transparent; font-weight: 600;
+}
+/* Armed: the first tap of the two-tap confirm turns the button red and says so. */
+.btc-sweep-review .primary.armed { background: var(--red); border-color: transparent; }
+.btc-sweep-txid {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text);
+}
+.btc-sweep-txid:hover { color: var(--lav); }
 
 /* centered loading/empty/error state inside list cards */
 .list-state {
@@ -4594,7 +4722,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 }
 .post-banner-msg { font-size: 13px; color: var(--text); }
 .post-banner-link {
-  display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
+  display: inline-flex; align-items: center; gap: 5px; margin-inline-start: auto;
   color: var(--gold); font-weight: 600; font-size: 13px; text-decoration: none; white-space: nowrap;
 }
 .post-banner-link:hover { text-decoration: underline; }
@@ -4648,7 +4776,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 }
 .interrupted-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); }
 .interrupted-dismiss {
-  flex-shrink: 0; margin-left: auto; background: none; border: none; cursor: pointer;
+  flex-shrink: 0; margin-inline-start: auto; background: none; border: none; cursor: pointer;
   color: var(--lav); font-size: 12.5px; font-weight: 600; padding: 4px 6px; white-space: nowrap;
 }
 .interrupted-dismiss:hover { color: var(--text); text-decoration: underline; }
@@ -4663,7 +4791,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .host-perm-msg { font-size: 12.5px; line-height: 1.4; color: var(--text-2); }
 .host-perm-msg strong { color: var(--text); }
 .host-perm-grant-btn {
-  flex-shrink: 0; margin-left: auto; cursor: pointer; white-space: nowrap;
+  flex-shrink: 0; margin-inline-start: auto; cursor: pointer; white-space: nowrap;
   padding: 6px 12px; border-radius: 8px; border: none;
   background: linear-gradient(180deg, var(--btn-accent-top, #e2b968), var(--btn-accent-mid, var(--gold)) 60%, var(--btn-accent-bot, #b7863a));
   color: var(--btn-accent-text, #1c1206); font-weight: 600; font-size: 12.5px;
@@ -4679,7 +4807,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   font-size: 12.5px; color: var(--muted);
 }
 .approval-reject-all {
-  margin-left: auto; background: none; border: none; cursor: pointer;
+  margin-inline-start: auto; background: none; border: none; cursor: pointer;
   color: var(--red); font-size: 12.5px; font-weight: 600; padding: 4px 6px; white-space: nowrap;
 }
 .approval-reject-all:hover { text-decoration: underline; filter: brightness(1.1); }
@@ -4712,7 +4840,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
    project's floors (see .relax-status-dot). */
 .modal-tab-count {
   display: inline-block;
-  margin-left: 6px;
+  margin-inline-start: 6px;
   padding: 0 6px;
   border-radius: 999px;
   background: color-mix(in srgb, currentColor 18%, transparent);
@@ -4761,7 +4889,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   align-items: center;
   gap: 12px;
   width: 100%;
-  text-align: left;
+  text-align: start;
   background: transparent;
   border: none;
   color: var(--text);
@@ -4783,7 +4911,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .dev-badge {
   position: fixed;
   bottom: 12px;
-  left: 12px;
+  inset-inline-start: 12px;
   width: 28px;
   height: 28px;
   border-radius: 50%;
@@ -4993,7 +5121,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 }
 /* everything in the approval card is centered (except the data preview) */
 .approval-card { text-align: center; }
-.approval-card .card { text-align: left; }
+.approval-card .card { text-align: start; }
 .approval-card .brand { margin-bottom: 16px; justify-content: center; }
 .approval-host {
   font-family: var(--font-display); font-weight: 700;
@@ -5010,7 +5138,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 }
 .card .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
 .card .row span:first-child { color: var(--muted); }
-.card .row span:last-child { word-break: break-all; text-align: right; font-family: var(--font-mono); font-size: 12px; }
+.card .row span:last-child { word-break: break-all; text-align: end; font-family: var(--font-mono); font-size: 12px; }
 /* A row whose value is a sentence rather than an identifier: break at words and set it in
    the reading face. break-all is right for a hex key and wrong for someone's boost message,
    which it would chop mid-word. The value is clamped in JS so it cannot grow the card;
@@ -5056,13 +5184,13 @@ html:has(#view-approval:not(.hidden)) .toasts {
 .evpreview-mode.active { color: var(--lav); font-weight: 600; }
 .evpreview-toggle {
   background: none; border: none; padding: 2px 0; cursor: pointer;
-  color: var(--lav); font-size: 12px; font-family: inherit; white-space: nowrap; margin-left: auto;
+  color: var(--lav); font-size: 12px; font-family: inherit; white-space: nowrap; margin-inline-start: auto;
 }
 .evpreview-toggle:hover { color: var(--text); }
 .kind-warn {
   margin-top: 8px; padding: 8px 10px; border-radius: 8px;
   background: rgba(var(--warn-rgb), 0.1); border: 1px solid rgba(var(--warn-rgb), 0.3);
-  color: var(--warn); font-size: 12px; text-align: left;
+  color: var(--warn); font-size: 12px; text-align: start;
 }
 /* Destructive replaceable overwrite (follow list / mute list / profile fields about to
    be erased). Louder than .kind-warn — that one says "unusual kind", this says "you are
@@ -5072,8 +5200,8 @@ html:has(#view-approval:not(.hidden)) .toasts {
    instead, which is how the rest of Sidecar emphasises things.
    The glyph stays so the warning isn't carried by color alone. */
 .destructive-warn {
-  margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
-  border-left: 2px solid var(--red);
+  margin-top: 12px; padding-block: 1px 1px; padding-inline: 12px 0; text-align: start;
+  border-inline-start: 2px solid var(--red);
 }
 .destructive-warn-title {
   display: flex; align-items: center; gap: 6px;
@@ -5143,7 +5271,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 .shared-note {
   margin: 2px 0 14px; padding: 9px 11px; border-radius: 9px;
   background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft);
-  color: var(--text-2); font-size: 12px; line-height: 1.45; text-align: left;
+  color: var(--text-2); font-size: 12px; line-height: 1.45; text-align: start;
 }
 /* M1: the per-member list under a batch ("Allow all (N)") approval card. Same well
    styling as the event preview; capped height so a burst cannot push the buttons off
@@ -5164,7 +5292,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 /* one-time explainer for multi-account (shared-identity) signing */
 .shared-headsup {
   margin: 2px 0 14px; padding: 11px 12px; border-radius: 10px;
-  background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft); text-align: left;
+  background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft); text-align: start;
 }
 .shared-headsup-title {
   display: flex; align-items: center; gap: 7px;
@@ -5187,55 +5315,38 @@ html:has(#view-approval:not(.hidden)) .toasts {
 }
 .shared-headsup-btn-quiet:hover { filter: none; color: var(--text); border-color: var(--gold-soft); }
 /* compact reminder once the explainer has been dismissed */
-.shared-caption {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin: 2px 0 8px; color: var(--muted); font-size: 11.5px; letter-spacing: 0.02em;
-}
+/* One centered line above "Signing as". Block, not flex: as a flex row its sentences
+   became side-by-side columns in a 300px card. */
+.shared-caption { margin: 2px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
+.shared-caption span, .shared-caption strong { display: block; }
+.shared-caption strong { color: var(--text); font-weight: 600; font-size: 12.5px; }
 .shared-caption svg { width: 13px; height: 13px; opacity: 0.85; }
 .approval-account { margin: 4px 0 18px; }
-.approval-switch-toggle {
-  display: block; width: 100%; background: none; border: none; cursor: pointer;
-  color: var(--lav); font-size: 12.5px; text-align: center; margin: -10px 0 14px; padding: 4px;
+/* The capsule IS the account switch when another account can be picked: the toggle
+   button covers it (its words stay for screen readers), and a chevron says it opens. */
+.approval-capsule.switchable { cursor: pointer; padding-inline-end: 38px; }
+.approval-capsule.switchable:hover { border-color: var(--gold-soft); }
+.approval-capsule.switchable::after {
+  content: ''; position: absolute; inset-inline-end: 18px; top: 50%; width: 7px; height: 7px;
+  border-inline-end: 2px solid var(--lav); border-bottom: 2px solid var(--lav);
+  transform: translateY(-70%) rotate(45deg); transition: transform 0.15s ease;
 }
-.approval-switch-toggle:hover { color: var(--text); }
+.approval-capsule.switchable.open::after { transform: translateY(-25%) rotate(-135deg); }
+.approval-capsule .approval-switch-toggle {
+  position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: inherit;
+  background: none; cursor: pointer; color: transparent; font-size: 0;
+}
+.approval-capsule .approval-switch-toggle:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
 .approval-switch-menu {
-  text-align: left;
+  text-align: start;
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--border-strong); border-radius: 14px;
-  padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
+  padding: 6px; margin: -10px 0 14px; box-shadow: var(--sheen);
 }
 /* "Wrong account?" hint (see renderWrongAcctEscape in sidepanel.js). Matches
    .trust-nudge, the other advisory line on this screen — muted, so it doesn't compete
    with the destructive banner or read as something being wrong. */
-.approval-wrong-acct {
-  font-size: 12.5px; line-height: 1.45; color: var(--muted);
-  text-align: center; margin: -6px 0 14px;
-}
-.approval-wrong-acct strong { display: block; color: var(--text); font-weight: 600; }
-/* Reads as a link, not a button — it sits above the real action row and must not look
-   like a fourth choice competing with Allow / Trust / Reject. Secondary color, not --lav:
-   at accent weight it pulled the eye away from the account capsule directly above, which
-   is the thing the user actually needs to read on this screen. The underline carries the
-   affordance on its own, and hover brings it up to full text color. */
-.approval-wrong-acct-toggle {
-  background: none; border: none; padding: 2px 4px; cursor: pointer;
-  font: inherit; color: var(--muted); text-decoration: underline;
-}
-.approval-wrong-acct-toggle:hover { color: var(--text); }
-/* Borrows the switch-menu shell so the expanded list reads as the same kind of thing as
-   the account switcher above it. */
-.approval-wrong-acct-list {
-  text-align: left; margin: 8px 0 0; padding: 6px;
-  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
-  border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--sheen);
-}
-.wrong-acct-lede { margin: 2px 6px 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
-/* "Active" marker on the globally-active account, which sorts first. Without it the
-   top row looks arbitrary rather than like the obvious pick. */
-.wrong-acct-tag {
-  margin-left: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--muted); white-space: nowrap;
-}
+
 
 .approval-as {
   font-size: 10.5px; color: var(--muted); margin-bottom: 8px;
@@ -5267,7 +5378,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 /* The keep-this-account line wraps to two lines, unlike the single-line offers above. Left to
    the card's centered text, the words centered in the space the box leaves and sat well away
    from it. Left-aligned beside the box, with the box on the first line. */
-#approval-bind-payer .check { align-items: flex-start; justify-content: flex-start; text-align: left; }
+#approval-bind-payer .check { align-items: flex-start; justify-content: flex-start; text-align: start; }
 #approval-bind-payer input[type=checkbox] { margin-top: 1px; }
 .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
 /* The approval's checkboxes as one group (sidepanel.html): as wide as the widest row and
@@ -5277,7 +5388,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 .check-group { width: fit-content; max-width: 100%; margin: 0 auto; }
 .check-group .remember .check { justify-content: flex-start; }
 .check-group .budget-row { justify-content: flex-start; }
-.check-group .budget-unit { text-align: left; }
+.check-group .budget-unit { text-align: start; }
 .remember input[type=text], .remember input[type=number] {
   width: 110px; flex-shrink: 0; padding: 9px 11px; font-size: 14px; font-family: var(--font-mono);
 }
@@ -5421,7 +5532,31 @@ html:has(#view-approval:not(.hidden)) .toasts {
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   color: var(--text);
 }
+.relax-status { position: relative; }
 .relax-status-top { display: flex; align-items: center; gap: 8px; }
+/* +N: the other accounts' windows, as a count capsule (currentColor tint, like the tab
+   counts). It opens the list above the bar. */
+.relax-status-more {
+  flex-shrink: 0; padding: 0 7px; border: none; border-radius: 999px; cursor: pointer;
+  background: color-mix(in srgb, currentColor 16%, transparent); color: var(--text);
+  font: inherit; font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
+}
+.relax-status-more:hover, .relax-status-more[aria-expanded="true"] { background: color-mix(in srgb, currentColor 26%, transparent); }
+.relax-status-more:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+/* The list: a sheet laid over the panel above the bar, one row per other window. Over
+   the compose button too, which sits at z-index 50. */
+.relax-status-list {
+  position: absolute; inset-inline: 0; bottom: 100%; z-index: 60;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 9px 12px; border-top: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.18);
+}
+.relax-list-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.relax-list-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+.relax-list-name { flex-shrink: 0; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relax-list-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.relax-list-time { min-width: 3.5em; font-size: calc(14px * var(--display-scale, 1)); }
 .relax-status-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
 .relax-status-who #relax-status-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .relax-status-sep { color: var(--faint); }
@@ -5485,7 +5620,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    nine themes out of ten since it was written. */
 .relax-status-track { flex: 1; height: 5px; border-radius: 99px; background: rgba(var(--border-rgb), 0.18); overflow: hidden; }
 .relax-status-fill { height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); transition: width 1s linear; }
-.relax-status-time { font-family: var(--font-display); font-weight: 700; font-size: calc(16px * var(--display-scale, 1)); color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; min-width: 3.5em; text-align: right; }
+.relax-status-time { font-family: var(--font-display); font-weight: 700; font-size: calc(16px * var(--display-scale, 1)); color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1; min-width: 3.5em; text-align: end; }
 @keyframes relax-pulse {
   0% { box-shadow: 0 0 0 0 var(--relax-glow); }
   70% { box-shadow: 0 0 0 6px transparent; }
@@ -5762,7 +5897,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    line sets it apart from what is above it. :empty hides the whole thing, line included,
    for a profile with no bio. */
 .peek-about {
-  text-align: left; font-size: 13px; line-height: 1.5; color: var(--text-2);
+  text-align: start; font-size: 13px; line-height: 1.5; color: var(--text-2);
   margin: 12px 0 10px; padding-top: 12px; border-top: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
@@ -5772,7 +5907,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 /* The card's corner X sits over the banner, which is user content: a disc keeps it
    readable on any picture and in any theme, so it does not borrow --muted from the sheet. */
 .modal-x.peek-x {
-  top: 10px; right: 10px;
+  top: 10px; inset-inline-end: 10px;
   background: rgba(0, 0, 0, 0.55); color: #fff;
   border-radius: 50%; width: 32px; height: 32px;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
@@ -5820,17 +5955,17 @@ html:has(#view-approval:not(.hidden)) .toasts {
    object: an icon in the sheet's corner, where a control costs the list no width. Sits
    left of the close button rather than in the heading, which has to hold a two-line
    title beside an avatar on a multi-account panel. */
-.notif-refresh { right: 48px; }
+.notif-refresh { inset-inline-end: 48px; }
 /* The composer's saved drafts, in the same slot beside the close box, with their count
    in a capsule on the folder's corner. The author line gives up the width it covers. */
-.compose-drafts-btn { right: 48px; }
+.compose-drafts-btn { inset-inline-end: 48px; }
 .compose-drafts-btn svg { width: 17px; height: 17px; display: block; }
 .compose-drafts-count {
-  position: absolute; top: 0; right: -2px; min-width: 15px; height: 15px; padding: 0 4px;
+  position: absolute; top: 0; inset-inline-end: -2px; min-width: 15px; height: 15px; padding: 0 4px;
   box-sizing: border-box; border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 15px;
   color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold));
 }
-.modal.has-drafts-btn .compose-author { padding-right: 72px; }
+.modal.has-drafts-btn .compose-author { padding-inline-end: 72px; }
 .notif-refresh svg { width: 17px; height: 17px; display: block; }
 /* Spins while the fetch is in flight, so a slow relay looks busy rather than dead —
    the same treatment .profile-backup-jump uses. */
@@ -5845,7 +5980,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    arrow. Icon only, and it has to be: that slot is flex-shrink:0 next to a truncating
    author name, so anything with words in it takes width from the name. */
 .notif-expand-btn {
-  background: none; border: none; padding: 0 0 0 2px; margin: 0;
+  background: none; border: none; padding-block: 0 0; padding-inline: 2px 0; margin: 0;
   display: inline-flex; align-items: center;
   color: var(--muted); cursor: pointer; flex-shrink: 0;
   transition: color 0.12s ease, transform 0.15s ease;
@@ -5861,7 +5996,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 /* The ⋮ beside the chevron: same metrics and colors, so the slot reads as one set of
    marks. Icon only for the same reason — words here would take width from the name. */
 .notif-more-btn {
-  background: none; border: none; padding: 0 0 0 2px; margin: 0;
+  background: none; border: none; padding-block: 0 0; padding-inline: 2px 0; margin: 0;
   display: inline-flex; align-items: center;
   color: var(--muted); cursor: pointer; flex-shrink: 0;
   transition: color 0.12s ease;
@@ -5875,19 +6010,19 @@ html:has(#view-approval:not(.hidden)) .toasts {
    second card. Labels ellipsize rather than wrap or shrink. */
 .notif-more {
   display: flex; flex-direction: column; align-items: stretch;
-  margin: 8px 0 2px 22px;
-  border-left: 2px solid var(--border-strong);
-  padding: 2px 0 2px 8px;
+  margin-block: 8px 2px; margin-inline: 22px 0;
+  border-inline-start: 2px solid var(--border-strong);
+  padding-block: 2px 2px; padding-inline: 8px 0;
 }
 .notif-more-kind {
   font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--faint); margin: 0 0 4px 6px;
+  color: var(--faint); margin-block: 0 4px; margin-inline: 6px 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .notif-more-item {
   display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
   background: none; border: 1px solid transparent; border-radius: 8px;
-  padding: 6px; text-align: left;
+  padding: 6px; text-align: start;
   font-family: var(--font-ui); font-size: 12.5px; color: var(--text-2); cursor: pointer;
 }
 .notif-more-item svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--muted); }
@@ -5900,7 +6035,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 .poll-question-row .poll-result-question { flex: 1; min-width: 0; }
 /* Nudged right so its dots sit in the same column as the close box's X above (measured:
    2.5px short of the X's center at the sheet's 22px padding). */
-.poll-question-row .notif-more-btn { margin-top: 3px; margin-right: -2.5px; }
+.poll-question-row .notif-more-btn { margin-top: 3px; margin-inline-end: -2.5px; }
 .notif-more.poll-more-menu { margin: 0 0 10px; }
 .notif-more-item:hover svg { color: var(--gold); }
 .notif-more-item.armed, .notif-more-item.armed svg { color: var(--red); }
@@ -5908,13 +6043,13 @@ html:has(#view-approval:not(.hidden)) .toasts {
 
 /* Indented to the same 22px gutter .notif-content uses, so the glyph column stays clear
    and an expanded row reads as belonging to the one above it. */
-.notif-expand { margin: 8px 0 2px 22px; }
+.notif-expand { margin-block: 8px 2px; margin-inline: 22px 0; }
 
 /* The note a reaction, repost or zap is about — your own note, quoted back at you, which
    is the half of "reacted to your note" the row cannot say. Left rule rather than a card:
    it is context inside a row that is already a card, and a second border reads as a
    second object. Same treatment as .reply-target above the composer. */
-.notif-target { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 10px; }
+.notif-target { border-inline-start: 2px solid var(--border-strong); padding-block: 2px 2px; padding-inline: 10px 0; }
 .notif-target-label {
   font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--faint); margin-bottom: 2px;
@@ -5927,7 +6062,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    every row, where icons at rest are quiet enough to repeat 25 times down a list.
    Left-aligned at the same 22px gutter the content uses, so the glyph column stays clear.
    Sized as tap targets (30px), not shrunk to fit — the row has the height to spare. */
-.notif-act-wrap { margin: 6px 0 0 22px; }
+.notif-act-wrap { margin-block: 6px 0; margin-inline: 22px 0; }
 .notif-actions { display: flex; gap: 2px; }
 .notif-act {
   width: 30px; height: 30px; padding: 0;
@@ -5957,7 +6092,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 .notif-act.open { color: var(--gold); background: var(--hover-medium); border-color: var(--gold-soft); }
 /* The private action, held apart from the public ones at the right edge of the row. The
    grouping is the convention every client uses, so it reads before the icon does. */
-.notif-actions .notif-act-end { margin-left: auto; }
+.notif-actions .notif-act-end { margin-inline-start: auto; }
 /* Bookmarked. Lit like .open but without the ring, because this one is finished rather
    than waiting for something below it, and it does not dim on disable: the button is
    spent, not unavailable. */
@@ -6002,7 +6137,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
 /* What YOU reacted with, under the note. Chips rather than a line of text: they are
    glyphs, they repeat, and at rest they should read as a mark on the row instead of as
    more content to read. Indented to the same 22px gutter the content uses. */
-.notif-reacted { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0 22px; }
+.notif-reacted { display: flex; flex-wrap: wrap; gap: 4px; margin-block: 6px 0; margin-inline: 22px 0; }
 .notif-reacted-chip {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 24px; height: 22px; padding: 0 5px;
@@ -6032,7 +6167,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    Its own row, because it has words — an inline slot in a 300px sheet is the mistake
    this panel keeps making. Absent, not disabled, when there is nothing to save. */
 .zap-save-default {
-  display: block; width: 100%; text-align: left;
+  display: block; width: 100%; text-align: start;
   background: none; border: none; padding: 6px 0 0;
   font-family: var(--font-ui); font-size: 12px; font-weight: 600;
   color: var(--lav); cursor: pointer;
@@ -6275,7 +6410,7 @@ button.poll-bar-head {
   border: none;
   padding: 0;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .poll-bar-pick > svg {
@@ -6293,7 +6428,7 @@ button.poll-bar-head {
    AND IT TAKES THE FREE SPACE, which is what keeps it against the chevron. The head is
    space-between, written when it held two children and pinned one to each edge. A row that
    can be opened now holds three, so the spare width went into TWO gaps, one either side of
-   a content-sized label, and every option title sat centered in whatever room was left:
+   a content-sized label, and every option title sat centered in whatever room was inset-inline-start:
    the shorter the label, the further in it started. text-align is already left here and
    fixes nothing, because the box hugged the text and it was the box being centered. */
 .poll-bar-label {
@@ -6383,7 +6518,7 @@ button.poll-bar-head {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--faint);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .poll-group-fold:hover { color: var(--muted); }
@@ -6470,7 +6605,7 @@ button.poll-bar-head {
   justify-content: center;
   /* margin-left: auto is what pushes the single link to the right of a one-row banner.
      In this row the two actions share the width, so it has to go. */
-  margin-left: 0;
+  margin-inline-start: 0;
   padding: 7px 10px;
   border: 1px solid var(--gold-soft);
   border-radius: 8px;
@@ -6605,8 +6740,8 @@ button.poll-bar-head {
    screen that asks you to sign it. */
 .hl-quote {
   margin: 0;
-  padding: 4px 0 4px 14px;
-  border-left: 3px solid var(--gold-soft);
+  padding-block: 4px 4px; padding-inline: 14px 0;
+  border-inline-start: 3px solid var(--gold-soft);
   font-family: var(--font-ui);
   text-transform: none;
   letter-spacing: normal;
@@ -6618,7 +6753,7 @@ button.poll-bar-head {
   max-height: 220px;
   overflow-y: auto;
 }
-.hl-source { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-left: 17px; }
+.hl-source { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-inline-start: 17px; }
 .hl-source-title {
   font-size: 12.5px; color: var(--text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
@@ -6627,7 +6762,7 @@ button.poll-bar-head {
 .hl-source-host { font-size: 12px; color: var(--muted); }
 /* The paragraph around the passage, published as its context. Quieter than the quote,
    with the passage marked in it, and faded once it is left out. */
-.hl-context { display: flex; flex-direction: column; gap: 6px; padding-left: 17px; }
+.hl-context { display: flex; flex-direction: column; gap: 6px; padding-inline-start: 17px; }
 .hl-context.hidden { display: none; }
 .hl-context-label { font-size: 12px; color: var(--muted); }
 .hl-context-text {
@@ -6640,3 +6775,50 @@ button.poll-bar-head {
 .hl-page .compose-status:empty,
 .hl-page .error:empty { display: none; }
 .hl-foot { justify-content: flex-end; }
+
+/* ===== Right to left =====
+   Most of the layout follows the direction on its own (flex and grid rows flip, and the spacing
+   above is written with logical properties). What does not is anything drawn with a physical
+   side: the dropdown caret is a background image, and the arrows are shapes that point. Edge
+   anchors that are decoration (a theme's art, a centered toast, a balloon's pointer) stay put
+   on purpose. `dir` is on <html>, set by i18n.js from the language. */
+:root[dir="rtl"] { --select-caret-geo: no-repeat left 13px center / 10px 6px; }
+/* Back and forward arrows point the other way, so the arrow that means "back" still does. */
+:root[dir="rtl"] svg[data-icon="arrow-left"],
+:root[dir="rtl"] svg[data-icon="arrow-right"] { transform: scaleX(-1); }
+/* Technical fields stay left to right whatever the language: a URL, a key or an address read
+   backwards is wrong, not just ugly (the placeholder `nostr+walletconnect://…` came out as
+   `…//:nostr+walletconnect`). They are left-aligned as in every right-to-left app's URL bar. */
+:root[dir="rtl"] input[placeholder^="nostr+"], :root[dir="rtl"] textarea[placeholder^="nostr+"],
+:root[dir="rtl"] input[placeholder^="wss"], :root[dir="rtl"] input[placeholder^="https"],
+:root[dir="rtl"] input[placeholder^="nsec"], :root[dir="rtl"] textarea[placeholder^="nsec"],
+:root[dir="rtl"] input[placeholder^="npub"], :root[dir="rtl"] input[placeholder^="lnbc"], :root[dir="rtl"] textarea[placeholder^="lnbc"],
+:root[dir="rtl"] input[placeholder*="@"], :root[dir="rtl"] input[type="url"], :root[dir="rtl"] input[type="email"] {
+  direction: ltr; text-align: left;
+}
+
+/* ---- The approval scope row: Once / 30 min / Always, one control where the
+   checkbox and the duration chips used to be. Captions occupy one grid cell so
+   switching never moves the buttons; labels never wrap. ---- */
+.scope { border: 0; margin: 4px 0 12px; padding: 0; min-width: 0; width: 100%; }
+.scope legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(var(--well-rgb), 0.55); border: 1px solid var(--border); }
+.seg label { flex: 1 1 0; min-width: max-content; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; font: 600 12.5px/1.2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+.seg label:hover { color: var(--text); }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); border-color: var(--gold-soft); color: var(--gold); box-shadow: var(--sheen); }
+.seg.stacked { flex-direction: column; }
+.seg.stacked label { justify-content: flex-start; }
+/* One line over the row; the three captions share one cell, so switching segments
+   never moves the row or the buttons. */
+.scope-caps { display: grid; margin: 0 0 7px; text-align: center; }
+.scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.scope-cap.on { visibility: visible; }
+.scope-cap.always { color: var(--text); }
+
+/* The merged account menu: two groups where two stacked escape hatches used to be. */
+.menu-group + .menu-group { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+.menu-head { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding: 4px 8px; }
+.menu-lede { margin: 0 8px 6px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+
+.wrong-acct-tag { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
