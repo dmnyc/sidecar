@@ -179,6 +179,11 @@ test('the bar names the active account, and +N opens a row for each other window
   assert.deepEqual(rows.map((r) => r.querySelector('.relax-list-name').textContent + ' · ' + r.querySelector('.relax-list-host').textContent),
     ['Scrubby · a.example', 'Gilded · c.example']);
   assert.equal(rows[0].querySelector('.relax-list-time').textContent, '05:00');
+  // Closed and opened again, the rows come back.
+  vm.runInContext('relaxListOpen = false;', ctx); ctx.render();
+  assert.equal($('relax-status-list').children.length, 0);
+  ctx.open(); ctx.render();
+  assert.equal($('relax-status-list').children.length, 2, 'reopening the list showed no rows');
   // One window: no capsule, no list.
   vm.runInContext('relaxGrants = relaxGrants.slice(0, 1);', ctx); ctx.render();
   assert.ok($('relax-status-more')._cls.has('hidden'));

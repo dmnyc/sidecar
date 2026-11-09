@@ -1199,7 +1199,9 @@
     }
     more.setAttribute('aria-expanded', relaxListOpen ? 'true' : 'false');
     list.classList.toggle('hidden', !relaxListOpen);
-    if (!relaxListOpen) { list.replaceChildren(); return; }
+    // The rows go with the list, and so does the note of which windows they were for:
+    // kept, a reopen found the set unchanged, skipped the rebuild and showed no rows.
+    if (!relaxListOpen) { list.replaceChildren(); delete list.dataset.keys; return; }
     const keys = others.map(relaxKey).join(',');
     if (list.dataset.keys !== keys) {
       list.dataset.keys = keys;
