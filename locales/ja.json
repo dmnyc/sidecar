@@ -1960,5 +1960,8 @@
   "Signs here without asking for 30 minutes.": "ここで30分間、尋ねずに署名します。",
   "Signs future {{kind}} events here without asking.": "このサイトの今後の{{kind}}イベントを尋ねずに署名します。",
   "Asks again next time.": "次回また尋ねます。",
-  "Signs future versions of “{{d}}” here without asking.": "「{{d}}」の今後のバージョンを、ここで尋ねずに署名します。"
+  "Signs future versions of “{{d}}” here without asking.": "「{{d}}」の今後のバージョンを、ここで尋ねずに署名します。",
+  "{{count}} other timer running_other": "ほかに{{count}}件のタイマーが動作中",
+  "End this timer": "このタイマーを終了",
+  "this account": "このアカウント"
 }

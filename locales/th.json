@@ -1960,5 +1960,8 @@
   "Signs here without asking for 30 minutes.": "ลงนามที่นี่โดยไม่ถามเป็นเวลา 30 นาที",
   "Signs future {{kind}} events here without asking.": "ลงนามเหตุการณ์ {{kind}} ในอนาคตที่นี่โดยไม่ถาม",
   "Asks again next time.": "จะถามอีกครั้งคราวหน้า",
-  "Signs future versions of “{{d}}” here without asking.": "ลงนามเวอร์ชันต่อไปของ “{{d}}” ที่นี่โดยไม่ถาม"
+  "Signs future versions of “{{d}}” here without asking.": "ลงนามเวอร์ชันต่อไปของ “{{d}}” ที่นี่โดยไม่ถาม",
+  "{{count}} other timer running_other": "มีตัวจับเวลาอื่นทำงานอยู่ {{count}} ตัว",
+  "End this timer": "หยุดตัวจับเวลานี้",
+  "this account": "บัญชีนี้"
 }

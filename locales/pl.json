@@ -2167,5 +2167,11 @@
   "Signs here without asking for 30 minutes.": "Podpisuje tutaj bez pytania przez 30 minut.",
   "Signs future {{kind}} events here without asking.": "Podpisuje przyszłe zdarzenia {{kind}} tutaj bez pytania.",
   "Asks again next time.": "Zapyta ponownie następnym razem.",
-  "Signs future versions of “{{d}}” here without asking.": "Podpisuje tutaj przyszłe wersje „{{d}}” bez pytania."
+  "Signs future versions of “{{d}}” here without asking.": "Podpisuje tutaj przyszłe wersje „{{d}}” bez pytania.",
+  "{{count}} other timer running_few": "{{count}} inne liczniki działają",
+  "{{count}} other timer running_many": "{{count}} innych liczników działa",
+  "{{count}} other timer running_one": "{{count}} inny licznik działa",
+  "{{count}} other timer running_other": "{{count}} innego licznika działa",
+  "End this timer": "Zakończ ten licznik",
+  "this account": "to konto"
 }

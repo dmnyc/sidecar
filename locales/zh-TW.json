@@ -1960,5 +1960,8 @@
   "Signs here without asking for 30 minutes.": "在此網站上 30 分鐘內不需詢問即簽署。",
   "Signs future {{kind}} events here without asking.": "不需詢問即簽署此網站未來的 {{kind}} 事件。",
   "Asks again next time.": "下次會再詢問。",
-  "Signs future versions of “{{d}}” here without asking.": "不需詢問即簽署此網站上「{{d}}」的未來版本。"
+  "Signs future versions of “{{d}}” here without asking.": "不需詢問即簽署此網站上「{{d}}」的未來版本。",
+  "{{count}} other timer running_other": "另有 {{count}} 個計時器正在執行",
+  "End this timer": "結束這個計時器",
+  "this account": "這個帳號"
 }

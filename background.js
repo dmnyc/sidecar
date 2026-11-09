@@ -3910,10 +3910,12 @@ if (chrome.idle && chrome.idle.onStateChanged) {
 // alarm ticks the countdown down; both clear when no window is live.
 const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
 function syncRelaxBadge() {
-  RELAX.active().then((grants) => {
+  RELAX.active().then(async (grants) => {
     if (grants && grants.length) {
-      // active() sorts soonest-first: the badge counts down the window that lapses next.
-      const mins = Math.max(0, Math.round((grants[0].expiresAt - Date.now()) / 60000));
+      // The window the panel's bar shows: the active account's, else the one that lapses
+      // next (active() sorts soonest-first).
+      const shown = RELAX.shownFor(grants, await KS.getActivePubkey().catch(() => null));
+      const mins = Math.max(0, Math.round((shown.expiresAt - Date.now()) / 60000));
       chrome.action.setBadgeText({ text: String(mins) });
       chrome.action.setBadgeBackgroundColor({ color: '#cba14e' });
       if (chrome.action.setBadgeTextColor) chrome.action.setBadgeTextColor({ color: '#1a0a33' });
@@ -4191,6 +4193,7 @@ async function handleControl(message, sender, sendResponse) {
         // Ending them all here made two accounts' windows on one site impossible: opening
         // the second account's ended the first one's. Lock still ends every window.
         result = await KS.setActive(message.pubkey);
+        syncRelaxBadge(); // the badge follows the active account's window
         break;
       }
       case 'SIDECAR_CHANGE_PIN':
@@ -5160,7 +5163,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // reset a window that is already open, not start one for an arbitrary site.
   if (message.type === 'SIDECAR_RESTART_RELAX') {
     RELAX.active().then(async (grants) => {
-      const g = grants[0];
+      // The window the bar is showing, named by the panel; else the one that ends first.
+      const g = grants.find((x) => x.host === message.host && x.pubkey === message.pubkey) || grants[0];
       if (!g) { sendResponse({ ok: false }); return; }
       await RELAX.grant(g.host, g.pubkey, g.duration);
       syncRelaxBadge();

@@ -2029,5 +2029,9 @@
   "Signs here without asking for 30 minutes.": "Υπογράφει εδώ χωρίς ερώτηση για 30 λεπτά.",
   "Signs future {{kind}} events here without asking.": "Υπογράφει μελλοντικά συμβάντα {{kind}} εδώ χωρίς ερώτηση.",
   "Asks again next time.": "Θα ρωτήσει ξανά την επόμενη φορά.",
-  "Signs future versions of “{{d}}” here without asking.": "Υπογράφει μελλοντικές εκδόσεις του «{{d}}» εδώ χωρίς ερώτηση."
+  "Signs future versions of “{{d}}” here without asking.": "Υπογράφει μελλοντικές εκδόσεις του «{{d}}» εδώ χωρίς ερώτηση.",
+  "{{count}} other timer running_one": "{{count}} ακόμη χρονόμετρο σε λειτουργία",
+  "{{count}} other timer running_other": "{{count}} ακόμη χρονόμετρα σε λειτουργία",
+  "End this timer": "Τερματισμός αυτού του χρονομέτρου",
+  "this account": "αυτός ο λογαριασμός"
 }

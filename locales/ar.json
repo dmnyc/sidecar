@@ -2305,5 +2305,13 @@
   "Signs here without asking for 30 minutes.": "يوقّع هنا دون سؤال لمدة 30 دقيقة.",
   "Signs future {{kind}} events here without asking.": "يوقّع أحداث {{kind}} القادمة هنا دون سؤال.",
   "Asks again next time.": "سيسأل مرة أخرى في المرة القادمة.",
-  "Signs future versions of “{{d}}” here without asking.": "يوقّع النسخ القادمة من “{{d}}” هنا دون سؤال."
+  "Signs future versions of “{{d}}” here without asking.": "يوقّع النسخ القادمة من “{{d}}” هنا دون سؤال.",
+  "{{count}} other timer running_few": "{{count}} مؤقتات أخرى قيد التشغيل",
+  "{{count}} other timer running_many": "{{count}} مؤقتًا آخر قيد التشغيل",
+  "{{count}} other timer running_one": "مؤقت آخر قيد التشغيل",
+  "{{count}} other timer running_other": "{{count}} مؤقت آخر قيد التشغيل",
+  "{{count}} other timer running_two": "مؤقتان آخران قيد التشغيل",
+  "{{count}} other timer running_zero": "لا توجد مؤقتات أخرى قيد التشغيل",
+  "End this timer": "إنهاء هذا المؤقت",
+  "this account": "هذا الحساب"
 }

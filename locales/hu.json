@@ -2029,5 +2029,9 @@
   "Signs here without asking for 30 minutes.": "30 percig kérdezés nélkül ír alá itt.",
   "Signs future {{kind}} events here without asking.": "A jövőben {{kind}} eseményeket ír alá itt kérdés nélkül.",
   "Asks again next time.": "Legközelebb újra kérdez.",
-  "Signs future versions of “{{d}}” here without asking.": "A(z) „{{d}}” jövőbeli változatait kérdés nélkül írja alá itt."
+  "Signs future versions of “{{d}}” here without asking.": "A(z) „{{d}}” jövőbeli változatait kérdés nélkül írja alá itt.",
+  "{{count}} other timer running_one": "{{count}} további időzítő fut",
+  "{{count}} other timer running_other": "{{count}} további időzítő fut",
+  "End this timer": "Időzítő leállítása",
+  "this account": "ez a fiók"
 }

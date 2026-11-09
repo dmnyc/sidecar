@@ -1960,5 +1960,8 @@
   "Signs here without asking for 30 minutes.": "여기서 30분 동안 묻지 않고 서명합니다.",
   "Signs future {{kind}} events here without asking.": "이 사이트의 앞으로의 {{kind}} 이벤트를 묻지 않고 서명합니다.",
   "Asks again next time.": "다음에 다시 묻습니다.",
-  "Signs future versions of “{{d}}” here without asking.": "여기서 “{{d}}”의 이후 버전을 묻지 않고 서명합니다."
+  "Signs future versions of “{{d}}” here without asking.": "여기서 “{{d}}”의 이후 버전을 묻지 않고 서명합니다.",
+  "{{count}} other timer running_other": "다른 타이머 {{count}}개 실행 중",
+  "End this timer": "이 타이머 끝내기",
+  "this account": "이 계정"
 }

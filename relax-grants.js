@@ -169,7 +169,15 @@
     return false;
   }
 
+  // Of the active windows, the one the panel's bar and the toolbar badge speak about:
+  // the active account's (its soonest, when it has several sites), else the soonest.
+  function shownFor(grants, activePubkey) {
+    const list = grants || [];
+    return list.find((g) => g.pubkey === activePubkey) || list[0] || null;
+  }
+
   const api = {
+    shownFor,
     STORAGE_KEY, ALARM_PREFIX, MAX_MS, DEFAULT_MS, CONTROL_KINDS, REPLACEABLE_KINDS,
     has, grant, revoke, revokeForHost, revokeAll, active, onAlarm,
     isControlKind: (k) => k != null && CONTROL_KINDS.has(k),

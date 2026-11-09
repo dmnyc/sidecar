@@ -2098,5 +2098,10 @@
   "Signs here without asking for 30 minutes.": "Firma qui senza chiedere per 30 minuti.",
   "Signs future {{kind}} events here without asking.": "Firma i futuri eventi {{kind}} qui senza chiedere.",
   "Asks again next time.": "Chiederà di nuovo la prossima volta.",
-  "Signs future versions of “{{d}}” here without asking.": "Firma qui le future versioni di «{{d}}» senza chiedere."
+  "Signs future versions of “{{d}}” here without asking.": "Firma qui le future versioni di «{{d}}» senza chiedere.",
+  "{{count}} other timer running_many": "{{count}} altri timer attivi",
+  "{{count}} other timer running_one": "{{count}} altro timer attivo",
+  "{{count}} other timer running_other": "{{count}} altri timer attivi",
+  "End this timer": "Ferma questo timer",
+  "this account": "questo account"
 }

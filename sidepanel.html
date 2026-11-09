@@ -398,6 +398,9 @@
          is active. Status dot + signing account + live mm:ss
          countdown + Restart / End. See renderRelaxStatus in sidepanel.js. -->
     <div id="relax-status" class="relax-status hidden">
+      <!-- The other accounts' windows, opened from the +N capsule. A sheet over the
+           panel rather than more bar, so the compose button's lift stays the bar's. -->
+      <div id="relax-status-list" class="relax-status-list hidden"></div>
       <div class="relax-status-top">
         <span class="relax-status-who">
           <span class="relax-status-dot" aria-hidden="true"></span>
@@ -405,6 +408,7 @@
           <span class="relax-status-sep">·</span>
           <span id="relax-status-host">—</span>
         </span>
+        <button type="button" id="relax-status-more" class="relax-status-more hidden" aria-expanded="false"></button>
         <button type="button" id="relax-status-restart" class="relax-status-restart" aria-label="Restart auto-sign timer" title="Restart timer" data-i18n-aria-label="Restart auto-sign timer" data-i18n-title="Restart timer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
         </button>

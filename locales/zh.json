@@ -1960,5 +1960,8 @@
   "Signs here without asking for 30 minutes.": "在此网站上 30 分钟内不需询问即签署。",
   "Signs future {{kind}} events here without asking.": "不需询问即签署此网站未来的 {{kind}} 事件。",
   "Asks again next time.": "下次会再次询问。",
-  "Signs future versions of “{{d}}” here without asking.": "不需询问即签署此网站上“{{d}}”的未来版本。"
+  "Signs future versions of “{{d}}” here without asking.": "不需询问即签署此网站上“{{d}}”的未来版本。",
+  "{{count}} other timer running_other": "另有 {{count}} 个计时器正在运行",
+  "End this timer": "结束这个计时器",
+  "this account": "这个账号"
 }

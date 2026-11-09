@@ -2167,5 +2167,11 @@
   "Signs here without asking for 30 minutes.": "Подписывает здесь без вопросов в течение 30 минут.",
   "Signs future {{kind}} events here without asking.": "Подписывает будущие события {{kind}} здесь без вопросов.",
   "Asks again next time.": "Спросит снова в следующий раз.",
-  "Signs future versions of “{{d}}” here without asking.": "Подписывает здесь будущие версии «{{d}}» без вопросов."
+  "Signs future versions of “{{d}}” here without asking.": "Подписывает здесь будущие версии «{{d}}» без вопросов.",
+  "{{count}} other timer running_few": "Работают ещё {{count}} таймера",
+  "{{count}} other timer running_many": "Работают ещё {{count}} таймеров",
+  "{{count}} other timer running_one": "Работает ещё {{count}} таймер",
+  "{{count}} other timer running_other": "Работает ещё {{count}} таймера",
+  "End this timer": "Остановить этот таймер",
+  "this account": "этот аккаунт"
 }

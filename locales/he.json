@@ -2098,5 +2098,10 @@
   "Signs here without asking for 30 minutes.": "חותם כאן ללא שאלה למשך 30 דק׳.",
   "Signs future {{kind}} events here without asking.": "חותם על אירועי {{kind}} עתידיים כאן ללא שאלה.",
   "Asks again next time.": "ישאל שוב בפעם הבאה.",
-  "Signs future versions of “{{d}}” here without asking.": "חותם כאן על גרסאות עתידיות של „{{d}}” ללא שאלה."
+  "Signs future versions of “{{d}}” here without asking.": "חותם כאן על גרסאות עתידיות של „{{d}}” ללא שאלה.",
+  "{{count}} other timer running_one": "טיימר נוסף אחד פועל",
+  "{{count}} other timer running_other": "{{count}} טיימרים נוספים פועלים",
+  "{{count}} other timer running_two": "{{count}} טיימרים נוספים פועלים",
+  "End this timer": "סיום הטיימר הזה",
+  "this account": "החשבון הזה"
 }

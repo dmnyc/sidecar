@@ -5501,7 +5501,31 @@ html:has(#view-approval:not(.hidden)) .toasts {
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   color: var(--text);
 }
+.relax-status { position: relative; }
 .relax-status-top { display: flex; align-items: center; gap: 8px; }
+/* +N: the other accounts' windows, as a count capsule (currentColor tint, like the tab
+   counts). It opens the list above the bar. */
+.relax-status-more {
+  flex-shrink: 0; padding: 0 7px; border: none; border-radius: 999px; cursor: pointer;
+  background: color-mix(in srgb, currentColor 16%, transparent); color: var(--text);
+  font: inherit; font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
+}
+.relax-status-more:hover, .relax-status-more[aria-expanded="true"] { background: color-mix(in srgb, currentColor 26%, transparent); }
+.relax-status-more:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+/* The list: a sheet laid over the panel above the bar, one row per other window. Over
+   the compose button too, which sits at z-index 50. */
+.relax-status-list {
+  position: absolute; inset-inline: 0; bottom: 100%; z-index: 60;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 9px 12px; border-top: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.18);
+}
+.relax-list-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.relax-list-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+.relax-list-name { flex-shrink: 0; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relax-list-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.relax-list-time { min-width: 3.5em; font-size: calc(14px * var(--display-scale, 1)); }
 .relax-status-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
 .relax-status-who #relax-status-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .relax-status-sep { color: var(--faint); }

@@ -66,7 +66,7 @@ Times are from the automated run. “No card” means the request was answered i
 
 4.5 and 4.6 failed on the first runs: switching Sidecar’s active account ended every window, and so did posting on a site as a different account than the one it last used, so opening the second account’s window closed the first one’s. Each window covers signing as its own account only, so neither rule protected anything; both are removed. Windows still end on lock, when the site is forgotten, and when a site is detached from the wrong identity.
 
-The windows coexist: a second account’s approval no longer replaces the first account’s window, and the status bar, its Restart button and the badge all follow the window that ends first (covered by `test/relax-grant.test.js`).
+The windows coexist: a second account’s approval no longer replaces the first account’s window (covered by `test/relax-grant.test.js`). The status bar shows the active account’s window, or the one that ends first when the active account has none, and its Restart button and the badge follow the same window. When other windows are running, a +N capsule on the bar opens a list of them, each with its time left and its own end button.
 
 ## Bugs the lab found, all fixed here
 
@@ -85,7 +85,7 @@ The windows coexist: a second account’s approval no longer replaces the first 
 - `test/composer-core.test.js`: the popup now gets the same check for undeclared names the panel has. Fails on bug 3.
 - `test/wrong-account-escape.test.js`: runs the panel’s real menu builder and clicks its rows. Fails on bug 2.
 - `test/relax-grant.test.js`: windows coexist per site and account, and are listed soonest-first.
-- `test/relax-survives-switch.test.js`: runs the account switch and the site rebind from `background.js` and checks that neither ends a window. Fails on the old rules.
+- `test/relax-survives-switch.test.js`: runs the account switch and the site rebind from `background.js` and checks that neither ends a window, then runs the panel’s bar with three windows: it names the active account, Restart and the badge pick the same window, and +N lists the other two. Fails on the old code.
 
 ## What the automated run could not cover
 

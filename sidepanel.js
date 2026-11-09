@@ -1166,6 +1166,69 @@
   // countdown from the cached expiry (no per-second query).
   let relaxGrants = []; // last-synced [{ host, pubkey, expiresAt }]
   let relaxTick = null;
+  // The window the bar is showing, so Restart winds back that one and not another.
+  let relaxShown = null;
+  let relaxListOpen = false;
+
+  // WHICH WINDOW THE BAR SHOWS: the active account's, when it has one. Windows outlive
+  // an account switch now, and a bar still naming the account you switched away from
+  // reads as though the one you are on has none. Otherwise the one that ends first.
+  // The badge and Restart follow the same rule (RELAX.shownFor in the background).
+  function relaxPick(grants, activePubkey) {
+    return grants.find((g) => g.pubkey === activePubkey) || grants[0] || null;
+  }
+  const relaxKey = (g) => g.host + '|' + g.pubkey;
+  function relaxName(pubkey) {
+    const acct = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
+    return acct ? displayName(acct) : t('this account');
+  }
+
+  // THE OTHER WINDOWS, one row each: the account and site, the time left, and an end
+  // box for that window alone. Rows are rebuilt only when the set changes and repainted
+  // in place every second, so a tap on a row's box is not lost to the ticker's rebuild.
+  function renderRelaxList(others) {
+    const list = $('relax-status-list');
+    const more = $('relax-status-more');
+    if (!others.length) relaxListOpen = false;
+    more.classList.toggle('hidden', !others.length);
+    if (others.length) {
+      more.textContent = '+' + I18N.fmtNum(others.length);
+      const label = tn('{{count}} other timer running', '{{count}} other timers running', others.length);
+      more.setAttribute('aria-label', label);
+      more.title = label;
+    }
+    more.setAttribute('aria-expanded', relaxListOpen ? 'true' : 'false');
+    list.classList.toggle('hidden', !relaxListOpen);
+    if (!relaxListOpen) { list.replaceChildren(); return; }
+    const keys = others.map(relaxKey).join(',');
+    if (list.dataset.keys !== keys) {
+      list.dataset.keys = keys;
+      list.replaceChildren(...others.map((g) => {
+        const end = h('button', { type: 'button', className: 'relax-status-x relax-list-x',
+          title: t('End this timer'), 'aria-label': t('End this timer') });
+        end.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>';
+        end.addEventListener('click', async () => {
+          try { await call({ type: 'SIDECAR_REVOKE_RELAX', host: g.host, pubkey: g.pubkey }); } catch (_) {}
+          await syncRelax();
+        });
+        return h('div', { className: 'relax-list-row' }, [
+          h('span', { className: 'relax-status-dot' }),
+          h('span', { className: 'relax-list-who' }, [
+            h('span', { className: 'relax-list-name', textContent: relaxName(g.pubkey) }),
+            h('span', { className: 'relax-status-sep', textContent: '·' }),
+            h('span', { className: 'relax-list-host', textContent: g.host }),
+          ]),
+          h('span', { className: 'relax-status-time relax-list-time' }),
+          end,
+        ]);
+      }));
+    }
+    [...list.children].forEach((row, i) => {
+      const remaining = Math.max(0, others[i].expiresAt - Date.now());
+      row.querySelector('.relax-list-time').textContent = fmtRelax(remaining);
+      row.querySelector('.relax-status-dot').classList.toggle('low', remaining < 60000);
+    });
+  }
 
   function fmtRelax(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
@@ -1181,6 +1244,8 @@
     const view = $('view-main');
     if (!bar) return;
     if (!relaxGrants.length) {
+      relaxShown = null;
+      relaxListOpen = false;
       hide(bar);
       if (view) view.classList.remove('relax-active');
       if (relaxTick) { clearInterval(relaxTick); relaxTick = null; }
@@ -1189,10 +1254,10 @@
     show(bar);
     if (view) view.classList.add('relax-active'); // lift the floating compose FAB off the bar
     if (!relaxTick) relaxTick = setInterval(renderRelaxStatus, 1000);
-    const g = relaxGrants[0]; // the window that lapses next (active() sorts soonest-first)
-    const accts = (state && state.accounts) || [];
-    const acct = accts.find((a) => a.pubkey === g.pubkey);
-    $('relax-status-name').textContent = acct ? displayName(acct) : 'this account';
+    const g = relaxPick(relaxGrants, state && state.activePubkey);
+    relaxShown = g;
+    renderRelaxList(relaxGrants.filter((x) => x !== g));
+    $('relax-status-name').textContent = relaxName(g.pubkey);
     $('relax-status-host').textContent = g.host;
     const remaining = Math.max(0, g.expiresAt - Date.now());
     const total = g.duration || 15 * 60000;
@@ -1221,8 +1286,21 @@
   // "Restart" winds the running window back to its full original duration — the
   // same act as approving the relax chips again, without leaving the page you're on.
   $('relax-status-restart').addEventListener('click', async () => {
-    try { await call({ type: 'SIDECAR_RESTART_RELAX' }); } catch (_) {}
+    const g = relaxShown;
+    try { await call({ type: 'SIDECAR_RESTART_RELAX', host: g && g.host, pubkey: g && g.pubkey }); } catch (_) {}
     await syncRelax();
+  });
+
+  $('relax-status-more').addEventListener('click', (e) => {
+    e.stopPropagation();
+    relaxListOpen = !relaxListOpen;
+    renderRelaxStatus();
+  });
+  // Put away by a tap anywhere else, the way a menu is.
+  document.addEventListener('click', (e) => {
+    if (!relaxListOpen || $('relax-status').contains(e.target)) return;
+    relaxListOpen = false;
+    renderRelaxStatus();
   });
 
   // Reset the background idle auto-lock timer on active panel use (composing),

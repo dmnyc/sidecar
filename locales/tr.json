@@ -2029,5 +2029,9 @@
   "Signs here without asking for 30 minutes.": "Burada 30 dakika boyunca sormadan imzalar.",
   "Signs future {{kind}} events here without asking.": "Bu sitede gelecekteki {{kind}} olaylarını sorumadan imzalar.",
   "Asks again next time.": "Bir dahaki sefere yeniden sorar.",
-  "Signs future versions of “{{d}}” here without asking.": "“{{d}}” kaydının gelecekteki sürümlerini burada sormadan imzalar."
+  "Signs future versions of “{{d}}” here without asking.": "“{{d}}” kaydının gelecekteki sürümlerini burada sormadan imzalar.",
+  "{{count}} other timer running_one": "{{count}} zamanlayıcı daha çalışıyor",
+  "{{count}} other timer running_other": "{{count}} zamanlayıcı daha çalışıyor",
+  "End this timer": "Bu zamanlayıcıyı bitir",
+  "this account": "bu hesap"
 }

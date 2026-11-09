@@ -2029,5 +2029,9 @@
   "Signs here without asking for 30 minutes.": "यहाँ 30 मिनट के लिए बिना पूछे साइन करता है।",
   "Signs future {{kind}} events here without asking.": "यहाँ आने वाले {{kind}} इवेंट बिना पूछे साइन करता है।",
   "Asks again next time.": "अगली बार फिर पूछेगा।",
-  "Signs future versions of “{{d}}” here without asking.": "यहाँ “{{d}}” के आने वाले संस्करण बिना पूछे साइन करता है।"
+  "Signs future versions of “{{d}}” here without asking.": "यहाँ “{{d}}” के आने वाले संस्करण बिना पूछे साइन करता है।",
+  "{{count}} other timer running_one": "{{count}} और टाइमर चल रहा है",
+  "{{count}} other timer running_other": "{{count}} और टाइमर चल रहे हैं",
+  "End this timer": "यह टाइमर बंद करें",
+  "this account": "यह खाता"
 }

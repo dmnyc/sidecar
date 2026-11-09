@@ -2029,5 +2029,9 @@
   "Signs here without asking for 30 minutes.": "اینجا ۳۰ دقیقه بدون پرسش امضا می‌کند.",
   "Signs future {{kind}} events here without asking.": "رویدادهای {{kind}} آینده اینجا را بدون پرسش امضا می‌کند.",
   "Asks again next time.": "دفعه بعد دوباره می‌پرسد.",
-  "Signs future versions of “{{d}}” here without asking.": "نسخه‌های آیندهٔ «{{d}}» را اینجا بدون پرسش امضا می‌کند."
+  "Signs future versions of “{{d}}” here without asking.": "نسخه‌های آیندهٔ «{{d}}» را اینجا بدون پرسش امضا می‌کند.",
+  "{{count}} other timer running_one": "{{count}} زمان‌سنج دیگر در حال اجرا",
+  "{{count}} other timer running_other": "{{count}} زمان‌سنج دیگر در حال اجرا",
+  "End this timer": "پایان این زمان‌سنج",
+  "this account": "این حساب"
 }

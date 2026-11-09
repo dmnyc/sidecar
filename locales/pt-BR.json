@@ -2098,5 +2098,10 @@
   "Signs here without asking for 30 minutes.": "Assina aqui sem perguntar por 30 minutos.",
   "Signs future {{kind}} events here without asking.": "Assina os próximos eventos {{kind}} deste site sem perguntar.",
   "Asks again next time.": "Pergunta novamente na próxima.",
-  "Signs future versions of “{{d}}” here without asking.": "Assina aqui as próximas versões de “{{d}}” sem perguntar."
+  "Signs future versions of “{{d}}” here without asking.": "Assina aqui as próximas versões de “{{d}}” sem perguntar.",
+  "{{count}} other timer running_many": "{{count}} outros cronômetros ativos",
+  "{{count}} other timer running_one": "{{count}} outro cronômetro ativo",
+  "{{count}} other timer running_other": "{{count}} outros cronômetros ativos",
+  "End this timer": "Encerrar este cronômetro",
+  "this account": "esta conta"
 }
