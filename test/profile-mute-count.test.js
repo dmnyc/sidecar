@@ -145,12 +145,15 @@ test('THE REFRESH BUTTON REACHES IT', () => {
   const at = source.indexOf("refreshBtn.addEventListener('click'", decl);
   assert.ok(at !== -1, 'the refresh handler moved');
   const handler = stripComments(source.slice(at, at + 900));
-  assert.match(handler, /_profileCache\.delete\(active\.pubkey\)/, 'the profile cache is no longer dropped');
-  assert.match(handler, /followCountCache\.delete\(active\.pubkey\)/, 'the follow cache is no longer dropped');
+  assert.match(handler, /followCountCache\.delete\(active\.pubkey\)/, 'the follow count re-reads');
   assert.match(handler, /_muteListPromises\.delete\(active\.pubkey\)/, 'the mute list survives a refresh');
+  // Counts only, painted in place: a refresh must not rebuild the screen it
+  // sits on (that used to re-create every element for data that hadn't moved).
+  assert.doesNotMatch(handler, /renderProfile|fetchAndStoreProfile|_profileCache/);
 });
 
 test('the button says what it does', () => {
   const src = stripComments(source);
-  assert.match(src, /title: t\('Refresh profile, follow and mute counts'\)/, 'the tooltip still promises only two of three');
+  assert.match(src, /title: t\('Refresh follow and mute counts'\)/, 'the tooltip matches the narrowed refresh');
+  assert.doesNotMatch(src, /Refresh profile, follow and mute counts/, 'the old tooltip is gone');
 });
