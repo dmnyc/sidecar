@@ -185,6 +185,7 @@ function fakeEl() {
   el.classList = { add: (c) => el.classes.add(c), remove: (c) => el.classes.delete(c), contains: (c) => el.classes.has(c) };
   el.append = (...k) => { el.children.push(...k); };
   el.addEventListener = (t, f) => { el.handlers[t] = f; };
+  el.setAttribute = (k, v) => { el[k] = v; };
   Object.defineProperty(el, 'innerHTML', { get: () => '', set: () => { el.children = []; } });
   return el;
 }
@@ -193,7 +194,7 @@ function panelCard(data) {
   const $ = (id) => (els[id] || (els[id] = fakeEl()));
   const pendingApproval = { id: 'x', data, chosenPubkey: null };
   const ctx = vm.createContext({
-    $, pendingApproval, data,
+    $, pendingApproval, data, approvalSwitchToggle: null,
     h: (tag, props, kids) => { const e = fakeEl(); Object.assign(e, props || {}); if (kids) e.append(...kids); return e; },
     avatarEl: () => fakeEl(), applyAvatar() {}, icon: () => fakeEl(),
     t: (s, v) => (v ? s.replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]) : s), tSec: (s) => s,
@@ -203,9 +204,9 @@ function panelCard(data) {
   vm.runInContext([
     'const isPaymentApproval = ' + panelSrc.match(/const isPaymentApproval = (\(data\) =>\s*[^;]*);/)[1] + ';',
     liftFrom(panelSrc, 'function approvalAccountList('), liftFrom(panelSrc, 'function approvalPayList('),
-    liftFrom(panelSrc, 'function renderApprovalAccountCapsule('), liftFrom(panelSrc, 'function buildApprovalSwitchMenu('),
+    liftFrom(panelSrc, 'function renderApprovalAccountCapsule('), liftFrom(panelSrc, 'function buildApprovalAccountMenu('),
     liftFrom(panelSrc, 'function payFromExtra('),
-    'this.render = renderApprovalAccountCapsule; this.menu = buildApprovalSwitchMenu; this.extra = payFromExtra; this.list = approvalPayList;',
+    'this.render = renderApprovalAccountCapsule; this.menu = buildApprovalAccountMenu; this.extra = payFromExtra; this.list = approvalPayList;',
   ].join('\n'), ctx);
   return { ctx, $, pendingApproval };
 }

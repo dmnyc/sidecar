@@ -2752,7 +2752,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* The standing-grant explanation on the approval card, under its checkbox: names
    the site, account, kind, and `d` record the grant would cover. */
-.always-kind-note { font-size: 11.5px; color: var(--faint); line-height: 1.45; margin-top: 2px; }
 /* The shared-identity opt-out, under the account list in the site's Manage sheet. Just
    a separator and spacing: the row inside uses .toggle-row, which is the panel's own
    switch, and the explanation is a sibling .hint beneath it rather than a column wedged
@@ -5316,55 +5315,38 @@ html:has(#view-approval:not(.hidden)) .toasts {
 }
 .shared-headsup-btn-quiet:hover { filter: none; color: var(--text); border-color: var(--gold-soft); }
 /* compact reminder once the explainer has been dismissed */
-.shared-caption {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin: 2px 0 8px; color: var(--muted); font-size: 11.5px; letter-spacing: 0.02em;
-}
+/* One centered line above "Signing as". Block, not flex: as a flex row its sentences
+   became side-by-side columns in a 300px card. */
+.shared-caption { margin: 2px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
+.shared-caption span, .shared-caption strong { display: block; }
+.shared-caption strong { color: var(--text); font-weight: 600; font-size: 12.5px; }
 .shared-caption svg { width: 13px; height: 13px; opacity: 0.85; }
 .approval-account { margin: 4px 0 18px; }
-.approval-switch-toggle {
-  display: block; width: 100%; background: none; border: none; cursor: pointer;
-  color: var(--lav); font-size: 12.5px; text-align: center; margin: -10px 0 14px; padding: 4px;
+/* The capsule IS the account switch when another account can be picked: the toggle
+   button covers it (its words stay for screen readers), and a chevron says it opens. */
+.approval-capsule.switchable { cursor: pointer; padding-inline-end: 38px; }
+.approval-capsule.switchable:hover { border-color: var(--gold-soft); }
+.approval-capsule.switchable::after {
+  content: ''; position: absolute; inset-inline-end: 18px; top: 50%; width: 7px; height: 7px;
+  border-inline-end: 2px solid var(--lav); border-bottom: 2px solid var(--lav);
+  transform: translateY(-70%) rotate(45deg); transition: transform 0.15s ease;
 }
-.approval-switch-toggle:hover { color: var(--text); }
+.approval-capsule.switchable.open::after { transform: translateY(-25%) rotate(-135deg); }
+.approval-capsule .approval-switch-toggle {
+  position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: inherit;
+  background: none; cursor: pointer; color: transparent; font-size: 0;
+}
+.approval-capsule .approval-switch-toggle:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
 .approval-switch-menu {
   text-align: start;
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--border-strong); border-radius: 14px;
-  padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
+  padding: 6px; margin: -10px 0 14px; box-shadow: var(--sheen);
 }
 /* "Wrong account?" hint (see renderWrongAcctEscape in sidepanel.js). Matches
    .trust-nudge, the other advisory line on this screen — muted, so it doesn't compete
    with the destructive banner or read as something being wrong. */
-.approval-wrong-acct {
-  font-size: 12.5px; line-height: 1.45; color: var(--muted);
-  text-align: center; margin: -6px 0 14px;
-}
-.approval-wrong-acct strong { display: block; color: var(--text); font-weight: 600; }
-/* Reads as a link, not a button — it sits above the real action row and must not look
-   like a fourth choice competing with Allow / Trust / Reject. Secondary color, not --lav:
-   at accent weight it pulled the eye away from the account capsule directly above, which
-   is the thing the user actually needs to read on this screen. The underline carries the
-   affordance on its own, and hover brings it up to full text color. */
-.approval-wrong-acct-toggle {
-  background: none; border: none; padding: 2px 4px; cursor: pointer;
-  font: inherit; color: var(--muted); text-decoration: underline;
-}
-.approval-wrong-acct-toggle:hover { color: var(--text); }
-/* Borrows the switch-menu shell so the expanded list reads as the same kind of thing as
-   the account switcher above it. */
-.approval-wrong-acct-list {
-  text-align: start; margin: 8px 0 0; padding: 6px;
-  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
-  border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--sheen);
-}
-.wrong-acct-lede { margin: 2px 6px 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
-/* "Active" marker on the globally-active account, which sorts first. Without it the
-   top row looks arbitrary rather than like the obvious pick. */
-.wrong-acct-tag {
-  margin-inline-start: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--muted); white-space: nowrap;
-}
+
 
 .approval-as {
   font-size: 10.5px; color: var(--muted); margin-bottom: 8px;
@@ -5550,7 +5532,31 @@ html:has(#view-approval:not(.hidden)) .toasts {
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   color: var(--text);
 }
+.relax-status { position: relative; }
 .relax-status-top { display: flex; align-items: center; gap: 8px; }
+/* +N: the other accounts' windows, as a count capsule (currentColor tint, like the tab
+   counts). It opens the list above the bar. */
+.relax-status-more {
+  flex-shrink: 0; padding: 0 7px; border: none; border-radius: 999px; cursor: pointer;
+  background: color-mix(in srgb, currentColor 16%, transparent); color: var(--text);
+  font: inherit; font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
+}
+.relax-status-more:hover, .relax-status-more[aria-expanded="true"] { background: color-mix(in srgb, currentColor 26%, transparent); }
+.relax-status-more:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+/* The list: a sheet laid over the panel above the bar, one row per other window. Over
+   the compose button too, which sits at z-index 50. */
+.relax-status-list {
+  position: absolute; inset-inline: 0; bottom: 100%; z-index: 60;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 9px 12px; border-top: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.18);
+}
+.relax-list-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.relax-list-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
+.relax-list-name { flex-shrink: 0; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relax-list-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.relax-list-time { min-width: 3.5em; font-size: calc(14px * var(--display-scale, 1)); }
 .relax-status-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; }
 .relax-status-who #relax-status-host { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .relax-status-sep { color: var(--faint); }
@@ -6790,3 +6796,29 @@ button.poll-bar-head {
 :root[dir="rtl"] input[placeholder*="@"], :root[dir="rtl"] input[type="url"], :root[dir="rtl"] input[type="email"] {
   direction: ltr; text-align: left;
 }
+
+/* ---- The approval scope row: Once / 30 min / Always, one control where the
+   checkbox and the duration chips used to be. Captions occupy one grid cell so
+   switching never moves the buttons; labels never wrap. ---- */
+.scope { border: 0; margin: 4px 0 12px; padding: 0; min-width: 0; width: 100%; }
+.scope legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(var(--well-rgb), 0.55); border: 1px solid var(--border); }
+.seg label { flex: 1 1 0; min-width: max-content; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; font: 600 12.5px/1.2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+.seg label:hover { color: var(--text); }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); border-color: var(--gold-soft); color: var(--gold); box-shadow: var(--sheen); }
+.seg.stacked { flex-direction: column; }
+.seg.stacked label { justify-content: flex-start; }
+/* One line over the row; the three captions share one cell, so switching segments
+   never moves the row or the buttons. */
+.scope-caps { display: grid; margin: 0 0 7px; text-align: center; }
+.scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.scope-cap.on { visibility: visible; }
+.scope-cap.always { color: var(--text); }
+
+/* The merged account menu: two groups where two stacked escape hatches used to be. */
+.menu-group + .menu-group { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+.menu-head { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding: 4px 8px; }
+.menu-lede { margin: 0 8px 6px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+
+.wrong-acct-tag { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }

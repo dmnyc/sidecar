@@ -24,9 +24,7 @@
     bindPayer: $('bind-payer'),
     bindPayerBox: $('bind-payer-box'),
     bindPayerLabel: $('bind-payer-label'),
-    wrongAcct: $('wrong-acct'),
-    wrongAcctToggle: $('wrong-acct-toggle'),
-    wrongAcctList: $('wrong-acct-list'),
+    acctMenu: $('acct-menu'),
     unlock: $('unlock'),
     pin: $('pin'),
     error: $('error'),
@@ -37,16 +35,21 @@
     remember: $('remember'),
     rememberBudget: $('remember-budget'),
     budgetAmount: $('budget-amount'),
-    relaxRow: $('relax-row'),
+    scopeFieldset: $('scope'),
+    scopeOnce: document.querySelector('#scope input[value="once"]'),
+    scopeRelax: document.querySelector('#scope input[value="relax"]'),
+    scopeAlways: document.querySelector('#scope input[value="always"]'),
+    scopeRelaxOpt: $('scope-relax'),
+    scopeAlwaysOpt: $('scope-always'),
+    scopeCapOnce: $('scope-cap-once'),
+    scopeCapRelax: $('scope-cap-relax'),
+    scopeCapAlways: $('scope-cap-always'),
     trustNudge: $('trust-nudge'),
     autozapOffer: $('autozap-offer'),
     autozapOfferBox: $('autozap-offer-box'),
     autozapOfferLabel: $('autozap-offer-label'),
     payAnywhereOffer: $('payanywhere-offer'),
     payAnywhereOfferBox: $('payanywhere-offer-box'),
-    alwaysKindOffer: $('always-kind-offer'),
-    alwaysKindBox: $('always-kind-box'),
-    alwaysKindNote: $('always-kind-note'),
   };
 
   // Same transport, same reason as sidepanel.js — see the long note on bg() there (#224).
@@ -624,7 +627,6 @@
     const verb = isPayment ? tSec('wants to send a Lightning payment') : signAsk(data);
     els.ask.textContent = verb;
     buildAccountCapsule();
-    buildWrongAcct();
     renderPreview();
 
     // Decrypt-burst note: a client loading a DM inbox fires many decrypt requests
@@ -646,6 +648,12 @@
       els.decryptNote.textContent = text;
       els.decryptNote.classList.remove('hidden');
     }
+
+    // The button names the act, as in the panel: Sign on a sign card, Allow once on
+    // anything else (a login, a decrypt). The markup's own label is Sign, so a login
+    // card used to offer to "Sign". The scope row, a payment, a WebLN read and a pure
+    // unlock relabel it further down.
+    els.allow.textContent = data.method === 'signEvent' ? t('Sign') : t('Allow once');
 
     // Same honesty for WebLN reads: one Allow covers this site's balance/info/
     // invoice reads for the rest of the session (until Sidecar locks), not just
@@ -680,49 +688,58 @@
     // own switcher can flip identities with zero signal to Sidecar, so "Trust
     // this site" can't skip it here (the same signature that's fine now could be
     // wrong next time), and showing it anyway would over-promise.
-    renderSharedNote(data);
-
-    // Offer a timed "auto-sign" window on content-sign approvals — the escape
-    // hatch for the shared-host per-sign confirm, and a middle rung between Allow
-    // once and Trust on any ask-tier site. Not for payments, decrypts, relay-auth,
-    // or a pure unlock (those have no approval to skip).
-    // Also not on a destructive overwrite — see the matching note in sidepanel.js:
-    // approving the wipe makes the wiped list the new baseline, so a window granted
-    // here would let the next overwrite through unwarned.
-    //
-    // `relaxEligible` comes from the background (RELAX.neverRelaxes) and is the
-    // authority on which KINDS a window may ever cover — account/wallet-control and
-    // the replaceable 0/3/10000. Honoring it here rather than re-deriving the rule is
-    // the point: this gate and the background's used to be written separately, and a
-    // profile edit that wasn't itself destructive slipped through this one while the
-    // background would have accepted the window.
+    // THE SCOPE ROW. 30 minutes when the kind can relax; Always when the kind can
+    // carry a standing grant and the host isn't a shared-identity check — there the
+    // confirm is the guard, and a grant would sign past the very check the card
+    // exists for, so the caption points at the 30-minute window instead. Never on
+    // payments, decrypts, relay-auth, pure unlocks, or a destructive overwrite (a
+    // window granted here would let the next overwrite through unwarned).
     const isContentSign =
       data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt';
-    if (data.needApproval && isContentSign && !isPayment && !data.destructive && data.relaxEligible !== false) {
-      els.relaxRow.classList.remove('hidden');
-      els.relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
-        chip.addEventListener('click', () =>
-          decide('relax', { relaxMs: Number(chip.dataset.mins) * 60000 })
-        );
-      });
-    }
+    const canRelax =
+      data.needApproval && isContentSign && !isPayment && !data.destructive && data.relaxEligible !== false;
+    const canAlways = data.canKindGrant && data.needApproval && !data.sharedIdentity;
+    renderSharedNote(data);
 
-    // "Always allow this event type" (#482): on a card whose kind a standing
-    // grant may cover, offer the checkbox and say exactly what ticking it
-    // signs from now on — the site, the account, the kind, and the record's
-    // `d` tag when the event carries one. textContent only: host and `d` are
-    // page-controlled. Unticked on every fresh card, and never on a pure
-    // unlock (nothing is being approved there to make standing).
-    if (data.canKindGrant && data.needApproval) {
+    // The row's wiring: reset to Once on every card (the old checkbox's own rule),
+    // the caption under the row follows the selection, and the primary button's
+    // words follow it too — Sign, Sign for 30 min, Always sign.
+    els.scopeFieldset.classList.toggle('hidden', !canRelax && !canAlways);
+    els.scopeRelaxOpt.classList.toggle('hidden', !canRelax);
+    els.scopeAlwaysOpt.classList.toggle('hidden', !canAlways);
+    if (canRelax || canAlways) {
       const ev = data.params && (data.params.event || data.params);
       const kind = ev ? ev.kind : null;
       const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
-      const who = data.accountName || shortNpub(data.npub);
-      els.alwaysKindNote.textContent = data.kindDTag != null
-        ? tSec('Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
-        : tSec('Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
-      els.alwaysKindBox.checked = false;
-      els.alwaysKindOffer.classList.remove('hidden');
+      // A one-line header over the row, one sentence per segment, the same as the
+      // panel (sidepanel.js). All three share one cell, so the row never moves.
+      els.scopeCapOnce.textContent = tSec('Asks again next time.');
+      els.scopeCapRelax.textContent = data.method === 'signEvent'
+        ? tSec('Signs here without asking for 30 minutes.')
+        : tSec('Approves this kind here without asking for 30 minutes.');
+      els.scopeCapAlways.textContent = data.kindDTag != null
+        ? tSec('Signs future versions of “{{d}}” here without asking.', { d: data.kindDTag })
+        : tSec('Signs future {{kind}} events here without asking.', { kind: kindName });
+      els.scopeOnce.checked = true;
+      els.scopeRelax.checked = false;
+      els.scopeAlways.checked = false;
+      const setScopeUi = () => {
+        els.scopeCapOnce.classList.toggle('on', els.scopeOnce.checked);
+        els.scopeCapRelax.classList.toggle('on', canRelax && els.scopeRelax.checked);
+        els.scopeCapAlways.classList.toggle('on', canAlways && els.scopeAlways.checked);
+        // The button says what pressing it does, on every card (as in the panel).
+        if (data.method === 'signEvent' && !isPayment) {
+          els.allow.textContent = els.scopeAlways.checked ? t('Always sign')
+            : els.scopeRelax.checked ? t('Sign for 30 min')
+            : t('Sign');
+        } else {
+          els.allow.textContent = els.scopeRelax.checked ? t('Allow for 30 min') : t('Allow once');
+        }
+      };
+      els.scopeOnce.addEventListener('change', setScopeUi);
+      els.scopeRelax.addEventListener('change', setScopeUi);
+      els.scopeAlways.addEventListener('change', setScopeUi);
+      setScopeUi();
     }
 
     // Point at Trust once someone has approved this site several times over. Built with
@@ -791,53 +808,21 @@
     if (prev) prev.remove();
     if (!d.sharedIdentity) return;
     await sharedHeadsUpReady; // the flags are known before a branch is taken
-    els.switchToggle.textContent = tSec('Sign as a different account');
+    els.switchToggle.textContent = tSec('Use a different account');
     els.trust.classList.add('hidden');
-    // Opted out: no note at all. The confirm itself and the account picker stay —
+    // Opted out: no note at all. The confirm itself and the account menu stay —
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
-    let note;
-    if (sharedHeadsUp.dismissed) {
-      note = document.createElement('div');
-      note.id = 'shared-note-box';
-      note.className = 'shared-caption';
-      note.textContent = tSec('Multiple accounts used');
-    } else {
-      note = document.createElement('div');
-      note.id = 'shared-note-box';
-      note.className = 'shared-headsup';
-      const title = document.createElement('div');
-      title.className = 'shared-headsup-title';
-      title.textContent = t('Heads up!');
-      const body = document.createElement('p');
-      body.className = 'shared-headsup-body';
-      body.textContent =
-        tSec("You're signed in here with more than one account. A client's own account switcher can't tell Sidecar which one you picked, so confirm who's posting each time.");
-      const actions = document.createElement('div');
-      actions.className = 'shared-headsup-actions';
-      const got = document.createElement('button');
-      got.className = 'shared-headsup-btn';
-      got.textContent = t('Got it');
-      got.addEventListener('click', () => {
-        sharedHeadsUp.dismissed = true;
-        chrome.storage.local.set({ sharedHeadsUpDismissed: true });
-        renderSharedNote(d);
-      });
-      // THE QUIET SECOND ANSWER. Some users have seen the explainer, understand the
-      // choice, and want the note gone altogether — "Got it" only ever collapsed it
-      // to the caption, and the caption never ended. This writes the opt-out both
-      // surfaces and the Settings restorer all read.
-      const never = document.createElement('button');
-      never.className = 'shared-headsup-btn shared-headsup-btn-quiet';
-      never.textContent = t("Don't show this again");
-      never.addEventListener('click', () => {
-        sharedHeadsUp.optedOut = true;
-        chrome.storage.local.set({ sharedHeadsUpOptOut: true });
-        renderSharedNote(d);
-      });
-      actions.append(got, never);
-      note.append(title, body, actions);
-    }
+    // Two lines, no buttons: the fact, then the ask, which carries the weight. Same as
+    // the panel. The 30-minute window sits in the scope row on the same card.
+    const note = document.createElement('p');
+    note.id = 'shared-note-box';
+    note.className = 'shared-caption';
+    const fact = document.createElement('span');
+    fact.textContent = tSec('Multiple accounts are signed in here.');
+    const ask = document.createElement('strong');
+    ask.textContent = tSec('Confirm who’s posting each time.');
+    note.append(fact, ask);
     els.account.parentNode.insertBefore(note, els.account);
   }
 
@@ -905,9 +890,20 @@
 
     els.switchMenu.innerHTML = '';
     els.switchMenu.classList.add('hidden');
+    // ONE menu, two groups — the old switcher and the "Not the right account?"
+    // row said almost the same thing from two places. Group 1: accounts signed in
+    // here, picking who signs this event (the card stays open). Group 2: the
+    // detach targets the switcher can't reach — cancels the request and makes
+    // that account active, under its existing lede. Payments keep their
+    // pay-from picker, which never detaches.
+    const allAccts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
+    const canDetach = !isPayment && !!data.wrongAccountEscape && allAccts.length > 0;
+    const detachTargets = canDetach
+      ? allAccts.filter((a) => !list.some((x) => x.pubkey === a.pubkey))
+      : [];
     const canSwitch = payPick
       ? (data.payFromOptions || []).length > 0
-      : !isPayment && Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+      : !isPayment && ((data.otherAccounts || []).length > 0 || detachTargets.length > 0);
     // The same button serves both cards, so its words follow the card it is on.
     if (payPick) els.switchToggle.textContent = t('Pay from a different account');
     // "Use {name} for all further payments on this site": offered once another account is
@@ -924,113 +920,110 @@
       els.switchToggle.classList.add('hidden');
       return;
     }
+    // The capsule IS the switch, as in the panel: the toggle covers it, keeping its
+    // words for screen readers, and a chevron on the capsule says it opens.
     els.switchToggle.classList.remove('hidden');
+    cap.classList.add('switchable');
+    cap.append(els.switchToggle);
+    els.switchToggle.setAttribute('aria-expanded', 'false');
     els.switchToggle.onclick = () => {
-      if (els.switchMenu.classList.contains('hidden')) {
-        buildSwitchMenu(list, chosen.pubkey);
+      const open = els.switchMenu.classList.contains('hidden');
+      if (open) {
+        buildSwitchMenu(list, detachTargets, chosen.pubkey);
         els.switchMenu.classList.remove('hidden');
       } else {
         els.switchMenu.classList.add('hidden');
       }
+      els.switchToggle.setAttribute('aria-expanded', String(open));
+      cap.classList.toggle('open', open);
     };
   }
 
-  function buildSwitchMenu(list, chosenPk) {
+  function buildSwitchMenu(list, detachTargets, chosenPk) {
     els.switchMenu.innerHTML = '';
-    list.forEach((a) => {
-      const isChosen = a.pubkey === chosenPk;
-      const row = document.createElement('button');
-      row.className = 'switch-row' + (isChosen ? ' active' : '');
-      const av = document.createElement('img');
-      av.className = 'switch-row-av';
-      av.referrerPolicy = 'no-referrer';
-      av.onerror = () => { av.onerror = null; av.src = avatarPh; };
-      av.src = a.picture || avatarPh;
-      const info = document.createElement('div');
-      info.className = 'switch-row-info';
-      const name = document.createElement('div');
-      name.className = 'switch-row-name';
-      name.textContent = a.name || shortNpub(a.npub);
-      const np = document.createElement('div');
-      np.className = 'switch-row-npub';
-      np.textContent = shortNpub(a.npub);
-      info.append(name, np);
-      row.append(av, info);
-      if (isChosen) row.insertAdjacentHTML('beforeend', CHECK_SVG);
-      row.addEventListener('click', () => {
-        if (isPayment && data.payerPubkey) {
-          // Paying from this account; the card's own account is "no pick".
-          payFrom = a.pubkey === data.payerPubkey ? null : a.pubkey;
-          els.bindPayerBox.checked = false;
-        } else {
-          chosenPubkey = a.pubkey;
-        }
+    const rows = (accts, chosenPk_, onPick, group) => {
+      const g = document.createElement('div');
+      g.className = 'acct-menu-group';
+      const head = document.createElement('div');
+      head.className = 'acct-menu-head';
+      head.textContent = group;
+      g.append(head);
+      accts.forEach((a) => {
+        const isChosen = chosenPk_ != null && a.pubkey === chosenPk_;
+        const row = document.createElement('button');
+        row.className = 'switch-row' + (isChosen ? ' active' : '');
+        const av = document.createElement('img');
+        av.className = 'switch-row-av';
+        av.referrerPolicy = 'no-referrer';
+        av.onerror = () => { av.onerror = null; av.src = avatarPh; };
+        av.src = a.picture || avatarPh;
+        const info = document.createElement('div');
+        info.className = 'switch-row-info';
+        const name = document.createElement('div');
+        name.className = 'switch-row-name';
+        name.textContent = a.name || shortNpub(a.npub);
+        const np = document.createElement('div');
+        np.className = 'switch-row-npub';
+        np.textContent = shortNpub(a.npub);
+        info.append(name, np);
+        row.append(av, info);
+        if (isChosen) row.insertAdjacentHTML('beforeend', CHECK_SVG);
+        row.addEventListener('click', () => onPick(a));
+        g.append(row);
+      });
+      return g;
+    };
+    // Group 1 — who signs this event. Choosing re-renders the capsule and the
+    // scope caption's {{name}}; the card stays open.
+    if (list.length && detachTargets !== 'ALL') {
+      els.switchMenu.append(rows(list, chosenPk, (a) => {
+        chosenPubkey = a.pubkey === data.activePubkey ? null : a.pubkey;
         els.switchMenu.classList.add('hidden');
         buildAccountCapsule();
+      }, tSec('Signed in here')));
+    }
+    // Group 2 — the detach escape. Choosing cancels the request and makes that
+    // account active; the background throws, so this never signs.
+    if (detachTargets === 'ALL') {
+      els.switchMenu.append(rows(list, null, (a) => decide('detach', { detachPubkey: a.pubkey }), tSec('Other accounts')));
+    } else if (detachTargets.length) {
+      const g = document.createElement('div');
+      g.className = 'acct-menu-group';
+      const head = document.createElement('div');
+      head.className = 'acct-menu-head';
+      head.textContent = tSec('Other accounts');
+      g.append(head);
+      const lede = document.createElement('p');
+      lede.className = 'acct-menu-lede';
+      // Copy asserted identical to the panel's — see buildWrongAcctList in sidepanel.js
+      // for why the reconnect instruction isn't here. This window closes on the
+      // decision, so it has no toast of its own; the client's error is the only
+      // channel either way.
+      lede.textContent = tSec('Cancels this request and makes the selected account active.');
+      g.append(lede);
+      detachTargets.forEach((a) => {
+        const row = document.createElement('button');
+        row.className = 'switch-row';
+        const av = document.createElement('img');
+        av.className = 'switch-row-av';
+        av.referrerPolicy = 'no-referrer';
+        av.onerror = () => { av.onerror = null; av.src = avatarPh; };
+        av.src = a.picture || avatarPh;
+        const info = document.createElement('div');
+        info.className = 'switch-row-info';
+        const name = document.createElement('div');
+        name.className = 'switch-row-name';
+        name.textContent = a.name || shortNpub(a.npub);
+        const np = document.createElement('div');
+        np.className = 'switch-row-npub';
+        np.textContent = shortNpub(a.npub);
+        info.append(name, np);
+        row.append(av, info);
+        row.addEventListener('click', () => decide('detach', { detachPubkey: a.pubkey }));
+        g.append(row);
       });
-      els.switchMenu.append(row);
-    });
-  }
-
-  // "Wrong account?" escape — the popup half of renderWrongAcctEscape in sidepanel.js.
-  // Offers the accounts the switcher above can't reach; the two lists are disjoint by
-  // construction in background.js. Keep the two surfaces in step; the lede copy is
-  // asserted identical in both by the tests.
-  function buildWrongAcct() {
-    if (!els.wrongAcct || !els.wrongAcctToggle || !els.wrongAcctList) return;
-    els.wrongAcctList.innerHTML = '';
-    els.wrongAcctList.classList.add('hidden');
-    els.wrongAcctToggle.setAttribute('aria-expanded', 'false');
-    const accts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
-    els.wrongAcct.classList.toggle('hidden', !data.wrongAccountEscape || !accts.length);
-    els.wrongAcctToggle.onclick = () => {
-      if (els.wrongAcctList.classList.contains('hidden')) {
-        buildWrongAcctList(accts);
-        els.wrongAcctList.classList.remove('hidden');
-        els.wrongAcctToggle.setAttribute('aria-expanded', 'true');
-      } else {
-        els.wrongAcctList.classList.add('hidden');
-        els.wrongAcctToggle.setAttribute('aria-expanded', 'false');
-      }
-    };
-  }
-
-  function buildWrongAcctList(accts) {
-    els.wrongAcctList.innerHTML = '';
-    const lede = document.createElement('p');
-    lede.className = 'wrong-acct-lede';
-    // Copy asserted identical to the panel's — see buildWrongAcctList in sidepanel.js for
-    // why the reconnect instruction isn't here. This window closes on the decision, so it
-    // has no toast of its own; the client's error is the only channel either way.
-    lede.textContent = tSec('Cancels this request and makes the selected account active.');
-    els.wrongAcctList.append(lede);
-    accts.forEach((a) => {
-      const row = document.createElement('button');
-      row.className = 'switch-row';
-      const av = document.createElement('img');
-      av.className = 'switch-row-av';
-      av.referrerPolicy = 'no-referrer';
-      av.onerror = () => { av.onerror = null; av.src = avatarPh; };
-      av.src = a.picture || avatarPh;
-      const info = document.createElement('div');
-      info.className = 'switch-row-info';
-      const name = document.createElement('div');
-      name.className = 'switch-row-name';
-      name.textContent = a.name || shortNpub(a.npub);
-      const np = document.createElement('div');
-      np.className = 'switch-row-npub';
-      np.textContent = shortNpub(a.npub);
-      info.append(name, np);
-      row.append(av, info);
-      if (a.active) {
-        const tag = document.createElement('span');
-        tag.className = 'wrong-acct-tag';
-        tag.textContent = t('Active');
-        row.append(tag);
-      }
-      row.addEventListener('click', () => decide('detach', { detachPubkey: a.pubkey }));
-      els.wrongAcctList.append(row);
-    });
+      els.switchMenu.append(g);
+    }
   }
 
   // Disable Allow once + Trust this site while a destructive overwrite is
@@ -1107,10 +1100,10 @@
     if (data.offerPayAnywhere === true && els.payAnywhereOfferBox.checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
-    // #482: carry the standing per-kind grant with the approval. Only 'once'
-    // — picking Trust chooses the broader tier instead, and the background
-    // re-validates eligibility before writing anything.
-    if (data.canKindGrant && action === 'once' && els.alwaysKindBox.checked) {
+    // #482: carry the standing per-kind grant with the approval — the row's
+    // "Always" segment. The background re-validates eligibility (and never
+    // offered it on a shared-host identity check) before writing anything.
+    if (data.canKindGrant && action === 'once' && els.scopeAlways.checked) {
       extra = Object.assign({}, extra, { alwaysKind: true });
     }
     // "Wrong account" escape: carry the account to make active. The background detaches
@@ -1118,9 +1111,10 @@
     if (action === 'detach') {
       extra = Object.assign({}, extra, { detachPubkey: (opts && opts.detachPubkey) || '' });
     }
-    // Timed auto-sign window chosen via the relax chips.
+    // Timed auto-sign window chosen via the row's 30-min segment. The Sign
+    // button routes here itself when that segment is selected.
     if (action === 'relax') {
-      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
+      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 30 * 60000 });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (chosenPubkey && chosenPubkey !== data.activePubkey) {
@@ -1131,12 +1125,11 @@
     const payFromFlags = payFromExtra(action);
     if (payFromFlags) extra = Object.assign({}, extra, payFromFlags);
 
-    const chips = els.relaxRow.querySelectorAll('.relax-chip');
     const setDisabled = (v) => {
       els.allow.disabled = v;
       els.trust.disabled = v;
       els.reject.disabled = v;
-      chips.forEach((c) => (c.disabled = v));
+      [els.scopeOnce, els.scopeRelax, els.scopeAlways].forEach((r) => (r.disabled = v));
     };
     setDisabled(true);
     try {
@@ -1153,7 +1146,15 @@
     // Background either navigates this window to the next queued request or closes it.
   }
 
-  els.allow.addEventListener('click', () => decide('once'));
+      // The primary button applies the chosen scope: a relax selection routes to
+    // the window, everything else signs — carrying Always when that's picked.
+    els.allow.addEventListener('click', () => {
+      if (els.scopeRelax.checked && !els.scopeRelaxOpt.classList.contains('hidden')) {
+        decide('relax', { relaxMs: 30 * 60000 });
+        return;
+      }
+      decide('once');
+    });
   els.trust.addEventListener('click', () => decide('trust'));
   els.reject.addEventListener('click', () => decide('reject'));
   // The keystore can lock while this card sits unanswered (idle auto-lock). A card
@@ -1187,7 +1188,7 @@
     els.pin.addEventListener('keydown', (e) => {
       // Respect the destructive lock — Enter bypasses the disabled Allow button
       // otherwise. Same guard as the panel's PIN field.
-      if (e.key === 'Enter' && !els.allow.disabled) decide('once');
+      if (e.key === 'Enter' && !els.allow.disabled) els.allow.click();
     });
 
   init().catch((e) => {

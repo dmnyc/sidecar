@@ -49,9 +49,9 @@
         <a href="#pairing">How sites pair</a>
         <a href="#switching">Switching</a>
         <a href="#clients">Clients compared</a>
-        <a href="#relax">Relax mode</a>
+        <a href="#relax">30 minutes</a>
         <a href="#batches">Allow all</a>
-        <a href="#always-kind">Always allow an event type</a>
+        <a href="#always-kind">Always</a>
         <a href="#erasing">Erasing data</a>
         <a href="#notifications">Notifications</a>
         <a href="#relays">Your relays</a>
@@ -107,7 +107,7 @@
       <!-- screenshot: the approval prompt, a site asking to sign an event -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/approval-prompt.webp" alt="Sidecar's approval prompt: primal.net asking to see your public key, showing which account will sign, with Allow once, Trust this site, and Reject buttons">
+          <img src="screenshots/approval-prompt.webp" width="720" height="886" alt="Sidecar's approval prompt: notes.example wants to sign a note, signing as Amelia, in an account card with a chevron for picking another, above the note's kind, tags and text">
         </div>
         <figcaption>A site asking for a signature. You decide, every time, unless you choose to trust the site.</figcaption>
       </figure>
@@ -317,64 +317,75 @@
       been added.</p>
     </section>
 
-    <!-- ===== Relax mode (timed auto-sign) ===== -->
+    <!-- ===== The 30-minute window (timed auto-sign) ===== -->
     <section class="guide-section" id="relax">
-      <h2>When every action asks: relax mode</h2>
-      <p>On a site where two of your accounts have signed in, Sidecar confirms
-      <em>every</em> post, reaction, and DM — for the reason in the last section: only
-      you can see which account the client is actually showing. That's the right
-      default, but during a busy session it means a lot of tapping.</p>
+      <h2>When every action asks: 30 minutes at a time</h2>
+      <p>Every approval card that signs a post, a reaction or a message asks one question,
+      in one row above the Sign button: <em>Once</em>, <em>30 min</em> or <em>Always</em>.
+      A line above the row says what the choice does, and the button follows it.
+      <em>Once</em> signs this one and asks again next time. On a site where two of your
+      accounts have signed in, Sidecar asks about <em>every</em> post, reaction, and DM, for
+      the reason in the last section: only you can see which account the client is actually
+      showing. That's the right default, but during a busy session it means a lot of
+      tapping.</p>
 
-      <p><strong>Relax mode is the escape hatch.</strong> On any confirm you'll see
-      <em>Auto-sign for the next</em> with three choices — 5, 15, or 30 minutes. Pick one
-      and Sidecar signs that site's requests for that account without asking again until
-      the time runs out.</p>
+      <p><strong>30 min is the escape hatch.</strong> Choose it and press <em>Sign for
+      30 min</em>, and Sidecar signs that site's requests for that account without asking
+      again until the half hour is up.</p>
 
-      <!-- screenshot: the relax chips on an approval prompt -->
+      <!-- screenshot: the scope row on an approval prompt, 30 min chosen -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/relax-chips.webp" width="718" height="832" alt="An approval prompt: 'Signing as' above a card for the account Amelia with her avatar and npub, then an 'Auto-sign for the next' row with 5 min, 15 min, and 30 min buttons, followed by Allow once, Trust this site, and Reject">
+          <img src="screenshots/relax-chips.webp" width="720" height="518" alt="The foot of an approval prompt: the line 'Signs here without asking for 30 minutes.' above a row of Once, 30 min and Always with 30 min chosen, then Sign for 30 min, Trust this site, and Reject">
         </div>
-        <figcaption>Choosing a window instead of approving one event at a time.</figcaption>
+        <figcaption>Choosing half an hour instead of approving one event at a time.</figcaption>
       </figure>
 
       <p>While a window is open, a status bar sits at the bottom of the panel with the
       account, the site, a live countdown, and a depleting bar. The dot is green, turning
       amber under the last minute. The toolbar icon also carries a badge with the minutes
-      remaining, so you can tell at a glance from any tab. Tap the <strong>&times;</strong>
-      on the bar to end it immediately.</p>
+      remaining, so you can tell at a glance from any tab. The circular arrow on the bar
+      starts the half hour again; the <strong>&times;</strong> ends auto-signing at once.</p>
+
+      <p><strong>One account at a time.</strong> Switching accounts ends the window, and
+      opening one for another account ends the first, so a client that mixes up your
+      accounts still gets a card. To keep a window for each account, turn on
+      <em>Settings &rarr; Auto-sign with multiple accounts &rarr; Keep a 30-minute timer for each account</em>; the
+      bar then shows the active account's window, and <em>+1</em> lists the others.</p>
 
       <!-- screenshot: the relax status bar counting down -->
       <figure class="shot">
         <div class="shot-frame">
           <img src="screenshots/relax-status-bar.webp" width="720" height="300" alt="The bottom of the Sidecar panel below the wordmark and compose button: a status bar with a green dot, the account name Amelia, the site notes.example, a restart button and a close button, a partly depleted progress bar, and a 13:38 countdown">
         </div>
-        <figcaption>One window at a time, always visible, always cancelable.</figcaption>
+        <figcaption>Always visible, always cancelable.</figcaption>
       </figure>
 
-      <p><strong>What it deliberately doesn't cover.</strong> Relax mode skips the
+      <p><strong>What it deliberately doesn't cover.</strong> The window skips the
       repetitive confirms, not the ones that matter:</p>
       <ul>
+        <li><strong>Profile and follow edits still ask,</strong> and so do your mute and
+        trust lists: each new version replaces the old one everywhere, so each gets its
+        own look.</li>
         <li><strong>Handing over your account or wallet always asks.</strong> Pairing a
         remote signer and wallet-control requests still confirm individually, every time,
-        even mid-window — those are the requests worth reading closely.</li>
+        even mid-window. Those are the requests worth reading closely.</li>
         <li><strong>So does anything that erases your data.</strong> If a site asks to
         replace your follow list, mute list, or profile with a version that drops most of
-        it, Sidecar breaks the window to show you what would be lost — and doesn't offer
-        to auto-sign that one.</li>
-        <li><strong>One window at a time.</strong> Relaxing on a new site ends the
-        previous window, so there's never more than one site signing freely.</li>
+        it, Sidecar breaks the window to show you what would be lost, and doesn't offer
+        a window on that card.</li>
+        <li><strong>A window belongs to one site and one account.</strong> When more than
+        one is open, the bar and the badge show the one that ends first.</li>
         <li><strong>It ends on anything that changes who you are:</strong> locking
-        Sidecar, switching your active account, or logging into that site as a different
-        account — plus the timer itself.</li>
+        Sidecar, switching your active account, or that site signing in or posting as a
+        different account, plus the timer itself.</li>
       </ul>
 
-      <p class="fine-note">Worth being honest about the trade: within its window, relax
-      mode signs without showing you each event. That's the point of it, and it's why the
-      windows are minutes rather than hours, why only one runs at a time, and why the
-      countdown is always on screen. If you're on a shared host and unsure which account
-      the client has selected, approve one at a time instead — the per-signature confirm
-      is the thing that catches a wrong-account post.</p>
+      <p class="fine-note">Worth being honest about the trade: within its window, Sidecar
+      signs without showing you each event. That's the point of it, and it's why the window
+      is half an hour at most and why the countdown is always on screen. If you're on a
+      shared host and unsure which account the client has selected, sign once at a time
+      instead: the per-signature confirm is the thing that catches a wrong-account post.</p>
     </section>
 
     <!-- ===== Batches: Allow all, no Approve all ===== -->
@@ -387,21 +398,23 @@
       you have not read.</p>
     </section>
 
-    <!-- ===== Always allow an event type ===== -->
+    <!-- ===== Always (a standing grant for one event type) ===== -->
     <section class="guide-section" id="always-kind">
-      <h2>Always allow an event type</h2>
-      <p>Some requests come back from the same site forever — an app saving its settings
-      every time you open it. On those approval cards you can tick <em>Always allow this
-      event type for this site</em>. Sidecar then signs that kind of event from that site
-      without asking again.</p>
+      <h2>Always sign an event type</h2>
+      <p>Some requests come back from the same site forever, such as an app saving its
+      settings every time you open it. On those approval cards the row offers
+      <em>Always</em>: choose it and press <em>Always sign</em>, and Sidecar signs that kind
+      of event from that site without asking again.</p>
 
-      <p>The grant is narrow on purpose. It covers one event kind — and when the event
-      carries a <code>d</code> tag, that one record rather than everything of that kind —
+      <p>The grant is narrow on purpose. It covers one event kind (and when the event
+      carries a <code>d</code> tag, that one record rather than everything of that kind)
       for that site only, signed by the account that approved it. It covers signing only:
       the site can still never encrypt or decrypt anything without asking. Lock Sidecar
-      and the grant pauses with it — a locked keystore still asks for your PIN. Some kinds
-      can never carry the checkbox at all: anything that replaces your profile or follow
-      lists, anything that moves money, and the account-control kinds.</p>
+      and the grant pauses with it, because a locked keystore still asks for your PIN.
+      Some kinds never offer <em>Always</em> at all: anything that replaces your profile
+      or follow lists, anything that moves money, and the account-control kinds. Neither
+      does a site where several of your accounts are signed in, where the question of who
+      is posting is the reason the card is there.</p>
 
       <p>To see what you've granted, open the <strong>Activity</strong> tab: each site's
       row lists what it signs without asking, with an ✕ to revoke. Revoking puts the site
@@ -428,12 +441,12 @@
       <!-- screenshot: the destructive-overwrite warning on an approval prompt -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/destructive-warning.webp" width="716" height="876" alt="A Sidecar approval prompt headed 'Some Buggy Client wants to sign an event with your key', for a kind 3 follow list with 0 tags. A red-ruled warning reads 'This action erases data — Removes all 40 accounts you follow', followed by a prominent DON'T ALLOW button and a quieter 'I understand' button">
+          <img src="screenshots/destructive-warning.webp" width="720" height="1034" alt="A Sidecar approval prompt: client.example wants to sign a kind 3 follow list with 0 tags as Gatsby. A red-ruled warning reads 'This action erases data: Removes all 40 accounts Gatsby follows', followed by a prominent DON'T ALLOW button and a quieter I understand button">
         </div>
         <figcaption>The prompt names what would be lost, and won't let you approve it by reflex.</figcaption>
       </figure>
 
-      <p><strong>Approving takes a deliberate second step.</strong> <em>Allow once</em> and
+      <p><strong>Approving takes a deliberate second step.</strong> <em>Sign</em> and
       <em>Trust this site</em> start greyed out, and <em>Don't allow</em> sits right in the
       warning where your thumb already is. If the change really was intentional — you did
       just prune your follows — press <em>I understand</em> and the usual buttons come

@@ -212,6 +212,25 @@ test('AND THE PANEL REACHES FOR NOTHING IT DOES NOT HAVE EITHER', () => {
   assert.deepEqual([...free].sort(), [], 'sidepanel.js reaches for names it does not have');
 });
 
+test('AND THE POPUP CARD REACHES FOR NOTHING IT DOES NOT HAVE', () => {
+  // The same rule for prompt.js, the approval card's popup twin. Its account menu called
+  // an el() helper that only ever existed elsewhere, so "Use a different account" threw
+  // on every popup card and the menu never opened, with no test to notice.
+  const popup = fs.readFileSync(path.join(__dirname, '..', 'prompt.js'), 'utf8');
+  const src = codeOnly(popup);
+  const own = declaredIn(src);
+  // The scripts prompt.html loads beside it, and what they set.
+  ['I18N', 't', 'tn', 'tSec', 'SidecarBaseline', 'SidecarNip85', 'SidecarSky', 'SidecarSeasons',
+   'NostrTools', 'browser'].forEach((g) => own.add(g));
+  const body = src.replace(/\.\s*([A-Za-z_$][\w$]*)/g, ' ').replace(/([A-Za-z_$][\w$]*)\s*:/g, ' ');
+  const free = new Set();
+  for (const m of body.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {
+    const n = m[1];
+    if (!own.has(n) && !BROWSER.has(n) && !KEYWORDS.has(n)) free.add(n);
+  }
+  assert.deepEqual([...free].sort(), [], 'prompt.js reaches for names it does not have');
+});
+
 test('THE CORE REACHES FOR NOTHING THAT ONLY EXISTS IN THE PANEL', () => {
   // The named version of the check above, kept because it says WHY rather than only that.
   // These are the ones the moved code sat next to for years and would reach for by habit.
