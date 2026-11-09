@@ -2103,5 +2103,8 @@
   "{{count}} other timer running_one": "{{count}} outro cronômetro ativo",
   "{{count}} other timer running_other": "{{count}} outros cronômetros ativos",
   "End this timer": "Encerrar este cronômetro",
-  "this account": "esta conta"
+  "this account": "esta conta",
+  "Auto-sign timers": "Cronômetros de assinatura automática",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Por padrão, só uma conta assina sem perguntar por vez, e trocar de conta encerra o cronômetro dela.",
+  "Keep a timer for each account": "Manter um cronômetro para cada conta"
 }

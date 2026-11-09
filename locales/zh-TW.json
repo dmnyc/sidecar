@@ -1963,5 +1963,8 @@
   "Signs future versions of “{{d}}” here without asking.": "不需詢問即簽署此網站上「{{d}}」的未來版本。",
   "{{count}} other timer running_other": "另有 {{count}} 個計時器正在執行",
   "End this timer": "結束這個計時器",
-  "this account": "這個帳號"
+  "this account": "這個帳號",
+  "Auto-sign timers": "自動簽署計時器",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "預設一次只有一個帳號可以不經詢問簽署，切換帳號會結束它的計時器。",
+  "Keep a timer for each account": "為每個帳號保留計時器"
 }

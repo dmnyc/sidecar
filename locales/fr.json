@@ -2103,5 +2103,8 @@
   "{{count}} other timer running_one": "{{count}} autre minuteur en cours",
   "{{count}} other timer running_other": "{{count}} autres minuteurs en cours",
   "End this timer": "Arrêter ce minuteur",
-  "this account": "ce compte"
+  "this account": "ce compte",
+  "Auto-sign timers": "Minuteurs de signature automatique",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Par défaut, un seul compte signe sans demander à la fois, et changer de compte arrête son minuteur.",
+  "Keep a timer for each account": "Garder un minuteur par compte"
 }

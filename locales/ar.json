@@ -2313,5 +2313,8 @@
   "{{count}} other timer running_two": "مؤقتان آخران قيد التشغيل",
   "{{count}} other timer running_zero": "لا توجد مؤقتات أخرى قيد التشغيل",
   "End this timer": "إنهاء هذا المؤقت",
-  "this account": "هذا الحساب"
+  "this account": "هذا الحساب",
+  "Auto-sign timers": "مؤقتات التوقيع التلقائي",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "افتراضيًا، يوقّع حساب واحد فقط دون سؤال في كل مرة، والتبديل ينهي مؤقته.",
+  "Keep a timer for each account": "الاحتفاظ بمؤقت لكل حساب"
 }

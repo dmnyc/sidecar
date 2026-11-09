@@ -2033,5 +2033,8 @@
   "{{count}} other timer running_one": "{{count}} weiterer Timer läuft",
   "{{count}} other timer running_other": "{{count}} weitere Timer laufen",
   "End this timer": "Diesen Timer beenden",
-  "this account": "dieses Konto"
+  "this account": "dieses Konto",
+  "Auto-sign timers": "Auto-Signieren-Timer",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Standardmäßig signiert jeweils nur ein Konto ohne Nachfrage, und ein Wechsel beendet seinen Timer.",
+  "Keep a timer for each account": "Für jedes Konto einen Timer behalten"
 }

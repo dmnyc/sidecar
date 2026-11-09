@@ -2103,5 +2103,8 @@
   "{{count}} other timer running_other": "{{count}} טיימרים נוספים פועלים",
   "{{count}} other timer running_two": "{{count}} טיימרים נוספים פועלים",
   "End this timer": "סיום הטיימר הזה",
-  "this account": "החשבון הזה"
+  "this account": "החשבון הזה",
+  "Auto-sign timers": "טיימרים של חתימה אוטומטית",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "כברירת מחדל, רק חשבון אחד חותם בלי לשאול בכל פעם, ומעבר חשבון מסיים את הטיימר שלו.",
+  "Keep a timer for each account": "טיימר נפרד לכל חשבון"
 }

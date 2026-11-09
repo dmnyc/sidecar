@@ -11979,6 +11979,7 @@
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
     $('videoimeta-toggle').checked = settings.videoImeta !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
+    $('relax-per-account-toggle').checked = settings.relaxPerAccount === true; // default off: one account at a time
     // The way back from the old explainer's "never again" answer: clears both flags in the local
     // store both surfaces read, and refreshes this document's memo so the next
     // shared-site confirm in the panel explains again.
@@ -24525,6 +24526,10 @@
 
   $('datasync-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { confirmDataSync: e.target.checked } });
+  });
+
+  $('relax-per-account-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { relaxPerAccount: e.target.checked } });
   });
 
   $('na-toggle').addEventListener('change', async (e) => {

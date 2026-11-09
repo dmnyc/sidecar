@@ -1963,5 +1963,8 @@
   "Signs future versions of “{{d}}” here without asking.": "여기서 “{{d}}”의 이후 버전을 묻지 않고 서명합니다.",
   "{{count}} other timer running_other": "다른 타이머 {{count}}개 실행 중",
   "End this timer": "이 타이머 끝내기",
-  "this account": "이 계정"
+  "this account": "이 계정",
+  "Auto-sign timers": "자동 서명 타이머",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "기본적으로 한 번에 한 계정만 묻지 않고 서명하며, 계정을 바꾸면 그 타이머가 끝나요.",
+  "Keep a timer for each account": "계정마다 타이머 유지"
 }

@@ -2173,5 +2173,8 @@
   "{{count}} other timer running_one": "{{count}} inny licznik działa",
   "{{count}} other timer running_other": "{{count}} innego licznika działa",
   "End this timer": "Zakończ ten licznik",
-  "this account": "to konto"
+  "this account": "to konto",
+  "Auto-sign timers": "Liczniki automatycznego podpisywania",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Domyślnie naraz tylko jedno konto podpisuje bez pytania, a przełączenie konta kończy jego licznik.",
+  "Keep a timer for each account": "Osobny licznik dla każdego konta"
 }

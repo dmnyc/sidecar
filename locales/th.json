@@ -1963,5 +1963,8 @@
   "Signs future versions of “{{d}}” here without asking.": "ลงนามเวอร์ชันต่อไปของ “{{d}}” ที่นี่โดยไม่ถาม",
   "{{count}} other timer running_other": "มีตัวจับเวลาอื่นทำงานอยู่ {{count}} ตัว",
   "End this timer": "หยุดตัวจับเวลานี้",
-  "this account": "บัญชีนี้"
+  "this account": "บัญชีนี้",
+  "Auto-sign timers": "ตัวจับเวลาการลงนามอัตโนมัติ",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "โดยค่าเริ่มต้น จะมีเพียงบัญชีเดียวที่ลงนามโดยไม่ถามในแต่ละครั้ง และการสลับบัญชีจะหยุดตัวจับเวลาของบัญชีนั้น",
+  "Keep a timer for each account": "เก็บตัวจับเวลาแยกสำหรับแต่ละบัญชี"
 }

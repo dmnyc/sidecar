@@ -1963,5 +1963,8 @@
   "Signs future versions of “{{d}}” here without asking.": "不需询问即签署此网站上“{{d}}”的未来版本。",
   "{{count}} other timer running_other": "另有 {{count}} 个计时器正在运行",
   "End this timer": "结束这个计时器",
-  "this account": "这个账号"
+  "this account": "这个账号",
+  "Auto-sign timers": "自动签名计时器",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "默认一次只有一个账号可以不经询问签名，切换账号会结束它的计时器。",
+  "Keep a timer for each account": "为每个账号保留计时器"
 }

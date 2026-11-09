@@ -758,6 +758,15 @@
           </div>
 
           <div class="setting">
+            <h3 data-i18n="Auto-sign timers">Auto-sign timers</h3>
+            <!-- Off by default, and the reason it is: two accounts each able to sign without
+                 asking is how a multi-account client's slot mix-up goes out under the wrong
+                 account with no card. One at a time, the wrong one still asks. -->
+            <p class="hint" data-i18n="By default, one account signs without asking at a time, and switching ends its timer.">By default, one account signs without asking at a time, and switching ends its timer.</p>
+            <label class="toggle-row"><input type="checkbox" id="relax-per-account-toggle" /> <span data-i18n="Keep a timer for each account">Keep a timer for each account</span></label>
+          </div>
+
+          <div class="setting">
             <h3 data-i18n="Global name search">Global name search</h3>
             <!-- The long version, which does not belong on the panel: your relays only
                  know the names they have seen, so a name search misses most of Nostr

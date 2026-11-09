@@ -2033,5 +2033,8 @@
   "{{count}} other timer running_one": "{{count}} اور ٹائمر چل رہا ہے",
   "{{count}} other timer running_other": "{{count}} اور ٹائمر چل رہے ہیں",
   "End this timer": "یہ ٹائمر ختم کریں",
-  "this account": "یہ اکاؤنٹ"
+  "this account": "یہ اکاؤنٹ",
+  "Auto-sign timers": "خودکار دستخط کے ٹائمر",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "پہلے سے طے شدہ طور پر ایک وقت میں صرف ایک اکاؤنٹ پوچھے بغیر دستخط کرتا ہے، اور اکاؤنٹ بدلنے سے اس کا ٹائمر ختم ہو جاتا ہے۔",
+  "Keep a timer for each account": "ہر اکاؤنٹ کے لیے الگ ٹائمر رکھیں"
 }

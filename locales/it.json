@@ -2103,5 +2103,8 @@
   "{{count}} other timer running_one": "{{count}} altro timer attivo",
   "{{count}} other timer running_other": "{{count}} altri timer attivi",
   "End this timer": "Ferma questo timer",
-  "this account": "questo account"
+  "this account": "questo account",
+  "Auto-sign timers": "Timer di firma automatica",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Per impostazione predefinita, un solo account firma senza chiedere alla volta, e cambiare account ne ferma il timer.",
+  "Keep a timer for each account": "Un timer per ogni account"
 }

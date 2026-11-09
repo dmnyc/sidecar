@@ -243,3 +243,15 @@ test('a re-grant for the same pair replaces the window (no duplicate alarms)', a
   const ours = (await globalThis.chrome.alarms.getAll()).filter((a) => a.name.startsWith(RELAX.ALARM_PREFIX));
   assert.equal(ours.length, 1, 're-grant clears the old alarm before arming a new one');
 });
+
+test('revokeOtherAccounts keeps one account’s windows on every site and ends the rest', async () => {
+  await RELAX.revokeAll();
+  await RELAX.grant('a.example', 'pkA', 600000);
+  await RELAX.grant('b.example', 'pkA', 600000);
+  await RELAX.grant('a.example', 'pkB', 600000);
+  await RELAX.revokeOtherAccounts('pkA');
+  const left = (await RELAX.active()).map((g) => g.host + '|' + g.pubkey).sort();
+  assert.deepEqual(left, ['a.example|pkA', 'b.example|pkA']);
+  const alarms = (await globalThis.chrome.alarms.getAll()).map((a) => a.name).filter((n) => n.startsWith(RELAX.ALARM_PREFIX));
+  assert.ok(!alarms.some((n) => n.endsWith('|pkB')), 'the ended window kept its alarm');
+});

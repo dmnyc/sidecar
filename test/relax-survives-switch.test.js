@@ -1,11 +1,11 @@
 'use strict';
 
-// SWITCHING ACCOUNTS LEAVES THE 30-MINUTE WINDOWS RUNNING. Each window is keyed to a site
-// and an account and only covers signing as that account, yet two rules still ended them:
-// switching Sidecar's active account ended every window everywhere, and posting on a site
-// as a different account than it last used ended that site's. So on a site with two
-// accounts, opening the second account's window closed the first one's (lab cases 4.5 and
-// 4.6). Both handlers are run here, lifted from background.js.
+// ONE SIGNING ACCOUNT AT A TIME, unless Settings keeps a timer for each account. Two
+// accounts each able to sign without asking is how a multi-account client's slot mix-up
+// goes out under the wrong account with no card, so by default switching accounts, posting
+// on a site as another account, and opening a window for another account all end the
+// other account's windows. With "Keep a timer for each account" on, none of them does
+// (lab cases 4.5 and 4.6). The handlers are run here, lifted from background.js.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -38,42 +38,94 @@ function relaxSpy() {
   };
 }
 
-test('switching the active account keeps every window', async () => {
-  const { calls, RELAX } = relaxSpy();
-  let active = 'A';
-  const ctx = {
-    RELAX, syncRelaxBadge() {},
-    KS: { getActivePubkey: async () => active, setActive: async (pk) => { active = pk; return true; } },
-    message: { type: 'SIDECAR_SET_ACTIVE', pubkey: 'B' },
-  };
-  vm.createContext(ctx);
-  const body = liftBlock("case 'SIDECAR_SET_ACTIVE': {");
-  const out = await vm.runInContext(
-    '(async () => { let result; switch (message.type) { ' + body + ' } return result; })()', ctx);
-  assert.equal(out, true);
-  assert.equal(active, 'B', 'the switch did not happen');
-  assert.deepEqual(calls, [], 'switching accounts ended a window');
-});
-
-test('posting on a site as another account rebinds it and keeps its windows', async () => {
-  for (const [method, sharedIdentity, authorSwitched] of [
-    ['signEvent', true, false],      // picked the other account on the card
-    ['signEvent', false, true],      // the client posted as the other author
-    ['getPublicKey', false, false],  // re-login as the other account
-  ]) {
+test('switching accounts ends every window by default, and keeps them with a timer per account', async () => {
+  for (const [perAccount, want] of [[false, ['revokeAll']], [true, []]]) {
     const { calls, RELAX } = relaxSpy();
-    const binds = [];
+    let active = 'A';
     const ctx = {
-      RELAX, syncRelaxBadge() {}, relaxJustGrantedFor: null,
-      method, sharedIdentity, authorSwitched, host: 'shared.example', activePubkey: 'B',
-      getSiteAccount: async () => 'A',
-      setSiteAccount: async (h, pk) => { binds.push(h + '|' + pk); },
+      RELAX, syncRelaxBadge() {}, relaxPerAccount: async () => perAccount,
+      KS: { getActivePubkey: async () => active, setActive: async (pk) => { active = pk; return true; } },
+      message: { type: 'SIDECAR_SET_ACTIVE', pubkey: 'B' },
     };
     vm.createContext(ctx);
-    const block = liftBlock("if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {");
+    const body = liftBlock("case 'SIDECAR_SET_ACTIVE': {");
+    const run = () => vm.runInContext(
+      '(async () => { let result; switch (message.type) { ' + body + ' } return result; })()', ctx);
+    assert.equal(await run(), true);
+    assert.equal(active, 'B', 'the switch did not happen');
+    assert.deepEqual(calls, want, 'per account ' + perAccount);
+    // Tapping the account already active ends nothing, either way.
+    calls.length = 0;
+    await run();
+    assert.deepEqual(calls, [], 're-tapping the active account ended a window');
+  }
+});
+
+test('posting on a site as another account ends its windows by default, and keeps them with a timer per account', async () => {
+  for (const perAccount of [false, true]) {
+    for (const [method, sharedIdentity, authorSwitched] of [
+      ['signEvent', true, false],      // picked the other account on the card
+      ['signEvent', false, true],      // the client posted as the other author
+      ['getPublicKey', false, false],  // re-login as the other account
+    ]) {
+      const { calls, RELAX } = relaxSpy();
+      const binds = [];
+      const ctx = {
+        RELAX, syncRelaxBadge() {}, relaxJustGrantedFor: null, relaxPerAccount: async () => perAccount,
+        method, sharedIdentity, authorSwitched, host: 'shared.example', activePubkey: 'B',
+        getSiteAccount: async () => 'A',
+        setSiteAccount: async (h, pk) => { binds.push(h + '|' + pk); },
+      };
+      vm.createContext(ctx);
+      const block = liftBlock("if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {");
+      await vm.runInContext('(async () => { ' + block + ' })()', ctx);
+      assert.deepEqual(binds, ['shared.example|B'], method + ': the site was not rebound');
+      assert.deepEqual(calls, perAccount ? [] : ['revokeForHost:shared.example'], method + ', per account ' + perAccount);
+      // Except the window this very request just opened for the account arriving.
+      if (!perAccount) {
+        const again = relaxSpy();
+        ctx.RELAX = again.RELAX; ctx.relaxJustGrantedFor = 'B';
+        await vm.runInContext('(async () => { ' + block + ' })()', ctx);
+        assert.deepEqual(again.calls, [], method + ': the window just opened was ended');
+      }
+    }
+  }
+});
+
+test('opening a window ends other accounts’ windows by default, and not with a timer per account', async () => {
+  const at = src.indexOf("if (decision.action === 'relax') {");
+  const block = liftBlock(src.slice(at), "if (decision.action === 'relax') {");
+  for (const perAccount of [false, true]) {
+    const calls = [];
+    const ctx = {
+      relaxPerAccount: async () => perAccount, syncRelaxBadge() {}, host: 'site.example', activePubkey: 'B',
+      decision: { action: 'relax', relaxMs: 1800000 }, relaxJustGrantedFor: null,
+      RELAX: { DEFAULT_MS: 1800000, revokeOtherAccounts: async (pk) => calls.push('revokeOtherAccounts:' + pk),
+        grant: async (h, pk) => calls.push('grant:' + h + '|' + pk) },
+    };
+    vm.createContext(ctx);
     await vm.runInContext('(async () => { ' + block + ' })()', ctx);
-    assert.deepEqual(binds, ['shared.example|B'], method + ': the site was not rebound');
-    assert.deepEqual(calls, [], method + ': rebinding ended a window');
+    assert.deepEqual(calls, perAccount ? ['grant:site.example|B'] : ['revokeOtherAccounts:B', 'grant:site.example|B'], 'per account ' + perAccount);
+  }
+});
+
+test('turning the setting off leaves only the active account’s windows', async () => {
+  const at = src.indexOf("case 'SIDECAR_SET_SETTINGS': {");
+  const body = liftBlock(src.slice(at), "case 'SIDECAR_SET_SETTINGS': {");
+  for (const [before, after, want] of [[true, false, ['revokeOtherAccounts:A']], [false, true, []], [true, true, []]]) {
+    const calls = [];
+    let stored = { relaxPerAccount: before };
+    const ctx = {
+      message: { type: 'SIDECAR_SET_SETTINGS', settings: { relaxPerAccount: after } },
+      sget: async () => ({ sidecar_settings: stored }), sset: async (o) => { stored = o.sidecar_settings; },
+      RELAX: { revokeOtherAccounts: async (pk) => calls.push('revokeOtherAccounts:' + pk) },
+      KS: { getActivePubkey: async () => 'A' }, syncRelaxBadge() {}, pushPageSettings() {},
+      AUTOZAP_ABS_MAX: 1, AUTOZAP_ABS_DAILY_MAX: 1, chrome: { alarms: { clear: async () => {} } }, bumpAutoLock() {},
+      self: {}, createPayMenu() {},
+    };
+    vm.createContext(ctx);
+    await vm.runInContext('(async () => { let result; switch (message.type) { ' + body + ' } return result; })()', ctx);
+    assert.deepEqual(calls, want, before + ' -> ' + after);
   }
 });
 

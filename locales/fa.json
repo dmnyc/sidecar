@@ -2033,5 +2033,8 @@
   "{{count}} other timer running_one": "{{count}} زمان‌سنج دیگر در حال اجرا",
   "{{count}} other timer running_other": "{{count}} زمان‌سنج دیگر در حال اجرا",
   "End this timer": "پایان این زمان‌سنج",
-  "this account": "این حساب"
+  "this account": "این حساب",
+  "Auto-sign timers": "زمان‌سنج‌های امضای خودکار",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "به‌طور پیش‌فرض، هر بار فقط یک حساب بدون پرسش امضا می‌کند و تعویض حساب زمان‌سنج آن را پایان می‌دهد.",
+  "Keep a timer for each account": "نگه‌داشتن یک زمان‌سنج برای هر حساب"
 }

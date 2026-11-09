@@ -2033,5 +2033,8 @@
   "{{count}} other timer running_one": "{{count}} और टाइमर चल रहा है",
   "{{count}} other timer running_other": "{{count}} और टाइमर चल रहे हैं",
   "End this timer": "यह टाइमर बंद करें",
-  "this account": "यह खाता"
+  "this account": "यह खाता",
+  "Auto-sign timers": "ऑटो-साइन टाइमर",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "डिफ़ॉल्ट रूप से एक समय में एक ही खाता बिना पूछे साइन करता है, और खाता बदलने पर उसका टाइमर खत्म हो जाता है।",
+  "Keep a timer for each account": "हर खाते के लिए अलग टाइमर रखें"
 }

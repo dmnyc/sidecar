@@ -2033,5 +2033,8 @@
   "{{count}} other timer running_one": "{{count}} ακόμη χρονόμετρο σε λειτουργία",
   "{{count}} other timer running_other": "{{count}} ακόμη χρονόμετρα σε λειτουργία",
   "End this timer": "Τερματισμός αυτού του χρονομέτρου",
-  "this account": "αυτός ο λογαριασμός"
+  "this account": "αυτός ο λογαριασμός",
+  "Auto-sign timers": "Χρονόμετρα αυτόματης υπογραφής",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Από προεπιλογή, μόνο ένας λογαριασμός υπογράφει χωρίς ερώτηση κάθε φορά, και η εναλλαγή τερματίζει το χρονόμετρό του.",
+  "Keep a timer for each account": "Ξεχωριστό χρονόμετρο για κάθε λογαριασμό"
 }

@@ -155,6 +155,8 @@ let reactTarget = '0'.repeat(64);
 const REQ = {
   login: () => window.nostr.getPublicKey(),
   note: (n) => window.nostr.signEvent(tmpl(1, 'Approval lab note ' + (n || '') + ' · ' + new Date().toLocaleTimeString())),
+  // A note that names its author, the way a multi-account client stamps the slot it shows.
+  noteAs: (pk) => window.nostr.signEvent({ ...tmpl(1, 'Approval lab note as named author · ' + new Date().toLocaleTimeString()), pubkey: pk }),
   reaction: () => window.nostr.signEvent(tmpl(7, '+', [['e', reactTarget], ['k', '1']])),
   article: (d) => window.nostr.signEvent(tmpl(30023, 'Approval lab draft ' + d, [['d', d], ['title', 'Lab ' + d]])),
   control: () => window.nostr.signEvent(tmpl(23194, 'approval-lab', [['p', '0'.repeat(64)]])),
@@ -397,22 +399,34 @@ kase(SH, { id: '4.4', host: 'shared', title: 'Signing as A from the card',
   expect: ['The capsule changes to A, and the card stays open.', 'Signed as A.', 'Sidecar’s active account is now A as well.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick A in the card)', REQ.note, 'ask', isA) }] });
 
-kase(SH, { id: '4.5', host: 'shared', title: 'Two windows at once',
-  steps: ['Switch Sidecar back to B (4.4 made A active). Press Sign a note, choose 30 min, and sign.', 'Switch Sidecar to A.', 'Press Sign a note (as A), choose 30 min, and sign.',
+kase(SH, { id: '4.5', host: 'shared', title: 'Two windows at once, with a timer for each account',
+  steps: ['Turn on Settings → Auto-sign timers → Keep a timer for each account.',
+    'Switch Sidecar back to B (4.4 made A active). Press Sign a note, choose 30 min, and sign.', 'Switch Sidecar to A.', 'Press Sign a note (as A), choose 30 min, and sign.',
     'Press Sign as A, no card expected.', 'Switch Sidecar back to B, then press Sign as B, no card expected.'],
-  expect: ['After step 3 two windows are running: the bar shows the one that ends first (B’s), and the badge counts down the same one.',
-    'Step 4 signs as A with no card; step 5 signs as B with no card.'],
-  known: 'Expected to fail today: switching Sidecar’s account, or signing as the other account on this site, still ends every window on the site. That is the separate fix awaiting a yes.',
+  expect: ['After step 4 two windows are running: the bar shows the active account’s (A’s) with a +1, and the badge counts down the same one. +1 lists B’s.',
+    'Step 5 signs as A with no card; step 6 signs as B with no card, and the bar now shows B’s.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick 30 min)', REQ.note, 'ask') },
             { label: 'Sign as A, no card expected', go: (id) => run(id, 'note as A', REQ.note, 'auto', isA) },
             { label: 'Sign as B, no card expected', go: (id) => run(id, 'note as B', REQ.note, 'auto', isB) }] });
 
 kase(SH, { id: '4.6', host: 'shared', title: 'Restart and End with two windows',
   steps: ['With two windows running (4.5), press Restart on the bar.', 'Press End.'],
-  expect: ['Restart resets only the window the bar shows; the bar may then switch to the other one, which now ends first.',
+  expect: ['Restart resets the window the bar shows.',
     'End removes the bar and clears the badge; the next note from either account gets a card.'],
-  known: 'Depends on 4.5, so it fails for the same reason until that fix lands.',
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note after End', REQ.note, 'ask') }] });
+
+kase(SH, { id: '4.7', host: 'shared', title: 'One account at a time (the default): switching ends the window',
+  steps: ['Turn Settings → Auto-sign timers → Keep a timer for each account back off.',
+    'With Sidecar on B, press Sign a note, choose 30 min, and sign.', 'Switch Sidecar to A.', 'Press Sign a note.'],
+  expect: ['After step 3 the bar is gone.', 'Step 4 gets a card.'],
+  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask') }] });
+
+kase(SH, { id: '4.8', host: 'shared', title: 'One account at a time: a window for A ends B’s',
+  steps: ['With Sidecar on B, press Sign a note, choose 30 min, and sign.',
+    'Press Sign as A (the site names A as the author, as a multi-account client does). A card asks; choose 30 min, and sign.'],
+  expect: ['B’s window did not sign A’s note: it asked.', 'After step 2 the bar shows A, with no +1: B’s window ended when A’s opened.'],
+  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick 30 min)', REQ.note, 'ask') },
+            { label: 'Sign as A', go: (id) => run(id, 'note naming A (pick 30 min)', () => REQ.noteAs(accounts[0]), 'ask', isA) }] });
 
 // ---- report --------------------------------------------------------------------------
 document.getElementById('make-report').addEventListener('click', () => {

@@ -2,7 +2,7 @@
 
 The approval card now asks one question in one row: **Once · 30 min · Always**, plus Sign and Reject. This records every scenario that was tested against that design, on both approval surfaces (the side panel and the popup window), and what each one showed. The lab that ran them ships with this pull request at `test/manual/approval-lab.html`, so any case here can be rerun.
 
-Tested on November 8, 2026: an automated run of all 23 cases (rerun after the last fix) in a clean Chrome profile with two throwaway accounts, then a pass by hand in Chrome, including on jumble.social. **All 23 cases pass.**
+Tested on November 8, 2026: an automated run of all 25 cases (rerun after the last fix) in a clean Chrome profile with two throwaway accounts, then a pass by hand in Chrome, including on jumble.social. **All 25 cases pass.**
 
 ![Light theme: a two-account card on Once and on 30 min, and a one-account card on Always](images/approval-lab/light-once-30min-always.webp)
 
@@ -59,14 +59,16 @@ Times are from the automated run. “No card” means the request was answered i
 | 4.2 | The multi-account card: “Multiple accounts are signed in here.” over a bold “Confirm who’s posting each time.”; Once · 30 min only; no Trust; the menu lists both | Pass: signed as the active account |
 | 4.3 | A 30-minute window for one account | Pass: bar shows that account; three notes signed with no card, as that account |
 | 4.4 | Picking the other account in the card signs as it | Pass: the capsule changed, the card stayed open, signed as the picked account, which became active |
-| 4.5 | Two windows at once, one per account | Pass: a window for each account, both running after the switch between them; the bar shows the one that ends first; a note as either account signed with no card |
+| 4.5 | Two windows at once, with Settings → Auto-sign timers → Keep a timer for each account on | Pass: a window for each account, both running after the switch between them; the bar shows the active account’s with a +1; a note as either account signed with no card |
 | 4.6 | Restart and End with two windows | Pass: started from two windows; End cleared the bar and the badge; the next note asked |
+| 4.7 | The default, one account at a time: switching ends the window | Pass: B’s window ended when Sidecar switched to A; the next note asked |
+| 4.8 | The default: a window for A ends B’s | Pass: a note naming A got a card despite B’s window; after A’s 30 min, only A’s window was running and the bar showed A with no +1 |
 
-## Switching accounts no longer ends the windows
+## One signing account at a time, unless you ask for more
 
-4.5 and 4.6 failed on the first runs: switching Sidecar’s active account ended every window, and so did posting on a site as a different account than the one it last used, so opening the second account’s window closed the first one’s. Each window covers signing as its own account only, so neither rule protected anything; both are removed. Windows still end on lock, when the site is forgotten, and when a site is detached from the wrong identity.
+By default only one account signs without asking at a time. Switching Sidecar’s account ends every window, posting on a site as another account ends that site’s, and opening a window for one account ends any other account’s (4.7, 4.8). Two accounts each able to sign without asking is how a multi-account client’s slot mix-up goes out under the wrong account with no card; with one window, a note naming the other account still gets a card.
 
-The windows coexist: a second account’s approval no longer replaces the first account’s window (covered by `test/relax-grant.test.js`). The status bar shows the active account’s window, or the one that ends first when the active account has none, and its Restart button and the badge follow the same window. When other windows are running, a +N capsule on the bar opens a list of them, each with its time left and its own end button.
+**Settings → Auto-sign timers → Keep a timer for each account** turns that off: each account keeps its own window through a switch (4.5, 4.6). The status bar shows the active account’s window, or the one that ends first when the active account has none, and its Restart button and the badge follow the same window. A +N capsule on the bar opens a list of the other windows, each with its time left and its own end button. Turning the setting back off leaves only the active account’s windows. Windows always end on lock, when the site is forgotten, and when a site is detached from the wrong identity.
 
 ## Bugs the lab found, all fixed here
 
@@ -85,7 +87,7 @@ The windows coexist: a second account’s approval no longer replaces the first 
 - `test/composer-core.test.js`: the popup now gets the same check for undeclared names the panel has. Fails on bug 3.
 - `test/wrong-account-escape.test.js`: runs the panel’s real menu builder and clicks its rows. Fails on bug 2.
 - `test/relax-grant.test.js`: windows coexist per site and account, and are listed soonest-first.
-- `test/relax-survives-switch.test.js`: runs the account switch and the site rebind from `background.js` and checks that neither ends a window, then runs the panel’s bar with three windows: it names the active account, Restart and the badge pick the same window, and +N lists the other two. Fails on the old code.
+- `test/relax-survives-switch.test.js`: runs the account switch, the site rebind, the window grant and the settings change from `background.js` under both settings, then runs the panel’s bar with three windows: it names the active account, Restart and the badge pick the same window, and +N lists the other two, also after closing and reopening.
 
 ## What the automated run could not cover
 

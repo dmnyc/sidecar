@@ -2103,5 +2103,8 @@
   "{{count}} other timer running_one": "{{count}} outro temporizador ativo",
   "{{count}} other timer running_other": "{{count}} outros temporizadores ativos",
   "End this timer": "Terminar este temporizador",
-  "this account": "esta conta"
+  "this account": "esta conta",
+  "Auto-sign timers": "Temporizadores de assinatura automática",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Por predefinição, só uma conta assina sem perguntar de cada vez, e mudar de conta termina o temporizador dela.",
+  "Keep a timer for each account": "Manter um temporizador para cada conta"
 }

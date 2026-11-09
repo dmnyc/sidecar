@@ -1963,5 +1963,8 @@
   "Signs future versions of “{{d}}” here without asking.": "「{{d}}」の今後のバージョンを、ここで尋ねずに署名します。",
   "{{count}} other timer running_other": "ほかに{{count}}件のタイマーが動作中",
   "End this timer": "このタイマーを終了",
-  "this account": "このアカウント"
+  "this account": "このアカウント",
+  "Auto-sign timers": "自動署名タイマー",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "既定では、確認なしで署名できるのは一度に1つのアカウントだけで、切り替えるとそのタイマーは終了します。",
+  "Keep a timer for each account": "アカウントごとにタイマーを保つ"
 }

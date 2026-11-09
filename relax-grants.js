@@ -7,11 +7,12 @@
 // outlive a service-worker restart, so it lives in chrome.storage.session with a
 // chrome.alarm firing the revoke.
 //
-// ONE WINDOW PER SITE AND ACCOUNT, and they coexist: a window only ever covers
-// signing as its own account, so switching accounts or posting as another one
-// leaves every window running. The panel's status bar, its Restart button and the
-// badge follow the one that ends first. Revoked early on lock, on forgetting the
-// site, and on detaching it from a wrong identity.
+// ONE WINDOW PER SITE AND ACCOUNT. By default only one ACCOUNT holds windows at a
+// time: opening one ends any other account's, and switching accounts or posting on
+// a site as another account ends them (background.js, relaxPerAccount). Settings can
+// keep a timer for each account instead, and then they coexist. The panel's bar
+// shows the active account's window and lists the rest. Revoked early on lock, on
+// forgetting the site, and on detaching it from a wrong identity.
 //
 // Isolated (like keystore.js / permissions.js) so it can be unit-tested directly
 // against a chrome mock — see test/relax-grant.test.js.
@@ -126,6 +127,17 @@
     broadcast();
   }
 
+  // Every window but this account's: the one-account-at-a-time default.
+  async function revokeOtherAccounts(pubkey) {
+    const m = await map();
+    const gone = Object.keys(m).filter((k) => { const p = splitKey(k); return p && p.pubkey !== pubkey; });
+    if (!gone.length) return;
+    for (const k of gone) delete m[k];
+    await ssetS({ [STORAGE_KEY]: m });
+    for (const k of gone) { try { await chrome.alarms.clear(ALARM_PREFIX + k); } catch (_) {} }
+    broadcast();
+  }
+
   async function revokeAll() {
     await ssetS({ [STORAGE_KEY]: {} });
     try {
@@ -179,7 +191,7 @@
   const api = {
     shownFor,
     STORAGE_KEY, ALARM_PREFIX, MAX_MS, DEFAULT_MS, CONTROL_KINDS, REPLACEABLE_KINDS,
-    has, grant, revoke, revokeForHost, revokeAll, active, onAlarm,
+    has, grant, revoke, revokeForHost, revokeOtherAccounts, revokeAll, active, onAlarm,
     isControlKind: (k) => k != null && CONTROL_KINDS.has(k),
     isReplaceableKind: (k) => k != null && REPLACEABLE_KINDS.has(k),
     // The single question the callers ask: may a relax window ever cover this kind?

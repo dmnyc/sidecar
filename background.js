@@ -1511,6 +1511,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     let activePubkey;
     let authorSwitched = false;
     let authorNamed = false;
+    let relaxJustGrantedFor = null; // the account a 'relax' decision on this request opened a window for
     if (method === 'getPublicKey') {
       activePubkey = await KS.getActivePubkey();
     } else {
@@ -1987,7 +1988,11 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       // 'relax' → open a timed auto-approve window for this (host, account), then
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {
+        // ONE SIGNING ACCOUNT AT A TIME, by default: opening a window for this account
+        // ends any other account's, on every site.
+        if (!(await relaxPerAccount())) await RELAX.revokeOtherAccounts(activePubkey);
         await RELAX.grant(host, activePubkey, decision.relaxMs || RELAX.DEFAULT_MS);
+        relaxJustGrantedFor = activePubkey;
         syncRelaxBadge();
       }
       // 'once' | 'trust' | 'relax' → proceed (after a successful unlock, if one was needed)
@@ -2042,11 +2047,16 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // sharedIdentity is also an explicit choice (the user just confirmed who's
     // posting in the prompt), so it may move the binding too.
     if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
-      // A re-login or a post as another account moves the binding and leaves the
-      // site's 30-minute windows alone: each covers signing as its own account only,
-      // so the previous account's window cannot sign for the one arriving. Ending
-      // them here is what made a second account's window close the first one's.
+      // A re-login or a post as another account moves the binding, and ends the
+      // site's 30-minute windows unless Settings keeps a timer for each account (see
+      // SIDECAR_SET_ACTIVE). Not the window this very request just opened for the
+      // account arriving: that one is the window the user just asked for.
+      const prevBound = await getSiteAccount(host);
       await setSiteAccount(host, activePubkey);
+      if (prevBound && prevBound !== activePubkey && relaxJustGrantedFor !== activePubkey &&
+          !(await relaxPerAccount())) {
+        await RELAX.revokeForHost(host); syncRelaxBadge();
+      }
     }
     // Record every account that acts on a host, so a second one makes it "shared".
     await addAuthorizedAccount(host, activePubkey);
@@ -3909,6 +3919,12 @@ if (chrome.idle && chrome.idle.onStateChanged) {
 // active" signal, and clicking the icon opens the panel to that bar. A 1-min
 // alarm ticks the countdown down; both clear when no window is live.
 const RELAX_BADGE_ALARM = 'sidecar-relax-badge';
+// Settings → Auto-sign timers → "Keep a timer for each account". Off by default: one
+// account signs without asking at a time.
+async function relaxPerAccount() {
+  return ((await sget('sidecar_settings')).sidecar_settings || {}).relaxPerAccount === true;
+}
+
 function syncRelaxBadge() {
   RELAX.active().then(async (grants) => {
     if (grants && grants.length) {
@@ -4187,12 +4203,16 @@ async function handleControl(message, sender, sendResponse) {
         result = await KS.setProfile(message.pubkey, { name: message.name, picture: message.picture });
         break;
       case 'SIDECAR_SET_ACTIVE': {
-        // SWITCHING LEAVES THE 30-MINUTE WINDOWS ALONE. Each one is keyed to a site AND
-        // an account, and only ever covers signing as that account (RELAX.has(host,
-        // activePubkey)), so a window cannot follow you onto the account you switch to.
-        // Ending them all here made two accounts' windows on one site impossible: opening
-        // the second account's ended the first one's. Lock still ends every window.
+        // SWITCHING ENDS THE 30-MINUTE WINDOWS, unless Settings keeps a timer for each
+        // account (relaxPerAccount, off by default). Two accounts each able to sign
+        // without asking is how a multi-account client's slot mix-up goes out under the
+        // wrong account with no card; one at a time, the wrong one still asks. Only on a
+        // real change: tapping the account already active must not end its window.
+        const prevActive = await KS.getActivePubkey();
         result = await KS.setActive(message.pubkey);
+        if (prevActive && prevActive !== message.pubkey && !(await relaxPerAccount())) {
+          await RELAX.revokeAll();
+        }
         syncRelaxBadge(); // the badge follows the active account's window
         break;
       }
@@ -4468,6 +4488,12 @@ async function handleControl(message, sender, sendResponse) {
         if (message.settings && 'autoLockMinutes' in message.settings) {
           await chrome.alarms.clear(AUTO_LOCK_ALARM);
           bumpAutoLock();
+        }
+        // Turning "Keep a timer for each account" off leaves the active account's windows
+        // and ends the rest, so the one-account rule holds from that moment.
+        if (prev.relaxPerAccount === true && merged.relaxPerAccount !== true) {
+          await RELAX.revokeOtherAccounts(await KS.getActivePubkey());
+          syncRelaxBadge();
         }
         // Push the pay-pill setting to content scripts so it toggles live.
         pushPageSettings(merged);

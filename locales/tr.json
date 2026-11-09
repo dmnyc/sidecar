@@ -2033,5 +2033,8 @@
   "{{count}} other timer running_one": "{{count}} zamanlayıcı daha çalışıyor",
   "{{count}} other timer running_other": "{{count}} zamanlayıcı daha çalışıyor",
   "End this timer": "Bu zamanlayıcıyı bitir",
-  "this account": "bu hesap"
+  "this account": "bu hesap",
+  "Auto-sign timers": "Otomatik imza zamanlayıcıları",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Varsayılan olarak aynı anda yalnızca bir hesap sormadan imzalar ve hesap değiştirmek zamanlayıcısını bitirir.",
+  "Keep a timer for each account": "Her hesap için bir zamanlayıcı tut"
 }

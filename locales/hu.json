@@ -2033,5 +2033,8 @@
   "{{count}} other timer running_one": "{{count}} további időzítő fut",
   "{{count}} other timer running_other": "{{count}} további időzítő fut",
   "End this timer": "Időzítő leállítása",
-  "this account": "ez a fiók"
+  "this account": "ez a fiók",
+  "Auto-sign timers": "Automatikus aláírás időzítői",
+  "By default, one account signs without asking at a time, and switching ends its timer.": "Alapértelmezés szerint egyszerre csak egy fiók ír alá kérdés nélkül, és a fiókváltás leállítja az időzítőjét.",
+  "Keep a timer for each account": "Minden fióknak saját időzítő"
 }
