@@ -42,7 +42,7 @@ test('a row names the note it answers, hydrated by the last e tag', () => {
   // NIP-22 reads lowercase e tags root-to-leaf, so the last one is the parent.
   assert.match(src, /function commentParentId\(ev\)[\s\S]*?es\[es\.length - 1\]\[1\]/);
   assert.match(fillPart, /commentParentId\(ev\)/);
-  assert.match(fillPart, /fetchEventsByIds\(parentIds\)/);
+  assert.match(fillPart, /fetchEventsByIds\(parentIds, undefined, \{ offline: quick \}\)/);
   assert.match(fillPart, /cm-ref/, 'the parent rides on the row as a reference line');
   assert.ok(fillPart.includes("t('Replying to {{name}}'"), 'the parent is named when its author is known');
 });

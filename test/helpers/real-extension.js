@@ -27,7 +27,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const ROOT = path.join(__dirname, '..', '..');
+const ROOT = process.env.EXTENSION_ROOT || path.join(__dirname, '..', '..');   // EXTENSION_ROOT: a scratch copy, to prove a test fails on old code
 const CHROME_CANDIDATES = [
   process.env.CHROME_PATH,
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -65,6 +65,7 @@ function nostrTools() {
 function startRelay({ delayMs = 0 } = {}) {
   const events = [];
   const log = [];
+  const live = new Set();   // open subscriptions, so an event arriving later is pushed to them
   const matches = (e, f) => {
     if (f.ids && !f.ids.includes(e.id)) return false;
     if (f.authors && !f.authors.includes(e.pubkey)) return false;
@@ -84,6 +85,11 @@ function startRelay({ delayMs = 0 } = {}) {
     else { head = Buffer.alloc(10); head[0] = 0x81; head[1] = 127; head.writeBigUInt64BE(BigInt(p.length), 2); }
     return Buffer.concat([head, p]);
   };
+  // A new event: kept, and sent to every open subscription whose filter it matches.
+  function push(ev) {
+    events.push(ev);
+    for (const e of live) if (e.filters.some((f) => matches(ev, f))) e.send(['EVENT', e.sub, ev]);
+  }
   const server = http.createServer((q, r) => { r.writeHead(426); r.end(); });
   server.on('upgrade', (req, socket) => {
     const key = req.headers['sec-websocket-key'];
@@ -122,16 +128,21 @@ function startRelay({ delayMs = 0 } = {}) {
           };
           const wait = typeof delayMs === 'function' ? delayMs(filters) : delayMs;
           if (wait) setTimeout(answer, wait); else answer();
+          const entry = { send, sub, filters, socket };
+          live.add(entry);
+        } else if (msg[0] === 'CLOSE') {
+          for (const e of [...live]) if (e.socket === socket && e.sub === msg[1]) live.delete(e);
         } else if (msg[0] === 'EVENT') {
-          events.push(msg[1]);
+          push(msg[1]);
           send(['OK', msg[1].id, true, '']);
         }
       }
     });
+    socket.on('close', () => { for (const e of [...live]) if (e.socket === socket) live.delete(e); });
     socket.on('error', () => {});
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
-    resolve({ events, log, url: 'ws://127.0.0.1:' + server.address().port, close: () => server.close() });
+    resolve({ events, log, push, url: 'ws://127.0.0.1:' + server.address().port, close: () => server.close() });
   }));
 }
 
@@ -222,6 +233,8 @@ async function startExtension({ relayDelayMs = 0, settings = {} } = {}) {
       sign: (template, who) => nt.sign(template, who),
       // An event on the relay, signed by `who`.
       put: (template, who) => { const e = nt.sign(template, who); relay.events.push(e); return e; },
+      // The same, arriving now: open subscriptions are sent it as it happens, as when another device publishes.
+      push: (template, who) => { const e = nt.sign(template, who); relay.push(e); return e; },
       // The panel, reloaded: what opening it again after a reload is.
       reload: async () => { await evaluate('location.reload()'); await sleep(2500); await waitFor(`!document.getElementById('view-main').classList.contains('hidden')`, 15000); },
       // Every call the panel makes to chrome.tabs and chrome.windows, from now on, in order.

@@ -159,3 +159,52 @@ test('tabs pressed at once, the sheet closed and reopened mid-load: every list s
     assert.deepEqual(x.errors, [], 'no page exception along the way');
   });
 });
+
+test('a library opened a second time is on screen before any relay answers', opts, async (t) => {
+  let delay = 0;
+  await withExtension(t, { relayDelayMs: () => delay }, async (x) => {
+    seed(x);
+    await x.reload();
+    await openLibrary(x);
+    await x.evaluate(tab(TAB.reactions));
+    await x.waitFor(`${rows()} === 4`);
+    await x.waitFor(`${text('#modal .bm-scroll:not(.hidden)')}.includes('A note worth reacting to')`);
+    await x.evaluate(click('#modal .modal-x'));
+    // From here every relay takes four seconds to answer anything.
+    delay = 4000;
+    await openLibrary(x);
+    await x.evaluate(tab(TAB.reactions));
+    // Rows, with the notes' words and the authors' names, well inside those four seconds.
+    await x.waitFor(`${rows()} === 4`, 1500);
+    const painted = await x.evaluate(text('#modal .bm-scroll:not(.hidden)'));
+    assert.match(painted, /A note worth reacting to/, 'the note is read from memory, not asked for again');
+    assert.match(painted, /Bea/, 'and so is its author');
+    assert.doesNotMatch(painted, /Reading your relays/);
+    assert.deepEqual(x.errors, []);
+  });
+});
+
+test('an event that arrives while the library is open reaches its list without a reload', opts, async (t) => {
+  await withExtension(t, {}, async (x) => {
+    const s = seed(x);
+    await x.reload();
+    await openLibrary(x);
+    await x.evaluate(tab(TAB.reactions));
+    await x.waitFor(`${rows()} === 4`);
+    await x.sleep(800);   // the live subscription opens behind the first paint
+    // Another device reacts: the list gains a row on its own, at the top.
+    const fresh = x.push({ kind: 7, created_at: NOW(), tags: [['e', s.note2.id], ['p', x.bea], ['k', '1']], content: '🎉' }, 'me');
+    await x.waitFor(`${rows()} === 5`, 8000);
+    assert.equal(await x.evaluate(`document.querySelector('#modal .bm-scroll:not(.hidden) .bm-item .cm-reaction-mark').textContent`), '🎉');
+    // It arrives for a list that is not showing too, and is there when that list is opened.
+    await x.evaluate(tab(TAB.comments));
+    await x.waitFor(`${rows()} === 1`);
+    x.push({ kind: 1111, created_at: NOW(), tags: WEB, content: 'A second comment, from elsewhere' }, 'me');
+    await x.waitFor(`${rows()} === 2`, 8000);
+    // Deleted elsewhere: the row goes.
+    x.push({ kind: 5, created_at: NOW(), tags: [['e', fresh.id], ['k', '7']], content: '' }, 'me');
+    await x.evaluate(tab(TAB.reactions));
+    await x.waitFor(`${rows()} === 4`, 8000);
+    assert.deepEqual(x.errors, []);
+  });
+});

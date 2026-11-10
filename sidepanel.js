@@ -4904,10 +4904,19 @@
   // asked with purplepag.es, the kind:0 aggregator, and the answers fill the profile
   // cache. The user's own accounts still go through getProfile, which reads their
   // declared relays; for everyone else nobody answering means no name, not a retry.
-  async function profilesFor(pubkeys) {
+  // WHAT WAS ASKED, AND WHEN. A name or note no relay has stays missing, and a list that counted
+  // that as unfinished would ask again behind every reopen. Within five minutes a question already
+  // asked is settled; after that it is worth asking once more.
+  const _asked = new Map();
+  const ASKED_TTL = 5 * 60 * 1000;
+  const markAsked = (keys) => { const until = Date.now() + ASKED_TTL; for (const k of keys) _asked.set(k, until); };
+  const wasAsked = (k) => (_asked.get(k) || 0) > Date.now();
+  // `offline` answers from what is already known and asks no relay: a list paints from that at
+  // once, and asks properly behind it for whatever it was missing.
+  async function profilesFor(pubkeys, opts) {
     const all = [...new Set(pubkeys)].filter((pk) => /^[0-9a-f]{64}$/.test(pk || ''));
     const own = new Set(((state && state.accounts) || []).map((a) => a.pubkey));
-    const need = all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
+    const need = opts && opts.offline ? [] : all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
     if (need.length) {
       const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
       for (let i = 0; i < need.length; i += 100) {
@@ -4937,6 +4946,7 @@
         if (ev) { try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {} }
       }));
     }
+    if (!(opts && opts.offline)) markAsked(all.map((pk) => 'p:' + pk));
     return new Map(await Promise.all(all.map(async (pk) =>
       [pk, cachedProfile(pk) || (own.has(pk) ? await getProfile(pk).catch(() => null) : null)])));
   }
@@ -17375,7 +17385,26 @@
   // So the write relays always join, and the relay each bookmark names as its hint joins
   // too, but only for an account that allows reaching past its own lists: with bootstrap
   // relays off, contacting relays it never chose is what that setting rules out.
-  async function fetchEventsByIds(ids, hints) {
+  // NOTES ALREADY SEEN THIS SESSION. A note never changes, so one that was fetched for a row is
+  // the answer the next time a row asks, and a list reopened a minute later needs no relay for
+  // the notes it showed before. Misses are not kept: a note that was not there may be by now.
+  const _noteMemo = new Map();
+  const NOTE_MEMO_MAX = 1500;
+  const rememberNote = (ev) => {
+    if (!ev || !HEX_ID.test(ev.id || '')) return;
+    _noteMemo.delete(ev.id);
+    _noteMemo.set(ev.id, ev);
+    if (_noteMemo.size > NOTE_MEMO_MAX) _noteMemo.delete(_noteMemo.keys().next().value);
+  };
+  // `offline` returns only what is remembered and asks nothing.
+  async function fetchEventsByIds(ids, hints, opts) {
+    const found = new Map();
+    const missing = [];
+    for (const id of ids) {
+      const hit = _noteMemo.get(id);
+      if (hit) found.set(id, hit); else missing.push(id);
+    }
+    if (!missing.length || (opts && opts.offline)) return found;
     const pubkey = state.activePubkey;
     const read = await readRelayUrls(pubkey);
     let write = [];
@@ -17385,16 +17414,76 @@
       extra = [...new Set((hints || []).filter((u) => /^wss:\/\/\S+$/.test(u)).map(normalizeRelay))];
     }
     const relays = [...new Set([...read, ...write, ...extra].map(normalizeRelay))];
-    const found = new Map();
     const chunks = [];
-    for (let i = 0; i < ids.length; i += 64) chunks.push(ids.slice(i, i + 64));
+    for (let i = 0; i < missing.length; i += 64) chunks.push(missing.slice(i, i + 64));
     await Promise.all(chunks.map(async (chunk) => {
       try {
         const evs = await poolQuerySync(relays, { ids: chunk }, { maxWait: 5000 });
-        (evs || []).forEach((ev) => { if (!found.has(ev.id)) found.set(ev.id, ev); });
+        (evs || []).forEach((ev) => { if (!found.has(ev.id)) { found.set(ev.id, ev); rememberNote(ev); } });
+        markAsked(chunk.map((id) => 'n:' + id));
       } catch (_) {}
     }));
     return found;
+  }
+
+  // ---- the library, kept current ----
+  //
+  // Once the library has been opened, one subscription listens for this account's own events
+  // that the lists are made of (reactions, highlights, web comments, the bookmark list) and
+  // for deletions, for as long as the panel is open. A new one lands in its cache the moment a
+  // relay sends it, and in the open list if the list is showing; one made from Sidecar itself
+  // comes back the same way, from the account's own relays, so nothing has to be told by hand.
+  // The caches live in this page, so closing the panel lets go of them and the next open starts
+  // from the relays; within an open panel the library never has to be asked twice.
+  const _libLive = { pubkey: null, sub: null, token: null, bookmarks: null };
+  const LIB_CACHE_MAX = 300;
+  function stopLibraryLive() {
+    if (_libLive.sub) { try { _libLive.sub.close(); } catch (_) {} }
+    _libLive.sub = null;
+    _libLive.pubkey = null;
+    _libLive.token = null;
+  }
+  async function startLibraryLive() {
+    const pubkey = state.activePubkey;
+    if (!pubkey) return;
+    if (_libLive.pubkey === pubkey && (_libLive.sub || _libLive.token)) return;
+    stopLibraryLive();
+    const token = {};
+    _libLive.pubkey = pubkey;
+    _libLive.token = token;
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (_libLive.token !== token || state.activePubkey !== pubkey) return;
+    _libLive.token = null;
+    if (!relays.length) { _libLive.pubkey = null; return; }
+    // A little before now, so an event published as the sheet opened is not missed in the gap.
+    const since = Math.floor(Date.now() / 1000) - 60;
+    _libLive.sub = poolSubscribeMany(relays, { kinds: [5, 7, 1111, 9802, 10003], authors: [pubkey], since }, {
+      onevent: (ev) => { try { libraryEvent(pubkey, ev); } catch (_) {} },
+    });
+  }
+  function libraryEvent(pubkey, ev) {
+    if (!ev || ev.pubkey !== pubkey || state.activePubkey !== pubkey) return;
+    const into = (cache) => {
+      if (cache.pubkey !== pubkey || !cache.evs || cache.evs.some((e) => e.id === ev.id)) return;
+      cache.evs = [ev, ...cache.evs].sort((a, b) => b.created_at - a.created_at).slice(0, LIB_CACHE_MAX);
+      if (cache.repaint) cache.repaint();
+    };
+    if (ev.kind === 7) into(_rctCache);
+    else if (ev.kind === 9802) into(_hlCache);
+    else if (ev.kind === 1111) {
+      const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+      if (scope && /^https?:\/\//i.test(scope[1] || '')) into(_cmCache);
+    } else if (ev.kind === 10003) {
+      if (_libLive.bookmarks) _libLive.bookmarks(); else _bmCache.pubkey = null;
+    } else if (ev.kind === 5) {
+      const gone = new Set((ev.tags || []).filter((tg) => tg[0] === 'e' && tg[1]).map((tg) => tg[1]));
+      for (const cache of [_rctCache, _hlCache, _cmCache]) {
+        if (cache.pubkey !== pubkey || !cache.evs || !cache.evs.some((e) => gone.has(e.id))) continue;
+        cache.evs = cache.evs.filter((e) => !gone.has(e.id));
+        if (cache.repaint) cache.repaint();
+      }
+    }
   }
 
   // Opened from the topbar icon: a full-height modal (modal-sheet) that paints
@@ -17424,10 +17513,28 @@
   // and repaint only if they said something different. One copy, because the same
   // eleven lines pasted into each list is where a highlights list once wrote itself
   // into the comments cache. A cache that belongs to another account is not a cache.
+  //
+  // A paint is asked first to answer from what is already known (quick: no relay), and says
+  // whether that was everything. When it was not, a second, asking paint follows, so a reopened
+  // list is on screen at once and fills in what it was missing instead of waiting to appear.
+  // `cache.repaint` is how a live event reaches the open list: see libraryEvent.
   async function loadSavedList(pane, gone, cache, fetchList, paint, failText, quote) {
     const pubkey = state.activePubkey;
     const warm = cache.pubkey === pubkey && cache.evs;
-    if (warm) await paint(cache.evs);
+    const settle = async () => {
+      if (gone()) return;
+      const keep = pane.scrollTop;
+      const complete = await paint(cache.evs, true);
+      if (complete === false && !gone()) await paint(cache.evs, false);
+      if (!gone()) pane.scrollTop = keep;
+    };
+    cache.repaint = () => {
+      // Never under a hand that is using a row: an open menu or a delete confirm would vanish.
+      if (gone() || pane.querySelector('.notif-more:not(.hidden), .del-confirm')) return;
+      return settle();
+    };
+    let complete = true;
+    if (warm) complete = await paint(cache.evs, true);
     else pane.append(loadingQuote(t('Reading your relays…'), quote));
     let evs;
     try { evs = await fetchList(pubkey); } catch (_) { evs = null; }
@@ -17438,7 +17545,11 @@
     const changed = !warm || cache.evs.map((e) => e.id).join() !== evs.map((e) => e.id).join();
     cache.pubkey = pubkey;
     cache.evs = evs;
-    if (changed) await paint(evs);
+    if (changed || complete === false) {
+      const keep = pane.scrollTop;
+      await paint(evs, false);
+      if (!gone() && warm) pane.scrollTop = keep;
+    }
   }
   const paged = (list, evs, makeRow) => {
     let shown = 0;
@@ -17518,6 +17629,12 @@
         if (fillers[which]) { const go = fillers[which]; delete fillers[which]; go(); }
       };
       for (const [name] of tabDefs) tabEls[name].addEventListener('click', () => pick(name));
+      // The bookmark list changed somewhere (another device, another client): the same quiet
+      // refresh the sheet does on opening, never while a removal confirm is on screen.
+      _libLive.bookmarks = () => refreshBookmarks().then((changed) => {
+        if (changed && !gone() && !scroll.querySelector('.del-confirm')) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
+      });
+      startLibraryLive();
       tabEls.bookmarks.classList.add('active');
       tabEls.bookmarks.setAttribute('aria-selected', 'true');
       if (_bmCache.pubkey === state.activePubkey && _bmCache.evs) {
@@ -17583,28 +17700,29 @@
     const pubkey = state.activePubkey;
     const setCount = (n) => setTabCount(tab, n);
     const quote = pickQuote();
-    const paint = async (evs) => {
+    const paint = async (evs, quick) => {
       setCount(evs.length);
       const client = await preferredClient();
       if (!evs.length) {
         pane.textContent = '';
         pane.append(emptyQuote(t('Highlight a passage on any web page and it shows up here.'), quote));
-        return;
+        return true;
       }
       // A highlight that cites a note without naming its author takes the author from the
       // note itself, read once for all of them.
       const sources = new Map(evs.map((ev) => [ev.id, highlightSource(ev)]));
       const unknown = [...new Set([...sources.values()].filter((s) => s && s.id && !s.author).map((s) => s.id))];
       if (unknown.length) {
-        const notes = await fetchEventsByIds(unknown).catch(() => new Map());
+        const notes = await fetchEventsByIds(unknown, undefined, { offline: quick }).catch(() => new Map());
         for (const s of sources.values()) if (s && s.id && !s.author && notes.get(s.id)) s.author = notes.get(s.id).pubkey;
       }
       const comments = new Map(evs.map((ev) => [ev.id, ((ev.tags || []).find((tg) => tg[0] === 'comment') || [])[1] || '']));
-      const profiles = await profilesFor([
+      const wanted = [
         ...[...sources.values()].filter((s) => s && s.author).map((s) => s.author),
         ...evs.flatMap((ev) => [...mentionPubkeys(ev.content), ...mentionPubkeys(comments.get(ev.id))]),
-      ]);
-      if (gone()) return;
+      ];
+      const profiles = await profilesFor(wanted, { offline: quick });
+      if (gone()) return true;
       // Cleared only now, after the lookups, so the loading quote stays up through them.
       pane.textContent = '';
       const list = h('div', { className: 'bm-list' });
@@ -17639,6 +17757,8 @@
       pane.append(list);
       paged(list, evs, makeRow);
       pane.append(endQuote(quote));
+      // A quick paint is whole only when it knew every note's author and every name.
+      return !quick || (![...sources.values()].some((s) => s && s.id && !s.author && !wasAsked('n:' + s.id)) && wanted.every((pk) => profiles.get(pk) || wasAsked('p:' + pk)));
     };
     await loadSavedList(pane, gone, _hlCache, fetchHighlights, paint, t('Couldn’t read your highlights from your relays.'), quote);
   }
@@ -17679,21 +17799,23 @@
     const pubkey = state.activePubkey;
     const setCount = (n) => setTabCount(tab, n);
     const quote = pickQuote();
-    const paint = async (evs) => {
+    const paint = async (evs, quick) => {
       setCount(evs.length);
-      const profiles = await profilesFor([...evs.flatMap((ev) => [...mentionPubkeys(ev.content)])]);
-      if (gone()) return;
+      const mentioned = [...evs.flatMap((ev) => [...mentionPubkeys(ev.content)])];
+      const profiles = await profilesFor(mentioned, { offline: quick });
+      if (gone()) return true;
       // A comment on a Nostr thread answers a note; name that note, or the row is a
       // bare sentence with nowhere to point. The parents hydrate in one batch.
       const parentIds = [...new Set(evs.map(commentParentId).filter(Boolean))];
-      const parents = parentIds.length ? await fetchEventsByIds(parentIds).catch(() => new Map()) : new Map();
-      const parentProfiles = await profilesFor([...new Set([...parents.values()].map((p) => p.pubkey))]);
-      if (gone()) return;
+      const parents = parentIds.length ? await fetchEventsByIds(parentIds, undefined, { offline: quick }).catch(() => new Map()) : new Map();
+      const parentAuthors = [...new Set([...parents.values()].map((p) => p.pubkey))];
+      const parentProfiles = await profilesFor(parentAuthors, { offline: quick });
+      if (gone()) return true;
       // Cleared only after the lookups, so the loading quote stays up through them.
       pane.textContent = '';
       if (!evs.length) {
         pane.append(emptyQuote(t('Comment on a web page through Sidecar and it shows up here.'), quote));
-        return;
+        return true;
       }
       const list = h('div', { className: 'bm-list' });
       const makeRow = (ev) => {
@@ -17723,6 +17845,7 @@
       pane.append(list);
       paged(list, evs, makeRow);
       pane.append(endQuote(quote));
+      return !quick || (parentIds.every((id) => parents.has(id) || wasAsked('n:' + id)) && [...mentioned, ...parentAuthors].every((pk) => profiles.get(pk) || parentProfiles.get(pk) || wasAsked('p:' + pk)));
     };
     await loadSavedList(pane, gone, _cmCache, fetchComments, paint, t('Couldn’t read your comments from your relays.'), quote);
   }
@@ -17838,7 +17961,7 @@
     const setCount = (n) => setTabCount(tab, n);
     const quote = pickQuote();
     const client = await preferredClient();
-    const paint = async (evs) => {
+    const paint = async (evs, quick) => {
       setCount(evs.length);
       const noteIds = new Set();
       const profileIds = new Set();
@@ -17853,13 +17976,14 @@
           } else if (tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || '')) profileIds.add(tg[1]);
         }
       }
-      const notes = noteIds.size ? await fetchEventsByIds([...noteIds], hints).catch(() => new Map()) : new Map();
-      const profiles = await profilesFor([...profileIds, ...[...notes.values()].map((n) => n.pubkey)]);
-      if (gone()) return;
+      const notes = noteIds.size ? await fetchEventsByIds([...noteIds], hints, { offline: quick }).catch(() => new Map()) : new Map();
+      const authors = [...profileIds, ...[...notes.values()].map((n) => n.pubkey)];
+      const profiles = await profilesFor(authors, { offline: quick });
+      if (gone()) return true;
       pane.textContent = '';
       if (!evs.length) {
         pane.append(emptyQuote(t('React to a note and it shows up here.'), quote));
-        return;
+        return true;
       }
       const list = h('div', { className: 'bm-list' });
       const makeRow = (ev) => {
@@ -17911,6 +18035,7 @@
       pane.append(list);
       paged(list, evs, makeRow);
       pane.append(endQuote(quote));
+      return !quick || ([...noteIds].every((id) => notes.has(id) || wasAsked('n:' + id)) && authors.every((pk) => profiles.get(pk) || wasAsked('p:' + pk)));
     };
     await loadSavedList(pane, gone, _rctCache, fetchReactions, paint, t('Couldn’t read your reactions from your relays.'), quote);
   }

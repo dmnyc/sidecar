@@ -236,7 +236,7 @@ test('HIGHLIGHTS ARE READ FROM THE ACCOUNT’S OWN KIND 9802s', () => {
 });
 
 test('A BOOKMARKED NOTE IS LOOKED FOR ON THE WRITE RELAYS, AND ON ITS HINT WHEN ALLOWED', () => {
-  const fn = liftPanel('async function fetchEventsByIds(ids, hints)');
+  const fn = liftPanel('async function fetchEventsByIds(ids, hints, opts)');
   // The account's own notes live on its write relays, which the read list need not name.
   assert.match(fn, /write = await postRelays\(\)/);
   // A bookmark's own relay hint, only when the account allows relays it did not choose.
@@ -301,13 +301,13 @@ test('A MENTION IN A HIGHLIGHT OR ITS COMMENT READS AS A NAME, not a nostr:npub'
 });
 
 test('the Saved lists read their authors in one query, not one per author', () => {
-  const body = liftPanel('async function profilesFor(pubkeys)');
+  const body = liftPanel('async function profilesFor(pubkeys, opts)');
   assert.match(body, /kinds: \[0\], authors: need\.slice\(i, i \+ 100\)/);
   assert.match(body, /'wss:\/\/purplepag\.es'/);
   // The ones a many-author query to purplepag.es dropped are asked of it one at a time.
   assert.match(body, /const missed = need\.filter\(\(pk\) => !cachedProfile\(pk\)\)\.slice\(0, 12\);/);
   assert.match(body, /poolGetProfile\(\['wss:\/\/purplepag\.es'\], pk\)/);
-  assert.match(liftPanel('async function fillHighlights('), /const profiles = await profilesFor\(\[/);
+  assert.match(liftPanel('async function fillHighlights('), /const profiles = await profilesFor\(wanted, \{ offline: quick \}\);/);
   assert.match(liftPanel('async function fillBookmarks('), /const profiles = await profilesFor\(/);
   assert.ok(!/authors\.map\(async \(pk\) => \[pk, await getProfile/.test(panelSrc), 'a per-author lookup is back');
 });

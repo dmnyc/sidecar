@@ -30,7 +30,7 @@ test('the reactions query asks the account’s relays for its own kind 7s', () =
 
 test('both kinds of target hydrate: notes by id, profiles by name', () => {
   assert.match(fillPart, /tg\[0\] === 'e' && HEX_ID\.test\(tg\[1\]/, 'note targets gather for one batch fetch');
-  assert.match(fillPart, /fetchEventsByIds\(\[\.\.\.noteIds\], hints\)/, 'the reaction’s own relay hints are asked, not only the account’s relays');
+  assert.match(fillPart, /fetchEventsByIds\(\[\.\.\.noteIds\], hints, \{ offline: quick \}\)/, 'the reaction’s own relay hints are asked, not only the account’s relays');
   assert.ok(fillPart.includes("/^[0-9a-f]{64}$/.test(tg[1] || '')"), 'profile targets gather too');
   assert.match(fillPart, /profilesFor\(/);
 });
