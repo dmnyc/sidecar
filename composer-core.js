@@ -149,13 +149,13 @@ window.SidecarCore = (function () {
     'check-square': '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
     globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
-    // The Saved sheet's four tabs — heart, bookmark, highlighter, bubble — are named
-    // from this map. Heart and bookmark already lived here (the topbar and the like
-    // reactions carry them); the bubble is the message-circle the page-comment button
-    // wears; the highlighter is highlight.svg from Tabler Icons (MIT — attribution in
-    // NOTICE), chosen over a filled glyph so it matches this map's stroke vocabulary.
+    // The Yours sheet's four tabs — bookmark, highlighter, bubble, heart — are named from
+    // this map. Bookmark, message-circle and heart already lived here (the note actions,
+    // the page-comment button and the reactions carry them), so a tab wears the same mark
+    // as the thing it lists; the highlighter is highlight.svg from Tabler Icons (MIT —
+    // attribution in NOTICE), chosen over a filled glyph so it matches this map's stroke
+    // vocabulary, and it is what Recent activity draws for a highlight too.
     highlighter: '<path d="M3 19h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"></path><path d="M12.5 5.5l4 4"></path><path d="M4.5 13.5l4 4"></path><path d="M21 15v4h-8l4 -4l4 0"></path>',
-    comment: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"></path>',
   };
 
   // Icons that are SOLID shapes rather than strokes.

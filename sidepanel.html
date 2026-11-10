@@ -176,11 +176,15 @@
              (rather than bumping the CSS size) keeps stroke-width 2 rendering at the
              same weight as every other icon. -->
         <button id="stream-entry" class="icon-btn" title="Live streams" aria-label="Live streams" data-i18n-title="Live streams" data-i18n-aria-label="Live streams" aria-expanded="false" aria-controls="stream-directory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="translate(0 1)"><circle cx="12" cy="8" r="1"/><path d="m8 21 4-11 4 11M9.5 17h5M7.1 12.9a7 7 0 0 1 0-9.8m9.8 0a7 7 0 0 1 0 9.8M4.3 15.7a11 11 0 0 1 0-15.4m15.4 0a11 11 0 0 1 0 15.4"/></g></svg></button>
-        <!-- The account's bookmarks (NIP-51 lists, written by other clients):
-             feather's bookmark. Grouped with the content icons for the same
-             reason the comment button is. -->
-        <button id="bookmarks-btn" class="icon-btn" title="Your bookmarks" data-i18n-title="Your bookmarks">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        <!-- The account's library: the sheet behind it holds its bookmarks, highlights,
+             comments and reactions. Drawn for Sidecar: a book with a bookmark in it, so
+             the entry and its first tab agree without wearing the same glyph. Converted
+             from the 600-unit artwork to this 24-unit grid at the house 2px stroke, and scaled
+             to 20 units tall about its center, the bell's and the lock's height, because at
+             its drawn size it sat two units short of the row.
+             The id stays: the topbar's fold order and its tests are keyed to it. -->
+        <button id="bookmarks-btn" class="icon-btn" title="Your library" aria-label="Your library" data-i18n-title="Your library" data-i18n-aria-label="Your library">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.111 19.778V5.556c0 -1.244 0 -1.867 0.242 -2.342 0.213 -0.418 0.553 -0.758 0.971 -0.971 0.476 -0.242 1.098 -0.242 2.342 -0.242h10.667c1.244 0 1.867 0 2.342 0.242 0.418 0.213 0.758 0.553 0.971 0.971 0.242 0.476 0.242 1.098 0.242 2.342v12H5.333c-1.228 0 -2.222 0.996 -2.222 2.222ZM3.111 19.778c0 1.228 0.996 2.222 2.222 2.222h15.556M19.778 17.556v4.444"></path><path d="M8.667 2v10l3.333 -3.333 3.333 3.333V2M8.667 2h6.667"></path></svg>
         </button>
         </span>
         <span class="topbar-group topbar-group-chrome">

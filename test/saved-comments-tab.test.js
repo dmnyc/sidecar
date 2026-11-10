@@ -1,18 +1,17 @@
 'use strict';
 
-// The Saved sheet's Comments tab, and the enlarged view a row opens.
+// The library sheet's Comments tab, and the doorway a row is to the comment's own page.
 //
 // A webpage comment is a NIP-22 kind 1111 whose scope tag (uppercase I) is a web
 // address; the query asks the account's relays for its own 1111s and keeps only the
 // web ones. A comment on a Nostr thread answers a note, and the row names that note
 // (hydrated by id) instead of leaving the sentence bare. And because most clients
-// render a kind 1111 nowhere at all, opening a row shows Sidecar's own enlarged
-// view — the parent it answers, the comment in full, its replies — rather than
-// betting on a client.
+// render a kind 1111 nowhere at all, opening a row opens Sidecar's own page for the
+// comment (thread.html) rather than betting on a client.
 //
-// The pane lives behind a modal and a relay round-trip, so nothing here runs the
-// code; these tests pin the decisions the query, the rows, the thread sheet and the
-// tab wiring depend on, in the source itself.
+// The pane lives behind a modal and a relay round-trip, so these pin the query, the rows
+// and the doorway in the source; saved-hub.browser.test.js runs the sheet and the click,
+// and thread-page.browser.test.js runs the page itself.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -23,9 +22,7 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
 
 const sheet = src.slice(src.indexOf('const SAVED_PAGE'), src.indexOf('function commentParentId'));
 const fetchPart = src.slice(src.indexOf('async function fetchComments'), src.indexOf('function commentPage'));
-const fillPart = src.slice(src.indexOf('async function fillComments'), src.indexOf('async function fetchCommentReplies'));
-const thread = src.slice(src.indexOf('async function openCommentThread'), src.indexOf('// ---- the account\'s own reactions'));
-const repliesQuery = src.slice(src.indexOf('async function fetchCommentReplies'), src.indexOf('async function openCommentThread'));
+const fillPart = src.slice(src.indexOf('async function fillComments'), src.indexOf('// ---- one comment, read in its own tab'));
 
 test('the comments query asks the account’s relays for its own 1111s, like highlights do', () => {
   assert.match(fetchPart, /postRelays\(\)/);
@@ -50,36 +47,26 @@ test('a row names the note it answers, hydrated by the last e tag', () => {
   assert.ok(fillPart.includes("t('Replying to {{name}}'"), 'the parent is named when its author is known');
 });
 
-test('opening a row shows Sidecar’s enlarged view, and Reply rides the composer page', () => {
-  assert.match(fillPart, /openCommentThread\(ev\)/);
+test('opening a row opens the comment’s own page, never a client', () => {
+  assert.match(fillPart, /openThreadTab\(ev\)/);
   assert.ok(!fillPart.includes('preferredClient()'), 'the row no longer bets on a client');
-  assert.match(thread, /fetchEventsByIds\(\[parentId\]\)/, 'the sheet hydrates the parent too');
-  assert.match(repliesQuery, /kinds: \[1111\], '#e': \[id\], limit: 100/, 'replies query the indexed e tags');
-  assert.match(repliesQuery, /\(tg\[0\] === 'e' \|\| tg\[0\] === 'i'\) && tg\[1\] === id/, 'and filter i-only replies by hand');
-  assert.match(thread, /jumbleThreadUrl\(pageUrl\)/, 'a web-rooted comment points at the page’s thread');
-  assert.match(thread, /kind: e\.kind/, 'events open with their own kind, whatever a client supports');
-  assert.match(thread, /t\('Open in \{\{client\}\}', \{ client: client\.label \}\)/, 'the open button names the client');
-  assert.match(thread, /handOffToTab\(state\.activePubkey \+ '\|r:' \+ ev\.id, ev\)/, 'Reply rides the dedicated composer page, target whole');
-  assert.match(thread, /openCommentThread\(r, ev\)/, 'a reply row opens its own enlarged view, with this comment behind it');
-  assert.ok(!thread.includes('innerHTML'), 'comment text goes through textContent, never markup');
+  const open = src.slice(src.indexOf('async function openThreadTab'), src.indexOf('// ---- the account\'s own reactions'));
+  assert.match(open, /chrome\.runtime\.getURL\('thread\.html'\) \+ '\?id=' \+ ev\.id/, 'the comment goes in the address by its id');
+  assert.match(open, /\^\[0-9a-f\]\{64\}\$/, 'and only a real id does');
+  assert.match(open, /SIDECAR_THREAD_OPEN/, 'an open thread tab is told, not navigated (that needs the tabs permission)');
+  assert.ok(!open.includes('innerHTML'));
 });
 
-test('the Comments tab is icon-only and filled lazily', () => {
-  assert.match(sheet, /iconTab\(t\('Comments'\), 'comment'\)/);
-  assert.match(sheet, /which === 'comments' && !cmFilled/, 'filled lazily, once');
-  assert.match(sheet, /fillComments\(cmPane/, 'the pane is handed to the filler');
+test('the capsule stops at 99+, in the bell badge’s own template', () => {
+  const vm = require('node:vm');
+  const c = vm.createContext({});
+  vm.runInContext('const t = (s, p) => s.replace("{{count}}", p.count); const I18N = { fmtNum: String };\n' +
+    sheet.slice(sheet.indexOf('const tabCount'), sheet.indexOf('const setTabCount')) + '\nthis.tabCount = tabCount;', c);
+  assert.deepEqual([5, 99, 100, 424].map(c.tabCount), ['5', '99', '99+', '99+']);
 });
 
-test('the capsule caps at two digits and the list pages in screens', () => {
-  assert.match(sheet, /tabCount = \(n\) => n > 99/, 'a heart with 424 is not a number a capsule can carry');
-  assert.ok(sheet.includes("t('{{count}}+', { count: I18N.fmtNum(99) })"), 'the + form is the bell badge template, already translated');
-  assert.match(sheet, /show-more-btn/, 'rows append under a Show more button, like the wallet history does');
-  assert.match(sheet, /t\('Yours'\)/, 'the heading covers four content types, not just bookmarks');
-  assert.match(fillPart, /paged\(list, evs, makeRow\)/, 'rows append in screens, not hundreds at once');
-});
-
-test('the tab count and the failure quote follow the highlights pane', () => {
-  assert.match(fillPart, /modal-tab-count/);
+test('the failure quote and the empty line are the comments tab’s own', () => {
   assert.match(fillPart, /Couldn’t read your comments from your relays\./);
   assert.match(fillPart, /Comment on a web page through Sidecar and it shows up here\./);
+  assert.match(fillPart, /loadSavedList\(pane, gone, _cmCache, fetchComments/, 'the shared loader, on this list’s own cache');
 });

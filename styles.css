@@ -878,6 +878,7 @@ body.panel-narrow .wallet-actions { flex-direction: column; align-items: stretch
 /* The Activity sub-tabs share the traveling mark and the min-content floor. */
 body.panel-narrow .modal-tabs { flex-wrap: wrap; }
 body.panel-narrow .modal-tab { flex: 1 1 45%; }
+body.panel-narrow .modal-tab.icon-tab { flex: 1 1 0; }
 /* Onboarding's content is taller than the viewport at 150% no matter what — the
    centered layout would clip both ends in a scroll container (the classic
    center-overflow trap: the top is unreachable). Top-align it at narrow, so the PIN
@@ -2594,44 +2595,15 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bm-snippet { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .bm-meta { font-size: 11px; color: var(--faint); margin-top: 2px; }
-/* A comment's enlarged view: the parent it answers sits muted above the comment
-   proper, and the replies read like the list rows they are. min-width 0 keeps a
-   long page address inside the sheet instead of through its padding. */
-.cm-thread { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.cm-parent { border-left: 2px solid var(--border); padding: 2px 0 2px 10px; cursor: pointer; }
-.cm-parent:hover { background: var(--hover-soft); }
-.cm-text { font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-.cm-replies-head { font-weight: 700; color: var(--text); }
+/* A comment's row in the list: what it answers, as a quiet line above its words. The comment
+   itself is read on its own page (thread.html). */
 .cm-ref { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cm-reaction-mark { display: inline-block; margin-right: 8px; font-size: 14px; }
-/* The parent's text wraps and clamps; its address sits on one line and ends in an
-   ellipsis. Both need a block box: an inline anchor ignores overflow entirely,
-   which is how a long address once ran through the sheet's padding. */
-.cm-parent a.bm-snippet { display: block; white-space: nowrap; text-overflow: ellipsis; }
-.cm-parent div.bm-snippet {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  white-space: normal;
-}
-/* The walk back down the thread. The chevron points down in the map; a quarter
-   turn points it left, and a right-to-left page turns it the other way. */
-.cm-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.cm-back:hover { color: var(--text); }
-.cm-back svg { width: 15px; height: 15px; transform: rotate(90deg); }
-:root[dir='rtl'] .cm-back svg { transform: rotate(-90deg); }
+/* A reaction row: the mark leads the line, then who and what it was aimed at. The mark is
+   a heart from the icon set, an emoji character, or a custom emoji's picture, and all
+   three sit on the text's baseline at the text's own height. */
+.cm-reaction { display: flex; align-items: center; gap: 6px; }
+.cm-reaction-mark { display: inline-flex; align-items: center; flex-shrink: 0; font-size: 14px; line-height: 1; color: var(--lav); }
+.cm-reaction-mark svg { width: 14px; height: 14px; }
 /* A highlight row: the passage leads, in the reading face, up to three lines. */
 .hl-item-passage {
   font-size: 13px; line-height: 1.45; color: var(--text);
@@ -4871,17 +4843,17 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 }
 .modal-tab:hover { color: var(--text); }
 .modal-tab.active { color: var(--lav); }
-/* The Saved sheet's tabs went icon-only when three labels plus three count capsules
-   started wrapping at the panel's width. An icon tab has no text to read, so the
-   name rides in title and aria-label, and the capsule hangs off the corner the way
-   the bell's badge does. */
+/* The Yours sheet's tabs are icon-only: three labels plus three count capsules
+   wrapped at the panel's width. The sheet's heading names the open tab, and the capsule
+   hangs off the corner of the icon the way the bell's badge hangs off the bell. */
 .modal-tab.icon-tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 0;
+  padding: 11px 0;
 }
-.modal-tab.icon-tab svg { width: 18px; height: 18px; }
+.modal-tab.icon-tab svg { width: 18px; height: 18px; display: block; }
+.tab-glyph { position: relative; display: inline-flex; }
 /* A count inside a tab label, as a capsule rather than a bare number. Filled from
    currentColor so it follows the tab it sits in: muted beside an unselected label, --lav
    beside the active one. A fixed tint would have to be picked per theme, and whichever
@@ -4898,12 +4870,13 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   line-height: 16px;
   vertical-align: 1px;
 }
-/* On an icon tab the capsule is the only text, so it hangs off the corner like the
-   bell's badge does instead of sitting beside a label that is not there. */
+/* On an icon tab the capsule is the only text, so it hangs off the icon's corner
+   instead of sitting beside a label that is not there. Logical offset: the corner
+   follows the reading direction. */
 .modal-tab.icon-tab .modal-tab-count {
   position: absolute;
-  top: 0;
-  right: 7px;
+  top: -9px;
+  inset-inline-start: calc(100% - 7px);
   margin: 0;
 }
 /* Buttons/text appended directly to .modal stretch full-width because .modal

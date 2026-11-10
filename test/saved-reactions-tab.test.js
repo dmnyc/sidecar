@@ -20,7 +20,6 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
 
 const fetchPart = src.slice(src.indexOf('async function fetchReactions'), src.indexOf('async function fillReactions'));
 const fillPart = src.slice(src.indexOf('async function fillReactions'), src.indexOf('// Session cache per account'));
-const sheet = src.slice(src.indexOf('const SAVED_PAGE'), src.indexOf('function commentParentId'));
 
 test('the reactions query asks the account’s relays for its own kind 7s', () => {
   assert.match(fetchPart, /postRelays\(\)/);
@@ -37,19 +36,14 @@ test('both kinds of target hydrate: notes by id, profiles by name', () => {
 });
 
 test('a reaction row shows the mark and opens the note it reacted to', () => {
-  assert.match(fillPart, /cm-reaction-mark/);
-  assert.match(fillPart, /\(ev\.content \|\| '\+'\)\.slice\(0, 8\)/, 'a missing mark falls back to +');
+  assert.match(fillPart, /reactionMark\(ev\)/, 'the mark is drawn by the helper that shares reactionDisplay with the notification list');
   assert.match(fillPart, /kind: note\.kind/, 'the row opens the note, not the reaction');
   assert.match(fillPart, /t\('Open in \{\{client\}\}', \{ client: client\.label \}\)/, 'the row names the client it opens');
   assert.ok(!fillPart.includes('innerHTML'), 'target text goes through textContent, never markup');
 });
 
-test('the Reactions tab is icon-only and filled lazily', () => {
-  assert.match(sheet, /iconTab\(t\('Reactions'\), 'heart'\)/);
-  assert.match(sheet, /which === 'reactions' && !rcFilled/, 'filled lazily, once');
-});
-
-test('reaction rows page in screens and the capsule caps at two digits', () => {
+test('reaction rows page in screens and feed the shared count writer', () => {
   assert.match(fillPart, /paged\(list, evs, makeRow\)/);
-  assert.match(fillPart, /tabCount\(n\)/);
+  assert.match(fillPart, /setTabCount\(tab, n\)/);
+  assert.match(fillPart, /loadSavedList\(pane, gone, _rctCache, fetchReactions/);
 });

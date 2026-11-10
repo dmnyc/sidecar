@@ -230,16 +230,7 @@ test('A HIGHLIGHT ROW SAYS WHERE IT CAME FROM: A PAGE BY HOST, A NOTE BY ITS AUT
   assert.equal(c.highlightSource({ tags: [] }), null);
 });
 
-test('THE SAVED SHEET HAS FOUR ICON TABS, AND EACH LIST LOADS ONLY WHEN ASKED FOR', () => {
-  const body = liftPanel('function renderBookmarks()');
-  assert.match(body, /iconTab\(t\('Reactions'\), 'heart'\)/);
-  assert.match(body, /iconTab\(t\('Bookmarks'\), 'bookmark'\)/);
-  assert.match(body, /iconTab\(t\('Highlights'\), 'highlighter'\)/);
-  assert.match(body, /iconTab\(t\('Comments'\), 'comment'\)/);
-  assert.match(body, /'aria-label': title/, 'an icon-only tab still names itself');
-  assert.match(body, /which === 'highlights' && !hlFilled\) \{\s*hlFilled = true;\s*fillHighlights\(/);
-  assert.match(body, /which === 'comments' && !cmFilled\) \{\s*cmFilled = true;\s*fillComments\(/);
-  assert.match(body, /which === 'reactions' && !rcFilled\) \{\s*rcFilled = true;\s*fillReactions\(/);
+test('HIGHLIGHTS ARE READ FROM THE ACCOUNT’S OWN KIND 9802s', () => {
   const fetch = liftPanel('async function fetchHighlights(pubkey)');
   assert.match(fetch, /kinds: \[9802\], authors: \[pubkey\]/);
 });
