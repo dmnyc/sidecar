@@ -17710,7 +17710,7 @@
         const src = host ? h('div', { className: 'cm-src', title: (scope && scope[1]) || host }, [icon('globe'), h('span', { textContent: host })]) : null;
         item.append(h('div', { className: 'bm-main' }, [
           src,
-          parent ? h('div', { className: 'cm-ref', dir: 'auto', textContent: (pWho ? t('Replying to {{name}}', { name: pWho }) : t('Replying to a note')) + ' · ' + mentionsAsNames(parent.content, parentProfiles).slice(0, 90) }) : null,
+          parent ? h('div', { className: 'cm-ref', dir: 'auto', textContent: (pWho ? t('Replying to {{name}}', { name: pWho }) : t('Replying to a note')) + ' · ' + noteGist(parent) }) : null,
           h('div', { className: 'bm-snippet', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
           h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
           menu.panel,
@@ -17784,6 +17784,23 @@
   // targets hydrate in one batch; a reaction aimed at a profile rather than a note shows
   // the profile's name and opens the profile. The mark is drawn by reactionDisplay, the
   // same function the notification list uses, so one event is one picture on every screen.
+  // THE GIST OF A NOTE, for a row that names it: its words, without the things a one-line
+  // row cannot carry. A link, a nostr reference and an invoice are dropped (quoteSnippet, the
+  // bookmarks list's own rule, so the two lists read a note the same way), and a note that was
+  // only a picture, a video or a link says so instead of reading as nothing. Raw, those rows
+  // were a column of bare addresses and npubs.
+  function noteGist(note) {
+    const words = quoteSnippet(note && note.content);
+    if (words) return words;
+    const url = (String((note && note.content) || '').match(/https?:\/\/[^\s<>"']+/) || [])[0];
+    if (url) {
+      if (IMG_EXT.test(url)) return t('Image');
+      if (VID_EXT.test(url)) return t('Video');
+      try { return new URL(url).host; } catch (_) { /* not an address: the generic line below */ }
+    }
+    return note && note.kind === 30023 ? t('A Nostr article') : t('A Nostr note');
+  }
+
   // The mark a reaction left, as a small element: a heart for the plain like (the glyph
   // the notification list and the note's own React button already use, drawn from the
   // icon set rather than as an emoji so it follows the theme's colors), the character
@@ -17852,7 +17869,7 @@
           || (() => { try { return shortNpub(NT.nip19.npubEncode(aimed)); } catch (_) { return ''; } })()) : '';
         // An e tag whose note never came back is still a note, not a profile.
         let subject;
-        if (note) subject = (who ? who + ' · ' : '') + mentionsAsNames(note.content, profiles).slice(0, 80);
+        if (note) subject = (who ? who + ' · ' : '') + noteGist(note);
         else if (targetId) subject = who ? t('A Nostr note by {{name}}', { name: who }) : t('A Nostr note');
         else subject = who || t('A profile');
         const opens = note || (!targetId && aimed);

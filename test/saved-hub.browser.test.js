@@ -30,17 +30,19 @@ const candidates = [
 const CHROME = candidates.find((p) => fs.existsSync(p)) || null;
 
 const SRC = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8').replace(/^\s*\/\/.*$/gm, '');
-function lift(decl) {
-  const at = SRC.indexOf(decl);
+function lift(decl, src = SRC) {
+  const at = src.indexOf(decl);
   if (at < 0) throw new Error('moved: ' + decl);
-  const open = SRC.indexOf('{', SRC.indexOf(')', at));
+  const open = src.indexOf('{', src.indexOf(')', at));
   let depth = 0;
-  for (let i = open; i < SRC.length; i++) {
-    if (SRC[i] === '{') depth++;
-    if (SRC[i] === '}' && --depth === 0) return SRC.slice(at, i + 1);
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    if (src[i] === '}' && --depth === 0) return src.slice(at, i + 1);
   }
   throw new Error('unbalanced: ' + decl);
 }
+// quoteSnippet lives in the composer core, which the panel takes it from; lifted from there.
+const CORE_SRC = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8').replace(/^\s*\/\/.*$/gm, '');
 // A `const NAME = …;` statement: scanned to the semicolon that closes it, skipping strings.
 function liftConst(name) {
   const at = SRC.indexOf('const ' + name + ' =');
@@ -61,18 +63,18 @@ const FUNCTIONS = [
   'function renderBookmarks(', 'function buildEventMenu(', 'function zapSender(', 'async function liveThreadTab(', 'async function seedThread(', 'async function openThreadTab(', 'function commentParentId(', 'function commentPage(',
   'async function fillComments(', 'async function fetchComments(',
   'async function fillHighlights(', 'async function fetchHighlights(', 'function highlightSource(',
-  'async function fillReactions(', 'async function fetchReactions(', 'function reactionMark(', 'function reactionDisplay(',
+  'async function fillReactions(', 'async function fetchReactions(', 'function noteGist(', 'function reactionMark(', 'function reactionDisplay(',
   'async function loadSavedList(', 'function wireTabSlider(',
 ];
 const CONSTS = ['THREAD_SEEDS_KEY', 'SAVED_PAGE', 'tabCount', 'setTabCount', 'paged', '_hlCache', '_cmCache', '_rctCache'];
-const NAMES = FUNCTIONS.map((f) => /function (\w+)\(/.exec(f)[1]).concat(CONSTS);
+const NAMES = FUNCTIONS.map((f) => /function (\w+)\(/.exec(f)[1]).concat(CONSTS, ['quoteSnippet']);
 
 const ME = 'a'.repeat(64);
 const OTHER = 'b'.repeat(64);
 const id = (c) => c.repeat(64);
 
 function page(scenario) {
-  const code = FUNCTIONS.map(lift).concat(CONSTS.map(liftConst)).join('\n');
+  const code = FUNCTIONS.map((f) => lift(f)).concat([lift('function quoteSnippet(', CORE_SRC)], CONSTS.map(liftConst)).join('\n');
   return `<!doctype html><html data-theme="speakeasy"><head><meta charset="utf-8">
 <link rel="stylesheet" href="file://${ROOT}/fonts.css"><link rel="stylesheet" href="file://${ROOT}/styles.css">
 <link rel="stylesheet" href="file://${ROOT}/themes/speakeasy.css"><link rel="stylesheet" href="file://${ROOT}/themes/patterns.css">
@@ -104,9 +106,17 @@ const REACTIONS = [
   reaction('d', '+', [['e', id('e')], ['p', OTHER]]),                            // note no relay returned
   reaction('f', '+', [['p', OTHER]]),                                            // a profile
 ];
+// Notes whose raw text a one-line row cannot carry: words with a mention and a link, a picture alone, a link alone.
+const NPUB = 'npub1' + 'q'.repeat(58);
+const N_WORDS = ev('b', OTHER, 1, 'Welp, done running that nostr:' + NPUB + ' https://example.org/x?y=1', [], 100);
+const N_IMAGE = ev('0', OTHER, 1, 'https://i.nostr.build/CPxspH5POM.jpg', [], 100);
+const N_LINK = ev('a', OTHER, 1, 'https://example.org/page', [], 100);
+for (const [n, note] of [['1', N_WORDS], ['2', N_IMAGE], ['3', N_LINK]]) {
+  REACTIONS.push({ ...reaction('f', '+', [['e', note.id], ['p', OTHER]]), id: n.repeat(63) + 'f' });
+}
 const MANY = S.many ? Array.from({ length: S.many }, (_, i) => ({ id: (i + 16).toString(16).padStart(64, '0'), pubkey: ME, kind: 1111, content: 'Comment ' + i, tags: WEB, created_at: 1000 + i })) : [];
 const queried = [];
-const DB = new Map([C1, R1, R2, NOSTR_SCOPED, NOTE, HL].map((e) => [e.id, e]));
+const DB = new Map([C1, R1, R2, NOSTR_SCOPED, NOTE, HL, N_WORDS, N_IMAGE, N_LINK].map((e) => [e.id, e]));
 const opened = [];
 const created = [];
 const messages = [];
@@ -135,6 +145,7 @@ const real = {
   preferredClient: async () => ({ label: 'Jumble', url: (b) => 'https://jumble.example/' + b, profile: (n) => 'https://jumble.example/p/' + n }),
   openInClient: (u) => { opened.push(u); }, handOffToTab: (k, e) => { handoffs.push([k, e.id]); },
   jumbleThreadUrl: (u) => 'https://jumble.example/thread?u=' + u,
+  IMG_EXT: new RegExp('\\\\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\\\\?.*)?$', 'i'), VID_EXT: new RegExp('\\\\.(mp4|webm|mov|m4v)(\\\\?.*)?$', 'i'),
   relativeTime: () => '5m', mentionsAsNames: (c) => c, mentionPubkeys: () => [], shortNpub: (n) => n,
   approvalKindLabels: () => ({}), notifTargetId: () => '', notifEventJson: () => '{}', copyPlain: async () => {}, notifAuthorName: () => '',
   pickQuote: () => ({}), loadingQuote: (txt) => block('loading', txt), emptyQuote: (txt) => block('empty', txt), endQuote: () => block('bm-empty bm-end', '\u201Cquote\u201D'),
@@ -314,7 +325,7 @@ test('the sheet is four icon tabs, the heading follows the open one, and each li
   }
   // The highlights list once wrote its events into the comments cache.
   assert.equal(r.cmUntouched, true, 'visiting highlights leaves the other lists’ caches alone');
-  assert.deepEqual(r.caches, { hl: [9802], cm: [1111], rc: [7, 7, 7, 7, 7] });
+  assert.deepEqual(r.caches, { hl: [9802], cm: [1111], rc: [7, 7, 7, 7, 7, 7, 7, 7] });
   assert.equal(r.reopened.rows.length, 1);
   assert.match(r.reopened.rows[0], /First comment/, 'reopened on the comments tab, from a cache that holds comments');
   assert.equal(r.reopened.heading, 'Comments');
@@ -322,7 +333,7 @@ test('the sheet is four icon tabs, the heading follows the open one, and each li
 
 test('a reaction row draws its mark the way the notification list does, and aims at the last e tag', opts, () => {
   const r = measure({ flow: 'hub' });
-  const [like, custom, fire, lost, profile] = r.reactionRows;
+  const [like, custom, fire, lost, profile, words, image, link] = r.reactionRows;
   assert.equal(like.heart, true, 'a plain like is the heart from the icon set, not the raw plus sign');
   assert.match(like.text, /^Bea · A note worth liking$/, 'the target is the LAST e tag (NIP-25), not the thread root');
   assert.match(custom.img || '', /^data:image\/gif/, 'a custom emoji is its picture');
@@ -331,6 +342,11 @@ test('a reaction row draws its mark the way the notification list does, and aims
   assert.equal(lost.title, '', 'and has nothing to open');
   assert.equal(profile.text, 'Bea', 'a profile reaction names the profile');
   assert.match(profile.title, /^Open in Jumble/);
+  // A one-line row carries a note's words and nothing it cannot: no bare address, no npub.
+  assert.equal(words.text, 'Bea · Welp, done running that', 'the link and the mention are dropped, the words stay');
+  assert.equal(image.text, 'Bea · Image', 'a note that was only a picture says so');
+  assert.equal(link.text, 'Bea · example.org', 'and one that was only a link names the site');
+  for (const row of r.reactionRows) assert.ok(!/https?:|npub1|nostr:/.test(row.text), 'no raw address or npub on a row: ' + row.text);
   assert.equal(r.reactionOpened.length, 2);
   assert.match(r.reactionOpened[0], /nevent1/);
   assert.match(r.reactionOpened[1], /\/p\/npub1/, 'and opens the profile, as the row’s own comment promised');
