@@ -13,9 +13,9 @@ const ROOT = path.join(__dirname, '..');
 // it follows the browser through chrome.i18n and _locales (docs/i18n-design.md §3.2).
 const JS_FILES = ['i18n.js', 'sidepanel.js', 'prompt.js', 'welcome.js', 'compose.js', 'composer-core.js',
   'wallets.js', 'help.js', 'scan-qr.js', 'relay-rider.js', 'theme-tile.js', 'background.js',
-  'replaceable-baseline.js', 'highlight.js', 'streams.js', 'stream-chat.js', 'stream-details.js'];
+  'replaceable-baseline.js', 'highlight.js', 'thread.js', 'streams.js', 'stream-chat.js', 'stream-details.js'];
 const HTML_FILES = ['sidepanel.html', 'prompt.html', 'welcome.html', 'compose.html', 'help.html',
-  'wallets.html', 'scan-qr.html', 'relay-rider.html', 'theme-tile.html', 'highlight.html'];
+  'wallets.html', 'scan-qr.html', 'relay-rider.html', 'theme-tile.html', 'highlight.html', 'thread.html'];
 
 // A JS string literal in single or double quotes, escapes and all, and its value.
 const LIT = String.raw`('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")`;
