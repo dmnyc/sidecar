@@ -649,9 +649,21 @@
   // The picker: the quick row, a search, and the whole table under it, in a popover at the
   // button that asked. It closes on the next click anywhere else, or on Escape.
   let openPicker = null;
-  function closePicker() { if (openPicker) { openPicker.remove(); openPicker = null; } }
+  function closePicker() {
+    if (!openPicker) return;
+    // The heart that opened it stops being lit, whichever way it closed.
+    const a = openPicker._anchor;
+    if (a) { a.classList.remove('open'); a.setAttribute('aria-expanded', 'false'); }
+    openPicker.remove();
+    openPicker = null;
+  }
   function openReactPicker(anchor, target, ctx) {
+    // The same heart again closes it. The click-outside handler skips the action icons (so
+    // that pressing another comment's heart moves the picker there), which meant this one
+    // closed the picker and opened it again, and the only way out was a click elsewhere.
+    const same = !!openPicker && openPicker._anchor === anchor;
     closePicker();
+    if (same) return;
     const groups = SC.emojiGroups();
     const pop = h('div', { className: 'thread-react', role: 'dialog' });
     pop.setAttribute('aria-label', t('React'));
@@ -699,6 +711,9 @@
     }
     document.body.append(pop);
     openPicker = pop;
+    pop._anchor = anchor;
+    anchor.classList.add('open');           // lit while it is open, as the notification icons are
+    anchor.setAttribute('aria-expanded', 'true');
     // Under the button, kept inside the window.
     const r = anchor.getBoundingClientRect();
     const w = pop.offsetWidth || 300;

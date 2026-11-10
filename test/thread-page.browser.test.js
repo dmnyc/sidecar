@@ -206,6 +206,15 @@ const save = (extra) => { pre.textContent = JSON.stringify(Object.assign({ progr
     q('.thread-c-focus .notif-act[aria-label="React"]').click(); await wait(50);
     if (stopAt('react')) return finish();
     out.picker = { open: !!q('.thread-react'), quick: qa('.thread-react .emoji-quick-cell').length, search: !!q('.thread-react input[type=search]') };
+    out.heartLit = q('.thread-c-focus .notif-act[aria-label="React"]').classList.contains('open');
+    // The same heart again closes it; another comment's heart moves it there.
+    q('.thread-c-focus .notif-act[aria-label="React"]').click(); await wait(50);
+    out.closedByHeart = { gone: !q('.thread-react'), lit: q('.thread-c-focus .notif-act[aria-label="React"]').classList.contains('open'), expanded: q('.thread-c-focus .notif-act[aria-label="React"]').getAttribute('aria-expanded') };
+    q('.thread-c-focus .notif-act[aria-label="React"]').click(); await wait(50);
+    q('.notif-act[aria-label="React"]', row(0)).click(); await wait(50);
+    out.moved = { pickers: qa('.thread-react').length, focusLit: q('.thread-c-focus .notif-act[aria-label="React"]').classList.contains('open'), rowLit: q('.notif-act[aria-label="React"]', row(0)).classList.contains('open') };
+    q('.notif-act[aria-label="React"]', row(0)).click(); await wait(50);
+    q('.thread-c-focus .notif-act[aria-label="React"]').click(); await wait(50);
     qa('.thread-react .emoji-quick-cell').find((b) => b.textContent === '🔥').click(); await wait(300);
     if (stopAt('picked')) return finish();
     out.signed = signed.slice(); out.published = published.map((e) => e.id);
@@ -327,6 +336,9 @@ test('a reply, a reaction, a fold and the walk down and back all do what they sa
   assert.match(r.tabs[0].url, /compose\.html\?reply=2{64}$/);
   // React: a picker with the quick row and a search, a kind 7 signed with the right tags, published, and a chip.
   assert.deepEqual(r.picker, { open: true, quick: 8, search: true });
+  assert.equal(r.heartLit, true, 'the heart is lit while its picker is open');
+  assert.deepEqual(r.closedByHeart, { gone: true, lit: false, expanded: 'false' }, 'pressing the same heart again closes the picker');
+  assert.deepEqual(r.moved, { pickers: 1, focusLit: false, rowLit: true }, 'another comment’s heart moves the picker there, one at a time');
   assert.equal(r.signed.length, 1);
   assert.equal(r.signed[0].kind, 7);
   assert.equal(r.signed[0].content, '🔥');
