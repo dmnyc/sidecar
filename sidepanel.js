@@ -17701,7 +17701,9 @@
         const parent = parents.get(commentParentId(ev));
         const pWho = parent ? (parentProfiles.get(parent.pubkey) || {}).name || '' : '';
         const item = h('div', { className: 'bm-item', title: t('Open this comment') });
-        const menu = buildEventMenu(ev, null, {});
+        // Always the account's own comment, so there is no one else's npub to copy: left to
+        // itself the menu offers the author's, which here is you.
+        const menu = buildEventMenu(ev, null, { npubOf: null });
         // The site the comment was written on leads the row, so a list of comments reads as
         // a list of places. The address itself is the tooltip; the time stays below.
         const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
@@ -17855,7 +17857,7 @@
         else subject = who || t('A profile');
         const opens = note || (!targetId && aimed);
         const item = h('div', { className: 'bm-item', title: opens ? t('Open in {{client}}', { client: client.label }) : '' });
-        const menu = buildEventMenu(ev, null, {});
+        const menu = buildEventMenu(ev, null, { npubOf: null });
         item.append(h('div', { className: 'bm-main' }, [
           h('div', { className: 'bm-snippet cm-reaction', dir: 'auto' }, [reactionMark(ev), document.createTextNode(subject)]),
           h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),

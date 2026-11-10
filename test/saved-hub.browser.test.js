@@ -58,7 +58,7 @@ function liftConst(name) {
   throw new Error('unterminated: ' + name);
 }
 const FUNCTIONS = [
-  'function renderBookmarks(', 'async function liveThreadTab(', 'async function seedThread(', 'async function openThreadTab(', 'function commentParentId(', 'function commentPage(',
+  'function renderBookmarks(', 'function buildEventMenu(', 'function zapSender(', 'async function liveThreadTab(', 'async function seedThread(', 'async function openThreadTab(', 'function commentParentId(', 'function commentPage(',
   'async function fillComments(', 'async function fetchComments(',
   'async function fillHighlights(', 'async function fetchHighlights(', 'function highlightSource(',
   'async function fillReactions(', 'async function fetchReactions(', 'function reactionMark(', 'function reactionDisplay(',
@@ -136,7 +136,7 @@ const real = {
   openInClient: (u) => { opened.push(u); }, handOffToTab: (k, e) => { handoffs.push([k, e.id]); },
   jumbleThreadUrl: (u) => 'https://jumble.example/thread?u=' + u,
   relativeTime: () => '5m', mentionsAsNames: (c) => c, mentionPubkeys: () => [], shortNpub: (n) => n,
-  buildEventMenu: () => ({ panel: document.createElement('div'), btn: document.createElement('button') }),
+  approvalKindLabels: () => ({}), notifTargetId: () => '', notifEventJson: () => '{}', copyPlain: async () => {}, notifAuthorName: () => '',
   pickQuote: () => ({}), loadingQuote: (txt) => block('loading', txt), emptyQuote: (txt) => block('empty', txt), endQuote: () => block('bm-empty bm-end', '\u201Cquote\u201D'),
   closeModal: () => document.getElementById('modal-overlay').classList.add('hidden'),
   openModal: (fn) => { const m = document.getElementById('modal'); m.innerHTML = ''; fn(m); m.classList.add('is-open'); document.getElementById('modal-overlay').classList.remove('hidden'); return m; },
@@ -153,7 +153,7 @@ const scope = new Proxy({}, {
   has: (t, k) => typeof k === 'string' && !LIFTED.has(k) && (k in real || !(k in globalThis)),
   get: (t, k) => (typeof k === 'symbol' ? undefined : (k in real ? real[k] : stub)), set: () => true,
 });
-const run = new Function('scope', 'with(scope){' + ${JSON.stringify(code)} + '\\n return { renderBookmarks, openThreadTab, caches: { hl: _hlCache, cm: _cmCache, rc: _rctCache } };}');
+const run = new Function('scope', 'with(scope){' + ${JSON.stringify(code)} + '\\n return { renderBookmarks, openThreadTab, buildEventMenu, caches: { hl: _hlCache, cm: _cmCache, rc: _rctCache } };}');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const q = (s) => document.querySelector(s);
 const qa = (s) => [...document.querySelectorAll(s)];
@@ -207,8 +207,14 @@ const hub = () => ({
     tabs()[1].click(); await wait(300); out.highlights = hub();
     out.cmUntouched = api.caches.cm.evs === null && api.caches.rc.evs === null;
     tabs()[2].click(); await wait(300); out.comments = hub();
+    out.menuComments = (() => { const b = q('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-btn'); b.click(); return qa('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-item').map((x) => x.textContent); })();
+    // The control: the same menu asked for the way a notification asks, which does offer an npub.
+    out.menuControl = (() => { const m = api.buildEventMenu({ id: id('1'), pubkey: ME, kind: 1111, tags: [], content: '' }, null, {}); m.btn.click(); return [...m.panel.querySelectorAll('.notif-more-item')].map((x) => x.textContent); })();
     tabs()[3].click(); await wait(300);
     out.reactions = hub();
+    // The ⋮ menu of the first row of a tab: its labels, once opened.
+    const menuOf = () => { const b = q('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-btn'); b.click(); return qa('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-item').map((x) => x.textContent); };
+    out.menuReactions = menuOf();
     out.reactionRows = qa('#modal .bm-scroll:not(.hidden) .bm-item').map((row) => {
       const mark = row.querySelector('.cm-reaction-mark');
       return {
@@ -297,6 +303,10 @@ test('the sheet is four icon tabs, the heading follows the open one, and each li
   assert.deepEqual(r.comments.sources, ['example.com | https://example.com/post']);
   assert.deepEqual(r.comments.metas, ['5m']);
   assert.equal(r.reactions.heading, 'Reactions');
+  // Your own comments and reactions have no one else's npub to copy, and the menu does not offer yours.
+  assert.ok(r.menuControl.includes('Copy npub'), 'the menu offers an author’s npub when asked the usual way');
+  assert.ok(r.menuComments.length > 0 && !r.menuComments.includes('Copy npub'), 'comments: ' + r.menuComments.join(', '));
+  assert.ok(r.menuReactions.length > 0 && !r.menuReactions.includes('Copy npub'), 'reactions: ' + r.menuReactions.join(', '));
   // A flat list ends in one rule, not two: the last row gives up its own, so the line above the closing quote is the only one.
   for (const tab of ['highlights', 'comments', 'reactions']) {
     assert.equal(r[tab].quoteRule, '1px', tab + ': the closing quote keeps its rule');
