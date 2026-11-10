@@ -2628,18 +2628,15 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 /* entries whose events the relays no longer return: below the found ones,
    under a divider, dimmed — present (they're still bookmarks) but quiet */
-/* remove confirm: the row becomes a column so "Remove this bookmark?" plus its
-   two buttons get the full width, with the bookmark still legible above them —
-   words never share the inline action slot beside the content */
-.bm-item.bm-confirming { flex-direction: column; align-items: stretch; gap: 10px; cursor: default; }
-.bm-item.bm-confirming:hover { background: none; }
-.bm-item.bm-confirming .item-actions { display: none; }
-.bm-confirm { display: flex; align-items: center; gap: 8px; }
 .bm-item.bm-missing { opacity: 0.55; }
-/* a dimmed row still gets an undimmed confirm — the red Remove has to keep its
-   contrast, so the dimming moves onto the content while the confirm is open */
-.bm-item.bm-missing.bm-confirming { opacity: 1; }
-.bm-item.bm-missing.bm-confirming .bm-main { opacity: 0.55; }
+/* a dimmed row that is being asked about keeps full strength, so the red trash and its question
+   keep their contrast */
+.bm-item.bm-missing:has(.del-confirm) { opacity: 1; }
+.bm-item.bm-missing:has(.del-confirm) .bm-main > :not(.bm-meta) { opacity: 0.55; }
+/* A trash that has been tapped once: red, with the row's date line asking the question. */
+.icon-btn.del-confirm { color: var(--red); background: rgba(240, 86, 107, 0.16); border-color: transparent; }
+.icon-btn.del-confirm:hover { color: var(--red); background: rgba(240, 86, 107, 0.26); }
+.bm-meta.bm-meta-ask { color: var(--red); font-weight: 600; }
 .bm-item.bm-missing .bm-snippet { font-family: var(--font-mono); font-size: 11.5px; }
 
 /* data recovery modal (Lazarus) */

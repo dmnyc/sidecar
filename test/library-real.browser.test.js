@@ -208,3 +208,60 @@ test('an event that arrives while the library is open reaches its list without a
     assert.deepEqual(x.errors, []);
   });
 });
+
+test('a bookmark’s trash asks once in place: any other tap lets go, Escape lets go, the second tap removes', opts, async (t) => {
+  await withExtension(t, {}, async (x) => {
+    const s = seed(x);
+    await x.reload();
+    await x.recordTabs();
+    await openLibrary(x);
+    const row = `document.querySelector('#modal .bm-scroll .bm-item')`;
+    const trash = `${row}.querySelector('.item-actions .icon-btn:last-child')`;
+    await x.waitFor(`${text('#modal .bm-scroll')}.includes('A note worth reacting to')`);
+    const resting = await x.evaluate(`${row}.querySelector('.bm-meta').textContent`);
+    const armed = () => x.evaluate(`${trash}.classList.contains('del-confirm')`);
+    const meta = () => x.evaluate(`${row}.querySelector('.bm-meta').textContent`);
+    const layout = () => x.evaluate(`${row}.getBoundingClientRect().height`);
+    const before = await layout();
+
+    // One tap arms it, in place: red, and the date line asks. Nothing is added to the row.
+    await x.evaluate(`${trash}.click()`);
+    assert.equal(await armed(), true);
+    assert.equal(await meta(), 'Remove this bookmark?');
+    assert.ok(Math.abs((await layout()) - before) < 2, 'the row does not grow');
+    // A second tap straight after, as a double-tap would be, removes nothing.
+    await x.evaluate(`${trash}.click()`);
+    assert.equal(await armed(), true);
+    assert.equal(await x.evaluate(rows('#modal .bm-scroll')), 1);
+
+    // A tap on the row lets go, and does not open the client behind the question.
+    await x.sleep(500);
+    await x.clearCalls();
+    await x.evaluate(`${row}.querySelector('.bm-main').click()`);
+    assert.equal(await armed(), false);
+    assert.equal(await meta(), resting, 'the date line comes back');
+    await x.sleep(300);
+    assert.deepEqual(openedUrls(await x.calls()), []);
+
+    // A tap elsewhere in the sheet lets go.
+    await x.evaluate(`${trash}.click()`);
+    await x.evaluate(`document.querySelector('#modal .modal-tabs').click()`);
+    assert.equal(await armed(), false);
+
+    // Escape lets go and does not close the sheet.
+    await x.evaluate(`${trash}.click()`);
+    await x.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    assert.equal(await armed(), false);
+    assert.equal(await x.evaluate(`!document.getElementById('modal-overlay').classList.contains('hidden')`), true);
+
+    // The second tap, a moment later, removes it: the list is published again without the note.
+    await x.evaluate(`${trash}.click()`);
+    await x.sleep(500);
+    await x.evaluate(`${trash}.click()`);
+    await x.waitFor(`document.querySelectorAll('#modal .bm-scroll .bm-item').length === 0`, 15000);
+    const lists = x.relay.events.filter((e) => e.kind === 10003).sort((a, b) => b.created_at - a.created_at);
+    assert.ok(lists.length >= 1);
+    assert.ok(!lists[0].tags.some((tg) => tg[0] === 'e' && tg[1] === s.note1.id), 'the newest list no longer holds the note');
+    assert.deepEqual(x.errors, []);
+  });
+});

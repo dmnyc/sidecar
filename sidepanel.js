@@ -17728,24 +17728,28 @@
       const list = h('div', { className: 'bm-list' });
       const makeRow = (ev) => {
         const src = sources.get(ev.id);
+        // WHERE IT CAME FROM leads the row, as it does on a comment: a globe and the host for a
+        // page, a note or article icon and its author's name for Nostr. The date sits alone
+        // below, so a long name never shares a line with it and wraps.
         let from = '';
+        let fromIcon = 'globe';
         if (src && src.kind === 'page') from = src.host;
         else if (src) {
           const prof = src.author ? profiles.get(src.author) : null;
           let who = prof && prof.name;
           if (!who && src.author) { try { who = shortNpub(NT.nip19.npubEncode(src.author)); } catch (_) {} }
-          from = who
-            ? (src.kind === 'article' ? t('Nostr article by {{name}}', { name: who }) : t('Nostr note by {{name}}', { name: who }))
-            : (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
+          fromIcon = src.kind === 'article' ? 'file-text' : 'message-filled';
+          from = who || (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
         }
         const comment = mentionsAsNames(comments.get(ev.id), profiles);
         const item = h('div', { className: 'bm-item hl-item', title: t('Open in {{client}}', { client: client.label }) });
         // The same ⋮ as a notification's; its npub is the quoted author's, not yours.
         const menu = buildEventMenu(ev, null, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
         item.append(h('div', { className: 'bm-main' }, [
+          from ? h('div', { className: 'cm-src', title: from }, [icon(fromIcon), h('span', { dir: 'auto', textContent: from })]) : null,
           h('div', { className: 'hl-item-passage', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
           comment ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: comment }) : null,
-          h('div', { className: 'bm-meta', textContent: from ? from + ' · ' + relativeTime(ev.created_at) : relativeTime(ev.created_at) }),
+          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
           menu.panel,
         ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
         item.addEventListener('click', async () => {
@@ -18137,62 +18141,75 @@
       // event ID, its author's npub and its JSON, to copy. Opens under the content.
       const menu = ref ? buildEventMenu(ref, null) : null;
       if (menu) main.append(menu.panel);
-      // The resting row keeps a lone icon button in the inline slot; the confirm
-      // has words, so it takes its own full-width row under the content (the
-      // connected-site grammar) instead of squeezing a label and two buttons
-      // beside a 300px-wide row.
-      const confirmRow = h('div', { className: 'bm-confirm' });
-      let confirming = false;
-      const drawResting = () => {
-        confirming = false;
-        item.classList.remove('bm-confirming');
-        confirmRow.remove();
-        confirmRow.textContent = '';
-        actions.textContent = '';
-        if (menu) actions.append(menu.btn);
-        actions.append(iconButton(t('Remove bookmark'), 'x', (e) => {
-          e.stopPropagation();
-          drawConfirm();
-        }));
+      // THE TRASH ASKS ONCE, IN PLACE. The first tap arms it: the icon goes red and the row's
+      // date line turns into the question, with the bookmark still on screen above it, so nothing
+      // is added to the row and no layout moves. The second tap removes. Anything else lets go:
+      // a tap elsewhere in the sheet or on the row itself, Escape, or a few seconds of nothing.
+      // The second tap is ignored for a moment after the first, so a double-tap cannot do both.
+      // (The old confirm was a row of words and two buttons under the content: wide in a panel
+      // this narrow, and it wrapped its own question onto two lines.)
+      const meta = main.querySelector('.bm-meta');
+      const restingMeta = meta.textContent;
+      const rm = iconButton(t('Remove bookmark'), 'trash', (e) => {
+        e.stopPropagation();
+        if (!armed) arm(); else if (Date.now() - armed.at > ARM_GRACE_MS) remove();
+      });
+      rm.setAttribute('aria-label', t('Remove bookmark'));
+      let armed = null;
+      const ARM_GRACE_MS = 400;
+      const ARM_TIMEOUT_MS = 5000;
+      const disarm = () => {
+        if (!armed) return;
+        const { off } = armed;
+        armed = null;
+        off();
+        rm.classList.remove('del-confirm');
+        meta.classList.remove('bm-meta-ask');
+        meta.textContent = restingMeta;
       };
-      const drawConfirm = () => {
-        confirming = true;
-        item.classList.add('bm-confirming');
-        confirmRow.textContent = '';
-        const yes = h('button', { className: 'mini del-confirm', textContent: t('Remove') });
-        const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
-        yes.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          yes.disabled = true;
-          yes.textContent = t('Removing…');
-          // Republish the owning list minus EVERY e-tag for this id — a client
-          // that wrote the same bookmark twice should see both copies go. The
-          // 30001's d-tag rides through untouched (only e-tags are filtered),
-          // so the category stays the same replaceable stream.
-          const tags = parent.tags.filter((t) => !(t[0] === 'e' && t[1] === id));
-          try {
-            const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: { kind: parent.kind, created_at: Math.floor(Date.now() / 1000), tags, content: parent.content || '' } });
-            await publishSigned(signed);
-            parent.tags = tags; // keep the in-memory copy honest for this session
-            const group = item.closest('.bm-group');
-            item.remove();
-            if (group && !group.querySelector('.bm-item')) group.remove();
-            if (!list.querySelector('.bm-item')) empty();
-            toast(t('Bookmark removed'), 'success');
-          } catch (err) {
-            toast((err && err.message) || t('Could not remove the bookmark'), 'error');
-            drawResting();
-          }
-        });
-        no.addEventListener('click', (e) => { e.stopPropagation(); drawResting(); });
-        confirmRow.append(h('span', { className: 'confirm-msg', textContent: t('Remove this bookmark?') }), yes, no);
-        item.append(confirmRow);
+      const arm = () => {
+        const onDoc = (e) => { if (!rm.contains(e.target)) disarm(); };
+        // Capture, and stopped: the first Escape cancels this, it does not also close the sheet.
+        const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); disarm(); } };
+        const timer = setTimeout(disarm, ARM_TIMEOUT_MS);
+        document.addEventListener('click', onDoc);
+        document.addEventListener('keydown', onKey, true);
+        armed = { at: Date.now(), off: () => { clearTimeout(timer); document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey, true); } };
+        // del-confirm is also what the live refresh looks for, so a list never repaints under it.
+        rm.classList.add('del-confirm');
+        meta.classList.add('bm-meta-ask');
+        meta.textContent = t('Remove this bookmark?');
       };
-      drawResting();
+      const remove = async () => {
+        rm.disabled = true;
+        meta.textContent = t('Removing…');
+        // Republish the owning list minus EVERY e-tag for this id — a client
+        // that wrote the same bookmark twice should see both copies go. The
+        // 30001's d-tag rides through untouched (only e-tags are filtered),
+        // so the category stays the same replaceable stream.
+        const tags = parent.tags.filter((t) => !(t[0] === 'e' && t[1] === id));
+        try {
+          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: { kind: parent.kind, created_at: Math.floor(Date.now() / 1000), tags, content: parent.content || '' } });
+          await publishSigned(signed);
+          parent.tags = tags; // keep the in-memory copy honest for this session
+          if (armed) { armed.off(); armed = null; }
+          const group = item.closest('.bm-group');
+          item.remove();
+          if (group && !group.querySelector('.bm-item')) group.remove();
+          if (!list.querySelector('.bm-item')) empty();
+          toast(t('Bookmark removed'), 'success');
+        } catch (err) {
+          toast((err && err.message) || t('Could not remove the bookmark'), 'error');
+          rm.disabled = false;
+          disarm();
+        }
+      };
+      if (menu) actions.append(menu.btn);
+      actions.append(rm);
       item.addEventListener('click', async () => {
-        // While the confirm is open the row isn't a link — a tap on the message
-        // (or the gap beside it) must not open the client behind the confirm.
-        if (confirming) return;
+        // An armed row is not a link: a tap on it only lets go, so the question is never
+        // answered by opening the client behind it.
+        if (armed) { disarm(); return; }
         const client = await preferredClient();
         try {
           openInClient(client.url(NT.nip19.neventEncode({ id, author: ref ? ref.pubkey : undefined, relays: [] })));
