@@ -339,7 +339,7 @@ test('a reaction row draws its mark the way the notification list does, and aims
   assert.match(custom.img || '', /^data:image\/gif/, 'a custom emoji is its picture');
   assert.equal(fire.mark, '🔥');
   assert.equal(lost.text, 'A Nostr note by Bea', 'an e tag whose note never came back is still a note, not a profile');
-  assert.equal(lost.title, '', 'and has nothing to open');
+  assert.match(lost.title, /^Open in Jumble/, 'and still opens: a client looks a note up by id, so a row is never dead');
   assert.equal(profile.text, 'Bea', 'a profile reaction names the profile');
   assert.match(profile.title, /^Open in Jumble/);
   // A one-line row carries a note's words and nothing it cannot: no bare address, no npub.

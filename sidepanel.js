@@ -17842,13 +17842,18 @@
       setCount(evs.length);
       const noteIds = new Set();
       const profileIds = new Set();
+      // A reaction's e tag often names the relay the note was seen on. A note by a stranger is
+      // rarely on this account's own relays, so asking only those left most rows unresolved.
+      const hints = [];
       for (const ev of evs) {
         for (const tg of (ev.tags || [])) {
-          if (tg[0] === 'e' && HEX_ID.test(tg[1] || '')) noteIds.add(tg[1]);
-          else if (tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || '')) profileIds.add(tg[1]);
+          if (tg[0] === 'e' && HEX_ID.test(tg[1] || '')) {
+            noteIds.add(tg[1]);
+            if (typeof tg[2] === 'string' && /^wss:\/\/\S+$/.test(tg[2])) hints.push(tg[2]);
+          } else if (tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || '')) profileIds.add(tg[1]);
         }
       }
-      const notes = noteIds.size ? await fetchEventsByIds([...noteIds]).catch(() => new Map()) : new Map();
+      const notes = noteIds.size ? await fetchEventsByIds([...noteIds], hints).catch(() => new Map()) : new Map();
       const profiles = await profilesFor([...profileIds, ...[...notes.values()].map((n) => n.pubkey)]);
       if (gone()) return;
       pane.textContent = '';
@@ -17872,7 +17877,9 @@
         if (note) subject = (who ? who + ' · ' : '') + noteGist(note);
         else if (targetId) subject = who ? t('A Nostr note by {{name}}', { name: who }) : t('A Nostr note');
         else subject = who || t('A profile');
-        const opens = note || (!targetId && aimed);
+        // Anything the row can name opens: a note the relays did not return is still a note, and
+        // a client looks it up by id. A row that does nothing when pressed reads as a broken one.
+        const opens = note || targetId || aimed;
         const item = h('div', { className: 'bm-item', title: opens ? t('Open in {{client}}', { client: client.label }) : '' });
         const menu = buildEventMenu(ev, null, { npubOf: null });
         item.append(h('div', { className: 'bm-main' }, [
@@ -17885,7 +17892,9 @@
           try {
             openInClient(note
               ? client.url(NT.nip19.neventEncode({ id: note.id, author: note.pubkey, kind: note.kind, relays: [] }))
-              : client.profile(NT.nip19.npubEncode(aimed)));
+              : targetId
+                ? client.url(NT.nip19.neventEncode({ id: targetId, author: aimed || undefined, relays: [] }))
+                : client.profile(NT.nip19.npubEncode(aimed)));
           } catch (_) {}
         });
         return item;
