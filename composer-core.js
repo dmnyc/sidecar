@@ -4683,7 +4683,7 @@ window.SidecarCore = (function () {
     // so they read their relays and their profile cache from whichever page installed it.
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
     NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
-    VIEW_CLIENTS, DEFAULT_CLIENT, resolveClient,
+    VIEW_CLIENTS, DEFAULT_CLIENT, resolveClient, renderLinkCard,
     IMG_EXT, VID_EXT, urlIsVideo,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.

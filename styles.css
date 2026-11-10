@@ -6867,7 +6867,9 @@ button.poll-bar-head {
 .thread-wait { text-align: center; color: var(--muted); font-size: 14px; margin: 28px 0; }
 .thread-sheet > button.secondary { align-self: center; }
 
-/* What the thread is about: the page it was written on, or the note it answers. */
+/* What the thread is about. A note it answers is a bordered box; a page it was written on is
+   the page's preview card, then one quiet line: the exact address, and the way to the page's
+   other comments. */
 .thread-ctx {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
   padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--hover-soft);
@@ -6876,17 +6878,29 @@ button.poll-bar-head {
 .thread-ctx-ico svg { width: 20px; height: 20px; }
 .thread-ctx-main { flex: 1 1 220px; min-width: 0; }
 .thread-ctx-host { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
-.thread-ctx-url {
-  display: block; font-size: 12.5px; color: var(--muted); text-decoration: none;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.thread-ctx-url:hover { color: var(--text); text-decoration: underline; }
 .thread-ctx-snippet {
   font-size: 13.5px; line-height: 1.45; color: var(--muted); white-space: normal;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .thread-ctx-more { font-size: 12.5px; color: var(--lav); text-decoration: none; white-space: nowrap; }
 .thread-ctx-more:hover { text-decoration: underline; }
+.thread-ctx-web { display: flex; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 8px; padding: 0; border: 0; background: none; }
+.thread-ctx-card .link-card { margin: 0; }
+.thread-ctx-card .link-card-img { max-height: 220px; }
+.thread-ctx-card .link-card-body { padding: 12px 14px; }
+.thread-ctx-card .link-card-title { font-size: 15px; }
+.thread-ctx-card .link-card-desc { font-size: 13px; }
+/* Until the site's card arrives, or when it has none: the host alone, in the box a note uses. */
+.thread-ctx-site {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--hover-soft);
+}
+.thread-ctx-foot { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; padding-inline: 2px; }
+.thread-ctx-url {
+  flex: 1 1 200px; min-width: 0; font-size: 11.5px; color: var(--faint); text-decoration: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.thread-ctx-url:hover { color: var(--text); text-decoration: underline; }
 
 /* The comments this one answers, oldest at the top, as a quiet rail of single lines. */
 .thread-ancestors {

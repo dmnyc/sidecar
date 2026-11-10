@@ -454,6 +454,39 @@
     return li;
   }
 
+  // The page's preview card, as the comment composer shows it: the site, the headline, a line
+  // of description and a picture, read by the worker (a page cannot fetch another site's HTML
+  // itself). It arrives after the thread is drawn, never before, and until it does, or when
+  // the site gives nothing to show, the card is the host alone. What came back is kept for the
+  // life of the tab, so a refresh does not ask the site again.
+  const ogMeta = new Map();   // address → what the site said, or false for nothing
+  async function loadPreview(url) {
+    if (ogMeta.has(url)) return ogMeta.get(url);
+    let meta = false;
+    try { meta = (await call({ type: 'SIDECAR_FETCH_OG', url })) || false; } catch (_) { /* a site that will not answer has no card */ }
+    ogMeta.set(url, meta);
+    return meta;
+  }
+  function previewEl(url) {
+    const slot = h('div', { className: 'thread-ctx-card' });
+    const show = (meta) => {
+      slot.textContent = '';
+      if (meta) {
+        const card = h('a', { className: 'link-card' });
+        SC.renderLinkCard(card, url, meta);   // opens in a new tab, no referrer
+        slot.append(card);
+      } else {
+        slot.append(h('div', { className: 'thread-ctx-site' }, [
+          h('span', { className: 'thread-ctx-ico' }, [icon('globe')]),
+          h('span', { className: 'thread-ctx-host', textContent: TC.hostOf(url) || url }),
+        ]));
+      }
+    };
+    show(ogMeta.get(url) || null);
+    if (!ogMeta.has(url)) loadPreview(url).then((meta) => { if (meta && slot.isConnected) show(meta); });
+    return slot;
+  }
+
   // What the thread is about, above everything: the page it was written on, or the note it
   // answers.
   function contextEl(view) {
@@ -462,14 +495,13 @@
     const box = h('section', { className: 'thread-ctx' });
     if (root && root.kind === 'web') {
       const url = root.url;
-      box.append(
-        h('span', { className: 'thread-ctx-ico' }, [icon('globe')]),
-        h('div', { className: 'thread-ctx-main' }, [
-          h('div', { className: 'thread-ctx-host', textContent: TC.hostOf(url) || url }),
-          link(url, { className: 'thread-ctx-url', textContent: url }),
-        ]),
+      box.classList.add('thread-ctx-web');
+      // The card says which page; the line under it says exactly which address, because that
+      // is what the comment is published against, and has the way to the page's other comments.
+      box.append(previewEl(url), h('div', { className: 'thread-ctx-foot' }, [
+        link(url, { className: 'thread-ctx-url', textContent: url, title: url }),
         link(TC.jumbleThreadUrl(url), { className: 'thread-ctx-more', textContent: t('See all comments on this page') }),
-      );
+      ]));
       return box;
     }
     box.classList.add('thread-ctx-note');

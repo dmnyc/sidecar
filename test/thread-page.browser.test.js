@@ -60,6 +60,7 @@ const reactions = [
 ];
 const metas = [{ kind: 0, pubkey: THEM, created_at: 1, content: JSON.stringify({ name: 'Bea' }) }];
 const SEEDS = {};
+const fetched = [];
 const published = [], signed = [], drafts = {}, composeOpen = [], tabsCreated = [], listeners = [];
 const contexts = S.composeOpenFor ? [{ tabId: 7, windowId: 3, documentUrl: BASE + 'compose.html?reply=' + id(S.composeOpenFor) }] : [];
 const state = { activePubkey: ME, accounts: [{ pubkey: ME, name: 'Me', npub: 'npub1me' }], locked: false };
@@ -67,6 +68,7 @@ const seen = [];
 const answer = (m) => {
   seen.push(m.type);
   switch (m.type) {
+    case 'SIDECAR_FETCH_OG': fetched.push(m.url); return S.ogFail ? null : { title: 'A headline about Brazil', description: 'The movie, and the week.', image: '', site: 'Example' };
     case 'SIDECAR_GET_STATE': return state;
     case 'SIDECAR_GET_SETTINGS': return { theme: 'speakeasy' };
     case 'SIDECAR_GET_RELAYS': return { 'wss://r.example': { read: true, write: true } };
@@ -151,7 +153,15 @@ const look = () => {
   return {
     message: q('.thread-wait') && q('.thread-wait').textContent,
     retry: !!q('#thread-sheet > button.secondary'),
-    ctx: ctx && { host: (q('.thread-ctx-host', ctx) || {}).textContent, url: (q('.thread-ctx-url', ctx) || {}).textContent, snippet: (q('.thread-ctx-snippet', ctx) || {}).textContent, more: (q('.thread-ctx-more', ctx) || {}).textContent, moreHref: (q('.thread-ctx-more', ctx) || {}).href },
+    ctx: ctx && {
+      card: q('.link-card', ctx) ? { site: (q('.link-card-site', ctx) || {}).textContent, title: (q('.link-card-title', ctx) || {}).textContent, desc: (q('.link-card-desc', ctx) || {}).textContent, href: q('.link-card', ctx).href, target: q('.link-card', ctx).target } : null,
+      host: (q('.thread-ctx-host', ctx) || {}).textContent,
+      url: (q('.thread-ctx-url', ctx) || {}).textContent,
+      snippet: (q('.thread-ctx-snippet', ctx) || {}).textContent,
+      more: (q('.thread-ctx-more', ctx) || {}).textContent,
+      moreHref: (q('.thread-ctx-more', ctx) || {}).href,
+      footer: !!q('.thread-ctx-foot', ctx),
+    },
     ancestors: qa('.thread-anc').map((a) => ((q('.thread-anc-who', a) || {}).textContent || '') + ' | ' + ((q('.thread-anc-text', a) || {}).textContent || a.textContent)),
     focus: focus && { name: q('.thread-c-name', focus).textContent, text: q('.thread-text', focus).textContent, chips: chipsOf(focus), acts: qa('.thread-acts .notif-act', focus).map((b) => b.getAttribute('aria-label')) },
     count: (q('.thread-count') || {}).textContent || null,
@@ -179,6 +189,7 @@ let outRef = null;
 const save = (extra) => { pre.textContent = JSON.stringify(Object.assign({ progress: (outRef && outRef.__step) || '' }, outRef, extra)); };
 (async () => {
   await settle();
+  await wait(150);   // the preview card arrives after the thread is drawn
   const out = { first: look(), errors, __step: 'first' };
   outRef = out; save();
   const row = (n) => qa('.thread-list .thread-node')[n];
@@ -223,6 +234,7 @@ const save = (extra) => { pre.textContent = JSON.stringify(Object.assign({ progr
     q('.notif-act[aria-label="Reply"]', row(0)).click(); await wait(200);
     out.composeOpen = composeOpen.slice(); out.tabs = tabsCreated.slice();
   }
+  out.og = fetched.slice();
   out.pwn = !!window.__pwn;
   out.injected = qa('.thread-text img, .thread-text b').length;
   out.__step = 'done';
@@ -264,8 +276,10 @@ const opts = { skip: CHROME ? false : 'no Chrome found', timeout: 120000 };
 
 test('a web comment’s page shows the page it was on, the comment, and its replies as a tree', opts, () => {
   const { first: r, pwn, injected } = measure({ flow: 'none' }, id('1'));
-  assert.equal(r.ctx.host, 'example.com');
+  // The page's preview card, as the comment composer shows it, and under it the exact address and the way to the page's other comments.
+  assert.deepEqual(r.ctx.card, { site: 'Example', title: 'A headline about Brazil', desc: 'The movie, and the week.', href: 'https://example.com/post', target: '_blank' });
   assert.equal(r.ctx.url, 'https://example.com/post');
+  assert.equal(r.ctx.footer, true);
   assert.equal(r.ctx.more, 'See all comments on this page');
   assert.match(r.ctx.moreHref, /^https:\/\/jumble\.social\/external-content\?id=/);
   assert.equal(r.focus.name, 'Me');
@@ -355,4 +369,15 @@ test('a comment the panel left for the page shows at once, and one that is not w
   assert.equal(good.focus.text, 'Left by the panel', 'no relay has it, and the page does not need one');
   const forged = measure({ flow: 'none', seed: 'forged' }, id('1')).first;
   assert.equal(forged.message, 'Couldn’t find this comment on your relays.', 'a seed whose content does not match its signature is not trusted');
+});
+
+test('a site that gives no preview leaves the host and the address, and the preview is asked for once', opts, () => {
+  const none = measure({ flow: 'none', ogFail: true }, id('1')).first;
+  assert.equal(none.ctx.card, null);
+  assert.equal(none.ctx.host, 'example.com', 'the host stands in for the card');
+  assert.equal(none.ctx.url, 'https://example.com/post');
+  assert.equal(none.ctx.more, 'See all comments on this page');
+  // Walking down into a reply and back redraws the card from what was kept, without asking the site again.
+  const walked = measure({ flow: 'tree' }, id('1'));
+  assert.deepEqual(walked.og, ['https://example.com/post']);
 });
