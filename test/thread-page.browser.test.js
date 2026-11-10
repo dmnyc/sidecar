@@ -239,6 +239,19 @@ const save = (extra) => { pre.textContent = JSON.stringify(Object.assign({ progr
     for (const f of listeners) f({ type: 'SIDECAR_THREAD_OPEN', id: id('6') }, { id: 'testid', url: BASE + 'sidepanel.html' });
     await wait(500); out.afterPanel = look();
   }
+  if (S.flow === 'refresh') {
+    // Back to the tab a minute later, after a reply has arrived: it shows up in place, and the page never blanks.
+    out.before = look().count;
+    add(ev('d', THEM, 1111, 'A late reply', [...WEB, ['e', id('1')]], 1));
+    let blanked = false;
+    new MutationObserver(() => { if (q('.thread-wait')) blanked = true; }).observe(document.getElementById('thread-sheet'), { childList: true, subtree: true });
+    const realNow = Date.now; Date.now = () => realNow() + 60000;
+    window.dispatchEvent(new Event('focus'));
+    await wait(1500);
+    out.after = look();
+    out.blanked = blanked;
+    out.again = (() => { const n = fetched.length; return n; })();
+  }
   if (S.flow === 'compose-open') {
     q('.notif-act[aria-label="Reply"]', row(0)).click(); await wait(200);
     out.composeOpen = composeOpen.slice(); out.tabs = tabsCreated.slice();
@@ -294,7 +307,7 @@ test('a web comment’s page shows the page it was on, the comment, and its repl
   assert.equal(r.focus.name, 'Me');
   assert.equal(r.focus.text, 'Basically the plot of the movie Brazil.');
   assert.deepEqual(r.focus.chips, ['heart 1'], 'what has been said about the comment shows under it');
-  assert.deepEqual(r.focus.acts, ['Reply', 'React', 'Open in Jumble', 'Refresh']);
+  assert.deepEqual(r.focus.acts, ['Reply', 'React', 'Open in Jumble'], 'no refresh button: the page refreshes itself when you come back to it');
   assert.equal(r.count, '3', 'three replies in all');
   assert.equal(r.tree.length, 2, 'two replies to the comment, oldest first');
   assert.equal(r.tree[0].name, 'Bea');
@@ -392,4 +405,13 @@ test('a site that gives no preview leaves the host and the address, and the prev
   // Walking down into a reply and back redraws the card from what was kept, without asking the site again.
   const walked = measure({ flow: 'tree' }, id('1'));
   assert.deepEqual(walked.og, ['https://example.com/post']);
+});
+
+test('coming back to a thread picks up a new reply in place, with no refresh button and no blank page', opts, () => {
+  const r = measure({ flow: 'refresh' }, id('1'));
+  assert.equal(r.before, '3');
+  assert.equal(r.after.count, '4', 'the reply that arrived while the tab was away is there');
+  assert.ok(r.after.tree.some((n) => n.text === 'A late reply'));
+  assert.equal(r.blanked, false, 'redrawn quietly, never through a waiting screen');
+  assert.ok(!r.after.focus.acts.includes('Refresh'));
 });

@@ -423,7 +423,6 @@
       acts.append(
         h('span', { className: 'thread-acts-gap' }),
         act(t('Open in {{client}}', { client: client.label }), icon('arrow-up-right'), () => { const u = eventUrl(ev); if (u) window.open(u, '_blank', 'noopener'); }),
-        act(t('Refresh'), icon('reload'), () => refresh(true), 'thread-refresh'),
       );
     }
     el.append(head, textEl(ev.content, 'thread-text'), chips, acts);
@@ -599,13 +598,11 @@
   }
 
   // Quietly, in place: a thread that has had a reply since it was drawn gets it without the
-  // page going blank. `manual` is the refresh button, which says when there was nothing new.
-  async function refresh(manual) {
+  // page going blank. There is no button for it: it happens when you come back to the tab.
+  async function refresh() {
     if (!current || loading) return;
     try { const next = await call({ type: 'SIDECAR_GET_STATE' }); if (next && next.activePubkey) state = next; } catch (_) {}
-    const before = current.view.total;
     await openThread(current.id, { quiet: true });
-    if (manual && current && current.view.total === before) toast(t('Nothing new.'), 'success');
   }
 
   // ---- reacting ----
@@ -787,7 +784,7 @@
     // Back and forward walk the comments that were opened in this tab.
     window.addEventListener('popstate', () => openThread(new URLSearchParams(location.search).get('id') || ''));
     // A thread that has had a reply since you last looked gets it when you come back to it.
-    const stale = () => { if (document.visibilityState === 'visible' && current && Date.now() - lastLoadAt > REFRESH_AFTER_MS) refresh(false); };
+    const stale = () => { if (document.visibilityState === 'visible' && current && Date.now() - lastLoadAt > REFRESH_AFTER_MS) refresh(); };
     document.addEventListener('visibilitychange', stale);
     window.addEventListener('focus', stale);
     // The panel pointing an open thread tab at another comment, from one of Sidecar's own
