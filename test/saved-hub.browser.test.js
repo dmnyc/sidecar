@@ -137,7 +137,7 @@ const real = {
   jumbleThreadUrl: (u) => 'https://jumble.example/thread?u=' + u,
   relativeTime: () => '5m', mentionsAsNames: (c) => c, mentionPubkeys: () => [], shortNpub: (n) => n,
   buildEventMenu: () => ({ panel: document.createElement('div'), btn: document.createElement('button') }),
-  pickQuote: () => ({}), loadingQuote: (txt) => block('loading', txt), emptyQuote: (txt) => block('empty', txt), endQuote: () => block('end', ''),
+  pickQuote: () => ({}), loadingQuote: (txt) => block('loading', txt), emptyQuote: (txt) => block('empty', txt), endQuote: () => block('bm-empty bm-end', '\u201Cquote\u201D'),
   closeModal: () => document.getElementById('modal-overlay').classList.add('hidden'),
   openModal: (fn) => { const m = document.getElementById('modal'); m.innerHTML = ''; fn(m); m.classList.add('is-open'); document.getElementById('modal-overlay').classList.remove('hidden'); return m; },
   chrome: {
@@ -168,6 +168,9 @@ const hub = () => ({
   rows: qa('#modal .bm-scroll:not(.hidden) .bm-item').map((e) => e.textContent),
   sources: qa('#modal .bm-scroll:not(.hidden) .cm-src').map((e) => e.textContent + ' | ' + e.title),
   metas: qa('#modal .bm-scroll:not(.hidden) .bm-meta').map((e) => e.textContent),
+  // The rule under the last row, and the rule above the closing quote: one of them, never both.
+  lastRule: (() => { const rows = qa('#modal .bm-scroll:not(.hidden) .bm-item'); return rows.length ? getComputedStyle(rows[rows.length - 1]).borderBottomWidth : null; })(),
+  quoteRule: (() => { const e = q('#modal .bm-scroll:not(.hidden) .bm-end'); return e ? getComputedStyle(e).borderTopWidth : null; })(),
 });
 (async () => {
   const api = run(scope);
@@ -294,6 +297,11 @@ test('the sheet is four icon tabs, the heading follows the open one, and each li
   assert.deepEqual(r.comments.sources, ['example.com | https://example.com/post']);
   assert.deepEqual(r.comments.metas, ['5m']);
   assert.equal(r.reactions.heading, 'Reactions');
+  // A flat list ends in one rule, not two: the last row gives up its own, so the line above the closing quote is the only one.
+  for (const tab of ['highlights', 'comments', 'reactions']) {
+    assert.equal(r[tab].quoteRule, '1px', tab + ': the closing quote keeps its rule');
+    assert.equal(r[tab].lastRule, '0px', tab + ': the last row has none, or the two stack');
+  }
   // The highlights list once wrote its events into the comments cache.
   assert.equal(r.cmUntouched, true, 'visiting highlights leaves the other lists’ caches alone');
   assert.deepEqual(r.caches, { hl: [9802], cm: [1111], rc: [7, 7, 7, 7, 7] });

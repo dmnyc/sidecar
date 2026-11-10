@@ -2588,6 +2588,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
    than centered on a row whose height the snippet decides. */
 .bm-item > .item-actions { align-self: flex-start; }
 .bm-list .bm-group:last-child .bm-item:last-child { border-bottom: none; }
+/* A flat list (highlights, comments, reactions) is no group, so the rule above never reached
+   it: its last row kept its border and the closing quote's own top rule sat right under it,
+   two lines for one edge. The last row gives its up. With a Show more button after it the row
+   is not last, and its rule stays as the separator the button needs. */
+.bm-list > .bm-item:last-child { border-bottom: none; }
 .bm-main { flex: 1; min-width: 0; }
 .bm-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .bm-av { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); }
