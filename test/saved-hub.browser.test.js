@@ -58,13 +58,13 @@ function liftConst(name) {
   throw new Error('unterminated: ' + name);
 }
 const FUNCTIONS = [
-  'function renderBookmarks(', 'async function liveThreadTab(', 'async function openThreadTab(', 'function commentParentId(', 'function commentPage(',
+  'function renderBookmarks(', 'async function liveThreadTab(', 'async function seedThread(', 'async function openThreadTab(', 'function commentParentId(', 'function commentPage(',
   'async function fillComments(', 'async function fetchComments(',
   'async function fillHighlights(', 'async function fetchHighlights(', 'function highlightSource(',
   'async function fillReactions(', 'async function fetchReactions(', 'function reactionMark(', 'function reactionDisplay(',
   'async function loadSavedList(', 'function wireTabSlider(',
 ];
-const CONSTS = ['SAVED_PAGE', 'tabCount', 'setTabCount', 'paged', '_hlCache', '_cmCache', '_rctCache'];
+const CONSTS = ['THREAD_SEEDS_KEY', 'SAVED_PAGE', 'tabCount', 'setTabCount', 'paged', '_hlCache', '_cmCache', '_rctCache'];
 const NAMES = FUNCTIONS.map((f) => /function (\w+)\(/.exec(f)[1]).concat(CONSTS);
 
 const ME = 'a'.repeat(64);
@@ -112,6 +112,7 @@ const created = [];
 const messages = [];
 const updated = [];
 const contexts = [];
+const seeds = {};
 const state = { activePubkey: ME, accounts: [{ pubkey: ME }] };
 const interp = (s, p) => String(s).replace(/{{(\\w+)}}/g, (_, k) => (p && p[k] != null ? p[k] : ''));
 const block = (cls, text) => { const d = document.createElement('div'); d.className = cls; d.textContent = text; return d; };
@@ -141,6 +142,7 @@ const real = {
   openModal: (fn) => { const m = document.getElementById('modal'); m.innerHTML = ''; fn(m); m.classList.add('is-open'); document.getElementById('modal-overlay').classList.remove('hidden'); return m; },
   chrome: {
     runtime: { getURL: (p) => 'chrome-extension://testid/' + p, getContexts: async () => contexts, sendMessage: (m) => { messages.push(m); return Promise.resolve(); } },
+    storage: { session: { get: async () => ({ sidecar_thread_seeds: seeds }), set: async (o) => { Object.assign(seeds, o.sidecar_thread_seeds); } } },
     tabs: { create: (o) => { created.push(o); }, update: async (tabId, o) => { updated.push(['tab', tabId, o]); } },
     windows: { update: async (windowId, o) => { updated.push(['window', windowId, o]); } },
   },
@@ -176,6 +178,7 @@ const hub = () => ({
     // A row opens the comment on its own page, in a new tab, and the sheet is left alone.
     row().click(); await wait(100);
     out.created = created.slice();
+    out.seeded = Object.values(seeds).map((e) => [e.id, e.content, e.kind]);
     out.sheetStillOpen = !q('#modal-overlay').classList.contains('hidden');
     out.headingAfter = q('#modal h3').textContent;
     // With that tab already open, it is pointed at the comment and focused instead of a second one opening.
@@ -261,6 +264,7 @@ const opts = { skip: CHROME ? false : 'no Chrome found', timeout: 90000 };
 test('a comment’s row opens its own page in a tab, points an open one at it, and leaves the sheet where it was', opts, () => {
   const r = measure({ flow: 'launch' });
   assert.deepEqual(r.created, [{ url: 'chrome-extension://testid/thread.html?id=' + id('1') }], 'a new tab on the comment, by its id');
+  assert.deepEqual(r.seeded, [[id('1'), 'First comment', 1111]], 'the comment is left for the page, so it opens at once');
   assert.equal(r.sheetStillOpen, true, 'there is no dead end: the list is still underneath');
   assert.equal(r.headingAfter, 'Comments');
   assert.equal(r.createdAfter, 1, 'with the page already open, no second tab');

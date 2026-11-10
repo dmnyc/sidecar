@@ -59,6 +59,7 @@ const reactions = [
   ev('a', ME, 7, '🔥', [['e', id('2')], ['p', THEM], ['k', '1111']], 80),
 ];
 const metas = [{ kind: 0, pubkey: THEM, created_at: 1, content: JSON.stringify({ name: 'Bea' }) }];
+const SEEDS = {};
 const published = [], signed = [], drafts = {}, composeOpen = [], tabsCreated = [], listeners = [];
 const contexts = S.composeOpenFor ? [{ tabId: 7, windowId: 3, documentUrl: BASE + 'compose.html?reply=' + id(S.composeOpenFor) }] : [];
 const state = { activePubkey: ME, accounts: [{ pubkey: ME, name: 'Me', npub: 'npub1me' }], locked: false };
@@ -69,7 +70,8 @@ const answer = (m) => {
     case 'SIDECAR_GET_STATE': return state;
     case 'SIDECAR_GET_SETTINGS': return { theme: 'speakeasy' };
     case 'SIDECAR_GET_RELAYS': return { 'wss://r.example': { read: true, write: true } };
-    case 'SIDECAR_GET_ACCOUNT_RELAYS': return { 'wss://mine.example': { read: true, write: true } };
+    // The account publishes to one relay and reads replies at another, as many do.
+    case 'SIDECAR_GET_ACCOUNT_RELAYS': return { 'wss://out.example': { read: false, write: true }, 'wss://in.example': { read: true, write: false } };
     case 'SIDECAR_OWNER_SIGN': { const e = { ...m.event, id: id('9'), pubkey: ME, sig: 's' }; signed.push(e); return e; }
     case 'SIDECAR_SECRET_GET': return JSON.parse(JSON.stringify(drafts));
     case 'SIDECAR_SECRET_SET': Object.keys(drafts).forEach((k) => delete drafts[k]); Object.assign(drafts, JSON.parse(JSON.stringify(m.value))); return true;
@@ -87,7 +89,8 @@ window.chrome = {
     onMessage: { addListener: (f) => listeners.push(f) },
     getContexts: async () => contexts,
   },
-  storage: { local: { get: (k, cb) => cb({}) } },
+  storage: { local: { get: (k, cb) => cb({}) }, // Through JSON, as storage hands it back: nostr-tools remembers a verified event with a symbol that no storage keeps.
+    session: { get: async () => ({ sidecar_thread_seeds: JSON.parse(JSON.stringify(SEEDS)) }), set: async () => {} } },
   tabs: { create: (o) => tabsCreated.push(o), update: async () => {} },
   windows: { update: async () => {} },
   i18n: { getUILanguage: () => 'en' },
@@ -97,12 +100,17 @@ window.chrome = {
   // library that defines it and the page that uses it.
   const fake = `<script>
 const queries = [];
+// An event is only returned by a query that includes the relay it lives on. What I publish
+// lives on my write relay; everything else is at the inbox I read replies from. A page that
+// asks the wrong relays finds nothing, as the real one does.
+const homeOf = (e) => (e.pubkey === ME ? 'wss://out.example' : 'wss://in.example');
+const lives = (relays, e) => relays.includes(homeOf(e));
 class FakePool {
   async get(relays, f) { return (await this.querySync(relays, f))[0] || null; }
   async querySync(relays, f) {
     queries.push([relays, f]);
-    if (f.ids) return f.ids.map((i) => DB.get(i)).filter(Boolean);
-    if (f.kinds && f.kinds[0] === 1111 && f['#e']) return [...DB.values()].filter((e) => e.kind === 1111 && e.tags.some((t) => t[0] === 'e' && f['#e'].includes(t[1])));
+    if (f.ids) return f.ids.map((i) => DB.get(i)).filter((e) => e && lives(relays, e));
+    if (f.kinds && f.kinds[0] === 1111 && f['#e']) return [...DB.values()].filter((e) => e.kind === 1111 && lives(relays, e) && e.tags.some((t) => t[0] === 'e' && f['#e'].includes(t[1])));
     if (f.kinds && f.kinds[0] === 7) return reactions.filter((r) => r.tags.some((t) => t[0] === 'e' && f['#e'].includes(t[1])));
     if (f.kinds && f.kinds[0] === 0) return metas.filter((m) => f.authors.includes(m.pubkey));
     return [];
@@ -112,6 +120,16 @@ class FakePool {
 }
 // A copy with the fake pool in it: the library's own export may not be assignable.
 window.NostrTools = Object.assign({}, window.NostrTools, { SimplePool: FakePool });
+if (S.seed) {
+  // A real signed comment that no relay has, left by the panel: the page must show it anyway.
+  const sk = new Uint8Array(32).fill(7);
+  const good = NostrTools.finalizeEvent({ kind: 1111, created_at: NOW - 60, tags: WEB, content: 'Left by the panel' }, sk);
+  SEEDS[good.id] = good;
+  // And one whose content was changed after signing: not what its id says it is.
+  const forged = NostrTools.finalizeEvent({ kind: 1111, created_at: NOW - 50, tags: WEB, content: 'As signed' }, sk);
+  SEEDS[forged.id] = { ...forged, content: 'Tampered' };
+  history.replaceState(null, '', '?id=' + (S.seed === 'forged' ? forged.id : good.id));
+}
 DB.get(id('3')).content = DB.get(id('3')).content.replace('@@NPUB@@', NostrTools.nip19.npubEncode(THEM));
 </script>`;
   const driver = `<script>
@@ -290,7 +308,7 @@ test('a reply, a reaction, a fold and the walk down and back all do what they sa
   assert.ok(slot, 'the reply’s draft slot exists');
   assert.equal(slot.replyTo.id, id('2'));
   assert.equal(slot.replyTo.kind, 1111);
-  assert.deepEqual(slot.expandRelays, ['wss://mine.example'], 'the composer is handed this account’s write relays');
+  assert.deepEqual(slot.expandRelays, ['wss://out.example'], 'the composer is handed this account’s write relays');
   assert.equal(r.tabs.length, 1);
   assert.match(r.tabs[0].url, /compose\.html\?reply=2{64}$/);
   // React: a picker with the quick row and a search, a kind 7 signed with the right tags, published, and a chip.
@@ -330,4 +348,11 @@ test('a deep thread keeps every comment but stops moving right after four levels
   assert.equal(flat.length, 6, 'all six levels are on the page');
   // The flag is on a node whose own replies sit on a flat rail: the fourth level's replies, and the fifth's.
   assert.deepEqual(flat.map((x) => x[1]), [false, false, false, true, true, false], 'past four levels the rail stops moving right');
+});
+
+test('a comment the panel left for the page shows at once, and one that is not what it claims is ignored', opts, () => {
+  const good = measure({ flow: 'none', seed: 'good' }, id('1')).first;
+  assert.equal(good.focus.text, 'Left by the panel', 'no relay has it, and the page does not need one');
+  const forged = measure({ flow: 'none', seed: 'forged' }, id('1')).first;
+  assert.equal(forged.message, 'Couldn’t find this comment on your relays.', 'a seed whose content does not match its signature is not trusted');
 });

@@ -142,9 +142,13 @@
     memo.configured = urls;
     return urls;
   }
+  // Where to look for anything: the relays this account WRITES to first, because that is
+  // where its own comments were published and, often, the only place they are; then the ones
+  // it reads from, where replies to it arrive; then the configured set. Looking at the read
+  // relays alone finds replies and misses the comment they answer.
   async function baseRelays() {
     const mine = await accountRelays();
-    return TC.relaySet([mine.read, await configuredRelays()]);
+    return TC.relaySet([mine.write, mine.read, await configuredRelays()], 16);
   }
 
   const withTimeout = (p, ms) => Promise.race([p, new Promise((res) => setTimeout(() => res(null), ms))]);
@@ -228,8 +232,19 @@
   // level at a time because a reply's own replies are asked for by ITS id; and the
   // reactions under all of them. Each level of replies is asked for at the inboxes of the
   // people being answered in it.
+  // The comment the panel left for this page, if it did and it is what it claims to be: the
+  // right id, a comment, and a signature that verifies, which is also what makes the id the
+  // hash of the content. Anything else is ignored, and the relays are asked instead.
+  async function seededEvent(id) {
+    try {
+      const got = await chrome.storage.session.get('sidecar_thread_seeds');
+      const ev = ((got && got.sidecar_thread_seeds) || {})[id];
+      if (!ev || ev.id !== id || ev.kind !== TC.KIND_COMMENT || !Array.isArray(ev.tags)) return null;
+      return NT.verifyEvent(ev) ? ev : null;
+    } catch (_) { return null; }
+  }
   async function fetchThread(id) {
-    const ev = await fetchEvent(id);
+    const ev = (await seededEvent(id)) || (await fetchEvent(id));
     if (!ev || ev.kind !== TC.KIND_COMMENT) return { ev: null };
     const authorList = await relayList(ev.pubkey);
 

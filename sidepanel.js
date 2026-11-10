@@ -17737,8 +17737,24 @@
       return (ctxs || []).find((c) => c.documentUrl && c.documentUrl.split(/[?#]/)[0] === url) || null;
     } catch (_) { return null; }
   }
+  // The comment, left for the page to read. The panel already holds it, and a comment is its
+  // own hash and cannot change, so the page can show it at once instead of asking relays for
+  // something this panel has just listed. A handful kept, oldest dropped: session storage is
+  // memory, and this is a courtesy, never a record.
+  const THREAD_SEEDS_KEY = 'sidecar_thread_seeds';
+  async function seedThread(ev) {
+    try {
+      const got = await chrome.storage.session.get(THREAD_SEEDS_KEY);
+      const all = (got && got[THREAD_SEEDS_KEY]) || {};
+      delete all[ev.id];
+      all[ev.id] = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, content: ev.content, tags: ev.tags, created_at: ev.created_at, sig: ev.sig };
+      for (const old of Object.keys(all).slice(0, Math.max(0, Object.keys(all).length - 20))) delete all[old];
+      await chrome.storage.session.set({ [THREAD_SEEDS_KEY]: all });
+    } catch (_) { /* the page will ask the relays, as it does for a comment it was not handed */ }
+  }
   async function openThreadTab(ev) {
     if (!ev || !/^[0-9a-f]{64}$/.test(ev.id || '')) return;
+    await seedThread(ev);
     const open = await liveThreadTab();
     if (open) {
       try {
