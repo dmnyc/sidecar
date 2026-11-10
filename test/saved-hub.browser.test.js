@@ -166,6 +166,8 @@ const hub = () => ({
   })),
   open: qa('#modal .bm-scroll').map((p) => !p.classList.contains('hidden')),
   rows: qa('#modal .bm-scroll:not(.hidden) .bm-item').map((e) => e.textContent),
+  sources: qa('#modal .bm-scroll:not(.hidden) .cm-src').map((e) => e.textContent + ' | ' + e.title),
+  metas: qa('#modal .bm-scroll:not(.hidden) .bm-meta').map((e) => e.textContent),
 });
 (async () => {
   const api = run(scope);
@@ -242,6 +244,7 @@ function measure(scenario) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-savedhub-'));
   const file = path.join(dir, 'page.html');
   fs.writeFileSync(file, page(scenario));
+  if (process.env.HUB_DUMP) fs.copyFileSync(file, process.env.HUB_DUMP);
   try {
     const r = spawnSync(CHROME, [
       '--headless=new', '--disable-gpu', '--no-sandbox', '--allow-file-access-from-files',
@@ -287,6 +290,9 @@ test('the sheet is four icon tabs, the heading follows the open one, and each li
   assert.equal(r.comments.heading, 'Comments');
   assert.equal(r.comments.rows.length, 1, 'the Nostr-scoped comment stays out; only web pages are listed');
   assert.match(r.comments.rows[0], /First comment/);
+  // The site leads the row, with the full address as its tooltip; the line under the words is the time alone.
+  assert.deepEqual(r.comments.sources, ['example.com | https://example.com/post']);
+  assert.deepEqual(r.comments.metas, ['5m']);
   assert.equal(r.reactions.heading, 'Reactions');
   // The highlights list once wrote its events into the comments cache.
   assert.equal(r.cmUntouched, true, 'visiting highlights leaves the other lists’ caches alone');

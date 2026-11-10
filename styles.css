@@ -2598,6 +2598,10 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* A comment's row in the list: what it answers, as a quiet line above its words. The comment
    itself is read on its own page (thread.html). */
 .cm-ref { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The site a comment was written on, above its words: a globe and the host, quiet. */
+.cm-src { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); min-width: 0; }
+.cm-src svg { width: 12px; height: 12px; flex-shrink: 0; }
+.cm-src span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* A reaction row: the mark leads the line, then who and what it was aimed at. The mark is
    a heart from the icon set, an emoji character, or a custom emoji's picture, and all
    three sit on the text's baseline at the text's own height. */

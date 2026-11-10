@@ -17702,10 +17702,15 @@
         const pWho = parent ? (parentProfiles.get(parent.pubkey) || {}).name || '' : '';
         const item = h('div', { className: 'bm-item', title: t('Open this comment') });
         const menu = buildEventMenu(ev, null, {});
+        // The site the comment was written on leads the row, so a list of comments reads as
+        // a list of places. The address itself is the tooltip; the time stays below.
+        const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+        const src = host ? h('div', { className: 'cm-src', title: (scope && scope[1]) || host }, [icon('globe'), h('span', { textContent: host })]) : null;
         item.append(h('div', { className: 'bm-main' }, [
+          src,
           parent ? h('div', { className: 'cm-ref', dir: 'auto', textContent: (pWho ? t('Replying to {{name}}', { name: pWho }) : t('Replying to a note')) + ' · ' + mentionsAsNames(parent.content, parentProfiles).slice(0, 90) }) : null,
           h('div', { className: 'bm-snippet', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
-          h('div', { className: 'bm-meta', textContent: (host ? host + ' · ' : '') + relativeTime(ev.created_at) }),
+          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
           menu.panel,
         ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
         // Most clients render a kind 1111 nowhere at all, so the row opens Sidecar's
