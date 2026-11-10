@@ -224,10 +224,10 @@ test('a bookmark’s trash asks once in place: any other tap lets go, Escape let
     const layout = () => x.evaluate(`${row}.getBoundingClientRect().height`);
     const before = await layout();
 
-    // One tap arms it, in place: red, and the date line asks. Nothing is added to the row.
+    // One tap arms it, in place: the trash goes red, and the date line says what to do. Nothing is added to the row.
     await x.evaluate(`${trash}.click()`);
     assert.equal(await armed(), true);
-    assert.equal(await meta(), 'Remove this bookmark?');
+    assert.equal(await meta(), 'Tap again to confirm');
     assert.ok(Math.abs((await layout()) - before) < 2, 'the row does not grow');
     // A second tap straight after, as a double-tap would be, removes nothing.
     await x.evaluate(`${trash}.click()`);

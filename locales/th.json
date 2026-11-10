@@ -651,7 +651,6 @@
   "Removing…": "กำลังลบ…",
   "Bookmark removed": "ลบบุ๊กมาร์กแล้ว",
   "Could not remove the bookmark": "ลบบุ๊กมาร์กไม่ได้",
-  "Remove this bookmark?": "ลบบุ๊กมาร์กนี้?",
   "Could not reach your relays to check for a backup.": "เชื่อมต่อรีเลย์ของคุณเพื่อตรวจสอบข้อมูลสำรองไม่ได้",
   "No wallet backup found on your relays": "ไม่พบข้อมูลสำรองกระเป๋าเงินในรีเลย์ของคุณ",
   "Backup could not be read": "อ่านข้อมูลสำรองไม่ได้",

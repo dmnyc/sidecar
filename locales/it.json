@@ -655,7 +655,6 @@
   "Removing…": "Rimozione…",
   "Bookmark removed": "Segnalibro rimosso",
   "Could not remove the bookmark": "Impossibile rimuovere il segnalibro",
-  "Remove this bookmark?": "Rimuovere questo segnalibro?",
   "Could not reach your relays to check for a backup.": "Impossibile raggiungere i relay per cercare un backup.",
   "No wallet backup found on your relays": "Nessun backup del wallet trovato sui tuoi relay",
   "Backup could not be read": "Impossibile leggere il backup",

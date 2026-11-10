@@ -661,7 +661,6 @@
   "Removing…": "جارٍ الإزالة…",
   "Bookmark removed": "تمت إزالة الإشارة المرجعية",
   "Could not remove the bookmark": "تعذّرت إزالة الإشارة المرجعية",
-  "Remove this bookmark?": "هل تريد إزالة هذه الإشارة المرجعية؟",
   "Could not reach your relays to check for a backup.": "تعذّر الوصول إلى مرحّلاتك للتحقق من وجود نسخة احتياطية.",
   "No wallet backup found on your relays": "لم يُعثر على نسخة احتياطية للمحفظة على مرحّلاتك",
   "Backup could not be read": "تعذّرت قراءة النسخة الاحتياطية",

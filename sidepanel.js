@@ -17610,7 +17610,10 @@
         tabEls[name] = tab;
       }
       const bar = h('div', { className: 'modal-tabs', role: 'tablist' }, tabDefs.map(([name]) => tabEls[name]));
-      modal.append(x, heading, bar, ...Object.values(panes));
+      // The name of the place, small above the name of the tab, so the sheet says what it is
+      // whichever tab it is on. The same words as the button that opens it.
+      const eyebrow = h('div', { className: 'modal-eyebrow', textContent: t('Your library') });
+      modal.append(x, eyebrow, heading, bar, ...Object.values(panes));
       wireTabSlider(bar, '.modal-tab');
       // Filled on the first visit only, so opening bookmarks never pays for a query
       // nobody asked for.
@@ -18142,7 +18145,7 @@
       const menu = ref ? buildEventMenu(ref, null) : null;
       if (menu) main.append(menu.panel);
       // THE TRASH ASKS ONCE, IN PLACE. The first tap arms it: the icon goes red and the row's
-      // date line turns into the question, with the bookmark still on screen above it, so nothing
+      // date line turns into the instruction, with the bookmark still on screen above it, so nothing
       // is added to the row and no layout moves. The second tap removes. Anything else lets go:
       // a tap elsewhere in the sheet or on the row itself, Escape, or a few seconds of nothing.
       // The second tap is ignored for a moment after the first, so a double-tap cannot do both.
@@ -18178,7 +18181,7 @@
         // del-confirm is also what the live refresh looks for, so a list never repaints under it.
         rm.classList.add('del-confirm');
         meta.classList.add('bm-meta-ask');
-        meta.textContent = t('Remove this bookmark?');
+        meta.textContent = t('Tap again to confirm');
       };
       const remove = async () => {
         rm.disabled = true;

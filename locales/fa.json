@@ -653,7 +653,6 @@
   "Removing…": "در حال حذف…",
   "Bookmark removed": "نشانک حذف شد",
   "Could not remove the bookmark": "حذف نشانک ممکن نشد",
-  "Remove this bookmark?": "این نشانک حذف شود؟",
   "Could not reach your relays to check for a backup.": "برای بررسی پشتیبان، دسترسی به ریلی‌های شما ممکن نشد.",
   "No wallet backup found on your relays": "پشتیبان کیف پولی روی ریلی‌های شما پیدا نشد",
   "Backup could not be read": "پشتیبان خوانده نشد",

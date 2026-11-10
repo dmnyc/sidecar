@@ -657,7 +657,6 @@
   "Removing…": "Usuwanie…",
   "Bookmark removed": "Zakładka usunięta",
   "Could not remove the bookmark": "Nie udało się usunąć zakładki",
-  "Remove this bookmark?": "Usunąć tę zakładkę?",
   "Could not reach your relays to check for a backup.": "Nie udało się połączyć z twoimi przekaźnikami, aby sprawdzić kopię zapasową.",
   "No wallet backup found on your relays": "Nie znaleziono kopii zapasowej portfela na twoich przekaźnikach",
   "Backup could not be read": "Nie udało się odczytać kopii zapasowej",

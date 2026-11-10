@@ -653,7 +653,6 @@
   "Removing…": "Αφαίρεση…",
   "Bookmark removed": "Ο σελιδοδείκτης αφαιρέθηκε",
   "Could not remove the bookmark": "Δεν ήταν δυνατή η αφαίρεση του σελιδοδείκτη",
-  "Remove this bookmark?": "Να αφαιρεθεί αυτός ο σελιδοδείκτης;",
   "Could not reach your relays to check for a backup.": "Δεν ήταν δυνατή η επικοινωνία με τα relay σας για έλεγχο αντιγράφου ασφαλείας.",
   "No wallet backup found on your relays": "Δεν βρέθηκε αντίγραφο ασφαλείας πορτοφολιού στα relay σας",
   "Backup could not be read": "Δεν ήταν δυνατή η ανάγνωση του αντιγράφου ασφαλείας",

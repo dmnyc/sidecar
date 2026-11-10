@@ -651,7 +651,6 @@
   "Removing…": "移除中……",
   "Bookmark removed": "书签已移除",
   "Could not remove the bookmark": "无法移除书签",
-  "Remove this bookmark?": "移除此书签？",
   "Could not reach your relays to check for a backup.": "无法连接你的 relay 来检查备份。",
   "No wallet backup found on your relays": "在你的 relay 上未找到钱包备份",
   "Backup could not be read": "无法读取备份",

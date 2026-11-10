@@ -651,7 +651,6 @@
   "Removing…": "移除中…",
   "Bookmark removed": "書籤已移除",
   "Could not remove the bookmark": "無法移除書籤",
-  "Remove this bookmark?": "要移除此書籤嗎？",
   "Could not reach your relays to check for a backup.": "無法連線到您的中繼站以檢查備份。",
   "No wallet backup found on your relays": "在您的中繼站上找不到錢包備份",
   "Backup could not be read": "無法讀取備份",

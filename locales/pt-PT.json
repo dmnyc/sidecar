@@ -655,7 +655,6 @@
   "Removing…": "A remover…",
   "Bookmark removed": "Marcador removido",
   "Could not remove the bookmark": "Não foi possível remover o marcador",
-  "Remove this bookmark?": "Remover este marcador?",
   "Could not reach your relays to check for a backup.": "Não foi possível contactar os teus relays para procurar uma cópia de segurança.",
   "No wallet backup found on your relays": "Nenhuma cópia de segurança da carteira encontrada nos teus relays",
   "Backup could not be read": "Não foi possível ler a cópia de segurança",

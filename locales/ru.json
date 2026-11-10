@@ -657,7 +657,6 @@
   "Removing…": "Удаление…",
   "Bookmark removed": "Закладка удалена",
   "Could not remove the bookmark": "Не удалось удалить закладку",
-  "Remove this bookmark?": "Удалить эту закладку?",
   "Could not reach your relays to check for a backup.": "Не удалось связаться с релеями, чтобы проверить резервную копию.",
   "No wallet backup found on your relays": "Резервная копия кошелька на ваших релеях не найдена",
   "Backup could not be read": "Не удалось прочитать резервную копию",

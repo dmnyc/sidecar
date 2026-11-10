@@ -653,7 +653,6 @@
   "Removing…": "Eltávolítás…",
   "Bookmark removed": "Könyvjelző eltávolítva",
   "Could not remove the bookmark": "A könyvjelző nem távolítható el",
-  "Remove this bookmark?": "Eltávolítja ezt a könyvjelzőt?",
   "Could not reach your relays to check for a backup.": "A relék nem érhetők el a mentés ellenőrzéséhez.",
   "No wallet backup found on your relays": "Nem található tárcamentés a releken",
   "Backup could not be read": "A mentés nem olvasható",

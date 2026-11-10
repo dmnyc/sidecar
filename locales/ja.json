@@ -651,7 +651,6 @@
   "Removing…": "削除中…",
   "Bookmark removed": "ブックマークを削除しました",
   "Could not remove the bookmark": "ブックマークを削除できませんでした",
-  "Remove this bookmark?": "このブックマークを削除しますか？",
   "Could not reach your relays to check for a backup.": "リレーに接続できず、バックアップを確認できませんでした。",
   "No wallet backup found on your relays": "リレーにウォレットのバックアップが見つかりません",
   "Backup could not be read": "バックアップを読み取れませんでした",

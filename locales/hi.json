@@ -653,7 +653,6 @@
   "Removing…": "हटाया जा रहा है…",
   "Bookmark removed": "बुकमार्क हटा दिया गया",
   "Could not remove the bookmark": "बुकमार्क हटाया नहीं जा सका",
-  "Remove this bookmark?": "यह बुकमार्क हटाएँ?",
   "Could not reach your relays to check for a backup.": "बैकअप जाँचने के लिए आपके रिले तक पहुँचा नहीं जा सका।",
   "No wallet backup found on your relays": "आपके रिले पर कोई वॉलेट बैकअप नहीं मिला",
   "Backup could not be read": "बैकअप पढ़ा नहीं जा सका",

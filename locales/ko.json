@@ -651,7 +651,6 @@
   "Removing…": "제거하는 중…",
   "Bookmark removed": "북마크를 제거했어요",
   "Could not remove the bookmark": "북마크를 제거하지 못했어요",
-  "Remove this bookmark?": "이 북마크를 제거할까요?",
   "Could not reach your relays to check for a backup.": "릴레이에 연결하지 못해 백업을 확인할 수 없었어요.",
   "No wallet backup found on your relays": "릴레이에서 지갑 백업을 찾지 못했어요",
   "Backup could not be read": "백업을 읽을 수 없어요",
