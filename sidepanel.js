@@ -17872,19 +17872,28 @@
         const aimed = note ? note.pubkey : (ps.length ? ps[ps.length - 1][1] : '');
         const who = aimed ? ((profiles.get(aimed) || {}).name
           || (() => { try { return shortNpub(NT.nip19.npubEncode(aimed)); } catch (_) { return ''; } })()) : '';
-        // An e tag whose note never came back is still a note, not a profile.
-        let subject;
-        if (note) subject = (who ? who + ' · ' : '') + noteGist(note);
-        else if (targetId) subject = who ? t('A Nostr note by {{name}}', { name: who }) : t('A Nostr note');
-        else subject = who || t('A profile');
+        // The author is the row's headline and the note's words sit under it, one shape for every
+        // row. A note the relays did not return is still a note by someone: it says so under the
+        // name rather than turning into a different sentence. An e tag with no note is not a profile.
+        const headline = who || (targetId ? t('A Nostr note') : t('A profile'));
+        const gist = noteGist(note);   // no note back: the generic line, a string that already exists
         // Anything the row can name opens: a note the relays did not return is still a note, and
         // a client looks it up by id. A row that does nothing when pressed reads as a broken one.
         const opens = note || targetId || aimed;
         const item = h('div', { className: 'bm-item', title: opens ? t('Open in {{client}}', { client: client.label }) : '' });
         const menu = buildEventMenu(ev, null, { npubOf: null });
         item.append(h('div', { className: 'bm-main' }, [
-          h('div', { className: 'bm-snippet cm-reaction', dir: 'auto' }, [reactionMark(ev), document.createTextNode(subject)]),
-          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
+          h('div', { className: 'cm-reaction' }, [
+            reactionMark(ev),
+            h('div', { className: 'cm-reaction-body' }, [
+              h('div', { className: 'cm-reaction-head' }, [
+                h('span', { className: 'cm-reaction-who', dir: 'auto', textContent: headline }),
+                h('span', { className: 'cm-reaction-when', textContent: relativeTime(ev.created_at) }),
+              ]),
+              // A profile reaction has no note to quote, and a gist that only repeats the headline is noise.
+              (note || targetId) && gist !== headline ? h('div', { className: 'cm-reaction-gist', dir: 'auto', textContent: gist }) : null,
+            ]),
+          ]),
           menu.panel,
         ]), h('div', { className: 'item-actions' }, [menu.btn]));
         // The note renders everywhere, so the row opens the target, not the reaction.

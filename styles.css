@@ -2607,12 +2607,19 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .cm-src { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); min-width: 0; }
 .cm-src svg { width: 12px; height: 12px; flex-shrink: 0; }
 .cm-src span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* A reaction row: the mark leads the line, then who and what it was aimed at. The mark is
-   a heart from the icon set, an emoji character, or a custom emoji's picture, and all
-   three sit on the text's baseline at the text's own height. */
-.cm-reaction { display: flex; align-items: center; gap: 6px; }
-.cm-reaction-mark { display: inline-flex; align-items: center; flex-shrink: 0; font-size: 14px; line-height: 1; color: var(--lav); }
-.cm-reaction-mark svg { width: 14px; height: 14px; }
+/* A reaction row: the mark leads, at twice the size of a line of text, and beside it the
+   author as the headline with the time, then the note's words beneath. The mark is a heart
+   from the icon set, an emoji character, or a custom emoji's picture, and all three share
+   one square so a row never shifts with the reaction. */
+.cm-reaction { display: flex; align-items: center; gap: 12px; }
+.cm-reaction-mark { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 30px; font-size: 28px; line-height: 1; color: var(--lav); }
+.cm-reaction-mark svg { width: 28px; height: 28px; }
+.cm-reaction-mark .notif-reacted-chip-img { width: 28px; height: 28px; }
+.cm-reaction-body { flex: 1; min-width: 0; }
+.cm-reaction-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cm-reaction-who { font-weight: 600; font-size: 13px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cm-reaction-when { flex-shrink: 0; font-size: 11px; color: var(--faint); }
+.cm-reaction-gist { margin-top: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* A highlight row: the passage leads, in the reading face, up to three lines. */
 .hl-item-passage {
   font-size: 13px; line-height: 1.45; color: var(--text);

@@ -230,7 +230,9 @@ const hub = () => ({
       const mark = row.querySelector('.cm-reaction-mark');
       return {
         heart: !!mark.querySelector('svg[data-icon="heart"]'), img: (mark.querySelector('img') || {}).src || null,
-        mark: mark.textContent, text: row.querySelector('.cm-reaction').textContent, title: row.title,
+        mark: mark.textContent, who: row.querySelector('.cm-reaction-who').textContent,
+        gist: (row.querySelector('.cm-reaction-gist') || {}).textContent || null,
+        text: row.querySelector('.cm-reaction').textContent, markPx: getComputedStyle(mark).fontSize, title: row.title,
       };
     });
     qa('#modal .bm-scroll:not(.hidden) .bm-item')[0].click();
@@ -335,17 +337,18 @@ test('a reaction row draws its mark the way the notification list does, and aims
   const r = measure({ flow: 'hub' });
   const [like, custom, fire, lost, profile, words, image, link] = r.reactionRows;
   assert.equal(like.heart, true, 'a plain like is the heart from the icon set, not the raw plus sign');
-  assert.match(like.text, /^Bea · A note worth liking$/, 'the target is the LAST e tag (NIP-25), not the thread root');
+  assert.deepEqual([like.who, like.gist], ['Bea', 'A note worth liking'], 'the target is the LAST e tag (NIP-25), not the thread root');
   assert.match(custom.img || '', /^data:image\/gif/, 'a custom emoji is its picture');
   assert.equal(fire.mark, '🔥');
-  assert.equal(lost.text, 'A Nostr note by Bea', 'an e tag whose note never came back is still a note, not a profile');
+  assert.deepEqual([lost.who, lost.gist], ['Bea', 'A Nostr note'], 'an e tag whose note never came back is still a note by someone, said in the same shape as the rest');
   assert.match(lost.title, /^Open in Jumble/, 'and still opens: a client looks a note up by id, so a row is never dead');
-  assert.equal(profile.text, 'Bea', 'a profile reaction names the profile');
+  assert.deepEqual([profile.who, profile.gist], ['Bea', null], 'a profile reaction names the profile and has no note to quote');
   assert.match(profile.title, /^Open in Jumble/);
   // A one-line row carries a note's words and nothing it cannot: no bare address, no npub.
-  assert.equal(words.text, 'Bea · Welp, done running that', 'the link and the mention are dropped, the words stay');
-  assert.equal(image.text, 'Bea · Image', 'a note that was only a picture says so');
-  assert.equal(link.text, 'Bea · example.org', 'and one that was only a link names the site');
+  assert.deepEqual([words.who, words.gist], ['Bea', 'Welp, done running that'], 'the link and the mention are dropped, the words stay');
+  assert.deepEqual([image.who, image.gist], ['Bea', 'Image'], 'a note that was only a picture says so');
+  assert.deepEqual([link.who, link.gist], ['Bea', 'example.org'], 'and one that was only a link names the site');
+  for (const row of r.reactionRows) assert.equal(row.markPx, '28px', 'the mark is twice the size of a line of text, for every kind of reaction');
   for (const row of r.reactionRows) assert.ok(!/https?:|npub1|nostr:/.test(row.text), 'no raw address or npub on a row: ' + row.text);
   assert.equal(r.reactionOpened.length, 2);
   assert.match(r.reactionOpened[0], /nevent1/);
