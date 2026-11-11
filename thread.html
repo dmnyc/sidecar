@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="Comment thread">Comment thread</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="themes/speakeasy.css" />
+  <link rel="stylesheet" href="themes/film-noir.css" />
+  <link rel="stylesheet" href="themes/industria.css" />
+  <link rel="stylesheet" href="themes/aegean.css" />
+  <link rel="stylesheet" href="themes/brownstone.css" />
+  <link rel="stylesheet" href="themes/bauhaus.css" />
+  <link rel="stylesheet" href="themes/populuxe.css" />
+  <link rel="stylesheet" href="themes/nixie.css" />
+  <link rel="stylesheet" href="themes/cast-iron.css" />
+  <link rel="stylesheet" href="themes/metropolis.css" />
+  <link rel="stylesheet" href="themes/par-avion.css" />
+  <link rel="stylesheet" href="themes/werkstatte.css" />
+  <link rel="stylesheet" href="themes/wabi-sabi.css" />
+  <link rel="stylesheet" href="themes/ukiyo-e.css" />
+  <link rel="stylesheet" href="themes/constellation.css" />
+  <link rel="stylesheet" href="themes/jazz-age.css" />
+  <link rel="stylesheet" href="themes/departures.css" />
+  <link rel="stylesheet" href="themes/turnstile.css" />
+  <link rel="stylesheet" href="themes/mycelium.css" />
+  <link rel="stylesheet" href="themes/ben-day.css" />
+  <link rel="stylesheet" href="themes/sleepy-hollow.css" />
+  <link rel="stylesheet" href="themes/phantom-bouquet.css" />
+  <link rel="stylesheet" href="themes/patterns.css" />
+  <!-- Marks which Constellation plate this session shows; see sky-plate.js. In the head
+       and synchronous, so the mark is set before the first paint. -->
+  <script src="sky-plate.js"></script>
+  <!-- The special editions and their dates; read by the script that applies the theme. -->
+  <script src="seasons.js"></script>
+  <!-- The last theme this tab drew with, and the card held back until it is built; see
+       compose-boot.js. Synchronous and in the head for the same reason as the line above. -->
+  <script src="compose-boot.js"></script>
+</head>
+<body class="compose-page thread-page">
+  <!-- The same bar as the composer's, so a Sidecar page looks like one wherever you land on
+       it: the wordmark, and at the far end the box every full-size Sidecar view is left by.
+       It closes the tab. -->
+  <header class="compose-topbar">
+    <span class="compose-brand">
+      <img id="compose-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
+    </span>
+    <button type="button" class="icon-btn settings-close compose-x" id="thread-x" title="Close" data-i18n-title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+  </header>
+
+  <div class="compose-body">
+    <!-- Filled by thread.js: what the thread is about, the comment, its replies. Held back
+         by compose-boot.js until the page has a theme, like the composer's card. -->
+    <main class="compose-sheet thread-sheet" id="thread-sheet" aria-live="polite">
+      <p class="hint thread-wait" data-i18n="Reading your relays…">Reading your relays…</p>
+    </main>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script src="i18n.js"></script>
+  <script src="nostr-tools.js"></script>
+  <script src="ws-guard.js"></script>
+  <script src="emoji-data.js"></script>
+  <script src="composer-core.js"></script>
+  <script src="thread-core.js"></script>
+  <script src="thread.js"></script>
+</body>
+</html>

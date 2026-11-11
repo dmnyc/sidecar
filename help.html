@@ -54,6 +54,7 @@
         <a href="#always-kind">Always</a>
         <a href="#erasing">Erasing data</a>
         <a href="#notifications">Notifications</a>
+        <a href="#library">Your library</a>
         <a href="#relays">Your relays</a>
         <a href="#status">Your status</a>
         <a href="#nip05">NIP-05</a>
@@ -527,6 +528,66 @@
       if you follow nobody yet, the sort is skipped entirely and everything shows —
       failing toward seeing too much rather than too little. Mute lists still apply on
       top: anyone you've muted in your client is dropped here as well.</p>
+    </section>
+
+    <!-- ===== Your library ===== -->
+    <section class="guide-section" id="library">
+      <h2>Your library</h2>
+      <p>The book in the top bar opens everything you have kept or put into the world through
+      Nostr, in one sheet with four tabs: <strong>Bookmarks</strong>,
+      <strong>Highlights</strong>, <strong>Comments</strong> and <strong>Reactions</strong>.
+      Each is read from your own relays, so it is the same list your other clients show, and
+      the number on a tab counts what is in it. Here's why it lives in the panel and not in a
+      client: these are the things you come back to, and they are one tap from wherever you
+      are.</p>
+
+      <p>Tap a row and it opens in your client, the same one the rest of Sidecar uses. A
+      comment is the exception, since many clients draw a comment on a web page nowhere at
+      all, so Sidecar opens it on a page of its own.</p>
+
+      <h3>Bookmarks</h3>
+      <p>What you have saved, newest first: notes, but also articles and recipes, web addresses
+      and, in your main list, hashtags, since a bookmark list can hold all of them. Lists of people or muted words, such as a mute pack, are not bookmarks and are left out. Anything you kept private, which
+      other clients store encrypted in the list, is shown too, with a small lock. Private entries are
+      for reading here; to remove one, use the client that saved it. If a list holds notes that
+      no relay will give up, it says how many, so a list never looks shorter than it is. Your main bookmark list is here, and so are
+      the named lists other clients keep, the bookmark sets that Wisp and Zap Cooking write. With
+      more than one, a menu above the rows chooses <strong>All bookmarks</strong> or a single
+      list, by the name it was given. A note in two lists shows in both, and the trash removes it
+      from the one you are looking at. A named list has a row of its own, in the All view and when you pick it,
+      with a ⋮ that offers <strong>Rename list</strong> and <strong>Delete list</strong>. Deleting asks first, in a box with Cancel
+      selected, takes the list out of every app that reads it, and never touches the notes in it.
+      Your main list can be neither renamed nor deleted. A row has no trash can: its &#8942; menu ends with
+      <strong>Remove bookmark</strong>. The first tap turns it red and asks for a second, and a tap
+      anywhere else, or Escape, lets go. It removes the bookmark from your list and never touches the note.</p>
+
+      <h3>Highlights</h3>
+      <p>The passages you highlighted, each headed by where it came from: the page&rsquo;s site,
+      or the author of the note or article. Anything you wrote about a passage sits under it,
+      with the date last.</p>
+
+      <h3>Comments</h3>
+      <p>The comments you made on web pages, each headed by its site. A comment opens on a
+      Sidecar page that shows the page it was written on, the comment in full and its replies
+      as the tree they are, with what people reacted with under each. <strong>Reply</strong>
+      opens the composer on that comment, <strong>React</strong> publishes a reaction from the
+      page, and any reply can be folded away. Replies are looked for at the inboxes of the
+      people being answered, not only on your own relays, so one written from another client
+      turns up.</p>
+
+      <h3>Reactions</h3>
+      <p>What you reacted to, with the mark you left at the front and the author above the
+      note&rsquo;s words. React twice to the same note and you get two rows, since they are two
+      reactions. A note no relay will give up still has a row, and it still opens, because a
+      client can look a note up by its id.</p>
+
+      <h3>Fresh, and what it keeps</h3>
+      <p>Once the library has been opened, a new reaction, highlight, comment or bookmark, or a
+      deletion, shows up in its list as it happens, including ones you make from another
+      device. The lists are held in memory and nowhere else, so closing the panel lets go of
+      them and the next open reads your relays again. Highlights, comments and reactions show
+      thirty at a time; <strong>Show more</strong> reaches the end of what was read and then asks
+      your relays for older ones, so nothing you saved is out of reach.</p>
     </section>
 
     <!-- ===== Relays ===== -->

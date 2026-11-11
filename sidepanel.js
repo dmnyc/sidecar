@@ -4904,10 +4904,19 @@
   // asked with purplepag.es, the kind:0 aggregator, and the answers fill the profile
   // cache. The user's own accounts still go through getProfile, which reads their
   // declared relays; for everyone else nobody answering means no name, not a retry.
-  async function profilesFor(pubkeys) {
+  // WHAT WAS ASKED, AND WHEN. A name or note no relay has stays missing, and a list that counted
+  // that as unfinished would ask again behind every reopen. Within five minutes a question already
+  // asked is settled; after that it is worth asking once more.
+  const _asked = new Map();
+  const ASKED_TTL = 5 * 60 * 1000;
+  const markAsked = (keys) => { const until = Date.now() + ASKED_TTL; for (const k of keys) _asked.set(k, until); };
+  const wasAsked = (k) => (_asked.get(k) || 0) > Date.now();
+  // `offline` answers from what is already known and asks no relay: a list paints from that at
+  // once, and asks properly behind it for whatever it was missing.
+  async function profilesFor(pubkeys, opts) {
     const all = [...new Set(pubkeys)].filter((pk) => /^[0-9a-f]{64}$/.test(pk || ''));
     const own = new Set(((state && state.accounts) || []).map((a) => a.pubkey));
-    const need = all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
+    const need = opts && opts.offline ? [] : all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
     if (need.length) {
       const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
       for (let i = 0; i < need.length; i += 100) {
@@ -4937,6 +4946,7 @@
         if (ev) { try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {} }
       }));
     }
+    if (!(opts && opts.offline)) markAsked(all.map((pk) => 'p:' + pk));
     return new Map(await Promise.all(all.map(async (pk) =>
       [pk, cachedProfile(pk) || (own.has(pk) ? await getProfile(pk).catch(() => null) : null)])));
   }
@@ -7020,6 +7030,35 @@
     return signed;
   }
 
+  // THE REACT FLOW, shared by every row that offers a heart: a notification's, and a reply
+  // in a comment's thread. One copy, so the quick row, the use counting and the take-back
+  // on failure cannot drift between the two.
+  async function reactToEvent(ev) {
+    // The row of the account the reaction will be signed as, and counted for the one
+    // that signed it.
+    const quickRow = rankQuickReactions(await loadReactionUse(state.activePubkey));
+    emojiPickerOver($('modal'), async (ch) => {
+      // Counted on the tap, so the next picker already has it, and taken back if the
+      // reaction fails: one that never signed or reached a relay is not one you made.
+      // Waiting for the publish instead left the row a reaction behind for as long as
+      // the slowest relay took. publishReaction signs only as the active account.
+      const who = state.activePubkey;
+      const counted = noteReactionUse(who, ch);
+      try {
+        await publishReaction(ev, ch);
+        // The chip is what makes this durable feedback. The toast says it happened;
+        // the chip is still there tomorrow, which is when you want to know whether
+        // you already answered something. A minimal event shape: the picker is
+        // unicode-only, so there is no emoji tag to carry.
+        addMyReaction(ev.id, { content: ch, tags: [] });
+        toast(t('Reacted {{reaction}}', { reaction: ch }), 'success');
+      } catch (e2) {
+        counted.then((prev) => undoReactionUse(who, ch, prev)).catch(() => {});
+        toast(e2.message, 'error');
+      }
+    }, quickRow);
+  }
+
   // A REPOST (NIP-18). kind:6 for a kind:1, and kind:16 with a `k` tag for anything else —
   // a generic repost — because 6 is defined for text notes only, and a 6 wrapping a
   // kind:1111 web comment is a thing clients are entitled to ignore.
@@ -8308,6 +8347,7 @@
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     };
     let built = false;
+    const disarmers = [];
     btn.addEventListener('click', (e) => {
       stop(e);
       if (!built) build();
@@ -8317,43 +8357,92 @@
     // On first open rather than with the row: the list builds 25 of these at a time.
     function build() {
       built = true;
-      // Named from the approval card's table, so a kind reads the same here as it did
-      // when you were asked to sign one.
-      const kindName = approvalKindLabels()[ev.kind] || '';
-      // The number as written in the NIPs, never grouped: kind 9735, not 9,735.
-      const kind = String(ev.kind);
-      panel.appendChild(h('div', {
-        className: 'notif-more-kind',
-        textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
-      }));
+      if (ev) {
+        // Named from the approval card's table, so a kind reads the same here as it did
+        // when you were asked to sign one.
+        const kindName = approvalKindLabels()[ev.kind] || '';
+        // The number as written in the NIPs, never grouped: kind 9735, not 9,735.
+        const kind = String(ev.kind);
+        panel.appendChild(h('div', {
+          className: 'notif-more-kind',
+          textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
+        }));
 
-      const who = opts && 'npubOf' in opts ? opts.npubOf : zapSender(ev);
-      const targetId = notifTargetId(ev);
-      const items = [
-        [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
-        who ? [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)] : null,
-        targetId ? [opts && opts.sourceNote ? t('Copy source note ID') : t('Copy parent note ID'), 'copy',
-          () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
-        linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
-        [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
-      ].filter(Boolean);
-      // A reaction or a zap is only ever about the note it landed on, so that is all its
-      // menu offers. One whose note cannot be found keeps the full list rather than
-      // opening empty.
-      const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
-      const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
+        const who = opts && 'npubOf' in opts ? opts.npubOf : zapSender(ev);
+        const targetId = notifTargetId(ev);
+        const items = [
+          [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
+          who ? [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)] : null,
+          targetId ? [opts && opts.sourceNote ? t('Copy source note ID') : t('Copy parent note ID'), 'copy',
+            () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
+          linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
+          [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
+        ].filter(Boolean);
+        // A reaction or a zap is only ever about the note it landed on, so that is all its
+        // menu offers. One whose note cannot be found keeps the full list rather than
+        // opening empty.
+        const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
+        const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
 
-      for (const [label, glyph, value] of shown) {
+        for (const [label, glyph, value] of shown) {
+          const row = h('button', { className: 'notif-more-item', type: 'button' });
+          row.append(icon(glyph), h('span', { textContent: label }));
+          row.addEventListener('click', async (e) => {
+            stop(e);
+            try {
+              await copyPlain(value());
+              toast(t('Copied'), 'success');
+              setOpen(false);
+            } catch (e2) {
+              toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
+            }
+          });
+          panel.appendChild(row);
+        }
+
+      }
+
+      // A remove item, for a row that can be taken out of the list it is in. It takes two taps like the
+      // mute rows: the first rewrites its own label and turns it red, the second does it, and it lets go
+      // after a few seconds, on Escape or on any tap outside the menu (the caller hears of each, to
+      // do the last two). A tap straight after the first is a double-tap, not an answer.
+      const rmv = opts && opts.remove;
+      if (rmv) {
         const row = h('button', { className: 'notif-more-item', type: 'button' });
-        row.append(icon(glyph), h('span', { textContent: label }));
+        const label = h('span', { textContent: rmv.label });
+        row.append(icon('trash'), label);
+        let armedAt = 0;
+        let timer = null;
+        const disarm = () => {
+          if (!armedAt) return;
+          clearTimeout(timer);
+          armedAt = 0;
+          label.textContent = rmv.label;
+          row.classList.remove('armed');
+          if (rmv.onDisarm) rmv.onDisarm();
+        };
+        disarmers.push(disarm);
         row.addEventListener('click', async (e) => {
           stop(e);
+          if (!armedAt) {
+            armedAt = Date.now();
+            label.textContent = t('Tap again to confirm');
+            row.classList.add('armed');
+            timer = setTimeout(disarm, 5000);
+            if (rmv.onArm) rmv.onArm();
+            return;
+          }
+          if (Date.now() - armedAt < 400) return;
+          clearTimeout(timer);
+          row.disabled = true;
+          label.textContent = t('Removing…');
           try {
-            await copyPlain(value());
-            toast(t('Copied'), 'success');
+            await rmv.run();
             setOpen(false);
-          } catch (e2) {
-            toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
+          } catch (_) {
+            row.disabled = false;
+            armedAt = 1;
+            disarm();
           }
         });
         panel.appendChild(row);
@@ -8411,7 +8500,7 @@
         }
       }
     }
-    return { btn, panel };
+    return { btn, panel, disarm: () => disarmers.forEach((f) => f()) };
   }
 
   // `place` puts the sheet back where it was: how many pages had been loaded, and how far
@@ -8838,31 +8927,9 @@
       });
 
       const reactBtn = actBtn(t('React'), icon('heart'));
-      reactBtn.addEventListener('click', async (e) => {
+      reactBtn.addEventListener('click', (e) => {
         stop(e);
-        // The row of the account the reaction will be signed as, and counted for the one
-        // that signed it.
-        const quickRow = rankQuickReactions(await loadReactionUse(state.activePubkey));
-        emojiPickerOver($('modal'), async (ch) => {
-          // Counted on the tap, so the next picker already has it, and taken back if the
-          // reaction fails: one that never signed or reached a relay is not one you made.
-          // Waiting for the publish instead left the row a reaction behind for as long as
-          // the slowest relay took. publishReaction signs only as the active account.
-          const who = state.activePubkey;
-          const counted = noteReactionUse(who, ch);
-          try {
-            await publishReaction(ev, ch);
-            // The chip is what makes this durable feedback. The toast says it happened;
-            // the chip is still there tomorrow, which is when you want to know whether
-            // you already answered something. A minimal event shape: the picker is
-            // unicode-only, so there is no emoji tag to carry.
-            addMyReaction(ev.id, { content: ch, tags: [] });
-            toast(t('Reacted {{reaction}}', { reaction: ch }), 'success');
-          } catch (e2) {
-            counted.then((prev) => undoReactionUse(who, ch, prev)).catch(() => {});
-            toast(e2.message, 'error');
-          }
-        }, quickRow);
+        reactToEvent(ev);
       });
 
       // REPOST OR QUOTE, one button and two answers. Both are "send this on", and they
@@ -12311,7 +12378,7 @@
     9041: 'zap',              // zap goal
     9321: 'zap',              // nutzap
     9734: 'zap',              // zap request
-    9802: 'edit',             // highlight
+    9802: 'highlighter',      // highlight — the same mark as the Yours sheet's tab
     10000: 'user-x',          // mute list
     10002: 'wifi',            // relay list
     10006: 'wifi',            // blocked relays
@@ -17289,7 +17356,7 @@
   async function fetchBookmarkLists() {
     return poolQuerySync(
       await readRelayUrls(state.activePubkey),
-      { kinds: [10003, 30001], authors: [state.activePubkey] },
+      { kinds: [10003, 30003, 30001], authors: [state.activePubkey] },
       { maxWait: 6000 }
     );
   }
@@ -17344,18 +17411,139 @@
     const latest = new Map();
     for (const ev of evs || []) {
       const d = ev.kind === 10003 ? '' : (ev.tags.find((t) => t[0] === 'd') || [])[1] || '';
-      const key = (ev.kind === 10003 ? 'F|' : 'C|') + d;
+      // F: the one flat list (10003). S: a bookmark set (30003), the list NIP-51 defines for named
+      // groups, which Wisp and Zap Cooking write. C: an older generic list (30001), still read.
+      const key = (ev.kind === 10003 ? 'F|' : ev.kind === 30003 ? 'S|' : 'C|') + d;
       const cur = latest.get(key);
       if (!cur || ev.created_at >= cur.created_at) latest.set(key, ev);
     }
+    // NOT EVERY LIST IN THESE KINDS IS A SHELF. The older generic list (30001) is also what mute packs
+    // are published as, and a set can be a people list: anything that holds people, words to mute or a
+    // label namespace is not something a bookmark was ever kept in, and its notes (a muted thread, say)
+    // are not bookmarks. The newest copy decides, so an older version of a list cannot come back.
+    for (const [k, ev] of [...latest.entries()]) {
+      if (k[0] !== 'F' && ev.tags.some((t) => t[0] === 'p' || t[0] === 'word' || t[0] === 'L')) latest.delete(k);
+    }
     const sections = [];
     const flat = latest.get('F|');
-    if (flat) sections.push({ title: '', ev: flat });
+    if (flat) sections.push({ title: '', ev: flat, key: 'F|', desc: '' });
+    // A list is named by its title tag, the way the clients that write them name them, and by its
+    // d tag only when it has none.
+    const named = (ev, d) => ((ev.tags.find((t) => t[0] === 'title') || ev.tags.find((t) => t[0] === 'name') || [])[1] || '').trim() || d;
     [...latest.entries()]
-      .filter(([k]) => k[0] === 'C')
-      .sort((a, b) => a[0].slice(2).localeCompare(b[0].slice(2)))
-      .forEach(([k, ev]) => sections.push({ title: k.slice(2), ev }));
+      .filter(([k]) => k[0] !== 'F')
+      .map(([k, ev]) => ({
+        key: k, ev, title: named(ev, k.slice(2)), d: k.slice(2),
+        // What its author said the list is for: NIP-51 names the tag description, and Zap Cooking writes summary.
+        desc: String(((ev.tags.find((t) => t[0] === 'description') || ev.tags.find((t) => t[0] === 'summary') || [])[1]) || '').trim(),
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .forEach((x) => sections.push(x));
     return sections;
+  }
+
+  // Pure: everything one list holds that the tab can show, as entries. The tags in the open come
+  // first, then the account's private ones (the list's encrypted content, already read back into
+  // tags by the caller). Four kinds of entry: a note (e), an addressable event such as an article or a
+  // recipe (a), a web address (r) and a hashtag (t). One saved twice is one entry, and the public
+  // copy is the one kept. Hashtags belong to the main list (NIP-51 puts them there); in a set or a generic
+  // list a t tag is a category, so `opts.hashtags === false` leaves them out. Lifted into
+  // test/bookmark-sections.test.js, so it stays self-contained.
+  function bookmarkEntries(tags, privateTags, opts) {
+    const out = [];
+    const seen = new Set();
+    const take = (list, priv) => {
+      for (const tg of Array.isArray(list) ? list : []) {
+        if (!Array.isArray(tg) || typeof tg[1] !== 'string' || !tg[1]) continue;
+        const type = tg[0];
+        const value = tg[1];
+        const ok = type === 'e' ? /^[0-9a-f]{64}$/.test(value)
+          : type === 'a' ? /^\d+:[0-9a-f]{64}:/.test(value)
+          : type === 'r' ? /^https?:\/\/\S+$/i.test(value)
+          : type === 't' && !(opts && opts.hashtags === false);
+        if (!ok) continue;
+        const key = type + '|' + (type === 't' ? value.toLowerCase() : value);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ type, value, key, priv, hint: typeof tg[2] === 'string' ? tg[2] : '' });
+      }
+    };
+    take(tags, false);
+    take(privateTags, true);
+    return out;
+  }
+
+  // A list's private entries. NIP-51 keeps them in the list's content, encrypted to its owner's own
+  // key: NIP-44 on current lists, NIP-04 (told by ?iv=) on older ones. Read through the same signer
+  // call the mute list uses, and remembered for the life of the page so a refresh asks once per
+  // version of a list. A list that will not read says so instead of showing as shorter than it is.
+  const _privMemo = new Map();
+  async function privateBookmarkTags(ev) {
+    if (!ev || !ev.content) return { tags: [], unreadable: false };
+    const pubkey = state.activePubkey;
+    const key = pubkey + ':' + ev.id;
+    if (_privMemo.has(key)) return _privMemo.get(key);
+    for (const nip of ev.content.includes('?iv=') ? [4, 44] : [44, 4]) {
+      try {
+        const parsed = JSON.parse(await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip, expectedPubkey: pubkey }));
+        if (Array.isArray(parsed)) {
+          const got = { tags: parsed.filter(Array.isArray), unreadable: false };
+          if (_privMemo.size > 200) _privMemo.clear();
+          _privMemo.set(key, got);
+          return got;
+        }
+      } catch (_) { /* the other scheme may be the one */ }
+    }
+    return { tags: [], unreadable: true };
+  }
+
+  // Articles, recipes and the like that a list points at by address. One query per kind, in chunks,
+  // and an answer is matched back to the address that asked for it. Remembered like notes are.
+  const _addrMemo = new Map();
+  async function fetchAddrEvents(coords, hints) {
+    const found = new Map();
+    const missing = [];
+    for (const c of coords) {
+      const hit = _addrMemo.get(c);
+      if (hit) found.set(c, hit); else missing.push(c);
+    }
+    if (!missing.length) return found;
+    const pubkey = state.activePubkey;
+    const read = await readRelayUrls(pubkey);
+    let write = [];
+    try { write = await postRelays(); } catch (_) {}
+    let extra = [];
+    if (!(await nip65OnlyFor(pubkey))) {
+      extra = [...new Set((hints || []).filter((u) => /^wss:\/\/\S+$/.test(u)).map(normalizeRelay))];
+    }
+    const relays = [...new Set([...read, ...write, ...extra].map(normalizeRelay))];
+    const byKind = new Map();
+    for (const c of missing) {
+      const [k, pk, ...rest] = c.split(':');
+      const kind = Number(k);
+      if (!byKind.has(kind)) byKind.set(kind, []);
+      byKind.get(kind).push({ coord: c, pk, d: rest.join(':') });
+    }
+    const jobs = [];
+    for (const [kind, list] of byKind) {
+      for (let i = 0; i < list.length; i += 40) {
+        const part = list.slice(i, i + 40);
+        const filter = { kinds: [kind], authors: [...new Set(part.map((x) => x.pk))] };
+        if (kind >= 30000 && kind < 40000) filter['#d'] = [...new Set(part.map((x) => x.d))];
+        jobs.push(poolQuerySync(relays, filter, { maxWait: 5000 }).then((evs) => {
+          for (const ev of evs || []) {
+            const d = ((ev.tags || []).find((tg) => tg[0] === 'd') || [])[1] || '';
+            const coord = ev.kind + ':' + ev.pubkey + ':' + (ev.kind >= 30000 && ev.kind < 40000 ? d : '');
+            if (!part.some((x) => x.coord === coord)) continue;
+            const cur = found.get(coord);
+            if (!cur || ev.created_at > cur.created_at) found.set(coord, ev);
+          }
+        }).catch(() => {}));
+      }
+    }
+    await Promise.all(jobs);
+    for (const c of missing) if (found.has(c)) _addrMemo.set(c, found.get(c));
+    return found;
   }
 
   // The bookmarked events themselves. Relays cap ids per filter, so ids go out
@@ -17368,7 +17556,26 @@
   // So the write relays always join, and the relay each bookmark names as its hint joins
   // too, but only for an account that allows reaching past its own lists: with bootstrap
   // relays off, contacting relays it never chose is what that setting rules out.
-  async function fetchEventsByIds(ids, hints) {
+  // NOTES ALREADY SEEN THIS SESSION. A note never changes, so one that was fetched for a row is
+  // the answer the next time a row asks, and a list reopened a minute later needs no relay for
+  // the notes it showed before. Misses are not kept: a note that was not there may be by now.
+  const _noteMemo = new Map();
+  const NOTE_MEMO_MAX = 1500;
+  const rememberNote = (ev) => {
+    if (!ev || !HEX_ID.test(ev.id || '')) return;
+    _noteMemo.delete(ev.id);
+    _noteMemo.set(ev.id, ev);
+    if (_noteMemo.size > NOTE_MEMO_MAX) _noteMemo.delete(_noteMemo.keys().next().value);
+  };
+  // `offline` returns only what is remembered and asks nothing.
+  async function fetchEventsByIds(ids, hints, opts) {
+    const found = new Map();
+    const missing = [];
+    for (const id of ids) {
+      const hit = _noteMemo.get(id);
+      if (hit) found.set(id, hit); else missing.push(id);
+    }
+    if (!missing.length || (opts && opts.offline)) return found;
     const pubkey = state.activePubkey;
     const read = await readRelayUrls(pubkey);
     let write = [];
@@ -17378,16 +17585,80 @@
       extra = [...new Set((hints || []).filter((u) => /^wss:\/\/\S+$/.test(u)).map(normalizeRelay))];
     }
     const relays = [...new Set([...read, ...write, ...extra].map(normalizeRelay))];
-    const found = new Map();
     const chunks = [];
-    for (let i = 0; i < ids.length; i += 64) chunks.push(ids.slice(i, i + 64));
+    for (let i = 0; i < missing.length; i += 64) chunks.push(missing.slice(i, i + 64));
     await Promise.all(chunks.map(async (chunk) => {
       try {
         const evs = await poolQuerySync(relays, { ids: chunk }, { maxWait: 5000 });
-        (evs || []).forEach((ev) => { if (!found.has(ev.id)) found.set(ev.id, ev); });
+        (evs || []).forEach((ev) => { if (!found.has(ev.id)) { found.set(ev.id, ev); rememberNote(ev); } });
+        markAsked(chunk.map((id) => 'n:' + id));
       } catch (_) {}
     }));
     return found;
+  }
+
+  // ---- the library, kept current ----
+  //
+  // Once the library has been opened, one subscription listens for this account's own events
+  // that the lists are made of (reactions, highlights, web comments, the bookmark list) and
+  // for deletions, for as long as the panel is open. A new one lands in its cache the moment a
+  // relay sends it, and in the open list if the list is showing; one made from Sidecar itself
+  // comes back the same way, from the account's own relays, so nothing has to be told by hand.
+  // The caches live in this page, so closing the panel lets go of them and the next open starts
+  // from the relays; within an open panel the library never has to be asked twice.
+  const _libLive = { pubkey: null, sub: null, token: null, bookmarks: null };
+  const LIB_CACHE_MAX = 5000;
+  function stopLibraryLive() {
+    if (_libLive.sub) { try { _libLive.sub.close(); } catch (_) {} }
+    _libLive.sub = null;
+    _libLive.pubkey = null;
+    _libLive.token = null;
+  }
+  async function startLibraryLive() {
+    const pubkey = state.activePubkey;
+    if (!pubkey) return;
+    if (_libLive.pubkey === pubkey && (_libLive.sub || _libLive.token)) return;
+    stopLibraryLive();
+    const token = {};
+    _libLive.pubkey = pubkey;
+    _libLive.token = token;
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (_libLive.token !== token || state.activePubkey !== pubkey) return;
+    _libLive.token = null;
+    if (!relays.length) { _libLive.pubkey = null; return; }
+    // A little before now, so an event published as the sheet opened is not missed in the gap.
+    const since = Math.floor(Date.now() / 1000) - 60;
+    _libLive.sub = poolSubscribeMany(relays, { kinds: [5, 7, 1111, 9802, 10003, 30003, 30001], authors: [pubkey], since }, {
+      onevent: (ev) => { try { libraryEvent(pubkey, ev); } catch (_) {} },
+    });
+  }
+  function libraryEvent(pubkey, ev) {
+    if (!ev || ev.pubkey !== pubkey || state.activePubkey !== pubkey) return;
+    const into = (cache) => {
+      if (cache.pubkey !== pubkey || !cache.evs || cache.evs.some((e) => e.id === ev.id)) return;
+      cache.evs = [ev, ...cache.evs].sort((a, b) => b.created_at - a.created_at).slice(0, LIB_CACHE_MAX);
+      if (cache.repaint) cache.repaint();
+    };
+    if (ev.kind === 7) into(_rctCache);
+    else if (ev.kind === 9802) into(_hlCache);
+    else if (ev.kind === 1111) {
+      const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+      if (scope && /^https?:\/\//i.test(scope[1] || '')) into(_cmCache);
+    } else if (ev.kind === 10003 || ev.kind === 30003 || ev.kind === 30001) {
+      if (_libLive.bookmarks) _libLive.bookmarks(); else _bmCache.pubkey = null;
+    } else if (ev.kind === 5) {
+      // A deleted list is named by address: the bookmarks refresh finds it gone.
+      if ((ev.tags || []).some((tg) => tg[0] === 'a' && /^3000[13]:/.test(tg[1] || ''))) {
+        if (_libLive.bookmarks) _libLive.bookmarks(); else _bmCache.pubkey = null;
+      }
+      const gone = new Set((ev.tags || []).filter((tg) => tg[0] === 'e' && tg[1]).map((tg) => tg[1]));
+      for (const cache of [_rctCache, _hlCache, _cmCache]) {
+        if (cache.pubkey !== pubkey || !cache.evs || !cache.evs.some((e) => gone.has(e.id))) continue;
+        cache.evs = cache.evs.filter((e) => !gone.has(e.id));
+        if (cache.repaint) cache.repaint();
+      }
+    }
   }
 
   // Opened from the topbar icon: a full-height modal (modal-sheet) that paints
@@ -17395,6 +17666,113 @@
   // modal, not something content has to grow into. A modal closed mid-fetch
   // leaves its DOM merely hidden, so "gone" is the overlay check, not
   // isConnected.
+  // Tab capsules cap at two digits — a heart with 424 is not a number a capsule can
+  // carry, and the fetch behind it is a window anyway — while the lists page in
+  // screens of thirty, appending under a Show more button like the wallet history
+  // does. The {{count}}+ template is the bell badge's, already translated.
+  const SAVED_PAGE = 30;
+  const tabCount = (n) => n > 99
+    ? t('{{count}}+', { count: I18N.fmtNum(99) })
+    : I18N.fmtNum(n);
+  // A tab's count capsule hangs off the corner of its icon, the way the bell's badge
+  // hangs off the bell. One writer for all four tabs: each list used to carry its own
+  // copy of this closure, which is how three copies drift apart.
+  const setTabCount = (tab, n) => {
+    const host = tab.querySelector('.tab-glyph') || tab;
+    const cap = host.querySelector('.modal-tab-count');
+    if (!n) { if (cap) cap.remove(); return; }
+    if (cap) cap.textContent = tabCount(n);
+    else host.append(h('span', { className: 'modal-tab-count', textContent: tabCount(n) }));
+  };
+  // The shape every Yours list shares: paint what is cached at once, ask the relays,
+  // and repaint only if they said something different. One copy, because the same
+  // eleven lines pasted into each list is where a highlights list once wrote itself
+  // into the comments cache. A cache that belongs to another account is not a cache.
+  //
+  // A paint is asked first to answer from what is already known (quick: no relay), and says
+  // whether that was everything. When it was not, a second, asking paint follows, so a reopened
+  // list is on screen at once and fills in what it was missing instead of waiting to appear.
+  // `cache.repaint` is how a live event reaches the open list: see libraryEvent.
+  async function loadSavedList(pane, gone, cache, fetchList, paint, failText, quote) {
+    const pubkey = state.activePubkey;
+    const warm = cache.pubkey === pubkey && cache.evs;
+    const settle = async () => {
+      if (gone()) return;
+      const keep = pane.scrollTop;
+      const complete = await paint(cache.evs, true);
+      if (complete === false && !gone()) await paint(cache.evs, false);
+      if (!gone()) pane.scrollTop = keep;
+    };
+    // The same paint without the guard below: for a list that has just grown by its own doing.
+    cache.redraw = settle;
+    cache.repaint = () => {
+      // Never under a hand that is using a row: an open menu or a delete confirm would vanish.
+      if (gone() || pane.querySelector('.notif-more:not(.hidden), .del-confirm')) return;
+      return settle();
+    };
+    let complete = true;
+    if (warm) complete = await paint(cache.evs, true);
+    else pane.append(loadingQuote(t('Reading your relays…'), quote));
+    let evs;
+    try { evs = await fetchList(pubkey); } catch (_) { evs = null; }
+    if (gone() || !evs || state.activePubkey !== pubkey) {
+      if (!warm && !gone()) { pane.textContent = ''; pane.append(emptyQuote(failText, quote)); }
+      return;
+    }
+    const changed = !warm || cache.evs.map((e) => e.id).join() !== evs.map((e) => e.id).join();
+    cache.pubkey = pubkey;
+    cache.evs = evs;
+    if (changed || complete === false) {
+      const keep = pane.scrollTop;
+      await paint(evs, false);
+      if (!gone() && warm) pane.scrollTop = keep;
+    }
+  }
+  // The rows of a list, a screen at a time. When the screen being asked for is past the end of what
+  // was read and the relays filled their last page, there is more: the next page is asked for, from
+  // where the last one ended, and the list is drawn again at the length it had plus one screen, so the
+  // reader keeps their place. (A page that comes back with nothing for this list, because it was all
+  // other kinds of event, is followed by the next, a few times, before the list gives up.)
+  const paged = (list, evs, makeRow, cache) => {
+    let shown = 0;
+    const first = (cache && cache.reshow) || SAVED_PAGE;
+    if (cache) cache.reshow = 0;
+    const more = h('button', { className: 'ghost show-more-btn', type: 'button', textContent: t('Show more') });
+    const draw = (count) => {
+      more.remove();
+      for (const ev of evs.slice(shown, shown + count)) list.append(makeRow(ev));
+      shown = Math.min(shown + count, evs.length);
+      if (shown < evs.length || (cache && cache.more && cache.older)) list.append(more);
+    };
+    more.addEventListener('click', async () => {
+      if (shown < evs.length) return draw(SAVED_PAGE);
+      more.disabled = true;
+      more.textContent = t('Reading your relays…');
+      const known = new Set(evs.map((e) => e.id));
+      let fresh = [];
+      let failed = false;
+      for (let round = 0; round < 6 && !fresh.length; round++) {
+        let page = null;
+        try { page = await cache.older(cache.cursor); } catch (_) {}
+        if (!page) { failed = true; break; }
+        // Never the same page twice: a cursor that did not move ends the list.
+        const moved = page.oldest < cache.cursor;
+        cache.cursor = page.oldest;
+        cache.more = page.full && moved;
+        fresh = page.evs.filter((e) => !known.has(e.id));
+        if (!cache.more) break;
+      }
+      more.disabled = false;
+      more.textContent = t('Show more');
+      if (failed) return;
+      if (!fresh.length) { more.remove(); return; }
+      cache.evs = [...evs, ...fresh].sort((a, b) => b.created_at - a.created_at);
+      cache.reshow = shown + SAVED_PAGE;
+      await cache.redraw();
+    });
+    draw(first);
+  };
+
   function renderBookmarks() {
     if (!state?.activePubkey) return;
     openModal((modal) => {
@@ -17403,30 +17781,74 @@
       x.appendChild(icon('x'));
       x.addEventListener('click', closeModal);
       const scroll = h('div', { className: 'bm-scroll' });
-      // TWO VIEWS OF WHAT THIS ACCOUNT HAS SAVED: its bookmarks, and the passages it has
-      // highlighted. Separate tabs because they are separate things on Nostr, a list the
-      // account keeps and events it published, and one list mixing them would read as
-      // bookmarks that cannot be removed the same way. The heading names both.
-      const tabBm = h('button', { className: 'modal-tab active', type: 'button', textContent: t('Bookmarks') });
-      const tabHl = h('button', { className: 'modal-tab', type: 'button', textContent: t('Highlights') });
-      const hlPane = h('div', { className: 'bm-scroll hidden' });
-      modal.append(x, h('h3', { textContent: t('Saved') }), h('div', { className: 'modal-tabs' }, [tabBm, tabHl]), scroll, hlPane);
-      let hlFilled = false;
-      const pick = (hl) => {
-        tabBm.classList.toggle('active', !hl);
-        tabHl.classList.toggle('active', hl);
-        scroll.classList.toggle('hidden', hl);
-        hlPane.classList.toggle('hidden', !hl);
-        // On the first switch only, so opening bookmarks never pays for a highlights query
-        // nobody asked for.
-        if (hl && !hlFilled) {
-          hlFilled = true;
-          fillHighlights(hlPane, () => $('modal-overlay').classList.contains('hidden'), tabHl);
-        }
-      };
-      tabBm.addEventListener('click', () => pick(false));
-      tabHl.addEventListener('click', () => pick(true));
+      // FOUR VIEWS OF WHAT THIS ACCOUNT KEEPS AND HAS PUT INTO THE WORLD: the bookmarks
+      // it keeps (a NIP-51 list), the passages it highlighted (NIP-84), the web pages it
+      // commented on (its own kind 1111s over web addresses) and the notes it reacted to
+      // (its kind 7s). Separate tabs because they are separate things on Nostr, and one
+      // list mixing a list the account keeps with events it published would read as
+      // rows that cannot all be removed the same way.
+      //
+      // ICON TABS, because three labels plus three count capsules wrapped at the
+      // panel's width. An icon alone is a guess, so the sheet's heading takes the name
+      // of whichever tab is open (title and aria-label carry it for the rest), and the
+      // bar's traveling underline says which one that is without leaning on color.
+      // Order: the entry point's own list first, then what the account wrote, then the
+      // lightest thing it does.
+      const tabDefs = [
+        ['bookmarks', t('Bookmarks'), 'bookmark'],
+        ['highlights', t('Highlights'), 'highlighter'],
+        ['comments', t('Comments'), 'message-circle'],
+        ['reactions', t('Reactions'), 'heart'],
+      ];
       const gone = () => $('modal-overlay').classList.contains('hidden');
+      const heading = h('h3', { textContent: tabDefs[0][1] });
+      const tabEls = {};
+      const panes = {
+        bookmarks: scroll,
+        highlights: h('div', { className: 'bm-scroll hidden' }),
+        comments: h('div', { className: 'bm-scroll hidden' }),
+        reactions: h('div', { className: 'bm-scroll hidden' }),
+      };
+      for (const [name, title, iconName] of tabDefs) {
+        const tab = h('button', { className: 'modal-tab icon-tab', type: 'button', title });
+        // setAttribute, not a prop: h() assigns properties, and "aria-label" is not one.
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', 'false');
+        tab.setAttribute('aria-label', title);
+        tab.append(h('span', { className: 'tab-glyph' }, [icon(iconName)]));
+        tabEls[name] = tab;
+      }
+      const bar = h('div', { className: 'modal-tabs', role: 'tablist' }, tabDefs.map(([name]) => tabEls[name]));
+      // The name of the place, small above the name of the tab, so the sheet says what it is
+      // whichever tab it is on. The same words as the button that opens it.
+      const eyebrow = h('div', { className: 'modal-eyebrow', textContent: t('Your library') });
+      modal.append(x, eyebrow, heading, bar, ...Object.values(panes));
+      wireTabSlider(bar, '.modal-tab');
+      // Filled on the first visit only, so opening bookmarks never pays for a query
+      // nobody asked for.
+      const fillers = {
+        highlights: () => fillHighlights(panes.highlights, gone, tabEls.highlights),
+        comments: () => fillComments(panes.comments, gone, tabEls.comments),
+        reactions: () => fillReactions(panes.reactions, gone, tabEls.reactions),
+      };
+      const pick = (which) => {
+        for (const [name, title] of tabDefs) {
+          tabEls[name].classList.toggle('active', name === which);
+          tabEls[name].setAttribute('aria-selected', String(name === which));
+          panes[name].classList.toggle('hidden', name !== which);
+          if (name === which) heading.textContent = title;
+        }
+        if (fillers[which]) { const go = fillers[which]; delete fillers[which]; go(); }
+      };
+      for (const [name] of tabDefs) tabEls[name].addEventListener('click', () => pick(name));
+      // The bookmark list changed somewhere (another device, another client): the same quiet
+      // refresh the sheet does on opening, never while a removal confirm is on screen.
+      _libLive.bookmarks = () => refreshBookmarks().then((changed) => {
+        if (changed && !gone() && !scroll.querySelector('.del-confirm')) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
+      });
+      startLibraryLive();
+      tabEls.bookmarks.classList.add('active');
+      tabEls.bookmarks.setAttribute('aria-selected', 'true');
       if (_bmCache.pubkey === state.activePubkey && _bmCache.evs) {
         fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
         // Quiet refresh behind the cached rows: the screen only moves when the
@@ -17450,21 +17872,33 @@
     });
   }
 
-  // ---- the account's own highlights (NIP-84), the Saved sheet's second tab ----
+  // ---- the account's own highlights (NIP-84), the library's second tab ----
   //
   // Read from where they were written and where the account reads, newest first. A row is
   // the passage, the comment if there was one, and where it came from: a web page by its
   // host, a Nostr note or article by its author. Tapping it opens the highlight itself in
   // the web client, as a bookmark opens its note.
   const _hlCache = { pubkey: null, evs: null };
-  async function fetchHighlights(pubkey) {
+  // A page of them, newest first, from `until` back (the newest when none). `full` says a relay filled the
+  // page, so there may be older ones; `oldest` is where the next page starts, taken before anything is
+  // filtered out, so a page that came back all filtered still moves the list on.
+  async function fetchHighlightsPage(pubkey, until) {
     let relays = [];
     try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
-    if (!relays.length) return [];
-    const got = await poolQuerySync(relays, { kinds: [9802], authors: [pubkey], limit: 100 }, { maxWait: 6000 });
+    if (!relays.length) return { evs: [], full: false, oldest: 0 };
+    const filter = { kinds: [9802], authors: [pubkey], limit: 100 };
+    if (until) filter.until = until;
+    const got = await poolQuerySync(relays, filter, { maxWait: 6000 });
     const byId = new Map();
     for (const ev of got || []) if (ev && ev.kind === 9802 && ev.pubkey === pubkey) byId.set(ev.id, ev);
-    return [...byId.values()].sort((a, b) => b.created_at - a.created_at);
+    return { evs: [...byId.values()].sort((a, b) => b.created_at - a.created_at), full: (got || []).length >= 100, oldest: Math.min(...(got || []).map((e) => e.created_at), Infinity) };
+  }
+  async function fetchHighlights(pubkey) {
+    const page = await fetchHighlightsPage(pubkey);
+    _hlCache.more = page.full;
+    _hlCache.cursor = page.oldest;
+    _hlCache.older = (until) => fetchHighlightsPage(pubkey, until);
+    return page.evs;
   }
   // Where a highlight came from, as the row says it: { kind: 'page', host } or
   // { kind: 'note' | 'article', author }, from the tag marked source, then e, a, r.
@@ -17488,87 +17922,376 @@
   }
   async function fillHighlights(pane, gone, tab) {
     const pubkey = state.activePubkey;
-    const setCount = (n) => {
-      const cap = tab.querySelector('.modal-tab-count');
-      if (!n) { if (cap) cap.remove(); return; }
-      if (cap) cap.textContent = I18N.fmtNum(n);
-      else tab.append(h('span', { className: 'modal-tab-count', textContent: I18N.fmtNum(n) }));
-    };
+    const setCount = (n) => setTabCount(tab, n);
     const quote = pickQuote();
-    const paint = async (evs) => {
+    const paint = async (evs, quick) => {
       setCount(evs.length);
+      const client = await preferredClient();
       if (!evs.length) {
         pane.textContent = '';
         pane.append(emptyQuote(t('Highlight a passage on any web page and it shows up here.'), quote));
-        return;
+        return true;
       }
       // A highlight that cites a note without naming its author takes the author from the
       // note itself, read once for all of them.
       const sources = new Map(evs.map((ev) => [ev.id, highlightSource(ev)]));
       const unknown = [...new Set([...sources.values()].filter((s) => s && s.id && !s.author).map((s) => s.id))];
       if (unknown.length) {
-        const notes = await fetchEventsByIds(unknown).catch(() => new Map());
+        const notes = await fetchEventsByIds(unknown, undefined, { offline: quick }).catch(() => new Map());
         for (const s of sources.values()) if (s && s.id && !s.author && notes.get(s.id)) s.author = notes.get(s.id).pubkey;
       }
       const comments = new Map(evs.map((ev) => [ev.id, ((ev.tags || []).find((tg) => tg[0] === 'comment') || [])[1] || '']));
-      const profiles = await profilesFor([
+      const wanted = [
         ...[...sources.values()].filter((s) => s && s.author).map((s) => s.author),
         ...evs.flatMap((ev) => [...mentionPubkeys(ev.content), ...mentionPubkeys(comments.get(ev.id))]),
-      ]);
-      if (gone()) return;
+      ];
+      const profiles = await profilesFor(wanted, { offline: quick });
+      if (gone()) return true;
       // Cleared only now, after the lookups, so the loading quote stays up through them.
       pane.textContent = '';
       const list = h('div', { className: 'bm-list' });
-      for (const ev of evs) {
+      const makeRow = (ev) => {
         const src = sources.get(ev.id);
+        // WHERE IT CAME FROM leads the row, as it does on a comment: a globe and the host for a
+        // page, a note or article icon and its author's name for Nostr. The date sits alone
+        // below, so a long name never shares a line with it and wraps.
         let from = '';
+        let fromIcon = 'globe';
         if (src && src.kind === 'page') from = src.host;
         else if (src) {
           const prof = src.author ? profiles.get(src.author) : null;
           let who = prof && prof.name;
           if (!who && src.author) { try { who = shortNpub(NT.nip19.npubEncode(src.author)); } catch (_) {} }
-          from = who
-            ? (src.kind === 'article' ? t('Nostr article by {{name}}', { name: who }) : t('Nostr note by {{name}}', { name: who }))
-            : (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
+          fromIcon = src.kind === 'article' ? 'file-text' : 'message-filled';
+          from = who || (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
         }
         const comment = mentionsAsNames(comments.get(ev.id), profiles);
-        const item = h('div', { className: 'bm-item hl-item', title: t('Open in your web client') });
+        const item = h('div', { className: 'bm-item hl-item', title: t('Open in {{client}}', { client: client.label }) });
         // The same ⋮ as a notification's; its npub is the quoted author's, not yours.
         const menu = buildEventMenu(ev, null, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
         item.append(h('div', { className: 'bm-main' }, [
+          from ? h('div', { className: 'cm-src', title: from }, [icon(fromIcon), h('span', { dir: 'auto', textContent: from })]) : null,
           h('div', { className: 'hl-item-passage', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
           comment ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: comment }) : null,
-          h('div', { className: 'bm-meta', textContent: from ? from + ' · ' + relativeTime(ev.created_at) : relativeTime(ev.created_at) }),
+          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
           menu.panel,
         ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
         item.addEventListener('click', async () => {
           const client = await preferredClient();
           try { openInClient(client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 9802, relays: [] }))); } catch (_) {}
         });
-        list.append(item);
-      }
+        return item;
+      };
       pane.append(list);
+      paged(list, evs, makeRow, _hlCache);
       pane.append(endQuote(quote));
+      // A quick paint is whole only when it knew every note's author and every name.
+      return !quick || (![...sources.values()].some((s) => s && s.id && !s.author && !wasAsked('n:' + s.id)) && wanted.every((pk) => profiles.get(pk) || wasAsked('p:' + pk)));
     };
-    if (_hlCache.pubkey === pubkey && _hlCache.evs) await paint(_hlCache.evs);
-    else pane.append(loadingQuote(t('Reading your relays…'), quote));
-    let evs;
-    try { evs = await fetchHighlights(pubkey); } catch (_) { evs = null; }
-    if (gone() || !evs || state.activePubkey !== pubkey) {
-      if (!_hlCache.evs && !gone()) { pane.textContent = ''; pane.append(emptyQuote(t('Couldn’t read your highlights from your relays.'), quote)); }
-      return;
+    await loadSavedList(pane, gone, _hlCache, fetchHighlights, paint, t('Couldn’t read your highlights from your relays.'), quote);
+  }
+
+  // ---- the account's own web comments (NIP-22 kind 1111 over NIP-73 targets),
+  // the library's third tab ----
+  //
+  // A webpage comment is a kind 1111 whose scope tag (uppercase I) is a web address,
+  // so the query asks the account's relays for its own 1111s and the rows keep only
+  // those with an http(s) scope — comments on Nostr threads belong to other clients,
+  // not to the sheet that lists pages.
+  // The direct parent of a comment: NIP-22's lowercase e tags read root-to-leaf, so
+  // the last one names what this comment answers.
+  function commentParentId(ev) {
+    const es = (ev.tags || []).filter((tg) => tg[0] === 'e');
+    return es.length ? es[es.length - 1][1] : '';
+  }
+  const _cmCache = { pubkey: null, evs: null };
+  async function fetchCommentsPage(pubkey, until) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return { evs: [], full: false, oldest: 0 };
+    const filter = { kinds: [1111], authors: [pubkey], limit: 100 };
+    if (until) filter.until = until;
+    const got = await poolQuerySync(relays, filter, { maxWait: 6000 });
+    const byId = new Map();
+    for (const ev of got || []) {
+      if (!ev || ev.kind !== 1111 || ev.pubkey !== pubkey) continue;
+      const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+      if (!scope || !/^https?:\/\//i.test(scope[1] || '')) continue;
+      byId.set(ev.id, ev);
     }
-    const changed = _hlCache.pubkey !== pubkey || (_hlCache.evs || []).map((e) => e.id).join() !== evs.map((e) => e.id).join();
-    _hlCache.pubkey = pubkey;
-    _hlCache.evs = evs;
-    if (changed) await paint(evs);
+    return { evs: [...byId.values()].sort((a, b) => b.created_at - a.created_at), full: (got || []).length >= 100, oldest: Math.min(...(got || []).map((e) => e.created_at), Infinity) };
+  }
+  async function fetchComments(pubkey) {
+    const page = await fetchCommentsPage(pubkey);
+    _cmCache.more = page.full;
+    _cmCache.cursor = page.oldest;
+    _cmCache.older = (until) => fetchCommentsPage(pubkey, until);
+    return page.evs;
+  }
+  function commentPage(ev) {
+    const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+    try { return new URL(scope[1]).host; } catch (_) { return ''; }
+  }
+  async function fillComments(pane, gone, tab) {
+    const pubkey = state.activePubkey;
+    const setCount = (n) => setTabCount(tab, n);
+    const quote = pickQuote();
+    const paint = async (evs, quick) => {
+      setCount(evs.length);
+      const mentioned = [...evs.flatMap((ev) => [...mentionPubkeys(ev.content)])];
+      const profiles = await profilesFor(mentioned, { offline: quick });
+      if (gone()) return true;
+      // A comment on a Nostr thread answers a note; name that note, or the row is a
+      // bare sentence with nowhere to point. The parents hydrate in one batch.
+      const parentIds = [...new Set(evs.map(commentParentId).filter(Boolean))];
+      const parents = parentIds.length ? await fetchEventsByIds(parentIds, undefined, { offline: quick }).catch(() => new Map()) : new Map();
+      const parentAuthors = [...new Set([...parents.values()].map((p) => p.pubkey))];
+      const parentProfiles = await profilesFor(parentAuthors, { offline: quick });
+      if (gone()) return true;
+      // Cleared only after the lookups, so the loading quote stays up through them.
+      pane.textContent = '';
+      if (!evs.length) {
+        pane.append(emptyQuote(t('Comment on a web page through Sidecar and it shows up here.'), quote));
+        return true;
+      }
+      const list = h('div', { className: 'bm-list' });
+      const makeRow = (ev) => {
+        const host = commentPage(ev);
+        const parent = parents.get(commentParentId(ev));
+        const pWho = parent ? (parentProfiles.get(parent.pubkey) || {}).name || '' : '';
+        const item = h('div', { className: 'bm-item', title: t('Open this comment') });
+        // Always the account's own comment, so there is no one else's npub to copy: left to
+        // itself the menu offers the author's, which here is you.
+        const menu = buildEventMenu(ev, null, { npubOf: null });
+        // The site the comment was written on leads the row, so a list of comments reads as
+        // a list of places. The address itself is the tooltip; the time stays below.
+        const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+        const src = host ? h('div', { className: 'cm-src', title: (scope && scope[1]) || host }, [icon('globe'), h('span', { textContent: host })]) : null;
+        item.append(h('div', { className: 'bm-main' }, [
+          src,
+          parent ? h('div', { className: 'cm-ref', dir: 'auto', textContent: (pWho ? t('Replying to {{name}}', { name: pWho }) : t('Replying to a note')) + ' · ' + noteGist(parent) }) : null,
+          // Your own words are the row, so they are drawn as content, three lines like a highlight.
+          h('div', { className: 'bm-text bm-text-3', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
+          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
+          menu.panel,
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        // Most clients render a kind 1111 nowhere at all, so the row opens Sidecar's
+        // own page for the comment rather than betting on a client.
+        item.addEventListener('click', () => openThreadTab(ev));
+        return item;
+      };
+      pane.append(list);
+      paged(list, evs, makeRow, _cmCache);
+      pane.append(endQuote(quote));
+      return !quick || (parentIds.every((id) => parents.has(id) || wasAsked('n:' + id)) && [...mentioned, ...parentAuthors].every((pk) => profiles.get(pk) || parentProfiles.get(pk) || wasAsked('p:' + pk)));
+    };
+    await loadSavedList(pane, gone, _cmCache, fetchComments, paint, t('Couldn’t read your comments from your relays.'), quote);
+  }
+
+  // ---- one comment, read in its own tab ----
+  //
+  // Most clients render a kind 1111 over a web address nowhere at all, so a comment is read
+  // on Sidecar's own page (thread.html): the page it was written on, the comment in full,
+  // and its replies as the tree they are. A 344px sheet is no place for a reply tree, and it
+  // could only ask the relays this account is configured with, where the page asks the
+  // inboxes of whoever is being answered. The panel's part is the doorway: open the tab, or
+  // point the one already open at this comment.
+  async function liveThreadTab() {
+    try {
+      if (!chrome.runtime.getContexts) return null;
+      const url = chrome.runtime.getURL('thread.html');
+      const ctxs = await chrome.runtime.getContexts({ contextTypes: ['TAB'] });
+      // Matched on the path, query stripped: the tab carries ?id=<comment> in its address.
+      return (ctxs || []).find((c) => c.documentUrl && c.documentUrl.split(/[?#]/)[0] === url) || null;
+    } catch (_) { return null; }
+  }
+  // The comment, left for the page to read. The panel already holds it, and a comment is its
+  // own hash and cannot change, so the page can show it at once instead of asking relays for
+  // something this panel has just listed. A handful kept, oldest dropped: session storage is
+  // memory, and this is a courtesy, never a record.
+  const THREAD_SEEDS_KEY = 'sidecar_thread_seeds';
+  async function seedThread(ev) {
+    try {
+      const got = await chrome.storage.session.get(THREAD_SEEDS_KEY);
+      const all = (got && got[THREAD_SEEDS_KEY]) || {};
+      delete all[ev.id];
+      all[ev.id] = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, content: ev.content, tags: ev.tags, created_at: ev.created_at, sig: ev.sig };
+      for (const old of Object.keys(all).slice(0, Math.max(0, Object.keys(all).length - 20))) delete all[old];
+      await chrome.storage.session.set({ [THREAD_SEEDS_KEY]: all });
+    } catch (_) { /* the page will ask the relays, as it does for a comment it was not handed */ }
+  }
+  async function openThreadTab(ev) {
+    if (!ev || !/^[0-9a-f]{64}$/.test(ev.id || '')) return;
+    await seedThread(ev);
+    const open = await liveThreadTab();
+    if (open) {
+      try {
+        // TOLD, NOT NAVIGATED: pointing an open tab at another address needs the "tabs"
+        // permission, which this extension does not ask for. The page re-keys itself.
+        chrome.runtime.sendMessage({ type: 'SIDECAR_THREAD_OPEN', id: ev.id }).catch(() => {});
+        await chrome.tabs.update(open.tabId, { active: true });
+        await chrome.windows.update(open.windowId, { focused: true });
+        return;
+      } catch (_) { /* fall through to a new tab */ }
+    }
+    chrome.tabs.create({ url: chrome.runtime.getURL('thread.html') + '?id=' + ev.id });
+  }
+
+  // ---- the account's own reactions (kind 7), the library's heart ----
+  //
+  // A reaction is only a marker on the note it reacted to, so a row shows the two
+  // together: the mark first, then the author and the opening of the note's text. NIP-25
+  // names the target in the LAST e tag (earlier ones are the thread above it). The
+  // targets hydrate in one batch; a reaction aimed at a profile rather than a note shows
+  // the profile's name and opens the profile. The mark is drawn by reactionDisplay, the
+  // same function the notification list uses, so one event is one picture on every screen.
+  // THE GIST OF A NOTE, for a row that names it: its words, without the things a one-line
+  // row cannot carry. A link, a nostr reference and an invoice are dropped (quoteSnippet, the
+  // bookmarks list's own rule, so the two lists read a note the same way), and a note that was
+  // only a picture, a video or a link says so instead of reading as nothing. Raw, those rows
+  // were a column of bare addresses and npubs.
+  function noteGist(note) {
+    const words = quoteSnippet(note && note.content);
+    if (words) return words;
+    const url = (String((note && note.content) || '').match(/https?:\/\/[^\s<>"']+/) || [])[0];
+    if (url) {
+      if (IMG_EXT.test(url)) return t('Image');
+      if (VID_EXT.test(url)) return t('Video');
+      try { return new URL(url).host; } catch (_) { /* not an address: the generic line below */ }
+    }
+    return note && note.kind === 30023 ? t('A Nostr article') : t('A Nostr note');
+  }
+
+  // The mark a reaction left, as a small element: a heart for the plain like (the glyph
+  // the notification list and the note's own React button already use, drawn from the
+  // icon set rather than as an emoji so it follows the theme's colors), the character
+  // itself for an emoji, and the picture for a custom one.
+  function reactionMark(ev) {
+    const d = reactionDisplay(ev);
+    const mark = h('span', { className: 'cm-reaction-mark' });
+    if (d.emojiUrl) {
+      const img = document.createElement('img');
+      img.className = 'notif-reacted-chip-img';
+      img.alt = d.glyph;
+      img.referrerPolicy = 'no-referrer';
+      img.onerror = () => { mark.textContent = d.glyph; };
+      img.src = d.emojiUrl;
+      mark.append(img);
+    } else if (d.glyph === reactionDisplay({ content: '+' }).glyph) {
+      mark.append(icon('heart'));
+    } else {
+      mark.textContent = d.glyph;
+    }
+    return mark;
+  }
+  const _rctCache = { pubkey: null, evs: null };
+  async function fetchReactionsPage(pubkey, until) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return { evs: [], full: false, oldest: 0 };
+    const filter = { kinds: [7], authors: [pubkey], limit: 200 };
+    if (until) filter.until = until;
+    const got = await poolQuerySync(relays, filter, { maxWait: 6000 });
+    const byId = new Map();
+    for (const ev of got || []) if (ev && ev.kind === 7 && ev.pubkey === pubkey) byId.set(ev.id, ev);
+    return { evs: [...byId.values()].sort((a, b) => b.created_at - a.created_at), full: (got || []).length >= 200, oldest: Math.min(...(got || []).map((e) => e.created_at), Infinity) };
+  }
+  async function fetchReactions(pubkey) {
+    const page = await fetchReactionsPage(pubkey);
+    _rctCache.more = page.full;
+    _rctCache.cursor = page.oldest;
+    _rctCache.older = (until) => fetchReactionsPage(pubkey, until);
+    return page.evs;
+  }
+  async function fillReactions(pane, gone, tab) {
+    const pubkey = state.activePubkey;
+    const setCount = (n) => setTabCount(tab, n);
+    const quote = pickQuote();
+    const client = await preferredClient();
+    const paint = async (evs, quick) => {
+      setCount(evs.length);
+      const noteIds = new Set();
+      const profileIds = new Set();
+      // A reaction's e tag often names the relay the note was seen on. A note by a stranger is
+      // rarely on this account's own relays, so asking only those left most rows unresolved.
+      const hints = [];
+      for (const ev of evs) {
+        for (const tg of (ev.tags || [])) {
+          if (tg[0] === 'e' && HEX_ID.test(tg[1] || '')) {
+            noteIds.add(tg[1]);
+            if (typeof tg[2] === 'string' && /^wss:\/\/\S+$/.test(tg[2])) hints.push(tg[2]);
+          } else if (tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || '')) profileIds.add(tg[1]);
+        }
+      }
+      const notes = noteIds.size ? await fetchEventsByIds([...noteIds], hints, { offline: quick }).catch(() => new Map()) : new Map();
+      const authors = [...profileIds, ...[...notes.values()].map((n) => n.pubkey)];
+      const profiles = await profilesFor(authors, { offline: quick });
+      if (gone()) return true;
+      pane.textContent = '';
+      if (!evs.length) {
+        pane.append(emptyQuote(t('React to a note and it shows up here.'), quote));
+        return true;
+      }
+      const list = h('div', { className: 'bm-list' });
+      const makeRow = (ev) => {
+        const es = (ev.tags || []).filter((tg) => tg[0] === 'e' && HEX_ID.test(tg[1] || ''));
+        const ps = (ev.tags || []).filter((tg) => tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || ''));
+        const targetId = es.length ? es[es.length - 1][1] : '';
+        const note = targetId ? notes.get(targetId) : null;
+        // Who it was aimed at: the note's author when the note came back, else the
+        // reaction's own p tag, which NIP-25 makes the author of the note.
+        const aimed = note ? note.pubkey : (ps.length ? ps[ps.length - 1][1] : '');
+        const who = aimed ? ((profiles.get(aimed) || {}).name
+          || (() => { try { return shortNpub(NT.nip19.npubEncode(aimed)); } catch (_) { return ''; } })()) : '';
+        // The author is the row's headline and the note's words sit under it, one shape for every
+        // row. A note the relays did not return is still a note by someone: it says so under the
+        // name rather than turning into a different sentence. An e tag with no note is not a profile.
+        const headline = who || (targetId ? t('A Nostr note') : t('A profile'));
+        const gist = noteGist(note);   // no note back: the generic line, a string that already exists
+        // Anything the row can name opens: a note the relays did not return is still a note, and
+        // a client looks it up by id. A row that does nothing when pressed reads as a broken one.
+        const opens = note || targetId || aimed;
+        const item = h('div', { className: 'bm-item', title: opens ? t('Open in {{client}}', { client: client.label }) : '' });
+        const menu = buildEventMenu(ev, null, { npubOf: null });
+        item.append(h('div', { className: 'bm-main' }, [
+          h('div', { className: 'cm-reaction' }, [
+            reactionMark(ev),
+            h('div', { className: 'cm-reaction-body' }, [
+              h('div', { className: 'cm-reaction-head' }, [
+                h('span', { className: 'cm-reaction-who', dir: 'auto', textContent: headline }),
+                h('span', { className: 'cm-reaction-when', textContent: relativeTime(ev.created_at) }),
+              ]),
+              // A profile reaction has no note to quote, and a gist that only repeats the headline is noise.
+              (note || targetId) && gist !== headline ? h('div', { className: 'cm-reaction-gist', dir: 'auto', textContent: gist }) : null,
+            ]),
+          ]),
+          menu.panel,
+        ]), h('div', { className: 'item-actions' }, [menu.btn]));
+        // The note renders everywhere, so the row opens the target, not the reaction.
+        if (opens) item.addEventListener('click', () => {
+          try {
+            openInClient(note
+              ? client.url(NT.nip19.neventEncode({ id: note.id, author: note.pubkey, kind: note.kind, relays: [] }))
+              : targetId
+                ? client.url(NT.nip19.neventEncode({ id: targetId, author: aimed || undefined, relays: [] }))
+                : client.profile(NT.nip19.npubEncode(aimed)));
+          } catch (_) {}
+        });
+        return item;
+      };
+      pane.append(list);
+      paged(list, evs, makeRow, _rctCache);
+      pane.append(endQuote(quote));
+      return !quick || ([...noteIds].every((id) => notes.has(id) || wasAsked('n:' + id)) && authors.every((pk) => profiles.get(pk) || wasAsked('p:' + pk)));
+    };
+    await loadSavedList(pane, gone, _rctCache, fetchReactions, paint, t('Couldn’t read your reactions from your relays.'), quote);
   }
 
   // Session cache per account: the modal opens instantly from the last fetch,
   // and a background refresh keeps it honest. Signatures compare which list
   // events exist (id + created_at) and which bookmark ids resolved, so an
   // unchanged refresh costs nothing on screen.
-  const _bmCache = { pubkey: null, evs: null, events: null };
+  const _bmCache = { pubkey: null, evs: null, events: null, priv: null, addrs: null };
   const bmListsSig = (evs) => (evs || []).map((e) => e.id + ':' + e.created_at).sort().join('|');
   const bmFoundSig = (events) => [...(events || new Map()).keys()].sort().join(',');
   async function refreshBookmarks() {
@@ -17579,24 +18302,94 @@
     } catch (_) {
       return false;
     }
+    const sections = bookmarkSections(evs);
+    // Each list's private entries, read back from its content (see privateBookmarkTags).
+    const priv = new Map();
+    await Promise.all(sections.map(async (s) => { priv.set(s.ev.id, await privateBookmarkTags(s.ev)); }));
     const ids = [];
+    const coords = [];
     const hints = [];
     const seen = new Set();
-    bookmarkSections(evs).forEach((s) => s.ev.tags.forEach((t) => {
-      const id = t && t[0] === 'e' && t[1];
-      if (HEX_ID.test(id || '') && !seen.has(id)) { seen.add(id); ids.push(id); }
-      if (t && t[0] === 'e' && typeof t[2] === 'string' && t[2]) hints.push(t[2]);
+    sections.forEach((s) => bookmarkEntries(s.ev.tags, priv.get(s.ev.id).tags, { hashtags: s.ev.kind === 10003 }).forEach((en) => {
+      if (seen.has(en.key)) return;
+      seen.add(en.key);
+      if (en.type === 'e') ids.push(en.value);
+      else if (en.type === 'a') coords.push(en.value);
+      if (en.hint) hints.push(en.hint);
     }));
-    const events = await fetchEventsByIds(ids, hints);
+    const [events, addrs] = await Promise.all([fetchEventsByIds(ids, hints), fetchAddrEvents(coords, hints)]);
+    const unreadable = (m) => [...m.values()].filter((p) => p.unreadable).length;
     const changed = _bmCache.pubkey !== pubkey ||
       bmListsSig(_bmCache.evs) !== bmListsSig(evs) ||
-      bmFoundSig(_bmCache.events) !== bmFoundSig(events);
+      bmFoundSig(_bmCache.events) !== bmFoundSig(events) ||
+      bmFoundSig(_bmCache.addrs) !== bmFoundSig(addrs) ||
+      unreadable(_bmCache.priv || new Map()) !== unreadable(priv);
     _bmCache.pubkey = pubkey;
     _bmCache.evs = evs;
     _bmCache.events = events;
+    _bmCache.priv = priv;
+    _bmCache.addrs = addrs;
     return changed;
   }
 
+  // ---- changing a named list: its title, and the list itself ----
+  //
+  // Only a named list can be: a bookmark set (30003) or an older generic list (30001) with a d tag
+  // to address it by. The main bookmark list (10003) has no name to change and is the account's
+  // whole bookmark shelf, so it is never offered for deletion. The two lists below are Zap Cooking's
+  // own shelves (its default Saved list and its saved packs), which that app treats as permanent, so
+  // they are left for it to manage.
+  const PROTECTED_LIST_DS = new Set(['nostrcooking-bookmarks', 'zapcooking-saved-packs']);
+  const editableList = (sec) => !!sec && (sec.ev.kind === 30003 || sec.ev.kind === 30001) && !!sec.d && !PROTECTED_LIST_DS.has(sec.d);
+  // THE NEWEST COPY, READ FIRST. A list is replaceable, so publishing it from what this sheet read
+  // minutes ago would erase whatever another client added since. The sheet's own copy is not the
+  // base for an edit: the relays' newest is, and when they say nothing at all nothing is published.
+  async function latestOwnList(kind, d) {
+    const pubkey = state.activePubkey;
+    const relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])];
+    const got = await poolQuerySync(relays, { kinds: [kind], authors: [pubkey], '#d': [d] }, { maxWait: 6000 });
+    const mine = (got || [])
+      .filter((e) => e && e.kind === kind && e.pubkey === pubkey && ((e.tags || []).find((tg) => tg[0] === 'd') || [])[1] === d)
+      .sort((a, b) => b.created_at - a.created_at);
+    if (!mine.length) throw new Error(t('Could not read your bookmarks, so nothing was published.'));
+    return mine[0];
+  }
+  const ownListsSign = (event) => call({ type: 'SIDECAR_OWNER_SIGN', event });
+  // The list with a new title and everything else as it was: its d tag, notes, description, cover
+  // and any encrypted private items in its content. The title goes right after the d tag so a client
+  // that takes the first name it finds takes this one.
+  async function renameBookmarkList(sec, name) {
+    const base = await latestOwnList(sec.ev.kind, sec.d);
+    const rest = base.tags.filter((tg) => tg[0] !== 'title');
+    const at = rest.findIndex((tg) => tg[0] === 'd');
+    const tags = rest.map((tg) => (tg[0] === 'name' ? ['name', name] : tg.slice()));
+    tags.splice(at + 1, 0, ['title', name]);
+    const signed = await ownListsSign({ kind: base.kind, created_at: Math.max(Math.floor(Date.now() / 1000), base.created_at + 1), tags, content: base.content || '' });
+    await publishSigned(signed);
+    return signed;
+  }
+  // Deleting a list, the way both of the apps that make them do: the list is first replaced by an empty
+  // one (what Wisp does, and what every client sees whether or not it honors deletions), then a NIP-09
+  // request names it by address (what Zap Cooking does), so a relay that honors it drops every copy.
+  // Nothing about the notes themselves is touched.
+  async function deleteBookmarkList(sec) {
+    const base = await latestOwnList(sec.ev.kind, sec.d);
+    const at = Math.max(Math.floor(Date.now() / 1000), base.created_at + 1);
+    const empty = await ownListsSign({ kind: base.kind, created_at: at, tags: [['d', sec.d]], content: '' });
+    await publishSigned(empty);
+    try {
+      const request = await ownListsSign({
+        kind: 5, created_at: at,
+        tags: [['a', base.kind + ':' + state.activePubkey + ':' + sec.d], ['e', base.id], ['e', empty.id], ['k', String(base.kind)]],
+        content: '',
+      });
+      await publishSigned(request);
+    } catch (_) { /* the empty list already says it: the request only asks relays to forget the old copies */ }
+    return empty;
+  }
+  // The list the Bookmarks tab is showing: 'ALL', or a list's key. Held for the life of the panel,
+  // so closing the sheet and opening it again lands where it was left.
+  let _bmPick = 'ALL';
   async function fillBookmarks(scroll, gone, evs, events, q) {
     // Sections: the flat list first (what clients without categories write),
     // then categories by name. A list with no e-tags renders nothing — no
@@ -17617,7 +18410,9 @@
 
     // Profiles for the authors, in one query (profilesFor); cached, so a reopen
     // resolves instantly.
-    const profiles = await profilesFor([...events.values()].map((e) => e.pubkey));
+    const priv = _bmCache.priv || new Map();
+    const addrs = _bmCache.addrs || new Map();
+    const profiles = await profilesFor([...events.values(), ...addrs.values()].map((e) => e.pubkey));
     if (gone()) return;
 
     // The scroll container is cleared rather than appended to: the quiet
@@ -17625,158 +18420,346 @@
     // run replaces the spinner), and a second .bm-list under the first would
     // duplicate every bookmark. Cleared only now, after the profile lookup, so
     // the loading quote stays up through the wait instead of a blank sheet.
-    scroll.textContent = '';
-    const list = h('div', { className: 'bm-list' });
-    scroll.append(list);
+    // Every list that has something in it, newest first. A list that holds nothing is not offered:
+    // there is nothing in it to see or remove.
+    //
+    // NEWEST NOTE FIRST, not the order the tags happen to sit in.
+    //
+    // This used to render the e-tags in list order, on the reasoning that it was "the
+    // owning client's own order". It isn't an order: a replaceable list is rewritten whole by
+    // every client on every add and remove, and they do not agree on where a new entry goes.
+    // What we were faithfully displaying was whatever the last client to touch the list happened
+    // to emit, which is why the same bookmarks read in one order here and another in Jumble or
+    // Wisp. Sorting by the note's own created_at gives a list the same shape in every client. It
+    // is not "recently bookmarked", which would be better and is not available: nothing in a list
+    // records WHEN an entry was added.
+    //
+    // WHAT NO RELAY RETURNS IS COUNTED, NOT LISTED. An entry whose note nobody answers for used to sort
+    // to the bottom as "Unknown author" with a shortened id, and a column of them read as a broken
+    // sheet. Hiding them silently made a list look shorter than it is. So they stay out of the rows and
+    // the list says how many it could not find; they appear here the moment a relay answers.
+    //
+    // WHAT A LIST HOLDS, ALL OF IT. Notes, articles and recipes that a list points at by address, web
+    // addresses and hashtags, and the private entries a list keeps encrypted to its owner. What no relay
+    // returns is counted and said, so a list never reads as shorter than it is.
+    const itemsOf = (s) => {
+      const got = priv.get(s.ev.id) || { tags: [], unreadable: false };
+      const all = bookmarkEntries(s.ev.tags, got.tags, { hashtags: s.ev.kind === 10003 });
+      const ref = (en) => (en.type === 'e' ? events.get(en.value) : en.type === 'a' ? addrs.get(en.value) : null);
+      const shown = all.filter((en) => (en.type === 'e' || en.type === 'a' ? !!ref(en) : true));
+      // Ties keep tag order, which is at least stable within one read. Web addresses and hashtags
+      // carry no date, so they follow the dated entries.
+      const dated = shown.filter((en) => ref(en)).sort((a, b) => (ref(b).created_at || 0) - (ref(a).created_at || 0));
+      const undated = shown.filter((en) => !ref(en));
+      return { items: [...dated, ...undated], missing: all.length - shown.length, locked: got.unreadable };
+    };
+    const hasAny = (g) => g.items.length > 0 || g.missing > 0 || g.locked;
+    let groups = sections.map((s) => ({ s, ...itemsOf(s) })).filter(hasAny);
+    // Lists can exist and hold nothing: remove your last bookmark and the kind 10003 is
+    // republished empty rather than deleted. That used to render as a blank panel.
+    if (!groups.length) return empty();
 
-    // One bookmark: the referenced event's author and a snippet, opening in
-    // the preferred web client, removable by republishing the owning list.
-    // `missing` rows (the relays no longer return the event) still render —
-    // dimmed, sorted below the found ones — because they remain bookmarks:
-    // openable by id, and removable.
-    const buildRow = (id, parent, missing) => {
-      const ref = missing ? null : events.get(id);
+    scroll.textContent = '';
+    let list = null;
+    // WHICH LIST, when there is more than one. A native select, so it is as narrow as the sheet
+    // needs and reads in a screen reader; it exists only for an account that has a second list,
+    // and the rest see the tab exactly as it was. All stacks the lists under their names; one
+    // list shows just its own notes. A note in two lists is in both, and removing it from one
+    // takes it from that list only, which the stacked view makes plain.
+    // The title row of a named list: its name, a pencil that turns the name into a field, and a
+    // trash that asks, in words and in its own box, before anything is deleted.
+    const listHeader = (g) => {
+      const block = h('div', { className: 'bm-title-block' });
+      const row = h('div', { className: 'bm-title-row' });
+      const actions = h('div', { className: 'bm-title-actions' });
+      let box = null;
+      let menu = null;
+      const closeBox = () => { if (box) { box._off(); box.remove(); box = null; } };
+      const closeMenu = () => { if (menu) { menu.remove(); menu = null; } };
+      // What can be done to the list sits behind one ⋮, the menu a notification has, so a row of
+      // bookmarks does not sit under a second set of trash cans. Rename first, then the one that is
+      // not undone, in red; Delete asks again, in its own box, before anything is published.
+      const resting = () => {
+        closeBox();
+        closeMenu();
+        row.textContent = '';
+        actions.textContent = '';
+        const more = h('button', { className: 'notif-more-btn', type: 'button', title: t('More options') });
+        more.setAttribute('aria-label', t('More options'));
+        more.setAttribute('aria-expanded', 'false');
+        more.append(icon('more-v'));
+        more.addEventListener('click', () => {
+          if (menu) { closeMenu(); more.classList.remove('open'); more.setAttribute('aria-expanded', 'false'); return; }
+          const item = (label, glyph, cls, go) => {
+            const b = h('button', { className: 'notif-more-item' + (cls ? ' ' + cls : ''), type: 'button' });
+            b.append(icon(glyph), h('span', { textContent: label }));
+            b.addEventListener('click', () => { closeMenu(); more.classList.remove('open'); more.setAttribute('aria-expanded', 'false'); go(); });
+            return b;
+          };
+          menu = h('div', { className: 'notif-more bm-title-menu' }, [
+            item(t('Rename list'), 'edit', '', rename),
+            item(t('Delete list'), 'trash', 'bm-danger', ask),
+          ]);
+          row.after(menu);
+          more.classList.add('open');
+          more.setAttribute('aria-expanded', 'true');
+        });
+        actions.append(more);
+        row.append(h('div', { className: 'bm-title', dir: 'auto', title: g.s.title, textContent: g.s.title }), actions);
+      };
+      // The new name goes in where the old one was. Enter saves, Escape lets go (and does not also
+      // close the sheet), an empty or unchanged name saves nothing.
+      function rename() {
+        closeBox();
+        closeMenu();
+        const input = h('input', { className: 'bm-title-input', type: 'text', value: g.s.title, maxLength: 80 });
+        input.setAttribute('aria-label', t('List name'));
+        let saving = false;
+        const stop = () => { document.removeEventListener('keydown', onKey, true); };
+        const cancel = () => { stop(); resting(); };
+        const save = async () => {
+          if (saving) return;
+          const name = input.value.trim();
+          if (!name || name === g.s.title) return cancel();
+          saving = true;
+          input.disabled = true;
+          try {
+            const signed = await renameBookmarkList(g.s, name);
+            stop();
+            _bmCache.evs = (_bmCache.evs || []).filter((e) => !(e.kind === signed.kind && ((e.tags.find((tg) => tg[0] === 'd') || [])[1]) === g.s.d)).concat(signed);
+            // The content rides through a rename untouched, so what was read from it still holds.
+            if (_bmCache.priv && _bmCache.priv.has(g.s.ev.id)) _bmCache.priv.set(signed.id, _bmCache.priv.get(g.s.ev.id));
+            g.s.ev = signed;
+            g.s.title = name;
+            renderAll();
+          } catch (err) {
+            toast((err && err.message) || t('Could not rename the list'), 'error');
+            saving = false;
+            input.disabled = false;
+            input.focus();
+          }
+        };
+        function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); cancel(); } }
+        document.addEventListener('keydown', onKey, true);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        row.textContent = '';
+        actions.textContent = '';
+        const ok = iconButton(t('Save'), 'check', save);
+        ok.setAttribute('aria-label', t('Save'));
+        const no = iconButton(t('Cancel'), 'x', cancel);
+        no.setAttribute('aria-label', t('Cancel'));
+        actions.append(ok, no);
+        row.append(input, actions);
+        input.focus();
+        input.select();
+      }
+      // The warning is a box under the row, in words, with the buttons beneath it at full width.
+      // Cancel has the focus, so Enter does the safe thing, and Delete ignores a tap for a moment
+      // after it appears (by the clock, not a timer, which a background panel would delay). Escape closes it.
+      function ask() {
+        if (box) return;
+        const del = h('button', { className: 'mini del-confirm', type: 'button', textContent: t('Delete list') });
+        const shownAt = Date.now();
+        const no = h('button', { className: 'mini ghost', type: 'button', textContent: t('Cancel') });
+        const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeBox(); } };
+        box = h('div', { className: 'bm-delete-box', role: 'alertdialog' }, [
+          h('div', { className: 'bm-delete-title', dir: 'auto', textContent: t('Delete the list “{{name}}”?', { name: g.s.title }) }),
+          h('div', { className: 'bm-delete-note', textContent: t('It is removed from every app that reads it. The notes in it are not deleted.') }),
+          h('div', { className: 'bm-delete-actions' }, [del, no]),
+        ]);
+        document.addEventListener('keydown', onKey, true);
+        box._off = () => document.removeEventListener('keydown', onKey, true);
+        no.addEventListener('click', closeBox);
+        del.addEventListener('click', async () => {
+          // A tap straight after the box appears is a double-tap or a stray one, not a decision.
+          if (Date.now() - shownAt < 400) return;
+          del.disabled = true;
+          no.disabled = true;
+          del.textContent = t('Removing…');
+          try {
+            await deleteBookmarkList(g.s);
+            _bmCache.evs = (_bmCache.evs || []).filter((e) => !(e.kind === g.s.ev.kind && ((e.tags.find((tg) => tg[0] === 'd') || [])[1]) === g.s.d));
+            groups = groups.filter((x) => x !== g);
+            _bmPick = 'ALL';
+            toast(t('List deleted'), 'success');
+            if (!groups.length) return empty();
+            renderAll();
+          } catch (err) {
+            toast((err && err.message) || t('Could not delete the list'), 'error');
+            del.disabled = false;
+            no.disabled = false;
+            del.textContent = t('Delete list');
+          }
+        });
+        block.append(box);
+        no.focus();
+      }
+      resting();
+      block.append(row);
+      if (g.s.desc) block.append(h('div', { className: 'bm-cat-desc', dir: 'auto', textContent: g.s.desc }));
+      return block;
+    };
+    const renderAll = () => {
+      scroll.textContent = '';
+      if (_bmPick !== 'ALL' && !groups.some((g) => g.s.key === _bmPick)) _bmPick = 'ALL';
+      if (groups.length > 1) {
+        // A list is named by its title and how many notes it holds. Two that still read the same
+        // (a set called Bookmarks beside the main list, say) also carry their d tag, the one
+        // thing a client cannot repeat, so they can be told apart without renaming either.
+        const label = (g) => (g.s.title || t('Bookmarks')) + ' (' + I18N.fmtNum(g.items.length) + ')';
+        const same = (a, b) => label(a).toLowerCase() === label(b).toLowerCase();
+        const named = (g) => (groups.some((o) => o !== g && same(o, g)) && g.s.d ? label(g) + ' · ' + g.s.d : label(g));
+        const pick = h('select', { className: 'bm-pick' }, [
+          h('option', { value: 'ALL', textContent: t('All bookmarks') }),
+          ...groups.map((g) => h('option', { value: g.s.key, textContent: named(g) })),
+        ]);
+        pick.setAttribute('aria-label', t('Bookmarks'));
+        pick.value = _bmPick;
+        pick.addEventListener('change', () => { _bmPick = pick.value; renderAll(); });
+        scroll.append(pick);
+      }
+      // One named list chosen: its name is a row of its own, with the two things that can be done to
+      // it, and its description beneath. The main list, and every list in the All view, have none.
+      const chosen = _bmPick === 'ALL' ? null : groups.find((g) => g.s.key === _bmPick);
+      const headed = !!chosen && editableList(chosen.s);
+      if (headed) scroll.append(listHeader(chosen));
+      list = h('div', { className: 'bm-list' });
+      scroll.append(list);
+      groups.filter((g) => _bmPick === 'ALL' || g.s.key === _bmPick).forEach((g) => {
+        const { s, items, missing, locked } = g;
+        const group = h('div', { className: 'bm-group' });
+        // In the All view a list that can be changed carries its own pencil and trash in its heading,
+        // the same title row a single list gets, so nobody has to know to pick the list first.
+        const own = _bmPick === 'ALL' && editableList(s);
+        const name = _bmPick !== 'ALL' || own ? '' : (s.title || (groups.length > 1 ? t('Bookmarks') : ''));
+        if (own) group.append(listHeader(g));
+        if (name) group.append(h('div', { className: 'bm-cat', textContent: name }));
+        if (s.desc && !headed && !own) group.append(h('div', { className: 'bm-cat-desc', dir: 'auto', textContent: s.desc }));
+        items.forEach((en) => group.append(buildRow(en, s.ev)));
+        // What the list holds that this sheet cannot show, said plainly and once.
+        if (missing) group.append(h('div', { className: 'bm-unseen', textContent: tn('{{count}} saved item couldn’t be found on your relays.', '{{count}} saved items couldn’t be found on your relays.', missing) }));
+        if (locked) group.append(h('div', { className: 'bm-unseen', textContent: t('Some private items couldn’t be read.') }));
+        list.append(group);
+      });
+      // The bottom of a list that has no more to give. Bookmarks do not paginate, so
+      // reaching the end here is always the real end.
+      scroll.append(endQuote(panelQuote));
+    };
+    // After a removal: take the note from its list's group, and redraw only when a list has
+    // been emptied, so the picker never offers one with nothing in it.
+    const removed = (key, parent) => {
+      const g = groups.find((x) => x.s.ev === parent);
+      if (g) g.items = g.items.filter((x) => x.key !== key);
+      if (groups.some((x) => !hasAny(x))) {
+        groups = groups.filter(hasAny);
+        if (!groups.length) return empty();
+        renderAll();
+      }
+    };
+
+    // One entry: for a note or an addressable event, its author and a snippet, opening in the
+    // preferred web client; for a web address its host and the address, opening in a new tab; for a
+    // hashtag its name, opening that tag in the client. Removable by republishing the owning list,
+    // except a private entry, which is shown and not edited here (changing it means re-encrypting the
+    // list, and a list is not worth risking for a row).
+    const kindLabel = (ref) => BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind;
+    const firstTag = (ev, name) => ((ev.tags || []).find((tg) => tg[0] === name) || [])[1] || '';
+    const buildRow = (en, parent) => {
+      const ref = en.type === 'e' ? events.get(en.value) : en.type === 'a' ? addrs.get(en.value) : null;
       const prof = ref ? profiles.get(ref.pubkey) : null;
       let npub = '';
       if (ref) { try { npub = NT.nip19.npubEncode(ref.pubkey); } catch (_) {} }
-      const item = h('div', { className: 'bm-item' + (missing ? ' bm-missing' : ''), title: t('Open in your web client') });
+      let host = '';
+      if (en.type === 'r') { try { host = new URL(en.value).host.replace(/^www\./, ''); } catch (_) { host = en.value; } }
+      const item = h('div', { className: 'bm-item', title: en.type === 'r' ? en.value : t('Open in your web client') });
+      const name = ref ? ((prof && prof.name) || (npub ? shortNpub(npub) : t('Unknown author'))) : en.type === 'r' ? host : '#' + en.value;
+      const text = ref
+        ? (en.type === 'a' ? firstTag(ref, 'title') || firstTag(ref, 'name') : '') || quoteSnippet(ref.content) || '“' + kindLabel(ref) + '”'
+        : en.type === 'r' ? en.value.replace(/^https?:\/\//i, '') : '';
+      const metaText = ref ? kindLabel(ref) + ' · ' + relativeTime(ref.created_at) : en.type === 'r' ? t('Web page') : t('Hashtag');
+      const lock = en.priv ? h('span', { className: 'bm-lock', title: t('Private') }, [icon('lock')]) : null;
+      if (lock) lock.setAttribute('aria-label', t('Private'));
       const main = h('div', { className: 'bm-main' }, [
         h('div', { className: 'bm-head' }, [
-          avatarEl({ picture: prof && prof.picture, npub }, 'bm-av'),
-          h('div', { className: 'bm-name', textContent: (prof && prof.name) || (npub ? shortNpub(npub) : t('Unknown author')) }),
+          ref
+            ? avatarEl({ picture: prof && prof.picture, npub }, 'bm-av')
+            : h('span', { className: 'bm-av bm-av-glyph' }, [en.type === 'r' ? icon('globe') : '#']),
+          h('div', { className: 'bm-name', textContent: name }),
+          lock,
         ]),
-        h('div', {
-          className: 'bm-snippet',
-          textContent: missing
-            ? id.slice(0, 8) + '…' + id.slice(-6)
-            : quoteSnippet(ref.content) || '“' + (BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind) + '”',
-        }),
-        h('div', {
-          className: 'bm-meta',
-          textContent: missing ? 'not found on your relays' : (BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind) + ' · ' + relativeTime(ref.created_at),
-        }),
+        text ? h('div', { className: 'bm-text', dir: 'auto', textContent: text }) : null,
+        h('div', { className: 'bm-meta', textContent: metaText }),
       ]);
       const actions = h('div', { className: 'item-actions' });
-      // The same ⋮ menu as a notification's, for a bookmark whose note was found: its
-      // event ID, its author's npub and its JSON, to copy. Opens under the content.
-      const menu = ref ? buildEventMenu(ref, null) : null;
-      if (menu) main.append(menu.panel);
-      // The resting row keeps a lone icon button in the inline slot; the confirm
-      // has words, so it takes its own full-width row under the content (the
-      // connected-site grammar) instead of squeezing a label and two buttons
-      // beside a 300px-wide row.
-      const confirmRow = h('div', { className: 'bm-confirm' });
-      let confirming = false;
-      const drawResting = () => {
-        confirming = false;
-        item.classList.remove('bm-confirming');
-        confirmRow.remove();
-        confirmRow.textContent = '';
-        actions.textContent = '';
-        if (menu) actions.append(menu.btn);
-        actions.append(iconButton(t('Remove bookmark'), 'x', (e) => {
-          e.stopPropagation();
-          drawConfirm();
-        }));
-      };
-      const drawConfirm = () => {
-        confirming = true;
-        item.classList.add('bm-confirming');
-        confirmRow.textContent = '';
-        const yes = h('button', { className: 'mini del-confirm', textContent: t('Remove') });
-        const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
-        yes.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          yes.disabled = true;
-          yes.textContent = t('Removing…');
-          // Republish the owning list minus EVERY e-tag for this id — a client
-          // that wrote the same bookmark twice should see both copies go. The
-          // 30001's d-tag rides through untouched (only e-tags are filtered),
-          // so the category stays the same replaceable stream.
-          const tags = parent.tags.filter((t) => !(t[0] === 'e' && t[1] === id));
-          try {
-            const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: { kind: parent.kind, created_at: Math.floor(Date.now() / 1000), tags, content: parent.content || '' } });
-            await publishSigned(signed);
-            parent.tags = tags; // keep the in-memory copy honest for this session
-            const group = item.closest('.bm-group');
-            item.remove();
-            if (group && !group.querySelector('.bm-item')) group.remove();
-            if (!list.querySelector('.bm-item')) empty();
-            toast(t('Bookmark removed'), 'success');
-          } catch (err) {
-            toast((err && err.message) || t('Could not remove the bookmark'), 'error');
-            drawResting();
-          }
-        });
-        no.addEventListener('click', (e) => { e.stopPropagation(); drawResting(); });
-        confirmRow.append(h('span', { className: 'confirm-msg', textContent: t('Remove this bookmark?') }), yes, no);
-        item.append(confirmRow);
-      };
-      drawResting();
-      item.addEventListener('click', async () => {
-        // While the confirm is open the row isn't a link — a tap on the message
-        // (or the gap beside it) must not open the client behind the confirm.
-        if (confirming) return;
-        const client = await preferredClient();
+      // THE ⋮ IS WHERE REMOVING LIVES, so the row carries no trash can of its own. It is the same ⋮ as
+      // a notification's (the event ID, its author's npub and its JSON, to copy, for an entry whose event
+      // was found), with Remove bookmark at the end: the first tap turns it red and says "Tap again to
+      // confirm", the second removes, and anything else lets go (a tap outside the menu, the row itself,
+      // Escape, a few seconds of nothing). A private entry has no remove item (see above), and so, when
+      // there is nothing to copy either, no ⋮.
+      let armed = false;
+      let off = null;
+      const remove = async () => {
+        // Republish the owning list minus EVERY tag for this entry: a client that wrote the same
+        // bookmark twice should see both copies go. The 30001's d-tag rides through untouched (only
+        // this entry's tags are filtered), so the category stays the same replaceable stream.
+        const tags = parent.tags.filter((tg) => !(tg[0] === en.type && (en.type === 't' ? String(tg[1]).toLowerCase() === en.value.toLowerCase() : tg[1] === en.value)));
         try {
-          openInClient(client.url(NT.nip19.neventEncode({ id, author: ref ? ref.pubkey : undefined, relays: [] })));
+          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: { kind: parent.kind, created_at: Math.floor(Date.now() / 1000), tags, content: parent.content || '' } });
+          await publishSigned(signed);
+          parent.tags = tags; // keep the in-memory copy honest for this session
+          item.remove();
+          removed(en.key, parent);
+          toast(t('Bookmark removed'), 'success');
+        } catch (err) {
+          toast((err && err.message) || t('Could not remove the bookmark'), 'error');
+          throw err;
+        }
+      };
+      const menu = ref || !en.priv ? buildEventMenu(ref || null, null, en.priv ? undefined : {
+        remove: {
+          label: t('Remove bookmark'),
+          run: remove,
+          onArm: () => {
+            armed = true;
+            // Capture, and stopped: the first Escape cancels this, it does not also close the sheet.
+            const onDoc = () => menu.disarm();
+            const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); menu.disarm(); } };
+            document.addEventListener('click', onDoc);
+            document.addEventListener('keydown', onKey, true);
+            off = () => { document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey, true); };
+          },
+          onDisarm: () => { armed = false; if (off) { off(); off = null; } },
+        },
+      }) : null;
+      if (menu) { main.append(menu.panel); actions.append(menu.btn); }
+      item.addEventListener('click', async () => {
+        // An armed row is not a link: a tap on it only lets go, so the question is never
+        // answered by opening the client behind it.
+        if (armed) { menu.disarm(); return; }
+        try {
+          if (en.type === 'r') {
+            // A web address is its own page, not something to hand to a Nostr client, and it opens
+            // in a new tab rather than taking over a tab that happens to be on the same site.
+            if (chrome.tabs && chrome.tabs.create) chrome.tabs.create({ url: en.value }); else window.open(en.value, '_blank', 'noopener');
+            return;
+          }
+          const client = await preferredClient();
+          if (en.type === 't') {
+            openInClient((client.hashtag || VIEW_CLIENTS.primal.hashtag)(en.value));
+          } else if (en.type === 'a') {
+            const [k, pk, ...rest] = en.value.split(':');
+            openInClient(client.url(NT.nip19.naddrEncode({ identifier: rest.join(':'), pubkey: pk, kind: Number(k), relays: [] })));
+          } else {
+            openInClient(client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] })));
+          }
         } catch (_) {}
       });
       item.append(main, actions);
       return item;
     };
 
-    sections.forEach((s) => {
-      // NEWEST NOTE FIRST, not the order the tags happen to sit in.
-      //
-      // This used to render the e-tags in list order, on the reasoning that it was "the
-      // owning client's own order". It isn't an order — a kind 10003 is replaceable, so
-      // every client rewrites the whole list on every add and remove, and they do not
-      // agree on where a new entry goes. Some prepend, some append, some rebuild from
-      // their own internal state. What we were faithfully displaying was whatever the
-      // last client to touch the list happened to emit, which is why the same bookmarks
-      // read in one order here and a completely different one in Jumble or Wisp.
-      //
-      // Sorting by the referenced note's created_at gives the same list the same shape in
-      // every client, and it matches what the others already show.
-      //
-      // Not "recently bookmarked", which would be the better sort and is not available:
-      // nothing in a kind 10003 records WHEN an entry was added. That absence is the
-      // whole reason this drifts between clients.
-      //
-      // ONLY WHAT CAN BE SHOWN. An entry whose note no relay returns used to sort to the
-      // bottom as "Unknown author" with a shortened id: still a bookmark, but one nobody
-      // could read, open meaningfully or recognize, and a column of them read as a broken
-      // sheet. They are left out. They stay in the list itself, untouched, and appear
-      // here again the moment a relay answers for them.
-      const found = [];
-      const seen = new Set();
-      s.ev.tags.forEach((t) => {
-        const id = t && t[0] === 'e' && t[1];
-        if (!HEX_ID.test(id || '') || seen.has(id)) return;
-        seen.add(id);
-        if (events.has(id)) found.push(id);
-      });
-      // Ties keep tag order, which is at least stable within one read.
-      found.sort((a, b) => (events.get(b).created_at || 0) - (events.get(a).created_at || 0));
-      if (!found.length) return;
-      const group = h('div', { className: 'bm-group' });
-      if (s.title) group.append(h('div', { className: 'bm-cat', textContent: s.title }));
-      found.forEach((id) => group.append(buildRow(id, s.ev, false)));
-      list.append(group);
-    });
-
-    // Lists can exist and hold nothing: remove your last bookmark and the kind 10003 is
-    // republished empty rather than deleted. That used to render as a blank panel.
-    if (!list.children.length) {
-      list.remove();
-      return empty();
-    }
-
-    // The bottom of a list that has no more to give. Bookmarks do not paginate, so
-    // reaching the end here is always the real end.
-    scroll.append(endQuote(panelQuote));
-    if (!list.children.length) return empty();
+    renderAll();
   }
 
 

@@ -230,36 +230,33 @@ test('A HIGHLIGHT ROW SAYS WHERE IT CAME FROM: A PAGE BY HOST, A NOTE BY ITS AUT
   assert.equal(c.highlightSource({ tags: [] }), null);
 });
 
-test('BOOKMARKS AND HIGHLIGHTS ARE TWO TABS, AND HIGHLIGHTS LOAD ONLY WHEN ASKED FOR', () => {
-  const body = liftPanel('function renderBookmarks()');
-  assert.match(body, /textContent: t\('Bookmarks'\)/);
-  assert.match(body, /textContent: t\('Highlights'\)/);
-  assert.match(body, /if \(hl && !hlFilled\) \{\s*hlFilled = true;\s*fillHighlights\(/);
-  const fetch = liftPanel('async function fetchHighlights(pubkey)');
+test('HIGHLIGHTS ARE READ FROM THE ACCOUNT’S OWN KIND 9802s', () => {
+  const fetch = liftPanel('async function fetchHighlightsPage(pubkey, until)');
   assert.match(fetch, /kinds: \[9802\], authors: \[pubkey\]/);
 });
 
 test('A BOOKMARKED NOTE IS LOOKED FOR ON THE WRITE RELAYS, AND ON ITS HINT WHEN ALLOWED', () => {
-  const fn = liftPanel('async function fetchEventsByIds(ids, hints)');
+  const fn = liftPanel('async function fetchEventsByIds(ids, hints, opts)');
   // The account's own notes live on its write relays, which the read list need not name.
   assert.match(fn, /write = await postRelays\(\)/);
   // A bookmark's own relay hint, only when the account allows relays it did not choose.
   assert.match(fn, /if \(!\(await nip65OnlyFor\(pubkey\)\)\) \{\s*extra = /);
   assert.match(fn, /\[\.\.\.read, \.\.\.write, \.\.\.extra\]/);
-  // And the hints are collected from the bookmarks' e tags.
-  assert.match(liftPanel('async function refreshBookmarks()'), /if \(t && t\[0\] === 'e' && typeof t\[2\] === 'string' && t\[2\]\) hints\.push\(t\[2\]\);/);
+  // And the hints are collected from the entries' own relay hints.
+  assert.match(liftPanel('async function refreshBookmarks()'), /if \(en\.hint\) hints\.push\(en\.hint\);/);
 });
 
 test('SAVED ROWS CARRY THE SAME ⋮ MENU AS A NOTIFICATION', () => {
   assert.match(panelSrc, /^  function buildEventMenu\(ev, linkTarget, opts\) \{/m, 'the menu is shared, not inside the bell');
   assert.match(liftPanel('async function fillHighlights('), /const menu = buildEventMenu\(ev, null, \{ npubOf:/);
-  assert.match(panelSrc, /const menu = ref \? buildEventMenu\(ref, null\) : null;/);
+  assert.match(panelSrc, /const menu = ref \|\| !en\.priv \? buildEventMenu\(ref \|\| null, null, en\.priv \? undefined : \{/);
 });
 
-test('A BOOKMARK NO RELAY RETURNS IS LEFT OUT, NOT SHOWN AS AN UNKNOWN AUTHOR', () => {
+test('A BOOKMARK NO RELAY RETURNS IS COUNTED, NOT SHOWN AS AN UNKNOWN AUTHOR', () => {
   const fill = liftPanel('async function fillBookmarks(');
-  assert.match(fill, /if \(events\.has\(id\)\) found\.push\(id\);/);
-  assert.ok(!/buildRow\(id, s\.ev, true\)/.test(fill), 'missing rows are drawn again');
+  // Only entries that resolved (or need no lookup) become rows; the rest are counted in a line.
+  assert.match(fill, /const shown = all\.filter\(\(en\) => \(en\.type === 'e' \|\| en\.type === 'a' \? !!ref\(en\) : true\)\);/);
+  assert.match(fill, /missing: all\.length - shown\.length/);
   assert.ok(!/'Not on your relays'/.test(fill));
 });
 
@@ -305,13 +302,13 @@ test('A MENTION IN A HIGHLIGHT OR ITS COMMENT READS AS A NAME, not a nostr:npub'
 });
 
 test('the Saved lists read their authors in one query, not one per author', () => {
-  const body = liftPanel('async function profilesFor(pubkeys)');
+  const body = liftPanel('async function profilesFor(pubkeys, opts)');
   assert.match(body, /kinds: \[0\], authors: need\.slice\(i, i \+ 100\)/);
   assert.match(body, /'wss:\/\/purplepag\.es'/);
   // The ones a many-author query to purplepag.es dropped are asked of it one at a time.
   assert.match(body, /const missed = need\.filter\(\(pk\) => !cachedProfile\(pk\)\)\.slice\(0, 12\);/);
   assert.match(body, /poolGetProfile\(\['wss:\/\/purplepag\.es'\], pk\)/);
-  assert.match(liftPanel('async function fillHighlights('), /const profiles = await profilesFor\(\[/);
+  assert.match(liftPanel('async function fillHighlights('), /const profiles = await profilesFor\(wanted, \{ offline: quick \}\);/);
   assert.match(liftPanel('async function fillBookmarks('), /const profiles = await profilesFor\(/);
   assert.ok(!/authors\.map\(async \(pk\) => \[pk, await getProfile/.test(panelSrc), 'a per-author lookup is back');
 });

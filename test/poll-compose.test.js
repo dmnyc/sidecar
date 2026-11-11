@@ -688,7 +688,7 @@ test('the picture costs no second query', () => {
   // cacheProfile; the picture rides along with the name.
   const prefetch = fnBody('async function prefetchNotifProfiles(pubkeys, relays)');
   assert.match(prefetch, /await profilesFor\(need\)/, 'the batch has to go through profilesFor');
-  const batch = fnBody('async function profilesFor(pubkeys)');
+  const batch = fnBody('async function profilesFor(pubkeys, opts)');
   assert.match(batch, /cacheProfile\(pk, JSON\.parse\(ev\.content\) \|\| \{\}\)/, 'the batch has to keep the picture');
   const cache = fnBody('function cacheProfile(pubkey, content)');
   assert.match(cache, /picture: c\.picture \|\| '',/);

@@ -149,6 +149,13 @@ window.SidecarCore = (function () {
     'check-square': '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
     globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
+    // The Yours sheet's four tabs — bookmark, highlighter, bubble, heart — are named from
+    // this map. Bookmark, message-circle and heart already lived here (the note actions,
+    // the page-comment button and the reactions carry them), so a tab wears the same mark
+    // as the thing it lists; the highlighter is highlight.svg from Tabler Icons (MIT —
+    // attribution in NOTICE), chosen over a filled glyph so it matches this map's stroke
+    // vocabulary, and it is what Recent activity draws for a highlight too.
+    highlighter: '<path d="M3 19h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"></path><path d="M12.5 5.5l4 4"></path><path d="M4.5 13.5l4 4"></path><path d="M21 15v4h-8l4 -4l4 0"></path>',
   };
 
   // Icons that are SOLID shapes rather than strokes.
@@ -179,7 +186,8 @@ window.SidecarCore = (function () {
   function h(tag, props, children) {
     const el = document.createElement(tag);
     if (props) Object.assign(el, props);
-    (children || []).forEach((c) => el.append(c));
+    // A child that is not there (null, undefined, false) adds nothing; append() would write the word.
+    (children || []).forEach((c) => { if (c != null && c !== false) el.append(c); });
     return el;
   }
 
@@ -4676,7 +4684,7 @@ window.SidecarCore = (function () {
     // so they read their relays and their profile cache from whichever page installed it.
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
     NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
-    VIEW_CLIENTS, DEFAULT_CLIENT,
+    VIEW_CLIENTS, DEFAULT_CLIENT, resolveClient, renderLinkCard,
     IMG_EXT, VID_EXT, urlIsVideo,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.

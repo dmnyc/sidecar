@@ -132,9 +132,9 @@ test('the store is capped, dropping the least used and never the one just sent',
   assert.ok(!('😀' in kept), 'the least used is the one dropped');
 });
 
-test('the React button counts on the tap and takes it back if the reaction fails', () => {
-  const at = source.indexOf("const reactBtn = actBtn(t('React')");
-  const block = source.slice(at, source.indexOf('// REPOST OR QUOTE', at));
+test('the React flow counts on the tap and takes it back if the reaction fails', () => {
+  const at = source.indexOf('async function reactToEvent(');
+  const block = source.slice(at, source.indexOf('// A REPOST (NIP-18)', at));
   assert.match(block, /const quickRow = rankQuickReactions\(await loadReactionUse\(state\.activePubkey\)\);/);
   const counted = block.indexOf('const counted = noteReactionUse(who, ch);');
   const sent = block.indexOf('await publishReaction(ev, ch);');
