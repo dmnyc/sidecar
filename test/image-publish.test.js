@@ -204,7 +204,7 @@ test('the command prints an image’s existing URL instead of sending it again, 
   for (const target of ['blossom', 'nostr-build']) {
     core.appendRecord(catalog, core.recordFor(image, { target, server: 's', url: 'https://host.example/' + target + '.png', verified: true }, pubkey));
   }
-  const out = cli(['upload', file], { SIDECAR_IMAGE_CATALOG: catalog, SIDECAR_BLOSSOM_SERVER: 'https://blossom.example' });
+  const out = cli(['upload', file, '--to', 'both'], { SIDECAR_IMAGE_CATALOG: catalog, SIDECAR_BLOSSOM_SERVER: 'https://blossom.example' });
   assert.equal(out.status, 0, out.stderr);
   assert.match(out.stdout, /host\.example\/blossom\.png {2}\(already published to blossom\)/);
   assert.match(out.stdout, /host\.example\/nostr-build\.png {2}\(already published to nostr-build\)/);
@@ -221,6 +221,16 @@ test('the command refuses to upload without a key, without a server, or without 
   out = cli(['upload', file, '--to', 'nostr-build'], { ...base, SIDECAR_NCRYPTSEC: tools.encrypt(secretKey, 'pw', 12) });
   assert.match(out.stderr, /terminal is required/);
   assert.ok(!out.stdout.includes('pw') && !out.stderr.includes('pw'));
+});
+
+test('with no --to, an image goes to Blossom only, so nothing unverified is recorded by default', () => {
+  const { file, catalog } = scratch();
+  const image = core.readImage(file);
+  core.appendRecord(catalog, core.recordFor(image, { target: 'blossom', server: 's', url: 'https://host.example/b.png', verified: true }, pubkey));
+  const out = cli(['upload', file], { SIDECAR_IMAGE_CATALOG: catalog, SIDECAR_BLOSSOM_SERVER: 'https://blossom.example' });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /b\.png {2}\(already published to blossom\)/);
+  assert.ok(!/nostr-build/.test(out.stdout), 'nostr.build is opt-in');
 });
 
 test('a typo in a later path stops the batch before any password is asked for', () => {

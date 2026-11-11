@@ -12,6 +12,7 @@
 //
 // Usage:
 //   node scripts/publish-images.mjs upload <image...> [--to blossom|nostr-build|both] [--force]
+//                                        (default: blossom)
 //   node scripts/publish-images.mjs list [search] [--json]
 //   node scripts/publish-images.mjs catalog
 //
@@ -39,12 +40,16 @@ Environment:
   ${core.BLOSSOM_ENV}   Blossom server URL (required unless --to nostr-build)
   ${core.CATALOG_ENV}    catalog path override
 
+Blossom keeps the file exactly as sent and is the default. nostr.build may re-encode an
+image (a PNG can come back as a smaller palette copy), so its URL is recorded as unverified
+whenever the bytes it serves differ from the file. Use it only when that is acceptable.
+
 An image already in the catalog for a target is not sent again; --force sends it anyway.`);
 }
 
 function parseUpload(args) {
   const files = [];
-  let to = 'both';
+  let to = 'blossom';
   let force = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
