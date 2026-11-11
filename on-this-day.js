@@ -1067,14 +1067,17 @@ window.SIDECAR_ON_THIS_DAY = {
   '11-12': [
     { year: 1927, text: "The Holland Tunnel opened to traffic, linking New York and New Jersey under the Hudson." },
     { year: 1892, text: "Pudge Heffelfinger was paid $500 to play one game for Allegheny, the first known professional football player." }, // Wikipedia, Pudge Heffelfinger
+    { year: 1936, text: "The San Francisco-Oakland Bay Bridge opened to traffic, six months before the Golden Gate Bridge." }, // Wikipedia, San Francisco-Oakland Bay Bridge; Alameda County archive
   ],
   '11-13': [
     { year: 1940, text: "Walt Disney released Fantasia, introducing stereophonic sound to movie theaters." }, // Fantasound
     { year: 1789, text: "Benjamin Franklin wrote to a French friend that nothing in this world is certain except death and taxes." }, // Letter to Jean-Baptiste Le Roy, Nov. 13, 1789; National Constitution Center
+    { year: 1907, text: "Paul Cornu rose from the ground in a helicopter near Lisieux, widely counted as the first free flight of one." }, // Britannica, Paul Cornu; Guinness World Records; Centennial of Flight
   ],
   '11-14': [
     { year: 1889, text: "Nellie Bly left New York to see if she could travel around the world in less than eighty days." }, // New York World
     { year: 1851, text: "Moby-Dick was published in the United States, a month after the London edition titled simply The Whale." }, // Wikipedia, Moby-Dick
+    { year: 1910, text: "Eugene Ely flew a Curtiss biplane off a wooden platform on the cruiser USS Birmingham, the first takeoff from a warship." }, // Naval History and Heritage Command; Smithsonian National Air and Space Museum
   ],
   '11-15': [
     { year: 1904, text: "King C. Gillette patented the first safety razor with disposable blades." }, // US 775,134
