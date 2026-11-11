@@ -2581,11 +2581,40 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-end .bm-quote { font-size: 13.5px; color: var(--muted); }
 .bm-end .bm-quote-who { font-size: 11px; margin: 0; opacity: 0.8; }
 .bm-list { display: flex; flex-direction: column; margin-top: 4px; }
+/* Which list the Bookmarks tab shows: a full-width select above the rows, only for an account that has a second list. */
+select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
+/* The plain name of a list with nothing to change (the main list, another app's own shelves): set
+   exactly like a title row's name, so the headings down the All view read as one kind. */
 .bm-cat {
-  font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--muted);
-  margin: 16px 0 2px; letter-spacing: 0.03em;
+  display: flex; align-items: center; min-height: 32px;
+  font-size: 14px; font-weight: 600; color: var(--text);
+  margin: 14px 0 2px;
 }
 .bm-list .bm-group:first-child .bm-cat { margin-top: 0; }
+/* The title row of a named list: its name, and the pencil and trash beside it. */
+.bm-title-block { margin: 2px 0 6px; }
+/* In the All view the title row heads each list, spaced as the plain list name was. */
+.bm-group > .bm-title-block { margin: 14px 0 2px; }
+.bm-list .bm-group:first-child > .bm-title-block { margin-top: 0; }
+.bm-title-row { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.bm-title { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-title-input { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; padding-block: 6px; }
+.bm-title-actions { display: flex; gap: 2px; flex-shrink: 0; }
+/* The warning before a list is deleted: its own box under the row, words first, buttons beneath at full width. */
+.bm-delete-box {
+  display: flex; flex-direction: column; gap: 6px; margin: 6px 0 4px; padding: 10px 12px;
+  border: 1px solid rgba(240, 86, 107, 0.45); border-radius: 10px; background: rgba(240, 86, 107, 0.08);
+}
+.bm-delete-title { font-size: 13px; font-weight: 600; color: var(--red); overflow-wrap: anywhere; }
+.bm-delete-note { font-size: 12px; line-height: 1.4; color: var(--muted); }
+.bm-delete-actions { display: flex; gap: 8px; margin-top: 4px; }
+.bm-delete-actions > button { flex: 1; }
+/* What a list's author wrote about it: a quiet line under its name, two lines at most. */
+.bm-cat-desc {
+  margin: 0 0 4px; font-size: 12px; line-height: 1.4; color: var(--faint);
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.bm-list .bm-group:first-child .bm-cat-desc { margin-top: 0; }
 .bm-item {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 10px 8px; margin: 0 -8px; border-radius: 10px; cursor: pointer;
@@ -2606,8 +2635,24 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .bm-av { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); }
 .bm-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .bm-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A web address or a hashtag has no author to show: a round mark in the avatar's place. */
+.bm-av.bm-av-glyph { display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+.bm-av.bm-av-glyph svg { width: 12px; height: 12px; }
+/* An entry only its owner can read: a small lock after the name. */
+.bm-lock { display: inline-flex; flex-shrink: 0; color: var(--faint); }
+.bm-lock svg { width: 12px; height: 12px; }
+/* What a list holds that the sheet cannot show: one quiet line at the foot of the list. */
+.bm-unseen { margin: 8px 0 2px; font-size: 11.5px; line-height: 1.4; color: var(--faint); }
 .bm-snippet { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .bm-meta { font-size: 11px; color: var(--faint); margin-top: 2px; }
+/* A row whose words ARE the row (a bookmarked note, a comment of yours): content, not a caption. Drawn
+   like a highlight's passage, in the main color, wrapped and cut after two lines, or three for the
+   long kind. A one-line muted caption (.bm-snippet) shows a third of a note and recognizes nothing. */
+.bm-text {
+  margin-top: 2px; font-size: 13px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.bm-text.bm-text-3 { -webkit-line-clamp: 3; line-clamp: 3; }
 /* A comment's row in the list: what it answers, as a quiet line above its words. The comment
    itself is read on its own page (thread.html). */
 .cm-ref { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2634,18 +2679,6 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   border-inline-start: 2px solid var(--gold-soft); padding-inline-start: 8px;
 }
-/* entries whose events the relays no longer return: below the found ones,
-   under a divider, dimmed — present (they're still bookmarks) but quiet */
-.bm-item.bm-missing { opacity: 0.55; }
-/* a dimmed row that is being asked about keeps full strength, so the red trash and its question
-   keep their contrast */
-.bm-item.bm-missing:has(.del-confirm) { opacity: 1; }
-.bm-item.bm-missing:has(.del-confirm) .bm-main > :not(.bm-meta) { opacity: 0.55; }
-/* A trash that has been tapped once: red, with the row's date line asking the question. */
-.icon-btn.del-confirm { color: var(--red); background: rgba(240, 86, 107, 0.16); border-color: transparent; }
-.icon-btn.del-confirm:hover { color: var(--red); background: rgba(240, 86, 107, 0.26); }
-.bm-meta.bm-meta-ask { color: var(--muted); }
-.bm-item.bm-missing .bm-snippet { font-family: var(--font-mono); font-size: 11.5px; }
 
 /* data recovery modal (Lazarus) */
 .modal .recovery-modal .actions { margin-top: 22px; }
@@ -6090,6 +6123,9 @@ html:has(#view-approval:not(.hidden)) .toasts {
 .notif-more.poll-more-menu { margin: 0 0 10px; }
 .notif-more-item:hover svg { color: var(--gold); }
 .notif-more-item.armed, .notif-more-item.armed svg { color: var(--red); }
+/* The ⋮ on a list's title row opens flush with the row, and its Delete is the red one. */
+.bm-title-block .notif-more { margin-inline-start: 0; }
+.notif-more-item.bm-danger, .notif-more-item.bm-danger svg, .notif-more-item.bm-danger:hover svg { color: var(--red); }
 .notif-more-item:disabled { opacity: 0.6; cursor: default; }
 
 /* Indented to the same 22px gutter .notif-content uses, so the glyph column stays clear

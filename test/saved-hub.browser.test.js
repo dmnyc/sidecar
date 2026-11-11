@@ -61,9 +61,9 @@ function liftConst(name) {
 }
 const FUNCTIONS = [
   'function renderBookmarks(', 'function buildEventMenu(', 'function zapSender(', 'async function liveThreadTab(', 'async function seedThread(', 'async function openThreadTab(', 'function commentParentId(', 'function commentPage(',
-  'async function fillComments(', 'async function fetchComments(',
-  'async function fillHighlights(', 'async function fetchHighlights(', 'function highlightSource(',
-  'async function fillReactions(', 'async function fetchReactions(', 'function noteGist(', 'function reactionMark(', 'function reactionDisplay(',
+  'async function fillComments(', 'async function fetchCommentsPage(', 'async function fetchComments(',
+  'async function fillHighlights(', 'async function fetchHighlightsPage(', 'async function fetchHighlights(', 'function highlightSource(',
+  'async function fillReactions(', 'async function fetchReactionsPage(', 'async function fetchReactions(', 'function noteGist(', 'function reactionMark(', 'function reactionDisplay(',
   'async function loadSavedList(', 'function wireTabSlider(',
 ];
 const CONSTS = ['THREAD_SEEDS_KEY', 'SAVED_PAGE', 'tabCount', 'setTabCount', 'paged', '_hlCache', '_cmCache', '_rctCache'];
@@ -135,7 +135,11 @@ const real = {
   poolQuerySync: async (relays, f) => {
     queried.push(f.kinds[0]);
     if (f['#e']) return [...DB.values()].filter((e) => e.kind === 1111 && e.tags.some((x) => x[0] === 'e' && x[1] === f['#e'][0]));
-    if (f.kinds[0] === 1111) return [C1, NOSTR_SCOPED, ...MANY];
+    // A relay honors the window it is asked for: newest first, back from until, no more than limit.
+    if (f.kinds[0] === 1111) {
+      const all = [C1, NOSTR_SCOPED, ...MANY].filter((e) => !f.until || e.created_at <= f.until).sort((a, b) => b.created_at - a.created_at);
+      return f.limit ? all.slice(0, f.limit) : all;
+    }
     if (f.kinds[0] === 9802) return [HL];
     if (f.kinds[0] === 7) return REACTIONS;
     return [];
@@ -254,7 +258,8 @@ const hub = () => ({
     const more = () => q('#modal .bm-scroll:not(.hidden) .show-more-btn');
     out.first = { items: items(), more: !!more(), count: hub().tabs[2].count };
     more().click(); out.second = { items: items(), more: !!more() };
-    more().click(); more().click(); more().click();
+    // Past what the relay sent in one page the next page is asked for, and the list is drawn again at the length it had plus a screen.
+    for (let i = 0; i < 12 && more(); i++) { more().click(); await wait(500); }
     out.last = { items: items(), more: !!more() };
   }
   const pre = document.createElement('pre'); pre.id = 'result'; pre.textContent = JSON.stringify(out); document.body.append(pre);
@@ -364,5 +369,5 @@ test('a long list appears in screens of thirty under Show more, and the capsule 
   const r = measure({ flow: 'paging', many: 130 });
   assert.deepEqual(r.first, { items: 30, more: true, count: '99+' });
   assert.deepEqual(r.second, { items: 60, more: true });
-  assert.deepEqual(r.last, { items: 131, more: false }, 'every comment is reachable, and the button leaves with the last of them');
+  assert.deepEqual(r.last, { items: 131, more: false }, 'every comment is reachable, older pages included, and the button leaves with the last of them');
 });

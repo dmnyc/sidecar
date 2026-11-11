@@ -301,7 +301,7 @@ function menuWorld(addPrivateMute) {
     clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].f = null; },
   });
   vm.createContext(ctx);
-  vm.runInContext(lift(/  function buildEventMenu\(ev, linkTarget, opts\) \{[\s\S]*?\n    return \{ btn, panel \};\n  \}\n/, 'buildEventMenu') + '\nglobalThis.build = buildEventMenu;', ctx);
+  vm.runInContext(lift(/  function buildEventMenu\(ev, linkTarget, opts\) \{[\s\S]*?\n    return \{ btn, panel, disarm: [^\n]*\};\n  \}\n/, 'buildEventMenu') + '\nglobalThis.build = buildEventMenu;', ctx);
   return { ctx, timers, toasts };
 }
 
@@ -510,4 +510,57 @@ test('arming, and an armed row that times out, never hide anything', async () =>
   await row.click();
   timers.find((x) => x.f && x.ms === 4000).f();
   assert.equal(item.classList.contains('hidden'), false);
+});
+
+// ---- the remove item (bookmark rows): the same two taps, for a row that can be taken out of its list ----
+test('REMOVE: the menu can hold only a remove item; one tap arms it, a quick second does nothing, a later one runs it', async () => {
+  const { ctx } = menuWorld(async () => true);
+  let now = 1000;
+  ctx.Date = { now: () => now };
+  const log = [];
+  const menu = ctx.build(null, null, { remove: { label: 'Remove bookmark', run: async () => { log.push('run'); }, onArm: () => log.push('arm'), onDisarm: () => log.push('disarm') } });
+  await menu.btn.click();
+  assert.deepEqual(plain(labels(menu)), ['Remove bookmark'], 'no event, so nothing to copy: only the remove item');
+  const row = menu.panel.children.at(-1);
+  await row.click();
+  assert.equal(row.children[1].textContent, 'Tap again to confirm');
+  assert.ok(row.classList.contains('armed'));
+  now += 100;
+  await row.click();
+  assert.deepEqual(plain(log), ['arm'], 'a double-tap runs nothing');
+  now += 600;
+  await row.click();
+  assert.deepEqual(plain(log), ['arm', 'run']);
+});
+
+test('REMOVE: letting go puts the words back, and a failed removal leaves the item usable', async () => {
+  const { ctx, timers } = menuWorld(async () => true);
+  let now = 1000;
+  ctx.Date = { now: () => now };
+  let fail = true;
+  const log = [];
+  const menu = ctx.build(null, null, { remove: { label: 'Remove bookmark', run: async () => { if (fail) throw new Error('no'); log.push('run'); }, onArm: () => log.push('arm'), onDisarm: () => log.push('disarm') } });
+  await menu.btn.click();
+  const row = menu.panel.children.at(-1);
+  await row.click();
+  menu.disarm();
+  assert.equal(row.children[1].textContent, 'Remove bookmark');
+  assert.ok(!row.classList.contains('armed'));
+  // The timer lets go by itself.
+  await row.click();
+  const t = timers.find((x) => x.f && x.ms === 5000);
+  assert.ok(t, 'a disarm timer is set');
+  t.f();
+  assert.equal(row.children[1].textContent, 'Remove bookmark');
+  // A removal that fails puts the item back, and a fresh pair of taps can try again.
+  await row.click();
+  now += 600;
+  await row.click();
+  assert.equal(row.disabled, false);
+  assert.equal(row.children[1].textContent, 'Remove bookmark');
+  fail = false;
+  await row.click();
+  now += 600;
+  await row.click();
+  assert.deepEqual(plain(log).filter((x) => x === 'run'), ['run']);
 });

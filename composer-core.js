@@ -186,7 +186,8 @@ window.SidecarCore = (function () {
   function h(tag, props, children) {
     const el = document.createElement(tag);
     if (props) Object.assign(el, props);
-    (children || []).forEach((c) => el.append(c));
+    // A child that is not there (null, undefined, false) adds nothing; append() would write the word.
+    (children || []).forEach((c) => { if (c != null && c !== false) el.append(c); });
     return el;
   }
 

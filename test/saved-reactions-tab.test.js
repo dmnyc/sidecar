@@ -43,7 +43,7 @@ test('a reaction row shows the mark and opens the note it reacted to', () => {
 });
 
 test('reaction rows page in screens and feed the shared count writer', () => {
-  assert.match(fillPart, /paged\(list, evs, makeRow\)/);
+  assert.match(fillPart, /paged\(list, evs, makeRow, _rctCache\)/);
   assert.match(fillPart, /setTabCount\(tab, n\)/);
   assert.match(fillPart, /loadSavedList\(pane, gone, _rctCache, fetchReactions/);
 });
