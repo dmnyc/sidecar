@@ -11,20 +11,53 @@ still open, and the order to build in.
 
 ## Where they live
 
-Only in the expanded composer (`compose.html`). The panel is a 360px strip, which is the wrong
-place to write more than a note, and it already has an **Expand** link for the rest. The panel
-composer does not change.
+**Threads and articles are written in the expanded composer only** (`compose.html`). The panel is a
+360px strip, which is the wrong place for either: an article needs the width for its toolbar, its
+Preview and a readable measure, and a thread needs room to show its progress when it publishes. The
+panel never edits one.
 
-The expanded composer gets a mode switch above the editor: **Note | Thread | Article**. Note is
-what it is today. The rules that keep the modes from colliding:
+### The expanded composer: tabs
 
-- A **poll** exists only in Note mode, as now.
-- An **article** is never a reply: a kind 30023 is not a threaded kind, so the Article mode is
-  unavailable while a reply target is set, and says why.
+A tab strip above the editor: **Note | Poll | Thread | Article**. Each tab is one kind of event.
+Note is what the composer is today, and a poll, which is its own kind (1068), moves out of Note into
+its own tab. A tab that does not apply is shown disabled with the reason, never hidden:
+
+- **Article** is unavailable while a reply target is set: a kind 30023 is not a threaded kind.
+- **Poll** is unavailable while a reply target is set, as a poll is today.
 - A **thread** can be a reply: its first post answers the target and every later post answers the
   post before it.
-- Changing mode on a draft that has content **asks first**. Thread to Note with more than one post
+- Changing tab on a draft that has content **asks first**. Thread to Note with more than one post
   offers to join them or keep only the first. Note to Article asks whether the text becomes the body.
+
+### The panel: three small changes
+
+The panel composer stays a note composer. It gains entry points and a tidier set of options, and no
+new editor:
+
+1. **Expand becomes a small menu**: Expand, Make a thread, Write an article. Each opens the
+   expanded composer in that tab with the draft carried over, which the shared draft slot already
+   does. This is how the panel reaches the new modes without a second thread or article editor.
+2. **A “More” disclosure** collapses the options that are used rarely: the poll, proof of work, the
+   review countdown and its length, and alt text. It is closed by default, remembers what was left
+   open, uses the accordion pattern Settings already has (`aria-expanded`), and carries a count when
+   something inside is on (“More, 1 on”), so a closed section never hides an active setting.
+3. **A thread or article draft never opens in the panel.** This includes opening a draft, by every
+   route the panel has to one:
+   - opening the composer, which loads the account's draft slot (`openComposer`);
+   - resuming a saved draft, from the chooser's button or straight from the Saved drafts list
+     (`resumeFrom`);
+   - the composer coming back after an account switch or a panel reload.
+
+   On any of them, a draft that is a thread or an article is not drawn in the panel. The panel opens
+   it in the expanded composer instead, automatically, and says so in one line (“Opened in the
+   expanded editor”). In the Saved drafts list, shared with the expanded composer, those entries carry
+   a mark (“Opens in the expanded editor”) so the move is not a surprise.
+
+   Two tabs must never edit the one draft slot, or the later save silently wins. The panel already
+   follows this rule: it keeps one composer per account, and leaves out of its list the draft an open
+   tab is writing, because choosing it “would only focus the tab anyway”. The redirect reuses that.
+   It looks for an expanded composer already open for the account (`liveComposeTab`) and **focuses
+   it**, and opens a new tab only when there is none.
 
 ## What they share with a note
 
@@ -184,9 +217,9 @@ They are built after publishing works, as their own pull request, and ship in th
 All of it is for after 1.17.1. Each step is its own pull request, in this order, and none starts
 without a go-ahead:
 
-1. **Threads.** The mode switch, stacked boxes, paste split, numbering, sequential publish with the
-   failure and resume behavior, the receipt.
-2. **Article, publish.** The form, the formatting toolbar, the markdown Preview, the `d` rules and
+1. **Threads.** The tab strip, stacked boxes, paste split, numbering, sequential publish with the
+   failure and resume behavior, the receipt, and the panel's Expand menu and automatic redirect.
+2. **Article, publish.** The Article tab, the form, the formatting toolbar, the markdown Preview, the `d` rules and
    the collision check, the size hint, the receipt with `naddr`.
 3. **Article, edit and delete.** Shipped in the same release as step 2, since both are the first
    Article release.
@@ -214,8 +247,12 @@ Settled on 2026-11-11:
 2. **25 posts** is the ceiling for a thread.
 3. The article body has a **formatting toolbar**.
 4. **Edit and delete** are in the first Article release.
+5. **Threads and articles are expanded-only.** A draft of either kind reopened in the panel is sent
+   to the expanded composer automatically.
+6. The expanded composer has **tabs** (Note | Poll | Thread | Article), and the panel has an Expand
+   menu and a collapsed **More** section for its rarely used options.
 
 Still open:
 
-5. Which **readers** the article receipt offers. It needs a per-client article address, which the
+7. Which **readers** the article receipt offers. It needs a per-client article address, which the
    note readers do not have today, so this is decided when step 2 is built.
