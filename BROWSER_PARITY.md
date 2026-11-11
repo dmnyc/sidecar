@@ -102,6 +102,14 @@ straight from 1.8.0 to 1.10.0. Consequences worth holding onto:
       lock screen, not only the summary: it must say no overlaps were measured. Run it again
       at a short panel (`?h=700`) and at the largest panel zoom (`?zoom=1.2`) when a lock
       screen, a theme or the zoom changed this release.
+- [ ] **Store screenshots check.** The gallery in the Chrome Web Store, on AMO and in the
+      sidecar.top slideshow is one set, and it has to show the product as released. Run
+      `node scripts/store-screenshots/needed.js`: it lists the interface files that changed since the
+      last tag and exits 1 when there are any. On a hit, make the set on the release commit
+      (`node scripts/store-screenshots/run.js --release X.Y.Z …`, see
+      `scripts/store-screenshots/README.md`), look at every image in `store/screenshots-X.Y.Z/chrome`
+      and `/firefox`, and upload them to both stores and the site. No hit, no new set. A pull request
+      that changes the interface is not done until this pass can be made from it.
 - [ ] **Firefox smoke test** — `about:debugging` → This Firefox → Load Temporary Add-on;
       exercise the sidebar, an approval, and confirm the panel actually renders (the
       blank-panel regression — i.e. the origin gate lets extension pages through).

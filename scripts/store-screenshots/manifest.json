@@ -1,0 +1,16 @@
+{
+  "canvas": { "width": 1280, "height": 800 },
+  "plate": "#2c1e53",
+  "fourPanels": { "x": [15, 332, 650, 967], "y": 22, "w": 298, "h": 756, "radius": 8 },
+  "twoUp": {
+    "page": { "x": 6, "y": 47, "w": 994, "h": 707, "radius": 6 },
+    "panel": { "x": 1006, "y": 61, "w": 267, "h": 678, "radius": 8 }
+  },
+  "images": [
+    { "file": "store-1-panels.png", "layout": "fourPanels", "panels": ["lock", "welcome", "profile", "wallet"] },
+    { "file": "store-2-apps.png", "layout": "twoUp", "page": "apps", "panel": "welcome-clean" },
+    { "file": "store-3-wallets.png", "layout": "twoUp", "page": "wallets", "panel": "wallet-setup" },
+    { "file": "store-4-signin.png", "layout": "twoUp", "page": "client-login", "panel": "approve-login", "backdropFlag": "--backdrop-login" },
+    { "file": "store-5-pay.png", "layout": "twoUp", "page": "client-pay", "panel": "approve-pay", "backdropFlag": "--backdrop-pay" }
+  ]
+}

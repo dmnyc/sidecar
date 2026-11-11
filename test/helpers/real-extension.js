@@ -62,7 +62,11 @@ function nostrTools() {
 }
 
 // ---- a relay: REQ, EVENT, CLOSE, over a WebSocket server written by hand ----
-function startRelay({ delayMs = 0 } = {}) {
+//
+// `tls` ({ key, cert }) makes it a wss:// server and `http` ((req, res) => void) answers plain GETs, which is how
+// a store-screenshot run serves a person's picture from a hostname Chrome has been told to send here.
+// `onEvent(event, { push, events })` sees each event a client publishes, after it is stored: a pretend wallet answers there.
+function startRelay({ delayMs = 0, tls = null, http: onHttp = null, onEvent = null } = {}) {
   const events = [];
   const log = [];
   const live = new Set();   // open subscriptions, so an event arriving later is pushed to them
@@ -90,7 +94,8 @@ function startRelay({ delayMs = 0 } = {}) {
     events.push(ev);
     for (const e of live) if (e.filters.some((f) => matches(ev, f))) e.send(['EVENT', e.sub, ev]);
   }
-  const server = http.createServer((q, r) => { r.writeHead(426); r.end(); });
+  const handler = (q, r) => { if (onHttp) onHttp(q, r); else { r.writeHead(426); r.end(); } };
+  const server = tls ? require('node:https').createServer(tls, handler) : http.createServer(handler);
   server.on('upgrade', (req, socket) => {
     const key = req.headers['sec-websocket-key'];
     socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '
@@ -135,6 +140,7 @@ function startRelay({ delayMs = 0 } = {}) {
         } else if (msg[0] === 'EVENT') {
           push(msg[1]);
           send(['OK', msg[1].id, true, '']);
+          if (onEvent) { try { onEvent(msg[1], { push, events }); } catch (_) { /* a hook must not break the relay */ } }
         }
       }
     });
@@ -142,15 +148,15 @@ function startRelay({ delayMs = 0 } = {}) {
     socket.on('error', () => {});
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
-    resolve({ events, log, push, url: 'ws://127.0.0.1:' + server.address().port, close: () => server.close() });
+    resolve({ events, log, push, port: server.address().port, url: (tls ? 'wss://' : 'ws://') + '127.0.0.1:' + server.address().port, close: () => server.close() });
   }));
 }
 
 // ---- Chrome over a debugging pipe ----
-function launchChrome(userDataDir) {
+function launchChrome(userDataDir, extraArgs = []) {
   const proc = spawn(CHROME, [
     '--headless=new', '--no-sandbox', '--disable-gpu', `--user-data-dir=${userDataDir}`,
-    '--remote-debugging-pipe', '--enable-unsafe-extension-debugging', 'about:blank',
+    '--remote-debugging-pipe', '--enable-unsafe-extension-debugging', ...extraArgs, 'about:blank',
   ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   const toChrome = proc.stdio[3];
   const fromChrome = proc.stdio[4];
@@ -181,11 +187,15 @@ function launchChrome(userDataDir) {
 
 // Starts everything and returns a handle. Throws an error with .skip = true when this Chrome cannot load an unpacked
 // extension over the pipe, which the tests turn into a skip rather than a failure.
-async function startExtension({ relayDelayMs = 0, settings = {} } = {}) {
+//
+// Options for a store-screenshot run: `bare` stops before a keystore exists (the first-run screens);
+// `chromeArgs` are extra command-line flags; `relayOptions` go to the relay (see startRelay);
+// `chromeArgsFor(relay)` builds flags that need the relay's port.
+async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, chromeArgs = [], chromeArgsFor = null, relayOptions = {} } = {}) {
   if (!CHROME) { const e = new Error('no Chrome found'); e.skip = true; throw e; }
-  const relay = await startRelay({ delayMs: relayDelayMs });
+  const relay = await startRelay({ delayMs: relayDelayMs, ...relayOptions });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-real-'));
-  const chrome = launchChrome(path.join(dir, 'profile'));
+  const chrome = launchChrome(path.join(dir, 'profile'), [...chromeArgs, ...(chromeArgsFor ? chromeArgsFor(relay) : [])]);
   const cleanup = () => { chrome.kill(); relay.close(); try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { /* best effort */ } };
   try {
     await sleep(2000);
@@ -235,6 +245,28 @@ async function startExtension({ relayDelayMs = 0, settings = {} } = {}) {
       put: (template, who) => { const e = nt.sign(template, who); relay.events.push(e); return e; },
       // The same, arriving now: open subscriptions are sent it as it happens, as when another device publishes.
       push: (template, who) => { const e = nt.sign(template, who); relay.push(e); return e; },
+      // A web page in a tab of its own, the extension's content scripts running in it as in any page.
+      // `evaluate(expression, { wait })` runs in the page; with wait: false it does not wait for a promise,
+      // which is how a page starts a request (window.nostr...) that only ends when a person answers it.
+      openPage: async (url) => {
+        const page = await attach(url);
+        return {
+          evaluate: async (expression, { wait = true } = {}) => {
+            const r = await chrome.send('Runtime.evaluate', { expression, awaitPromise: wait, returnByValue: true }, page.sessionId);
+            if (r.exceptionDetails) throw new Error('page threw: ' + (r.exceptionDetails.exception && r.exceptionDetails.exception.description || r.exceptionDetails.text));
+            return r.result.value;
+          },
+          // A picture of the page at the size of a browser window, as a PNG file.
+          screenshot: async (file, { width = 1280, height = 800, scale = 2 } = {}) => {
+            await chrome.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false }, page.sessionId);
+            await chrome.send('Page.bringToFront', {}, page.sessionId);
+            await sleep(1200);
+            const shot = await chrome.send('Page.captureScreenshot', { format: 'png' }, page.sessionId);
+            fs.writeFileSync(file, Buffer.from(shot.data, 'base64'));
+          },
+          close: () => chrome.send('Target.closeTarget', { targetId: page.targetId }),
+        };
+      },
       // The panel, reloaded: what opening it again after a reload is.
       reload: async () => { await evaluate('location.reload()'); await sleep(2500); await waitFor(`!document.getElementById('view-main').classList.contains('hidden')`, 15000); },
       // Every call the panel makes to chrome.tabs and chrome.windows, from now on, in order.
@@ -257,7 +289,8 @@ async function startExtension({ relayDelayMs = 0, settings = {} } = {}) {
     // locked, and a new keystore auto-locks at thirty minutes. A Mac whose screen is asleep says
     // "locked" at any moment, which locked the account between one message and the next. Settings
     // written before the keystore exists win over its defaults, and 0 means never on a timer.
-    await message({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: 0, autoLockNoticeShown: true } });
+    await message({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: 0, autoLockNoticeShown: true, ...(bare ? settings : {}) } });
+    if (bare) return handle;
     const init = await message({ type: 'SIDECAR_INIT', pin: PIN });
     if (!init || !init.ok) throw new Error('keystore init failed: ' + JSON.stringify(init));
     let add = await message({ type: 'SIDECAR_ADD_ACCOUNT', secret: SK.me, name: 'Tester' });
