@@ -9,15 +9,20 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
-## [Unreleased]
+## [1.17.1] — 2026-11-12
 
 ### Added
 - **Your library: bookmarks, highlights, your web-page comments and your reactions, in one sheet.** The top-bar button is a book with a bookmark in it now, since the bare ribbon belongs to one tab inside. It opens four icon tabs, each counted and each read from your own relays, under a small “Your library” line, and the heading names whichever is open. Every row leads with where it came from: a comment its site, a highlight its page or author, a reaction its author beside a large copy of the mark you left, with the note’s words under it and a note no relay returns still opening in your client. Bookmarks show everything a list holds, not only notes: articles and recipes, web addresses and hashtags (from the main list), and the entries other clients keep private (encrypted in the list; shown with a lock and not editable here), and a list says how many saved items no relay could return. Mute packs and other lists of people or words are not bookmark lists and stay out. They include the named lists other clients keep (bookmark sets, as Wisp and Zap Cooking write them), chosen from a menu that appears only when there is more than one, where a named list can be renamed or deleted from the ⋮ on its own title row (deleting asks first and never touches the notes). Removing a bookmark is the last item in its ⋮ menu, so rows carry no trash cans: the first tap turns it red and says “Tap again to confirm”, and it lets go on any other tap or Escape. A list reopened in the same panel is on screen at once from what it already read, and once the library has been opened, new reactions, highlights, comments, bookmarks and deletions appear in it as they happen. Highlights, comments and reactions page back through everything on your relays: Show more asks for older ones once the first screens are shown. Opening a comment opens it on its own Sidecar page.
 - **A page for each comment you make on the web.** Many clients draw a NIP-22 comment over a web address nowhere at all, so Sidecar reads it itself: the page it was written on, the comment in full, and its replies as the tree they are, with what people reacted with under each. Replies are looked for at the inboxes of whoever is being answered, not only your own relays, so one written from another client turns up. Reply opens the composer on that comment, React signs and publishes a reaction from the page, any reply can fold away, and any comment in the tree can become the page. Opening another comment from the panel reuses the tab already open.
 - **Nostr Vault joins the clients a note or profile can open in.** Its threads take the same `nevent`, `note` and `naddr` links the other clients do, at nostrvault.app/thread/, and profiles live at nostrvault.app/p/. It sits in the "view notes in" choice under Settings → Posting where Nostrich used to be.
+- **A command that makes the store screenshots from the real extension.** The panel, its pages and the approval cards are captured from the running extension, with a pretend wallet and the client’s own page loaded live, and laid out for Chrome and for Firefox, where the panel sits on the left. It is a developer tool and ships nothing in the extension.
+- **A command that publishes an image to a Blossom server** and keeps a catalog of its address, with nostr.build as an option. The key is an encrypted NIP-49 value opened at a hidden password prompt. It is a developer tool and ships nothing in the extension.
 
 ### Removed
 - **Nostrich is no longer offered as a client.** The app directory on the Welcome page drops nostrich.org, and so does the "view notes in" choice under Settings → Posting; a saved choice of Nostrich now opens notes and profiles in the default client instead.
+
+### Documentation
+- **The release checklist has a store screenshots check.** A command lists the interface files changed since the last release, and when there are any the gallery is made again from the release.
 
 ## [1.17.0] — 2026-11-09
 

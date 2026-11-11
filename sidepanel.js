@@ -302,6 +302,8 @@
     // 1.17.0. Checked against the Project Gutenberg text of The Awakening (1899), chapter 6;
     // Chopin is a writer the list did not already have.
     { text: 'The voice of the sea speaks to the soul.', who: 'Kate Chopin, 1899' },
+    { text: 'Ah, but a man’s reach should exceed his grasp, or what’s a Heaven for?', who: 'Robert Browning, 1855' },
+    { text: 'The world stands out on either side no wider than the heart is wide.', who: 'Edna St. Vincent Millay, 1917' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

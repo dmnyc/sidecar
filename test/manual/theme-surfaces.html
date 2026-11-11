@@ -90,6 +90,37 @@
   const list = h('div', { className: 'list' }, [tx]);
   section('wallet', card, list, h('div', { className: 'row' }, [btn('primary', 'Send'), btn('secondary', 'Receive')]));
 
+  // ---- the library sheet: a list's title row and its menu, a row with a private lock, the notes under a list ----
+  // Drawn with the classes sidepanel.js builds, so the sweep sees what styles.css and each theme do to them.
+  const more = () => { const b = h('button', { className: 'notif-more-btn', type: 'button', title: 'More options' }); b.append(icon('more-v')); return b; };
+  const menuItem = (label, ic, cls) => { const b = h('button', { className: 'notif-more-item ' + (cls || ''), type: 'button' }); b.append(icon(ic), h('span', { textContent: label })); return b; };
+  const titleRow = h('div', { className: 'bm-title-row' }, [h('div', { className: 'bm-title', textContent: 'Reading list' }), h('div', { className: 'bm-title-actions' }, [more()])]);
+  const titleMenu = h('div', { className: 'notif-more bm-title-menu' }, [menuItem('Rename list', 'edit'), menuItem('Delete list', 'trash', 'bm-danger'), menuItem('Tap again to confirm', 'trash', 'bm-danger armed')]);
+  const titleBlock = h('div', { className: 'bm-title-block' }, [titleRow, titleMenu]);
+  const bmRow = (name, text, meta, extra) => h('div', { className: 'bm-item' }, [
+    h('div', { className: 'bm-main' }, [
+      h('div', { className: 'bm-head' }, [h('span', { className: 'bm-av bm-av-glyph' }, [icon('globe')]), h('div', { className: 'bm-name', textContent: name }), extra].filter(Boolean)),
+      h('div', { className: 'bm-text', textContent: text }),
+      h('div', { className: 'bm-meta', textContent: meta }),
+    ]),
+    h('div', { className: 'item-actions' }, [more()]),
+  ]);
+  const lockMark = h('span', { className: 'bm-lock', title: 'Private' }, [icon('lock')]);
+  const bmList = h('div', { className: 'bm-list' }, [
+    h('div', { className: 'bm-group' }, [
+      h('div', { className: 'bm-cat-desc', textContent: 'Things to read on the train.' }),
+      bmRow('example.org/essay', 'A long essay about everything', 'Web page'),
+      bmRow('Private note', 'Kept encrypted in this list', 'Note · 2d ago', lockMark),
+      h('div', { className: 'bm-unseen', textContent: '2 saved items couldn’t be found on your relays.' }),
+    ]),
+  ]);
+  const delBox = h('div', { className: 'bm-delete-box', role: 'alertdialog' }, [
+    h('div', { className: 'bm-delete-title', textContent: 'Delete the list “Reading list”?' }),
+    h('div', { className: 'bm-delete-note', textContent: 'It is removed from every app that reads it. The notes in it are not deleted.' }),
+    h('div', { className: 'bm-delete-actions' }, [btn('mini del-confirm', 'Delete list'), btn('mini ghost', 'Cancel')]),
+  ]);
+  section('library', titleBlock, bmList, delBox);
+
   // ---- checks ----
   const SQUARE = ['werkstatte', 'ben-day', 'turnstile'];
   const issues = [];
@@ -99,7 +130,8 @@
   // These are the ordinary surfaces, none of which does, so each must compute to 0.
   if (SQUARE.includes(theme)) {
     const probe = ['button.primary', 'button.secondary', 'button.danger', 'button.mini', '.compose-add', '.setting input[type=text]',
-      '.setting select', '.item', '.wallet-card', '.wallet-refresh', '.emoji-picker', '.emoji-cell', '.compose-editor'];
+      '.setting select', '.item', '.wallet-card', '.wallet-refresh', '.emoji-picker', '.emoji-cell', '.compose-editor',
+      '.bm-item', '.bm-delete-box', '.bm-title-menu', '.bm-unseen'];
     for (const sel of probe) {
       for (const el of document.querySelectorAll(sel)) {
         const r = getComputedStyle(el).borderTopLeftRadius;
@@ -109,7 +141,7 @@
   }
 
   // Nothing wider than its box, and the page itself does not scroll sideways.
-  for (const el of document.querySelectorAll('button, .item, .wallet-card, .emoji-picker')) {
+  for (const el of document.querySelectorAll('button, .item, .wallet-card, .emoji-picker, .bm-item, .bm-delete-box, .bm-title-menu')) {
     if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'hidden') {
       issues.push((el.className || el.tagName) + ' overflows by ' + (el.scrollWidth - el.clientWidth) + 'px'); break;
     }
