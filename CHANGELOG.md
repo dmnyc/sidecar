@@ -9,6 +9,11 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [Unreleased]
+
+### Changed
+- **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
+
 ## [1.17.1] — 2026-11-12
 
 ### Added
