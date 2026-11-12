@@ -230,6 +230,9 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     // are the panel's own. Each is answered with Reject afterward so the next starts clean.
     const recipe = (live && live.recipe) || {};
     const clientPage = await x.openPage(live ? live.url : 'https://' + client + '/');
+    // A client that picks its layout by the width it has (a phone layout in a narrow window) should be driven at the
+    // size it is photographed at. Opt-in, so a recipe tuned at the default window keeps working as it is.
+    if (recipe.viewport) await clientPage.viewport(PAGE);
     await x.sleep(live ? 5000 : 1500);   // a real site takes a while to settle
     const answerNo = async () => {
       await x.evaluate(`[...document.querySelectorAll('#view-approval button')].find((b) => /^reject$/i.test(b.textContent.trim())).click()`);
