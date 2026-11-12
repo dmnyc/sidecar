@@ -13,11 +13,33 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 
 **[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
 
-<img width="1280" height="800" alt="Sidecar" src="https://i.nostr.build/izTFxdRRmBZdswvQSGEljx.png" />
+<img width="1280" height="800" alt="Sidecar" src="https://i.nostr.build/I8a4wG0An5kdUcRDZA4E4i.png" />
 
 > "Best Nostr Extension ever! Every Nostr app should take notes on this onboarding flow. This makes me want to use Nostr."
 >
 > — [Car](https://github.com/thrillerxx), Co-Founder of [PlebLab](https://github.com/PlebLab)
+
+
+> "Very elegantly designed signer and works seamlessly. Account switching is a great feature. This will be my go to signer from now!"
+>
+> — [Avi Burra](https://jumble.social/users/npub1hqaz3dlyuhfqhktqchawke39l92jj9nt30dsgh2zvd9z7dv3j3gqpkt56s), on Firefox Add-ons
+
+
+> “Sidecar has been the Nostr tool I use most lately, and it’s my favorite. 🍸”
+>
+> — [Tomek K.](https://jumble.social/notes/nevent1qqsrx6ggamwthpfl5gw42zfr7p408k0nzurwljf33ay02ctkvzlqahqpzemhxue69uhhyetvv9ujuurjd9kkzmpwdejhgq3q4wxtsrj7g2jugh70pfkzjln43vgn4p7655pgky9j9w9d75u465pqfdy0uu), head of [The Bitcoin District](https://thebitcoindistrict.com/), on Nostr
+
+<details>
+<summary><strong>More from people who use it</strong></summary>
+
+> "I just upgraded my browser signing extension to #Sidecar - you should too! So many excellent features."
+>
+> — [Bfgreen](https://jumble.social/notes/nevent1qvzqqqqqqypzqry7tctlhh64tm6pmteu8gvkwjwgfruu0yvkduc04e0ycpyqapctqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqlejyv5h6x6dyhsea8hkf8mkp7rmgf3maav0uppm046mzwe6vp4p9tlkws), on Nostr
+
+
+> "It's a browser extension that…kind of makes Nostr cooler."
+>
+> — [Fundamentals](https://jumble.social/users/npub12eml5kmtrjmdt0h8shgg32gye5yqsf2jha6a70jrqt82q9d960sspky99g), creator of [Magic Internet Math](https://magicinternetmath.com)
 
 
 > "Best UX for a browser key signer so far. And the nsec is encrypted using PBKDF2/AES-GCM, then stored in chrome.storage.local, so other potentially malicious add-ons can't get to it. In my broad testing across multiple browser key signers last year, only Alby did this, though I don't know if others have added it since. Sidecar also has a better UX than Alby. [...] I'm thinking about replacing Alby with Sidecar in NoorNote's onboarding wizard because Sidecar is better for beginners right now."
@@ -29,8 +51,6 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 >
 > — [Hollywood stuntman & make-up artist](https://jumble.social/notes/nevent1qvzqqqqqqypzpqh68q0mpzgpvuv6aphzvdndvcshrgk9tgpcerhn0c5zshl7ptshqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzp7uu04hygk8uk0at69k3wm89hdeecgethaxkfhfa74n9gnuz260xtatdyk), on Nostr
 
-<details>
-<summary><strong>More from people who use it</strong></summary>
 
 > "Just installed it. Work of art."
 >
@@ -42,24 +62,14 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 > — [cloud fodder](https://jumble.social/notes/nevent1qvzqqqqqqypzqlxr9zsgmke2lhuln0nhhml5eq6gnluhjuscyltz3f2z7v4zglqwqyghwumn8ghj7mn0wd68ytnhd9hx2tcpz9mhxue69uhkummnw3ezumrpdejz7qpqulsle0ek7fxjeutzzmetxk0xytx3q28rjvr40r3vnrytc2y2clpsd3dg37), [relay.tools](https://relay.tools)
 
 
-> "I just upgraded my browser signing extension to #Sidecar - you should too! So many excellent features."
+> “Works like a charm. Loving it 😍 😍 😍”
 >
-> — [Bfgreen](https://jumble.social/notes/nevent1qvzqqqqqqypzqry7tctlhh64tm6pmteu8gvkwjwgfruu0yvkduc04e0ycpyqapctqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqlejyv5h6x6dyhsea8hkf8mkp7rmgf3maav0uppm046mzwe6vp4p9tlkws), on Nostr
+> — [noerms](https://jumble.social/notes/nevent1qvzqqqqqqypzqar2y3ddy98xj55723803fp8vmz4ldst088sptgxgzg9qdagmze5qyghwumn8ghj7mn0wd68ytnhd9hx2tcppemhxue69uhkummn9ekx7mp0qqsqw9v4zug7kt55z7hzw3thragfrn40xw8z3newl2u272nql7kc2acqf3vun)
 
 
-> "Very elegantly designed signer and works seamlessly. Account switching is a great feature. This will be my go to signer from now!"
+> “After three days I’m wondering… Why didn’t [Daniel] give us #Sidecar like three years ago? Very nice app!!”
 >
-> — [Avi Burra](https://jumble.social/users/npub1hqaz3dlyuhfqhktqchawke39l92jj9nt30dsgh2zvd9z7dv3j3gqpkt56s), on Firefox Add-ons
-
-
-> "It's a browser extension that…kind of makes Nostr cooler."
->
-> — [Fundamentals](https://jumble.social/users/npub12eml5kmtrjmdt0h8shgg32gye5yqsf2jha6a70jrqt82q9d960sspky99g), creator of [Magic Internet Math](https://magicinternetmath.com)
-
-
-> “Sidecar has been the Nostr tool I use most lately, and it’s my favorite. 🍸”
->
-> — [Tomek K.](https://jumble.social/notes/nevent1qqsrx6ggamwthpfl5gw42zfr7p408k0nzurwljf33ay02ctkvzlqahqpzemhxue69uhhyetvv9ujuurjd9kkzmpwdejhgq3q4wxtsrj7g2jugh70pfkzjln43vgn4p7655pgky9j9w9d75u465pqfdy0uu), head of [The Bitcoin District](https://thebitcoindistrict.com/), on Nostr
+> — [TheGrinder](https://jumble.social/notes/nevent1qvzqqqqqqypzqmn477tj8972x227pax2p77xawwv0xlgtwha644ax7pzpj5wae6wqyt8wumn8ghj7un9d3shjtnyd968gmewwp6kytcpzamhxue69uhhyetvv9ujuurjd9kkzmpwdejhgtcqyr2alr5uqhv2gnar699azk6rq9j6y9rfqzr9n74l7a2qd8ue7phhsrpa9y3)
 
 </details>
 
