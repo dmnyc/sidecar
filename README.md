@@ -13,7 +13,7 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 
 **[Website](https://sidecar.top)** · **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** · **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)** · **[Privacy Policy](https://sidecar.top/privacy)** · **[Changelog](CHANGELOG.md)**
 
-<img width="1280" height="800" alt="Sidecar" src="https://i.nostr.build/izTFxdRRmBZdswvQSGEljx.png" />
+<img width="1280" height="800" alt="Sidecar" src="https://i.nostr.build/I8a4wG0An5kdUcRDZA4E4i.png" />
 
 > "Best Nostr Extension ever! Every Nostr app should take notes on this onboarding flow. This makes me want to use Nostr."
 >
