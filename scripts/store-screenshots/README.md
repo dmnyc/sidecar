@@ -49,6 +49,11 @@ missing.
   balance and signing a zap request are the usual two; the request goes to the note author's Lightning
   provider, which hands back a real invoice that the capture never pays. Choose a source and a note
   whose author expects it, such as your own.
+- **Window size:** a recipe is driven in the capture browser's own window, which is narrow, and only
+  photographed at 1280 × 910. A client that picks a phone layout by width needs `"viewport": true`, which
+  sets the photographed size from the start. Leave it out for a recipe tuned at the default window.
+  A client that shows Sidecar's own "Request to pay" card needs a press on it:
+  `{ "shadowClick": "button.pay" }`, then another `answer` for the payment card that follows.
 - **The network:** only the client's live page uses it. Chrome sends the panel's default relay hostnames
   and the picture hosts to a local TLS server, so the panel runs with its own settings and its own
   addresses and nothing else is fetched.

@@ -284,6 +284,11 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
               await chrome.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 }, page.sessionId);
             }
           },
+          // The size of a browser window, from now on: for a page that lays itself out for the width it has while
+          // it is being used, not only when it is photographed.
+          viewport: async ({ width = 1280, height = 800, scale = 2 } = {}) => {
+            await chrome.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false }, page.sessionId);
+          },
           // A picture of the page at the size of a browser window, as a PNG file.
           screenshot: async (file, { width = 1280, height = 800, scale = 2 } = {}) => {
             await chrome.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false }, page.sessionId);
