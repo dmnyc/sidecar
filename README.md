@@ -19,39 +19,56 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 >
 > — [Car](https://github.com/thrillerxx), Co-Founder of [PlebLab](https://github.com/PlebLab)
 
+
 > "Best UX for a browser key signer so far. And the nsec is encrypted using PBKDF2/AES-GCM, then stored in chrome.storage.local, so other potentially malicious add-ons can't get to it. In my broad testing across multiple browser key signers last year, only Alby did this, though I don't know if others have added it since. Sidecar also has a better UX than Alby. [...] I'm thinking about replacing Alby with Sidecar in NoorNote's onboarding wizard because Sidecar is better for beginners right now."
 >
 > — [77elements](https://github.com/77elements), creator of [NoorNote](https://github.com/77elements/noornote)
+
 
 > "I think Sidecar is the best full-fledged Nostr signer/wallet (browser extension) I've used so far! It covers all my needs [...] If you need a Nostr signer that's a browser extension, I highly recommend Sidecar."
 >
 > — [Hollywood stuntman & make-up artist](https://jumble.social/notes/nevent1qvzqqqqqqypzpqh68q0mpzgpvuv6aphzvdndvcshrgk9tgpcerhn0c5zshl7ptshqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzp7uu04hygk8uk0at69k3wm89hdeecgethaxkfhfa74n9gnuz260xtatdyk), on Nostr
 
+<details>
+<summary><strong>More from people who use it</strong></summary>
+
 > "Just installed it. Work of art."
 >
 > — [Gustavo](https://jumble.social/notes/nevent1qvzqqqqqqypzps72hgsrzw4c53ran2h9paz775z6s32v2ay0vrsvuqf4g8uqug8jqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqjgwfz5ffkax7x23pf5ujnegxee52q003xgqp40g9vl63mccnyv567pttm), on Nostr
+
 
 > "sidecar.top is so badass! Even my multi-agent headless-chromium powerhouse of playwrights can use it with classy ease."
 >
 > — [cloud fodder](https://jumble.social/notes/nevent1qvzqqqqqqypzqlxr9zsgmke2lhuln0nhhml5eq6gnluhjuscyltz3f2z7v4zglqwqyghwumn8ghj7mn0wd68ytnhd9hx2tcpz9mhxue69uhkummnw3ezumrpdejz7qpqulsle0ek7fxjeutzzmetxk0xytx3q28rjvr40r3vnrytc2y2clpsd3dg37), [relay.tools](https://relay.tools)
 
+
 > "I just upgraded my browser signing extension to #Sidecar - you should too! So many excellent features."
 >
 > — [Bfgreen](https://jumble.social/notes/nevent1qvzqqqqqqypzqry7tctlhh64tm6pmteu8gvkwjwgfruu0yvkduc04e0ycpyqapctqythwumn8ghj7un9d3shjtnswf5k6ctv9ehx2ap0qy88wumn8ghj7mn0wvhxcmmv9uqzqlejyv5h6x6dyhsea8hkf8mkp7rmgf3maav0uppm046mzwe6vp4p9tlkws), on Nostr
+
 
 > "Very elegantly designed signer and works seamlessly. Account switching is a great feature. This will be my go to signer from now!"
 >
 > — [Avi Burra](https://jumble.social/users/npub1hqaz3dlyuhfqhktqchawke39l92jj9nt30dsgh2zvd9z7dv3j3gqpkt56s), on Firefox Add-ons
 
+
 > "It's a browser extension that…kind of makes Nostr cooler."
 >
 > — [Fundamentals](https://jumble.social/users/npub12eml5kmtrjmdt0h8shgg32gye5yqsf2jha6a70jrqt82q9d960sspky99g), creator of [Magic Internet Math](https://magicinternetmath.com)
+
 
 > “Sidecar has been the Nostr tool I use most lately, and it’s my favorite. 🍸”
 >
 > — [Tomek K.](https://jumble.social/notes/nevent1qqsrx6ggamwthpfl5gw42zfr7p408k0nzurwljf33ay02ctkvzlqahqpzemhxue69uhhyetvv9ujuurjd9kkzmpwdejhgq3q4wxtsrj7g2jugh70pfkzjln43vgn4p7655pgky9j9w9d75u465pqfdy0uu), head of [The Bitcoin District](https://thebitcoindistrict.com/), on Nostr
 
+</details>
+
 ## Features
+
+Sidecar is a signer, a Lightning wallet, a composer and a livestream player in one panel. Your keys stay on your device behind a PIN, any number of accounts switch in a click, and every site you connect gets its own permissions and a prompt that shows what it is asking you to sign. Around that: notes, replies and polls you can write from the panel or a full-size tab, notifications, a library of your bookmarks, highlights, comments and reactions, and twenty themes.
+
+<details>
+<summary><strong>Everything it does</strong></summary>
 
 - **Multiple accounts** — store as many nsecs as you like, drag to reorder, switch the active one in a click. Importing shows a profile preview (name + avatar) so you can confirm the right key before saving. Generating a new key runs a quick guided setup (name, photo, bio). Reveal a key behind your PIN — with a QR for quick sign-in on mobile clients.
 - **PIN-protected** — every private key is encrypted at rest (PBKDF2 → AES-GCM, WebCrypto) under a PIN of at least 8 characters, with a live strength and match check when you set it. Nothing is stored in plaintext, and the keystore re-locks itself after 5 minutes to 24 hours of inactivity (15 minutes unless you choose otherwise) or, with **When browser closes**, only when the browser does, which still asks for your PIN once per browser session. A paste guard blocks dropping an nsec anywhere except the import field.
@@ -87,11 +104,14 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 - **Twenty themes** — ten drawn for low light and ten for daylight, chosen from a gallery that previews each one live and set per account. Each has its own typeface, textures and balance animation, one switch turns the animation off, and special editions are worn only for a few weeks of the year. Acknowledgments below says what each one is a tribute to.
 - **Help & guides** — a built-in guide page, one click from the top bar, walks through accounts, how sites remember who you are, switching accounts, the client families, and the wallet.
 
+</details>
+
 ## Install
 
 The easiest way is the **[Chrome Web Store](https://chromewebstore.google.com/detail/sidecar-a-classy-nostr-si/moimlikilhheabdafocpmneehpblhiln)** — open the link and click **Add to Chrome**. Works in Chrome, Brave, and Edge. On Firefox, install it from **[Firefox Add-ons](https://addons.mozilla.org/firefox/addon/sidecar-a-classy-nostr-signer/)**. Both update automatically.
 
-### Advanced: install from this release zip
+<details>
+<summary><strong>Advanced: install from this release zip</strong></summary>
 
 For advanced users who'd rather not use the Chrome Web Store: every tagged version is published as a **[GitHub Release](https://github.com/dmnyc/sidecar/releases)** with a ready-to-load zip attached — the exact same build submitted to the Chrome Web Store, so you can inspect it before installing.
 
@@ -111,7 +131,10 @@ For advanced users who'd rather not use the Chrome Web Store: every tagged versi
 
 **Updating:** release zips don't auto-update — watch the **[releases page](https://github.com/dmnyc/sidecar/releases)** for a new version, download it, and repeat steps 1 and 4 (removing the old unpacked folder first, or pointing "Load unpacked" at the new one, is fine either way). If you'd rather updates happen automatically, use the Chrome Web Store install instead.
 
-### From source (unpacked / developer build)
+</details>
+
+<details>
+<summary><strong>From source (unpacked / developer build)</strong></summary>
 
 Sidecar has **no build step** — it's plain JavaScript loaded directly. To run it from source:
 
@@ -135,7 +158,10 @@ Sidecar has **no build step** — it's plain JavaScript loaded directly. To run 
 
 7. **Use it on a Nostr site.** Open any NIP-07 client (e.g. [Jumble](https://jumble.social), [Coracle](https://coracle.social), [noStrudel](https://nostrudel.ninja)) and choose "log in with extension" — Sidecar will prompt you to approve.
 
-#### Firefox
+</details>
+
+<details>
+<summary><strong>Firefox</strong></summary>
 
 Sidecar runs on Firefox **128 and later** — the same signer, wallet, and approval flow as Chrome, in the sidebar instead of the side panel.
 
@@ -149,7 +175,10 @@ Two Firefox specifics: extensions stay off in private windows unless you allow t
 
 **Updating:** Chrome Web Store and Firefox Add-ons installs update automatically. On Chrome you can also trigger a check from **Settings → Updates** or the About dialog (Firefox manages updates on its own). For a source build, pull the latest code (`git pull`), then return to the extensions page and click the **reload** (↻) icon on the Sidecar card. Reloading is required after changing `background.js` or any provider script.
 
-#### Safari
+</details>
+
+<details>
+<summary><strong>Safari</strong></summary>
 
 Not supported, and the blocker is narrower than people expect: Safari implements
 neither side-UI API, so there is nowhere for Sidecar to live. The toolbar popup it
@@ -158,7 +187,10 @@ composer, the wallet and any payment in flight with it. The signer mechanism
 itself would work fine. Reasoning, compatibility table and what would change the
 answer: [BROWSER_PARITY.md](BROWSER_PARITY.md#safari--asked-for-often-blocked-on-one-thing).
 
-### Build version stamp (optional)
+</details>
+
+<details>
+<summary><strong>Build version stamp (optional)</strong></summary>
 
 The About dialog shows a version + git commit read from `version.js` (gitignored, generated). A `post-commit` hook keeps it current automatically — install it once with:
 
@@ -173,7 +205,14 @@ Or regenerate it manually any time:
 ./scripts/stamp-version.sh
 ```
 
+</details>
+
 ## Architecture
+
+Plain JavaScript with no build step. A service worker holds the keystore and routes every request, a content script bridges `window.nostr` into the page, and the side panel, the approval prompt and a few standalone pages are ordinary HTML. Decrypted private keys live only in the worker’s memory, and are cleared when it idles.
+
+<details>
+<summary><strong>Which file does what</strong></summary>
 
 | Area | Files |
 |------|-------|
@@ -191,11 +230,14 @@ Or regenerate it manually any time:
 Decrypted private keys live only in the service worker's in-memory map. If the worker
 is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
+</details>
+
 ## Nostr protocol support
 
-Sidecar signs whatever event a connected site asks for via NIP-07, so in principle it can
-sign any kind. Beyond that, these are the NIPs (and one Blossom convention) it has
-dedicated, named support for:
+Sidecar signs whatever event a connected site asks for via NIP-07, so in principle it can sign any kind. Beyond that it has dedicated, named support for 30 NIPs and one Blossom convention. Between them they cover signing and identity, relays and relay lists, notes, replies, comments and reactions, polls, statuses and lists, live streams, zaps and the Lightning wallet, encrypted private lists and backups, and media uploads. The table says what each one is used for.
+
+<details>
+<summary><strong>Every NIP, and what it is used for</strong></summary>
 
 | NIP | Title | Used for |
 |-----|-------|----------|
@@ -231,11 +273,17 @@ dedicated, named support for:
 | [98](https://nips.nostr.com/98) | HTTP Auth | Upload auth for Blossom and nostr.build |
 | [Blossom](https://github.com/hzrd149/blossom) (BUD-02) | Blob upload | Media uploads to a user's own Blossom servers, from their kind:10063 list |
 
+</details>
+
 ## Acknowledgments
 
 - Inspired by [Nostr Build Shack](https://apps.apple.com/us/app/nostr-build-shack/id6752591477) by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
 - Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf), [Alby](https://github.com/getAlby/lightning-browser-extension) extension, and [Amber](https://github.com/greenart7c3/Amber) by [greenart7c3](https://github.com/greenart7c3) — the OG reliable signers most of Nostr grew up with
 - Global @-mention search is powered by the [nostrarchives-api](https://github.com/barrydeen/nostrarchives-api) by [barrydeen](https://github.com/barrydeen)
+
+<details>
+<summary><strong>The themes, and what each is a tribute to</strong></summary>
+
 - The Bauhaus theme is a tribute to the [Bauhaus school](https://en.wikipedia.org/wiki/Bauhaus) (1919–1933) — its principles of geometric clarity, primary color, and type as architecture echo in the author's own logo at [dmnyc.net](https://dmnyc.net)
 - The Nixie theme is a tribute to the [nixie tube](https://en.wikipedia.org/wiki/Nixie_tube), the cold-cathode readout of mid-century instrument panels — neon-orange numerals behind a wire mesh, and cold steel around them
 - The Metropolis theme is a tribute to [Fritz Lang's *Metropolis*](https://en.wikipedia.org/wiki/Metropolis_(1927_film)) (1927) — deco geometry taken down to the machine floor, soot and tarnished brass under shafts of light, and a balance that strikes white and cools into metal
@@ -251,12 +299,20 @@ dedicated, named support for:
 - The Turnstile theme is a tribute to the first subway stations under Manhattan (1904) and the porcelain-enamel signs that followed them — white glazed tile in running bond, station names set in mosaic on tablets framed in glazed tile, a frieze of tesserae along the wall, and enamel signs for everything you press
 - The Sleepy Hollow theme, a special edition worn only while its season lasts, is a tribute to Washington Irving's *The Legend of Sleepy Hollow* (1820) and the engravings that illustrated it — the Hollow at night in silhouette, a harvest moon behind the bare limbs of the great tulip tree, the old Dutch church on its knoll, the bridge over the brook, and the Horseman riding the ridge with his pumpkin alight
 - The Phantom Bouquet theme, the special edition that follows it, is a tribute to the Victorian phantom bouquet, an arrangement of skeleton leaves under a glass dome. A phantom leaf is a leaf with everything but its veins taken away: it was soaked in rainwater for weeks until the soft tissue rotted, the pulp was brushed off to leave the lace of veins, and the skeleton was bleached ivory, dried flat between papers, and sometimes dyed — ivory skeleton leaves of maple, oak and four companions lying on linen, with madder, ochre, rust, olive and plum among them, falling slowly down the lock screen
+
+</details>
+
+<details>
+<summary><strong>Emoji, star data, music, translations, video and fonts</strong></summary>
+
 - **Emoji** — the picker's table is built from [unicode-emoji-json](https://github.com/muan/unicode-emoji-json) by [muan](https://github.com/muan) for the characters, names and groups, joined with search keywords from [emojibase](https://github.com/milesj/emojibase) by [Miles Johnson](https://github.com/milesj), which carries the [CLDR](https://cldr.unicode.org/) annotation keywords defined in [UTS #35](http://unicode.org/reports/tr35/tr35-general.html#Annotations). Both MIT. Those keywords are why searching "happy" or "scared" finds anything: emoji names describe the picture rather than the feeling, so the vocabulary for what they mean is Unicode's, not ours.
 - **Star data** — Constellation's charts are drawn from the star positions, magnitudes and constellation figures published by [d3-celestial](https://github.com/ofrohn/d3-celestial) by [Olaf Frohn](https://github.com/ofrohn) (BSD-3-Clause), which derives them from ESA's [Hipparcos catalogue](https://en.wikipedia.org/wiki/Hipparcos). The full notice is in `NOTICE`
 - **Music** — somewhere in Sidecar, if you know where to look, Scott Joplin’s *The Strenuous Life* (1902), a ragtime two-step, is playing in two voices. The score comes from the [Mutopia Project](https://www.mutopiaproject.org/) engraving by Benjamin Bloomfield, and the composition and the engraving are both public domain
 - **Translations** — the Arabic translation was reviewed by [tkhumush](https://github.com/tkhumush) ([on Nostr](https://jumble.social/users/npub1nje4ghpkjsxe5thcd4gdt3agl2usxyxv3xxyx39ul3xgytl5009q87l02j)), who corrected its security wording and set its terms. The Italian translation was reviewed by [keithmeola](https://github.com/keithmeola) ([on Nostr](https://jumble.social/users/npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5)).
 - **Video** — live streams play with [hls.js](https://github.com/video-dev/hls.js) by the video-dev contributors, bundled unmodified under the Apache License 2.0.
 - **Fonts** — nearly every bundled face is under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL), with its license text in `fonts/`: Manrope for the UI, Oswald as Nixie's fallback, and Playfair Display, Libre Caslon Text with Libre Caslon Display (Brownstone), Bitter (fallback), Cinzel, Jost, EB Garamond, Josefin Sans, Rowdies, Limelight, Special Elite, Pinyon Script, Noto Serif Display (Film Noir), Yuji Syuku (Wabi-sabi), Kaisei Decol (Ukiyo-e), Cormorant Garamond (Constellation), Fraunces (Mycelium), Bangers with Comic Neue (Ben Day) and Fascinate with Federo (Jazz Age), Barlow Condensed (Departures), Pathway Gothic One with Archivo and Crimson Pro (Turnstile), IM FELL English SC (Sleepy Hollow) and Sorts Mill Goudy (Phantom Bouquet) as the themes' display faces. Werkstätte is set in **Syncopate** (Astigmatic), under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) rather than the OFL, with its license text in [`fonts/LICENSE-Syncopate.txt`](fonts/LICENSE-Syncopate.txt). The one exception is Cast Iron's **Impressed Metal** (GemFonts, 1998), which is freeware rather than OFL and carries its own license record in [`fonts/LICENSE-ImpressedMetal.txt`](fonts/LICENSE-ImpressedMetal.txt). The Nixie theme is set in **Nixie Gothic**, a patched build of [Routed Gothic](https://webonastick.com/fonts/routed-gothic/) by Darren Embry — renamed per the OFL's reserved-name rule, with the modifications documented in [`fonts/OFL-NixieGothic.md`](fonts/OFL-NixieGothic.md). Routed Gothic itself is a digitization of the mid-century Leroy-style lettering that engraved the instrument panels this theme is about.
+
+</details>
 
 ## Author
 

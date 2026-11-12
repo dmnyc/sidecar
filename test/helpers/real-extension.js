@@ -256,6 +256,34 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
             if (r.exceptionDetails) throw new Error('page threw: ' + (r.exceptionDetails.exception && r.exceptionDetails.exception.description || r.exceptionDetails.text));
             return r.result.value;
           },
+          // Press an element that lives inside a CLOSED shadow root, as the extension's in-page cards do: page script
+          // cannot see into one, but the DevTools protocol can. Returns false when nothing matches.
+          clickInShadow: async (selector) => {
+            const { root } = await chrome.send('DOM.getDocument', { depth: -1, pierce: true }, page.sessionId);
+            const seen = [root];
+            for (let i = 0; i < seen.length; i++) {
+              const n = seen[i];
+              for (const c of [...(n.children || []), ...(n.shadowRoots || []), ...(n.contentDocument ? [n.contentDocument] : [])]) seen.push(c);
+            }
+            for (const n of seen) {
+              if (n.nodeType !== 11) continue;   // a shadow root is a document fragment
+              let hit = null;
+              try { hit = await chrome.send('DOM.querySelector', { nodeId: n.nodeId, selector }, page.sessionId); } catch (_) { continue; }
+              if (!hit || !hit.nodeId) continue;
+              const { object } = await chrome.send('DOM.resolveNode', { nodeId: hit.nodeId }, page.sessionId);
+              await chrome.send('Runtime.callFunctionOn', { objectId: object.objectId, functionDeclaration: 'function () { this.click(); }' }, page.sessionId);
+              return true;
+            }
+            return false;
+          },
+          // A real mouse click at a point in the page, by the DevTools input domain. Unlike element.click(), it counts as
+          // a user gesture, which is what the clipboard and similar APIs ask for.
+          clickAt: async (x, y) => {
+            await chrome.send('Page.bringToFront', {}, page.sessionId);
+            for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
+              await chrome.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 }, page.sessionId);
+            }
+          },
           // A picture of the page at the size of a browser window, as a PNG file.
           screenshot: async (file, { width = 1280, height = 800, scale = 2 } = {}) => {
             await chrome.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false }, page.sessionId);

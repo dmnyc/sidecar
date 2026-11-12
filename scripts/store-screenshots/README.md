@@ -37,8 +37,18 @@ missing.
 - **Real:** the extension, its panel, its default relays, its pages, and the approval cards. The cards
   come from a real page at the client's address asking through `window.nostr` and `window.webln`.
 - **Pretend:** the wallet (a NIP-47 service on the local relay that answers the balance and history in
-  `personas.js`), the people's profile events, and the invoice. Nothing is paid, and every card is
-  answered with Reject, so no key leaves the machine and no client receives anything.
+  `personas.js`), the people's profile events, and the invoice when the client does not make one.
+  Nothing is ever paid: the payment card is always answered with Reject.
+- **Signed in or not:** by default every card is answered with Reject, so no key leaves the machine and
+  the client receives nothing. A recipe with `"signedIn": true` approves the login card with Allow once,
+  so the client sees the demo account's public key and shows its signed-in view. Its steps may then
+  answer the cards a payment raises, each only when named: `{ "answer": [ { "approve": "Sign", "when":
+  "zap request" }, ... ], "until": "lightning payment" }` presses the matching button on each card in
+  whatever order they arrive and stops at the payment card. A card no rule names stops the run and is
+  named in the error, so a recipe can never sign an event it did not list. Sharing the pretend wallet's
+  balance and signing a zap request are the usual two; the request goes to the note author's Lightning
+  provider, which hands back a real invoice that the capture never pays. Choose a source and a note
+  whose author expects it, such as your own.
 - **The network:** only the client's live page uses it. Chrome sends the panel's default relay hostnames
   and the picture hosts to a local TLS server, so the panel runs with its own settings and its own
   addresses and nothing else is fetched.
@@ -52,7 +62,12 @@ missing.
   A missing one is drawn as a colored initial.
 - **The client and a recipe:** which client to feature is chosen at capture time. A recipe is a small
   JSON file of clicks that takes the client's page to the moment that asks Sidecar for something
-  (see `recipes.js`). Without one the page is asked directly.
+  (see `recipes.js`): the steps click by text or selector (retrying while a live page draws its dialogs),
+  send a real mouse click when a button needs a user gesture, wait for text, answer cards in the panel,
+  and press a control inside one of Sidecar's own in-page cards (closed shadow roots, reached through the
+  DevTools protocol). When a step fails, the page and the panel are saved beside the other captures.
+  Without a recipe the page is asked directly. The recipe for the client in use lives with your other
+  capture inputs, not in the repo, because the client's buttons change.
 
 ## Layout
 

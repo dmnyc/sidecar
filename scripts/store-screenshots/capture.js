@@ -235,7 +235,30 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
       await x.evaluate(`[...document.querySelectorAll('#view-approval button')].find((b) => /^reject$/i.test(b.textContent.trim())).click()`);
       await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden')`, 10000);
     };
-    const cardUp = (ms) => x.waitFor(`!document.getElementById('view-approval').classList.contains('hidden') && document.getElementById('approval-host').textContent.includes(${JSON.stringify(client)})`, ms);
+    // Press a button on the panel's approval card when one is offered: how a recipe signs the client in, or signs
+    // what the client asks for before it can show a payment. Returns whether it found the button in time.
+    const approve = async (label, ms = 15000, when = null) => {
+      const want = JSON.stringify(String(label).toLowerCase());
+      const find = `[...document.querySelectorAll('#view-approval button')].find((b) => b.textContent.trim().toLowerCase() === ${want})`;
+      try { await x.waitFor(`!document.getElementById('view-approval').classList.contains('hidden') && !!(${find})`, ms); } catch (_) { return false; }
+      // Only the request the recipe named: a card for anything else is left exactly as it is.
+      if (when) {
+        const ask = await x.evaluate(`document.getElementById('approval-ask').textContent`);
+        if (!new RegExp(when, 'i').test(ask)) return false;
+      }
+      await x.evaluate(`(${find}).click()`);
+      try { await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden')`, 8000); } catch (_) { /* a queued card may follow */ }
+      return true;
+    };
+    // The card of this client's, and when `kind` is given, one that asks for that: a login card for the public key, a
+    // payment card for a payment. Anything else on top is left alone and does not count.
+    // For a recipe's answer step: what the panel is asking right now, and a press of one of its buttons.
+    const peekCard = () => x.evaluate(`(() => { const v = document.getElementById('view-approval'); return v && !v.classList.contains('hidden') ? { host: document.getElementById('approval-host').textContent, ask: document.getElementById('approval-ask').textContent, buttons: [...v.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean) } : null; })()`);
+    const pressCard = async (label) => {
+      await x.evaluate(`[...document.querySelectorAll('#view-approval button')].find((b) => b.textContent.trim().toLowerCase() === ${JSON.stringify(String(label).toLowerCase())}).click()`);
+      try { await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden') || document.getElementById('approval-ask').textContent !== ${JSON.stringify('')}`, 4000); } catch (_) { /* the next card may already be up */ }
+    };
+    const cardUp = (ms, kind = null) => x.waitFor(`!document.getElementById('view-approval').classList.contains('hidden') && document.getElementById('approval-host').textContent.includes(${JSON.stringify(client)})${kind ? ` && /${kind.source}/i.test(document.getElementById('approval-ask').textContent)` : ''}`, ms);
     const clientShot = async (name) => { const f = path.join(outDir, name + '.png'); await clientPage.screenshot(f, PAGE); shots[name] = f; log('captured ' + name); };
     await tab(x, 'activity');
     // The extension puts window.nostr into a page as it loads. Wait for it, and say what the page was doing if it never comes.
@@ -247,15 +270,30 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
 
     // Sign-in: the recipe clicks through the client's own login, which asks for the public key. With
     // no recipe the page is asked directly.
-    if (recipe.login) await runSteps(clientPage, recipe.login);
+    if (recipe.login) {
+      try {
+        await runSteps(clientPage, recipe.login, { approve });
+      } catch (e) {
+        try { await clientShot('client-error'); } catch (_) { /* the failure matters more */ }
+        throw new Error(e.message + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
+      }
+    }
     else await clientPage.evaluate('window.__ask = window.nostr.getPublicKey().catch(() => null); 1', { wait: false });
-    try { await cardUp(20000); } catch (_) {
+    try { await cardUp(20000, /public key/); } catch (_) {
       throw new Error('The client never asked Sidecar for the public key' + (recipe.login ? '; check the "login" steps in the recipe' : ''));
     }
     await x.sleep(900);
     await shot('approve-login');
     if (live) await clientShot('client-login');
-    await answerNo();
+    if (recipe.signedIn) {
+      // The client is signed in for what follows (its feed, a zap). The public key goes to it, which is the demo
+      // account's own and public. Nothing is paid, and the pay card below is still answered with Reject.
+      const label = typeof recipe.signedIn === 'string' ? recipe.signedIn : 'Allow once';
+      if (!(await approve(label, 8000, 'public key'))) throw new Error('The login card offered no ' + label + ', so the client was not signed in');
+      await x.sleep(4000);
+    } else {
+      await answerNo();
+    }
 
     // Payment: the recipe takes the client to something payable; if that does not raise the card on its
     // own, the page asks for a 21-sat payment directly, so the card is the same either way.
@@ -263,11 +301,31 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     const ask = () => clientPage.evaluate(`window.__pay = (async () => { await window.webln.enable(); return window.webln.sendPayment(${JSON.stringify(invoice)}); })().catch(() => null); 1`, { wait: false });
     if (live && recipe.pay) {
       if (recipe.pay.url) { await clientPage.evaluate(`location.href = ${JSON.stringify(recipe.pay.url)}`, { wait: false }); await x.sleep(5000); }
-      await runSteps(clientPage, recipe.pay.steps || []);
+      try {
+        await runSteps(clientPage, recipe.pay.steps || [], { approve, peekCard, pressCard });
+      } catch (e) {
+        // Say where the page was when a step failed: a recipe is debugged by looking.
+        try { await clientShot('client-error'); } catch (_) { /* the original failure matters more */ }
+        throw new Error(e.message + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
+      }
     }
     let raised = false;
-    if (live && recipe.pay && (recipe.pay.steps || []).length) { try { await cardUp(8000); raised = true; } catch (_) { /* ask directly below */ } }
-    if (!raised) { await ask(); await cardUp(20000); }
+    if (live && recipe.pay && (recipe.pay.steps || []).length) { try { await cardUp(recipe.signedIn ? 25000 : 8000, /lightning payment/); raised = true; } catch (_) { /* ask directly below */ } }
+    if (!raised) {
+      // A recipe that signs the client in and walks to a real payment must end in the client's own request. If the card
+      // never came, saying so beats drawing a payment the client did not ask for.
+      if (live && recipe.pay && recipe.signedIn && (recipe.pay.steps || []).length) {
+        try { await clientShot('client-error'); } catch (_) { /* the failure matters more */ }
+        let waiting = 'no card is waiting in the panel';
+        try {
+          const card = await x.evaluate(`(() => { const v = document.getElementById('view-approval'); return v && !v.classList.contains('hidden') ? document.getElementById('approval-host').textContent + ' ' + document.getElementById('approval-ask').textContent + ' [' + [...v.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean).join(' | ') + ']' : null; })()`);
+          if (card) waiting = 'the panel is showing: ' + card;
+          await x.screenshot(path.join(outDir, 'panel-error.png'), PANEL);
+        } catch (_) { /* the failure matters more */ }
+        throw new Error('The client never asked Sidecar to pay, so there is no real payment card; ' + waiting + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
+      }
+      await ask(); await cardUp(20000, /lightning payment/);
+    }
     await x.sleep(900);
     await shot('approve-pay');
     if (live) await clientShot('client-pay');

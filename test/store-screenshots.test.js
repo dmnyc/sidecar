@@ -228,7 +228,7 @@ test('a recipe clicks by visible text or selector, and fills a field', async () 
 });
 
 test('a recipe step that finds nothing stops the run and names the step', async () => {
-  await assert.rejects(runSteps(fakePage({ 'Got it': false }), [{ click: 'Got it!' }]), /nothing on the page matches Got it!/);
+  await assert.rejects(runSteps(fakePage({ 'Got it': false }), [{ click: 'Got it!', timeout: 40 }]), /nothing on the page matches Got it!/);
   await assert.rejects(runSteps(fakePage({ 'input.name': false }), [{ fill: 'css:input.name', text: 'x' }]), /no field matches/);
 });
 
@@ -244,6 +244,111 @@ test('interface files are what the gallery can show, and nothing else triggers a
   assert.deepEqual(interfaceFiles(['themes-notes.md', 'subdir/sidepanel.js', 'mysidepanel.js']), [], 'only the real files, not look-alikes');
 });
 
+// ---- recipe steps for a signed-in client ----
+
+test('an optional click that finds nothing is skipped, and a required one still stops the run', async () => {
+  const page = fakePage({ 'Got it': false });
+  await runSteps(page, [{ click: 'Got it!', optional: true }, { wait: 1 }]);
+  await assert.rejects(runSteps(fakePage({ 'Got it': false }), [{ click: 'Got it!', timeout: 40 }]), /nothing on the page matches/);
+});
+
+test('waitFor waits for text or a selector, and names what never appeared', async () => {
+  let n = 0;
+  const page = { evaluate: async () => ++n > 2 };   // false twice, then true
+  await runSteps(page, [{ waitFor: 'Invoice', timeout: 5000 }]);
+  assert.ok(n >= 3, 'it polled until the text appeared');
+  await assert.rejects(runSteps({ evaluate: async () => false }, [{ waitFor: 'css:.invoice', timeout: 400 }]), /css:\.invoice never appeared/);
+});
+
+test('shadowClick presses a control inside the extension’s card, retrying until the card is there', async () => {
+  const tries = [];
+  const page = { clickInShadow: async (sel) => { tries.push(sel); return tries.length >= 3; }, evaluate: async () => true };
+  await runSteps(page, [{ shadowClick: '.pay-btn', timeout: 5000, after: 1 }]);
+  assert.deepEqual(tries, ['.pay-btn', '.pay-btn', '.pay-btn']);
+  await assert.rejects(runSteps({ clickInShadow: async () => false, evaluate: async () => true }, [{ shadowClick: '.pay-btn', timeout: 400 }]), /no control matching \.pay-btn/);
+});
+
+test('approve presses a button on the panel’s card, only for the request the recipe names', async () => {
+  const asked = [];
+  const ctx = { approve: async (label, ms, when) => { asked.push([label, when]); return label === 'Sign' || /^reject/i.test(label); } };
+  await runSteps(fakePage(), [{ approve: 'Sign', when: 'zap request' }], ctx);
+  await runSteps(fakePage(), [{ approve: 'Reject', when: 'encrypt', optional: true }, { approve: 'Reject' }], ctx);
+  assert.deepEqual(asked, [['Sign', 'zap request'], ['Reject', 'encrypt'], ['Reject', undefined]]);
+  await assert.rejects(runSteps(fakePage(), [{ approve: 'Allow once', when: 'public key' }], ctx), /no approval card offered Allow once/);
+  await runSteps(fakePage(), [{ approve: 'Allow once', when: 'public key', optional: true }], ctx);
+  await assert.rejects(runSteps(fakePage(), [{ approve: 'Sign', when: 'zap request' }]), /approve needs the panel/);
+});
+
+test('a click waits for a dialog that is slow to appear, then presses it, and gives up at its timeout', async () => {
+  let calls = 0;
+  const page = { evaluate: async () => ++calls >= 3 };   // absent twice, then there
+  await runSteps(page, [{ click: 'Extension', timeout: 3000, after: 1 }]);
+  assert.equal(calls, 3, 'it looked again until the target appeared');
+  calls = -1000;
+  const start = Date.now();
+  await assert.rejects(runSteps({ evaluate: async () => false }, [{ click: 'Extension', timeout: 500 }]), /nothing on the page matches Extension/);
+  assert.ok(Date.now() - start >= 450, 'it kept looking until its timeout');
+});
+
+test('answer handles the cards a client raises in any order, only the ones it names, and stops at the payment card', async () => {
+  const queue = [
+    { ask: 'wants to see your wallet balance', buttons: ['Allow this session', 'Trust this site', 'Reject'] },
+    { ask: 'wants to encrypt a message (NIP-44)', buttons: ['Allow once', 'Reject'] },
+    { ask: 'wants to sign: Zap request', buttons: ['Sign', 'Reject'] },
+    { ask: 'wants to send a Lightning payment', buttons: ['Pay 21 sats', 'Reject'] },
+  ];
+  const pressed = [];
+  const ctx = { peekCard: async () => queue[0], pressCard: async (label) => { pressed.push([queue[0].ask, label]); queue.shift(); } };
+  await runSteps(fakePage(), [{ answer: [
+    { approve: 'Allow this session', when: 'wallet balance' },
+    { approve: 'Reject', when: 'encrypt' },
+    { approve: 'Sign', when: 'zap request' },
+  ], until: 'lightning payment', timeout: 5000 }], ctx);
+  assert.deepEqual(pressed.map((p) => p[1]), ['Allow this session', 'Reject', 'Sign']);
+  assert.equal(queue.length, 1, 'the payment card was left exactly as it was');
+});
+
+test('answer stops on a card no rule names, and says which, instead of pressing anything', async () => {
+  const pressed = [];
+  const ctx = { peekCard: async () => ({ ask: 'wants to sign: Profile', buttons: ['Sign', 'Reject'] }), pressCard: async (l) => pressed.push(l) };
+  await assert.rejects(
+    runSteps(fakePage(), [{ answer: [{ approve: 'Sign', when: 'zap request' }], timeout: 2000 }], ctx),
+    /asking "wants to sign: Profile".*which no rule in the recipe names/);
+  assert.deepEqual(pressed, []);
+});
+
+test('answer refuses a rule that approves without naming what', async () => {
+  const ctx = { peekCard: async () => null, pressCard: async () => {} };
+  await assert.rejects(runSteps(fakePage(), [{ answer: [{ approve: 'Sign' }] }], ctx), /needs a "when"/);
+  await assert.rejects(runSteps(fakePage(), [{ answer: [{ approve: 'Reject' }] }]), /answer needs the panel/);
+});
+
+test('exact matches the element whose whole text is the wanted text, not one that merely contains it', async () => {
+  const seen = [];
+  const page = { evaluate: async (expr) => { seen.push(expr); return true; } };
+  await runSteps(page, [{ click: 'Send', exact: true, after: 1 }, { click: 'Send', after: 1 }]);
+  assert.ok(seen[0].includes("t === lc") && !seen[0].includes("t.includes(lc)"), 'exact compares the whole text');
+  assert.ok(seen[1].includes("t.includes(lc)") && !seen[1].includes("t === lc"), 'the default still matches containing text');
+});
+
+test('a recipe can never approve a request it did not name: Sign, Allow once and Trust this site all need a "when"', async () => {
+  const ctx = { approve: async () => { throw new Error('must not be reached'); } };
+  for (const label of ['Sign', 'Allow once', 'Trust this site']) {
+    await assert.rejects(runSteps(fakePage(), [{ approve: label }], ctx), /needs a "when"/, label);
+  }
+});
+
+test('a trusted click sends a real mouse click at the element’s center, and plain click uses element.click()', async () => {
+  const clicks = [];
+  const page = { evaluate: async (expr) => (expr.includes('if (true)') ? { x: 120, y: 80 } : true), clickAt: async (x, y) => clicks.push([x, y]) };
+  await runSteps(page, [{ click: 'css:svg.copy', trusted: true, after: 1 }]);
+  assert.deepEqual(clicks, [[120, 80]]);
+  clicks.length = 0;
+  await runSteps(page, [{ click: 'css:svg.copy', after: 1 }]);
+  assert.deepEqual(clicks, [], 'an ordinary click does not use the mouse');
+  await assert.rejects(runSteps({ evaluate: page.evaluate }, [{ click: 'css:x', trusted: true }]), /trusted click needs a page/);
+});
+
 // ---- the release set ----
 
 function runner(args) {
@@ -255,10 +360,10 @@ test('a release set refuses a malformed version and refuses test keys, before an
   const bad = runner(['--release', '1.17']);
   assert.notEqual(bad.status, 0);
   assert.match(bad.stderr, /takes a version such as 1\.17\.1/);
-  const fixture = runner(['--release', '1.17.1', '--fixture-accounts']);
+  const fixture = runner(['--release', '999.0.0', '--fixture-accounts']);   // a version that is never real, so a set you made yourself cannot fail this
   assert.notEqual(fixture.status, 0);
   assert.match(fixture.stderr, /needs the real demo keys/);
-  assert.ok(!fs.existsSync(path.join(ROOT, 'store', 'screenshots-1.17.1')), 'nothing was written');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'store', 'screenshots-999.0.0')), 'nothing was written');
 });
 
 // ---- repo rules ----
