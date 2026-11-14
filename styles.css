@@ -2132,6 +2132,16 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 /* budget rows: wrap the "X of Y sats left today" line at spaces, not mid-word */
 .wallet-budgets .item-sub { word-break: normal; overflow-wrap: anywhere; }
 
+/* the "Your added clients" sheet's reading of each pasted link: how the client writes
+   its address, or what is wrong with the link. Empty draws nothing, so the sheet does
+   not hold a gap for a line with nothing in it. */
+.custom-client-preview { font-size: 12px; color: var(--text-2); margin: 4px 0; }
+.custom-client-preview:empty { display: none; }
+.custom-client-preview.error { color: var(--red); }
+/* a pasted link that carries parameters of its own: said, not refused */
+.custom-client-warn { font-size: 12px; color: var(--warn); margin: 4px 0; }
+.custom-client-warn:empty { display: none; }
+
 .row-actions { display: flex; gap: 8px; align-items: center; }
 .row-actions input { flex: 1; }
 
