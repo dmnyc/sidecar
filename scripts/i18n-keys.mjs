@@ -26,6 +26,7 @@ if (arg === '--test-locale') {
   const mark = (s) => '⟦' + s + '⟧';
   for (const k of keys) {
     if (k.plural) {
+      if (k.simple) out[k.key] = mark(k.key);
       out[k.key + '_one'] = mark(k.key);
       out[k.key + '_other'] = mark(k.other);
     } else {
@@ -38,7 +39,7 @@ if (arg === '--test-locale') {
 } else if (arg === '--json') {
   const out = {};
   for (const k of keys) {
-    if (k.plural) { out[k.key + '_one'] = k.key; out[k.key + '_other'] = k.other; } else out[k.key] = k.key;
+    if (k.plural) { if (k.simple) out[k.key] = k.key; out[k.key + '_one'] = k.key; out[k.key + '_other'] = k.other; } else out[k.key] = k.key;
   }
   console.log(JSON.stringify(out, null, 2));
 } else {

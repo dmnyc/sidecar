@@ -44,7 +44,7 @@ const row = accountRowSource();
 test('an armed row offers a cancel', () => {
   assert.match(
     row,
-    /const cancelBtn = iconButton\('Cancel', 'x',/,
+    /const cancelBtn = iconButton\(t\('Cancel'\), 'x',/,
     'the armed row needs a cancel in its action slot'
   );
   // It must not bubble into the row's own activate handler, which would confirm the

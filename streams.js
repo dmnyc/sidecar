@@ -318,15 +318,36 @@
     syncVisibility();
     const begin = () => { if (run !== generation || !enabled) return; return video.play().catch(() => { if (run === generation) message(t('Press Play to start watching.')); }); };
     const isHls = !/\.(mp4|webm|ogv)(?:[?#]|$)/i.test(url);
-    if (isHls && Hls.isSupported()) {
-      hls = new Hls({ enableWorker: false, backBufferLength: 15, maxBufferLength: 20 });
-      hls.on(Hls.Events.ERROR, (_, data) => { if (run === generation && data.fatal) message(t('Stream unavailable. Choose another stream or try again.')); });
-      hls.on(Hls.Events.MANIFEST_PARSED, begin);
-      hls.loadSource(url); hls.attachMedia(video);
-    } else {
-      if (isHls && !video.canPlayType('application/vnd.apple.mpegurl')) { message(t('This browser cannot play this stream.')); return; }
-      video.src = url; begin();
-    }
+    if (!isHls) { video.src = url; begin(); return; }
+    loadHls().then((loaded) => {
+      if (run !== generation) return;
+      if (loaded && Hls.isSupported()) {
+        hls = new Hls({ enableWorker: false, backBufferLength: 15, maxBufferLength: 20 });
+        hls.on(Hls.Events.ERROR, (_, data) => { if (run === generation && data.fatal) message(t('Stream unavailable. Choose another stream or try again.')); });
+        hls.on(Hls.Events.MANIFEST_PARSED, begin);
+        hls.loadSource(url); hls.attachMedia(video);
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url; begin();
+      } else {
+        message(loaded ? t('This browser cannot play this stream.') : t('Stream unavailable. Choose another stream or try again.'));
+      }
+    });
+  }
+  // hls.js is 1.65 MB and only a stream needs it, so it is injected on the first HLS play
+  // instead of loading with the panel (the jsqr pattern in sidepanel.js). Resolves true or
+  // false and never rejects; a failed load clears the memo so the next play tries again.
+  let hlsPromise = null;
+  function loadHls() {
+    if (typeof Hls !== 'undefined') return Promise.resolve(true);
+    if (hlsPromise) return hlsPromise;
+    hlsPromise = new Promise((resolve) => {
+      const tag = document.createElement('script');
+      tag.src = 'hls.js';
+      tag.onload = () => { const ok = typeof Hls !== 'undefined'; if (!ok) hlsPromise = null; resolve(ok); };
+      tag.onerror = () => { hlsPromise = null; tag.remove(); resolve(false); };
+      document.head.appendChild(tag);
+    });
+    return hlsPromise;
   }
   video.addEventListener('enterpictureinpicture', () => {
     root.classList.add('stream-pip'); layout();
@@ -507,7 +528,7 @@
     if(historyBusy || historyPaging || !canLoadHistory())return;
     const run=discoveryGeneration, view=category, extra=kind==='more';
     const current=()=>run===discoveryGeneration && view===category && !savedOnly && !detailItem;
-    const known=()=>(view==='past'?model.past():model.upcoming()).filter(item=>(item.title==='Untitled livestream')===extra).length;
+    const known=()=>(view==='past'?model.past():model.upcoming()).filter(item=>SidecarStreams.behindMore(item)===extra).length;
     const before=known();
     historyPaging=true;paint();
     try {
@@ -526,8 +547,7 @@
   // ROWS ARE KEPT ACROSS REPAINTS. paint() runs on every discovery event, on a timer and on every
   // history load, and a list that is rebuilt each time loses the reader's place and flashes
   // every thumbnail. A row is built once per stream and reused until something it shows changes.
-  const rowCache = new Map();
-  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.thumb||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
+  const rowCache = new Map();  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.thumb||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
   function syncRows(container, items) {
     const wanted=[];
     for(const item of items) {
@@ -720,8 +740,11 @@
       detailItem=model.events.get(detailItem.key)||detailItem;more.hidden=true;document.getElementById('stream-advanced').hidden=true;drawDirectoryDetails(detailItem);return;
     }
     const items = savedOnly ? savedStreams : category==='upcoming' ? model.upcoming() : category==='past' ? model.past() : model.live();
-    const named = items.filter(item => item.title !== 'Untitled livestream');
-    const untitled = items.filter(item => item.title === 'Untitled livestream');
+    // Behind More: streams with no title, and ones that look like a test of the setup. A stream
+    // you saved is there because you chose it, so only the missing title moves it.
+    const behindMore = item => savedOnly ? item.title === 'Untitled livestream' : SidecarStreams.behindMore(item);
+    const named = items.filter(item => !behindMore(item));
+    const untitled = items.filter(behindMore);
     listTotals.main=named.length;listTotals.more=untitled.length;
     if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=savedOnly ? t('No saved streams yet.') : (lookingForStreams || historyBusy) ? t('Looking for streams…') : category==='upcoming' ? t('No upcoming streams found.') : category==='past' ? t('No past streams found.') : t('No live streams found. Try refreshing.');list.replaceChildren(p); }
     else syncRows(list,named.slice(0,reveal.main));
@@ -852,7 +875,7 @@
   for(const [value,label] of [['live',t('Live')],['upcoming',t('Upcoming')],['past',t('Past')]]) {
     const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-pressed',String(value===category));
     button.onclick=()=>{
-      directoryError('');category=value;detailItem=null;savedOnly=false;moreOpen=false;resetReveal();
+      directoryError('');category=value;detailItem=null;savedOnly=false;moreOpen=false;paintMoreToggle();resetReveal();
       document.getElementById('stream-saved-toggle').setAttribute('aria-pressed','false');updateBackup();
       for(const child of filters.children)child.setAttribute('aria-pressed',String(child===button));
       paint();if(value!=='live'&&!historyLoaded)loadHistory();
@@ -911,17 +934,27 @@
     if(!directory.hidden && ![directory, entry, browse, titleButton, feedToggle].some(node => node && path.includes(node)))closeFeed();
   });
   document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
-  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();moreOpen=false;resetReveal();document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
+  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();moreOpen=false;paintMoreToggle();resetReveal();document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
   document.getElementById('stream-refresh').addEventListener('click',()=>{resetReveal();discover(true);});
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.
     directoryContent.scrollTop += element.getBoundingClientRect().top - directoryContent.getBoundingClientRect().top - 12;
   }
+  // The button says what it will do, not only what state it is in: More while the list behind it
+  // is shut, Less while it is open, and a chevron that turns over with it. A background shift
+  // alone was too faint to read. Called wherever moreOpen changes, so the button cannot be left
+  // saying "open" over a list that a change of tab has closed.
+  function paintMoreToggle() {
+    const toggle = document.getElementById('stream-more-toggle');
+    toggle.setAttribute('aria-expanded', String(moreOpen));
+    toggle.querySelector('.stream-more-label').textContent = moreOpen ? t('Less') : t('More');
+  }
+  paintMoreToggle();
   document.getElementById('stream-more-toggle').addEventListener('click', () => {
     moreOpen = !moreOpen;
     paint();
     document.getElementById('stream-more-list').hidden = !moreOpen;
-    document.getElementById('stream-more-toggle').setAttribute('aria-expanded', String(moreOpen));
+    paintMoreToggle();
     if (moreOpen) revealContent(document.getElementById('stream-more-list'));
   });
   document.getElementById('stream-url-toggle').addEventListener('click', () => {

@@ -133,11 +133,29 @@ window.SidecarCore = (function () {
     'message-circle': '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
     bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>',
     award: '<circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>',
-    // A frame with a play mark, for the GIF picker: a picture that moves. Its label says
-    // GIF beside it, which is what keeps it from reading as the video placeholder above.
-    gif: '<rect x="2" y="4" width="20" height="16" rx="3"></rect><polygon points="10 9 15 12 10 15 10 9"></polygon>',
+    // The letters G I F, drawn as strokes rather than set in a font: the button has no
+    // label to say what it is, and the old frame-with-a-play-mark read as video. Paths, so
+    // the mark is the same in every theme's typeface and in every language, and narrow
+    // letters so the word fills the 24px grid instead of needing a wider cell.
+    gif: '<path d="M8.2 8C7.6 6.6 6.5 6 5 6 3 6 1.9 7.8 1.9 12s1.1 6 3.1 6c2.1 0 3.4-1.4 3.4-4v-1.3H5.2"></path><path d="M12 6v12"></path><path d="M22.1 6h-5.7v12M16.4 12h4.4"></path>',
+    // Feather's smile: a face, for the Emoji button.
+    smile: '<circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line>',
+    // Four corner brackets, for the panel's Expand button: the frame growing, with no arrow
+    // in it. An arrow reads here as leaving the browser, and the tab it opens is the same
+    // draft with more room.
+    maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path>',
+    // Feather's check-square: a ballot box with its tick, for the Poll button. The bar-chart
+    // below still stands for a poll's results and for votes in the activity list.
+    'check-square': '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
     globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
+    // The Yours sheet's four tabs — bookmark, highlighter, bubble, heart — are named from
+    // this map. Bookmark, message-circle and heart already lived here (the note actions,
+    // the page-comment button and the reactions carry them), so a tab wears the same mark
+    // as the thing it lists; the highlighter is highlight.svg from Tabler Icons (MIT —
+    // attribution in NOTICE), chosen over a filled glyph so it matches this map's stroke
+    // vocabulary, and it is what Recent activity draws for a highlight too.
+    highlighter: '<path d="M3 19h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"></path><path d="M12.5 5.5l4 4"></path><path d="M4.5 13.5l4 4"></path><path d="M21 15v4h-8l4 -4l4 0"></path>',
   };
 
   // Icons that are SOLID shapes rather than strokes.
@@ -158,14 +176,18 @@ window.SidecarCore = (function () {
       '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
       (ICONS[name] || '') +
       '</svg>';
-    return wrap.firstElementChild;
+    const svg = wrap.firstElementChild;
+    // Named so a right-to-left page can mirror the ones that point somewhere (styles.css).
+    svg.setAttribute('data-icon', name);
+    return svg;
   }
 
 
   function h(tag, props, children) {
     const el = document.createElement(tag);
     if (props) Object.assign(el, props);
-    (children || []).forEach((c) => el.append(c));
+    // A child that is not there (null, undefined, false) adds nothing; append() would write the word.
+    (children || []).forEach((c) => { if (c != null && c !== false) el.append(c); });
     return el;
   }
 
@@ -331,13 +353,18 @@ window.SidecarCore = (function () {
   // Sibling copies live in content.js (LIGHT_CARD_THEMES, the page-side pay card) and
   // prompt.js (the approval window's wordmark). Three documents, no module system between
   // them; a new light theme has to be registered in all three.
-  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile']);
+  const LIGHT_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'phantom-bouquet']);
   // Light themes that draw a top bar dark, so a logo on that bar takes the light wordmark
   // the dark themes use. Two lists, because the bars differ: Ben Day's composer bar is its
   // black plate while its panel bars are white, and Turnstile's name tablet is on both.
   const COMPOSE_DARK_BAR_THEMES = new Set(['ben-day', 'turnstile']);
   const PANEL_DARK_BAR_THEMES = new Set(['turnstile']);
+  // A theme that wears its own cut of the logo. Phantom Bouquet's is drawn in its dyes:
+  // the glass in madder, the wordmark in the balance's plum. Its siblings are in
+  // content.js (the pay card recolors its inline copy) and prompt.js (the approval window).
+  const THEME_LOGOS = { 'phantom-bouquet': 'icons/sidecar-logo-phantom-bouquet.svg' };
   function logoSrcFor(themeName) {
+    if (Object.prototype.hasOwnProperty.call(THEME_LOGOS, themeName)) return THEME_LOGOS[themeName];
     // EVERY light theme needs the dark-wordmark variant; the default is baked
     // lavender for a dark field and disappears on marble, eggshell or plaster.
     // A set rather than a chain of ||, because this is the fourth place a theme
@@ -404,7 +431,7 @@ window.SidecarCore = (function () {
       // uploader tries Blossom first. Every one of them is a name that used to be in the
       // panel's scope for free.
       renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
-      paintCountdownNum,
+      paintCountdownNum, buildQuoteBlock, checkPastedQuote,
     };
   }
 
@@ -546,7 +573,7 @@ window.SidecarCore = (function () {
     // composers hand in the conversion, and an editor without one (the page-comment
     // box) never shows the row.
     const onAttachUrl = (opts && opts.onAttachUrl) || null;
-    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' });
+    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true', dir: 'auto' });
     editor.dataset.placeholder = (opts && opts.placeholder) || '';
     const wrap = h('div', { className: 'compose-editor-wrap' });
     wrap.append(editor);
@@ -906,9 +933,50 @@ window.SidecarCore = (function () {
       }, 0);
     });
 
+    // WHERE THE CARET WAS. A toolbar button takes focus, and the picker it opens takes
+    // it again, so by the time something is chosen the editor has no selection of its
+    // own. The last range seen inside it is kept for insertText to come back to.
+    let lastRange = null;
+    function rememberCaret() {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const r = sel.getRangeAt(0);
+      if (editor.contains(r.startContainer) && editor.contains(r.endContainer)) lastRange = r.cloneRange();
+    }
+    ['keyup', 'mouseup', 'input', 'blur'].forEach((ev) => editor.addEventListener(ev, rememberCaret));
+
+    // Text at the caret, or the end when there is none to return to, with the caret left
+    // after it. A text node rather than execCommand, so the emoji goes in whole, and never
+    // inside a mention pill: a range that sits in one is moved to just after it.
+    function insertText(text) {
+      if (!text) return;
+      editor.focus();
+      let range = lastRange && editor.contains(lastRange.startContainer) && editor.contains(lastRange.endContainer)
+        ? lastRange : null;
+      if (!range) {
+        range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+      const pill = (n) => (n.nodeType === Node.ELEMENT_NODE ? n : n.parentElement)?.closest?.('[data-bech32]');
+      const inside = pill(range.startContainer);
+      if (inside) { range.setStartAfter(inside); range.collapse(true); }
+      range.deleteContents();
+      const node = document.createTextNode(text);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      lastRange = range.cloneRange();
+      emit();
+    }
+
     return {
       wrap,
       editor,
+      insertText,
       getText: () => serializeEditor(editor),
       // Re-read the editor after the caller mutated its DOM directly (e.g.
       // appending an uploaded media URL) so the text, placeholder and any
@@ -1107,16 +1175,27 @@ window.SidecarCore = (function () {
       // behind in the panel when the uploader moved here, and an empty list reads exactly
       // like an account with no Blossom server: every upload went to nostr.build instead,
       // in both composers, with nothing said anywhere.
-      console.warn('[Upload] could not read the Blossom server list:', e);
+      uploadLog('warn', 'could not read the Blossom server list', { error: String((e && e.message) || e) });
     }
     // A relay failure or a missing event is not proof that this account has no
     // Blossom servers. Cache only usable lists, so the next upload can recover
     // immediately instead of silently using nostr.build for another five minutes.
     if (servers.length) {
-      _blossomServerCache.set(pubkey, { servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL });
-    } else {
-      _blossomServerCache.delete(pubkey);
+      _blossomServerCache.set(pubkey, {
+        servers, expiresAt: Date.now() + BLOSSOM_CACHE_TTL, staleUntil: Date.now() + BLOSSOM_STALE_TTL,
+      });
+      return servers;
     }
+    // THE LAST GOOD LIST, WHEN THE REFRESH COMES BACK EMPTY. A relay that is slow or down for
+    // one lookup said nothing about the account's servers, and answering "none" sent the
+    // upload to nostr.build: the same image went to the person's own server one minute and
+    // not the next. The old entry stays expired, so the next upload asks again, and it is
+    // only used for an hour, so a list the person really did clear is not honored forever.
+    if (cached && cached.staleUntil > Date.now()) {
+      uploadLog('warn', 'could not refresh the Blossom server list; using the last one that worked', { servers: cached.servers });
+      return cached.servers;
+    }
+    _blossomServerCache.delete(pubkey);
     return servers;
   }
 
@@ -1135,7 +1214,7 @@ window.SidecarCore = (function () {
     let lastError;
     for (const server of servers) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), BLOSSOM_UPLOAD_TIMEOUT);
+      const timer = setTimeout(() => controller.abort(), blossomTimeoutFor(file));
       try {
         const resp = await fetch(server + '/upload', {
           method: 'PUT',
@@ -1144,17 +1223,36 @@ window.SidecarCore = (function () {
           signal: controller.signal,
         });
         clearTimeout(timer);
-        if (!resp.ok) throw new Error(t('HTTP {{status}}', { status: resp.status }));
+        if (!resp.ok) {
+          // THE SERVER SAYS WHY, in an X-Reason header (BUD-01), and the status alone threw it
+          // away: a 403 could be a banned type, a quota, a closed list or a bad signature, and
+          // the notice could only say "HTTP 403". The host is named too, so a list of several
+          // servers says which one answered.
+          const why = resp.headers && typeof resp.headers.get === 'function' ? resp.headers.get('X-Reason') : null;
+          const host = server.replace(/^https?:\/\//, '');
+          throw new Error(why
+            ? t('{{host}} answered HTTP {{status}}: {{reason}}', { host, status: resp.status, reason: why })
+            : t('{{host}} answered HTTP {{status}}', { host, status: resp.status }));
+        }
         const data = await resp.json().catch(() => null);
         if (data && data.url) return data.url;
         throw new Error(t('No URL in Blossom response'));
       } catch (e) {
         clearTimeout(timer);
-        console.warn('[Blossom] upload to ' + server + ' failed:', e);
+        uploadLog('warn', 'Blossom upload failed', { server, error: e && e.name === 'AbortError' ? 'timed out' : String((e && e.message) || e), type: file.type, bytes: file.size });
         lastError = e;
       }
     }
     throw lastError || new Error(t('All Blossom servers failed'));
+  }
+
+  // Every upload decision, in the console and, in an unpacked build, in Settings → Developer →
+  // Debug log, which keeps it across the panel closing. The console was the only record, so
+  // finding out why a file went to nostr.build meant opening developer tools at the right
+  // moment. Server, status, the server's reason, file type and size: never the file or a key.
+  function uploadLog(level, msg, data) {
+    console.warn('[Upload] ' + msg + (data ? ' ' + JSON.stringify(data) : ''));
+    try { if (deps && deps.devLog) deps.devLog(level, msg, data || null); } catch (_) {}
   }
 
   async function tryBlossomFirst(file, forPubkey) {
@@ -1166,24 +1264,363 @@ window.SidecarCore = (function () {
     try {
       const servers = await fetchBlossomServers(pk);
       if (!servers.length) {
-        console.warn('[Upload] no usable Blossom servers found; falling back to nostr.build. Discovery will retry on the next upload.');
+        uploadLog('warn', 'no Blossom server list found; using nostr.build', null);
         return null;
       }
       return await uploadToBlossom(file, servers, pk);
     } catch (e) {
-      console.warn('[Upload] Blossom failed, falling back to nostr.build:', e);
+      uploadLog('error', 'every Blossom server refused; using nostr.build', { error: String((e && e.message) || e) });
+      // SAID, NOT ONLY LOGGED. The account has Blossom servers and none took the file, which
+      // is the one case where "it went to nostr.build" is a surprise: the link in the note is
+      // not on the person's own server and nothing on screen said why. An account with no
+      // list never gets here, so it is never told about a choice it did not make.
+      if (deps.onUploadFallback) {
+        const reason = e && e.name === 'AbortError' ? t('it took too long') : (e && e.message) || t('it did not answer');
+        try { deps.onUploadFallback(t('Your Blossom server did not take this file ({{reason}}). Uploaded to nostr.build instead.', { reason })); } catch (_) {}
+      }
       return null;
     }
   }
 
-  async function uploadMedia(file, forPubkey) {
-    const isImg = file.type.startsWith('image/');
-    const isVid = file.type.startsWith('video/');
+  // A PHOTO COPIED TO THE CLIPBOARD ARRIVES AS A PNG. The browser decodes the picture and
+  // hands over every pixel losslessly: a 1.3 MB phone JPEG of 2917 by 3888 pixels pasted as
+  // a 39 MB PNG, which is slow to send, heavy on the server and a long wait for whoever
+  // reads the note. Photos are what JPEG is for, so a large PNG is re-encoded as one. It is
+  // left alone when that would cost something:
+  //   - small files, where there is nothing worth saving;
+  //   - anything with transparency, which JPEG cannot hold;
+  //   - a screenshot or drawing, whose flat colors and hard edges PNG already stores well and
+  //     JPEG smears: the JPEG has to come out at least 30 percent smaller to be used;
+  //   - a picture too large to decode safely, and any browser that cannot decode it.
+  // Only PNG is touched. A JPEG, GIF, WebP or video goes up exactly as it was chosen.
+  const RECOMPRESS_MIN_BYTES = 300 * 1024;
+  const RECOMPRESS_MAX_PIXELS = 36 * 1000 * 1000;
+  const RECOMPRESS_QUALITY = 0.85;
+  const RECOMPRESS_KEEP_RATIO = 0.7;
+
+  // AN HDR PHOTO PASTES AS RAW SIGNAL. Preview on a Mac copies an HDR photo (one with a gain
+  // map) as a 16-bit PNG whose color profile declares the PQ curve, the HDR brightness
+  // encoding, in a `cicp` tag. Chrome does not read that tag: it decodes the values as if they
+  // were ordinary ones, and the re-encoded JPEG came out gray and flat, its blacks lifted and
+  // its whites dimmed. So the PNG's color chunks are read before the picture is decoded:
+  // PNG's own cICP chunk, or the cicp tag in its ICC profile. Transfer 16 is PQ, 18 is HLG.
+  function pngChunksBeforeData(bytes) {
+    const sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    if (bytes.length < 8 || sig.some((b, i) => bytes[i] !== b)) return null;
+    const out = [];
+    let i = 8;
+    while (i + 8 <= bytes.length) {
+      const len = ((bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]) >>> 0;
+      const type = String.fromCharCode(bytes[i + 4], bytes[i + 5], bytes[i + 6], bytes[i + 7]);
+      if (type === 'IDAT' || type === 'IEND') return out;
+      if (i + 12 + len > bytes.length) return out;
+      out.push({ type, start: i, end: i + 12 + len, data: bytes.subarray(i + 8, i + 8 + len) });
+      i += 12 + len;
+    }
+    return out;
+  }
+
+  async function inflateZlib(data) {
+    if (typeof DecompressionStream !== 'function') return null;
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  function iccCicpTransfer(icc) {
+    if (!icc || icc.length < 132) return null;
+    const u32 = (o) => ((icc[o] << 24) | (icc[o + 1] << 16) | (icc[o + 2] << 8) | icc[o + 3]) >>> 0;
+    const count = u32(128);
+    for (let k = 0; k < count && 132 + 12 * k + 12 <= icc.length; k++) {
+      const at = 132 + 12 * k;
+      if (String.fromCharCode(icc[at], icc[at + 1], icc[at + 2], icc[at + 3]) !== 'cicp') continue;
+      const off = u32(at + 4);
+      return off + 10 <= icc.length ? icc[off + 9] : null;
+    }
+    return null;
+  }
+
+  // 'pq', 'hlg' or null, and the chunks that set the picture's color, for the probe below.
+  // The color chunks all come before the image data, so only the head of the file is read.
+  const HDR_TRANSFER = { 16: 'pq', 18: 'hlg' };
+  const PNG_COLOR_CHUNKS = ['cHRM', 'gAMA', 'iCCP', 'sRGB', 'cICP', 'mDCV', 'cLLI'];
+  async function pngHdrInfo(file) {
+    try {
+      const head = new Uint8Array(await file.slice(0, 2 * 1024 * 1024).arrayBuffer());
+      const chunks = pngChunksBeforeData(head);
+      if (!chunks) return null;
+      let transfer = null;
+      for (const c of chunks) {
+        if (c.type === 'cICP' && c.data.length >= 2) transfer = HDR_TRANSFER[c.data[1]] || transfer;
+        if (c.type === 'iCCP' && !transfer) {
+          const nul = c.data.indexOf(0);
+          if (nul < 0) continue;
+          const icc = await inflateZlib(c.data.subarray(nul + 2));
+          transfer = HDR_TRANSFER[iccCicpTransfer(icc)] || transfer;
+        }
+      }
+      if (!transfer) return null;
+      return { transfer, colorChunks: chunks.filter((c) => PNG_COLOR_CHUNKS.includes(c.type)).map((c) => head.slice(c.start, c.end)) };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // DOES THIS BROWSER READ IT RAW? Measured, not assumed, so a Chrome that learns the tag
+  // later is not corrected twice: a one-pixel PNG carrying the photo's own color chunks and a
+  // known PQ value is decoded, and only if that value comes back unchanged is the correction
+  // applied.
+  const PROBE_VALUE = 148;
+  let crcTable = null;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        crcTable[n] = c >>> 0;
+      }
+    }
+    let c = 0xFFFFFFFF;
+    for (const b of bytes) c = crcTable[(c ^ b) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function pngChunk(type, data) {
+    const out = new Uint8Array(12 + data.length);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, data.length);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(data, 8);
+    dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+  }
+  function probePng(colorChunks) {
+    const ihdr = new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0]); // 1x1, 8-bit RGB
+    const row = [0, PROBE_VALUE, PROBE_VALUE, PROBE_VALUE]; // filter byte, then the pixel
+    let a = 1, b = 0;
+    for (const v of row) { a = (a + v) % 65521; b = (b + a) % 65521; }
+    // zlib, one stored deflate block: no compressor needed for four bytes.
+    const idat = new Uint8Array([0x78, 0x01, 0x01, 4, 0, 0xFB, 0xFF, ...row, b >> 8, b & 0xFF, a >> 8, a & 0xFF]);
+    const parts = [new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), pngChunk('IHDR', ihdr), ...colorChunks, pngChunk('IDAT', idat), pngChunk('IEND', new Uint8Array(0))];
+    return new Blob(parts, { type: 'image/png' });
+  }
+  async function decodesSignalRaw(colorChunks) {
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(probePng(colorChunks));
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(1, 1)
+        : Object.assign(document.createElement('canvas'), { width: 1, height: 1 });
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      return Math.abs(ctx.getImageData(0, 0, 1, 1).data[0] - PROBE_VALUE) <= 2;
+    } catch (_) {
+      return false;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  // PQ signal to standard range, one entry per 8-bit value: the PQ curve gives the light in
+  // nits, 203 nits is the white of a standard-range picture (ITU-R BT.2408), anything brighter
+  // is clipped, and the result is encoded with the sRGB curve that a Display P3 canvas uses.
+  // Checked against the photo that prompted it: the average error against the original's own
+  // standard-range image fell from 28 levels to 3.
+  const SDR_WHITE_NITS = 203;
+  function pqToSdrTable() {
+    const m1 = 0.1593017578125, m2 = 78.84375, c1 = 0.8359375, c2 = 18.8515625, c3 = 18.6875;
+    const table = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) {
+      const p = Math.pow(v / 255, 1 / m2);
+      const nits = 10000 * Math.pow(Math.max(p - c1, 0) / (c2 - c3 * p), 1 / m1);
+      const l = Math.min(nits / SDR_WHITE_NITS, 1);
+      const enc = l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
+      table[v] = Math.round(255 * enc);
+    }
+    return table;
+  }
+
+  async function recompressImage(file, { pasted = false, onHdr } = {}) {
+    if (!file || file.type !== 'image/png' || file.size < RECOMPRESS_MIN_BYTES) return file;
+    if (typeof createImageBitmap !== 'function') return file;
+    let bitmap = null;
+    try {
+      // An HDR PNG someone chose goes up as it is, its HDR intact: only the clipboard's copy is
+      // worth trading for size. A pasted one is corrected to standard range, which looks like
+      // the original on any screen that is not HDR, so nothing needs saying. Only one that
+      // cannot be corrected (HLG, or a browser that fails the probe) tells the person, while
+      // there is still time to attach the original instead.
+      const hdr = await pngHdrInfo(file);
+      if (hdr && !pasted) return file;
+      const toSdr = hdr && hdr.transfer === 'pq' && await decodesSignalRaw(hdr.colorChunks) ? pqToSdrTable() : null;
+      if (hdr && !toSdr && typeof onHdr === 'function') { try { onHdr(hdr.transfer); } catch (_) {} }
+      bitmap = await createImageBitmap(file);
+      const w = bitmap.width;
+      const h = bitmap.height;
+      if (!w || !h || w * h > RECOMPRESS_MAX_PIXELS) return file;
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(w, h)
+        : Object.assign(document.createElement('canvas'), { width: w, height: h });
+      // WIDE COLOR KEEPS ITS COLOR. A phone photo is Display P3, and a default canvas is
+      // sRGB: the re-encoded JPEG came out tagged sRGB and its colors shifted. A Display P3
+      // canvas keeps the gamut and the browser writes that profile into the JPEG; an sRGB
+      // picture loses nothing in it. A browser that cannot make one falls back to sRGB.
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      // Transparency anywhere means the PNG stays: JPEG would turn it black.
+      const img = ctx.getImageData(0, 0, w, h);
+      const px = img.data;
+      for (let i = 3; i < px.length; i += 4) if (px[i] !== 255) return file;
+      if (toSdr) {
+        for (let i = 0; i < px.length; i += 4) { px[i] = toSdr[px[i]]; px[i + 1] = toSdr[px[i + 1]]; px[i + 2] = toSdr[px[i + 2]]; }
+        ctx.putImageData(img, 0, 0);
+      }
+      const blob = canvas.convertToBlob
+        ? await canvas.convertToBlob({ type: 'image/jpeg', quality: RECOMPRESS_QUALITY })
+        : await new Promise((res) => canvas.toBlob(res, 'image/jpeg', RECOMPRESS_QUALITY));
+      if (!blob || blob.size > file.size * RECOMPRESS_KEEP_RATIO) return file;
+      const stem = String(file.name || 'image').replace(/\.[^.]+$/, '');
+      return new File([blob], stem + '.jpg', { type: 'image/jpeg' });
+    } catch (e) {
+      console.warn('[Upload] could not recompress the image; sending it as it is:', e);
+      return file;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  // A PHOTO CARRIES WHERE IT WAS TAKEN. A phone writes GPS coordinates, the camera and often
+  // the owner's name into a JPEG's EXIF and XMP blocks, and every upload sent them along: to a
+  // server that strips them, one that refuses the file for them ("Private metadata detected"),
+  // or one that keeps and serves them to anyone who downloads the picture. So they come out
+  // before anything leaves. In the file's own bytes, not by redrawing it: APP1 (EXIF and XMP)
+  // and APP13 (IPTC) are dropped and the image data is untouched, so there is no quality lost
+  // and the color profile (APP2) stays. The one thing EXIF does for the picture is say which
+  // way up it is; a photo whose orientation is not the default is redrawn upright instead, on
+  // a Display P3 canvas, because dropping the tag alone would leave it on its side.
+  function jpegSegments(bytes) {
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) return null;
+    const segs = [];
+    let i = 2;
+    while (i + 4 <= bytes.length) {
+      if (bytes[i] !== 0xFF) return null;
+      const marker = bytes[i + 1];
+      if (marker === 0xFF) { i += 1; continue; }
+      if (marker === 0xDA) { segs.push({ marker, start: i, end: bytes.length }); return segs; } // image data to the end
+      if (marker === 0xD9) { segs.push({ marker, start: i, end: i + 2 }); return segs; }
+      if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { segs.push({ marker, start: i, end: i + 2 }); i += 2; continue; }
+      const len = (bytes[i + 2] << 8) | bytes[i + 3];
+      if (len < 2 || i + 2 + len > bytes.length) return null;
+      segs.push({ marker, start: i, end: i + 2 + len });
+      i += 2 + len;
+    }
+    return null;
+  }
+
+  // EXIF orientation (tag 0x0112) from an APP1 segment, or 1 when there is none to read.
+  function exifOrientation(bytes, seg) {
+    const b = bytes.subarray(seg.start + 4, seg.end);
+    if (b.length < 14 || String.fromCharCode(b[0], b[1], b[2], b[3]) !== 'Exif') return 1;
+    const t = b.subarray(6);
+    const le = t[0] === 0x49;
+    const u16 = (o) => (le ? t[o] | (t[o + 1] << 8) : (t[o] << 8) | t[o + 1]);
+    const u32 = (o) => (le ? (t[o] | (t[o + 1] << 8) | (t[o + 2] << 16)) + t[o + 3] * 16777216 : t[o] * 16777216 + ((t[o + 1] << 16) | (t[o + 2] << 8) | t[o + 3]));
+    const ifd = u32(4);
+    if (ifd + 2 > t.length) return 1;
+    const n = u16(ifd);
+    for (let k = 0; k < n; k++) {
+      const e = ifd + 2 + k * 12;
+      if (e + 12 > t.length) break;
+      if (u16(e) === 0x0112) return u16(e + 8) || 1;
+    }
+    return 1;
+  }
+
+  async function redrawUpright(file) {
+    if (typeof createImageBitmap !== 'function') return null;
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(file); // applies the EXIF orientation by default
+      const w = bitmap.width;
+      const h = bitmap.height;
+      if (!w || !h || w * h > RECOMPRESS_MAX_PIXELS) return null;
+      const canvas = typeof OffscreenCanvas === 'function'
+        ? new OffscreenCanvas(w, h)
+        : Object.assign(document.createElement('canvas'), { width: w, height: h });
+      const ctx = canvas.getContext('2d', { colorSpace: 'display-p3' }) || canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      const blob = canvas.convertToBlob
+        ? await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 })
+        : await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+      return blob ? new File([blob], file.name || 'image.jpg', { type: 'image/jpeg' }) : null;
+    } catch (_) {
+      return null;
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+    }
+  }
+
+  const PRIVATE_SEGMENTS = new Set([0xE1, 0xED]); // APP1 (EXIF, XMP), APP13 (IPTC)
+
+  // Returns the file without its private metadata. FAILS CLOSED: a JPEG whose metadata cannot
+  // be removed is not sent at all, because sending the location was the bug.
+  async function stripPrivateMetadata(file) {
+    if (!file || file.type !== 'image/jpeg') return file;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const segs = jpegSegments(bytes);
+    if (!segs) throw new Error(t('This photo could not be read, so it was not uploaded.'));
+    const priv = segs.filter((s) => PRIVATE_SEGMENTS.has(s.marker));
+    if (!priv.length) return file;
+    const orientation = priv.filter((s) => s.marker === 0xE1).reduce((o, s) => (o !== 1 ? o : exifOrientation(bytes, s)), 1);
+    if (orientation !== 1) {
+      const upright = await redrawUpright(file);
+      if (upright) return upright;
+      throw new Error(t('This photo could not be cleaned of its location data, so it was not uploaded.'));
+    }
+    const kept = segs.filter((s) => !PRIVATE_SEGMENTS.has(s.marker));
+    const parts = [bytes.subarray(0, 2), ...kept.map((s) => bytes.subarray(s.start, s.end))];
+    return new File(parts, file.name || 'image.jpg', { type: 'image/jpeg' });
+  }
+
+  // HEIC AND HEIF STOP HERE. An iPhone photo is HEIC, a browser cannot decode one (so the
+  // canvas redraw that re-encodes a PNG is not available), and many apps cannot open it,
+  // so it used to go up as chosen and show as a broken image in someone else's feed.
+  // Found by what it says and what it is: Windows hands over no type at all, and a file can
+  // be renamed, so the type, the extension and the ftyp box (its brands) each count.
+  // AVIF shares the box layout and the mif1 brand, so only the HEVC-coded brands decide.
+  const HEIC_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs']);
+  async function isHeic(file) {
+    if (/^image\/hei[cf]/i.test(file.type || '') || /\.hei[cf]s?$/i.test(file.name || '')) return true;
+    try {
+      const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+      const four = (at) => String.fromCharCode(head[at], head[at + 1], head[at + 2], head[at + 3]);
+      if (head.length < 12 || four(4) !== 'ftyp') return false;
+      const size = ((head[0] << 24) | (head[1] << 16) | (head[2] << 8) | head[3]) >>> 0;
+      const end = Math.min(size || 64, head.length);
+      if (HEIC_BRANDS.has(four(8))) return true;
+      for (let at = 16; at + 4 <= end; at += 4) if (HEIC_BRANDS.has(four(at))) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  async function uploadMedia(original, forPubkey, { pasted = false } = {}) {
+    if (await isHeic(original)) throw new Error(t('HEIC is not a supported image type. Try pasting the image instead.'));
+    const isImg = original.type.startsWith('image/');
+    const isVid = original.type.startsWith('video/');
     if (!isImg && !isVid) throw new Error(t('Choose an image or video'));
-    if (file.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
+    if (original.size > 100 * 1024 * 1024) throw new Error(t('File too large (max 100MB)'));
+    // A canvas writes no metadata, so only what goes up as chosen needs stripping.
+    const file = await recompressImage(await stripPrivateMetadata(original), {
+      pasted,
+      onHdr: () => {
+        if (deps.onUploadNotice) deps.onUploadNotice(t('This pasted HDR photo may lose definition. Attach the original file for best results.'));
+      },
+    });
     const forPk = forPubkey || deps.activePubkey();
     const blossomUrl = await tryBlossomFirst(file, forPk);
-    if (blossomUrl) return blossomUrl;
+    if (blossomUrl) {
+      uploadLog('info', 'uploaded to Blossom', { url: blossomUrl, type: file.type, bytes: file.size });
+      return blossomUrl;
+    }
     const url = 'https://nostr.build/api/v2/upload/files';
     const authEvent = {
       kind: 27235,
@@ -1240,21 +1677,73 @@ window.SidecarCore = (function () {
   // description means no alt slot and no imeta tag at all — never empty metadata. The
   // cap is applied here as well as in the editor because a draft can be restored into
   // a composer that publishes without the editor ever being opened.
-  function buildImetaTag(url, alt) {
+  function buildImetaTag(url, alt, extra) {
     const cleaned = capAltText(normalizeAltBreaks(alt));
-    if (!url || !cleaned) return null;
-    return ['imeta', 'url ' + url, 'alt ' + cleaned];
+    // What the file itself says about it, for a video: its type and its size in pixels.
+    // Checked here rather than trusted, because a draft is restored from storage and a
+    // malformed slot must come out as no slot, never as a tag a client chokes on.
+    const mime = extra && /^video\/[\w.+-]{1,60}$/i.test(extra.m || '') ? extra.m.toLowerCase() : '';
+    const dim = extra && /^[1-9]\d{0,4}x[1-9]\d{0,4}$/.test(extra.dim || '') ? extra.dim : '';
+    if (!url || !(cleaned || mime || dim)) return null;
+    const tag = ['imeta', 'url ' + url];
+    if (mime) tag.push('m ' + mime);
+    if (dim) tag.push('dim ' + dim);
+    if (cleaned) tag.push('alt ' + cleaned);
+    return tag;
   }
 
-  // In draft order, one tag per described attachment. Undescribed media contributes
-  // nothing, so a note of bare URLs publishes exactly as it did before this existed.
-  function imetaTagsForMedia(media) {
+  // In draft order, one tag per attachment with something to say. A bare image or a
+  // video that was never measured contributes nothing, so a note of plain URLs publishes
+  // exactly as it did before this existed.
+  //
+  // A VIDEO'S TYPE AND SIZE RIDE ALONG BY DEFAULT: a client that knows the shape before it
+  // fetches a byte can reserve the box and pick a player, and several decline to show a
+  // video inline without it. `videoImeta: false` (Settings) leaves them out.
+  function imetaTagsForMedia(media, opts) {
+    const withVideo = !(opts && opts.videoImeta === false);
     const out = [];
     for (const m of media || []) {
-      const tag = buildImetaTag(m && m.url, m && m.alt);
+      const extra = withVideo && m && m.isVideo ? { m: m.mime, dim: m.dim } : null;
+      const tag = buildImetaTag(m && m.url, m && m.alt, extra);
       if (tag) out.push(tag);
     }
     return out;
+  }
+
+  // A video's type and pixel size, read from the file in the browser before it goes up:
+  // the same bytes the server receives, so what the tag says is what was sent. Best
+  // effort and bounded: a codec the browser cannot read, or a file that never answers,
+  // resolves to what is known (the type) after five seconds rather than holding the
+  // upload open. Never throws.
+  function readVideoMeta(file) {
+    return new Promise((resolve) => {
+      const out = {};
+      if (!file || !/^video\//.test(file.type || '')) { resolve(out); return; }
+      out.mime = file.type;
+      let finished = false;
+      let objectUrl = '';
+      const video = document.createElement('video');
+      const timer = setTimeout(finish, 5000);
+      function finish() {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        try { video.removeAttribute('src'); video.load(); } catch (_) {}
+        try { if (objectUrl) URL.revokeObjectURL(objectUrl); } catch (_) {}
+        resolve(out);
+      }
+      video.preload = 'metadata';
+      video.muted = true;
+      video.addEventListener('loadedmetadata', () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) out.dim = video.videoWidth + 'x' + video.videoHeight;
+        finish();
+      });
+      video.addEventListener('error', finish);
+      try {
+        objectUrl = URL.createObjectURL(file);
+        video.src = objectUrl;
+      } catch (_) { finish(); }
+    });
   }
 
   // The ALT editor as one full-width row: thumbnail and explainer on top, the
@@ -1279,7 +1768,10 @@ window.SidecarCore = (function () {
     const row = h('div', { className: 'compose-alt-row' });
 
     const head = h('div', { className: 'compose-alt-head' });
-    if (opts.url) {
+    if (opts.url && opts.isVideo) {
+      // A video is never decoded for a 36px square: its cover glyph stands in for it.
+      head.append(h('span', { className: 'compose-alt-thumb compose-alt-thumb-vid' }, [icon('video')]));
+    } else if (opts.url) {
       const im = document.createElement('img');
       im.className = 'compose-alt-thumb';
       // Same reason every other media element here carries it: media hosts 403 a
@@ -1288,7 +1780,7 @@ window.SidecarCore = (function () {
       im.src = opts.url;
       head.append(im);
     }
-    head.append(h('span', { className: 'compose-alt-hint', textContent: t('Describe this image for anyone who may not be able to see it.') }));
+    head.append(h('span', { className: 'compose-alt-hint', textContent: opts.isVideo ? t('Describe this video for anyone who may not be able to see it.') : t('Describe this image for anyone who may not be able to see it.') }));
     if (initial) {
       const rm = h('button', { className: 'mini ghost compose-alt-remove', title: t('Remove the description'), type: 'button' });
       rm.append(icon('trash'));
@@ -1297,7 +1789,7 @@ window.SidecarCore = (function () {
     }
     row.append(head);
 
-    const field = h('textarea', { className: 'compose-alt-text', maxLength: ALT_MAX, placeholder: t('What does the image show?') });
+    const field = h('textarea', { className: 'compose-alt-text', maxLength: ALT_MAX, placeholder: opts.isVideo ? t('What does the video show?') : t('What does the image show?') });
     field.value = initial;
     row.append(field);
 
@@ -1318,7 +1810,7 @@ window.SidecarCore = (function () {
       '<circle cx="10" cy="10" r="' + RING_R + '" class="ring-fill" ' +
       'stroke-dasharray="' + RING_C + '" stroke-dashoffset="' + RING_C + '" transform="rotate(-90 10 10)"/>';
     const count = h('span', { className: 'compose-alt-count' });
-    const save = h('button', { className: 'ghost compose-alt-save', type: 'button', textContent: t('Save description') });
+    const save = h('button', { className: 'ghost compose-alt-save', type: 'button', textContent: tn('Save description', 'Save descriptions', opts.count || 1) });
     row.append(h('div', { className: 'compose-alt-foot' }, [ring, count, save]));
 
     function paintMeter() {
@@ -1379,11 +1871,164 @@ window.SidecarCore = (function () {
   // What the note says on the wire, and what the preview should show: the one place
   // prose and attachments meet again, so the review window previews the note that
   // will actually go out rather than the half of it the editor was showing.
+  //
+  // THE STRIP IS THE ORDER. An entry is a file URL or a quoted note (`{ quote: 'nostr:…' }`,
+  // the card a trailing quote becomes when it is moved in), and they publish in the
+  // strip's order after the person's words: one line each, a blank line wherever the kind
+  // changes, so a quote always starts its own paragraph the way a written one does.
   function composeNoteContent(text, media) {
     const prose = String(text || '').trim();
-    const urls = (media || []).map((m) => m && m.url).filter(Boolean);
-    if (!urls.length) return prose;
-    return (prose ? prose + '\n\n' : '') + urls.join('\n');
+    const groups = [];
+    let last = '';
+    for (const m of media || []) {
+      const line = m && (m.url || m.quote);
+      if (!line) continue;
+      const kind = m.url ? 'url' : 'quote';
+      if (kind === last) groups[groups.length - 1].push(line); else groups.push([line]);
+      last = kind;
+    }
+    return [prose, ...groups.map((g) => g.join('\n'))].filter(Boolean).join('\n\n');
+  }
+
+  // What the note's tags are read from: the words, and every quoted note the strip
+  // holds. The q and p tags come from the content a reader will see, not from the editor
+  // alone, or a quote moved into the strip would stop being tagged as one.
+  function proseWithQuotes(prose, media) {
+    const quotes = (media || []).map((m) => m && m.quote).filter(Boolean);
+    return [String(prose || ''), ...quotes].filter(Boolean).join('\n');
+  }
+
+  // ---- a quote that ends the post, offered to the strip ----
+  //
+  // A quote draft ends on a nostr: reference, and the attachments are appended after it.
+  // Some clients draw a note's images from where they sit in the text, and a picture
+  // below the quoted card ends up looking like part of the quote or lost beneath it. So
+  // the strip can hold the quote too, and the order is whatever the person drags it to.
+  //
+  // THE QUOTE IS ONLY OFFERED WHEN IT ENDS THE POST: whole lines of nostr: note, nevent
+  // or naddr references (a bare one counts, linkBareRefs links it before publish) and
+  // nothing else after them. A mention (npub), a reference in the middle of a sentence, or
+  // text written under the quote leaves the order exactly as it always was.
+  const QUOTE_REF = '(?:nostr:)?(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+';
+  const QUOTE_REF_LINE = new RegExp('^\\s*(?:' + QUOTE_REF + '\\s*)+$');
+  const QUOTE_REF_WORD = new RegExp('^' + QUOTE_REF + '$');
+  // One note named once or many times is one entry, in the nostr: form that publishes; two
+  // different notes are none, because the strip quotes one and never picks between two.
+  function singleQuote(refs) {
+    const distinct = [...new Set(refs.map((r) => 'nostr:' + r.replace(/^nostr:/, '')))];
+    return distinct.length === 1 ? [{ quote: distinct[0] }] : [];
+  }
+
+  function splitTrailingQuote(text) {
+    const whole = String(text || '').trim();
+    const lines = whole.split('\n');
+    let at = lines.length;
+    // Blank lines between two quotes belong to the tail; the first line that is neither
+    // blank nor a reference ends it.
+    while (at > 0 && (!lines[at - 1].trim() || QUOTE_REF_LINE.test(lines[at - 1]))) at--;
+    const tail = lines.slice(at).join('\n').trim();
+    if (!tail) return { head: whole, tail: '' };
+    return { head: lines.slice(0, at).join('\n').trim(), tail };
+  }
+
+  // The trailing quote taken out of the text, as a strip entry. `head` is what stays in the
+  // editor. ONE NOTE ONLY: the strip holds a single quote, so a tail naming two different
+  // notes is left alone as text, and so is a quote when the strip already has one. The
+  // reference is normalized to its nostr: form, which is what gets published; the same
+  // note written twice is still one note.
+  function takeTrailingQuote(text, media) {
+    const whole = String(text || '');
+    if ((media || []).some((m) => m && m.quote)) return { head: whole, quotes: [] };
+    const { head, tail } = splitTrailingQuote(whole);
+    const quotes = singleQuote(tail.match(new RegExp(QUOTE_REF, 'g')) || []);
+    return quotes.length ? { head, quotes } : { head: whole, quotes: [] };
+  }
+
+  // A paste that is nothing but one quoted note: a note1, nevent1 or naddr reference, with or
+  // without nostr:. That is a person bringing a note in to quote it, so it becomes a block
+  // under the field instead of a line of bech32. Anything else (a sentence with a reference
+  // in it, a mention, a URL, or two different notes) is not recognized and pastes as the text
+  // it is: the strip quotes one note, and a paste never picks between two. Returns the entry
+  // in the nostr: form that publishes, or [] when there is nothing to quote; and [] when the
+  // strip already holds a quote, because a second paste does not silently replace the first.
+  // A QUOTE YOU ASKED FOR GOES INTO THE DRAFT. The Quote button is an explicit choice of
+  // note, so it takes the strip's quote slot: added when the draft has no quote, swapped in
+  // place of the old one when it has (same spot in the strip, so the pictures stay where
+  // they were), and nothing else in the draft moves. Without this a draft that already
+  // quoted something either dropped the new note or had to be thrown away whole, and the
+  // only way through was the old quote's two-tap trash. A PASTE still never replaces a
+  // quote (quoteEntriesFromPaste): pasting is ambiguous, tapping Quote is not.
+  // Returns the new media list and what changed: 'added', 'replaced' or null.
+  function placeQuote(media, entry) {
+    const out = Array.isArray(media) ? media.slice() : [];
+    if (!entry || typeof entry.quote !== 'string') return { media: out, change: null };
+    const at = out.findIndex((m) => m && m.quote);
+    if (at < 0) { out.push(entry); return { media: out, change: 'added' }; }
+    if (out[at].quote === entry.quote) return { media: out, change: null };
+    out[at] = entry;
+    return { media: out, change: 'replaced' };
+  }
+
+  function quoteEntriesFromPaste(text, media) {
+    if ((media || []).some((m) => m && m.quote)) return [];
+    const raw = String(text || '').trim();
+    if (!raw) return [];
+    const toks = raw.split(/\s+/);
+    return toks.every((tk) => QUOTE_REF_WORD.test(tk)) ? singleQuote(toks) : [];
+  }
+
+  // THE STRIP IS TWO BLOCKS: the pictures (and videos), in their own order, and the quoted
+  // note. The only question is which comes first, so the note is pinned to one end and the
+  // pictures reorder among themselves, never past it. Everything below keeps that true.
+
+  // The note to the front or to the back. Returns a new array (the same one when it is
+  // already there, or when there is nothing to go past).
+  function moveQuoteEntry(media, index, dir) {
+    const list = Array.isArray(media) ? media : [];
+    const q = list[index];
+    if (!q || !q.quote || list.length < 2) return list;
+    if (dir < 0 ? index === 0 : index === list.length - 1) return list;
+    const rest = list.slice(0, index).concat(list.slice(index + 1));
+    return dir < 0 ? [q, ...rest] : [...rest, q];
+  }
+
+  // A picture moved from one slot to another, the note staying at its end. `from` and `to`
+  // are indexes into `media`; either one naming the note moves nothing.
+  function movePicture(media, from, to) {
+    const list = Array.isArray(media) ? media : [];
+    if (!list[from] || !list[to] || list[from].quote || list[to].quote) return list;
+    const quotes = list.filter((m) => m && m.quote);
+    const pics = list.filter((m) => !(m && m.quote));
+    const pt = pics.indexOf(list[to]);
+    pics.splice(pics.indexOf(list[from]), 1);
+    pics.splice(pt, 0, list[from]);
+    if (!quotes.length) return pics;
+    return list[0].quote ? [...quotes, ...pics] : [...pics, ...quotes];
+  }
+
+  // Whether the picture at `i` has another picture to step past in that direction.
+  function canMovePicture(media, i, dir) {
+    const list = Array.isArray(media) ? media : [];
+    const j = i + dir;
+    return !!list[i] && !list[i].quote && j >= 0 && j < list.length && !(list[j] && list[j].quote);
+  }
+
+  function pictureCount(media) {
+    return (media || []).filter((m) => m && !m.quote).length;
+  }
+
+  // The strip takes a new order. The movers return copies, and the array is shared with the
+  // drawer and the autosave, so it is rewritten in place.
+  function replaceMedia(media, next) {
+    media.splice(0, media.length, ...next);
+  }
+
+  // A new attachment goes in with the pictures: when the note is last it goes in ahead of
+  // it, which keeps the pictures-then-note order that was already chosen. Edits in place.
+  function addMedia(media, entry) {
+    const last = media.length - 1;
+    if (last >= 0 && media[last] && media[last].quote) media.splice(last, 0, entry);
+    else media.push(entry);
   }
 
   // Drafts saved before the URLs moved out of the editor carry them in the saved
@@ -1656,7 +2301,7 @@ window.SidecarCore = (function () {
   async function devReplyTags(target, selectedKind, selfPubkey, authorOf) {
     if (!selectedKind) return target ? replyTags(target, selfPubkey) : null;
     if (!target) {
-      if (selectedKind === WEB_COMMENT_KIND) throw new Error('Reply to a note to create a kind 1111 comment.');
+      if (selectedKind === WEB_COMMENT_KIND) throw new Error(t('Reply to a note to create a kind 1111 comment.'));
       return null;
     }
     const normal = replyTags(target, selfPubkey);
@@ -1667,7 +2312,7 @@ window.SidecarCore = (function () {
       const rootId = rootTag ? rootTag[1] : target.id;
       const rootAuthor = rootId === target.id ? target.pubkey
         : rootTag[4] || (await authorOf(rootId));
-      if (!rootAuthor) throw new Error('Could not load the thread author. Try again before posting this comment.');
+      if (!rootAuthor) throw new Error(t('Could not load the thread author. Try again before posting this comment.'));
       return { kind: WEB_COMMENT_KIND, tags: [
         ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
         ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,
@@ -1734,6 +2379,74 @@ window.SidecarCore = (function () {
     return cover;
   }
 
+  // The copy icon's feedback, shared by every copy button in the composer: the clipboard
+  // write, then a check mark for about a second. A failed write changes nothing.
+  function copyWithCheck(btn, text) {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.innerHTML = '';
+      btn.append(icon('check'));
+      btn.classList.add('did');
+      setTimeout(() => {
+        btn.innerHTML = '';
+        btn.append(icon('copy'));
+        btn.classList.remove('did');
+      }, 900);
+    }).catch(() => {});
+  }
+
+  // One row per link: the URL, truncated, and a copy button in the icon slot. The rows of
+  // the reference drawer and of the pictures' own list are this.
+  function buildUrlRow(url) {
+    const rowEl = h('div', { className: 'compose-media-row' });
+    const u = h('span', { className: 'compose-media-url', textContent: url });
+    u.title = url;
+    const cp = h('button', { className: 'compose-media-copy', title: t('Copy link'), type: 'button' });
+    cp.setAttribute('aria-label', t('Copy link'));
+    cp.append(icon('copy'));
+    cp.addEventListener('click', () => copyWithCheck(cp, url));
+    rowEl.append(u, cp);
+    return rowEl;
+  }
+
+  // An icon-only button in the label row of the pictures' block or the quote's.
+  function blockIconBtn(name, title, fn) {
+    const b = h('button', { className: 'quote-block-btn', title, type: 'button' });
+    b.setAttribute('aria-label', title);
+    b.append(icon(name));
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  // The pictures' own block in the strip, shown only while a quote is attached beside them
+  // (the strip is then two blocks and each one says what it is and which way it can go).
+  // Returns { label, list }: the label goes above the first picture, the list of links
+  // below the last, so the links stay with the pictures they belong to when the blocks swap.
+  // The label's chevron opens the list; whether it is open outlives the strip's repaints.
+  // The arrow is the quote block's, seen from the other side: the pictures going below the
+  // note is the note going above them. It ends the row, in the same column as the quote
+  // block's own arrow.
+  let attachmentUrlsOpen = false;
+  function buildAttachmentsLabel(count, ctl) {
+    const c = ctl || {};
+    const urls = (c.urls || []).filter(Boolean);
+    const list = h('div', { className: 'compose-media-drawer attach-group-list' });
+    for (const u of urls) list.append(buildUrlRow(u));
+    const toggle = h('button', { className: 'attach-group-toggle', type: 'button' });
+    const paintOpen = () => {
+      list.classList.toggle('hidden', !attachmentUrlsOpen);
+      toggle.classList.toggle('open', attachmentUrlsOpen);
+      toggle.setAttribute('aria-expanded', attachmentUrlsOpen ? 'true' : 'false');
+    };
+    toggle.append(icon('chevron-down'), h('span', { textContent: tn('{{count}} attachment', '{{count}} attachments', count) }));
+    toggle.addEventListener('click', () => { attachmentUrlsOpen = !attachmentUrlsOpen; paintOpen(); });
+    paintOpen();
+    const actions = h('span', { className: 'quote-block-actions' });
+    if (c.canUp) actions.append(blockIconBtn('arrow-up', t('Move above the quote'), c.onUp));
+    if (c.canDown) actions.append(blockIconBtn('arrow-down', t('Move below the quote'), c.onDown));
+    const label = h('div', { className: 'attach-group-label' }, [toggle, actions]);
+    return { label, list };
+  }
+
   // The attachments' reference drawer: one collapsed line saying how many and where
   // they go, expanding to one row per attachment — the URL, truncated, with a copy
   // button in the icon slot. Read-only on purpose: the order shown is the thumbs'
@@ -1747,43 +2460,38 @@ window.SidecarCore = (function () {
     const label = h('span', { className: 'compose-media-toggle-label' });
     toggle.append(chev, label);
     const drawer = h('div', { className: 'compose-media-drawer hidden' });
-    wrap.append(toggle, drawer);
+    // THE QUOTE OFFER, only when it means something: attachments are on the post and the
+    // words end on a quoted note. One tap moves the quote into the strip, where it is a
+    // card that reorders with the images (the order of the strip is the order of the post).
+    // Never done silently: a quote that stays in the text works exactly as it always did.
+    // `opts.getText` reads the live prose; `opts.onMoveQuote` is the page's move.
+    const offer = h('button', { className: 'compose-media-offer', type: 'button', textContent: t('Move the quote into the attachments') });
+    offer.addEventListener('click', () => { if (opts && opts.onMoveQuote) opts.onMoveQuote(); });
+    wrap.append(toggle, offer, drawer);
 
     function sync() {
       const media = (getMedia && getMedia()) || [];
       const urls = media.filter((m) => m && m.url);
-      if (!urls.length) {
+      // With a quote in the strip the pictures carry their own label and list of links.
+      if (!urls.length || media.some((m) => m && m.quote)) {
         wrap.classList.add('hidden');
         drawer.classList.add('hidden');
         toggle.classList.remove('open');
         return;
       }
       wrap.classList.remove('hidden');
-      label.textContent = urls.length + (urls.length === 1 ? ' attachment' : ' attachments')
-        + ' — added to the end of your post';
+      const trailing = opts && opts.getText ? takeTrailingQuote(opts.getText(), media).quotes : [];
+      const quoted = trailing.length > 0 && !quoteMissed.has(trailing[0].quote);
+      offer.classList.toggle('hidden', !quoted);
+      label.textContent = tn('{{count}} attachment, added to the end of your post', '{{count}} attachments, added to the end of your post', urls.length);
+      // The rows only when the links changed: sync also runs on every keystroke, for the offer.
+      const shown = urls.map((m) => m.url).join('\n');
+      if (shown === rowsFor) return;
+      rowsFor = shown;
       drawer.innerHTML = '';
-      for (const m of urls) {
-        const rowEl = h('div', { className: 'compose-media-row' });
-        const u = h('span', { className: 'compose-media-url', textContent: m.url });
-        u.title = m.url;
-        const cp = h('button', { className: 'compose-media-copy', title: t('Copy link'), type: 'button' });
-        cp.append(icon('copy'));
-        cp.addEventListener('click', () => {
-          navigator.clipboard.writeText(m.url).then(() => {
-            cp.innerHTML = '';
-            cp.append(icon('check'));
-            cp.classList.add('did');
-            setTimeout(() => {
-              cp.innerHTML = '';
-              cp.append(icon('copy'));
-              cp.classList.remove('did');
-            }, 900);
-          }).catch(() => {});
-        });
-        rowEl.append(u, cp);
-        drawer.append(rowEl);
-      }
+      for (const m of urls) drawer.append(buildUrlRow(m.url));
     }
+    let rowsFor = null;
     toggle.addEventListener('click', () => {
       drawer.classList.toggle('hidden');
       toggle.classList.toggle('open', !drawer.classList.contains('hidden'));
@@ -2008,20 +2716,70 @@ window.SidecarCore = (function () {
       || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))
       || (d.site && d.site.pages && d.site.pages.some((p) => p && p.md && p.md.trim()))));
   }
-  // Every draft of this account but the one on screen, notes first, then replies and
-  // sites newest first. `currentKey` is the slot to leave out.
+  // Every draft of this account but the one on screen, the note first, then replies,
+  // sites and notes set aside, newest first. `currentKey` is the slot to leave out.
+  // A note set aside (shelveNoteDraft) is listed with the notes, as `shelved`, and picking
+  // it brings it back into the note slot (unshelveNoteDraft) rather than opening it where it
+  // sits: the note slot is the one every route, Expand included, knows how to open.
   function otherDraftEntries(all, pubkey, currentKey) {
     return Object.keys(all || {})
-      .filter((k) => k !== currentKey && (k === pubkey || k.startsWith(pubkey + '|r:') || k.startsWith(pubkey + '|site:'))
+      .filter((k) => k !== currentKey
+        && (k === pubkey || k.startsWith(pubkey + '|r:') || k.startsWith(pubkey + '|n:') || k.startsWith(pubkey + '|site:'))
         && draftHasContent(all[k]))
-      .map((k) => ({
-        key: k, draft: all[k],
-        kind: k.startsWith(pubkey + '|site:') ? 'site' : (k !== pubkey ? 'reply' : 'note'),
-        reply: k !== pubkey && !k.startsWith(pubkey + '|site:'),
-        replyId: (k !== pubkey && !k.startsWith(pubkey + '|site:')) ? k.slice(k.indexOf('|r:') + 3) : null,
-        siteId: k.startsWith(pubkey + '|site:') ? k.slice(k.indexOf('|site:') + 6) : null,
-      }))
-      .sort((a, b) => (a.kind === 'note' ? -1 : 0) - (b.kind === 'note' ? -1 : 0) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
+      .map((k) => {
+        const reply = k.startsWith(pubkey + '|r:');
+        return {
+          key: k, draft: all[k], reply, shelved: k.startsWith(pubkey + '|n:'),
+          kind: k.startsWith(pubkey + '|site:') ? 'site' : (k === pubkey ? 'note' : (reply ? 'reply' : 'shelved')),
+          replyId: reply ? k.slice(k.indexOf('|r:') + 3) : null,
+          siteId: k.startsWith(pubkey + '|site:') ? k.slice(k.indexOf('|site:') + 6) : null,
+        };
+      })
+      .sort((a, b) => (a.reply - b.reply) || ((b.draft.savedAt || 0) - (a.draft.savedAt || 0)));
+  }
+
+  // ---- a note set aside ----
+  //
+  // TAPPING QUOTE OVER A NOTE IN PROGRESS. The note you were writing may have nothing to do
+  // with the one you just chose, so it is set aside under Saved drafts and the quote opens
+  // in a fresh note. Only a draft with something of its own in it is kept: one holding
+  // nothing but an older quote is simply re-pointed (placeQuote), since there is nothing
+  // in it to lose. Shelved notes sit beside the reply slots, under `pubkey|n:` and a time.
+  const SHELVED_NOTE_MAX = 20;
+  function draftHasWork(d) {
+    return !!(d && ((d.text && d.text.trim()) || (d.media || []).some((m) => m && !m.quote)
+      || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))));
+  }
+  // Moves the note slot's draft aside if it has content. Mutates `all`; returns the new
+  // key, or null when there was nothing to keep. A key already taken this millisecond
+  // (two taps at once) moves on rather than writing over it.
+  function shelveNoteDraft(all, pubkey, now) {
+    const d = all[pubkey];
+    if (!draftHasContent(d)) { delete all[pubkey]; return null; }
+    let t0 = now;
+    while (all[pubkey + '|n:' + t0]) t0++;
+    const key = pubkey + '|n:' + t0;
+    const kept = { ...d, savedAt: now };
+    delete kept.expandRelays; // the tab's relay set for one post, not part of the note
+    delete kept.replyTo;      // never set on the note slot; a note set aside stays a note
+    all[key] = kept;
+    delete all[pubkey];
+    const shelf = Object.keys(all).filter((k) => k.startsWith(pubkey + '|n:'));
+    if (shelf.length > SHELVED_NOTE_MAX) {
+      shelf.sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0))
+        .slice(SHELVED_NOTE_MAX).forEach((k) => delete all[k]);
+    }
+    return key;
+  }
+  // Picking a note set aside: whatever is in the note slot goes aside in its place, and
+  // the picked one becomes the note. Mutates `all`; false if the key is not a shelved note.
+  function unshelveNoteDraft(all, pubkey, key, now) {
+    if (typeof key !== 'string' || !key.startsWith(pubkey + '|n:') || !all[key]) return false;
+    const picked = all[key];
+    delete all[key];
+    shelveNoteDraft(all, pubkey, now);
+    all[pubkey] = { ...picked, savedAt: now };
+    return true;
   }
   function draftSnippet(d) {
     const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
@@ -2039,8 +2797,9 @@ window.SidecarCore = (function () {
     // A poll with its options typed and no question yet still says what it is.
     const opts = (d.poll && d.poll.options || []).map((o) => (o || '').trim()).filter(Boolean);
     if (opts.length) return opts.join(' · ');
-    if (d.media && d.media.length) return tn('{{count}} attachment', '{{count}} attachments', d.media.length);
-    return '';
+    const files = pictureCount(d.media);
+    if (files) return tn('{{count}} attachment', '{{count}} attachments', files);
+    return (d.media || []).some((m) => m && m.quote) ? t('A quoted note') : '';
   }
   // What a row is called: a reply, a site, a poll, or the note.
   function draftKindLabel(entry, name) {
@@ -2109,10 +2868,40 @@ window.SidecarCore = (function () {
     return list;
   }
 
+  // THE TOOLBAR'S BUTTONS ARE GLYPHS, NOT WORDS. Media, GIF, Emoji, Poll and proof of work
+  // share one row in a 300px sheet, and five worded buttons took two lines of it, with the
+  // longest translation deciding where the break fell. The icon is the control and the name
+  // is its title and its accessible name, which is still a string a translator sees.
+  function composeToolBtn(iconName, label) {
+    const b = h('button', { className: 'mini compose-add compose-add-icon', type: 'button', title: label });
+    b.setAttribute('aria-label', label);
+    b.append(icon(iconName));
+    return b;
+  }
+
+  // The proof-of-work button, for both composers: a pickaxe with its bits as a badge while
+  // it is on, and a small X in the same place while it is off. The badge is what a label
+  // used to be, the state on screen rather than in a tooltip, since one more tap changes
+  // what the post costs. The X is drawn, not typed, so it is the same in every theme's
+  // font. paint(lvl) takes a level from powLevelFor, or null for off.
+  function buildPowButton() {
+    const btn = composeToolBtn('pickaxe', t('Proof of work: off'));
+    const bits = h('span', { className: 'compose-pow-bits' });
+    btn.append(bits);
+    function paint(lvl) {
+      if (lvl) bits.textContent = I18N.fmtNum(lvl.bits);
+      else bits.replaceChildren(icon('x'));
+      bits.classList.toggle('off', !lvl);
+      btn.setAttribute('aria-label', lvl ? t('Proof of work: {{bits}} bits', { bits: lvl.bits }) : t('Proof of work: off'));
+      btn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
+      btn.classList.toggle('compose-add-on', !!lvl);
+    }
+    return { btn, paint };
+  }
+
   function buildPollEditor(d) {
     const pollWrap = h('div', { className: 'poll-editor hidden' });
-    const pollAdd = h('button', { className: 'mini compose-add' });
-    pollAdd.append(icon('bar-chart'), h('span', { textContent: t('Poll') }));
+    const pollAdd = composeToolBtn('check-square', t('Poll'));
     pollAdd.addEventListener('click', () => {
       d.setPoll(newPollDraft());
       paintPoll();
@@ -2441,6 +3230,233 @@ window.SidecarCore = (function () {
     }
   }
 
+  // ---- the emoji table, indexed for searching ----
+  //
+  // 1,914 emoji in nine groups, from the vendored table (emoji-data.js, self.SidecarEmoji).
+  // The reaction picker in the panel and the composers' Emoji button search the one index,
+  // so a word that finds something in one finds it in the other.
+
+  const EMOJI_SEARCH_MAX = 120;
+  const emojiHit = (hay, q) => hay.includes(' ' + q);
+  const emojiQuery = (raw) => raw.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+  // Words no emoji dataset carries, because they are associations rather than
+  // descriptions. Checked before writing this: emojibase tags 🇮🇹 as "IT, flag", 🍝 as
+  // "pasta, meatballs, restaurant" and 🤌 as "gesture, sarcastic, huh" — nothing ties any
+  // of them to Italy, and nothing anywhere says "spock" or "llap". iOS has them because
+  // Apple curates them by hand, and so do we.
+  //
+  // Each line is a decision somebody made, not a claim about what an emoji means. Add a
+  // word the moment you notice yourself typing it and getting nothing.
+  const EMOJI_ALIASES = {
+    spock: ['🖖'],
+    llap: ['🖖'],
+    italian: ['🇮🇹', '🍕', '🍝', '🤌'],
+  };
+
+  // The table, prepared once for searching: name lowercased, aliases folded in.
+  //
+  // THE NAMES ARE NOT ALL LOWERCASE. 338 of the 1,914 carry a capital — every flag is
+  // "flag Italy", "flag Japan" — and the search lowercased only the query, so "ital"
+  // matched nothing while "Ital" matched. Every flag in the picker was unreachable by the
+  // way anyone would actually type it.
+  //
+  // Done at index time rather than per keystroke: the search already runs across the
+  // whole table on a debounce, and lowercasing 1,914 strings on every one of those was
+  // the reason not to fix it in the comparison.
+  // The nine group names, as each tab's tooltip and screen-reader label. Written out so the
+  // key extractor sees every one; the table's own English names are the keys, and a name the
+  // table gains later shows in English until it is added here.
+  function emojiGroupLabel(name) {
+    const labels = {
+      'Smileys & Emotion': t('Smileys & Emotion'),
+      'People & Body': t('People & Body'),
+      'Animals & Nature': t('Animals & Nature'),
+      'Food & Drink': t('Food & Drink'),
+      'Travel & Places': t('Travel & Places'),
+      'Activities': t('Activities'),
+      'Objects': t('Objects'),
+      'Symbols': t('Symbols'),
+      'Flags': t('Flags'),
+    };
+    return labels[name] || name;
+  }
+
+  let _emojiIndex = null;
+  function emojiGroups() {
+    if (_emojiIndex) return _emojiIndex;
+    const table = self.SidecarEmoji;
+    if (!Array.isArray(table) || !table.length) return null;
+    const extra = new Map();
+    for (const [term, chars] of Object.entries(EMOJI_ALIASES)) {
+      for (const ch of chars) extra.set(ch, (extra.get(ch) || []) + ' ' + term);
+    }
+    // [char, name, haystack] — paintGrid reads the first two and ignores the rest.
+    //
+    // The haystack is the name, the vendored CLDR keywords and any alias, lowercased,
+    // with every run of punctuation flattened to a space and a space in front. That last
+    // detail lets the search match at word starts without a regex per row, and the
+    // punctuation pass is why "eyes" still finds "smiling face with heart-eyes".
+    // Unicode-aware, because "Åland Islands" and "Côte d'Ivoire" are in this table.
+    _emojiIndex = table.map(([group, rows]) => [
+      group,
+      rows.map(([ch, name, keywords]) => [
+        ch,
+        name,
+        ' ' + (name + ' ' + (keywords || '') + (extra.get(ch) || ''))
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, ' '),
+      ]),
+    ]);
+    return _emojiIndex;
+  }
+
+  // THE EMOJI BUTTON'S PICKER, built here so both composers have one, the way the GIF
+  // picker is. It opens under the toolbar like that one does, and for the same reason:
+  // the panel's composer is already a sheet, and a sheet over a sheet would hide the note
+  // the emoji is for.
+  //
+  // One group at a time, for the reason the reaction picker gives: every cell is a real
+  // button, and 1,914 of them is a visible hitch on open. Search reads across all nine.
+  // A pick goes in at the caret and the picker closes.
+  //
+  //   onPick(char)  put it in the editor; the picker closes itself after
+  //
+  // Returns the button for the toolbar, the picker to mount below it, and open/close.
+  function buildEmojiPicker(d) {
+    const groups = emojiGroups();
+    // WITHOUT THE TABLE THERE IS NO BUTTON, the GIF picker's rule: a control that can
+    // only open onto an apology is a control shown to everyone for nothing.
+    const available = !!groups;
+    const addBtn = composeToolBtn('smile', t('Emoji'));
+    addBtn.classList.toggle('hidden', !available);
+    addBtn.setAttribute('aria-expanded', 'false');
+
+    const wrap = h('div', { className: 'emoji-picker hidden' });
+    const closeBtn = h('button', { className: 'emoji-picker-x', type: 'button', title: t('Close emoji search') });
+    closeBtn.setAttribute('aria-label', t('Close emoji search'));
+    closeBtn.append(icon('x'));
+    const input = h('input', {
+      className: 'emoji-picker-search',
+      type: 'search',
+      placeholder: t('Search emoji'),
+      autocomplete: 'off',
+      spellcheck: false,
+    });
+    input.setAttribute('aria-label', t('Search emoji'));
+    const tabs = h('div', { className: 'emoji-tabs' });
+    const grid = h('div', { className: 'emoji-grid' });
+    const scroll = h('div', { className: 'emoji-scroll' }, [grid]);
+    wrap.append(h('div', { className: 'emoji-picker-head' }, [input, closeBtn]), tabs, scroll);
+
+    const pick = (ch) => {
+      d.onPick(ch);
+      close();
+    };
+    function paintGrid(rows) {
+      // A fragment, because appending 388 buttons one at a time reflows 388 times.
+      const frag = document.createDocumentFragment();
+      rows.forEach(([ch, name]) => {
+        const b = h('button', { className: 'emoji-cell', type: 'button', textContent: ch, title: name });
+        b.setAttribute('aria-label', name);
+        // Held on mousedown so the editor's caret is not what the tap takes away.
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => pick(ch));
+        frag.append(b);
+      });
+      grid.replaceChildren(frag);
+      scroll.scrollTop = 0;
+    }
+    let active = 0;
+    function showGroup(i) {
+      active = i;
+      [...tabs.children].forEach((tab, n) => tab.classList.toggle('active', n === i));
+      paintGrid(groups[i][1]);
+    }
+    if (groups) {
+      // Each tab is its group's own first emoji, so nine glyphs never have to be chosen
+      // and kept in step with the table when it is regenerated.
+      groups.forEach((g, i) => {
+        const tab = h('button', {
+          className: 'emoji-tab',
+          type: 'button',
+          textContent: g[1][0] ? g[1][0][0] : '•',
+          title: emojiGroupLabel(g[0]),
+        });
+        tab.setAttribute('aria-label', emojiGroupLabel(g[0]));
+        tab.addEventListener('click', () => { input.value = ''; showGroup(i); });
+        tabs.append(tab);
+      });
+    }
+
+    let searchTimer = null;
+    input.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      // Debounced: a query runs over every name in the table, and doing that per
+      // keystroke while someone types "party" is five passes for one answer.
+      searchTimer = setTimeout(() => {
+        const q = emojiQuery(input.value);
+        if (!q) { showGroup(active); return; }
+        [...tabs.children].forEach((tab) => tab.classList.remove('active'));
+        const hits = [];
+        for (const [, rows] of groups) {
+          for (const row of rows) {
+            if (emojiHit(row[2], q)) {
+              hits.push(row);
+              if (hits.length >= EMOJI_SEARCH_MAX) break;
+            }
+          }
+          if (hits.length >= EMOJI_SEARCH_MAX) break;
+        }
+        paintGrid(hits);
+        if (!hits.length) grid.append(h('p', { className: 'hint emoji-none', textContent: t('No emoji matches that.') }));
+      }, 120);
+    });
+    wrap.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      // The picker, not the sheet around it: Escape in the panel closes the composer.
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+      d.onClose && d.onClose();
+    });
+
+    const isOpen = () => !wrap.classList.contains('hidden');
+    function open() {
+      if (!available) return;
+      wrap.classList.remove('hidden');
+      addBtn.classList.add('compose-add-on');
+      addBtn.setAttribute('aria-expanded', 'true');
+      // Painted on the first open, not at build: the table is only worth a thousand
+      // buttons to someone who asks for it. After a search the grid was emptied on close,
+      // so this is also what puts the group you were on back.
+      if (!grid.childElementCount) showGroup(active);
+      input.focus();
+    }
+    function close() {
+      clearTimeout(searchTimer);
+      // A SEARCH IS FOR ONE PICK. Left in the field it greeted the next open with the same
+      // word and the same hits, and the person who wanted a different emoji had to delete it
+      // first. The grid goes with it, since it is showing that search's hits; open() paints
+      // the group again. Emptying the grid only when there was a search keeps the group you
+      // were browsing, and spares a 388-button repaint on every plain close.
+      if (input.value) {
+        input.value = '';
+        grid.replaceChildren();
+      }
+      wrap.classList.add('hidden');
+      addBtn.classList.remove('compose-add-on');
+      addBtn.setAttribute('aria-expanded', 'false');
+    }
+    addBtn.addEventListener('click', () => (isOpen() ? close() : open()));
+    closeBtn.addEventListener('click', () => {
+      close();
+      addBtn.focus();
+    });
+
+    return { addBtn, wrap, open, close, isOpen, available };
+  }
+
   // THE GIF PICKER, built here so both composers have one, the way the poll editor is.
   //
   // It opens under the toolbar rather than over the composer: the panel's composer is
@@ -2458,8 +3474,8 @@ window.SidecarCore = (function () {
     // does nothing, shown to everyone. The callers that show and hide it with the poll
     // and the preview check this too, so nothing brings it back.
     const available = !!GIF_API_KEY;
-    const addBtn = h('button', { className: 'mini compose-add' + (available ? '' : ' hidden'), type: 'button' });
-    addBtn.append(icon('gif'), h('span', { textContent: t('GIF') }));
+    const addBtn = composeToolBtn('gif', t('GIF'));
+    addBtn.classList.toggle('hidden', !available);
     addBtn.setAttribute('aria-expanded', 'false');
 
     const wrap = h('div', { className: 'gif-picker hidden' });
@@ -2877,16 +3893,63 @@ window.SidecarCore = (function () {
     };
   }
 
-  async function resolveEmbeds(embeds) {
-    for (const { el, ref } of embeds) {
+  // WHERE A LINKED NOTE IS LOOKED FOR. A nevent or note link usually carries no relay hint
+  // and no author, so the only relays to ask are the account's own, and a note that lives
+  // elsewhere read as "not found" while every other client showed it. The configured relays
+  // and the link's hints are asked first; only a miss goes on to these large public ones, so
+  // an id that the account's relays hold never leaves them.
+  const LOOKUP_FALLBACK_RELAYS = ['wss://relay.damus.io', 'wss://nostr.wine', 'wss://relay.ditto.pub'];
+  const LOOKUP_STAGE_MS = 4000;
+
+  // REMEMBERED FOR THE LIFE OF THE PAGE, found notes only. The preview pane redraws on every
+  // change to the strip (moving the quote is one), and each redraw would go back to the relays
+  // for a note that had not changed; the quote block reads the same cache. A miss is dropped as
+  // soon as it lands: the relay may answer next time. A lookup already in flight is shared, but
+  // only between callers with the same relay hints, so a hinted ask is never answered by an
+  // unhinted one that is still looking.
+  const foundEvents = new Map();   // filter key -> event
+  const pendingLookups = new Map(); // filter key + relay hints -> Promise<event | null>
+  const peekEvent = (ref) => foundEvents.get(JSON.stringify(ref.filter)) || null;
+  function findEvent(ref) {
+    const key = JSON.stringify(ref.filter);
+    if (foundEvents.has(key)) return Promise.resolve(foundEvents.get(key));
+    const pendingKey = key + JSON.stringify(ref.relays || []);
+    if (!pendingLookups.has(pendingKey)) {
+      const p = askRelaysFor(ref).catch(() => null).then((ev) => {
+        pendingLookups.delete(pendingKey);
+        if (ev) foundEvents.set(key, ev);
+        return ev;
+      });
+      pendingLookups.set(pendingKey, p);
+    }
+    return pendingLookups.get(pendingKey);
+  }
+
+  async function askRelaysFor(ref) {
+    const wanted = ref.filter && ref.filter.ids && ref.filter.ids[0];
+    const ask = async (relays) => {
       let ev = null;
       try {
-        const relays = [...new Set([...(await deps.relayUrls(false)), ...(ref.relays || [])])];
         ev = await Promise.race([
           deps.poolGet(relays, ref.filter),
-          new Promise((r) => setTimeout(() => r(null), 6000)),
+          new Promise((r) => setTimeout(() => r(null), LOOKUP_STAGE_MS)),
         ]);
       } catch (_) {}
+      // A relay that answers an id lookup with some other event has not found this one.
+      return ev && (!wanted || ev.id === wanted) ? ev : null;
+    };
+    let own = [];
+    try { own = await deps.relayUrls(false); } catch (_) {}
+    const first = [...new Set([...own, ...(ref.relays || [])])];
+    const ev = first.length ? await ask(first) : null;
+    if (ev) return ev;
+    const rest = LOOKUP_FALLBACK_RELAYS.filter((u) => !first.includes(u));
+    return rest.length ? ask(rest) : null;
+  }
+
+  async function resolveEmbeds(embeds) {
+    for (const { el, ref } of embeds) {
+      const ev = await findEvent(ref);
       if (!ev) {
         el.classList.remove('loading');
         el.classList.add('embed-missing');
@@ -2920,6 +3983,144 @@ window.SidecarCore = (function () {
       if (p.picture) deps.applyAvatar(av, { picture: p.picture });
       if (p.name) name.textContent = '@' + p.name;
     });
+  }
+
+  // ---- the quoted note, as a block under the text field ----
+  //
+  // A quote in the strip is shown as the note it quotes, so there is something to check
+  // it against: the same block the composer draws for a reply (the gold rule, the label, the
+  // author and the text), clipped at 240 characters with Show more. Looked up once per
+  // reference for the life of the page, because every change to the strip redraws it
+  // and a block that blinked back to "Loading" on each would be unreadable.
+  //
+  // It is a REFERENCE: what is published is the nostr: line the entry holds, whether or not
+  // the note could be found, so a lookup that fails says so and the quote still goes out.
+  // `ctl`: { canUp, canDown, onUp, onDown, onRemove }, the page's say over the order.
+  const quoteOpen = new Set(); // refs whose block was opened with Show more
+  function quotedRef(ref) {
+    try { return embedRef(deps.NT.nip19.decode(ref.replace(/^nostr:/, ''))); } catch (_) { return null; }
+  }
+  function lookUpQuoted(ref) {
+    const r = quotedRef(ref);
+    return r ? findEvent(r) : Promise.resolve(null);
+  }
+
+  // A PASTED REFERENCE MUST BE A NOTE WE CAN SEE. The paste makes the block at once (a lookup can
+  // take several seconds, and a paste that seems to do nothing is worse), and this runs the
+  // check behind it: on a miss `onMiss` undoes the block and the page puts the reference back
+  // as text, so a note that no relay shows us never becomes an empty quote block. The ref is
+  // remembered as missed, so the drawer does not offer to move it into the strip either.
+  // Only for a paste: a draft restored from storage or the Quote button's prefill names a note
+  // that exists, and a relay missing it right now is no reason to take the block away.
+  const quoteMissed = new Set(); // nostr: refs that were looked for and not found
+  function checkPastedQuote(entry, onMiss) {
+    const ref = entry && entry.quote;
+    if (!ref) return;
+    lookUpQuoted(ref).then((ev) => {
+      if (ev) return;
+      quoteMissed.add(ref);
+      onMiss();
+    });
+  }
+
+  const QUOTE_BLOCK_CAP = 240;
+  function buildQuoteBlock(ref, ctl) {
+    const c = ctl || {};
+    const block = h('div', { className: 'reply-target quote-block' });
+    const actions = h('span', { className: 'quote-block-actions' });
+    // COPY, REMOVE, MOVE, in that order: the move arrow ends the row, in the same column as the
+    // pictures' own arrow, and the destructive button sits one step away from the edge a thumb
+    // lands on. The reference leaves the text field when it is pasted, so this is how it comes back.
+    const copy = blockIconBtn('copy', t('Copy the note link'), () => copyWithCheck(copy, ref));
+    actions.append(copy);
+    // TWO TAPS TO REMOVE. The block holds a reference and nothing else, so once it is gone the
+    // only way back is to paste the note again, and a tap meant for the arrow beside it is
+    // easy to land. The first tap arms the button (red, and the tooltip says so); it stands
+    // down after three seconds. The same two-tap the account switcher uses: no words added
+    // to the row, which has no room for them.
+    const trash = blockIconBtn('trash', t('Remove the quote'), () => {
+      if (!trash.classList.contains('is-armed')) {
+        trash.classList.add('is-armed');
+        trash.title = t('Tap again to remove the quote');
+        trash.setAttribute('aria-label', trash.title);
+        setTimeout(() => {
+          trash.classList.remove('is-armed');
+          trash.title = t('Remove the quote');
+          trash.setAttribute('aria-label', trash.title);
+        }, 3000);
+        return;
+      }
+      if (c.onRemove) c.onRemove();
+    });
+    actions.append(trash);
+    if (c.canUp) actions.append(blockIconBtn('arrow-up', t('Move above the pictures'), c.onUp));
+    if (c.canDown) actions.append(blockIconBtn('arrow-down', t('Move below the pictures'), c.onDown));
+    // The label row carries the quoted event's kind, the way the reply view
+    // does — REPLYING TO … KIND 1 — so the developer selector and the reader
+    // can both see what shape of thing the quote embeds. Empty until the
+    // quoted note lands; a failed lookup leaves it empty too.
+    const kindEl = h('span', { className: 'reply-target-kind quote-block-kind' });
+    block.append(h('div', { className: 'reply-target-label' }, [h('span', { textContent: t('Quoting') }), kindEl, actions]));
+
+    const av = h('span', { className: 'avatar reply-target-av' });
+    deps.applyAvatar(av, null);
+    const name = h('span', { className: 'reply-target-name', textContent: t('Loading…') });
+    block.append(h('div', { className: 'reply-target-who' }, [av, name]));
+    const body = h('div', { className: 'reply-target-body' });
+    block.append(body);
+
+    const paintQuoted = (ev) => {
+      if (!ev) {
+        name.textContent = t('Quoted note');
+        body.textContent = t('Couldn’t load this note. It will still be quoted.');
+        kindEl.textContent = '';
+        return;
+      }
+      kindEl.textContent = t('kind {{kind}}', { kind: ev.kind });
+      const titleTag = (ev.tags || []).find((tg) => tg[0] === 'title');
+      const full = (titleTag && titleTag[1]) || ev.content || '';
+      let open = quoteOpen.has(ref);
+      let clipped = false;
+      const toggle = h('button', { className: 'show-toggle', type: 'button' });
+      const paint = () => {
+        body.innerHTML = '';
+        renderNoteText(body, full, open ? Infinity : QUOTE_BLOCK_CAP);
+        makeMediaExpandable(block, body);
+        block.classList.toggle('is-open', open);
+        block.classList.toggle('is-clipped', !open && clipped);
+        toggle.textContent = open ? t('Show less') : t('Show more');
+        if (!open) body.scrollTop = 0;
+      };
+      toggle.addEventListener('click', () => {
+        open = !open;
+        if (open) quoteOpen.add(ref); else quoteOpen.delete(ref);
+        paint();
+      });
+      paint();
+      // The control and the fade only when something was cut, after layout, because
+      // scrollHeight is 0 until it has one.
+      requestAnimationFrame(() => {
+        clipped = body.scrollHeight > body.clientHeight + 1 || full.length > QUOTE_BLOCK_CAP;
+        if (!clipped && !open) return;
+        block.classList.toggle('is-clipped', !open && clipped);
+        block.append(toggle);
+      });
+      name.textContent = deps.shortNpub(deps.NT.nip19.npubEncode(ev.pubkey));
+      deps.fetchPreviewProfile(ev.pubkey).then((p) => {
+        if (!block.isConnected || !p) return;
+        if (p.name) name.textContent = p.name;
+        if (p.picture) deps.applyAvatar(av, p);
+      }).catch(() => {});
+    };
+
+    const r = quotedRef(ref);
+    const cached = r && peekEvent(r);
+    if (cached) paintQuoted(cached);
+    else {
+      body.textContent = t('Loading the quoted note…');
+      lookUpQuoted(ref).then(paintQuoted);
+    }
+    return block;
   }
 
   const ogCache = new Map(); // url → { title, description, image, site } | null
@@ -3046,7 +4247,7 @@ window.SidecarCore = (function () {
     zapcooking: { label: 'Zap Cooking', url: (ne) => 'https://zap.cooking/' + ne, profile: (np) => 'https://zap.cooking/user/' + np },
     noornote: { label: 'NoorNote', url: (ne) => 'https://noornote.app/note/' + ne, profile: (np) => 'https://noornote.app/profile/' + np },
     jank: { label: 'JANK', url: (ne) => 'https://jank.army/notes/' + ne, profile: (np) => 'https://jank.army/users/' + np },
-    nostrich: { label: 'Nostrich', url: (ne) => 'https://nostrich.org/e/' + ne, profile: (np) => 'https://nostrich.org/p/' + np },
+    nostrvault: { label: 'Nostr Vault', url: (ne) => 'https://nostrvault.app/thread/' + ne, profile: (np) => 'https://nostrvault.app/p/' + np },
     ditto: { label: 'Ditto', url: (ne) => 'https://ditto.pub/' + ne, profile: (np) => 'https://ditto.pub/' + np },
     // ROUTES, not a catch-all: /e/ for an event and /p/ for a profile. Its own links are
     // /e/note1… and /e/naddr…, built with encodeNote, so /e/ is known to take a note1
@@ -3066,9 +4267,137 @@ window.SidecarCore = (function () {
   };
   const DEFAULT_CLIENT = 'jumble';
 
+  // ---- a client of the user's own -----------------------------------------------------
+  //
+  // VIEW_CLIENTS is a curated directory: every entry's routes were read out of the
+  // client itself, and clients leave it on purpose (nostrich did). A user who wants a
+  // client the directory does not carry brings one link that works in it, and Sidecar
+  // works the rest out FROM that link.
+  //
+  // Two things vary between clients and they are not the same thing. The ROUTE is the
+  // part around the address (/thread/, /e/, /notes/). The FORM is how the address
+  // itself is written: a bare hex id, a note1, a short nevent (the id alone), or a full
+  // nevent (id, author, relays). Clients differ on both, nothing declares which a
+  // client takes, and a typed template can only guess the second. A link the user has
+  // seen open is the one reliable source for both, so that is what we read.
+  //
+  // Stored as settings.customClients[key] = { label, url, profile, urlForm, profileForm }
+  // with {ne} and {np} marking where the address goes. The key is namespaced off the
+  // note link's host so a custom entry can never collide with — or shadow — a built-in
+  // key, and adding a second client on a host that already has one is an edit. (The
+  // background derives the key; the forms it will keep are listed there.)
+
+  // Every candidate address in a link: a 64-character hex string, or a bech32 entity.
+  // Hex must stand alone (not part of a longer hex run), and a bech32 must not trail a
+  // letter, so "denote1…" is not a note — but "%20nevent1…" (a percent-escaped space in
+  // a query) still is one.
+  const ENTITY_RE = /(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])|(?<![a-z])(?:note|nevent|npub|nprofile|naddr)1[02-9ac-hj-np-z]{6,}/g;
+
+  // A note address in the form a client takes, from whatever the call site built. The
+  // call sites hand over a nevent (or an naddr for an article), and a form that cannot
+  // carry the thing — an naddr as hex — is passed through rather than mangled.
+  function noteEntityFor(form, entity) {
+    const { nip19 } = deps.NT;
+    let d;
+    try { d = nip19.decode(entity); } catch (_) { return entity; }
+    let id;
+    if (d.type === 'nevent') id = d.data.id;
+    else if (d.type === 'note') id = d.data;
+    else return entity;
+    if (form === 'hex') return id;
+    if (form === 'note') return nip19.noteEncode(id);
+    if (form === 'nevent-short') return nip19.neventEncode({ id });
+    return entity; // 'nevent': what the call site built, author and all
+  }
+
+  function profileEntityFor(form, entity) {
+    const { nip19 } = deps.NT;
+    let d;
+    try { d = nip19.decode(entity); } catch (_) { return entity; }
+    let pubkey;
+    if (d.type === 'npub') pubkey = d.data;
+    else if (d.type === 'nprofile') pubkey = d.data.pubkey;
+    else return entity;
+    if (form === 'hex') return pubkey;
+    if (form === 'npub') return nip19.npubEncode(pubkey);
+    if (form === 'nprofile') return nip19.nprofileEncode({ pubkey });
+    return entity;
+  }
+
+  // Reads one pasted link. kind is 'note' or 'profile'. Returns { template, form } —
+  // the link with its address swapped for {ne}/{np}, and how that address was written —
+  // or { error } naming what is wrong, for the panel to say in words:
+  //   parse     not a full https link        none     no address in it
+  //   many      more than one address        kind     an address of another sort
+  //   mismatch  rebuilding it does not give back what was pasted
+  // and a good result may carry `extra`: the names of query parameters that are not the
+  // address and will be kept on every link.
+  // The last is the check that matters: the stored pair must reproduce a link the user
+  // knows works, or Save stays shut.
+  function parseClientLink(link, kind) {
+    const text = String(link || '').trim();
+    let url;
+    try { url = new URL(text); } catch (_) { return { error: 'parse' }; }
+    if (url.protocol !== 'https:') return { error: 'parse' };
+    const found = [...text.matchAll(ENTITY_RE)];
+    if (!found.length) return { error: 'none' };
+    if (found.length > 1) return { error: 'many' };
+    const token = found[0][0];
+    let form;
+    if (/^[0-9a-f]{64}$/.test(token)) {
+      form = 'hex';
+    } else {
+      let d;
+      try { d = deps.NT.nip19.decode(token); } catch (_) { return { error: 'none' }; }
+      if (kind === 'note' && d.type === 'note') form = 'note';
+      else if (kind === 'note' && d.type === 'nevent') {
+        const { author, kind: k, relays } = d.data;
+        form = author || k !== undefined || (relays && relays.length) ? 'nevent' : 'nevent-short';
+      }
+      else if (kind === 'profile' && d.type === 'npub') form = 'npub';
+      else if (kind === 'profile' && d.type === 'nprofile') form = 'nprofile';
+      else return { error: 'kind' };
+    }
+    const mark = kind === 'note' ? '{ne}' : '{np}';
+    const template = text.slice(0, found[0].index) + mark + text.slice(found[0].index + token.length);
+    const make = kind === 'note' ? noteEntityFor : profileEntityFor;
+    // Rebuilt the way resolution will build it, from the token the way a call site
+    // would hand it over. Hex has no bech32 to hand over, so it goes through as itself.
+    const rebuilt = template.replace(mark, () => make(form, token));
+    // An nprofile's relay hints are a courtesy the client may or may not read; we have
+    // none of the person's to send, so the form is the pubkey alone and the comparison
+    // is made without them.
+    const expected = form === 'nprofile'
+      ? template.replace(mark, () => deps.NT.nip19.nprofileEncode({ pubkey: deps.NT.nip19.decode(token).data.pubkey }))
+      : text;
+    if (rebuilt !== expected) return { error: 'mismatch' };
+    // Everything around the address is stored as typed, so a query parameter that came
+    // along (a share tag, a session token) would ride on every link opened from now on.
+    // Not an error — some clients need one — but the user is told which. A parameter
+    // that CARRIES the address (?nostr={ne}, ?cmd=open {ne}) is the route, not a rider.
+    const extra = [];
+    for (const [k, v] of new URL(template).searchParams) {
+      if (!k.includes(mark) && !v.includes(mark) && k && !extra.includes(k)) extra.push(k);
+    }
+    return extra.length ? { template, form, extra } : { template, form };
+  }
+
+  // The stored entry is data; the address is a parameter filled in at open time, the
+  // same rule the i18n rules apply to text. The Settings preview is built with THIS,
+  // and resolveClient resolves through it too.
+  function customClient(entry) {
+    return {
+      label: entry.label,
+      url: (ne) => entry.url.replace('{ne}', () => noteEntityFor(entry.urlForm, ne)),
+      profile: (np) => entry.profile.replace('{np}', () => profileEntityFor(entry.profileForm, np)),
+    };
+  }
+
   function resolveClient(settings, pubkey) {
     const by = (settings && settings.defaultClientBy) || null;
     const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
+    const custom = settings && settings.customClients && settings.customClients[key];
+    if (custom && custom.url && custom.profile) return customClient(custom);
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
   }
 
@@ -3251,16 +4580,7 @@ window.SidecarCore = (function () {
       let d = null;
       try { d = deps.NT.nip19.decode(bech); } catch (_) {}
       const ref = d ? embedRef(d) : null;
-      let ev = null;
-      if (ref) {
-        try {
-          const relays = [...new Set([...(await deps.relayUrls(false)), ...(ref.relays || [])])];
-          ev = await Promise.race([
-            deps.poolGet(relays, ref.filter),
-            new Promise((r) => setTimeout(() => r(null), 6000)),
-          ]);
-        } catch (_) {}
-      }
+      const ev = ref ? await findEvent(ref) : null;
       el.classList.remove('loading');
       if (!ev) {
         el.textContent = t('quoted note'); // not found — today's plain link-out
@@ -3304,8 +4624,23 @@ window.SidecarCore = (function () {
   const BLOSSOM_AUTH_KIND = 24242;
   const BLOSSOM_UPLOAD_TIMEOUT = 30000;
   const BLOSSOM_CACHE_TTL = 5 * 60 * 1000;
+  // A list that was good and has expired is still better than none when the refresh fails.
+  const BLOSSOM_STALE_TTL = 60 * 60 * 1000;
 
-  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt }
+  // THE TIME A SERVER GETS DEPENDS ON THE FILE. One flat 30 seconds for the whole PUT
+  // aborted any image that could not cross a modest uplink in that time, a phone photo of
+  // several megabytes, and each abort ran the list out and fell through to nostr.build, which
+  // never times out. So the small images went to the person's own server and the big ones
+  // did not. Thirty seconds to start, ten more for every megabyte, and never more than five
+  // minutes: a stuck server is still given up on.
+  const BLOSSOM_MS_PER_MB = 10000;
+  const BLOSSOM_TIMEOUT_MAX = 5 * 60 * 1000;
+  function blossomTimeoutFor(file) {
+    const mb = Math.ceil((file && file.size ? file.size : 0) / (1024 * 1024));
+    return Math.min(BLOSSOM_UPLOAD_TIMEOUT + mb * BLOSSOM_MS_PER_MB, BLOSSOM_TIMEOUT_MAX);
+  }
+
+  const _blossomServerCache = new Map(); // pubkey -> { servers, expiresAt, staleUntil }
 
   // ---- the same note, twice ----
   //
@@ -3326,7 +4661,7 @@ window.SidecarCore = (function () {
     const d = draft || {};
     const poll = d.poll ? (d.poll.options || []).map((o) => String(o || '').trim()) : null;
     const shape = JSON.stringify([
-      pubkey || '', String(d.text || '').trim(), (d.media || []).map((m) => m && m.url),
+      pubkey || '', String(d.text || '').trim(), (d.media || []).map((m) => m && (m.url || m.quote)),
       (replyTo && replyTo.id) || '', poll,
     ]);
     return sha256Hex(new TextEncoder().encode(shape));
@@ -3361,6 +4696,135 @@ window.SidecarCore = (function () {
     };
   };
 
+  // ---- publishing: who took the note, and who did not ---------------------------------
+  //
+  // THE SAME RULE AS sidepanel.js publishToRelays, for the pages that are not the panel.
+  // The tab composer and the highlight popup counted every relay that did not hard-reject
+  // as a success, and SimplePool.publish() RESOLVES, with the text "connection failure:
+  // …", for a relay it could not reach. A note reached one relay out of nine and read
+  // "Published to 9 relays." test/publish-parity.test.js holds the two copies to the same
+  // answer; change one, change the other.
+  const PUBLISH_CAP_MS = 12000;
+  const publishFailed = (r) =>
+    r.status === 'rejected' ||
+    (typeof r.value === 'string' && r.value.startsWith('connection failure:'));
+
+  // A relay that never answers cannot hold the post hostage: counted as failed after the cap.
+  function capPublish(p, ms) {
+    let timer;
+    return Promise.race([
+      p,
+      new Promise((res) => { timer = setTimeout(() => res('connection failure: no answer within ' + Math.round(ms / 1000) + 's'), ms); }),
+    ]).finally(() => clearTimeout(timer));
+  }
+
+  // Why a relay did not take it, as a CODE the page words in the reader's language, plus the
+  // relay's own text when nothing here names the reason. Order matters: a refusal that
+  // mentions payment is a payment refusal even though it also says "restricted".
+  function publishRefusal(r) {
+    const raw = r.status === 'rejected'
+      ? (r.reason && r.reason.message) || String(r.reason || 'rejected')
+      : String(r.value || 'refused');
+    const text = raw.replace(/^connection failure:\s*/i, '').trim();
+    if (/timed?\s*out|no answer/i.test(raw)) return { code: 'timeout', text };
+    if (/connection failure|failed to connect|websocket/i.test(raw)) return { code: 'connect', text };
+    if (/pay|paid|subscri|invoice|member/i.test(raw)) return { code: 'payment', text };
+    if (/auth/i.test(raw)) return { code: 'auth', text };
+    if (/rate|too many|slow down/i.test(raw)) return { code: 'rate', text };
+    if (/blocked|restricted|not allowed|forbidden|denied|banned|whitelist|allowlist/i.test(raw)) return { code: 'refused', text };
+    return { code: 'other', text: text.slice(0, 60) };
+  }
+
+  // Publish to every relay, then say which took it. Like the panel: each relay answers in time
+  // or counts as failed, and when NOTHING took it the sockets are dropped and it is tried
+  // once more (nothing landed, so nothing can be duplicated). A partial success resets only
+  // the relays that failed, so a wedged one does not poison the next post.
+  //   pool     a SimplePool
+  //   relays   the URLs to publish to
+  //   params   passed to pool.publish (an onauth, so a relay that wants a signed AUTH gets one)
+  //   normalize  URL normalizer; the pool rejects a second spelling of one relay as a duplicate
+  // Returns { accepted: [url], failed: [{ url, code, text }], total }.
+  async function publishToRelays({ pool, relays, signed, params, capMs = PUBLISH_CAP_MS, normalize = (u) => u }) {
+    const targets = [...new Set(relays.map((u) => { try { return normalize(u); } catch (_) { return u; } }))];
+    const run = async () => Promise.allSettled(pool.publish(targets, signed, params).map((p) => capPublish(p, capMs)));
+    let results = await run();
+    let ok = results.filter((r) => !publishFailed(r)).length;
+    if (!ok) {
+      try { pool.close(targets); } catch (_) {}
+      results = await run();
+      ok = results.filter((r) => !publishFailed(r)).length;
+    } else if (results.some(publishFailed)) {
+      try { pool.close(targets.filter((_, i) => publishFailed(results[i]))); } catch (_) {}
+    }
+    const accepted = [];
+    const failed = [];
+    results.forEach((r, i) => {
+      if (publishFailed(r)) failed.push({ url: targets[i], ...publishRefusal(r) });
+      else accepted.push(targets[i]);
+    });
+    return { accepted, failed, total: targets.length };
+  }
+
+  // The failed relays grouped by reason, biggest group first: [{ code, text, hosts: [host] }].
+  function groupRefusals(failed) {
+    const hostOf = (u) => { try { return new URL(u).host; } catch (_) { return String(u).replace(/^wss?:\/\//, '').replace(/\/$/, ''); } };
+    const groups = new Map();
+    for (const f of failed) {
+      // A refusal we cannot name more precisely keeps the relay's own words, and relays that said
+      // different things are different groups.
+      const keepsText = f.code === 'other' || f.code === 'refused';
+      const key = keepsText ? f.code + ':' + f.text : f.code;
+      if (!groups.has(key)) groups.set(key, { code: f.code, text: keepsText ? f.text : '', hosts: [] });
+      groups.get(key).hosts.push(hostOf(f.url));
+    }
+    return [...groups.values()].sort((a, b) => b.hosts.length - a.hosts.length);
+  }
+
+  // ---- the relay answer after a post, in words: one copy for the tab's receipt and the panel's
+  // banner, so the two cannot describe the same publish differently ----
+  //
+// The relays that did not take it, one sentence per reason, the biggest group first and no
+  // more than three. One template per sentence so a translation can order the words; the hosts
+  // and the relay's own words go in as values.
+  function refusalLines(failed) {
+    const sentence = {
+      timeout: (v) => t('{{hosts}} timed out.', v),
+      connect: (v) => t('Could not reach {{hosts}}.', v),
+      payment: (v) => t('{{hosts}} asked for payment.', v),
+      auth: (v) => t('{{hosts}} asked for sign-in.', v),
+      rate: (v) => t('{{hosts}} rate-limited the post.', v),
+      refused: (v) => (v.text ? t('Refused by {{hosts}}: {{text}}', v) : t('Refused by {{hosts}}.', v)),
+      other: (v) => t('{{hosts}} refused: {{text}}', v),
+    };
+    return groupRefusals(failed).slice(0, 3).map((g) => {
+      const shown = g.hosts.slice(0, 3).join(', ') + (g.hosts.length > 3 ? ' +' + (g.hosts.length - 3) : '');
+      return (sentence[g.code] || sentence.other)({ hosts: shown, text: (g.text || '').slice(0, 80) });
+    });
+  }
+
+  // The same, for the relays that DID take it, said once, so the row opens onto the whole answer.
+  function acceptedLine(accepted) {
+    const hosts = (accepted || []).map((u) => { try { return new URL(u).host; } catch (_) { return String(u); } });
+    const shown = hosts.slice(0, 4).join(', ') + (hosts.length > 4 ? ' +' + (hosts.length - 4) : '');
+    return t('Accepted it: {{hosts}}.', { hosts: shown });
+  }
+
+
+  // "Published to N relays." When every relay accepted it, that line alone (plainClass names its
+  // style in the page that asked). When one did not, the same line is the summary of a row that
+  // opens onto which relays accepted it and why the others did not. ONE ROW THAT OPENS, not a
+  // line per refusal: three sentences of relay trouble under "Your reply is live." read as an
+  // alarm, and a native details element is one the keyboard and screen readers already open.
+  function relayReportNode(report, plainClass) {
+    const summary = tn('Published to {{count}} relay.', 'Published to {{count}} relays.', report.accepted.length);
+    if (!report.failed.length) return h('p', { className: plainClass || '', textContent: summary });
+    const lines = [acceptedLine(report.accepted), ...refusalLines(report.failed)];
+    return h('details', { className: 'compose-done-relays' }, [
+      h('summary', { textContent: summary }),
+      ...lines.map((line) => h('p', { textContent: line })),
+    ]);
+  }
+
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
@@ -3371,11 +4835,14 @@ window.SidecarCore = (function () {
     // so they read their relays and their profile cache from whichever page installed it.
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
     NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
-    VIEW_CLIENTS, DEFAULT_CLIENT,
+    VIEW_CLIENTS, DEFAULT_CLIENT, resolveClient, renderLinkCard,
+    customClient, parseClientLink,
     IMG_EXT, VID_EXT, urlIsVideo,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.
-    ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, buildAltEditorRow,
+    ALT_MAX, normalizeAltBreaks, capAltText, buildImetaTag, imetaTagsForMedia, readVideoMeta, buildAltEditorRow,
+    splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
+    movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
@@ -3383,9 +4850,14 @@ window.SidecarCore = (function () {
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable, buildPollTags,
     buildPollEditor,
+    emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX, buildEmojiPicker, composeToolBtn, buildPowButton,
+    recompressImage, stripPrivateMetadata, pngHdrInfo, pqToSdrTable, emojiGroupLabel,
     GIF_TOPICS, gifTopicsFor, gifSearchUrl, gifSuggestUrl, gifFromItem, parseGifPage, parseGifSuggestions, buildGifPicker,
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
+    draftHasWork, shelveNoteDraft, unshelveNoteDraft, SHELVED_NOTE_MAX,
+    publishFailed, publishRefusal, publishToRelays, groupRefusals, PUBLISH_CAP_MS,
+    refusalLines, acceptedLine, relayReportNode,
   };
 })();

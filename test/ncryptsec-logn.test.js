@@ -23,6 +23,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n');
 
 const ROOT = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
@@ -66,6 +67,7 @@ function harness({ decryptResult, decryptThrows } = {}) {
       },
     },
   };
+  withI18n(ctx); // the errors go through t() and tSec() now
   vm.createContext(ctx);
   vm.runInContext(
     lift(/let nip49Worker = null;[\s\S]*?nip49Worker\.postMessage\(\{ id, op, args \}\);\n    \}\);\n  \}/, 'nip49 worker helper') + '\n' +

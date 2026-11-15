@@ -42,13 +42,16 @@ const CODE = [
 
 // `only` pins an event to one relay, the way a version that has not reached the others is.
 function world(events) {
-  const w = { published: [], asked: [], events: events.slice() };
+  const w = { published: [], asked: [], events: events.slice(), announced: [] };
   const ctx = withI18n({
     state: { activePubkey: ME },
     _muteLists: new Map(), _localMutes: new Map(),
     followListCache: null, followListPubkey: null, followCountCache: new Map(),
     NT: { nip19: { npubEncode: (h) => 'npub1' + h.slice(0, 6) } },
     shortNpub: (n) => n, forgetWot: () => {},
+    repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
+    document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
+    CustomEvent: class { constructor(type) { this.type = type; } },
     readRelayUrls: async () => [READ],
     postRelays: async () => [WRITE],
     poolQuerySync: async (relays, f) => {

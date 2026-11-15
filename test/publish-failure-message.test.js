@@ -29,7 +29,8 @@ function lift(pattern, label) {
   return m[0];
 }
 
-const ctx = { console, URL, Map, Set, String, Number, Array };
+const { withI18n } = require('./helpers/i18n.js');
+const ctx = withI18n({ console, URL, Map, Set, String, Number, Array });
 vm.createContext(ctx);
 vm.runInContext(
   lift(/function publishFailureMessage\(targets, results\) \{[\s\S]*?\n  \}/, 'publishFailureMessage') + '\n' +
@@ -122,7 +123,7 @@ test('raw relay noise is translated to plain language', () => {
     ['blocked: pubkey not allowed', /refused the note/],
     ['restricted: not permitted', /refused the note/],
     ['rate-limited: slow down', /rate-limited us/],
-    ['auth-required: please authenticate', /wants authentication/],
+    ['auth-required: please authenticate', /wants? authentication/],
   ];
   for (const [raw, expected] of cases) {
     const m = msg(['wss://a.example/', 'wss://b.example/'],
@@ -192,7 +193,7 @@ test('publishToRelays uses publishFailureMessage, not an inline join', () => {
   // Every test above exercises the function directly, so all of them still pass if
   // publishToRelays goes back to pasting raw errors together — which is exactly what
   // it used to do. Caught by mutation-testing the revert and seeing zero failures.
-  const fn = source.match(/async function publishToRelays\(relays, signed\) \{[\s\S]*?\n  \}/);
+  const fn = source.match(/async function publishToRelays\(relays, signed, report\) \{[\s\S]*?\n  \}/);
   assert.ok(fn, 'could not find publishToRelays');
   assert.match(fn[0], /throw new Error\(publishFailureMessage\(targets, results\)\)/,
     'the failure path must go through publishFailureMessage');

@@ -36,6 +36,10 @@ clients without ever pasting your nsec into a website.
 - **Send** (BOLT11 or Lightning address), **Receive** (invoice or your
   Lightning-address QR), and paginated **history** with expandable details —
   counterparty, fee, payment hash, preimage.
+- **Withdraw** — cash an LNURL-withdraw link, or an LNURLcash note, into your wallet
+  from the Receive sheet. It shows the service and the amount first, asks your wallet
+  for an invoice, and waits for the payment to land. Needs a connection that allows
+  `make_invoice`.
 - **WebLN** — web apps can pay and make invoices through your wallet, gated by
   approval with an optional per-site daily budget you can edit or revoke any time.
 - **Podcasting 2.0 boosts** — keysend payments with their boostagram, so value-split

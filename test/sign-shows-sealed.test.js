@@ -235,7 +235,7 @@ test('THE PANEL PINS ITS BUTTONS THE WAY THE POPUP DOES', () => {
   assert.match(block, /class="approval-footer"/, 'the card has no pinned footer');
   // Everything that ASKS belongs below the fold line; everything that DESCRIBES above it.
   const footer = block.slice(block.indexOf('approval-footer'));
-  for (const id of ['approval-unlock', 'approval-remember', 'approval-relax-row', 'approval-allow', 'approval-reject']) {
+  for (const id of ['approval-unlock', 'approval-remember', 'approval-scope', 'approval-allow', 'approval-reject']) {
     assert.ok(footer.includes(id), id + ' can scroll out of reach again');
   }
   const scroll = block.slice(block.indexOf('approval-scroll'), block.indexOf('approval-footer'));

@@ -63,7 +63,7 @@ test('one source, three uses', () => {
   assert.match(panel, /function emptyQuote\(hint, q\)/);
   assert.match(panel, /function endQuote\(q\)/);
   // Bookmarks: empty, and the end of the list.
-  assert.match(panel, /scroll\.append\(emptyQuote\('Bookmark a note from any Nostr client/);
+  assert.match(panel, /scroll\.append\(emptyQuote\(t\('Bookmark a note from any Nostr client/);
   assert.match(panel, /scroll\.append\(endQuote\(panelQuote\)\);/);
   // Notifications: empty for a new account, and the caught-up note.
   assert.match(panel, /emptyQuote\(t\('Replies, reactions and zaps show up here\.'\), panelQuote\)/);
@@ -137,12 +137,15 @@ test('the end note is refused when it would be wrong', () => {
   assert.match(body, /if \(!list\.children\.length && !offNet\.length\) return;/, 'not on a genuinely empty bell');
 });
 
-test('loadMore delegates rather than duplicating it', () => {
+test('paging delegates the end note rather than duplicating it', () => {
   // Two copies of this would drift, and the inline one is what caused the bug.
-  const fn = panel.slice(panel.indexOf('function loadMore()'));
-  const body = fn.slice(0, fn.indexOf('\n      }'));
-  assert.match(body, /showEndNote\(\);/);
-  assert.doesNotMatch(body, /notif-end-title/, 'the note must be built in one place only');
+  for (const name of ['function syncMore()', 'async function loadMore()']) {
+    const fn = panel.slice(panel.indexOf(name));
+    const body = fn.slice(0, fn.indexOf('\n      }'));
+    assert.doesNotMatch(body, /notif-end-title/, 'the note must be built in one place only');
+  }
+  const sync = panel.slice(panel.indexOf('function syncMore()'));
+  assert.match(sync.slice(0, sync.indexOf('\n      }')), /showEndNote\(\);/);
 });
 
 test('A PANEL KEEPS THE QUOTE IT STARTED WITH', () => {
@@ -162,7 +165,7 @@ test('A PANEL KEEPS THE QUOTE IT STARTED WITH', () => {
   assert.match(panel, /emptyQuote\(t\('Replies, reactions and zaps show up here\.'\), panelQuote\)/);
   assert.match(panel, /endQuote\(panelQuote\),/);
   // Bookmarks follow the same rule.
-  assert.match(panel, /emptyQuote\('Bookmark a note from any Nostr client and it shows up here\.', panelQuote\)/);
+  assert.match(panel, /emptyQuote\(t\('Bookmark a note from any Nostr client and it shows up here\.'\), panelQuote\)/);
   assert.match(panel, /scroll\.append\(endQuote\(panelQuote\)\);/);
   // And nothing draws its own mid-render.
   assert.doesNotMatch(panel, /endQuote\(\)\)/, 'no bare endQuote() call should remain');

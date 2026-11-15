@@ -97,9 +97,15 @@
     // host + account + exact amount + window, exactly as before.
     const p = ev.tags.find((t2) => Array.isArray(t2) && t2[0] === 'p' && t2[1]);
     const recipient = p ? String(p[1]) : '';
+    // WHAT IT ZAPPED, when the request names a note. The same description_hash that
+    // hides the recipient hides the target: this record is the only place the note's id
+    // exists on this side, kept so the wallet's history can link back to the note.
+    // Like the recipient, it labels and never gates — matching stays exactly as before.
+    const e = ev.tags.find((t2) => Array.isArray(t2) && t2[0] === 'e' && t2[1]);
+    const event = e ? String(e[1]) : '';
     const t = now();
     const list = fresh(await read(), t);
-    list.push({ host, pubkey, msat, recipient, ts: t });
+    list.push({ host, pubkey, msat, recipient, event, ts: t });
     await write(list);
     return true;
   }
@@ -140,7 +146,8 @@
     return (await read()).some((z) => matches(z, host, pubkey, msat, t));
   }
 
-  // The recipient of the zap request behind this payment, for labelling it afterwards.
+  // The recipient and the zapped note of the request behind this payment, for labelling
+  // it afterwards.
   //
   // DELIBERATELY NOT A CLAIM. Consuming here would spend the single-use approval that
   // the auto-zap gate is about to need, turning every labeled zap into a prompted one —
@@ -159,12 +166,13 @@
   // A retry of the same invoice finds its own mark and keeps its label. What stays
   // ambiguous is zaps whose requests are all signed before any of them is paid: they
   // are labeled in the order they are paid.
-  function recipientFor(host, pubkey, sats, invoice) {
-    return serial(() => recipientForNow(host, pubkey, sats, invoice));
+  function labelFor(host, pubkey, sats, invoice) {
+    return serial(() => labelForNow(host, pubkey, sats, invoice));
   }
-  async function recipientForNow(host, pubkey, sats, invoice) {
-    if (!host || !pubkey) return '';
-    if (sats == null || !Number.isFinite(sats)) return '';
+  const NO_ZAP = { recipient: '', event: '' };
+  async function labelForNow(host, pubkey, sats, invoice) {
+    if (!host || !pubkey) return NO_ZAP;
+    if (sats == null || !Number.isFinite(sats)) return NO_ZAP;
     const t = now();
     const msat = Math.round(sats * 1000);
     const list = await read();
@@ -177,7 +185,12 @@
         await write(fresh(list, t));
       }
     }
-    return (hit && hit.recipient) || '';
+    return hit ? { recipient: hit.recipient || '', event: hit.event || '' } : NO_ZAP;
+  }
+
+  // The recipient alone, the shape every caller used before the zapped note was kept.
+  function recipientFor(host, pubkey, sats, invoice) {
+    return labelFor(host, pubkey, sats, invoice).then((l) => l.recipient);
   }
 
   // Drop everything — used on lock, so a locked keystore leaves no spendable approvals.
@@ -189,7 +202,7 @@
     return fresh(await read(), now());
   }
 
-  const api = { STORAGE_KEY, TTL_MS, record, claim, peek, recipientFor, clear, pending };
+  const api = { STORAGE_KEY, TTL_MS, record, claim, peek, labelFor, recipientFor, clear, pending };
   if (typeof self !== 'undefined') self.SidecarZapRequests = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarZapRequests = api;
 })();

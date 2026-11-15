@@ -1,4 +1,6 @@
-// Sidecar — relay health probing for the panel's NIP-65 editor (isolated module).
+// Sidecar — relay URL rules and health probing for the panel (isolated module):
+// what the relay-add fields accept (normalizeRelayUrl), the add-time gate that asks
+// before a dead relay joins a list (blocksAdd), and the NIP-65 editor's audit.
 //
 // WHY A PROBE AND NOT A CONNECTION COUNT. Every client that shows relay status shows
 // whether a socket is open, because in a client the pool is already there and the answer
@@ -32,6 +34,37 @@
 
   function httpFromWss(url) {
     return String(url).replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://').replace(/\/+$/, '');
+  }
+
+  // What the panel's two relay-add fields accept, so Settings and the NIP-65 editor
+  // cannot drift apart on the rules. The classic entry here is the address bar's version
+  // of a relay — https://relay.nostr.build where wss://relay.nostr.build belongs — which
+  // the old Add handlers turned into the mangled wss://https://relay.nostr.build. The
+  // host is exactly the one the user meant, so https:// and http:// are remapped to
+  // their websocket forms rather than rejected; every other scheme is rejected, because
+  // a relay is a websocket.
+  function normalizeRelayUrl(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return { ok: false, reason: 'empty' };
+    let u;
+    try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : 'wss://' + s); }
+    catch (_) { return { ok: false, reason: 'not a URL' }; }
+    if (u.protocol === 'https:') u.protocol = 'wss:';
+    else if (u.protocol === 'http:') u.protocol = 'ws:';
+    if (u.protocol !== 'wss:' && u.protocol !== 'ws:') return { ok: false, reason: 'scheme' };
+    // A dotless, portless host that is neither localhost nor an IP literal is not a
+    // relay anyone meant to type — it is an npub, a note id, or a word in the wrong
+    // field. Naming it here is instant; letting it through means a five-second connect
+    // timeout has to say it instead.
+    const host = u.hostname.replace(/^\[|\]$/g, '');
+    if (!host || (!host.includes('.') && !host.includes(':') && host !== 'localhost' && !u.port)) {
+      return { ok: false, reason: 'host' };
+    }
+    // Trailing slashes off, so wss://x and wss://x/ are one entry rather than two; the
+    // hash off for the same reason, matching NT.utils.normalizeURL, which is what the
+    // rest of the app already treats as one relay's identity. Port and path stay as
+    // typed; so does the case-fold, which URL already did.
+    return { ok: true, url: u.protocol + '//' + u.host + u.pathname.replace(/\/+$/, '') + u.search };
   }
 
   // NIP-11 relay information document. This is what makes write-safety knowable: it
@@ -262,6 +295,15 @@
     return { verdict: 'healthy', writeSafe: true, writeKnown: true, authed: !!p.authed, why: '' };
   }
 
+  // Whether a probe verdict should stop a relay entering a list and ask first. Kept
+  // beside classify() so the verdicts' meanings live in one file. 'auth-gated' passes:
+  // a NIP-42 challenge is an answer — the relay is up and speaking nostr, and
+  // relay.nostr.build sends one to every anonymous reader while serving accounts fine.
+  function blocksAdd(p) {
+    const v = classify(p).verdict;
+    return v === 'down' || v === 'not-serving';
+  }
+
   async function mapLimited(items, limit, fn) {
     const out = new Array(items.length);
     let i = 0;
@@ -291,7 +333,7 @@
     });
   }
 
-  const api = { CONNECT_TIMEOUT, READ_TIMEOUT, CONCURRENCY, httpFromWss, nip11, probe, classify, audit };
+  const api = { CONNECT_TIMEOUT, READ_TIMEOUT, CONCURRENCY, httpFromWss, normalizeRelayUrl, nip11, probe, classify, blocksAdd, audit };
   if (typeof self !== 'undefined') self.SidecarRelayHealth = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarRelayHealth = api;
 })();

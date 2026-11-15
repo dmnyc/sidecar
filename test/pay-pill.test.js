@@ -155,12 +155,14 @@ test('THE CARD HANDS THE INVOICE TO ANOTHER WALLET, THE LINK AS THE PAGE WROTE I
 test('OPTED IN, AN UNCONNECTED SITE GETS THE CORNER PILL AND NEVER THE CARD', () => {
   const fn = stripComments(lift(content, 'function scanForInvoice('));
   const branch = fn.slice(fn.indexOf('if (!connectedToSite)'), fn.indexOf('const found = findPageInvoice()'));
-  assert.match(branch, /if \(!pillAnywhere\) return removeCard\(\);/, 'the pill shows on other sites without the setting');
+  assert.match(branch, /if \(!pillAnywhere\) \{[\s\S]*?firstOfferInvoice\(\)[\s\S]*?else if \(!first\) removeCard\(\);\s*return;\s*\}/,
+    'the pill shows on other sites without the setting');
   // Only an invoice in a payment panel, never one merely sitting on the page.
   assert.match(branch, /const inv = offered && offered\.asked \? offered\.invoice : '';/);
   assert.match(branch, /inv === dismissedInvoice \|\| !hasWallet\) return removeCard\(\);/);
   assert.match(branch, /return renderPill\(inv\);/);
   assert.doesNotMatch(branch, /renderCard\(/, 'an unconnected site opens the full-screen card by itself');
+  assert.doesNotMatch(branch.slice(branch.indexOf('return;\n      }')), /renderFirstOffer/, 'the offer is shown to someone who opted in');
   assert.doesNotMatch(branch, /SIDECAR_TRY_ZAP_AUTOPAY/, 'an unconnected site is asked about auto-zaps');
 });
 
@@ -257,6 +259,50 @@ test('BOTH APPROVAL SCREENS ASK, UNTICKED, AND ONLY AN APPROVAL CARRIES THE ANSW
   assert.match(panel, /pendingApproval\.data\.offerPayAnywhere === true &&\s*\$\('approval-payanywhere-offer-box'\)\.checked\) \{\s*extra = Object\.assign\(\{\}, extra, \{ enablePayAnywhere: true \}\);/);
   // And the Auto Zaps row, which had the same reuse bug: shown once, never hidden again.
   assert.match(panel, /\$\('approval-autozap-offer'\)\.classList\.toggle\('hidden', !\(data\.offerAutoZap > 0\)\);/);
+});
+
+// ---- the first-time offer: any page, signed-in sites only, or no invoice payments ----------
+
+test('THE FIRST-TIME OFFER IS FOR A PAYMENT PANEL\'S INVOICE, ONCE, AND NEVER TO THOSE WHO OPTED OUT', () => {
+  const gate = stripComments(lift(content, 'function firstOfferInvoice('));
+  assert.match(gate, /if \(payFirstOfferDone \|\| payOfferDismissed \|\| !showCard \|\| !hasWallet\) return '';/);
+  assert.match(gate, /found && found\.asked \? found\.invoice : ''/, 'text merely sitting on a page raises the offer');
+  // Pushed and loaded like the other flags, so an answer holds across pages and reloads.
+  assert.match(stripComments(content), /payFirstOfferDone = settings\.payFirstOfferDone === true;/);
+  assert.match(stripComments(content), /if \('payFirstOfferDone' in msg\) payFirstOfferDone = msg\.payFirstOfferDone === true;/);
+  const bg = stripComments(background);
+  assert.match(bg, /payFirstOfferDone: st\.payFirstOfferDone === true,/);
+  assert.match(bg, /payFirstOfferDone: merged\.payFirstOfferDone === true,/);
+});
+
+test('THE OFFER\'S ANSWERS: ANY PAGE ONLY ASKS, AND DECLINING WRITES NOTHING ELSE', () => {
+  const offer = stripComments(lift(content, 'function renderFirstOffer('));
+  // The offer's one job is the unconnected-sites setting. Declining only marks it
+  // answered: it does not silence the tapped-link offer and does not touch pay prompts
+  // on signed-in sites.
+  assert.doesNotMatch(offer, /payPillAnywhere/, 'the page card writes Show on unconnected sites');
+  assert.doesNotMatch(offer, /payOfferDismissed/, 'the decline silences the tapped-link offer');
+  assert.doesNotMatch(offer, /showPayButton/, 'the decline turns off pay prompts everywhere');
+  assert.match(offer, /answer\(\{\}\)/);
+  assert.match(offer, /type: 'SIDECAR_PAY_ANYWHERE_ASK'/);
+  const bg = stripComments(background);
+  // A page may send the ask, which only raises a question; the answer is the panel's.
+  const allowed = bg.slice(bg.indexOf('const CONTENT_OK'), bg.indexOf('const CONTENT_OK') + 1200);
+  assert.match(allowed, /'SIDECAR_PAY_ANYWHERE_ASK'/);
+  assert.doesNotMatch(allowed, /SIDECAR_PAY_ANYWHERE_ANSWER/, 'a page can answer for the person');
+  assert.match(bg, /if \(s\.payFirstOfferDone === true\) clamped\.payFirstOfferDone = true;/);
+  assert.doesNotMatch(bg, /clamped\.payPillAnywhere = (true|!!)/);
+  const ask = bg.slice(bg.indexOf("message.type === 'SIDECAR_PAY_ANYWHERE_ASK'"), bg.indexOf("message.type === 'SIDECAR_PAY_ANYWHERE_ANSWER'"));
+  assert.doesNotMatch(ask, /payPillAnywhere: true/, 'asking turns it on');
+  const answer = bg.slice(bg.indexOf("message.type === 'SIDECAR_PAY_ANYWHERE_ANSWER'"));
+  assert.match(answer, /if \(message\.use === true\) merged\.payPillAnywhere = true;/);
+  const panel = panel0();
+  assert.match(panel, /type: 'SIDECAR_PAY_ANYWHERE_ANSWER', use: yes/);
+  assert.match(panel, /msg\.type === 'SIDECAR_PAY_ANYWHERE_ASK'\) renderPayAnywhereAsk/);
+  const en = JSON.parse(fs.readFileSync(path.join(ROOT, '_locales', 'en', 'messages.json'), 'utf8'));
+  for (const k of ['firstOfferEyebrow', 'firstOfferBody', 'firstOfferAny', 'firstOfferSignedIn', 'firstOfferConfirm', 'firstOfferClose']) {
+    assert.ok(en[k] && en[k].message, k + ' has no English');
+  }
 });
 
 // ---- no wallet, no offer ------------------------------------------------------------------

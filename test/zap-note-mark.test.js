@@ -136,7 +136,7 @@ test('A ZAP THAT CAME WITH A NOTE CARRIES A MARK, AND THE MARK CARRIES THE NOTE'
   const [mark] = label.find('tx-note');
   assert.ok(mark, 'no mark beside the name');
   assert.equal(mark.title, '🦞👁️🦞', 'the tooltip is the note itself');
-  assert.equal(mark.attrs['aria-label'], 'Note: 🦞👁️🦞');
+  assert.equal(mark.attrs['aria-label'], 'Message: 🦞👁️🦞');
   assert.equal(mark.attrs.role, 'img');
   assert.equal(mark.children[0].iconName, 'message-filled');
   assert.match(label.find('tx-name')[0].textContent, /^Zap from npub1/, 'the name shows first, as the short key');
@@ -172,8 +172,8 @@ test('A ZAP YOU SENT SHOWS THE COMMENT SIDECAR RECORDED', () => {
 test('THE MARK AND THE DETAILS PANE AGREE ON THE NOTE', () => {
   const row = harness().txRow(received('see you at the meetup'), {});
   row.find('tx-head')[0].click();
-  const noteRow = row.find('tx-d-row').find((r) => r.children[0].textContent === 'Note');
-  assert.ok(noteRow, 'the details pane lost its Note row');
+  const noteRow = row.find('tx-d-row').find((r) => r.children[0].textContent === 'Message');
+  assert.ok(noteRow, 'the details pane lost its Message row');
   assert.equal(noteRow.children[1].textContent, labelOf(row).find('tx-note')[0].title);
 });
 

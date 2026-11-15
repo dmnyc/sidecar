@@ -4,6 +4,18 @@
 (() => {
   'use strict';
 
+  // The full guide remains English until its translations have been reviewed.
+  // Mark only the translated notice with the selected language for screen readers.
+  window.SidecarI18n.ready.then(() => {
+    const I18N = window.SidecarI18n;
+    const note = document.getElementById('guide-language-note');
+    if (note && I18N.lang !== 'en') {
+      note.textContent = I18N.t('This guide is currently available in English. Translations are in progress.');
+      note.lang = I18N.lang === 'en-XA' ? 'en' : I18N.lang;
+      note.hidden = false;
+    }
+  });
+
   // Pin the "full history" link to this exact build's tag, not main — main can
   // legitimately be ahead of what's installed (PRs merge well before a release
   // is tagged/shipped), and a hotfix branched from an older tag must link to its

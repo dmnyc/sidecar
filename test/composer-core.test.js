@@ -145,7 +145,8 @@ const BROWSER = new Set(('window document console Math JSON Object Array String 
   'decodeURIComponent parseInt parseFloat isNaN Infinity NaN undefined this arguments Node NodeFilter ' +
   'Range Selection navigator location structuredClone crypto TextEncoder TextDecoder Intl Symbol Worker ' +
   'FormData Blob File btoa atob Uint8Array chrome self globalThis performance matchMedia Image Event ' +
-  'CustomEvent DOMParser AbortController CSS Response DecompressionStream createImageBitmap ' +
+  'CustomEvent DOMParser AbortController CSS Response DecompressionStream createImageBitmap OffscreenCanvas ' +
+  'DataView Uint32Array Uint8ClampedArray ' +
   'IntersectionObserver MutationObserver ResizeObserver addEventListener isFinite localStorage').split(' '));
 const KEYWORDS = new Set(('if else for while do return typeof instanceof new delete void in of let const ' +
   'var function class extends super static get set async await yield try catch finally throw switch case ' +
@@ -209,6 +210,25 @@ test('AND THE PANEL REACHES FOR NOTHING IT DOES NOT HAVE EITHER', () => {
     if (!own.has(n) && !BROWSER.has(n) && !KEYWORDS.has(n)) free.add(n);
   }
   assert.deepEqual([...free].sort(), [], 'sidepanel.js reaches for names it does not have');
+});
+
+test('AND THE POPUP CARD REACHES FOR NOTHING IT DOES NOT HAVE', () => {
+  // The same rule for prompt.js, the approval card's popup twin. Its account menu called
+  // an el() helper that only ever existed elsewhere, so "Use a different account" threw
+  // on every popup card and the menu never opened, with no test to notice.
+  const popup = fs.readFileSync(path.join(__dirname, '..', 'prompt.js'), 'utf8');
+  const src = codeOnly(popup);
+  const own = declaredIn(src);
+  // The scripts prompt.html loads beside it, and what they set.
+  ['I18N', 't', 'tn', 'tSec', 'SidecarBaseline', 'SidecarNip85', 'SidecarSky', 'SidecarSeasons',
+   'NostrTools', 'browser'].forEach((g) => own.add(g));
+  const body = src.replace(/\.\s*([A-Za-z_$][\w$]*)/g, ' ').replace(/([A-Za-z_$][\w$]*)\s*:/g, ' ');
+  const free = new Set();
+  for (const m of body.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {
+    const n = m[1];
+    if (!own.has(n) && !BROWSER.has(n) && !KEYWORDS.has(n)) free.add(n);
+  }
+  assert.deepEqual([...free].sort(), [], 'prompt.js reaches for names it does not have');
 });
 
 test('THE CORE REACHES FOR NOTHING THAT ONLY EXISTS IN THE PANEL', () => {

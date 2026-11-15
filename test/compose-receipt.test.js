@@ -26,6 +26,19 @@ function lift(src, decl) {
   throw new Error('unbalanced ' + decl);
 }
 
+// The relay row is the shared core's now (the panel's banner draws it too), so the receipt's
+// tests run the real one, built with whatever h, t and tn the test hands it.
+const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
+function coreReport(h, t, tn) {
+  const ctx = vm.createContext({ h, t, tn, URL });
+  vm.runInContext([
+    lift(core, 'function groupRefusals('), lift(core, 'function refusalLines('),
+    lift(core, 'function acceptedLine('), lift(core, 'function relayReportNode('),
+    'this.relayReportNode = relayReportNode;',
+  ].join('\n'), ctx);
+  return ctx.relayReportNode;
+}
+
 const X = 'a'.repeat(64);
 const Y = 'b'.repeat(64);
 
@@ -145,10 +158,101 @@ test('showPosted runs: the receipt paints and the tab marks itself', async () =>
     location: { pathname: '/compose.html', search: '' },
     history: { replaceState: (a, b, url) => urls.push(url) },
   });
+  ctx.SC = { relayReportNode: coreReport(ctx.h, ctx.t, ctx.tn) };
   vm.runInContext(lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
-  await ctx.f({ pubkey: 'pk', kind: 1 }, 4, 'note');
+  const four = ['wss://a', 'wss://b', 'wss://c', 'wss://d'];
+  await ctx.f({ pubkey: 'pk', kind: 1 }, { accepted: four, failed: [], total: 4 }, 'note');
   assert.deepEqual(urls, ['/compose.html#done'], 'the tab marked its address');
   assert.equal(ctx.receiptShown, true);
   assert.ok(sheet.classes.has('compose-done'), 'the receipt painted');
   assert.ok(sheet.children.length >= 4, 'title, count, actions and the close word are on the sheet');
+});
+
+// "Published to 9 relays" for a note that reached one is the lie this page used to tell.
+test('showPosted says how many took it, and names the relays that did not', async () => {
+  const mk = () => {
+    const el = { children: [], classes: new Set(), listeners: {}, href: '', textContent: '' };
+    el.classList = { add: (c) => el.classes.add(c), remove: (c) => el.classes.delete(c) };
+    el.append = (...k) => { el.children.push(...k); };
+    el.addEventListener = () => {};
+    Object.defineProperty(el, 'innerHTML', { get: () => '', set: () => { el.children = []; } });
+    return el;
+  };
+  const sheet = mk();
+  const fill = (s, v) => (v ? s.replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]) : s);
+  const ctx = vm.createContext({
+    receiptShown: false,
+    document: { querySelector: () => sheet, createElement: () => mk() },
+    state: { activePubkey: 'pk' },
+    call: async () => ({}),
+    composer: { resolveClient: () => ({ url: (n) => 'https://client.example/' + n, label: 'Client' }) },
+    neventFor: async () => 'nevent1abc',
+    URL,
+    h: (tag, props, kids) => { const e = mk(); e.tag = tag; Object.assign(e, props || {}); if (kids) e.append(...kids); return e; },
+    icon: () => mk(),
+    t: fill,
+    tn: (one, other, n) => fill(n === 1 ? one : other, { count: n }),
+    window: { location: { replace() {} } },
+    location: { pathname: '/compose.html', search: '' },
+    history: { replaceState() {} },
+  });
+  ctx.SC = { relayReportNode: coreReport(ctx.h, ctx.t, ctx.tn) };
+  vm.runInContext(lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
+  await ctx.f({ pubkey: 'pk', kind: 1 }, {
+    accepted: ['wss://snort'],
+    failed: [
+      { url: 'wss://azzamo', code: 'payment', text: '' },
+      { url: 'wss://nostrelites', code: 'payment', text: '' },
+      { url: 'wss://nos.lol', code: 'timeout', text: '' },
+      { url: 'wss://feed', code: 'refused', text: 'restricted: read-only' },
+    ],
+    total: 5,
+  }, 'reply');
+  const texts = (el) => [el.textContent, ...(el.children || []).flatMap(texts)].filter(Boolean);
+  const said = sheet.children.flatMap(texts);
+  assert.ok(said.includes('Published to 1 relay.'), 'the count is of the relays that took it: ' + JSON.stringify(said));
+  assert.ok(said.includes('Accepted it: snort.'), 'the relay that accepted it is named: ' + JSON.stringify(said));
+  assert.ok(said.includes('azzamo, nostrelites asked for payment.'), 'the paid relays are named: ' + JSON.stringify(said));
+  assert.ok(said.includes('nos.lol timed out.'), 'and the one that never answered: ' + JSON.stringify(said));
+  assert.ok(said.includes('Refused by feed: restricted: read-only'), "a refusal carries the relay's own words: " + JSON.stringify(said));
+  assert.ok(!said.includes('Published to 5 relays.'), 'it must never claim the total when some refused');
+
+  // COLLAPSED: the count is the row, and everything else is inside a details element, closed.
+  const details = sheet.children.find((k) => k.tag === 'details');
+  assert.ok(details, 'the relay answer is one expandable row');
+  assert.equal(details.children[0].tag, 'summary');
+  assert.equal(details.children[0].textContent, 'Published to 1 relay.');
+  assert.ok(!details.open, 'closed until it is opened');
+  assert.ok(details.children.length >= 4, 'the detail is inside the row, not beside it');
+  assert.equal(sheet.children.filter((k) => /^(Refused|azzamo|nos\.lol)/.test(k.textContent || '')).length, 0,
+    'no refusal sentence sits outside the row');
+});
+
+test('when every relay took it there is no row to open, just the plain count', async () => {
+  const mk = () => {
+    const el = { children: [], classes: new Set(), listeners: {}, href: '', textContent: '' };
+    el.classList = { add: (c) => el.classes.add(c), remove: (c) => el.classes.delete(c) };
+    el.append = (...k) => { el.children.push(...k); };
+    el.addEventListener = () => {};
+    Object.defineProperty(el, 'innerHTML', { get: () => '', set: () => { el.children = []; } });
+    return el;
+  };
+  const sheet = mk();
+  const fill = (s, v) => (v ? s.replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]) : s);
+  const ctx = vm.createContext({
+    receiptShown: false,
+    document: { querySelector: () => sheet, createElement: () => mk() },
+    state: { activePubkey: 'pk' }, call: async () => ({}),
+    composer: { resolveClient: () => ({ url: (n) => 'https://client.example/' + n, label: 'Client' }) },
+    neventFor: async () => 'nevent1abc',
+    h: (tag, props, kids) => { const e = mk(); e.tag = tag; Object.assign(e, props || {}); if (kids) e.append(...kids); return e; },
+    icon: () => mk(), t: fill, tn: (one, other, n) => fill(n === 1 ? one : other, { count: n }),
+    window: { location: { replace() {} } }, location: { pathname: '/compose.html', search: '' }, history: { replaceState() {} },
+  });
+  ctx.SC = { relayReportNode: coreReport(ctx.h, ctx.t, ctx.tn) };
+  vm.runInContext(lift(compose, 'async function showPosted(') + '\nthis.f = showPosted;', ctx);
+  await ctx.f({ pubkey: 'pk', kind: 1 }, { accepted: ['wss://a', 'wss://b'], failed: [], total: 2 }, 'note');
+  const said = sheet.children.map((k) => k.textContent).filter(Boolean);
+  assert.ok(said.includes('Published to 2 relays.'), JSON.stringify(said));
+  assert.ok(!sheet.children.some((k) => k.tag === 'details'), 'nothing to expand when nothing went wrong');
 });

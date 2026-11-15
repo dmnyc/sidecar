@@ -5,9 +5,186 @@ and [Semantic Versioning](https://semver.org/).
 
 Release practice: the latest release's highlights are also summarized in-app, in the help
 guide's **What's new** section (`help.html#whats-new`, linked from Settings → Updates).
-Update that section alongside this file as part of every release.
+Update that section alongside this file as part of every release. The newest heading is
+always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
+has entries, and that heading becomes the version heading when the release is cut.
 
-## [Unreleased]
+## [1.17.2] — 2026-11-15
+
+### Added
+- **A client that is not on the list can now be added by pasting two links from it.** "Your added clients" under Settings → Apps & browsing takes a name, a note link and a profile link copied from the client (clients build the two differently, so it needs one of each). Sidecar finds the address in each and works out how that client writes it — a hex ID, a note1, a short nevent or a full nevent, since clients differ and nothing declares which — and says so under the field before anything is saved. It refuses a link it cannot rebuild from what it found, names any extra query parameters it would keep on every link, and a button beside each field opens the link so it can be tried before saving. The saved client joins the "Open notes in" picker beside the built-ins and is sent addresses in the form it was shown. Removing one tidies up after itself: any account that had chosen it goes back to the default. The list itself stays curated and nostrich stays out; this is a door around it, not a re-add.
+
+### Changed
+- **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
+- **Test streams no longer clutter the stream list.** A stream with “test” in its title, and a past stream with no recording, picture or description, now sit behind More with the untitled ones. Streams you saved stay where they are. The More button now turns into Less, with a chevron that turns over, while the list is open, since the faint shade it used before was hard to read.
+- **The store screenshots no longer show a build string.** The first-run screen printed the version at its foot, so the first gallery image went out of date with every release. The command that makes the gallery now photographs that line already faded, as it is a few seconds after the screen loads. It can also make just the images that changed (`--changed`, `--only`) and carry the rest over from the previous set. It is a developer tool and ships nothing in the extension.
+
+### Fixed
+- **Your library reads in your language.** The library added in 1.17.1 (its tabs, rows, list menu and messages) showed in English in every language but English. All 21 catalogs now carry its text, and the coverage check passes again.
+- **The composer tab names the person you are replying to, and the people you mention.** It asked only your configured relays and purplepag.es, so someone whose profile lives on their own relays showed as an npub. It now asks their relays too, takes the first name that comes back, and no longer waits on a relay that never answers.
+- **A stream's chat can be read before you add an account.** The chat button only appeared once Sidecar had an account, so a new install could watch a stream and never see its chat. It now opens read-only: replying, reacting, zapping and opening a profile wait for an account, the message box gives way to an “Add an account to chat →” link that opens the Accounts tab, and a locked panel still hides the chat.
+
+## [1.17.1] — 2026-11-12
+
+### Added
+- **Your library: bookmarks, highlights, your web-page comments and your reactions, in one sheet.** The top-bar button is a book with a bookmark in it now, since the bare ribbon belongs to one tab inside. It opens four icon tabs, each counted and each read from your own relays, under a small “Your library” line, and the heading names whichever is open. Every row leads with where it came from: a comment its site, a highlight its page or author, a reaction its author beside a large copy of the mark you left, with the note’s words under it and a note no relay returns still opening in your client. Bookmarks show everything a list holds, not only notes: articles and recipes, web addresses and hashtags (from the main list), and the entries other clients keep private (encrypted in the list; shown with a lock and not editable here), and a list says how many saved items no relay could return. Mute packs and other lists of people or words are not bookmark lists and stay out. They include the named lists other clients keep (bookmark sets, as Wisp and Zap Cooking write them), chosen from a menu that appears only when there is more than one, where a named list can be renamed or deleted from the ⋮ on its own title row (deleting asks first and never touches the notes). Removing a bookmark is the last item in its ⋮ menu, so rows carry no trash cans: the first tap turns it red and says “Tap again to confirm”, and it lets go on any other tap or Escape. A list reopened in the same panel is on screen at once from what it already read, and once the library has been opened, new reactions, highlights, comments, bookmarks and deletions appear in it as they happen. Highlights, comments and reactions page back through everything on your relays: Show more asks for older ones once the first screens are shown. Opening a comment opens it on its own Sidecar page.
+- **A page for each comment you make on the web.** Many clients draw a NIP-22 comment over a web address nowhere at all, so Sidecar reads it itself: the page it was written on, the comment in full, and its replies as the tree they are, with what people reacted with under each. Replies are looked for at the inboxes of whoever is being answered, not only your own relays, so one written from another client turns up. Reply opens the composer on that comment, React signs and publishes a reaction from the page, any reply can fold away, and any comment in the tree can become the page. Opening another comment from the panel reuses the tab already open.
+- **Nostr Vault joins the clients a note or profile can open in.** Its threads take the same `nevent`, `note` and `naddr` links the other clients do, at nostrvault.app/thread/, and profiles live at nostrvault.app/p/. It sits in the "view notes in" choice under Settings → Posting where Nostrich used to be.
+- **A command that makes the store screenshots from the real extension.** The panel, its pages and the approval cards are captured from the running extension, with a pretend wallet and the client’s own page loaded live, and laid out for Chrome and for Firefox, where the panel sits on the left. It is a developer tool and ships nothing in the extension.
+- **A command that publishes an image to a Blossom server** and keeps a catalog of its address, with nostr.build as an option. The key is an encrypted NIP-49 value opened at a hidden password prompt. It is a developer tool and ships nothing in the extension.
+
+### Removed
+- **Nostrich is no longer offered as a client.** The app directory on the Welcome page drops nostrich.org, and so does the "view notes in" choice under Settings → Posting; a saved choice of Nostrich now opens notes and profiles in the default client instead.
+
+### Documentation
+- **The release checklist has a store screenshots check.** A command lists the interface files changed since the last release, and when there are any the gallery is made again from the release.
+
+## [1.17.0] — 2026-11-09
+
+### Added
+- **Sidecar in 21 languages.** Arabic, German, Greek, Spanish, Persian, French, Hebrew, Hindi, Hungarian, Italian, Japanese, Korean, Polish, Brazilian and European Portuguese, Russian, Thai, Turkish, Urdu, and Simplified and Traditional Chinese. Settings → Appearance has a **Language** choice, set to follow the browser until you pick one, and the first screen offers the same choice, so the PIN and backup warnings can be read in your language from the start. It changes the panel, the approval screens, the welcome page, the composer, the wallet pages and the QR scanner, and numbers, dates and “5m ago” follow the language you chose. Arabic, Persian, Hebrew and Urdu mirror the whole panel, and Greek, Cyrillic and the Central European letters use the panel’s own typeface. The pay pill and card on a web page follow the browser’s language instead, so a site learns nothing new from them. The help guide, the “On this day” lines, the literary quotes and Relay Rider stay English. The translations are drafts; Settings says so and links to GitHub for corrections. The Arabic security wording and terms were reviewed by [tkhumush](https://github.com/tkhumush), and the Italian by [keithmeola](https://github.com/keithmeola); no native speaker has read the other languages yet.
+- **Phantom Bouquet, the second special edition (November 9 – December 6).** After the Victorian skeleton-leaf bouquet: ivory skeleton leaves of maple, oak and four companions lying on linen over larger ones bleached white, a few dyed madder, ochre, rust, olive and plum, set in Sorts Mill Goudy, with the Sidecar logo drawn in the same dyes: a madder glass and a plum wordmark. The balance drifts down into place a figure at a time. On the lock screen twelve leaves fall slowly down the cloth, seven or eight in sight at a time, each turning at its own steady pace, and stay still under Reduce motion.
+- **You can cash an LNURL-withdraw link into your wallet.** Paste an `lnurl1…`, `lnurlw://` or `lightning:` link, or an LNURLcash note, into Send or the new Withdraw tab on the Receive sheet. Sidecar shows the service and the amount range, has your wallet make the invoice, and waits for the payment. A retry never pays twice, and the tab appears only when your wallet can make invoices.
+- **A pasted note comes into the composer as a block beside your pictures.** Paste a `note1`, `nevent1` or `naddr` link and the note appears in the attachments strip, drawn like the reply block and labeled with its kind, and either the note or your pictures can move above the other with an arrow. If no relay has the note, the link goes back into your text and a toast says so.
+- **Videos say what they are, and take a description.** An uploaded video’s post carries its type and size (Settings → Add video details to posts, on by default), and videos take the + ALT chip in both composers.
+- **An optional on-chain card in the Wallet tab.** Settings → Wallet & payments → Show on-chain balance shows the two Bitcoin addresses your account’s key can spend and what they hold, and sweeps everything to one address you paste or scan, after a review of the exact fee and a second tap. It is off by default, and nothing is looked up until you turn it on.
+
+### Changed
+- **Approval cards ask one question in one row: Once · 30 min · Always.** A line above the row says what the choice does, and the Sign button follows it. Always takes the place of the “Always allow this event type” box, and a single 30-minute window takes the place of the 5, 15 and 30-minute chips. Tap the account on the card to sign as another, or to detach the site; on a site where several of your accounts are signed in, the card says so in two lines and asks you to confirm who’s posting.
+- **One account signs without asking at a time, or one per account if you choose.** By default, switching accounts ends the 30-minute window, and opening a window for one account ends any other account’s, so a multi-account client that mixes up accounts still gets a card. **Settings → Auto-sign with multiple accounts → Keep a 30-minute timer for each account** keeps a window per account instead: the auto-sign bar shows the active account’s, with its restart button and the toolbar badge, and a +N on the bar lists the others, each with its own end button.
+- **The switch under Use bootstrap relays now reads “Use for notifications only”,** which says what it does: with bootstrap relays off, they are still read for notifications and nothing else.
+- **Each special edition's art ships only in a release tagged inside its window.** A store package is downloaded whole at install and at every update, so the tag is the only moment packaging can respect the calendar: Phantom Bouquet's art rides only in a release tagged November 9 through December 6, that release is the one Sleepy Hollow's art (438 KB) leaves, and next October's releases bring Sleepy Hollow back without anyone having to remember. The two never ride together — a build tagged on November 8, Sleepy Hollow's last day, still ships Sleepy Hollow and no Phantom Bouquet, and the November 9 build swaps them; one edition missing a build beats both riding in it. Edition stylesheets stay in the package at 15–19 KB, so every document's stylesheet link stays valid, and the gallery — which only offers an edition inside its window — never asks for a file that is not there.
+- **Tapping Quote while you’re writing a note sets the note aside.** The quoted note opens in a fresh draft, and the one you were writing waits under Saved drafts, which now holds more than one note. A draft holding only an older quote takes the new one instead.
+- **The full-size composer drops its Cancel button.** The × in the top bar closes the tab and keeps the draft, which is what Cancel did.
+
+### Fixed
+- **The Following count changes the moment you follow or unfollow someone.** It used to wait for the tab to be rebuilt. A change made in another app now shows within five minutes while the panel is open, and the Overview has its own refresh button.
+- **A linked note that other apps show is found in the composer too.** A `note` or `nevent` link that came up “not found” now also asks a few large public relays when your own relays don’t have it.
+- **Attaching a HEIC photo says it isn’t supported,** instead of uploading an image most apps show broken. AVIF still uploads.
+- **“1 h ago” no longer reads “-1 h”.** Chrome’s compact time data gave French, Russian and European Portuguese a bare negative number in sentences such as “a draft from -1 h”; Sidecar now asks for the longer form when that happens.
+- **Balances, countdowns and amounts read left to right in Arabic, Persian, Hebrew and Urdu.** A balance of 48,422 showed as 224,84, and a 30-second countdown as 03.
+- **The full-size composer’s Saved drafts list stands alone.** The open draft’s attachments no longer show beneath it, and the folder comes back when you leave the list.
+
+### Documentation
+- **The help guide’s pictures show the current panel.** Eleven screenshots were retaken with the demo accounts, and the guide describes the new approval card.
+- **The help guide’s wallet section covers the whole Wallet tab:** sending and receiving, zaps and Auto Zaps, paying on websites, the backup, and the on-chain card.
+
+## [1.16.6] — 2026-11-03
+
+### Added
+- **You can delete your wallet backup from your relays.** A red Delete backup link in the Wallet tab’s Backup card asks first, then replaces the encrypted copy with an empty one and asks relays to forget it. Your connected wallet stays.
+- **The livestream chat has the composer’s emoji picker.** A smiley opens the same nine groups and search above the message field, and a pick goes in at the caret. Hide chat is now a chevron beside it.
+
+### Changed
+- **New installs start with auto-lock at 30 minutes, up from 15, and the PIN reminder lets you pick the time right away.** Existing installs keep the time they have.
+- **Snort joins the apps on the Welcome page.**
+- **Aqstr joins the apps on the Welcome page.**
+- **The “Use Sidecar” Lightning offer no longer names a site.** The choice covers every page, but the card said it was about whichever page you opened first, such as Google.
+- **A profile with both a Lightning address and a CLINK offer pays through a Lightning | CLINK switch.** The two buttons looked alike, so it was unclear which kind of payment was about to go out. The routes are now tabs above the pay panel, shown only when a profile has both, and the bolt reopens on the one you used last.
+
+### Fixed
+- **A zap with a comment shows in a livestream’s chat and its zap total.** Alby’s servers write the comment into the invoice instead of the hash that NIP-57 asks for, and the chat rejected those zaps while Zap.stream shows them. The chat now counts them, and still rejects a receipt that carries a hash for some other request.
+- **The lock screen no longer says “Locked since your browser closed” after you press the lock button.** With auto-lock on Never, every lock got that line, because a browser close was the only lock it had in mind. Sidecar now records why it locked, and the line appears only when nothing else did.
+- **The notifications sheet no longer opens empty when you open it right after the panel loads.** The notes were arriving a moment after the refresh icon stopped spinning, and only closing and reopening the sheet showed them. It now waits for them.
+- **Restoring from the encrypted backup sheet’s PDF file works.** The sheet sets its key on two lines, and the reader took only the first, so the import failed with “Incorrect password, or not a valid ncryptsec key.” It now reads both lines, and a key copied from the sheet in two pieces pastes into the import field as one. Sheets you already printed or saved are read the same way.
+- **Zapping a profile that carries a CLINK offer is a real zap now.** The offer panel asked for and paid the invoice without a signed zap request, so the service could only treat the payment as spontaneous: sats arrived and no kind 9735 receipt was ever published, and no client showed a zap. It now sends the same signed 9734 the lightning-address path does, naming the payer, and the offer handoff on a comment sheet carries the same disclosure the zap handoff has — another wallet scanning the QR pays the author, but only this panel's payment zaps the comment.
+- **A moved CLINK offer is followed once instead of failing.** Error code 3 may carry `latest`, a fresh `noffer1…` string; Sidecar now retries against it without rewriting the stranger's profile, refuses a successor that does not decode, and never follows a chain longer than one.
+- **You can zap another account in your own keystore.** Sending was blocked on every account you hold, so one of your accounts could not pay another. Only the account you are signed in as counts as you.
+- **A profile opened from search shows its CLINK offer.** The offer string, cut short and copyable, now sits under the address the way it does on your own profile.
+- **The composer’s emoji picker starts clean each time it opens.** A search stayed in the field after you picked an emoji, so the next open showed the same word and the same results. It now clears on every close, and the group you were browsing stays put when you had not searched.
+- **The offer to make Sidecar your default Lightning wallet waits until you have added a wallet.** It could appear during setup, over the screen that creates the keystore, when another wallet extension answered on the open page. The page is remembered, and the offer comes once your first wallet is connected.
+- **The source archive holds CLAUDE.md out along with AGENTS.md, and the build stops on links that point at nothing.** CLAUDE.md is a link to AGENTS.md, and holding back only AGENTS.md left an empty CLAUDE.md in 1.16.5’s first build.
+
+### Documentation
+- **The CLINK entry in `WALLET_BACKENDS.md` records what actually happened.** The spec never became a NIP — the PR was closed unmerged in June 2025 — and the payer side shipped in #359 rather than staying held; the lightning.pub / ShockWallet assessment behind it now ships with the repo as `docs/lightning-pub-shockwallet-integration.md`, with CLINK Debits parked and tracked in #551.
+
+## [1.16.5] — 2026-11-01
+
+### Added
+- **EXIF data is stripped from photos before upload.** A photo’s EXIF data, and the other metadata embedded with it, can include its GPS location and camera details. Sidecar removes it before any upload, profile and banner pictures included, and the picture and its colors are unchanged.
+- **Panel zoom.** Settings → Appearance has a minus button, the current size and a plus button, in five steps from 80 to 120 percent. The size in the middle resets to 100. It scales the whole panel, and Sidecar remembers it.
+- **An emoji picker in the composer,** in the panel and in the expanded composer. It opens under the toolbar with nine groups and a search across all 1,914, and a tap puts the emoji in at the caret.
+
+### Changed
+- **The composer’s toolbar is a row of icons.** Media, GIF, Emoji, Poll and proof of work share one line, each named by its tooltip and for screen readers. Proof of work shows its bits as a badge on the pickaxe, and a small X while it is off. The panel’s Expand button is four corner brackets.
+- **Brownstone is redrawn** with carved stonework and brass details, set in Libre Caslon.
+- **A pasted photo uploads as a JPEG.** The clipboard turns a photo into a PNG many times its size, and a large one is now re-encoded before upload, keeping its colors, HDR photos included. Screenshots and anything with transparency stay PNG.
+- **Auto-lock counts time away from your computer,** not time since Sidecar last signed. Reading in a client for longer than the setting no longer finds Sidecar locked at the next like or reply, and Sidecar locks when the computer has been idle that long. A locked screen counts as time away. The browser’s idle permission is new for this.
+- **A narrow panel folds its topbar icons behind a tray,** and the wallet’s Send and Receive stack, whether the width is short because of panel zoom or a narrow sidebar.
+
+### Fixed
+- **A pasted account’s name and picture show the moment it imports,** instead of waiting on the slow relay path.
+- **Uploads reach your own Blossom server more often.** A large file gets more time before Sidecar gives up on the server, and a relay that is slow to return your server list no longer sends the upload elsewhere. When your server does refuse a file, Sidecar says why before using nostr.build.
+- **The expanded composer’s preview updates when you remove or add an attachment,** instead of after a trip back to the editor.
+- **Turnstile’s and Departures’ lock screens look as they did at launch.** The longer “Locked since your browser closed” message no longer lifts the logo into Turnstile’s Uptown sign, and the Departures clock and board are back where they were first placed.
+- **The bell’s Polls tab counts only live polls.** One old poll no longer holds a (1) on the tab forever.
+- **Rows that clipped in a narrow panel now read whole.** Overview values end in an ellipsis instead of losing their start, the wallet’s badges and price range keep their figures together, a signing row’s host and age wrap as pieces, and the relay question keeps its labels.
+
+### Documentation
+- **AGENTS.md is the canonical rules file for contributors and tools,** and CLAUDE.md points to it. A pull request is not opened without asking first.
+- **The release checklist has a theme check,** next to the wallet check, with a sweep page that shows every theme’s surfaces side by side.
+- **The release checklist has a lock-screen check,** a sweep page that shows every theme’s lock screen and measures whether any decoration touches the logo, the message or the PIN form.
+
+## [1.16.4] — 2026-10-29
+
+### Added
+- **A zap’s payment details link to the note it landed on,** opened in your own client: zaps you received, and zaps you sent from a site or from the panel.
+- **Sidecar offers, once, to pay invoices on any page.** The first time a site you are not signed in to shows an invoice in a payment panel, a card asks. Turning it on is confirmed in Sidecar, never on the page.
+
+### Changed
+- **Notifications load the newest first.** Opening the bell asks for the latest, and Load more fetches older ones from your relays as you ask, past the old one-week limit. The badge counts the newest screenful, with a + when there is more.
+- **A sign card names what it signs,** “wants to sign: Reaction”, on the panel and the popup alike.
+- **Recent activity copies an event’s ID** where no client can show the event, such as a relay sign-in or an app’s saved settings, instead of opening an empty page.
+- **A site that asks for your public key many times at once gets one card.** Your answer to the first covers the rest.
+- **Payment details call a zap’s comment or an invoice’s description a “Message”,** since a note is the Nostr post.
+- **Poll results count voters whose ballots sit off the usual relays.**
+- **The wallet directory lists self-custodial wallets first,** and its Ecash and Spark descriptions are corrected.
+
+### Fixed
+- **Zapping from a notification finds the person’s lightning address** on the relays they publish to. It said “They have no lightning address” for people who have one, and it now loads in a second or two.
+- **The Accounts overview no longer says a backed-up wallet is not backed up.** A backup check that cannot finish says “Couldn’t check”.
+- **A sign card the auto-lock catches asks for your PIN** instead of failing to sign, and a request left unanswered too long tells the site it timed out, not that you rejected it.
+- **Relay addresses pasted with https:// are corrected, not saved broken,** and Sidecar checks a relay before adding it, asking first when it cannot reach it.
+
+### Documentation
+- **The changelog opens with the latest release,** not an empty Unreleased heading.
+
+## [1.16.3] — 2026-10-26
+
+### Added
+- **Copy a poll’s event ID, link or JSON.** The poll results sheet has a ⋮ at the end of the question, the same menu a notification row carries.
+- **Nostr Vault joins the app directory.**
+
+### Changed
+- **Poll results find more votes.** The clients most people vote from file ballots on their own relays rather than the ones the poll names, so Sidecar also asks four large public relays for them.
+
+### Fixed
+- **Notes and replies from the full-size composer reach your own relays.** It posted to Sidecar’s default relays when the panel had not handed it your relay list, and counted a relay it could not reach as published. It now posts to the relays your account names, counts only the ones that accepted the note, and “Published to N relays.” opens onto which relays accepted it and why the others did not. Highlights post the same way, and a relay that asks for sign-in gets one.
+- **The “your note is live” link points at relays that have the note,** in the composer tab and the panel, and the panel’s banner shows the same relay row when some relays refused it.
+- **A wallet that lists a primal.net relay among others can be connected.** Only Primal’s own connection strings are refused now.
+- **The Plebs vs Zombies icon shows again** in the app directory.
+
+### Removed
+- **Seven unused CSS rules.**
+
+### Documentation
+- **Why cashu.me is not listed as a wallet** is recorded in WALLET_BACKENDS.md: its wallet answers only while its app is open.
+
+## [1.16.2] — 2026-10-25
+
+### Added
+- **Blitz and LNbits join the wallet directory,** and Blitz sits under a new **Spark** filter. A Spark wallet is self-custodial on the Spark layer 2: you hold a key and can exit to Bitcoin.
+
+### Changed
+- **The panel opens lighter.** The 1.65 MB video-player library loads on the first livestream you play, not every time the panel opens. A plain video link never loads it, and a failed load is retried on the next play.
+- **The account Overview folds while the video player is open,** so more of the panel shows beside it, and returns as you had it when the player closes. Opening it by hand beside a video is honored.
+- **The wallet balance refreshes every minute, not every 30 seconds,** and only while a balance is showing.
+
+### Fixed
+- **A Blitz wallet no longer fills your lock screen with alerts.** Blitz answers every wallet request with a push to the phone, so Sidecar's balance polling raised an alert every half minute. Sidecar now recognizes a Blitz connection and never polls it. Its balance is read when the panel opens, after a payment, and when you tap refresh.
+
+### Added
+- **A first-time offer to pay invoices on any page.** The first time a payment panel’s Lightning invoice appears on a site you are not signed in to, Sidecar says it can pay it and asks: **Pay on any page**, **Only sites I’m signed in to**, or **Not now**. **Pay on any page** raises a question in the side panel, over whatever is open, and turns on **Show on unconnected sites** only when you tap **Turn on** there; a page cannot turn it on itself. The card waits for your answer and leaves with either one. **Only sites I’m signed in to** ends the offer and changes nothing else, and **Not now** asks again on the next invoice.
 
 ## [1.16.1] — 2026-10-21
 

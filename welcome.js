@@ -66,6 +66,16 @@ function apps() {
     desc: t('Fast, slick social feed with trending analytics, advanced search, and a built-in wallet.'),
   },
   {
+    name: 'Snort',
+    url: 'https://snort.social',
+    domain: 'snort.social',
+    cat: 'social',
+    // Their apple-touch-icon is an opaque full-bleed square, so it takes the flush treatment.
+    icon: 'https://snort.social/img/apple-touch-icon.png',
+    flush: true,
+    desc: t('A fast, feature-packed, open-source social client built on Nostr.'),
+  },
+  {
     name: 'noStrudel',
     url: 'https://nostrudel.ninja',
     domain: 'nostrudel.ninja',
@@ -225,7 +235,8 @@ function apps() {
     url: 'https://plebsvszombies.cc',
     domain: 'plebsvszombies.cc',
     cat: 'tools',
-    flush: true,
+    // The site's favicon is an SVG only, which the favicon service does not return, so it is bundled.
+    icon: 'icons/apps/plebs-vs-zombies.svg',
     desc: t('A gamified Nostr follow manager: cull your zombie followers and keep your network alive.'),
   },
   {
@@ -290,18 +301,6 @@ function apps() {
     logo: `<svg viewBox="0 0 46 46" aria-hidden="true"><defs><linearGradient id="na-tile" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4f1e44"/><stop offset=".5" stop-color="#27556c"/><stop offset="1" stop-color="#284f3c"/></linearGradient></defs><rect width="46" height="46" rx="10" fill="url(#na-tile)"/><g transform="translate(11 11)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.247 7.761a6 6 0 0 1 0 8.478"/><path d="M19.075 4.933a10 10 0 0 1 0 14.134"/><path d="M4.925 19.067a10 10 0 0 1 0-14.134"/><path d="M7.753 16.239a6 6 0 0 1 0-8.478"/><circle cx="12" cy="12" r="2"/></g></svg>`,
     flush: true,
     desc: t('Full-text search across Nostr’s history: find profiles and notes going back years.'),
-  },
-  {
-    name: 'Nostrich',
-    url: 'https://nostrich.org',
-    domain: 'nostrich.org',
-    cat: 'social',
-    // Their logo.svg is already an app-icon tile: a rounded rect clipped at
-    // rx=114 over an opaque cream field, so it takes the flush treatment rather
-    // than being inset in Sidecar's velvet frame.
-    icon: 'icons/apps/nostrich.svg',
-    flush: true,
-    desc: t('Notes, articles, chat and zaps in one client, with native apps for iOS, Android and Mac.'),
   },
   {
     name: 'Ditto',
@@ -505,6 +504,16 @@ function apps() {
     desc: t('Private messaging and calls over Nostr.'),
   },
   {
+    name: 'Nostr Vault',
+    url: 'https://nostrvault.app',
+    domain: 'nostrvault.app',
+    cat: 'social',
+    // An opaque dark square that fills its frame, so flush.
+    icon: 'icons/apps/nostr-vault.png',
+    flush: true,
+    desc: t('A Nostr client built on your web of trust: each feed shows accounts your circle vouches for.'),
+  },
+  {
     name: 'Armada',
     url: 'https://armada.buzz/',
     domain: 'armada.buzz',
@@ -544,6 +553,16 @@ function apps() {
     // Their 180px touch icon: a rounded square with its own margin, so framed rather than flush.
     icon: 'https://fanfares.io/apple-touch-icon.png',
     desc: t('Sell your content for bitcoin: publishing for the internet money era.'),
+  },
+  {
+    name: 'Aqstr',
+    url: 'https://aqstr.com',
+    domain: 'aqstr.com',
+    cat: 'commerce',
+    // Their touch icon is a full-bleed rounded tile with no margin of its own, so flush.
+    icon: 'https://aqstr.com/apple-touch-icon.png',
+    flush: true,
+    desc: t('Complete social tasks and earn sats, or boost your own Nostr events.'),
   },
   ];
 }

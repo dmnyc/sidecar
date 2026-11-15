@@ -101,9 +101,9 @@
     const leaders=el('div','stream-top-zappers');leaders.setAttribute('aria-label',t('Top zappers'));leaders.setAttribute('role','region');leaders.tabIndex=0;leaders.hidden=true;
     newer.hidden=true;log.setAttribute('aria-label',t('Stream chat'));
     const form=el('form','stream-chat-form'),identity=el('div','stream-chat-identity'),replyLabel=el('div','stream-chat-reply'),send=el('button','primary');
-    let input=el('textarea'),mentionEditor=null;
-    const identityRow=el('div','stream-chat-identity-row'),hideChat=el('button','stream-chat-hide',t('Hide chat'));
-    hideChat.type='button';hideChat.onclick=()=>{show(false);toggle.focus();};identityRow.append(identity,hideChat);
+    let input=el('textarea'),mentionEditor=null,emoji=null;
+    const identityRow=el('div','stream-chat-identity-row'),hideChat=el('button','icon-btn stream-chat-hide');
+    hideChat.type='button';hideChat.title=t('Hide chat');hideChat.setAttribute('aria-label',t('Hide chat'));hideChat.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"/></svg>';hideChat.onclick=()=>{show(false);toggle.focus();};identityRow.append(identity,hideChat);
     const draftText=()=>mentionEditor?mentionEditor.getText():input.value;
     const clearDraft=()=>{if(mentionEditor)mentionEditor.setText('');else input.value='';};
     send.setAttribute('aria-label',t('Send'));send.title=t('Send');send.innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v14"/></svg>';
@@ -140,16 +140,28 @@
     for(const id of ['stream-dock','relax-status','mining-status']){const node=document.getElementById(id);if(node){sizeObserver.observe(node);new MutationObserver(sizeChat).observe(node,{attributes:true,attributeFilter:['class','hidden']});}}
     window.addEventListener('resize',sizeChat);
     const sources=()=>[...new Set([...(getItem()?.relays || []),'wss://relay.damus.io','wss://nos.lol','wss://relay.primal.net','wss://nostr.wine','wss://relay.snort.social'])];
-    function stop(){run++;clearTimeout(profileScrollTimer);clearTimeout(profilePaintTimer);profilePaintTimer=null;changedProfiles.clear();reactionPicker?.remove();reactionPicker=null;clearTimeout(reactionTimer);reactionTimer=null;reactionSubs.splice(0).forEach(s=>s.close());reactionTargets.clear();clearTimeout(noticeTimer);noticeTimer=null;notice.textContent='';abort?.abort();clearTimeout(retryTimer);clearTimeout(profileRetry);clearTimeout(paintTimer);paintTimer=null;mentionEditor?.close();sub?.close();sub=null;pool?.destroy();pool=null;}
+    function stop(){run++;emoji?.close();clearTimeout(profileScrollTimer);clearTimeout(profilePaintTimer);profilePaintTimer=null;changedProfiles.clear();reactionPicker?.remove();reactionPicker=null;clearTimeout(reactionTimer);reactionTimer=null;reactionSubs.splice(0).forEach(s=>s.close());reactionTargets.clear();clearTimeout(noticeTimer);noticeTimer=null;notice.textContent='';abort?.abort();clearTimeout(retryTimer);clearTimeout(profileRetry);clearTimeout(paintTimer);paintTimer=null;mentionEditor?.close();sub?.close();sub=null;pool?.destroy();pool=null;}
     function clearReply(){reply=null;replyLabel.hidden=true;}
     cancelReply.onclick=()=>{clearReply();input.focus();};
     function syncAccount(){
       const current=bridge()?.identity();
       if(account!==current?.pubkey){account=current?.pubkey || null;reactionPicker?.remove();reactionPicker=null;clearDraft();mentionEditor?.close();clearReply();}
-      identity.textContent=current?t('Posting as {{name}}',{name:current.name}):t('Unlock to chat');
+      // Locked and signed out are different: the first is a password away, the second needs an
+      // account. Signed out, the composer is gone and this line is the way to one: it closes the
+      // chat and lands on the Accounts tab, where an account is added.
+      const signedOut=!current && allowed();
+      form.classList.toggle('is-signed-out',signedOut);
+      if(signedOut){
+        // The same borderless gold link, with the same arrow, as "Add wallet →" and the zap sheet's
+        // "Connect a wallet to zap from here →": one errand, one way of saying it.
+        const link=el('button','stream-chat-signup account-stat-add-link',t('Add an account to chat →'));link.type='button';
+        link.onclick=()=>{show(false);bridge()?.showAccounts?.();};
+        identity.replaceChildren(link);
+      }else identity.textContent=current?t('Posting as {{name}}',{name:current.name}):t('Unlock to chat');
       const disabled=!account || busy || !allowed();
       input.disabled=send.disabled=disabled;
       if(mentionEditor){input.contentEditable=String(!disabled);input.setAttribute('aria-disabled',String(disabled));}
+      if(emoji){emoji.addBtn.disabled=disabled;if(disabled)emoji.close();}
       return current;
     }
     const displayName=key=>{const name=profiles.get(key)?.name;return (typeof name==='string' && name.trim()) || SidecarStreams.cocktailName(key);};
@@ -198,7 +210,8 @@
           bridge().hashtagUrl(part.hashtag).then(url=>{link.href=url;}).catch(()=>{});
           link.onclick=e=>{if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)return;e.preventDefault();bridge().openHashtag(part.hashtag).catch(()=>{});};
         }
-        if(part.pubkey){link.dataset.pubkey=part.pubkey;link.onclick=e=>{e.preventDefault();bridge()?.profile(part.pubkey);};}
+        // Signed out there is no profile sheet to open, so the mention stays an ordinary link.
+        if(part.pubkey){link.dataset.pubkey=part.pubkey;if(account)link.onclick=e=>{e.preventDefault();bridge()?.profile(part.pubkey);};}
         node.append(link);
       }
     }
@@ -234,7 +247,7 @@
       for(const entry of top){
         const name=displayName(entry.pubkey),button=el('button','stream-top-zapper');button.type='button';button.dataset.pubkey=entry.pubkey;button.dataset.sats=entry.sats;
         button.title=t('{{name}} · {{sats}} sats',{name,sats:SidecarI18n.fmtNum(entry.sats)});button.setAttribute('aria-label',button.title);
-        button.onclick=()=>bridge()?.profile(entry.pubkey);
+        button.onclick=()=>bridge()?.profile(entry.pubkey);button.disabled=!account;
         button.append(avatar(profiles.get(entry.pubkey)?.picture,'leader:'+entry.pubkey));
         button.append(el('span',null,'⚡ '+SidecarI18n.fmtNum(entry.sats,{notation:'compact',maximumFractionDigits:1})));leaders.append(button);
       }
@@ -253,7 +266,7 @@
         if(day!==stamp){day=stamp;log.append(el('div','stream-chat-day',SidecarI18n.fmtDate(date,{year:'numeric',month:'short',day:'numeric'})));}
         const row=el('article','stream-chat-message'),head=el('div','stream-chat-head'),profile=profiles.get(event.pubkey);
         row.id='stream-chat-'+event.id;
-        const author=el('button','stream-chat-author');author.type='button';author.dataset.pubkey=event.pubkey;author.dataset.avatarSlot='message:'+event.id;author.onclick=()=>bridge()?.profile(event.pubkey);
+        const author=el('button','stream-chat-author');author.type='button';author.dataset.pubkey=event.pubkey;author.dataset.avatarSlot='message:'+event.id;author.onclick=()=>bridge()?.profile(event.pubkey);author.disabled=!account;
         const name=el('span','stream-chat-name',displayName(event.pubkey));name.dir='auto';author.append(name);author.title=displayName(event.pubkey);
         author.prepend(avatar(profile?.picture,author.dataset.avatarSlot));
         const time=el('time','stream-chat-time',SidecarI18n.fmtDate(date,{hour:'numeric',minute:'2-digit'}));time.dateTime=date.toISOString();time.title=SidecarI18n.fmtDate(date,{dateStyle:'full',timeStyle:'short'});
@@ -291,9 +304,10 @@
           const chips=el('div','stream-chat-reactions');
           for(const group of reactions.groups(event.id,account,e=>bridge()?.muted(e))){
             const chip=el('button','stream-chat-reaction',group.content+' '+SidecarI18n.fmtNum(group.count));chip.type='button';
-            chip.setAttribute('aria-pressed',String(group.mine));chip.title=(group.mine?t('You reacted {{reaction}}',{reaction:group.content}):t('React {{reaction}}',{reaction:group.content}));chip.setAttribute('aria-label',chip.title);chip.disabled=group.mine;chip.onclick=()=>react(event,group.content);chips.append(chip);
+            chip.setAttribute('aria-pressed',String(group.mine));chip.title=(group.mine?t('You reacted {{reaction}}',{reaction:group.content}):t('React {{reaction}}',{reaction:group.content}));chip.setAttribute('aria-label',chip.title);chip.disabled=group.mine || !account;chip.onclick=()=>react(event,group.content);chips.append(chip);
           }
-          row.append(more,chips,actions);clamps.push({body,more,event});
+          // Reply, react and zap all need an account, so a signed-out reader gets the message alone.
+          row.append(more,chips);if(account)row.append(actions);clamps.push({body,more,event});
         }
         log.append(row);
       }
@@ -374,7 +388,7 @@
       const token=run;paintTimer=setTimeout(()=>{paintTimer=null;if(token!==run)return;paint();hydrate(visibleRows(),token);},150);
     });
     function show(chat){
-      chat=chat && allowed() && !!bridge()?.identity() && addressOK(getItem()?.key);
+      chat=chat && allowed() && addressOK(getItem()?.key);
       if(chat && !pane.hidden)return;
       if(chat)onOpen?.();
       pane.hidden=!chat;document.documentElement.classList.toggle('stream-chat-active',!!chat);
@@ -393,6 +407,15 @@
           input.addEventListener('drop',event=>{event.preventDefault();event.stopPropagation();});
           input.addEventListener('keydown',event=>{if(event.key==='Escape' && mentionEditor.wrap.querySelector('.ac-dropdown'))event.stopPropagation();},true);
         }
+        // The composer's own emoji picker, so both offer the same table and the same search.
+        // Its button sits in the identity row, beside Hide chat; the picker opens between that
+        // row and the editor, where it pushes the log up and leaves the editor where it is.
+        if(!emoji && root.SidecarCore?.buildEmojiPicker){
+          emoji=root.SidecarCore.buildEmojiPicker({onPick:ch=>mentionEditor.insertText(ch),onClose:()=>input.focus()});
+          emoji.addBtn.classList.add('stream-chat-emoji');
+          identityRow.insertBefore(emoji.addBtn,hideChat);identityRow.after(emoji.wrap);
+          syncAccount();
+        }
         sizeChat();open();
       }else stop();
     }
@@ -410,8 +433,8 @@
       }catch(_){if(token===run)setNotice(t('Could not send. Check your account and connection, then try again.'),7000);}
       finally{busy=false;syncAccount();if(token===run && account===who.pubkey)input.focus();}
     };
-    root.addEventListener('sidecar-chat-account',()=>{syncAccount();if(!account){show(false);return;}if(!pane.hidden){bridge()?.prepare().then(paint).catch(()=>{});paint();}});
-    return {sync(){toggle.hidden=!addressOK(getItem()?.key) || !bridge()?.identity() || !allowed();if(toggle.hidden){show(false);clearDraft();mentionEditor?.close();clearReply();}syncAccount();},open(){show(true);},close(){show(false);},destroy:stop};
+    root.addEventListener('sidecar-chat-account',()=>{syncAccount();if(!allowed()){show(false);return;}if(!pane.hidden){bridge()?.prepare().then(paint).catch(()=>{});paint();}});
+    return {sync(){toggle.hidden=!addressOK(getItem()?.key) || !allowed();if(toggle.hidden){show(false);clearDraft();mentionEditor?.close();clearReply();}syncAccount();},open(){show(true);},close(){show(false);},destroy:stop};
   }
   const api={template,Messages,reactionTemplate,Reactions,readPage,contentParts,recentRows,pastePlainText,commentZapContext,mount};root.SidecarStreamChat=api;if(typeof module!=='undefined')module.exports=api;
 })(globalThis);

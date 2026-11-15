@@ -49,6 +49,26 @@
       --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
       --pattern-opacity: 1;
     }
+    /* THE SCOPE ROW: segmented radios, one decision. Labels never wrap and never
+       shrink; a locale that outgrows the row stacks it instead (set by JS). */
+    .scope { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; width: 100%; }
+    .scope legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(var(--well-rgb), 0.7); border: 1px solid var(--border); }
+    .seg label { flex: 1 1 0; min-width: max-content; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; font: 600 13px/1.2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+    .seg label:hover { color: var(--text); }
+    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg label:has(input:checked) { background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); border-color: var(--gold-soft); color: var(--gold); box-shadow: var(--sheen); }
+    .seg label:has(input:focus-visible) { outline: 2px solid var(--gold-soft); outline-offset: 1px; }
+    .seg.stacked { flex-direction: column; }
+    .seg.stacked label { justify-content: flex-start; }
+    .scope-caps { display: grid; margin: 0 0 7px; text-align: center; }
+    .scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 12px; line-height: 1.4; color: var(--muted); }
+    .scope-cap.on { visibility: visible; }
+    .scope-cap.always { color: var(--text); }
+    /* The account menu's two groups: who signs here, and the detach escape. */
+    .acct-menu-group + .acct-menu-group { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
+    .acct-menu-head { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding: 4px 8px; }
+    .acct-menu-lede { margin: 0 8px 6px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
   </style>
   <link rel="stylesheet" href="themes/speakeasy.css" />
   <link rel="stylesheet" href="themes/film-noir.css" />
@@ -71,6 +91,7 @@
   <link rel="stylesheet" href="themes/mycelium.css" />
   <link rel="stylesheet" href="themes/ben-day.css" />
   <link rel="stylesheet" href="themes/sleepy-hollow.css" />
+  <link rel="stylesheet" href="themes/phantom-bouquet.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
   <!-- Marks which Constellation plate this session shows; see sky-plate.js. In the head
        and synchronous, so the mark is set before the first paint. -->
@@ -149,31 +170,13 @@
     .shared-note {
       margin: 2px 0 14px; padding: 9px 11px; border-radius: 9px;
       background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft);
-      color: var(--text); font-size: 12px; line-height: 1.45; text-align: left;
+      color: var(--text); font-size: 12px; line-height: 1.45; text-align: start;
     }
-    .shared-headsup {
-      margin: 2px 0 14px; padding: 11px 12px; border-radius: 10px;
-      background: rgba(203, 161, 78, 0.1); border: 1px solid var(--gold-soft); text-align: left;
-    }
-    .shared-headsup-title { color: var(--gold); font-weight: 700; font-size: 13px; margin-bottom: 6px; }
-    .shared-headsup-body { margin: 0 0 10px; color: var(--text); font-size: 12px; line-height: 1.45; }
-    .shared-headsup-btn {
-      display: block; width: 100%; padding: 8px; border-radius: 8px; cursor: pointer;
-      background: rgba(203, 161, 78, 0.16); border: 1px solid var(--gold-soft);
-      color: var(--gold); font-weight: 600; font-size: 12.5px;
-    }
-    .shared-headsup-btn:hover { filter: brightness(1.12); }
-    /* The two answers sit on one row; the quiet twin is un-filled so the primary
-       read of the row stays the acknowledgment. */
-    .shared-headsup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .shared-headsup-btn-quiet { background: none; border: 1px solid var(--border); color: var(--muted); }
-    .shared-headsup-btn-quiet:hover { filter: none; color: var(--text); }
-    .shared-caption {
-      margin: 2px 0 8px; text-align: center;
-      color: var(--muted); font-size: 11.5px; letter-spacing: 0.02em;
-    }
+    .shared-caption { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
+    .shared-caption span, .shared-caption strong { display: block; }
+    .shared-caption strong { color: var(--text); font-weight: 600; font-size: 12.5px; }
     .card {
-      position: relative; text-align: left;
+      position: relative; text-align: start;
       background: linear-gradient(160deg, var(--velvet-1), var(--velvet-2));
       border: 1px solid var(--border); border-radius: 12px;
       padding: 13px; margin-bottom: 16px; font-size: 13px;
@@ -181,7 +184,7 @@
     }
     .card .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
     .card .row span:first-child { color: var(--muted); }
-    .card .row span:last-child { word-break: break-all; text-align: right; font-family: var(--font-mono); font-size: 12px; }
+    .card .row span:last-child { word-break: break-all; text-align: end; font-family: var(--font-mono); font-size: 12px; }
     /* A row whose value is a sentence, not an identifier: break at words and set it in the
        reading face. break-all is right for a hex key and wrong for someone's boost message,
        which it would chop mid-word. The value is clamped in JS so it cannot grow the card;
@@ -205,7 +208,7 @@
        expandable, with a Formatted/Raw toggle for note-like kinds. */
     .evpreview {
       background: rgba(var(--well-rgb), 0.6); border-radius: 8px; padding: 10px; margin: 8px 0 0;
-      font-size: 12.5px; line-height: 1.5; color: var(--text); text-align: left;
+      font-size: 12.5px; line-height: 1.5; color: var(--text); text-align: start;
       white-space: pre-wrap; overflow-wrap: anywhere;
     }
     .evpreview.mono { font-family: var(--font-mono); font-size: 12px; }
@@ -231,13 +234,13 @@
     .evpreview-mode.active { color: var(--lav); font-weight: 600; }
     .evpreview-toggle {
       background: none; border: none; padding: 2px 0; cursor: pointer;
-      color: var(--lav); font-size: 11.5px; font-family: inherit; white-space: nowrap; margin-left: auto;
+      color: var(--lav); font-size: 11.5px; font-family: inherit; white-space: nowrap; margin-inline-start: auto;
     }
     .evpreview-toggle:hover { color: var(--text); }
     .kind-warn {
       margin-top: 8px; padding: 8px 10px; border-radius: 8px;
       background: rgba(var(--warn-rgb), 0.1); border: 1px solid rgba(var(--warn-rgb), 0.3);
-      color: var(--warn); font-size: 12px; text-align: left;
+      color: var(--warn); font-size: 12px; text-align: start;
     }
     /* Destructive replaceable overwrite — louder than .kind-warn above, which only
        says "unusual kind". This means data you already have is about to be erased.
@@ -245,8 +248,8 @@
        box, which read as a stray browser error inside the preview card. Mirrors
        .destructive-warn in styles.css; this window carries its own styles. */
     .destructive-warn {
-      margin-top: 12px; padding: 1px 0 1px 12px; text-align: left;
-      border-left: 2px solid var(--red);
+      margin-top: 12px; padding-block: 1px 1px; padding-inline: 12px 0; text-align: start;
+      border-inline-start: 2px solid var(--red);
     }
     .destructive-warn-title {
       display: flex; align-items: center; gap: 6px;
@@ -284,7 +287,7 @@
     .info-note {
       margin-bottom: 16px; padding: 9px 11px; border-radius: 8px;
       background: rgba(var(--border-rgb), 0.08); border: 1px solid rgba(var(--border-rgb), 0.22);
-      color: var(--muted); font-size: 11.5px; line-height: 1.45; text-align: left;
+      color: var(--muted); font-size: 11.5px; line-height: 1.45; text-align: start;
     }
     .account { margin-bottom: 18px; }
     .switch-toggle {
@@ -292,8 +295,23 @@
       color: var(--lav); font-size: 12.5px; text-align: center; margin: -10px 0 14px; padding: 4px;
     }
     .switch-toggle:hover { color: var(--text); }
+    /* The capsule IS the account switch, as in the panel (styles.css). */
+    .acct-capsule { position: relative; }
+    .acct-capsule.switchable { cursor: pointer; padding-inline-end: 38px; }
+    .acct-capsule.switchable:hover { border-color: var(--gold-soft); }
+    .acct-capsule.switchable::after {
+      content: ''; position: absolute; inset-inline-end: 18px; top: 50%; width: 7px; height: 7px;
+      border-inline-end: 2px solid var(--lav); border-bottom: 2px solid var(--lav);
+      transform: translateY(-70%) rotate(45deg); transition: transform 0.15s ease;
+    }
+    .acct-capsule.switchable.open::after { transform: translateY(-25%) rotate(-135deg); }
+    .acct-capsule .switch-toggle {
+      position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: inherit;
+      background: none; cursor: pointer; color: transparent; font-size: 0;
+    }
+    .acct-capsule .switch-toggle:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
     .switch-menu {
-      text-align: left;
+      text-align: start;
       background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
       border: 1px solid var(--border-strong); border-radius: 14px;
       padding: 6px; margin: -6px 0 14px; box-shadow: var(--sheen);
@@ -314,17 +332,17 @@
     }
     .wrong-acct-toggle:hover { color: var(--text); }
     .wrong-acct-list {
-      text-align: left; margin: 8px 0 0; padding: 6px;
+      text-align: start; margin: 8px 0 0; padding: 6px;
       background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
       border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--sheen);
     }
     .wrong-acct-lede { margin: 2px 6px 8px; font-size: 12px; line-height: 1.45; color: var(--muted); }
     .wrong-acct-tag {
-      margin-left: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+      margin-inline-start: auto; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
       color: var(--muted); white-space: nowrap;
     }
     .switch-row {
-      display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
       background: transparent; border: none; cursor: pointer; color: var(--text);
       padding: 9px 10px; border-radius: 10px; font-family: inherit; font-weight: 400;
     }
@@ -358,7 +376,7 @@
     .remember input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; }
     /* The keep-this-account line wraps to two lines, so it is left-aligned beside its box on
        the first line, not centered in the space the box leaves. */
-    #bind-payer .check { align-items: flex-start; justify-content: flex-start; text-align: left; }
+    #bind-payer .check { align-items: flex-start; justify-content: flex-start; text-align: start; }
     #bind-payer input[type=checkbox] { margin-top: 1px; flex-shrink: 0; }
     .budget-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
     /* The group is as wide as its widest row and centered, so one checkbox sits where it
@@ -369,7 +387,7 @@
     .check-group { width: fit-content; max-width: 100%; margin: 0 auto; }
     .check-group .remember .check { justify-content: flex-start; }
     .check-group .budget-row { justify-content: flex-start; }
-    .check-group .budget-unit { text-align: left; }
+    .check-group .budget-unit { text-align: start; }
     .remember input[type=number] {
       width: 110px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border);
       background: var(--input-bg, linear-gradient(180deg, rgba(var(--well-rgb), 0.6), rgba(var(--velvet-1-rgb), 0.6)));
@@ -426,7 +444,9 @@
        tie it to "Trust this site" right below. */
     .trust-nudge { font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; margin: 0 0 12px; }
     .trust-nudge strong { color: var(--lav); font-weight: 600; }
-    .hidden { display: none; }
+    /* !important, like the panel's: a class rule such as `.seg label { display: flex }`
+       outranks a bare .hidden, and a segment the card did not offer showed anyway. */
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -440,21 +460,19 @@
          Below the preview it was pushed off-screen by a long event, defeating
          the clamp's own comment ("keeps the account card in view"). -->
     <div class="account" id="account"></div>
-    <button class="switch-toggle hidden" id="switch-toggle" data-i18n="Sign in with a different account" data-i18n-review>Sign in with a different account</button>
+    <button class="switch-toggle hidden" id="switch-toggle" aria-expanded="false" data-i18n="Use a different account" data-i18n-review>Use a different account</button>
     <div class="switch-menu hidden" id="switch-menu"></div>
     <!-- Payment cards: keep the site on the account picked above, instead of only this payment. -->
     <div id="bind-payer" class="remember hidden">
       <label class="check"><input type="checkbox" id="bind-payer-box" />
       <span id="bind-payer-label"></span></label>
     </div>
-    <!-- "Wrong account?" escape — mirrors #approval-wrong-acct in sidepanel.html. Shown
-         on a content sign whenever an account exists that the switcher above can't offer.
-         Copy must stay in step with the panel's. -->
-    <div class="wrong-acct hidden" id="wrong-acct">
-      <strong data-i18n="Not the right account?" data-i18n-review>Not the right account?</strong>
-      <button class="wrong-acct-toggle" id="wrong-acct-toggle" aria-expanded="false" data-i18n="Detach and use another identity." data-i18n-review>Detach and use another identity.</button>
-      <div class="wrong-acct-list hidden" id="wrong-acct-list"></div>
-    </div>
+    <!-- The account escape: ONE menu with two groups. "Signed in here" picks who
+         signs this event (the card stays open); "Other accounts" cancels the
+         request and makes that account active — the old Detach. The switcher it
+         replaces and the "Not the right account?" row said almost the same thing
+         from two places. -->
+    <div class="switch-menu hidden" id="acct-menu"></div>
 
     <div id="preview" class="card hidden"></div>
 
@@ -479,6 +497,26 @@
     </div>
     <!-- The payment's checkboxes, one group so that when more than one shows they share a
          left edge. Each row centered on its own width put the boxes at different points. -->
+    <!-- THE SCOPE ROW: Once is the default on every card; 30 min opens the timed
+         window; Always writes the standing per-kind grant (#482), offered only where
+         the identity check isn't running. One line above the row says what the chosen
+         segment does; the three share one cell, so the row never moves. Outside the
+         check group, which sizes to its content: the row spans the card like the
+         button under it. Same structure as sidepanel.html. -->
+    <fieldset class="scope hidden" id="scope">
+      <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
+      <div class="scope-caps" aria-live="polite">
+        <div class="scope-cap on" id="scope-cap-once"></div>
+        <div class="scope-cap" id="scope-cap-relax"></div>
+        <div class="scope-cap" id="scope-cap-always"></div>
+      </div>
+      <div class="seg" role="radiogroup">
+        <label><input type="radio" name="scope" value="once" checked><span data-i18n="Once" data-i18n-review>Once</span></label>
+        <label class="hidden" id="scope-relax"><input type="radio" name="scope" value="relax"><span data-i18n="30 min" data-i18n-review>30 min</span></label>
+        <label class="hidden" id="scope-always"><input type="radio" name="scope" value="always"><span data-i18n="Always" data-i18n-review>Always</span></label>
+      </div>
+    </fieldset>
+
     <div class="check-group">
     <!-- Offered by the payment card; confirmed here because a page must not be able
          to switch automatic spending on by itself. Ticked by default since the user
@@ -494,17 +532,6 @@
       <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
     </div>
 
-    <!-- "Always allow this event type" (#482): a standing, revocable grant for one event
-         kind — or, when the event carries a `d` tag, that one record — from this site,
-         signed by the account that granted it. The background offers it (data.canKindGrant)
-         only on kinds a grant may ever cover, and the note below spells out exactly what
-         future requests it signs, naming the site, account, kind, and record. Unticked:
-         an approval is one approval. -->
-    <div id="always-kind-offer" class="remember hidden">
-      <label class="check"><input type="checkbox" id="always-kind-box" />
-      <span data-i18n="Always allow this event type for this site" data-i18n-review>Always allow this event type for this site</span></label>
-      <div id="always-kind-note" class="always-kind-note"></div>
-    </div>
 
     <div id="remember" class="remember hidden">
     <label class="check"><input type="checkbox" id="remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
@@ -524,12 +551,12 @@
     </div>
     <div class="error" id="error"></div>
     <!-- Shown once you've approved this site a few times over. Nothing else on this
-         screen says which button ends the asking, and "Allow once" is the one that
+         screen says which button ends the asking, and "Sign" is the one that
          looks like the default answer. Sits directly above the buttons so it reads as
          a label for the one below it. -->
     <div id="trust-nudge" class="trust-nudge hidden"></div>
     <div class="actions">
-      <button class="primary" id="allow" data-i18n="Allow once" data-i18n-review>Allow once</button>
+      <button class="primary" id="allow" data-i18n="Sign" data-i18n-review>Sign</button>
       <button class="lav-btn" id="trust" data-i18n="Trust this site" data-i18n-review>Trust this site</button>
       <button class="ghost" id="reject" data-i18n="Reject" data-i18n-review>Reject</button>
     </div>

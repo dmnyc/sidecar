@@ -148,7 +148,7 @@ test('A CODE BLOCK IS COPYABLE, AND THE BUTTON DOES NOT SCROLL AWAY', () => {
   assert.match(css, /\.note-code-wrap \{ position: relative; \}/);
   assert.match(css, /\.note-code-copy \{[\s\S]*?position: absolute;/);
   // Room made for it, or the first line of code starts underneath the button.
-  assert.match(css, /pre\.note-code \{ padding-right: \d+px; \}/);
+  assert.match(css, /pre\.note-code \{ padding-inline-end: \d+px; \}/);
 
   // The block can sit inside a row that is itself a link to the note.
   assert.match(body, /e\.preventDefault\(\);\s*\n\s*e\.stopPropagation\(\);/);

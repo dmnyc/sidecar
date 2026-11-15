@@ -26,7 +26,7 @@ const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
 for (const [name, src] of [['sidepanel.js', panel], ['prompt.js', prompt]]) {
   test(name + ': opted out, no note at all — in either form', async () => {
-    const m = src.match(/async function renderSharedNote\(d(?:ata)?\) \{[\s\S]*?\n  \}/);
+    const m = src.match(/async function renderSharedNote\([^)]*\) \{[\s\S]*?\n  \}/);
     assert.ok(m, 'renderSharedNote not found in ' + name);
     const fn = m[0];
     assert.match(fn, /await sharedHeadsUpReady;/, 'the flags must resolve before a branch is taken');
@@ -37,12 +37,21 @@ for (const [name, src] of [['sidepanel.js', panel], ['prompt.js', prompt]]) {
       'the opt-out must not take the account picker with it');
   });
 
-  test(name + ": the card carries the don't-show-again answer", () => {
-    assert.match(src, /Don't show this again/);
-    assert.match(src, /chrome\.storage\.local\.set\(\{ sharedHeadsUpOptOut: true \}\)/);
-    assert.match(src, /shared-headsup-btn-quiet/, 'the refusal must be the quiet control');
-    // Got it still only dismisses — the two answers must not have merged.
-    assert.match(src, /chrome\.storage\.local\.set\(\{ sharedHeadsUpDismissed: true \}\)/);
+  test(name + ': the explainer merged into the per-card caption', () => {
+    // The redesign folded the one-time card and its two buttons into every
+    // shared-host card's caption: the answer to "don't show this again" is that
+    // there is nothing left to show. The stale flags are purged on load.
+    assert.ok(!/Don't show this again/.test(src), 'the refusal button is gone');
+    assert.ok(!/sharedHeadsUpOptOut: true/.test(src), 'no opt-out is written');
+    if (name === 'sidepanel.js') {
+      // The panel owns the storage: the stale flags are purged on load.
+      assert.match(src, /chrome\.storage\.local\.remove\(\['sharedHeadsUpDismissed', 'sharedHeadsUpOptOut'\]\)/);
+    } else {
+      // The popup keeps the loader so a legacy opt-out (set before the merge) still
+      // silences the caption — but nothing on the card writes the flag anymore.
+      assert.match(src, /if \(sharedHeadsUp\.optedOut\) return;/);
+      assert.ok(!/sharedHeadsUpOptOut: true/.test(src), 'and nothing re-arms it');
+    }
   });
 
   test(name + ': both flags load together, before anything renders', () => {

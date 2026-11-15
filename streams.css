@@ -5,14 +5,14 @@ body { padding-top: var(--stream-height); }
 .stream-toolbar { display:flex; align-items:center; gap:8px; padding:0 8px; min-height:32px; }
 .stream-toolbar strong { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
 .stream-toolbar button { font:inherit; padding:6px 8px; border:1px solid var(--border); border-radius:6px; background:var(--velvet-2); color:var(--text); }
-#stream-video { display:block; width:100%; height:min(180px, 27vh); object-fit:contain; background:#000; }
+#stream-video { display:block; width:100%; height:min(180px, calc(27vh / var(--panel-zoom, 1))); object-fit:contain; background:#000; }
 /* Hide Chromium’s disabled native fullscreen control; PiP remains available. */
 #stream-video::-webkit-media-controls-fullscreen-button { display:none; }
 #stream-dock[hidden], #stream-video[hidden], #stream-dock [hidden] { display:none; }
-.stream-expanded #stream-video { height: min(360px, 48vh); }
-.stream-approving #stream-video { height:min(140px, 22vh); }
+.stream-expanded #stream-video { height: min(360px, calc(48vh / var(--panel-zoom, 1))); }
+.stream-approving #stream-video { height:min(140px, calc(22vh / var(--panel-zoom, 1))); }
 .stream-approving .stream-toolbar button:not(#stream-stop) { display:none; }
-#stream-directory { max-height: min(480px, 60vh); overflow:auto; padding:12px; }
+#stream-directory { max-height: min(480px, calc(60vh / var(--panel-zoom, 1))); overflow:auto; padding:12px; }
 #stream-form { display:flex; flex-direction:column; gap:8px; }
 #stream-form input { width:100%; box-sizing:border-box; }
 /* Checkboxes must not inherit the full-width text-field layout. */
@@ -23,8 +23,8 @@ body { padding-top: var(--stream-height); }
 .stream-result { display:flex; align-items:center; gap:10px; text-align:start; padding:8px; background:var(--velvet-2); color:var(--text); border:1px solid var(--border); border-radius:8px; }
 .stream-result img { width:86px; height:48px; object-fit:cover; border-radius:4px; }
 .stream-result span { min-width:0; overflow-wrap:anywhere; }
-#view-main, #view-settings { height:calc(100vh - var(--stream-height)); }
-#view-lock { min-height:calc(100vh - var(--stream-height)); }
+#view-main, #view-settings { height:calc(calc(100vh / var(--panel-zoom, 1)) - var(--stream-height)); }
+#view-lock { min-height:calc(calc(100vh / var(--panel-zoom, 1)) - var(--stream-height)); }
 .approval-overlay { top:var(--stream-height); padding:10px; }
 .approval-card { max-height:100%; }
 /* Ruby glass pilot lamp: warm center, dark rim, and a restrained incandescent halo.
@@ -74,7 +74,7 @@ body { padding-top: var(--stream-height); }
    with the title or it keeps the first line to itself and the message drops onto a second one. */
 #stream-title-window.stream-messaging .t-text-swap { display:none; }
 .stream-toolbar #stream-title { display:inline-block; width:max-content; max-width:none; overflow:visible; text-overflow:clip; white-space:nowrap; vertical-align:middle; font-size:12px; font-weight:500; }
-#stream-title-window.stream-title-scrolling { text-align:left; }
+#stream-title-window.stream-title-scrolling { text-align:start; }
 .stream-title-scrolling #stream-title { animation:stream-title-drift var(--stream-title-duration, 18s) linear infinite alternate; }
 @keyframes stream-title-drift { 0%,15% { transform:translateX(0); } 85%,100% { transform:translateX(var(--stream-title-travel)); } }
 #stream-title-window:hover #stream-title { animation-play-state:paused; }
@@ -95,13 +95,13 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 /* The feed picker floats over the app; its list owns the scroll, not the lock page. */
 #stream-directory {
   position:absolute; inset:100% 0 auto;
-  max-height:min(480px, calc(100dvh - var(--stream-height) - 12px));
+  max-height:min(480px, calc(calc(100dvh / var(--panel-zoom, 1)) - var(--stream-height) - 12px));
   overflow-y:auto; overscroll-behavior:contain;
   background:var(--velvet-1); border-bottom:1px solid var(--border-strong);
   box-shadow:0 14px 28px #0005;
 }
 #view-lock {
-  height:calc(100dvh - var(--stream-height)); min-height:0;
+  height:calc(calc(100dvh / var(--panel-zoom, 1)) - var(--stream-height)); min-height:0;
   overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; justify-content:safe center;
 }
 #stream-dock:has(#stream-directory:not([hidden])) ~ #view-lock {
@@ -117,14 +117,14 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
   align-items:center; gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;
 }
 .stream-toolbar #stream-title-button #stream-title-window { grid-column:2; }
-.stream-toolbar #stream-browse { position:absolute; left:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; }
+.stream-toolbar #stream-browse { position:absolute; inset-inline-start:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; }
 .stream-live-cue { display:inline-flex; align-items:center; gap:8px; padding-inline:6px; }
 #stream-title-window { display:block; }
-.stream-controls { position:absolute; right:8px; top:0; height:32px; }
+.stream-controls { position:absolute; inset-inline-end:8px; top:0; height:32px; }
 .stream-approving #stream-title-button { display:grid; pointer-events:none; }
 
 /* Keep unlock and navigation available beneath even the expanded player. */
-#stream-dock { max-height:50dvh; display:flex; flex-direction:column; }
+#stream-dock { max-height:calc(50dvh / var(--panel-zoom, 1)); display:flex; flex-direction:column; }
 #stream-dock[hidden] { display:none; }
 .stream-toolbar { flex:0 0 32px; }
 #stream-video { min-height:0; flex:0 1 auto; }
@@ -143,7 +143,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-result .stream-thumbnail img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .stream-more summary, #stream-advanced summary { list-style:none; font:inherit; font-size:13px; color:var(--muted); cursor:pointer; padding:10px 0; }
 .stream-more summary::-webkit-details-marker, #stream-advanced summary::-webkit-details-marker { display:none; }
-.stream-more summary::after, #stream-advanced summary::after { content:'›'; display:inline-block; margin-left:8px; }
+.stream-more summary::after, #stream-advanced summary::after { content:'›'; display:inline-block; margin-inline-start:8px; }
 .stream-more[open] summary::after, #stream-advanced[open] summary::after { transform:rotate(90deg); }
 .stream-more .stream-result { width:100%; margin-bottom:10px; }
 #stream-advanced { border-top:1px solid var(--border); margin-top:12px; }
@@ -153,8 +153,13 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 
 .stream-directory-actions { display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); margin-top:12px; padding-top:6px; }
 .stream-directory-actions .ghost { font:inherit; font-size:13px; border:0; padding:8px 10px; border-radius:8px; }
-.stream-directory-actions #stream-url-toggle { margin-left:auto; }
+.stream-directory-actions #stream-url-toggle { margin-inline-start:auto; }
 .stream-directory-actions #stream-refresh { margin:0; align-self:auto; }
+/* More turns into Less, and its chevron over, when the list behind it is open. */
+.stream-directory-actions #stream-more-toggle { display:inline-flex; align-items:center; justify-content:center; gap:4px; }
+.stream-directory-actions #stream-more-toggle .stream-more-chevron { width:16px; height:16px; flex:0 0 auto; }
+.stream-directory-actions #stream-more-toggle[aria-expanded="true"] .stream-more-chevron { transform:rotate(180deg); }
+.stream-directory-actions #stream-more-toggle[aria-expanded="true"] { color:var(--gold); }
 #stream-more-list { display:grid; gap:10px; margin-top:10px; }
 #stream-more-list[hidden] { display:none; }
 #stream-advanced { order:initial; border:0; margin-top:8px; }
@@ -162,7 +167,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 
 .stream-row { position:relative; }
 .stream-row .stream-result { width:100%; min-height:74px; padding-bottom:14px; }
-.stream-avatar { position:absolute; left:70px; top:39px; width:30px; height:30px; border-radius:50%; overflow:hidden; border:2px solid var(--velvet-1); background:var(--velvet-2); box-shadow:0 0 0 1px var(--border); display:grid; place-items:center; }
+.stream-avatar { position:absolute; inset-inline-start:70px; top:39px; width:30px; height:30px; border-radius:50%; overflow:hidden; border:2px solid var(--velvet-1); background:var(--velvet-2); box-shadow:0 0 0 1px var(--border); display:grid; place-items:center; }
 .stream-avatar::before { content:''; width:64%; height:64%; background:var(--text); mask:url('icons/avatar-default.svg') center / contain no-repeat; -webkit-mask:url('icons/avatar-default.svg') center / contain no-repeat; opacity:.72; }
 .stream-avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .stream-avatar:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
@@ -196,10 +201,10 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-directory-actions svg { display:block; width:18px; height:18px; }
 .stream-directory-actions .ghost {
   flex:1 1 auto; height:36px; margin:0; padding:0 12px;
-  border:0; border-left:1px solid var(--border); border-radius:0;
+  border:0; border-inline-start:1px solid var(--border); border-radius:0;
   font:inherit; font-size:13px; line-height:1; color:var(--muted);
 }
-.stream-directory-actions #stream-url-toggle { margin-left:0; }
+.stream-directory-actions #stream-url-toggle { margin-inline-start:0; }
 .stream-directory-actions button:not(:disabled):hover,
 .stream-directory-actions button[aria-expanded="true"] { background:var(--hover-soft); color:var(--text); }
 .stream-directory-actions button:focus-visible { outline:2px solid var(--gold); outline-offset:-3px; }
@@ -210,7 +215,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
    32-unit viewBox is centered at 18.6,18.6. Include the missing half in alignment. */
 .stream-avatar::before { transform:translate(6.25%, 6.25%); }
 
-.stream-result-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; text-align:left; }
+.stream-result-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; text-align:start; }
 #stream-info { display:flex; align-items:center; gap:8px; padding:2px 8px; flex:0 0 36px; min-height:36px; border-top:1px solid var(--border); }
 #stream-info[hidden], .stream-pip #stream-info { display:none; }
 #stream-host { display:flex; align-items:center; gap:8px; min-width:0; flex:1; color:var(--text); text-decoration:none; }
@@ -219,7 +224,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-host-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; transform:translate(6.25%,6.25%); }
 #stream-host-image { position:absolute; width:100%; height:100%; object-fit:cover; }
 #stream-viewers { font-size:12px; color:var(--muted); white-space:nowrap; }
-#stream-viewers::after { content:''; display:inline-block; width:14px; height:14px; vertical-align:-2px; margin-left:5px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
+#stream-viewers::after { content:''; display:inline-block; width:14px; height:14px; vertical-align:-2px; margin-inline-start:5px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
 #stream-zap { width:32px; height:32px; flex-shrink:0; padding:7px; }
 #stream-zap svg { width:11px; height:18px; fill:currentColor; stroke:none; }
 #stream-zap { display:flex; align-items:center; justify-content:center; padding:5px; }
@@ -249,7 +254,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-zap-modal .peek-avatar { width:40px; height:40px; margin-top:0; }
 .stream-zap-modal .peek-name { margin:0; }
 
-#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-right:-11px; cursor:pointer; }
+#stream-zap-total { font-size:12px; white-space:nowrap; color:var(--muted); margin-inline-end:-11px; cursor:pointer; }
 
 /* transitions.dev: number pop-in for newly received event zaps. */
 :root {
@@ -323,26 +328,32 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 /* Keep names clear of the centered feed disclosure. */
 #stream-info:has(#stream-feed-toggle:not([hidden])) #stream-host {
   max-width:calc(50% - 24px);
-  margin-right:auto;
+  margin-inline-end:auto;
 }
 
-/* Decorations must use the lock area's remaining height, not the full viewport. */
+/* Decorations must use the lock area's remaining height, not the full viewport. cqh is a
+   share of the CONTENT box, 60px shorter than the screen because of .screen's 30px top and
+   bottom padding, while the decorations are placed from the padding box. So 50% of the
+   screen is 50cqh + 30px and 25% is 25cqh + 15px. Written as bare 50cqh and 25cqh these put
+   Departures' clock 30px high and its board 15px low, and Turnstile's signs 30px and 15px
+   low, until the lock-screen sweep measured it against the themes as first shipped. */
 #view-lock { container-type:size; container-name:stream-lock; }
 html[data-theme="departures"] #view-lock .lock-clock {
-  --clock:min(140px, max(0px, calc(50cqh - 220px)));
-  top:calc(50cqh - 200px - var(--clock));
+  --clock:min(140px, max(0px, calc(50cqh + 30px - 220px)));
+  top:calc(50cqh + 30px - 200px - var(--clock));
 }
-html[data-theme="departures"] #view-lock .lock-board { bottom:calc(25cqh - 134px); }
-html[data-theme="turnstile"] #view-lock .lock-sign-up { bottom:calc(50cqh + 210px); }
-html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97px); }
-@container stream-lock (max-height:720px) {
+html[data-theme="departures"] #view-lock .lock-board { bottom:calc(25cqh + 15px - 134px); }
+html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh + 15px - 97px); }
+/* The same 60px again: the themes' own breakpoints are screen heights (720, 640 and 600px),
+   and a container query measures the content box, so each is 60px less here. */
+@container stream-lock (max-height:660px) {
   html[data-theme="departures"] #view-lock .lock-board,
   html[data-theme="turnstile"] #view-lock .lock-sign-down { display:none; }
 }
-@container stream-lock (max-height:640px) {
+@container stream-lock (max-height:580px) {
   html[data-theme="turnstile"] #view-lock .lock-sign-up { display:none; }
 }
-@container stream-lock (max-height:600px) {
+@container stream-lock (max-height:540px) {
   html[data-theme="departures"] #view-lock .lock-station { display:none; }
 }
 
@@ -397,12 +408,12 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh - 97
   .t-dropdown { transition: none !important; }
 }
 
-#compose-menu { position:fixed; right:18px; z-index:96; width:max-content; max-width:calc(100vw - 36px); padding:6px; background:var(--velvet-1); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px #0005; }
+#compose-menu { position:fixed; inset-inline-end:18px; z-index:96; width:max-content; max-width:calc(calc(100vw / var(--panel-zoom, 1)) - 36px); padding:6px; background:var(--velvet-1); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px #0005; }
 #compose-menu[hidden] { display:none; }
 #compose-menu button { display:block; width:100%; text-align:start; padding:12px 16px; border:0; background:transparent; color:var(--text); font:inherit; }
 #compose-menu button:hover, #compose-menu button:focus-visible { background:var(--hover-soft); }
-#stream-directory.stream-idle-directory { position:fixed; inset:0 0 auto; z-index:96; box-sizing:border-box; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
-#stream-directory.stream-playing-directory { inset-inline:0; border:0; border-radius:0; box-shadow:none; padding:8px 4px 8px 10px; }
+#stream-directory.stream-idle-directory { position:fixed; inset:0 0 auto; z-index:96; box-sizing:border-box; border:0; border-radius:0; box-shadow:none; padding-block: 8px 8px; padding-inline: 10px 4px; }
+#stream-directory.stream-playing-directory { inset-inline:0; border:0; border-radius:0; box-shadow:none; padding-block: 8px 8px; padding-inline: 10px 4px; }
 #stream-directory[hidden] { display:none; }
 
 #compose-menu button { display:flex; align-items:center; gap:12px; }
@@ -439,13 +450,13 @@ html.reduce-motion #stream-zap-total.stream-zap-counting { animation:none; }
 html.reduce-balance-motion #stream-zap-total .t-digit,
 html.reduce-motion #stream-zap-total .t-digit { animation:none !important; }
 
-.stream-row .stream-result { padding-right:38px; }
-.stream-bookmark { position:absolute; right:4px; top:2px; width:32px; height:32px; padding:7px; z-index:1; }
+.stream-row .stream-result { padding-inline-end:38px; }
+.stream-bookmark { position:absolute; inset-inline-end:4px; top:2px; width:32px; height:32px; padding:7px; z-index:1; }
 .stream-bookmark svg { width:18px; height:18px; }
 /* The copy button sits directly under the bookmark in a row, and beside it in a stream's details. */
 .stream-copy { padding:7px; }
 .stream-copy svg { width:18px; height:18px; }
-.stream-row .stream-copy { position:absolute; right:4px; top:36px; width:32px; height:32px; z-index:1; }
+.stream-row .stream-copy { position:absolute; inset-inline-end:4px; top:36px; width:32px; height:32px; z-index:1; }
 .stream-bookmark[aria-pressed="true"], #stream-saved-toggle[aria-pressed="true"] { color:var(--gold); }
 
 .stream-directory-actions #stream-saved-toggle { width:36px; flex:0 0 36px; padding:9px; }
@@ -462,6 +473,14 @@ html.stream-chat-active #view-main { justify-content:flex-end; }
 .stream-chat-message { position:relative; padding:7px 0; border:0; min-width:0; }
 .stream-chat-head { display:flex; align-items:center; gap:6px; min-width:0; min-height:28px; }
 .stream-chat-author { display:flex; align-items:center; gap:6px; min-width:0; max-width:65%; padding:0; background:none; border:0; color:var(--text); text-align:start; }
+/* Signed out there is nothing to type into: the form keeps its identity row (the way to add an account,
+   and Hide chat) and drops the editor, Send, the reply label, the emoji picker and the status line. */
+.stream-chat-form.is-signed-out > :not(.stream-chat-identity-row) { display:none; }
+.stream-chat-form.is-signed-out .stream-chat-emoji { display:none; }
+/* Look comes from .account-stat-add-link (gold, borderless, 12px); this only gives it a tap height and lets it truncate. */
+.stream-chat-signup { min-height:34px; text-align:start; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Signed out, the name and the zapper chips are plain text: they keep their look and stop looking tappable. */
+.stream-chat-author:disabled,.stream-top-zapper:disabled { opacity:1; cursor:default; }
 .stream-chat-author > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .stream-chat-author img { width:22px; height:22px; flex-shrink:0; border-radius:50% !important; object-fit:cover; }
 .stream-chat-author > .stream-chat-avatar,.stream-top-zapper > .stream-chat-avatar { position:relative; display:block; width:22px; height:22px; flex:0 0 22px; border-radius:50% !important; overflow:hidden; background:var(--velvet-1); }
@@ -500,7 +519,7 @@ html.stream-chat-active #view-main { justify-content:flex-end; }
 .stream-chat-identity,.stream-chat-form > .ghost { grid-column:1 / -1; }
 .stream-chat-form > .primary { width:44px; height:64px; margin:0; padding:0; display:grid; place-items:center; }
 @media (max-height:700px) {
-  html.stream-chat-active #stream-video { height:min(110px,20vh); }
+  html.stream-chat-active #stream-video { height:min(110px,calc(20vh / var(--panel-zoom, 1))); }
 }
 html.stream-chat-active #compose-fab,
 html.stream-chat-active #compose-menu { display:none; }
@@ -541,14 +560,16 @@ html.stream-chat-active #compose-menu { display:none; }
 /* Reuse the note composer's mention pills, keeping the chat input joined to Send. */
 .stream-chat-editor { min-width:0; position:relative; }
 #stream-chat-panel .stream-chat-editor .compose-editor { box-sizing:border-box; height:64px; min-height:64px; max-height:64px; overflow:auto; margin:0; padding:12px; font-size:14px; border:1px solid var(--border); border-radius:10px; background:var(--input-bg,linear-gradient(180deg,rgba(8,2,20,.6),rgba(20,4,40,.6))); color:var(--text); border-start-end-radius:0; border-end-end-radius:0; border-inline-end:0; }
-#stream-chat-panel .stream-chat-editor .ac-dropdown { top:auto !important; bottom:calc(100% + 4px); max-height:min(200px,35vh); inset-inline:0; width:auto; z-index:2; }
+#stream-chat-panel .stream-chat-editor .ac-dropdown { top:auto !important; bottom:calc(100% + 4px); max-height:min(200px,calc(35vh / var(--panel-zoom, 1))); inset-inline:0; width:auto; z-index:2; }
 
 #stream-chat-panel .stream-chat-editor .compose-editor:focus { border-color:var(--gold-soft); box-shadow:0 0 0 3px var(--focus-ring,rgba(203,161,78,.16)); }
 
 .stream-chat-identity-row { grid-column:1 / -1; display:flex; align-items:center; gap:8px; min-width:0; }
 .stream-chat-identity-row .stream-chat-identity { flex:1; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-.stream-chat-hide { flex-shrink:0; border:0; background:none; box-shadow:none; padding:4px 0; color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
-.stream-chat-hide:hover { color:var(--gold); background:none; text-decoration:underline; }
+.stream-chat-identity-row > .stream-chat-emoji { flex:0 0 auto; min-width:44px; margin:0; }
+.stream-chat-form > .emoji-picker { grid-column:1 / -1; margin-top:0; }
+.stream-chat-hide { flex:0 0 auto; min-width:44px; min-height:34px; padding-block:0; display:inline-flex; align-items:center; justify-content:center; }
+.stream-chat-hide:hover { color:var(--gold); }
 
 html.stream-directory-active #view-main > :not(#relax-status):not(#payment-status):not(#mining-status) { display:none; }
 html.stream-directory-active #view-main { justify-content:flex-end; }
@@ -614,8 +635,7 @@ html.stream-about-active #view-main { justify-content:flex-end; }
 .stream-top-zappers[hidden] { display:none; }
 .stream-top-zapper { display:flex; align-items:center; justify-content:center; gap:4px; flex:0 0 auto; min-width:0; white-space:nowrap; padding:5px 2px; background:transparent; border:0; color:var(--gold); font-size:12px; }
 .stream-top-zapper:hover,.stream-top-zapper:focus-visible { color:var(--text); }
-.stream-top-zapper img,.stream-top-initial { width:22px; height:22px; border-radius:50% !important; object-fit:cover; flex-shrink:0; }
-.stream-top-initial { display:grid; place-items:center; background:var(--velvet-2); color:var(--text); }
+.stream-top-zapper img { width:22px; height:22px; border-radius:50% !important; object-fit:cover; flex-shrink:0; }
 .stream-bookmark-backup { margin-block:12px 0; padding-block:12px 0; border-top:1px solid var(--border); display:grid; gap:6px; }
 .stream-bookmark-backup[hidden] { display:none; }
 .stream-bookmark-backup p { margin:0; font-size:12px; color:var(--muted); }
@@ -651,3 +671,10 @@ html[dir="rtl"] .stream-history-back svg { transform:rotate(180deg); }
 .stream-directory-actions[hidden] { display:none; }
 
 #stream-directory > .stream-directory-actions { flex:0 0 auto; margin:0 0 8px; }
+
+/* Right to left: the menus grow from the corner their button is in, which is the other one. */
+:root[dir="rtl"] .t-dropdown[data-origin="bottom-right"] { transform-origin: bottom left; }
+:root[dir="rtl"] .t-dropdown[data-origin="top-right"] { transform-origin: top left; }
+/* The chat's scrollbar moves to the left with the page, where its thumb floats over the
+   first letters of English lines, so the 4px gutter that did for the right is widened. */
+:root[dir="rtl"] .stream-chat-log { padding-inline-end: 10px; }

@@ -207,7 +207,7 @@ test('markup, previews and stylesheet agree: two buttons, LIVE over the left col
  const css=read('streams.css');
  assert.match(css,/\.stream-toolbar #stream-title-button \{\s*display:grid; grid-template-columns:var\(--stream-control-space,72px\) minmax\(0,1fr\) var\(--stream-control-space,72px\);\s*align-items:center; gap:4px; width:100%; min-width:0; padding:0 8px; height:32px;\s*\}/,'the title button keeps the full-width grid, centered as the old button was');
  assert.match(css,/\.stream-toolbar #stream-title-button #stream-title-window \{ grid-column:2; \}/,'the title stays in the middle column');
- assert.match(css,/\.stream-toolbar #stream-browse \{ position:absolute; left:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; \}/,'LIVE sits over the left column, above the title button');
+ assert.match(css,/\.stream-toolbar #stream-browse \{ position:absolute; inset-inline-start:0; top:0; z-index:1; height:32px; min-width:0; padding:0 8px; \}/,'LIVE sits over the left column, above the title button');
  assert.match(css,/\.stream-approving #stream-title-button \{ display:grid; pointer-events:none; \}/);
  const quiet=css.match(/\.stream-toolbar #stream-browse,\n\.stream-toolbar #stream-browse:hover,\n\.stream-toolbar #stream-browse:active,\n\.stream-toolbar #stream-browse\[aria-expanded="true"\],\n\.stream-toolbar #stream-title-button,\n\.stream-toolbar #stream-title-button:hover,\n\.stream-toolbar #stream-title-button:active,\n\.stream-toolbar #stream-title-button\[aria-expanded="true"\] \{\s*background:none; border-color:transparent; box-shadow:none; border-radius:0;/);
  assert.ok(quiet,'both buttons are drawn as quiet text, not as buttons, in every state');

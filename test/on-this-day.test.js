@@ -155,9 +155,9 @@ test('SHARING GOES THROUGH THE COMPOSER, WITH THE MENTION VISIBLE', () => {
   // A colon rather than a comma with the sentence recased. Lowercasing the first letter
   // to fit "On this day in 1859, ..." produced "joshua Norton", and it would do the same
   // to every proper noun and acronym in the list.
-  assert.match(fn, /'On this day in ' \+ entry\.year \+ ': ' \+ entry\.text/);
+  assert.match(fn, /On this day in {{year}}: {{text}}/);
   assert.doesNotMatch(fn, /toLowerCase\(\)/, 'the share text is deriving grammar from the prose again');
-  assert.match(fn, /'\\n\\nvia nostr:' \+ SIDECAR_NPUB/, 'the mention is not in the visible text');
+  assert.match(fn, /mention:'nostr:' \+ SIDECAR_NPUB/, 'the mention is not in the visible text');
   assert.match(bare, /const SIDECAR_NPUB = 'npub1car07/);
   for (const forbidden of ['publish', 'signEvent', 'tags.push']) {
     assert.ok(!fn.includes(forbidden), 'the share path reaches ' + forbidden + ' rather than the composer');

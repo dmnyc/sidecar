@@ -1022,12 +1022,15 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-01': [
     { year: 1512, text: "The ceiling of the Sistine Chapel was opened to the public, painted by Michelangelo." }, // Vatican City
+    { year: 1897, text: "The Library of Congress opened its new building on Capitol Hill to the public." }, // Wikipedia, Thomas Jefferson Building
   ],
   '11-02': [
     { year: 1920, text: "KDKA in Pittsburgh read out the presidential election returns, the first commercial radio broadcast." },
+    { year: 1936, text: "The BBC began a regular public television service from Alexandra Palace in London, among the first in the world." }, // Wikipedia, BBC Television
   ],
   '11-03': [
     { year: 1903, text: "Panama declared its independence from Colombia, clearing the way for a US-built canal." }, // supported by the US
+    { year: 1900, text: "The first automobile show in America opened at Madison Square Garden in New York." }, // The Henry Ford, "The Growth and Rebirth of the American Auto Show"; AP, Today in History, Nov. 3
   ],
   '11-04': [
     { year: 1922, text: "Howard Carter found the step that led down to Tutankhamun's tomb." },
@@ -1035,12 +1038,15 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-05': [
     { year: 1605, text: "Guy Fawkes was found guarding explosives under the House of Lords, spoiling the Gunpowder Plot." }, // London
+    { year: 1895, text: "George Selden, a Rochester lawyer, won a patent for a gasoline road engine, though he had never built a car." }, // The Henry Ford, US Patent 549,160
   ],
   '11-06': [
     { year: 1860, text: "Abraham Lincoln was elected president of the United States." },
+    { year: 1869, text: "Rutgers and Princeton played the first intercollegiate football game, and Rutgers won, 6 to 4." }, // Wikipedia, 1869 college football season
   ],
   '11-07': [
     { year: 1917, text: "Bolsheviks seized power in Petrograd, beginning the Russian October Revolution." }, // Julian calendar Oct 25
+    { year: 1940, text: "The Tacoma Narrows Bridge, four months old, twisted in a steady wind and collapsed into Puget Sound." }, // Wikipedia, Tacoma Narrows Bridge (1940)
   ],
   '11-08': [
     { year: 1895, text: "Wilhelm Rontgen noticed a screen glowing across his darkened lab, and discovered X-rays." },
@@ -1048,31 +1054,48 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-09': [
     { year: 1906, text: "Theodore Roosevelt visited the Panama Canal, the first time a president traveled abroad in office." },
+    { year: 1872, text: "The Great Boston Fire began in a Summer Street warehouse basement and burned into the next day, taking 65 acres of the business district." }, // Wikipedia, Great Boston Fire of 1872
   ],
   '11-10': [
     { year: 1871, text: "Henry Morton Stanley found David Livingstone near Lake Tanganyika, having searched for months." }, // Ujiji
+    { year: 1951, text: "The mayor of Englewood, New Jersey, dialed Alameda, California, directly: the first coast-to-coast call with no operator." }, // Wikipedia, Direct distance dialing
   ],
   '11-11': [
     { year: 1918, text: "The guns fell silent on the Western Front at eleven in the morning." },
+    { year: 1889, text: "Washington became the forty-second state, proclaimed by President Benjamin Harrison." }, // Proclamation 294, American Presidency Project; HistoryLink essay 5210
   ],
   '11-12': [
     { year: 1927, text: "The Holland Tunnel opened to traffic, linking New York and New Jersey under the Hudson." },
+    { year: 1892, text: "Pudge Heffelfinger was paid $500 to play one game for Allegheny, the first known professional football player." }, // Wikipedia, Pudge Heffelfinger
+    { year: 1936, text: "The San Francisco-Oakland Bay Bridge opened to traffic, six months before the Golden Gate Bridge." }, // Wikipedia, San Francisco-Oakland Bay Bridge; Alameda County archive
   ],
   '11-13': [
     { year: 1940, text: "Walt Disney released Fantasia, introducing stereophonic sound to movie theaters." }, // Fantasound
+    { year: 1789, text: "Benjamin Franklin wrote to a French friend that nothing in this world is certain except death and taxes." }, // Letter to Jean-Baptiste Le Roy, Nov. 13, 1789; National Constitution Center
+    { year: 1907, text: "Paul Cornu rose from the ground in a helicopter near Lisieux, widely counted as the first free flight of one." }, // Britannica, Paul Cornu; Guinness World Records; Centennial of Flight
   ],
   '11-14': [
     { year: 1889, text: "Nellie Bly left New York to see if she could travel around the world in less than eighty days." }, // New York World
+    { year: 1851, text: "Moby-Dick was published in the United States, a month after the London edition titled simply The Whale." }, // Wikipedia, Moby-Dick
+    { year: 1910, text: "Eugene Ely flew a Curtiss biplane off a wooden platform on the cruiser USS Birmingham, the first takeoff from a warship." }, // Naval History and Heritage Command; Smithsonian National Air and Space Museum
   ],
   '11-15': [
     { year: 1904, text: "King C. Gillette patented the first safety razor with disposable blades." }, // US 775,134
+    { year: 1920, text: "Delegates from 41 nations met in Geneva for the first Assembly of the League of Nations." }, // Wikipedia, League of Nations
+    // 1.17.2. Checked against Wikipedia's November 15 page ("After 16 months of debate the Continental Congress approves the Articles of Confederation").
+    { year: 1777, text: "The Continental Congress approved the Articles of Confederation, the first constitution of the United States." }, // Wikipedia, November 15
   ],
   '11-16': [
     { year: 1933, text: "The United States and the Soviet Union formally established diplomatic relations." }, // Roosevelt and Litvinov
+    { year: 1907, text: "Oklahoma became the forty-sixth state, joining the Oklahoma and Indian Territories into one." }, // Proclamation 780; National Archives, "Oklahoma Statehood, November 16, 1907"
+    // 1.17.2. Wikipedia's November 16 page ("UNESCO is founded") and the UNESCO article. The number of signing states is left out: the sources differ on it.
+    { year: 1945, text: "UNESCO was founded, to build peace through education, science and culture." }, // Wikipedia, November 16; UNESCO
   ],
   '11-17': [
     { year: 1869, text: "The Suez Canal opened, joining the Mediterranean to the Red Sea." },
     { year: 1558, text: "Elizabeth I came to the throne, and kept it for forty-four years." },
+    // 1.17.2. Wikipedia's November 17 page ("The United States Congress holds its first session in Washington, D.C.").
+    { year: 1800, text: "Congress held its first session in the new capital, Washington, D.C." }, // Wikipedia, November 17
   ],
   '11-18': [
     { year: 1883, text: "American railroads switched to standard time zones. Until then every town kept its own." },
@@ -1080,6 +1103,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-19': [
     { year: 1863, text: "Lincoln spoke for about two minutes at Gettysburg." },
+    { year: 1493, text: "On his second voyage, Columbus landed on Puerto Rico and named it San Juan Bautista, for John the Baptist." }, // Wikipedia, History of Puerto Rico
   ],
   '11-20': [
     { year: 1945, text: "Twenty-four former Nazi leaders went on trial for war crimes at Nuremberg." },
@@ -1094,12 +1118,15 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-23': [
     { year: 1889, text: "The first jukebox was installed in a saloon in San Francisco." }, // Palais Royale Saloon
+    { year: 1936, text: "The first issue of Life went on sale, with Margaret Bourke-White’s photograph of the Fort Peck Dam on the cover." }, // Wikipedia, Life (magazine)
   ],
   '11-24': [
     { year: 1859, text: "On the Origin of Species was published. The first printing sold out to booksellers the same day." },
+    { year: 1642, text: "Abel Tasman sighted the west coast of an island he named Van Diemen’s Land, now Tasmania, for the governor who sent him." }, // Wikipedia, Abel Tasman
   ],
   '11-25': [
     { year: 1915, text: "Albert Einstein presented the field equations of general relativity to the Prussian Academy." }, // Berlin
+    { year: 1120, text: "The White Ship sank off Barfleur, drowning William Adelin, heir to Henry I of England." }, // Wikipedia, White Ship
   ],
   '11-26': [
     { year: 1922, text: "Howard Carter and Lord Carnarvon stood before the sealed door of Tutankhamun's tomb." }, // Valley of the Kings
@@ -1109,6 +1136,7 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-28': [
     { year: 1520, text: "Magellan sailed out of his treacherous strait and reached the open waters of the Pacific." }, // Strait of Magellan
+    { year: 1925, text: "WSM in Nashville aired its first Barn Dance, with the fiddler Uncle Jimmy Thompson; the show became the Grand Ole Opry." }, // Wikipedia, Grand Ole Opry
   ],
   '11-29': [
     { year: 1929, text: "Richard Byrd flew over the South Pole and turned straight round, having dumped food to gain height." }, // 19 hours

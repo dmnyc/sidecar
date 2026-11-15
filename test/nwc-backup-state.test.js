@@ -36,12 +36,15 @@ const OTHER = 'nostr+walletconnect://a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f
 // service worker's side of the contract: presence comes from SIDECAR_NWC_META,
 // and SIDECAR_NWC_BACKUP_MATCHES does the decrypt-and-compare worker-side, so
 // only the boolean ever crosses back.
-function harness({ event, connection, decrypt, getNwcThrows }) {
+function harness({ event, connection, decrypt, getNwcThrows, fetchThrows }) {
   const calls = [];
   const ctx = {
     console,
     NWC_BACKUP_DTAG: 'sidecar:nwc-backup',
-    fetchBackupEvent: async () => (event === undefined ? null : event),
+    fetchBackupEvent: async () => {
+      if (fetchThrows) throw new Error('relays did not answer');
+      return event === undefined ? null : event;
+    },
     call: async (msg) => {
       calls.push(msg);
       if (msg.type === 'SIDECAR_NWC_META') {
@@ -214,4 +217,9 @@ test('"stale" and "none" deliberately share a label', () => {
   // "Wallet connection" label as though the connection were the stale thing.
   const { ctx } = harness({ event: undefined, connection: CONN });
   assert.equal(ctx.NWC_BACKUP_LABEL.stale, ctx.NWC_BACKUP_LABEL.none);
+});
+
+test('relays that could not be read make it "unknown", never "none"', async () => {
+  const { ctx } = harness({ fetchThrows: true, connection: CONN });
+  assert.equal((await ctx.nwcBackupState()).state, 'unknown');
 });

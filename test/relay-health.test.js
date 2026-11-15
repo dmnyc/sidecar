@@ -20,7 +20,9 @@ const ROOT = path.join(__dirname, '..');
 
 let RH;
 before(() => {
-  const ctx = { self: {}, setTimeout, clearTimeout, Promise, Date, JSON, Object, Array, Error, AbortController };
+  // URL is a host global the vm context does not grow on its own — normalizeRelayUrl
+  // needs the real one, so the browser's parsing and the test's cannot disagree.
+  const ctx = { self: {}, setTimeout, clearTimeout, Promise, Date, JSON, Object, Array, Error, AbortController, URL };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'relay-health.js'), 'utf8'), ctx, { filename: 'relay-health.js' });
@@ -174,6 +176,91 @@ test('httpFromWss maps the socket url to the document url', () => {
   assert.equal(RH.httpFromWss('ws://localhost:7777//'), 'http://localhost:7777');
 });
 
+// ---- normalizeRelayUrl: what the Add fields accept --------------------------------
+//
+// Both relay-add fields (Settings and the NIP-65 editor) pass through this, so the
+// rules cannot drift apart. The failure it exists for: the old handlers prepended
+// wss:// to anything that lacked it, so the pasted https://relay.nostr.build became
+// the mangled wss://https://relay.nostr.build and entered the list looking saved.
+
+// Field-by-field rather than deepEqual: the result object comes from the vm context,
+// whose Object.prototype is not this realm's, and strict deep equality sees that
+// difference even when every value matches.
+test("the address bar's version of a relay becomes its websocket form", () => {
+  const cases = [
+    ['https://relay.nostr.build/', 'wss://relay.nostr.build'],
+    ['HTTPS://relay.nostr.build', 'wss://relay.nostr.build'],
+    ['http://localhost:8008', 'ws://localhost:8008'],
+  ];
+  for (const [raw, url] of cases) {
+    const n = RH.normalizeRelayUrl(raw);
+    assert.equal(n.ok, true, raw);
+    assert.equal(n.url, url, raw);
+  }
+});
+
+test('a bare host means the wss:// the user omitted, and one relay is one entry', () => {
+  const cases = [
+    ['relay.nostr.build', 'wss://relay.nostr.build'],
+    ['relay.nostr.build/', 'wss://relay.nostr.build'],
+    // Trailing slashes off and the case URL already folded, so re-adding what is in
+    // the list lands on the same key instead of a near-duplicate.
+    ['  WSS://RELAY.NOSTR.BUILD//  ', 'wss://relay.nostr.build'],
+    ['wss://relay.example.com:7777', 'wss://relay.example.com:7777'],
+  ];
+  for (const [raw, url] of cases) {
+    const n = RH.normalizeRelayUrl(raw);
+    assert.equal(n.ok, true, raw);
+    assert.equal(n.url, url, raw);
+  }
+});
+
+test('what is not a relay is refused before any socket is opened for it', () => {
+  // An npub pasted into the relay field is the case the host rule exists for: it
+  // parses as a URL once wss:// lands in front of it, and without the rule it would
+  // wait out the whole connect timeout before being called unreachable.
+  const npub = 'npub1' + 'a'.repeat(58);
+  for (const bad of [npub, 'note1abc', 'hello', 'ftp://files.example.com', 'wss://', 'wss:///nohost', '']) {
+    assert.equal(RH.normalizeRelayUrl(bad).ok, false, bad);
+  }
+});
+
+test('the relays that are none of the above still get in', () => {
+  // Tor (a dotted .onion), a LAN box with a port, IP literals, and a path — all
+  // legitimate relay addresses that a stricter rule would have locked out.
+  assert.equal(RH.normalizeRelayUrl('wss://' + 'a'.repeat(56) + '.onion').ok, true, 'onion');
+  assert.equal(RH.normalizeRelayUrl('ws://nas:4848').ok, true, 'dotless host with a port');
+  assert.equal(RH.normalizeRelayUrl('wss://127.0.0.1:7777').ok, true, 'IPv4 literal');
+  assert.equal(RH.normalizeRelayUrl('wss://[::1]:7777').ok, true, 'IPv6 literal');
+  assert.equal(RH.normalizeRelayUrl('wss://relay.example.com/nostr').url, 'wss://relay.example.com/nostr', 'path kept');
+});
+
+// ---- blocksAdd: the add-time gate --------------------------------------------------
+
+test('a relay that answered, or that demanded sign-in, joins without a question', async () => {
+  const served = await RH.probe('wss://r', null, {
+    WebSocket: fakeWs((ws) => { ws.onopen(); msg(ws, ['EOSE', 'rh']); }),
+  });
+  assert.equal(RH.blocksAdd(served), false);
+  // relay.nostr.build's shape for an anonymous reader: AUTH before any answer. Up and
+  // speaking nostr is not a reason to interrogate whoever is adding it.
+  const authed = await RH.probe('wss://r', null, {
+    WebSocket: fakeWs((ws) => { ws.onopen(); msg(ws, ['AUTH', 'challenge']); }),
+  });
+  assert.equal(RH.blocksAdd(authed), false);
+});
+
+test('an unreachable or silent relay is added only on purpose', async () => {
+  const refused = await RH.probe('wss://nope', null, {
+    WebSocket: function () { throw new Error('connection refused'); },
+  });
+  assert.equal(RH.blocksAdd(refused), true);
+  // Connected but never answered. Asserted directly rather than through a socket that
+  // hangs, because the socket's own version of this waits out the read timeout — the
+  // add flow's worst case, not the test's.
+  assert.equal(RH.blocksAdd({ up: true, served: false, reason: 'no EOSE' }), true, 'up but not serving');
+});
+
 // ---- how the panel drives it ------------------------------------------------------
 //
 // Source assertions: the NIP-65 editor builds DOM inside the panel's closure. What is
@@ -247,7 +334,7 @@ test('the verdict is stated in words, not by color alone', () => {
 test('an unverifiable write is reported as unverified, not as fine', () => {
   // The failure mode that costs notes: NIP-11 not answering says nothing about whether
   // posting works, and this screen is where someone decides to keep a relay.
-  assert.match(panel, /writeKnown === false\) bits\.push\('writes unverified'\)/);
+  assert.match(panel, /writeKnown === false\) bits\.push\(t\('writes unverified'\)\)/);
 });
 
 test('the module ships — it is not under scripts/', () => {
@@ -263,7 +350,7 @@ test('the button reads the same before and after a check', () => {
   // when a check starts, and restored in the finally when it ends. Construction and
   // restore are far apart in the source, so renaming one and not the other leaves a
   // button that silently changes wording after its first use.
-  const texts = [...panel.matchAll(/checkBtn(?:\.textContent = |[^\n]*textContent: )'([^']+)'/g)]
+  const texts = [...panel.matchAll(/checkBtn(?:\.textContent = |[^\n]*textContent: )t\('([^']+)'\)/g)]
     .map((m) => m[1]);
   assert.equal(texts.length, 3, 'expected construction, in-flight, and restore');
   const [built, inFlight, restored] = texts;
@@ -272,7 +359,7 @@ test('the button reads the same before and after a check', () => {
   assert.equal(built, 'Check relay health');
   // "Check relays" alone sat directly above rows carrying two checkboxes each, where it
   // reads as "tick the relays". The noun is what removes that.
-  assert.doesNotMatch(panel, /textContent: 'Check relays'/);
+  assert.doesNotMatch(panel, /textContent: t\('Check relays'\)/);
 });
 
 // ---- NIP-42: probing as the account rather than as a stranger --------------------
@@ -428,8 +515,9 @@ test('a relay’s prose is reduced to the NIP-01 word', () => {
     if (src[i] === '{') depth++;
     else if (src[i] === '}' && --depth === 0) { end = i + 1; break; }
   }
-  const words = src.match(/const REASON_WORDS = \{[\s\S]*?\};/)[0];
-  const shortReason = new Function(words + '\n' + src.slice(at, end) + '\nreturn shortReason;')();
+  const words = src.match(/const REASON_WORDS = \{[\s\S]*?\};/)[0] + '\n' + src.match(/const PROBE_REASONS = \{[\s\S]*?\};/)[0];
+  const { englishI18n } = require('./helpers/i18n.js');
+  const shortReason = new Function('t', words + '\n' + src.slice(at, end) + '\nreturn shortReason;')(englishI18n().t);
 
   // The one from the screenshot: three lines in a row with room for one.
   assert.equal(
@@ -438,6 +526,9 @@ test('a relay’s prose is reduced to the NIP-01 word', () => {
   );
   assert.equal(shortReason('CLOSED: blocked: you are not welcome'), 'blocked');
   assert.equal(shortReason('auth-required: sign in first'), 'needs sign-in');
+  // The probe's own fixed phrases come through by their English, and a bad URL keeps its detail.
+  assert.equal(shortReason('demands AUTH'), 'demands AUTH');
+  assert.equal(shortReason('bad url (Invalid URL)'), 'bad url (Invalid URL)');
 
   // No recognized word: keep it, but cap it so a row cannot grow without limit.
   const long = shortReason('CLOSED: ' + 'x'.repeat(200));
@@ -472,4 +563,33 @@ test('gated is only ever reached once the relay has served', () => {
   // The premise the dot color rests on.
   const c = RH.classify({ up: true, served: false, reason: 'no EOSE' }, { ok: true, paymentRequired: true });
   assert.equal(c.verdict, 'not-serving', 'an unanswered probe must never classify as gated');
+});
+
+// ---- the add fields: wired to the module, not to their own rules ------------------
+
+test('both Add fields normalize through the module, and no handler builds a relay URL by hand', () => {
+  // Two handlers used to carry two prefix-only normalizers, and both turned the pasted
+  // https://relay.nostr.build into the mangled wss://https://relay.nostr.build. The
+  // rules now live in one place; a handler that needs a rule changes the module.
+  const calls = panel.match(/RH\.normalizeRelayUrl\(/g) || [];
+  assert.equal(calls.length, 2, 'Settings and the NIP-65 editor, one call each');
+  assert.doesNotMatch(panel, /= 'wss:\/\/' \+ /, 'no handler prepends wss:// on its own anymore');
+  assert.equal((panel.match(/RH\.blocksAdd\(/g) || []).length, 2, 'both add flows gate on the same verdicts');
+});
+
+test('the add-anyway question gets its own full-width row, never the input line', () => {
+  // The question carries words and two buttons; beside the input they collide inside
+  // 300px of usable width (the recurring remove-button mistake). Below the input,
+  // message on its own line and the answers stretched beneath — the same shape the
+  // connected-site rows use.
+  const at = (id) => html.indexOf('id="' + id + '"');
+  assert.ok(at('relay-add-confirm') !== -1, 'the settings confirm row exists');
+  assert.ok(at('relay-add-confirm') > at('relay-input'), 'below the input row');
+  assert.ok(at('relay-add-anyway') !== -1 && at('relay-add-cancel') !== -1);
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /\.relay-add-confirm \{[^}]*flex-direction: column/, 'stacked, not beside');
+  assert.match(css, /\.relay-add-confirm-actions button \{ flex: 1; \}/, 'answers share the row evenly');
+  // The NIP-65 editor builds the same row in code, from the same classes.
+  assert.match(panel, /className: 'relay-add-confirm'/);
+  assert.match(panel, /className: 'relay-add-confirm-actions'/);
 });

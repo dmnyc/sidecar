@@ -599,6 +599,11 @@
       return false;
     }
   }
+  // Whether any account here has a wallet. Presence only, like hasNwc while locked.
+  async function hasAnyNwc() {
+    const all = await loadNwcStore();
+    return Object.keys(all).length > 0;
+  }
   async function clearNwc(pubkey) {
     const pk = pubkey || (await getActivePubkey());
     const all = await loadNwcStore();
@@ -769,6 +774,7 @@
     setNwc: serialized(setNwc),
     getNwc,
     hasNwc,
+    hasAnyNwc,
     clearNwc: serialized(clearNwc),
     // Highest-stakes writer here: it re-encrypts every account's key under a new
     // derived key and rewrites the whole store. Losing this write, or interleaving

@@ -7,8 +7,8 @@
 // until the timer ends. The safety of the whole feature rests on this module's
 // invariants, so they're pinned here:
 //   - a grant answers "yes" only for its exact (host, pubkey);
-//   - ONE window at a time — relaxing on a new site revokes the prior one so the
-//     panel's single countdown always reflects the active site;
+//   - windows COEXIST per (host, account), so a second profile never revokes the
+//     first; active() lists them soonest-first, the one the panel bar shows;
 //   - it self-expires (lazy on read) and via the alarm hook, and reports the
 //     duration so the panel can draw a depleting progress bar;
 //   - wallet/account-control kinds are flagged so the caller still prompts for them.
@@ -82,13 +82,36 @@ test('grant then has() is true only for that exact (host, pubkey)', async () => 
   assert.equal(await RELAX.has('other.host', pkA), false, 'a different host must not borrow it');
 });
 
-test('a new grant takes over: relaxing on a second site revokes the first', async () => {
+test('grants coexist per (host, account): a second profile never revokes the first', async () => {
+  // THE RE-ASK LOOP: on a multi-profile host, wiping the map on every grant meant
+  // profile A's still-running window died the moment profile B approved theirs —
+  // so the client's picker flipping between them re-armed the prompt forever.
   await RELAX.grant(HOST, pkA, 60000);
   assert.equal(await RELAX.has(HOST, pkA), true);
+  await RELAX.grant(HOST, pkB, 60000);
+  assert.equal(await RELAX.has(HOST, pkA), true, 'the first profile keeps its window');
+  assert.equal(await RELAX.has(HOST, pkB), true, 'the second profile gets its own');
   await RELAX.grant('other.host', pkA, 60000);
-  assert.equal(await RELAX.has(HOST, pkA), false, 'the first window is revoked');
-  assert.equal(await RELAX.has('other.host', pkA), true, 'the new window is active');
-  assert.equal((await RELAX.active()).length, 1, 'only one window is active at a time');
+  assert.equal(await RELAX.has(HOST, pkA), true, 'another site never revokes this one either');
+  assert.equal((await RELAX.active()).length, 3, 'three live windows, one per (host, account)');
+});
+
+test('active() lists the soonest-expiring window first (the one the bar and badge show)', async () => {
+  // The panel bar and its Restart button act on grants[0], and the badge counts it
+  // down; storage order is grant order, so without the sort the bar would show the
+  // first window granted while the badge showed another.
+  await RELAX.grant(HOST, pkA, 20 * 60000);
+  await RELAX.grant(HOST, pkB, 5 * 60000);
+  await RELAX.grant('other.host', pkA, 10 * 60000);
+  const list = await RELAX.active();
+  assert.deepEqual(list.map((g) => g.duration), [5 * 60000, 10 * 60000, 20 * 60000]);
+  assert.equal(list[0].pubkey, pkB);
+});
+
+test('re-granting the same account extends rather than stacks', async () => {
+  await RELAX.grant(HOST, pkA, 60000);
+  await RELAX.grant(HOST, pkA, 60000);
+  assert.equal((await RELAX.active()).filter((g) => g.pubkey === pkA).length, 1, 'one entry per (host, account)');
 });
 
 test('has() self-expires after the window', async () => {
@@ -219,4 +242,16 @@ test('a re-grant for the same pair replaces the window (no duplicate alarms)', a
   await RELAX.grant(HOST, pkA, 60000);
   const ours = (await globalThis.chrome.alarms.getAll()).filter((a) => a.name.startsWith(RELAX.ALARM_PREFIX));
   assert.equal(ours.length, 1, 're-grant clears the old alarm before arming a new one');
+});
+
+test('revokeOtherAccounts keeps one account’s windows on every site and ends the rest', async () => {
+  await RELAX.revokeAll();
+  await RELAX.grant('a.example', 'pkA', 600000);
+  await RELAX.grant('b.example', 'pkA', 600000);
+  await RELAX.grant('a.example', 'pkB', 600000);
+  await RELAX.revokeOtherAccounts('pkA');
+  const left = (await RELAX.active()).map((g) => g.host + '|' + g.pubkey).sort();
+  assert.deepEqual(left, ['a.example|pkA', 'b.example|pkA']);
+  const alarms = (await globalThis.chrome.alarms.getAll()).map((a) => a.name).filter((n) => n.startsWith(RELAX.ALARM_PREFIX));
+  assert.ok(!alarms.some((n) => n.endsWith('|pkB')), 'the ended window kept its alarm');
 });

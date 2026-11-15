@@ -60,16 +60,24 @@ It is a copy-and-prune, not a build:
    `test/`, `docs/`, `.claude/`, and the top-level Markdown files
    (`README.md`, `CHANGELOG.md`, `PRIVACY.md`, and the rest), plus
    `package.json`.
-3. `version.js` is generated — a single line recording the version and commit,
+3. Seasonal editions' art is pruned by the calendar. An edition's art
+   (`themes/<key>-*`) ships only in a release tagged inside its window, read
+   from the tag's own `seasons.js` against the tag's own commit date (UTC), so
+   this step is as deterministic as every other. The edition's stylesheet
+   (`themes/<key>.css`) stays: the gallery offers an edition only inside its
+   window, so nothing in a stripped package references the missing files.
+   Files are deleted, never modified — the byte-identity claim below still
+   holds for everything that ships.
+4. `version.js` is generated — a single line recording the version and commit,
    shown in the About dialog. It is the only generated first-party file.
-4. `manifest.json` is reduced to one browser's keys. The repository keeps the
+5. `manifest.json` is reduced to one browser's keys. The repository keeps the
    union of both browsers' manifest keys so the extension can be loaded unpacked
    in either browser without a build step. At package time the Firefox zip drops
    `side_panel`, `minimum_chrome_version`, `externally_connectable`, the
    `sidePanel` permission, and `background.service_worker`; the Chrome zip drops
    `sidebar_action`, `browser_specific_settings`, and `background.scripts`. No
    other file is modified.
-5. The result is zipped.
+6. The result is zipped.
 
 No file contents are otherwise transformed. Every `.js` file in the package is
 byte-identical to the same file in this repository at the tag, except
@@ -172,7 +180,7 @@ package.
 It is deliberately inert, and every part of that is checkable in the file:
 
 - No `chrome.*` or `browser.*` API of any kind. It uses none of the extension's
-  five permissions.
+  permissions.
 - No `fetch`, no `XMLHttpRequest`, no `WebSocket`. It makes no network request at
   all, so it is covered by §7 below without qualification.
 - Not listed in `web_accessible_resources` (the manifest key is absent entirely),
@@ -206,13 +214,13 @@ full.
 
 ## 8. What this archive leaves out
 
-The archive is the repository at the release tag, with five paths held back.
+The archive is the repository at the release tag, with six paths held back.
 None of them is source for anything in the add-on, none is read by any build or
 verification step, and removing them changes no shipped byte:
 
 | Path | Why |
 |---|---|
-| `.claude/`, `CLAUDE.md` | Local editor-tooling config and an internal UI style rule. |
+| `.claude/`, `AGENTS.md`, and `CLAUDE.md` (a link to it) | Local editor-tooling config, and the working rules for people and tools contributing to the repository. |
 | `FIREFOX_PORT.md` | A port *plan* whose own status line reads "DONE. Shipped in 1.5.0". `BROWSER_PARITY.md`, which is included, describes the build that actually exists. |
 | `docs/release-1.8.0-description.md`, `docs/release-1.8.0-guide.md` | Store listing copy for a version two releases back. |
 

@@ -13,7 +13,7 @@ body:
         hand you an NWC (NIP-47) connection string. A good Lightning wallet that cannot
         do that has nothing to paste, and Sidecar cannot talk to it.
 
-        Custodial, self-custodial and ecash are all welcome; that is a category, not a
+        Custodial, self-custodial, ecash and Spark are all welcome; that is a category, not a
         judgement.
   - type: input
     id: name

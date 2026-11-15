@@ -40,7 +40,7 @@ test('once you open or close it, that choice wins whatever the count', () => {
   c.set(false);
   assert.equal(c.open(), false);
   // The toggle flips what is showing, not the stored null.
-  assert.match(panel, /accountStatsExpanded = !accountStatsOpen\(\);/);
+  assert.match(panel, /accountStatsExpanded = drawer\.classList\.contains\('collapsed'\);/);
 });
 
 test('arriving on Accounts, and the first time the panel opens there, shows the active account', () => {
@@ -76,4 +76,49 @@ test('A REFRESH KEEPS THE MAIN VIEW WHERE IT WAS, instead of hiding it back to t
 test('switching accounts, from the list or the header menu, brings the new one into view', () => {
   const sites = panel.match(/await call\(\{ type: 'SIDECAR_SET_ACTIVE', pubkey: a\.pubkey \}\);\s*await refresh\(\);[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*revealActiveAccount\(\);/g) || [];
   assert.equal(sites.length, 2, 'both switch paths reveal after the refresh');
+});
+
+// ---- the overview folds while the video player is open ------------------------------------
+
+function playerRule() {
+  const m = panel.match(/let accountStatsExpanded = null;[\s\S]*?let accountStatsSync = null;\n\s*\(\(\) => \{[\s\S]*?\}\)\(\);/);
+  assert.ok(m, 'the player rule is gone from sidepanel.js');
+  const flags = new Set();
+  const dock = { classList: { contains: (x) => flags.has(x) } };
+  let fire = null;
+  const c = {
+    state: { accounts: [{ pubkey: 'a' }] }, syncs: 0, $: (id) => (id === 'stream-dock' ? dock : null),
+    MutationObserver: class { constructor(f) { fire = f; } observe() {} },
+  };
+  vm.createContext(c);
+  vm.runInContext(m[0].replace('let accountStatsExpanded', 'var accountStatsExpanded').replace('let statsCollapsedForPlayer', 'var statsCollapsedForPlayer').replace('let accountStatsSync', 'var accountStatsSync') +
+    '\nthis.open = accountStatsOpen; this.choose = (v) => { accountStatsExpanded = v; }; this.hold = () => statsCollapsedForPlayer;' +
+    '\naccountStatsSync = () => { this.syncs++; };', c);
+  c.play = (on) => { if (on) flags.add('stream-playing'); else flags.delete('stream-playing'); fire(); };
+  return c;
+}
+
+test('while the player is open the overview is closed, whatever the count or the choice', () => {
+  const c = playerRule();
+  assert.equal(c.open(), true, 'one account, open before the player');
+  c.play(true);
+  assert.equal(c.open(), false);
+  assert.equal(c.syncs, 1, 'the drawer on screen is folded without a rebuild');
+  c.choose(true);
+  assert.equal(c.open(), false, 'an earlier choice to keep it open does not hold it open beside a video');
+});
+
+test('closing the player gives the overview back as the person had it', () => {
+  const c = playerRule();
+  c.choose(false);
+  c.play(true); c.play(false);
+  assert.equal(c.open(), false, 'they had closed it');
+  assert.equal(c.syncs, 2);
+  const d = playerRule();
+  d.play(true); d.play(false);
+  assert.equal(d.open(), true, 'they had left it open by default');
+});
+
+test('opening the overview by hand beside a video is honored', () => {
+  assert.match(panel, /accountStatsExpanded = drawer\.classList\.contains\('collapsed'\);\n\s*statsCollapsedForPlayer = false;/);
 });

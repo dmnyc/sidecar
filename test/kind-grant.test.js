@@ -275,7 +275,7 @@ test('a ticked box on a decided card reaches the worker as a grant request', () 
   const callbacks = new Map([['req1', { settled: false, resolve: (d) => resolved.push(d) }]]);
   const ctx = require('node:vm').createContext({
     callbacks, queue: [], qPersist() {}, DECRYPT_METHODS: new Set(),
-    grantDecrypt() {}, flushDecryptSiblings() {}, broadcastQueue() {}, driveDisplay() {}, stopKeepaliveIfIdle() {},
+    grantDecrypt() {}, flushDecryptSiblings() {}, broadcastQueue() {}, dlog() {}, driveDisplay() {}, stopKeepaliveIfIdle() {},
   });
   require('node:vm').runInContext(lift('function kindGrantWanted(') + '\n' + lift('function settlePrompt(') + '\nthis.settlePrompt = settlePrompt; this.kindGrantWanted = kindGrantWanted;', ctx);
   ctx.settlePrompt('req1', 'once', { alwaysKind: true });

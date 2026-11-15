@@ -130,8 +130,14 @@ test('the receive sheet builds too', () => {
   const src =
     lift(/  const RECEIVE_PRESETS = \[[^\]]*\];/, 'RECEIVE_PRESETS') + '\n' +
     lift(/  function satsInput\([\s\S]*?\n  \}\n/, 'satsInput') + '\n' +
-    lift(/  function receiveModal\(\) \{[\s\S]*?\n  \}\n/, 'receiveModal');
+    // The Withdraw tab's helpers: the builder reads them while it builds.
+    lift(/  function waitingRow\([\s\S]*?\n  \}\n/, 'waitingRow') + '\n' +
+    lift(/  const walletMethodsCache = new WeakMap\(\);\n/, 'walletMethodsCache') + '\n' +
+    lift(/  function walletMethodsOf\([\s\S]*?\n  \}\n/, 'walletMethodsOf') + '\n' +
+    lift(/  function withdrawErrorText\([\s\S]*?\n  \}\n/, 'withdrawErrorText') + '\n' +
+    lift(/  function receiveModal\(opts\) \{[\s\S]*?\n  \}\n/, 'receiveModal');
   const { threw, built } = runBuilder(src, 'receiveModal', {
+    window: { SidecarLnurlWithdraw: {} },
     SidecarQR: { draw() {} },
     copyPlain: async () => {},
     // Real functions in the panel; stubbed here because the harness only lifts the

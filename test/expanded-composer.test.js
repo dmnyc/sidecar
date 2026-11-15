@@ -69,7 +69,7 @@ test('THE DRAFT IS CLEARED ONLY AFTER THE NOTE IS OUT', () => {
   // the relays rejected it, and the text is gone too.
   const post = bare.slice(bare.indexOf('async function doPost()'));
   const body = post.slice(0, post.indexOf('\n  }'));
-  const publishAt = body.indexOf('pool().publish(');
+  const publishAt = body.indexOf('SC.publishToRelays(');
   const clearAt = body.indexOf("draft.text = '';");
   assert.ok(publishAt > -1 && clearAt > -1, 'could not find the publish or the clear');
   assert.ok(publishAt < clearAt, 'the draft is cleared before the publish resolves');
@@ -86,10 +86,16 @@ test('THE PAGE DOES NOT GUESS WHERE TO PUBLISH', () => {
   assert.match(panelBare, /relays = await postRelays\(\)/);
   assert.match(panelBare, /all\[dkey\]\.expandRelays = relays;/);
   assert.match(bare, /if \(saved && Array\.isArray\(saved\.expandRelays\)\) handoverRelays = saved\.expandRelays;/);
-  // A page opened cold still works, on the configured write list, which is the panel's own
-  // fallback when an account has declared nothing.
+  // The page still does not re-derive the rule. It asks the worker, which answers by
+  // relay-policy.js, the rule the panel posts by (declared relays, plus the bootstrap set
+  // unless the account turned it off, and nothing for NIP-65-only with no list), and merges
+  // what the panel handed over. It no longer falls back to Settings' configured list: that
+  // fallback is what sent a reply to four default relays and never to the account's own.
   const fn = bare.slice(bare.indexOf('async function targetRelays()'));
-  assert.match(fn.slice(0, fn.indexOf('\n  }')), /return relayUrls\(true\);/);
+  const targetBody = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(targetBody, /type: 'SIDECAR_GET_ACCOUNT_RELAYS'/);
+  assert.match(targetBody, /if \(handoverRelays && handoverRelays\.length\) add\(handoverRelays\);/);
+  assert.doesNotMatch(targetBody, /relayUrls\(/, 'targetRelays fell back to the configured list again');
 
   // READING IS NOT PUBLISHING. relayUrls(false) means every configured relay, read-only
   // ones included, which is what the core asks for when it looks up a profile, an embed
@@ -112,7 +118,7 @@ test('THE BLOSSOM SERVER LIST IS ACTUALLY LOOKED FOR', () => {
   assert.match(core, /const BLOSSOM_AUTH_KIND = 24242;/);
   assert.ok(!/BLOSSOM_SERVER_LIST_KIND =/.test(panel), 'sidepanel.js kept a copy');
   const fn = core.slice(core.indexOf('async function fetchBlossomServers('));
-  assert.match(fn.slice(0, fn.indexOf('\n  }')), /console\.warn\('\[Upload\] could not read the Blossom server list:'/);
+  assert.match(fn.slice(0, fn.indexOf('\n  }')), /uploadLog\('warn', 'could not read the Blossom server list'/);
   assert.ok(!/\} catch \(_\) \{\}\n    _blossomServerCache/.test(core), 'a swallowed lookup reads as no servers');
 });
 
@@ -178,16 +184,22 @@ test('ONE TAB, AND IT IS THE RIGHT DRAFT', () => {
 test('the way in is a word on the tab bar, not an icon in the corner', () => {
   // The corner already belongs to the close box, so a second button there landed on top
   // of it. And the outward arrow that means "expand" in most apps reads here as leaving
-  // the browser, which is the one thing it does not do. Write / Preview / Expand is a row
-  // of three things you can do with what you are writing.
-  assert.match(panelBare, /textContent: t\('Expand'\)/);
+  // the browser, which is the one thing it does not do, so the glyph is four corner
+  // brackets. Write / Preview / Expand is a row of three things you can do with what you
+  // are writing.
+  assert.match(panelBare, /expand\.setAttribute\('aria-label', t\('Expand'\)\);/);
+  assert.match(panelBare, /expand\.append\(icon\('maximize'\)\);/);
   assert.match(panelBare, /if \(expand\) tabBar\.append\(expand\);/);
   assert.ok(!/compose-expand[^']*modal-x|modal-x compose-expand/.test(panelBare),
     'the expand control must not take the corner slot the close box owns');
-  assert.ok(!/expand\.append\(icon\(/.test(panelBare), 'no arrow: it does not leave the browser');
+  // No arrow: four corner brackets, which are paths with no diagonal and no arrowhead.
+  const glyph = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8').match(/^\s+maximize: '([^']*)'/m);
+  assert.ok(glyph, 'the maximize glyph is missing from ICONS');
+  assert.equal((glyph[1].match(/<path /g) || []).length, 4, 'four corners');
+  assert.ok(!/<line|<polyline|<polygon/.test(glyph[1]), 'an arrow has a shaft or a head; brackets are only corners');
   // No bottom border, so it cannot read as a third tab that could be selected.
   const rule = css.slice(css.indexOf('.compose-expand {'), css.indexOf('.compose-expand:hover'));
-  assert.match(rule, /margin-left: auto/);
+  assert.match(rule, /margin-inline-start: auto/);
   assert.ok(!/border-bottom/.test(rule));
 });
 
@@ -278,7 +290,7 @@ test('THE COMPOSER FLOATS, CENTERED BOTH WAYS, ON A SOLID SURFACE', () => {
   // earlier in the file now and is what a plain indexOf finds.
   const body = css.slice(bodyAt, sheetAt).replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(body, /justify-content: center/);
-  assert.match(body, /min-height: calc\(100vh - var\(--compose-topbar-h\)\)/);
+  assert.match(body, /min-height: calc\(calc\(100vh \/ var\(--panel-zoom, 1\)\) - var\(--compose-topbar-h\)\)/);
   assert.match(sheet, /margin: auto 0/);
   assert.ok(!/align-items: center/.test(body), 'align-items clips an oversized card');
 
@@ -370,7 +382,7 @@ test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
     assert.ok(!new RegExp('function ' + name + '\\(').test(panel), 'sidepanel.js kept a copy of ' + name);
   }
   assert.match(bare, /composer\.renderNotePreview\(box, body\)/);
-  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey\)/);
+  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted \}\)/);
   // Its relay reads go through this page's own pool, so the core never learns which
   // sockets it is using and cannot reach the panel's.
   assert.match(bare, /poolGet: \(relays, filter, params\) => pool\(\)\.get\(/);
@@ -447,7 +459,7 @@ test('THE REVIEW COUNTDOWN IS HONORED HERE TOO', () => {
   // pane inherits a 42vh cap sized for the panel, which on this page sits under a note
   // written at 17px with its images at full width: tall enough to push its own ring and
   // its own buttons off the screen, at the one moment everything in it matters.
-  assert.match(css, /\.compose-countdown \.countdown-preview \{ max-height: 32vh; \}/);
+  assert.match(css, /\.compose-countdown \.countdown-preview \{ max-height: calc\(32vh \/ var\(--panel-zoom, 1\)\); \}/);
   assert.match(css, /\.compose-countdown \.note-media \{ max-height: 160px/);
   assert.match(css, /\.compose-countdown \.countdown-wrap \{ flex-shrink: 0; \}/,
     'the ring and the buttons below it must never be what scrolls out of reach');
@@ -700,9 +712,8 @@ test('THE TOOLBAR\'S CELLS ARE EQUAL, SO NOTHING A BUTTON SAYS MOVES THE ROW', (
 
 test('THE WAY OUT IS SETTINGS\' CLOSE BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER', () => {
   // The box is on the page's bar, at its far end, and it is the box Settings closes with:
-  // the same classes, so the same size and every theme's dressing, and the same glyph. The
-  // word in the footer is for anyone reading the row rather than the bar. Both keep the
-  // draft, because neither is a decision to throw it away.
+  // the same classes, so the same size and every theme's dressing, and the same glyph. It
+  // keeps the draft, because closing is not a decision to throw it away.
   const bar = pageHtml.slice(pageHtml.indexOf('<header class="compose-topbar">'), pageHtml.indexOf('</header>'));
   assert.match(bar, /class="icon-btn settings-close compose-x" id="compose-x"/);
   const sidepanelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
@@ -710,17 +721,14 @@ test('THE WAY OUT IS SETTINGS\' CLOSE BOX AND A WORD, AND THE WAY TO PUBLISH IS 
   assert.equal(glyph(pageHtml, 'compose-x'), glyph(sidepanelHtml, 'settings-close'), 'not the same glyph as Settings');
   // It overhangs the bar's padding rather than growing it: the card subtracts the bar's
   // height, and the bar matches the guide's.
-  assert.match(css, /\.compose-topbar \.compose-x \{ margin: -12px 0 -12px auto; flex-shrink: 0; \}/);
+  assert.match(css, /\.compose-topbar \.compose-x \{ margin-block: -12px -12px; margin-inline: auto 0; flex-shrink: 0; \}/);
   assert.match(bare, /x\.addEventListener\('click', leave\)/);
-  assert.match(bare, /\$\('compose-close'\)\.addEventListener\('click', leave\)/);
   assert.match(bare, /const leave = \(\) => \{ flushDraft\(\)\.then\(\(\) => window\.close\(\)\); \};/);
 
-  // Cancel is not a button. Leaving is not an action with the same weight as publishing,
-  // and two filled controls side by side claim it is.
-  assert.match(pageHtml, /class="compose-cancel" id="compose-close"[^>]*>Cancel</);
-  const cancel = css.slice(css.indexOf('.compose-cancel {'), css.indexOf('.compose-cancel:hover'));
-  assert.match(cancel, /background: none/);
-  assert.match(cancel, /border: none/);
+  // NO CANCEL BESIDE POST. It did what the × does, and its name said the draft would be
+  // thrown away, which nothing here does. The footer's way out is the bar's ×.
+  const foot = pageHtml.slice(pageHtml.indexOf('<footer class="compose-foot">'), pageHtml.indexOf('</footer>'));
+  assert.doesNotMatch(foot.replace(/<!--[\s\S]*?-->/g, ''), /Cancel|compose-close/);
   // And the one that cannot be taken back is the biggest thing in the row.
   const postRule = css.slice(css.indexOf('.compose-post {'), css.indexOf('.compose-post {') + 160);
   assert.match(postRule, /font-size: 15px/);
@@ -735,18 +743,20 @@ test('AFTER POSTING, THE CARD BECOMES THE RECEIPT', () => {
   // The panel drops a banner because its composer is a modal that closes onto a whole
   // app. A tab has nothing underneath it: the card IS the page, and leaving an empty
   // editor sitting there reads as a note lost rather than published.
-  assert.match(bare, /await showPosted\(signed, ok, what\)/);
+  assert.match(bare, /await showPosted\(signed, report, what\)/);
   const fn = bare.slice(bare.indexOf('async function showPosted('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /sheet\.innerHTML = '';/);
   // Named for what went out: a poll, a reply, or a note.
   assert.match(body, /t\('Your poll is live\.'\)[\s\S]*t\('Your reply is live\.'\)[\s\S]*t\('Your note is live\.'\)/);
-  assert.match(body, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', relayCount\)/);
+  // The count and the row that opens on refusals are the shared core's, drawn the same in the panel.
+  assert.match(body, /SC\.relayReportNode\(report, 'compose-done-sub'\)/);
+  assert.match(core, /tn\('Published to \{\{count\}\} relay\.', 'Published to \{\{count\}\} relays\.', report\.accepted\.length\)/);
 
   // Only after the publish resolved. A receipt for a note no relay took is a lie.
   const post = bare.slice(bare.indexOf('async function doPost()'));
   const pbody = post.slice(0, post.indexOf('\n  }'));
-  assert.ok(pbody.indexOf('pool().publish(') < pbody.indexOf('showPosted('));
+  assert.ok(pbody.indexOf('SC.publishToRelays(') < pbody.indexOf('showPosted('));
 });
 
 test('the receipt links to the note, in the client this ACCOUNT chose', () => {
@@ -757,7 +767,7 @@ test('the receipt links to the note, in the client this ACCOUNT chose', () => {
   const fn = bare.slice(bare.indexOf('async function showPosted('));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /composer\.resolveClient\(settings, signed\.pubkey \|\| state\.activePubkey\)/);
-  assert.match(body, /client\.url\(await neventFor\(signed\)\)/);
+  assert.match(body, /client\.url\(await neventFor\(signed, report\.accepted\)\)/);
   assert.match(body, /open\.target = '_blank'/);
   assert.match(body, /open\.rel = 'noreferrer noopener'/);
   // A failure to work out the link leaves the receipt without one rather than breaking it.
@@ -892,11 +902,11 @@ test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
   const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
   const at = page.indexOf("editorApi.editor.addEventListener('paste'");
   assert.ok(at > -1, 'the tab has no paste handler of its own');
-  const body = page.slice(at, at + 1400);
+  const body = page.slice(at, at + 2600);
   assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
   assert.match(body, /e\.preventDefault\(\);/);
   assert.match(body, /document\.execCommand\('insertText', false, plain\)/);
-  assert.match(body, /uploadFiles\(images\)/);
+  assert.match(body, /uploadFiles\(images, \{ pasted: true \}\)/);
   // The Media button and a paste share one upload path.
   assert.match(page, /if \(file\) await uploadFiles\(\[file\]\);/);
   // Neither composer lets a paste attach to a poll.

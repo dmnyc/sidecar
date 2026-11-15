@@ -32,14 +32,17 @@
   // list a stored value is validated against are the same list.
   const { NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT } = window.SidecarCore;
   // Where a note can be read. Shared because the panel's post banner and the expanded
-  // composer's confirmation are the same question asked twice.
-  const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
+  // composer's confirmation are the same question asked twice. The custom pair rides
+  // along: the settings sheet reads the pasted links with the same parser it saves
+  // through and rebuilds them with the builder resolution uses, so what is confirmed
+  // is what opens.
+  const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT, customClient, parseClientLink } = window.SidecarCore;
   // The imeta write side: describing an attached image so the client that renders the
   // note can say it. Same tag zap.cooking writes; see composer-core.js for the format.
-  const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, buildAltEditorRow } = window.SidecarCore;
+  const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow } = window.SidecarCore;
   // Attachments held beside the prose and appended at publish, with the reference
   // drawer that says so. See composer-core.js for the shape.
-  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb } = window.SidecarCore;
+  const { composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb, takeTrailingQuote, quoteEntriesFromPaste, draftHasWork, shelveNoteDraft, unshelveNoteDraft } = window.SidecarCore;
   // A URL pasted on its own can be offered a life as an attachment instead of prose.
   const { loneMediaUrl, removeUrlFromEditor, urlIsVideo } = window.SidecarCore;
 
@@ -97,7 +100,7 @@
         fn(arg);
       };
       const timer = setTimeout(
-        () => finish(reject, new Error('Sidecar’s background worker did not respond.')),
+        () => finish(reject, new Error(t('Sidecar’s background worker did not respond.'))),
         timeoutMs || BG_TIMEOUT_MS
       );
       try {
@@ -105,7 +108,7 @@
           // Read INSIDE the callback and before anything else: this is what marks the
           // error as handled, and it is only readable here.
           const err = chrome.runtime.lastError;
-          if (err) return finish(reject, new Error(err.message || 'Sidecar’s background worker is unavailable.'));
+          if (err) return finish(reject, new Error(err.message || t('Sidecar’s background worker is unavailable.')));
           finish(resolve, resp);
         });
       } catch (e) {
@@ -117,7 +120,7 @@
   async function call(message) {
     const resp = await bg(message);
     if (!resp || !resp.ok) {
-      const err = new Error((resp && resp.error) || 'Request failed');
+      const err = new Error(I18N.controlError(resp) || t('Request failed'));
       // The wipe check refuses an owner sign by throwing; carrying the finding
       // through lets a caller offer a specific confirmation ("Removes all 1,071
       // accounts you follow") rather than a generic failure.
@@ -278,6 +281,38 @@
     // Education of Henry Adams (printed 1907, published 1918), chapter VII.
     { text: 'Hope is the thing with feathers that perches in the soul, and sings the tune without the words, and never stops at all.', who: 'Emily Dickinson, 1891' },
     { text: 'A friend in power is a friend lost.', who: 'Henry Adams, 1907' },
+    // 1.16.2. Checked against the Project Gutenberg texts: The Adventures of Sherlock
+    // Holmes (1892), "A Scandal in Bohemia"; and Little Women (1868), as printed there,
+    // with the contraction, not "I am."
+    { text: 'You see, but you do not observe. The distinction is clear.', who: 'Arthur Conan Doyle, 1892' },
+    { text: 'I’m not afraid of storms, for I’m learning how to sail my ship.', who: 'Louisa May Alcott, 1868' },
+    // 1.16.3. Checked against the Project Gutenberg texts: War Is Kind (1899), the poem's
+    // line breaks run together; and The House of the Seven Gables (1851).
+    { text: 'A man said to the universe: “Sir, I exist!” “However,” replied the universe, “The fact has not created in me a sense of obligation.”', who: 'Stephen Crane, 1899' },
+    { text: 'Life is made up of marble and mud.', who: 'Nathaniel Hawthorne, 1851' },
+    // 1.16.4. Checked against the Project Gutenberg texts: Anne of Green Gables (1908); and
+    // The Wind in the Willows (1908), which reads "absolute nothing", not the usual "absolutely".
+    { text: 'Marilla, isn’t it nice to think that tomorrow is a new day with no mistakes in it yet?', who: 'L. M. Montgomery, 1908' },
+    { text: 'Believe me, my young friend, there is nothing—absolute nothing—half so much worth doing as simply messing about in boats.', who: 'Kenneth Grahame, 1908' },
+    // 1.16.5. Checked against the Project Gutenberg texts: The Ambassadors (1903), Strether's
+    // advice to Little Bilham; and The Secret Garden (1911), Colin on Magic. Both are
+    // writers the list did not already have.
+    { text: 'Live all you can; it’s a mistake not to.', who: 'Henry James, 1903' },
+    { text: 'Magic is always pushing and drawing and making things out of nothing.', who: 'Frances Hodgson Burnett, 1911' },
+    // 1.16.6. Checked against the Project Gutenberg text of Lord Jim (1900), chapter 20,
+    // Stein speaking; Conrad is a writer the list did not already have.
+    { text: 'A man that is born falls into a dream like a man who falls into the sea.', who: 'Joseph Conrad, 1900' },
+    // 1.17.0. Checked against the Project Gutenberg text of The Awakening (1899), chapter 6;
+    // Chopin is a writer the list did not already have.
+    { text: 'The voice of the sea speaks to the soul.', who: 'Kate Chopin, 1899' },
+    { text: 'Ah, but a man’s reach should exceed his grasp, or what’s a Heaven for?', who: 'Robert Browning, 1855' },
+    { text: 'The world stands out on either side no wider than the heart is wide.', who: 'Edna St. Vincent Millay, 1917' },
+    // 1.17.2. Checked against the Project Gutenberg texts: Wuthering Heights (1847), chapter 9,
+    // Catherine on Heathcliff; and Far from the Madding Crowd (1874), Bathsheba to Boldwood,
+    // which reads "difficult", not the "hard" it is often quoted with. Both are writers the
+    // list did not already have.
+    { text: 'Whatever our souls are made of, his and mine are the same.', who: 'Emily Brontë, 1847' },
+    { text: 'It is difficult for a woman to define her feelings in language which is chiefly made by men to express theirs.', who: 'Thomas Hardy, 1874' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
@@ -310,8 +345,8 @@
     if (!showQuotes) return h('div', { className: 'bm-empty' }, [h('p', { className: 'hint', textContent: hint || '' })]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
-      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
-      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      h('p', { className: 'bm-quote', dir: 'auto', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', dir: 'auto', textContent: q.who }),
       hint ? h('p', { className: 'hint', textContent: hint }) : h('span'),
     ]);
   }
@@ -325,8 +360,8 @@
     if (!showQuotes) return h('span');
     q = q || pickQuote();
     return h('div', { className: 'bm-empty bm-end' }, [
-      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
-      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      h('p', { className: 'bm-quote', dir: 'auto', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', dir: 'auto', textContent: q.who }),
     ]);
   }
 
@@ -355,8 +390,8 @@
     if (!showQuotes) return h('div', { className: 'bm-empty' }, [waitingRow(label)]);
     q = q || pickQuote();
     return h('div', { className: 'bm-empty' }, [
-      h('p', { className: 'bm-quote', textContent: '\u201C' + q.text + '\u201D' }),
-      h('p', { className: 'bm-quote-who', textContent: q.who }),
+      h('p', { className: 'bm-quote', dir: 'auto', textContent: '\u201C' + q.text + '\u201D' }),
+      h('p', { className: 'bm-quote-who', dir: 'auto', textContent: q.who }),
       waitingRow(label),
     ]);
   }
@@ -837,7 +872,7 @@
       if (t && t.closest && t.closest('.nsec-field')) return; // the one allowed home
       e.preventDefault();
       e.stopPropagation();
-      toast('That looks like a secret key. For safety, paste your nsec only into the key import field.', 'error');
+      toast(tSec('That looks like a secret key. For safety, paste your nsec only into the key import field.'), 'error');
     },
     true
   );
@@ -914,6 +949,7 @@
   // "Bitcoin only": no local currency anywhere. The tap cycles sats and BTC, the price
   // chart (which is priced in that currency) is hidden, and no rate is fetched.
   let fiatOff = false;
+  let btcSweepOn = false; // on-chain balance is opt-in; nothing is looked up until it is on
   let zapFlash = true; // lightning bolt on payment — on unless turned off
   // The fourth zap preset. Cached here rather than read per form, the same way
   // fiatCurrency and zapFlash are: the zap rows are built synchronously inside a sheet
@@ -926,6 +962,18 @@
   let _firstPostSeenPubkeys = null;
   let balanceCache = { pubkey: null, sats: null }; // last known balance for instant display
   const _notifCache = new Map(); // pubkey → { events: Event[], liveSub: Closeable|null }
+  // NEWEST FIRST, OLDER ON REQUEST. The bell loads the most recent screenful and pages back
+  // from there, rather than a fixed week of history that one slow relay could leave stuck
+  // days in the past. NOTIF_SCREEN is the screenful: the sheet's page and the badge's top.
+  // History is asked for in stretches of time that widen until one holds a screenful, so a
+  // busy account stops at a day and a quiet one reaches back months. Each stretch settles
+  // shortly after the first relay answers (NOTIF_SETTLE_MS), or at NOTIF_FETCH_MAX_MS.
+  const NOTIF_SCREEN = 25;
+  const NOTIF_SPANS = [1, 3, 7, 30, 90].map((days) => days * 86400);
+  const NOTIF_RANGE_LIMIT = 200; // per filter per relay, generous so a stretch is not cut short
+  const NOTIF_CACHE_MAX = 1000;
+  const NOTIF_SETTLE_MS = 800;
+  const NOTIF_FETCH_MAX_MS = 6000;
   const _notifProfiles = new Map(); // sender pubkey → display name string
   const _muteLists = new Map(); // pubkey → resolved mute set (see emptyMuteSet)
   const _muteListPromises = new Map(); // pubkey → Promise<Set> (dedupe in-flight loads)
@@ -938,6 +986,10 @@
   // window and quietly stop reporting votes, and the vote filter can name poll ids only
   // instead of asking every relay about 150 ids that can never carry a kind:1018.
   const _ownPollIds = new Map(); // pubkey → Set<eventId> (this account's own kind:1068 ids)
+  // pubkey → Map<eventId, {created_at, endsAt}> — the least the Polls tab's live count
+  // needs to judge each poll, kept beside the id set because the set feeds a relay
+  // filter, which wants ids and nothing else.
+  const _ownPollMeta = new Map();
   const _ownPollIdsPromises = new Map();
   // WHAT THE POLLS TAB SHOWED LAST TIME, so opening it twice does not mean waiting twice.
   // The notification list beside it opens from _notifCache and asks the relays only when
@@ -1114,7 +1166,7 @@
     // unlock screen now. refresh() closes any open modal and routes to view-lock.
     // Only an idle-timeout lock (auto) toasts — the user didn't trigger it, so
     // explain the sudden jump; manual lock / reset already show their own message.
-    if (msg.event === 'locked') { refresh(); if (msg.auto) toast('Locked due to inactivity'); }
+    if (msg.event === 'locked') { refresh(); if (msg.auto) toast(t('Locked due to inactivity')); }
     // A relax window was granted, revoked, or expired — refresh the banner.
     if (msg.event === 'relaxChanged' && state && !state.locked) syncRelax();
   });
@@ -1128,6 +1180,71 @@
   // countdown from the cached expiry (no per-second query).
   let relaxGrants = []; // last-synced [{ host, pubkey, expiresAt }]
   let relaxTick = null;
+  // The window the bar is showing, so Restart winds back that one and not another.
+  let relaxShown = null;
+  let relaxListOpen = false;
+
+  // WHICH WINDOW THE BAR SHOWS: the active account's, when it has one. Windows outlive
+  // an account switch now, and a bar still naming the account you switched away from
+  // reads as though the one you are on has none. Otherwise the one that ends first.
+  // The badge and Restart follow the same rule (RELAX.shownFor in the background).
+  function relaxPick(grants, activePubkey) {
+    return grants.find((g) => g.pubkey === activePubkey) || grants[0] || null;
+  }
+  const relaxKey = (g) => g.host + '|' + g.pubkey;
+  function relaxName(pubkey) {
+    const acct = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
+    return acct ? displayName(acct) : t('this account');
+  }
+
+  // THE OTHER WINDOWS, one row each: the account and site, the time left, and an end
+  // box for that window alone. Rows are rebuilt only when the set changes and repainted
+  // in place every second, so a tap on a row's box is not lost to the ticker's rebuild.
+  function renderRelaxList(others) {
+    const list = $('relax-status-list');
+    const more = $('relax-status-more');
+    if (!others.length) relaxListOpen = false;
+    more.classList.toggle('hidden', !others.length);
+    if (others.length) {
+      more.textContent = '+' + I18N.fmtNum(others.length);
+      const label = tn('{{count}} other timer running', '{{count}} other timers running', others.length);
+      more.setAttribute('aria-label', label);
+      more.title = label;
+    }
+    more.setAttribute('aria-expanded', relaxListOpen ? 'true' : 'false');
+    list.classList.toggle('hidden', !relaxListOpen);
+    // The rows go with the list, and so does the note of which windows they were for:
+    // kept, a reopen found the set unchanged, skipped the rebuild and showed no rows.
+    if (!relaxListOpen) { list.replaceChildren(); delete list.dataset.keys; return; }
+    const keys = others.map(relaxKey).join(',');
+    if (list.dataset.keys !== keys) {
+      list.dataset.keys = keys;
+      list.replaceChildren(...others.map((g) => {
+        const end = h('button', { type: 'button', className: 'relax-status-x relax-list-x',
+          title: t('End this timer'), 'aria-label': t('End this timer') });
+        end.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>';
+        end.addEventListener('click', async () => {
+          try { await call({ type: 'SIDECAR_REVOKE_RELAX', host: g.host, pubkey: g.pubkey }); } catch (_) {}
+          await syncRelax();
+        });
+        return h('div', { className: 'relax-list-row' }, [
+          h('span', { className: 'relax-status-dot' }),
+          h('span', { className: 'relax-list-who' }, [
+            h('span', { className: 'relax-list-name', textContent: relaxName(g.pubkey) }),
+            h('span', { className: 'relax-status-sep', textContent: '·' }),
+            h('span', { className: 'relax-list-host', textContent: g.host }),
+          ]),
+          h('span', { className: 'relax-status-time relax-list-time' }),
+          end,
+        ]);
+      }));
+    }
+    [...list.children].forEach((row, i) => {
+      const remaining = Math.max(0, others[i].expiresAt - Date.now());
+      row.querySelector('.relax-list-time').textContent = fmtRelax(remaining);
+      row.querySelector('.relax-status-dot').classList.toggle('low', remaining < 60000);
+    });
+  }
 
   function fmtRelax(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
@@ -1143,6 +1260,8 @@
     const view = $('view-main');
     if (!bar) return;
     if (!relaxGrants.length) {
+      relaxShown = null;
+      relaxListOpen = false;
       hide(bar);
       if (view) view.classList.remove('relax-active');
       if (relaxTick) { clearInterval(relaxTick); relaxTick = null; }
@@ -1151,10 +1270,10 @@
     show(bar);
     if (view) view.classList.add('relax-active'); // lift the floating compose FAB off the bar
     if (!relaxTick) relaxTick = setInterval(renderRelaxStatus, 1000);
-    const g = relaxGrants[0]; // one window at a time (grant enforces it)
-    const accts = (state && state.accounts) || [];
-    const acct = accts.find((a) => a.pubkey === g.pubkey);
-    $('relax-status-name').textContent = acct ? displayName(acct) : 'this account';
+    const g = relaxPick(relaxGrants, state && state.activePubkey);
+    relaxShown = g;
+    renderRelaxList(relaxGrants.filter((x) => x !== g));
+    $('relax-status-name').textContent = relaxName(g.pubkey);
     $('relax-status-host').textContent = g.host;
     const remaining = Math.max(0, g.expiresAt - Date.now());
     const total = g.duration || 15 * 60000;
@@ -1183,8 +1302,21 @@
   // "Restart" winds the running window back to its full original duration — the
   // same act as approving the relax chips again, without leaving the page you're on.
   $('relax-status-restart').addEventListener('click', async () => {
-    try { await call({ type: 'SIDECAR_RESTART_RELAX' }); } catch (_) {}
+    const g = relaxShown;
+    try { await call({ type: 'SIDECAR_RESTART_RELAX', host: g && g.host, pubkey: g && g.pubkey }); } catch (_) {}
     await syncRelax();
+  });
+
+  $('relax-status-more').addEventListener('click', (e) => {
+    e.stopPropagation();
+    relaxListOpen = !relaxListOpen;
+    renderRelaxStatus();
+  });
+  // Put away by a tap anywhere else, the way a menu is.
+  document.addEventListener('click', (e) => {
+    if (!relaxListOpen || $('relax-status').contains(e.target)) return;
+    relaxListOpen = false;
+    renderRelaxStatus();
   });
 
   // Reset the background idle auto-lock timer on active panel use (composing),
@@ -1358,6 +1490,24 @@
     });
   }
 
+  // The line on the lock screen. "Locked since your browser closed" is only true when nothing
+  // else locked it: on Never, the browser closing is the one lock Sidecar does not announce,
+  // and it leaves no reason behind because it clears session storage. A lock Sidecar did
+  // itself, the lock button above all, records one, and that reads as a plain prompt.
+  // Ben Day letters this line as a comic's "Meanwhile…" caption, which trails off rather
+  // than stopping, so it has its own strings ending in an ellipsis. Strings, not CSS: a
+  // stylesheet can add the dots but cannot take the period away, and a translation has to
+  // be able to place them itself.
+  const LOCK_REASON_KEY = 'sidecar_lock_reason';
+  function lockLede(settings, reason) {
+    const caption = document.documentElement.getAttribute('data-theme') === 'ben-day';
+    const browserClosed = !!settings && settings.autoLockMinutes === 0 && !reason;
+    return browserClosed
+      ? (caption ? t('Locked since your browser closed. Enter your PIN to unlock…')
+        : t('Locked since your browser closed. Enter your PIN to unlock.'))
+      : (caption ? t('Enter your PIN to unlock…') : t('Enter your PIN to unlock.'));
+  }
+
   function startLockClock() {
     stopLockClock();
     const slot = $('lock-clock');
@@ -1413,6 +1563,7 @@
     hideBalances = hideBalancesPref;
     autoHideBalances = !!(settings && settings.autoHideBalances);
     pinBalanceBar = !!(settings && settings.pinBalanceBar);
+    btcSweepOn = !!(settings && settings.btcSweep);
     reduceBalanceMotion = !!(settings && settings.reduceBalanceMotion);
     showOnThisDay = !(settings && settings.onThisDay === false);
     showQuotes = !(settings && settings.literaryQuotes === false);
@@ -1491,22 +1642,17 @@
       wasLocked = true; // the next unlock is a new leg — see advanceMapLeg
       show($('view-lock'));
       startLockClock();
-      // On Never, the only thing that can have locked this is the browser closing —
-      // the derived key lives in chrome.storage.session, which is memory-only and
-      // cleared on browser close. Without saying so, "Never" reads as broken.
-      call({ type: 'SIDECAR_GET_SETTINGS' })
-        .then((s) => {
+      // On Never, a lock nobody asked for is the browser closing — the derived key lives in
+      // chrome.storage.session, which is memory-only and cleared on browser close. Without
+      // saying so, "Never" reads as broken. A lock the user asked for says nothing of it.
+      Promise.all([
+        call({ type: 'SIDECAR_GET_SETTINGS' }),
+        chrome.storage.session.get(LOCK_REASON_KEY).catch(() => ({})),
+      ])
+        .then(([s, got]) => {
           // Both branches set it: the node outlives the setting, so a Never lede left
           // behind would still be there after a switch to a timed lock.
-          // Ben Day letters this line as a comic's "Meanwhile…" caption, which trails
-          // off rather than stopping, so it has its own strings ending in an ellipsis.
-          // Strings, not CSS: a stylesheet can add the dots but cannot take the period
-          // away, and a translation has to be able to place them itself.
-          const caption = document.documentElement.getAttribute('data-theme') === 'ben-day';
-          $('view-lock').querySelector('.lede').textContent = s && s.autoLockMinutes === 0
-            ? (caption ? t('Locked since your browser closed. Enter your PIN to unlock…')
-              : t('Locked since your browser closed. Enter your PIN to unlock.'))
-            : (caption ? t('Enter your PIN to unlock…') : t('Enter your PIN to unlock.'));
+          $('view-lock').querySelector('.lede').textContent = lockLede(s, got && got[LOCK_REASON_KEY]);
         })
         .catch(() => {});
       setTimeout(() => $('unlock-pin').focus(), 50);
@@ -1703,7 +1849,7 @@
       if (r.nextWaitMs > 0) startUnlockCooldown(r.nextWaitMs, r.remaining, true);
       return;
     }
-    err.textContent = r.error || t('Could not unlock');
+    err.textContent = I18N.controlError(r) || t('Could not unlock');
   });
 
   // Locked out (forgot PIN): let the user erase everything and start over, with a
@@ -1766,7 +1912,7 @@
       _firstPostSeenPubkeys.add(state.activePubkey);
       chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
       balloon.classList.add('hidden');
-      openComposer('Just setting up my #Sidecar 🍸');
+      openComposer(t('Just setting up my #Sidecar 🍸'));
     } else {
       openComposer();
     }
@@ -1854,13 +2000,13 @@
       author.append(avatarEl(active || {}, 'compose-author-av'));
       author.append(
         h('div', { className: 'compose-author-info' }, [
-          h('span', { className: 'compose-author-eyebrow', textContent: 'Commenting as' }),
+          h('span', { className: 'compose-author-eyebrow', textContent: t('Commenting as') }),
           h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '\u2014' }),
         ])
       );
 
-      const tabWrite = h('button', { className: 'compose-tab active', textContent: 'Write' });
-      const tabPreview = h('button', { className: 'compose-tab', textContent: 'Preview' });
+      const tabWrite = h('button', { className: 'compose-tab active', textContent: t('Write') });
+      const tabPreview = h('button', { className: 'compose-tab', textContent: t('Preview') });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
 
       // The note composer's editor, reused verbatim, so a comment can tag people
@@ -1870,7 +2016,7 @@
       // close \u2014 the overlay click path tears the modal down without going through
       // Cancel, so anything deferred to teardown is the thing that gets lost.
       const commentEditor = createMentionEditor({
-        placeholder: 'Write a comment about this page\u2026',
+        placeholder: t('Write a comment about this page\u2026'),
         onChange: (text) => saveWebCommentDraft(state.activePubkey, target, text),
       });
       // Kept in memory against this page, not in the encrypted store the post composer
@@ -1879,9 +2025,9 @@
       _modalDismissGuard = () => !!commentEditor.getText().trim();
       const previewPane = h('div', { className: 'compose-preview hidden' });
 
-      const post = h('button', { className: 'primary', textContent: 'Post comment' });
+      const post = h('button', { className: 'primary', textContent: t('Post comment') });
       post.disabled = true;
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       let target = null;   // the normalized URL this comments on
@@ -1919,7 +2065,7 @@
         previewPane.innerHTML = '';
         const text = commentEditor.getText().trim();
         if (!text) {
-          previewPane.append(h('p', { className: 'hint', textContent: 'Nothing written yet.' }));
+          previewPane.append(h('p', { className: 'hint', textContent: t('Nothing written yet.') }));
           return;
         }
         // renderNotePreview, not textContent: a mention serializes to a bare
@@ -1955,7 +2101,7 @@
         return a;
       };
 
-      const heading = h('h3', { textContent: 'Comment on this page' });
+      const heading = h('h3', { textContent: t('Comment on this page') });
       const actions = h('div', { className: 'actions' }, [post, cancel]);
 
       // The editor pane. Re-appending the same nodes is enough to come back from the
@@ -1980,7 +2126,7 @@
         const text = commentEditor.getText().trim();
         showCommentEditor(); // the countdown may have replaced the pane
         post.disabled = true;
-        post.textContent = 'Posting\u2026';
+        post.textContent = t('Posting\u2026');
         try {
           // Same opt-out the note composer honours (Settings → "Show client tag").
           const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
@@ -2004,27 +2150,27 @@
           post.classList.add('hidden');
           done.classList.remove('hidden');
           done.append(
-            h('div', { className: 'webcomment-done-title', textContent: 'Comment posted' }),
+            h('div', { className: 'webcomment-done-title', textContent: t('Comment posted') }),
             // Jumble is named because it's currently the only client that renders a
             // kind:1111 over a web target \u2014 "view your comment" without saying where
             // suggests it's visible wherever you normally read Nostr, and it isn't.
             // Drop the name once other clients catch up.
-            nevent ? link('View your comment on Jumble \u2192', jumbleNoteUrl(nevent)) : document.createTextNode(''),
-            link('See all comments on this page \u2192', jumbleThreadUrl(target))
+            nevent ? link(t('View your comment on {{client}} \u2192', { client: 'Jumble' }), jumbleNoteUrl(nevent)) : document.createTextNode(''),
+            link(t('See all comments on this page \u2192'), jumbleThreadUrl(target))
           );
-          cancel.textContent = 'Close';
-          toast('Comment posted', 'success');
+          cancel.textContent = t('Close');
+          toast(t('Comment posted'), 'success');
         } catch (e) {
-          err.textContent = (e && e.message) || 'Could not post that comment.';
+          err.textContent = (e && e.message) || t('Could not post that comment.');
           post.disabled = false;
-          post.textContent = 'Post comment';
+          post.textContent = t('Post comment');
         }
       }
 
       post.addEventListener('click', async () => {
         const text = commentEditor.getText().trim();
-        if (!target) return (err.textContent = 'No page to comment on.');
-        if (!text) return (err.textContent = 'Write something first.');
+        if (!target) return (err.textContent = t('No page to comment on.'));
+        if (!text) return (err.textContent = t('Write something first.'));
         err.textContent = '';
         // Same setting the note composer reads — "Review countdown before posting"
         // covers everything publishable, so this doesn't get a switch of its own.
@@ -2044,14 +2190,14 @@
           // parameter. A comment carries an identity as publicly as a note does.
           author: composeAuthorStrip(),
           secs,
-          title: 'Posting your comment',
-          hint: 'Check the page and your comment before it posts.',
+          title: t('Posting your comment'),
+          hint: t('Check the page and your comment before it posts.'),
           preview: cdPreview,
           onFire: doPost,
           onCancel: () => {
             showCommentEditor();
             post.disabled = false;
-            post.textContent = 'Post comment';
+            post.textContent = t('Post comment');
             commentEditor.focus();
           },
         });
@@ -2321,7 +2467,7 @@
     publish: async (relay, event) => {
       const results = await Promise.allSettled(poolPublish([relay], event));
       if (!results.some((r) => !publishFailed(r))) {
-        throw new Error('Could not reach the relay this offer listens on.');
+        throw new Error(t('Could not reach the relay this offer listens on.'));
       }
     },
   });
@@ -2355,7 +2501,7 @@
   // pay block builds its code.
   function openPayQr(value, label) {
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: t('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
       modal.append(xClose, h('h3', { textContent: label }));
@@ -2371,11 +2517,11 @@
       copy.addEventListener('click', async () => {
         try {
           await copyPlain(value);
-          copy.textContent = 'Copied ✓';
+          copy.textContent = t('Copied ✓');
           setTimeout(() => (copy.textContent = value), 1200);
         } catch (_) {}
       });
-      out.append(canvas, copy, h('p', { className: 'hint', textContent: 'Scan or copy to pay from any wallet.' }));
+      out.append(canvas, copy, h('p', { className: 'hint', textContent: tSec('Scan or copy to pay from any wallet.') }));
       modal.append(out);
     });
   }
@@ -2393,7 +2539,7 @@
   // `display` is for a value too long to sit on one line whole. It is the display only,
   // never what gets copied or encoded.
   function payLine(value, iconEl, label, display) {
-    const row = h('button', { className: 'profile-meta profile-pay-line', title: label + ': tap to copy' });
+    const row = h('button', { className: 'profile-meta profile-pay-line', title: t('{{label}}: tap to copy', { label }) });
     row.append(iconEl, h('span', { className: 'profile-pay-val', textContent: display || value }));
     row.addEventListener('click', async () => {
       try { await copyPlain(value); } catch (_) {}
@@ -2404,8 +2550,13 @@
 
   // Chat keeps no signing keys; every send pins the account reviewed in its composer.
   window.SidecarStreamChatAccount = {
+    // Reading chat needs no account, only a panel that is showing its own content: not locked,
+    // and not asking for an approval. Posting, reacting and zapping need identity() as well.
+    readable() { return $('view-lock').classList.contains('hidden') && $('view-approval').classList.contains('hidden'); },
+    // "Add an account" in the chat: the Accounts tab, which is where an account is added.
+    showAccounts() { document.querySelector('.tab[data-tab="accounts"]')?.click(); },
     identity() {
-      if (!state?.activePubkey || !$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return null;
+      if (!state?.activePubkey || !window.SidecarStreamChatAccount.readable()) return null;
       const account = state.accounts.find(a => a.pubkey === state.activePubkey);
       return { pubkey: state.activePubkey, name: cachedProfile(state.activePubkey)?.name || account?.name || window.SidecarStreams.cocktailName(state.activePubkey) };
     },
@@ -2417,9 +2568,9 @@
     createMentionEditor(options) { return createMentionEditor(options); },
     cachedProfiles(pubkeys) { return new Map(pubkeys.map(key=>[key,cachedProfile(key)]).filter(([,p])=>p)); },
     profiles: async function(pubkeys,onProfile,signal) {
-      if(!this.identity() || signal?.aborted)return new Map();
+      if(!this.readable() || signal?.aborted)return new Map();
       const sources=[...new Set(['wss://purplepag.es',...await relayUrls(false).catch(()=>[])])];
-      if(!this.identity() || signal?.aborted)return new Map();
+      if(!this.readable() || signal?.aborted)return new Map();
       return window.SidecarStreams.profileBatch({pool:getPool(),sources,keys:pubkeys,signal,verify:NT.verifyEvent,onProfile:(key,p)=>{
         if(signal?.aborted)return;cacheProfile(key,p.content);onProfile?.(key,p);
       }});
@@ -2570,10 +2721,12 @@
       // you can press, and none of this is pressable.
       const rel = h('div', { className: 'profile-stats peek-rel' });
       const followNum = setWaiting(h('strong'), '…', true);
-      rel.append(h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]));
+      rel.append(h('span', { className: 'profile-stat' }, I18N.fill(t('{{count}} following'), { count: followNum })));
       const about = h('p', { className: 'peek-about' });
       const lud = h('div', { className: 'peek-meta hidden' });
-      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, lud, about);
+      // Their CLINK offer, under the address, cut the way the Profile tab cuts your own.
+      const offerLine = h('div', { className: 'peek-meta hidden' });
+      body.append(name, nip05Row, h('div', { className: 'peek-npub' }, [npubChip(npub)]), rel, lud, offerLine, about);
       modal.append(body);
       if(options?.chatEvent)modal.append(window.SidecarStreamChat.commentZapContext(options.chatEvent,key=>cachedProfile(key)?.name || window.SidecarStreams.cocktailName(key)));
 
@@ -2588,13 +2741,13 @@
           if (!modal.isConnected) return;
           if ((list || []).some((c) => c.pubkey === pubkey)) {
             rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
-            rel.append(h('span', { className: 'profile-stat', textContent: 'You follow' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: t('You follow') }));
           }
         }).catch(() => {});
         followsYou(pubkey).then((yes) => {
           if (modal.isConnected && yes) {
             rel.append(h('span', { className: 'peek-sep', textContent: '·' }));
-            rel.append(h('span', { className: 'profile-stat', textContent: 'Follows you' }));
+            rel.append(h('span', { className: 'profile-stat', textContent: t('Follows you') }));
           }
         });
       }
@@ -2625,10 +2778,11 @@
       // is genuinely useful on your own sheet, since showing somebody your zap QR is a
       // thing people do, and that is exactly what the no-wallet branch already draws.
       //
-      // Every key the keystore holds counts, not just the active one. A second account is
-      // equally you, so a wallet attached to one must not be offered a send form pointed
-      // at another.
-      const isSelf = ((state && state.accounts) || []).some((a) => a.pubkey === pubkey);
+      // Only the profile you are signed in as. Another account in your keystore is
+      // somebody this wallet can pay like anyone else: sats move from the active account's
+      // wallet to a different address and the receipt is a real zap between two keys,
+      // which is the one thing people hold two accounts to try.
+      const isSelf = !!state && !!pubkey && state.activePubkey === pubkey;
 
       let zapAddr = '';
       let zapZappable = false;
@@ -2661,15 +2815,15 @@
         const copy = h('button', {
           className: 'secondary peek-zap-addr',
           textContent: label,
-          title: options.copyTitle || 'Copy lightning address',
+          title: options.copyTitle || t('Copy lightning address'),
         });
         copy.addEventListener('click', async () => {
           try {
             await copyPlain(value);
-            copy.textContent = 'Copied ✓';
+            copy.textContent = t('Copied ✓');
             setTimeout(() => { if (copy.isConnected) copy.textContent = label; }, 1200);
           } catch (_) {
-            toast('Could not copy', 'error');
+            toast(t('Could not copy'), 'error');
           }
         });
         // Goes where it points. The same borderless gold link the account card uses for
@@ -2677,7 +2831,7 @@
         // because a tab switched behind an open modal is a tab nobody sees happen.
         const connect = h('button', {
           className: 'account-stat-add-link zap-noconnect',
-          textContent: 'Connect a wallet to zap from here →',
+          textContent: t('Connect a wallet to zap from here →'),
         });
         connect.addEventListener('click', () => {
           closeModal();
@@ -2691,7 +2845,7 @@
           // no zap request is attached, so the provider publishes no receipt and it lands
           // as an anonymous payment. The link below is the one that can say zap, because
           // connecting a wallet is what puts a signed 9734 in front of the invoice.
-          h('p', { className: 'hint', textContent: options.hint || 'Scan or copy to pay from any wallet.' }),
+          h('p', { className: 'hint', textContent: options.hint || tSec('Scan or copy to pay from any wallet.') }),
           // Why there is no amount field here, on the one sheet where its absence is not
           // self-explanatory. Everywhere else the handoff block appears it is because no
           // wallet is connected, and the line below it already says so by offering to
@@ -2711,11 +2865,11 @@
         return zapPayBlock(raw, Object.assign({
           value: raw,
           label: raw.length > 28 ? raw.slice(0, 18) + '…' + raw.slice(-6) : raw,
-          copyTitle: 'Copy this CLINK offer',
+          copyTitle: t('Copy this CLINK offer'),
           // 240 rather than 200: an offer is a longer payload, so the same canvas would
           // pack more modules into the same square and a phone camera has to resolve them.
           qrSize: 240,
-          hint: 'Scan or copy to pay from any CLINK wallet.',
+          hint: tSec('Scan or copy to pay from any CLINK wallet.'),
         }, extra || {}));
       }
 
@@ -2723,33 +2877,60 @@
       // twice on a cached profile, and the wallet lookup lands whenever it lands, so a
       // reveal that fired on first-answer-wins would swap the sheet under whoever was
       // already typing in it.
-      // WHICH ONE IS OPEN. Both buttons look the same and both toggle a panel, so without
-      // this the only thing saying which one you pressed is the panel itself, and by the
-      // time it has a QR in it the button is off the top of a scrolled sheet.
+      // WHICH ONE IS OPEN. A profile that can be paid two ways shows a switch, Lightning and
+      // CLINK, and one panel under it. Before the switch the two routes were a form and a
+      // second button beside it, and pressing the button swapped one near-identical form
+      // for another with nothing to say which route the next press would take.
       //
       // Read off the DOM rather than tracked in a flag, because three things can open or
-      // close these panels (each button, and the no-wallet handoff) and a flag would be a
-      // fourth thing to keep in step with them. Whatever is actually on screen is the
-      // answer by definition.
+      // close these panels (the bolt, the switch, and the no-wallet handoff) and a flag
+      // would be a fourth thing to keep in step with them. Whatever is actually on screen is
+      // the answer by definition.
       function paintPayState() {
         const lit = (el) => !!el && el.isConnected && !el.classList.contains('hidden');
         const zapOn = lit(zapPanel);
         const offerOn = lit(offerPanel) || lit(offerHandoff);
-        // With no zap panel the bolt is what opens the offer, so it carries that state.
-        const boltOn = zapOn || (!zapPanel && offerOn);
+        // The bolt carries the state of the whole area, whichever route is showing.
+        const boltOn = zapOn || offerOn;
         zapBtn.classList.toggle('peek-pay-on', boltOn);
-        offerBtn.classList.toggle('peek-pay-on', offerOn);
         // A disclosure, so say so to anything that is not looking at the color.
         zapBtn.setAttribute('aria-expanded', String(boltOn));
-        offerBtn.setAttribute('aria-expanded', String(offerOn));
-        // The area shows only while a panel is open, with Pay offer last inside it and only
-        // when there is a zap panel for it to sit beside.
-        // The stream zap sheet has no icon row to open anything from, so there the area also
-        // shows for an offer with no zap panel beside it, with Pay offer in it.
-        const zapSheet = !!(options && options.zap);
-        zapWrap.classList.toggle('hidden', !(zapOn || offerOn || (zapSheet && offerShown)));
-        payRow.classList.toggle('hidden', !((zapPanel || zapSheet) && offerShown));
-        zapWrap.append(payRow);
+        // The switch only when there are two routes to switch between. With one, the bolt
+        // opens it directly and a one-option switch would be a label for nothing.
+        const both = !!zapPanel && offerShown;
+        payTabs.classList.toggle('hidden', !both);
+        tabLightning.classList.toggle('active', zapOn);
+        tabLightning.setAttribute('aria-selected', String(zapOn));
+        tabClink.classList.toggle('active', offerOn);
+        tabClink.setAttribute('aria-selected', String(offerOn));
+        zapWrap.classList.toggle('hidden', !boltOn);
+        // First in the area, so whichever panel is open sits under it.
+        if (zapWrap.firstChild !== payTabs) zapWrap.prepend(payTabs);
+        if (payTabs.moveSlider) payTabs.moveSlider(null, false);
+      }
+
+      // Show one route and put the other away. Not a toggle: pressing the tab you are on
+      // keeps you there, which is what a tab does.
+      function selectTab(which, focus) {
+        if (which === 'clink' && offerFound) {
+          payTab = 'clink';
+          openOfferPanel(offerFound, { forceOpen: true });
+          return;
+        }
+        if (!zapPanel) return;
+        payTab = 'lightning';
+        offerPanel.classList.add('hidden');
+        if (offerHandoff) offerHandoff.classList.add('hidden');
+        zapPanel.classList.remove('hidden');
+        paintPayState();
+        // Only the form has anything to type into; focusing the other one focuses a QR.
+        if (focus !== false && zapPanel === zapForm) amount.focus();
+      }
+
+      // The stream zap sheet has no bolt to open anything from, so a route that is the only
+      // one has to open itself. Called wherever "there will be no zap panel" becomes known.
+      function settleZapSheetOffer() {
+        if (options?.zap && offerShown && !zapPanel) openOfferPanel(offerFound, { forceOpen: true });
       }
 
       function revealZap() {
@@ -2765,19 +2946,19 @@
         // missing a wallet, and the hint is addressed to you rather than to a payer.
         const selfPay = {
           hideConnect: true,
-          hint: 'Scan or copy to show someone how to pay you.',
-          note: 'Sending is off on your own profile.',
+          hint: tSec('Scan or copy to show someone how to pay you.'),
+          note: t('Sending is off on your own profile.'),
         };
         zapPanel = (zapHasWallet && !isSelf)
           ? zapForm
           : zapPayBlock(zapAddr, isSelf ? selfPay : options?.chatEvent ? {note:t('Scan or copy sends a payment to the author, not a zap on this comment. Connect a wallet to zap the comment.')} : undefined);
         enableBolt();
         zapWrap.append(zapPanel);
-        if (options?.zap) zapPanel.classList.remove('hidden');
+        if (options?.zap) selectTab('lightning', false);
         paintPayState();
       }
 
-      // A SECOND WAY TO PAY, beside the first rather than under it. Zap and Pay offer are
+      // A SECOND WAY TO PAY, beside the first rather than under it. Lightning and CLINK are
       // two routes to the same person and neither is the other's fallback: a lightning
       // address is a server that answers for them, an offer is their own wallet answering
       // for itself, and plenty of profiles carry exactly one of the two.
@@ -2790,8 +2971,6 @@
         offerShown = true;
         offerFound = offer;
         enableBolt();
-        payRow.append(offerBtn);
-        offerBtn.addEventListener('click', () => openOfferPanel(offer));
         paintPayState();
       }
 
@@ -2806,19 +2985,20 @@
       const offerErr = h('div', { className: 'error' });
       const offerAmount = satsInput('sats');
       const offerPresets = zapPresetRow(offerAmount);
-      const offerPay = h('button', { className: 'primary', textContent: 'Pay' });
+      const offerPay = h('button', { className: 'primary', textContent: tSec('Pay offer') });
       let offerData = null;
       const offerGate = largeSendGate(offerPay, {
         sats: () => (!offerData ? 0
           : window.SidecarCLINK.amountRequired(offerData) ? parseInt(offerAmount.value, 10) || 0
             : offerData.price || 0),
-        label: () => 'Pay',
-        confirmLabel: 'Confirm',
+        label: () => tSec('Pay offer'),
+        confirmLabel: tSec('Confirm'),
       });
       offerAmount.addEventListener('input', offerGate.paint);
       let offerHandoff = null; // the QR and copy block, built the first time it is wanted
 
-      async function openOfferPanel(offer) {
+      async function openOfferPanel(offer, opts) {
+        const forceOpen = !!(opts && opts.forceOpen);
         offerData = offer;
         offerGate.paint(); // a fixed-price offer may be large before anything is typed
         // NO WALLET IS NOT NO WAY TO PAY, which is the whole lesson of the zap branch
@@ -2838,14 +3018,16 @@
           if (!offerHandoff) {
             offerHandoff = offerPayBlock(offer, isSelf ? {
               hideConnect: true,
-              hint: 'Scan or copy to show someone how to pay you.',
-              note: 'Sending is off on your own profile.',
-            } : undefined);
+              hint: tSec('Scan or copy to show someone how to pay you.'),
+              note: t('Sending is off on your own profile.'),
+            // The comment disclosure the zap handoff carries: another wallet scanning this
+            // pays the author, and only this panel's own payment is a zap on the comment.
+            } : (options?.chatEvent ? { note: t('Scan or copy sends a payment to the author, not a zap on this comment.') } : undefined));
             zapWrap.append(offerHandoff);
           }
           if (zapPanel) zapPanel.classList.add('hidden');
           offerPanel.classList.add('hidden');
-          offerHandoff.classList.toggle('hidden');
+          offerHandoff.classList.toggle('hidden', forceOpen ? false : undefined);
           paintPayState();
           return;
         }
@@ -2857,8 +3039,8 @@
         offerAmount.classList.toggle('hidden', !needsAmount);
         if (!needsAmount && offer.price) offerAmount.value = String(offer.price);
         offerPay.textContent = !needsAmount && offer.price
-          ? 'Pay ' + fmtSats(offer.price) + ' sats'
-          : 'Pay';
+          ? tSec('Pay {{amount}} sats', { amount: fmtSats(offer.price) })
+          : tSec('Pay offer');
         offerErr.textContent = '';
         // NOT through zapPanel, which is the Zap button's own reference to whichever
         // panel that button opens. Pointing it here made Zap toggle the offer instead of
@@ -2868,7 +3050,7 @@
         if (offerHandoff) offerHandoff.classList.add('hidden');
         // Toggled, not forced open: pressing Pay offer twice should shut it again, the
         // same way pressing Zap twice does.
-        offerPanel.classList.toggle('hidden', offerPanel.isConnected && !offerPanel.classList.contains('hidden'));
+        offerPanel.classList.toggle('hidden', forceOpen ? false : offerPanel.isConnected && !offerPanel.classList.contains('hidden'));
         paintPayState();
         if (needsAmount && !offerPanel.classList.contains('hidden')) offerAmount.focus();
       }
@@ -2878,7 +3060,7 @@
         const needsAmount = window.SidecarCLINK.amountRequired(offerData);
         const sats = parseInt(offerAmount.value, 10);
         if (needsAmount && (!sats || sats < 1)) {
-          return (offerErr.textContent = 'Enter an amount in sats.');
+          return (offerErr.textContent = t('Enter an amount in sats.'));
         }
         offerErr.textContent = '';
         if (!offerGate.pass(needsAmount ? sats : offerData.price || 0)) return;
@@ -2888,13 +3070,30 @@
           // The wallet first, because there is no point asking a stranger's service for
           // an invoice we would then have nothing to pay it with.
           const client = await ensureNwc();
-          if (!client) throw new Error('Wallet unavailable. Reconnect in the Wallet tab.');
-          offerPay.textContent = 'Asking…';
+          if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
+          offerPay.textContent = t('Asking…');
+          const paying = sats || offerData.price || 0;
+          // A ZAP, NOT JUST A PAYMENT. The bolt opened this panel, so the request carries
+          // the same signed kind 9734 the lightning-address path sends: the service
+          // commits it to the invoice and settles it with a 9735 receipt on Nostr, where
+          // every other zap lands. Without it the spec says the request is treated as a
+          // spontaneous payment — sats arrive and nothing is ever published.
+          const relays = [offerData.relay].concat(await readRelayUrls(pubkey))
+            .filter((r, i, all) => all.indexOf(r) === i).slice(0, 6);
+          const zapTemplate = options?.chatEvent
+            ? NT.nip57.makeZapRequest({ event: options.chatEvent, amount: paying * 1000, relays })
+            : NT.nip57.makeZapRequest({ pubkey, amount: paying * 1000, relays });
+          // Keep the payment recipient as the host, even when a provider published the stream.
+          if (options?.streamEvent && /^30311:[a-f0-9]{64}:/.test(options.streamEvent.address || '') && /^[a-f0-9]{64}$/.test(options.streamEvent.id || '')) {
+            zapTemplate.tags.push(['a', options.streamEvent.address], ['e', options.streamEvent.id], ['k', '30311']);
+          }
+          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: zapTemplate, expectedPubkey: state.activePubkey });
           const { bolt11 } = await clink.requestInvoice(offerData, {
             amountSats: needsAmount ? sats : offerData.price,
+            zap: JSON.stringify(signed),
+            payerData: { pubkey: state.activePubkey },
           });
-          const paying = sats || offerData.price || 0;
-          offerPay.textContent = 'Paying…';
+          offerPay.textContent = tSec('Paying…');
           flight = beginPaymentFlight(paying ? tSec('Paying {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paying'));
           await client.payInvoice(bolt11);
           if (flight) flight.settle(true, paying ? tSec('Paid {{amount}} sats', { amount: fmtSats(paying) }) : tSec('Paid'));
@@ -2902,21 +3101,22 @@
           closeModal();
           return;
         } catch (e) {
-          if (flight) flight.settle(false, null, e.message || 'Could not pay that offer.');
-          offerErr.textContent = e.message || 'Could not pay that offer.';
+          if (flight) flight.settle(false, null, e.message || t('Could not pay that offer.'));
+          offerErr.textContent = e.message || t('Could not pay that offer.');
         }
         offerPay.disabled = false;
         offerGate.paint();
       });
 
       // The same way out, for the same reason.
-      const offerQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: 'Show a QR to pay from another wallet' });
+      const offerQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: t('Show a QR to pay from another wallet') });
       offerQrBtn.append(icon('qr'));
       let offerFormHandoff = null;
       offerQrBtn.addEventListener('click', () => {
         if (!offerData) return;
         if (!offerFormHandoff) {
           offerFormHandoff = offerPayBlock(offerData, { hideConnect: true });
+          if (options?.chatEvent) offerFormHandoff.append(h('p', { className: 'hint zap-pay-note', textContent: t('Scan or copy sends a payment to the author, not a zap on this comment.') }));
           offerPanel.append(offerFormHandoff);
         }
         offerFormHandoff.classList.toggle('hidden');
@@ -2925,9 +3125,6 @@
         offerErr);
 
       const zapWrap = h('div', { className: 'peek-zap hidden' });
-      // Pay offer, inside the payment area the bolt opens. Rare, and a way to pay rather
-      // than a way out, so it is a worded button in the panel and not a fifth icon.
-      const payRow = h('div', { className: 'peek-pay-row hidden' });
       const zapErr = h('div', { className: 'error' });
       // THE BOLT IS AN ICON IN THE ROW UNDER THE NAME, beside follow, mute and the way out
       // to the client. It is there from the start and dimmed until there is something
@@ -2938,8 +3135,15 @@
       zapBtn.append(boltIcon());
       const enableBolt = () => { zapBtn.disabled = false; zapBtn.classList.remove('pending'); };
       let offerFound = null; // a profile with an offer and no address: the bolt opens it
-      const offerBtn = h('button', { className: 'secondary peek-zap-open' });
-      offerBtn.append(icon('zap'), h('span', { textContent: 'Pay offer' }));
+      // The switch between the two ways to pay. Hidden unless there are two.
+      const payTabs = h('div', { className: 'modal-tabs peek-pay-tabs hidden', role: 'tablist' });
+      const tabLightning = h('button', { className: 'modal-tab', type: 'button', role: 'tab', textContent: t('Lightning') });
+      const tabClink = h('button', { className: 'modal-tab', type: 'button', role: 'tab', textContent: t('CLINK') });
+      payTabs.append(tabLightning, tabClink);
+      wireTabSlider(payTabs, '.modal-tab');
+      let payTab = null; // which route was last chosen, so the bolt reopens on it
+      tabLightning.addEventListener('click', () => selectTab('lightning'));
+      tabClink.addEventListener('click', () => selectTab('clink'));
       let offerShown = false;
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
       const amount = satsInput('sats');
@@ -2947,17 +3151,17 @@
       // and on a 358px panel a row of taps beats a numeric keyboard covering half
       // the sheet. The fourth of them is the one set in Settings.
       const presets = zapPresetRow(amount);
-      const note = h('input', { type: 'text', className: 'status-input', placeholder: 'Message (optional)', maxLength: 200 });
-      const send = h('button', { className: 'primary', textContent: 'Send zap' });
+      const note = h('input', { type: 'text', className: 'status-input', placeholder: t('Message (optional)'), maxLength: 200 });
+      const send = h('button', { className: 'primary', textContent: tSec('Send zap') });
       const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm') });
       amount.addEventListener('input', zapGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
-        if (!sats || sats < 1) return (zapErr.textContent = 'Enter an amount in sats.');
+        if (!sats || sats < 1) return (zapErr.textContent = t('Enter an amount in sats.'));
         zapErr.textContent = '';
         if (!zapGate.pass(sats)) return;
         send.disabled = true;
-        send.textContent = 'Sending…';
+        send.textContent = tSec('Sending…');
         // The panel path people actually reach. This sheet is dismissible mid-zap, so a
         // disabled button inside it was never an in-flight indicator: close the sheet and
         // there was nothing at all until the toast. Same start point as the Send modal:
@@ -2990,6 +3194,9 @@
           // address at best.
           await savePayMeta(invoice, {
             zapPubkey: pubkey,
+            // The comment this zap landed on, when it was a comment zap: the request's e tag
+            // is its id, so the details pane can link to it. A stream or profile zap has none.
+            zapEvent: (options?.chatEvent && options.chatEvent.id) || undefined,
             address: zapAddr,
             comment: note.value.trim(),
             feeMsat: res && res.fees_paid,
@@ -3019,19 +3226,24 @@
         }
         // ONE PAYMENT PANEL AT A TIME. Two open at once is two amount fields and two Pay
         // buttons on a 358px sheet, and no way to tell which one a number was typed into.
-        offerPanel.classList.add('hidden');
-        if (offerHandoff) offerHandoff.classList.add('hidden');
-        zapPanel.classList.toggle('hidden');
-        paintPayState();
-        // Only the form has anything to type into; focusing the other one focuses a QR.
-        if (zapPanel === zapForm && !zapForm.classList.contains('hidden')) amount.focus();
+        const open = !zapPanel.classList.contains('hidden') || !offerPanel.classList.contains('hidden')
+          || (offerHandoff && !offerHandoff.classList.contains('hidden'));
+        if (open) {
+          zapPanel.classList.add('hidden');
+          offerPanel.classList.add('hidden');
+          if (offerHandoff) offerHandoff.classList.add('hidden');
+          paintPayState();
+          return;
+        }
+        // Reopens on the route you were last on.
+        selectTab(offerShown && payTab === 'clink' ? 'clink' : 'lightning');
       });
       // A WAY OUT TO ANOTHER WALLET EVEN WHEN THERE IS ONE HERE. Having connected a wallet
       // does not mean wanting to pay from this machine: the phone in your pocket is often
       // the wallet, and before this the QR existed only for people who had connected
       // nothing. Icon only, beside the field, because the row has a value in it and the
       // panel's rule is that a control sharing a row with content carries no words.
-      const zapQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: 'Show a QR to pay from another wallet' });
+      const zapQrBtn = h('button', { className: 'mini ghost peek-qr-toggle', type: 'button', title: t('Show a QR to pay from another wallet') });
       zapQrBtn.append(icon('qr'));
       let zapHandoff = null;
       zapQrBtn.addEventListener('click', () => {
@@ -3046,7 +3258,7 @@
       });
       zapForm.append(presets, note, h('div', { className: 'zap-inline' }, [amount, zapQrBtn, send]),
         zapDefaultSaver(amount, presets), zapErr);
-      zapWrap.append(payRow);   // sits under the icon row, mounted with it below; filled once both answers are in
+      zapWrap.append(payTabs);  // first in the area; shown once there are two ways to pay
 
       // Asked here, AFTER the pieces it chooses between exist. Started earlier it would
       // still have worked, because a promise cannot run its callback before this function
@@ -3116,7 +3328,21 @@
         if (c.picture) applyAvatar(av, { picture: c.picture });
         // Their CLINK offer, if the kind 0 carries one. Off the same content paint()
         // already has, so it costs no lookup.
-        revealOffer(profileOffer(c));
+        const foundOffer = profileOffer(c);
+        revealOffer(foundOffer);
+        if (foundOffer) {
+          const rawOffer = window.SidecarCLINK.stripNostrPrefix(foundOffer.raw || '');
+          offerLine.innerHTML = '';
+          offerLine.append(boltIcon(), h('span', { textContent: truncMid(rawOffer, 18, 6) }));
+          offerLine.classList.remove('hidden');
+          offerLine.title = t('Copy this CLINK offer');
+          offerLine.onclick = () => {
+            copyPlain(rawOffer).then(
+              () => toast(t('Copied ✓'), 'success'),
+              () => toast(t('Could not copy'), 'error')
+            );
+          };
+        }
         const display = c.display_name || c.displayName || c.name || '';
         if (display) name.textContent = display;
         nip05Row.classList.add('hidden');
@@ -3154,11 +3380,11 @@
           lud.innerHTML = '';
           lud.append(boltIcon(), h('span', { textContent: c.lud16 }));
           lud.classList.remove('hidden');
-          lud.title = 'Copy lightning address';
+          lud.title = t('Copy lightning address');
           lud.onclick = () => {
             navigator.clipboard.writeText(c.lud16).then(
-              () => toast('Lightning address copied', 'success'),
-              () => toast('Could not copy', 'error')
+              () => toast(t('Lightning address copied'), 'success'),
+              () => toast(t('Could not copy'), 'error')
             );
           };
           zapAddr = c.lud16;
@@ -3174,11 +3400,13 @@
             revealZap();
           } else {
             lnAddressParams(c.lud16).then((p) => {
-              if (!p.zappable) return;
+              if (!p.zappable) return settleZapSheetOffer();
               zapZappable = true;
               revealZap();
-            }).catch(() => {});
+            }).catch(() => settleZapSheetOffer());
           }
+        } else {
+          settleZapSheetOffer();
         }
       }
 
@@ -3277,7 +3505,7 @@
       const paintTrust = () => {
         const old = item.querySelector('.ac-item-trust');
         if (old) old.remove();
-        const label = c.tier === 2 ? 'Following' : c.tier === 1 ? 'In your network' : '';
+        const label = c.tier === 2 ? t('Following') : c.tier === 1 ? t('In your network') : '';
         if (label) nameEl.after(h('span', { className: 'ac-item-trust', textContent: label }));
       };
       paintTrust();
@@ -3288,7 +3516,7 @@
     if (loading) {
       box.append(h('div', { className: 'ac-loading' }, [
         h('span', { className: 'ac-spinner' }),
-        h('span', { textContent: items.length ? 'Searching more…' : 'Searching Nostr…' }),
+        h('span', { textContent: items.length ? t('Searching more…') : t('Searching Nostr…') }),
       ]));
     }
     // Above the results, same as the composer dropdown: this box caps and scrolls
@@ -3416,7 +3644,7 @@
   function maybeShowSwitchTip() {
     chrome.storage.local.get('switchTipDismissed', ({ switchTipDismissed }) => {
       if (switchTipDismissed || $('switch-tip')) return;
-      const x = h('button', { className: 'switch-tip-x', title: 'Dismiss' });
+      const x = h('button', { className: 'switch-tip-x', title: t('Dismiss') });
       x.append(icon('x'));
       x.addEventListener('click', () => {
         chrome.storage.local.set({ switchTipDismissed: true });
@@ -3425,7 +3653,7 @@
       const guideLink = h('a', {
         className: 'switch-tip-link',
         href: '#',
-        textContent: 'Read the guide →',
+        textContent: t('Read the guide →'),
       });
       guideLink.addEventListener('click', (e) => {
         e.preventDefault();
@@ -3434,12 +3662,12 @@
       const tip = h('div', { id: 'switch-tip', className: 'switch-tip' }, [
         h('div', { className: 'switch-tip-title' }, [
           icon('refresh'),
-          h('span', { textContent: 'Switching accounts?' }),
+          h('span', { textContent: t('Switching accounts?') }),
         ]),
         h('p', {
           className: 'switch-tip-body',
           textContent:
-            'Clients keep using the account you logged in with. Reload the page or log out and back in to switch accounts.',
+            t('Clients keep using the account you logged in with. Reload the page or log out and back in to switch accounts.'),
         }),
         guideLink,
         x,
@@ -3466,14 +3694,14 @@
         chrome.storage.local.remove('versionCard');
         card.remove();
       };
-      const x = h('button', { className: 'switch-tip-x', title: 'Dismiss' });
+      const x = h('button', { className: 'switch-tip-x', title: t('Dismiss') });
       x.append(icon('x'));
       x.addEventListener('click', done);
 
       const link = h('a', {
         className: 'switch-tip-link',
         href: '#',
-        textContent: "See what's new →",
+        textContent: t("See what's new →"),
       });
       link.addEventListener('click', (e) => {
         e.preventDefault();
@@ -3486,7 +3714,7 @@
       const card = h('div', { id: 'version-card', className: 'switch-tip version-card' }, [
         h('div', { className: 'switch-tip-title' }, [
           icon('sparkle'),
-          h('span', { textContent: 'Updated to ' + versionCard.to }),
+          h('span', { textContent: t('Updated to {{version}}', { version: versionCard.to }) }),
         ]),
         h('p', {
           className: 'switch-tip-body',
@@ -3882,7 +4110,7 @@
     // The two never collide: you cannot switch to the account you are already on, so an
     // active row never arms.
     function armCancel(row, a) {
-      const cancel = iconButton('Cancel', 'x', (e) => {
+      const cancel = iconButton(t('Cancel'), 'x', (e) => {
         e.stopPropagation();
         resetRow(row, a);
       });
@@ -3918,12 +4146,12 @@
             await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: a.pubkey });
             await refresh();
             revealActiveAccount(); // on Accounts, the new one in view; elsewhere a no-op
-            toast('Switched to ' + displayName(a), 'success');
+            toast(t('Switched to {{name}}', {name:displayName(a)}), 'success');
             if (!(await offerTabReload())) maybeShowSwitchTip();
           } else {
             row.classList.add('acct-row-pending');
-            row.querySelector('.acct-row-name').textContent = 'Switch to ' + displayName(a) + '?';
-            row.querySelector('.acct-row-npub').textContent = 'Tap again to confirm';
+            row.querySelector('.acct-row-name').textContent = t('Switch to {{name}}?', { name: displayName(a) });
+            row.querySelector('.acct-row-npub').textContent = t('Tap again to confirm');
             pendingRow = row;
             row.dataset.pubkey = a.pubkey;
             armCancel(row, a);
@@ -3937,7 +4165,7 @@
     // so there's one path to Generate/Import rather than two.
     const addRow = h('button', { className: 'acct-row foot' }, [
       h('span', { className: 'add-account-badge sm' }, [icon('plus')]),
-      h('span', { className: 'acct-row-name', textContent: 'Add account' }),
+      h('span', { className: 'acct-row-name', textContent: t('Add account') }),
     ]);
     addRow.addEventListener('click', () => {
       closeAcctMenu();
@@ -3946,7 +4174,7 @@
     menu.append(addRow);
 
     const foot = h('button', { className: 'acct-row foot' }, [
-      h('span', { className: 'acct-row-name', textContent: 'Manage accounts' }),
+      h('span', { className: 'acct-row-name', textContent: t('Manage accounts') }),
     ]);
     foot.addEventListener('click', () => {
       closeAcctMenu();
@@ -4024,6 +4252,12 @@
       const inset = target.offsetWidth * 0.16;
       const x = target.offsetLeft + inset;
       const w = target.offsetWidth - inset * 2;
+      // Rows wrap at panel-narrow widths: the mark follows the active item's own row
+      // rather than the bottom of the bar. For a one-row bar this is the same pixel
+      // the bottom: -1px rule drew (the item stretches the full bar height), so the
+      // shared bars are unaffected; with top and height both set, the CSS bottom is
+      // the over-constrained value and drops out.
+      slider.style.top = (target.offsetTop + target.offsetHeight - 1) + 'px';
       if (animate) {
         slider.style.transform = 'translateX(' + x + 'px)';
         slider.style.width = w + 'px';
@@ -4367,23 +4601,55 @@
     const urls = [...new Set(relays || [])];
     if (!urls.length) return Promise.resolve({ events: [], answered: false });
     const realBefore = (params && params.maxWait) || BASE_EOSE_TIMEOUT;
+    // settleAfter (opt-in): settle that long after the first event, rather than waiting
+    // for every relay. Without it one relay that never answers holds the result for the
+    // whole window even when another had it in a tenth of a second. The pause leaves time
+    // for a newer copy on another relay to land; whatever is still open is closed. On a
+    // single-author filter only that author's event starts the clock, since a relay is
+    // not obliged to honor the filter.
+    const settleAfter = params && params.settleAfter;
+    const author = filter.authors && filter.authors.length === 1 ? filter.authors[0] : null;
+    // capMs (opt-in): resolve by then with whatever has arrived, and say so with
+    // complete: false. For a read that must wait for every relay (a replaceable record
+    // whose copies differ by relay) but cannot wait on one that never connects.
+    const capMs = params && params.capMs;
+    const subParams = Object.assign({}, params);
+    delete subParams.settleAfter;
+    delete subParams.capMs;
     return new Promise((resolve) => {
       const events = [];
       const seen = new Set();
+      const subs = [];
       const t0 = Date.now();
       let answered = false;
       let left = urls.length;
+      let done = false;
+      let settleTimer = null;
+      let capTimer = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(settleTimer);
+        clearTimeout(capTimer);
+        resolve({ events, answered, complete: left === 0 });
+        if (settleAfter || capMs) for (const sub of subs) { try { sub.close(); } catch (_) {} }
+      };
+      if (capMs) capTimer = setTimeout(finish, capMs);
       for (const url of urls) {
-        poolSubscribeManyEose([url], filter, Object.assign({}, params, {
+        if (done) break;
+        subs.push(poolSubscribeManyEose([url], filter, Object.assign({}, subParams, {
           onevent: (ev) => {
             answered = true; // an event is an answer, whenever it lands
             if (ev && !seen.has(ev.id)) { seen.add(ev.id); events.push(ev); }
+            if (settleAfter && !settleTimer && ev && (!author || ev.pubkey === author)) {
+              settleTimer = setTimeout(finish, settleAfter);
+            }
           },
           onclose: (reasons) => {
             if ((reasons || [])[0] === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
-            if (--left === 0) resolve({ events, answered });
+            if (--left === 0) finish();
           },
-        }));
+        })));
       }
     });
   }
@@ -4515,10 +4781,72 @@
   const PROFILE_TTL = 5 * 60 * 1000;
   const _profileCache = new Map();    // pubkey -> { content, name, picture, expiresAt }
   const _profileInflight = new Map(); // pubkey -> Promise
-  // Follow count per pubkey (see getFollowCount below). Session-lived with no TTL, so
-  // the profile screen's refresh button clears it alongside _profileCache — declared
-  // here rather than beside its function so both caches sit together.
-  const followCountCache = new Map(); // pubkey -> number|null
+  // Follow count per pubkey (see getFollowCount below). Cached with the profile
+  // cache's five-minute TTL: inside the window the session value is served
+  // as-is, past it the next read re-queries — so a follow list another client
+  // restored shows up here within minutes instead of living until a reload.
+  // The profile screen's refresh button still clears it alongside _profileCache
+  // for a forced read. Declared here rather than beside its function so both
+  // caches sit together.
+  // Dev builds run the whole cycle at one minute so the live-update path can
+  // be rehearsed without a coffee break; production keeps the five-minute
+  // window. The tick's cadence and this TTL are separate knobs on purpose.
+  const FOLLOW_COUNT_TTL = isDevBuild() ? 60 * 1000 : PROFILE_TTL;
+  const followCountCache = new Map(); // pubkey -> { v: number|null, at: epoch ms }
+  // Writers (a follow, an unfollow, a Lazarus restore) call repaintFollowCounts
+  // after refreshing the cache, and every live figure — the Overview drawer's,
+  // the Profile tab's — registers a repainter here when it renders. Repainters
+  // capture their own element and drop themselves once it is no longer in the
+  // document, so nothing piles up across renders. A DOM event does NOT work
+  // here: one dispatched on document never reaches listeners on descendants.
+  const followCountRepainters = new Set();
+  function registerFollowRepainter(el, fn) {
+    const repainter = () => {
+      if (!el.isConnected) { followCountRepainters.delete(repainter); return; }
+      fn();
+    };
+    followCountRepainters.add(repainter);
+  }
+  function repaintFollowCounts() {
+    for (const fn of [...followCountRepainters]) fn();
+  }
+  // Live update: while the panel is open AND visible, stale counts re-read from
+  // the relays and the figures repaint by themselves — a follow list restored in
+  // another client moves the number on screen without the user touching a tab.
+  // The check runs every minute, and the moment the panel returns to view. Both
+  // matter: a minute is the longest an expired count waits for the cadence, and
+  // a fully occluded window counts as hidden, so the ticks were SKIPPED while
+  // the user was away in another app — running on return is what makes the
+  // figure right the moment they look at it instead of a minute later. Guards:
+  // entries only expire into a re-read, only the active account is polled, and one
+  // cycle never overlaps the last.
+  let followRefreshInFlight = false;
+  function refreshStaleFollowCounts() {
+    // 'visible' is too strict a gate: Firefox's sidebar documents can sit at
+    // other visibility states while plainly on screen, which would freeze the
+    // figures forever. Run unless the document is outright hidden.
+    if (followRefreshInFlight || document.visibilityState === 'hidden') return;
+    // Only the active account has a figure on screen. Any other cached entry (an
+    // account read before a switch, one since removed) re-reads on its own next
+    // render, and polling it here would query the relays about a key nobody is
+    // looking at, every cycle, for as long as the panel stays open.
+    const live = state && state.activePubkey;
+    const stale = [...followCountCache.entries()].filter(([pk, e]) => pk === live && Date.now() - e.at >= FOLLOW_COUNT_TTL);
+    if (!stale.length) return;
+    followRefreshInFlight = true;
+    if (isDevBuild()) console.debug(`[follows] tick: re-reading ${stale.length} stale count(s)`);
+    Promise.all(stale.map(([pk]) => getFollowCount(pk)))
+      .then(() => {
+        if (isDevBuild()) console.debug('[follows] re-read done, repainting figures');
+        repaintFollowCounts();
+      })
+      .catch(() => {})
+      .finally(() => { followRefreshInFlight = false; });
+  }
+  setInterval(refreshStaleFollowCounts, 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshStaleFollowCounts();
+  });
   // Whether the collapsible stats drawer under the active account row is open, once
   // the user has opened or closed it; null until then. Until they choose, it is open for
   // up to three accounts, so a short list is not sparse, and closed past that: open, it
@@ -4527,9 +4855,27 @@
   const ACCOUNT_STATS_OPEN_MAX = 3;
   // Whether the panel has shown the active account once since it opened (revealActiveAccount).
   let _activeRevealedOnOpen = false;
-  const accountStatsOpen = () => (accountStatsExpanded == null
+  // While the video player is open the overview stays closed, so more of the panel shows
+  // beside it. Held apart from accountStatsExpanded, which is the person's own choice and
+  // comes back when the player closes; opening the drawer by hand ends the hold.
+  let statsCollapsedForPlayer = false;
+  const accountStatsOpen = () => (statsCollapsedForPlayer ? false : accountStatsExpanded == null
     ? ((state && state.accounts) || []).length <= ACCOUNT_STATS_OPEN_MAX
     : accountStatsExpanded);
+  // The drawer on screen, so the player opening or closing can fold it without a rebuild.
+  let accountStatsSync = null;
+  (() => {
+    const dock = $('stream-dock');
+    if (!dock) return;
+    let playing = dock.classList.contains('stream-playing');
+    new MutationObserver(() => {
+      const now = dock.classList.contains('stream-playing');
+      if (now === playing) return;
+      playing = now;
+      statsCollapsedForPlayer = now;
+      if (accountStatsSync) accountStatsSync();
+    }).observe(dock, { attributes: true, attributeFilter: ['class'] });
+  })();
   // The overview's "the network is back, retry what failed", for the one overview on
   // screen. A single listener and a slot rather than a listener per render: the drawer is
   // rebuilt on every renderMain, and each rebuild adding its own would pile up closures
@@ -4559,16 +4905,34 @@
     const hit = _profileCache.get(pubkey);
     return hit && hit.expiresAt > Date.now() ? hit : null;
   }
+
+  // A COMPLETE profile the shared cache already holds, name and picture both. Half an
+  // answer is no shortcut: the backfill's own question is whether the account still
+  // needs anything, and settling it with a name and no picture would strand the
+  // picture behind a settled flag.
+  function cachedCompleteProfile(pubkey) {
+    const hit = cachedProfile(pubkey);
+    return hit && hit.name && hit.picture ? hit : null;
+  }
   // ONE QUERY FOR A LIST OF AUTHORS, the way the bell reads its senders
   // (prefetchNotifProfiles). A getProfile per author, all at once, is enough concurrent
   // REQs that many fail, and each failure renders as an npub. The configured relays are
   // asked with purplepag.es, the kind:0 aggregator, and the answers fill the profile
   // cache. The user's own accounts still go through getProfile, which reads their
   // declared relays; for everyone else nobody answering means no name, not a retry.
-  async function profilesFor(pubkeys) {
+  // WHAT WAS ASKED, AND WHEN. A name or note no relay has stays missing, and a list that counted
+  // that as unfinished would ask again behind every reopen. Within five minutes a question already
+  // asked is settled; after that it is worth asking once more.
+  const _asked = new Map();
+  const ASKED_TTL = 5 * 60 * 1000;
+  const markAsked = (keys) => { const until = Date.now() + ASKED_TTL; for (const k of keys) _asked.set(k, until); };
+  const wasAsked = (k) => (_asked.get(k) || 0) > Date.now();
+  // `offline` answers from what is already known and asks no relay: a list paints from that at
+  // once, and asks properly behind it for whatever it was missing.
+  async function profilesFor(pubkeys, opts) {
     const all = [...new Set(pubkeys)].filter((pk) => /^[0-9a-f]{64}$/.test(pk || ''));
     const own = new Set(((state && state.accounts) || []).map((a) => a.pubkey));
-    const need = all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
+    const need = opts && opts.offline ? [] : all.filter((pk) => !own.has(pk) && !cachedProfile(pk));
     if (need.length) {
       const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
       for (let i = 0; i < need.length; i += 100) {
@@ -4598,6 +4962,7 @@
         if (ev) { try { cacheProfile(pk, JSON.parse(ev.content) || {}); } catch (_) {} }
       }));
     }
+    if (!(opts && opts.offline)) markAsked(all.map((pk) => 'p:' + pk));
     return new Map(await Promise.all(all.map(async (pk) =>
       [pk, cachedProfile(pk) || (own.has(pk) ? await getProfile(pk).catch(() => null) : null)])));
   }
@@ -4669,6 +5034,46 @@
     })();
     _profileInflight.set(pubkey, p);
     return p;
+  }
+
+  // The profile to ZAP someone from, read from the relays THEY publish to.
+  //
+  // Their own write relays (kind:10002) are the source of truth: the lightning address is
+  // where the money goes, and a copy anywhere else is only a copy. The notification zap
+  // form used to ask the configured relays alone, which rarely carry a stranger's kind:0,
+  // and read finding nothing as "They have no lightning address" for people who have one.
+  //
+  // Their relay list comes from the session cache when it holds one, otherwise from the
+  // configured set plus the aggregator, which collects kind:10002. It stays in memory: a
+  // disk write per stranger zapped is not worth keeping. Only when they publish no list,
+  // or none of their relays has a profile, does the address come from the configured set
+  // plus the aggregator, the same set getProfile reads. That read starts at once, so the
+  // fallback costs no extra wait. Every read settles shortly after its first answer
+  // (settleAfter), so a relay on their list that never answers no longer holds the form.
+  //
+  // Resolves { profile, answered }: answered is false only when no relay anywhere replied,
+  // so the caller can tell "could not load" from "has no address".
+  const ZAP_LOOKUP = { maxWait: PROFILE_MAX_WAIT, settleAfter: 300 };
+  async function zapRecipientProfile(pubkey) {
+    const miss = { ev: null, answered: false };
+    const read = (relays) => (relays.length ? poolGetProfileInfo(relays, pubkey, ZAP_LOOKUP) : Promise.resolve(miss));
+    const wide = relayUrls(false).catch(() => []).then((relays) => [...new Set([...relays, 'wss://purplepag.es'])]);
+    const list = nip65Cache.has(pubkey)
+      ? Promise.resolve(nip65Cache.get(pubkey))
+      : wide.then((relays) => poolQueryAnswered(relays, { kinds: [10002], authors: [pubkey], limit: 1 }, ZAP_LOOKUP))
+        .then(({ events }) => {
+          const ev = events.filter((e) => e && e.pubkey === pubkey).sort((x, y) => y.created_at - x.created_at)[0];
+          return ev ? self.SidecarRelayPolicy.listFromTags(ev.tags) : null;
+        });
+    const own = list.then((l) => read((l && l.write) || [])).catch(() => miss);
+    const fallback = wide.then(read).catch(() => miss);
+    const fromOwn = await own;
+    const res = fromOwn.ev ? fromOwn : await fallback;
+    if (!res.ev) return { profile: null, answered: fromOwn.answered || res.answered };
+    let content = {};
+    try { content = JSON.parse(res.ev.content) || {}; } catch (_) {}
+    cacheProfile(pubkey, content);
+    return { profile: content, answered: true };
   }
 
   async function fetchPreviewProfile(pubkey) {
@@ -4882,7 +5287,7 @@
   // configured and it was the LOOKUP that failed.
   class RelayListUnavailable extends Error {
     constructor() {
-      super('Could not load your relay list — check your connection and try again.');
+      super(t('Could not load your relay list — check your connection and try again.'));
       this.name = 'RelayListUnavailable';
     }
   }
@@ -4960,8 +5365,11 @@
     ]);
   }
 
-  async function publishToRelays(relays, signed) {
-    if (!relays.length) throw new Error('No relays configured (add some in Settings)');
+  // `report`, when a caller passes one, is filled with which relays accepted the event and why
+  // the others did not, in the shape the shared core's relayReportNode reads: { accepted,
+  // failed, total }. The return value stays the count every other caller already reads.
+  async function publishToRelays(relays, signed, report) {
+    if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
     // Dedupe the way the pool will. A plain Set over the raw strings keeps
     // 'wss://nos.lol' and 'wss://nos.lol/' as two entries, but SimplePool normalizes
     // before connecting and rejects the second with 'duplicate url' — which then
@@ -4993,6 +5401,14 @@
       resetPoolRelays(targets.filter((_, i) => publishFailed(results[i])));
     }
 
+    if (report) {
+      const SCore = window.SidecarCore;
+      report.accepted = targets.filter((_, i) => !publishFailed(results[i]));
+      report.failed = targets
+        .map((url, i) => (publishFailed(results[i]) ? { url, ...SCore.publishRefusal(results[i]) } : null))
+        .filter(Boolean);
+      report.total = targets.length;
+    }
     if (!ok) {
       throw new Error(publishFailureMessage(targets, results));
     }
@@ -5009,19 +5425,30 @@
   // network, or Sidecar holding too many connections). Says so, rather than making
   // the user infer it from a list.
   function publishFailureMessage(targets, results) {
+    // A CODE per reason, never the words: the sentence is chosen by comparing codes, and
+    // comparing translated text would break the moment a language changed it. A reason
+    // the relay put in its own words is passed through as data (code 'raw').
     const reasonOf = (r) => {
       const raw = r.status === 'rejected'
         ? (r.reason && r.reason.message) || String(r.reason || 'rejected')
         : String(r.value || 'refused');
-      // 'connection failure: connection timed out' → 'timed out'
-      if (/timed?\s*out/i.test(raw)) return 'timed out';
-      if (/connection failure|failed to connect|websocket/i.test(raw)) return "couldn't connect";
-      if (/blocked|restricted|not allowed|forbidden/i.test(raw)) return 'refused the note';
-      if (/rate|too many|slow down/i.test(raw)) return 'rate-limited us';
-      if (/auth/i.test(raw)) return 'wants authentication';
+      // 'connection failure: connection timed out' → timeout
+      if (/timed?\s*out/i.test(raw)) return 'timeout';
+      if (/connection failure|failed to connect|websocket/i.test(raw)) return 'connect';
+      if (/blocked|restricted|not allowed|forbidden/i.test(raw)) return 'refused';
+      if (/rate|too many|slow down/i.test(raw)) return 'rate';
+      if (/auth/i.test(raw)) return 'auth';
       // Something specific and short enough to be worth showing verbatim.
-      return raw.replace(/^connection failure:\s*/i, '').slice(0, 60);
+      return 'raw:' + raw.replace(/^connection failure:\s*/i, '').slice(0, 60);
     };
+    // The short form, for naming each group when the reasons are mixed.
+    const shortWhy = (code) => ({
+      timeout: t('timed out'),
+      connect: t("couldn't connect"),
+      refused: t('refused the note'),
+      rate: t('rate-limited us'),
+      auth: t('wants authentication'),
+    }[code] || code.slice(4));
 
     const byReason = new Map();
     results.forEach((r, i) => {
@@ -5031,15 +5458,19 @@
     });
 
     const n = targets.length;
-    const relayCount = n === 1 ? 'your relay' : `all ${n} of your relays`;
-    // Every relay failed the same way — almost certainly local, so lead with that.
+    // Every relay failed the same way: almost certainly local, so lead with that. One
+    // whole sentence per outcome, singular and plural, so a language can build each its
+    // own way.
     if (byReason.size === 1) {
       const [why] = [...byReason.keys()];
-      if (why === 'timed out' || why === "couldn't connect") {
-        return `Couldn't reach ${relayCount}. Check your connection, then try again — your note is saved as a draft.`;
+      if (why === 'timeout' || why === 'connect') {
+        return tn("Couldn't reach your relay. Check your connection, then try again — your note is saved as a draft.",
+          "Couldn't reach all {{count}} of your relays. Check your connection, then try again — your note is saved as a draft.", n);
       }
-      const subject = n === 1 ? 'Your relay' : `All ${n} relays`;
-      return `${subject} ${why}. Your note is saved as a draft.`;
+      if (why === 'refused') return tn('Your relay refused the note. Your note is saved as a draft.', 'All {{count}} relays refused the note. Your note is saved as a draft.', n);
+      if (why === 'rate') return tn('Your relay rate-limited us. Your note is saved as a draft.', 'All {{count}} relays rate-limited us. Your note is saved as a draft.', n);
+      if (why === 'auth') return tn('Your relay wants authentication. Your note is saved as a draft.', 'All {{count}} relays want authentication. Your note is saved as a draft.', n);
+      return tn('Your relay answered: {{reason}}. Your note is saved as a draft.', 'All {{count}} relays answered: {{reason}}. Your note is saved as a draft.', n, { reason: why.slice(4) });
     }
 
     // Mixed reasons: name each group, capped so the toast stays a toast.
@@ -5047,12 +5478,14 @@
       .sort((a, b) => b[1].length - a[1].length)
       .slice(0, 3)
       .map(([why, hosts]) => {
-        const shown = hosts.slice(0, 2).join(', ');
-        const more = hosts.length > 2 ? ` +${hosts.length - 2} more` : '';
-        return `${shown}${more} ${why}`;
+        const shown = hosts.length > 2
+          ? tn('{{hosts}} +{{count}} more', '{{hosts}} +{{count}} more', hosts.length - 2, { hosts: hosts.slice(0, 2).join(', ') })
+          : hosts.join(', ');
+        return t('{{hosts}}: {{reason}}', { hosts: shown, reason: shortWhy(why) });
       });
-    return `Couldn't publish to any relay — ${parts.join('; ')}. Your note is saved as a draft.`;
+    return t("Couldn't publish to any relay — {{groups}}. Your note is saved as a draft.", { groups: parts.join('; ') });
   }
+
 
   // 'wss://relay.nostr.wine/' → 'relay.nostr.wine'
   function hostOf(url) {
@@ -5060,8 +5493,8 @@
   }
 
   // Publish an already-signed event to the account's write relays (NIP-65 → configured).
-  async function publishSigned(signed) {
-    return publishToRelays(await postRelays(), signed);
+  async function publishSigned(signed, report) {
+    return publishToRelays(await postRelays(), signed, report);
   }
 
   // ---- web comments (NIP-22 kind 1111 over a NIP-73 "web" target) -------------
@@ -5104,7 +5537,7 @@
     pollOptionId, newPollDraft, pollEndsAtFor, pollDraftOptions, pollDraftIsPostable,
     buildPollTags, buildPollEditor,
   } = window.SidecarCore;
-  const { buildGifPicker } = window.SidecarCore;
+  const { buildGifPicker, buildEmojiPicker, composeToolBtn, buildPowButton } = window.SidecarCore;
   // Saved drafts, listed the same way the expanded composer lists them.
   const { otherDraftEntries, buildSavedDraftList } = window.SidecarCore;
   // The same note posted twice: see postFingerprint in composer-core.js.
@@ -5175,6 +5608,39 @@
 
   function pollRelayTags(ev) {
     return ((ev && ev.tags) || []).filter((t) => t[0] === 'relay' && t[1]).map((t) => t[1]);
+  }
+
+  // NIP-88 SAYS WHERE A BALLOT GOES, AND THE BIG CLIENTS DO NOT SEND IT THERE. The spec:
+  // "The responses are meant to be published to the relays specified in the poll event."
+  // The practice, measured on a live poll in October 2026 — 12 ballots, of which 10 sat
+  // on relay.primal.net, 6 on relay.damus.io and 4 on relay.snort.social, none of which
+  // the poll or its author named, while the poll's own four relays between them held 4.
+  // Those three are the backends Primal, Damus and Snort file their users' votes with;
+  // nos.lol is the largest general relay, where the smaller clients' ballots land. A
+  // count asked only of the poll's relays is a subset of the real one on every poll,
+  // by construction, which is why every other client shows more votes than this panel.
+  //
+  // relay.ditto.pub joined after a second poll, measured the same month: 23 voters, two
+  // of whose ballots sat on no relay this list or the poll named. Without them this
+  // panel showed the losing option ahead. relay.ditto.pub held every ballot on that poll.
+  //
+  // Asked for kind:1018 ballots by poll id, and for nothing else. The tally still
+  // applies every rule to what comes back — one ballot per pubkey, nothing past endsAt —
+  // so a relay here can surface a voter, but cannot invent one.
+  const POLL_VOTE_DISCOVERY_RELAYS = [
+    'wss://relay.primal.net',
+    'wss://relay.damus.io',
+    'wss://relay.snort.social',
+    'wss://nos.lol',
+    'wss://relay.ditto.pub',
+  ];
+
+  // The full set a vote query is sent to: the poll's own relays first — a compliant
+  // ballot is there, and those are the relays likeliest to answer — then this account's,
+  // then the discovery set. Pure, so the two surfaces that count votes, the list and the
+  // results sheet, ask the same universe and cannot drift apart.
+  function pollVoteQueryUrls(pollUrls, accountUrls) {
+    return [...new Set([...(pollUrls || []), ...(accountUrls || []), ...POLL_VOTE_DISCOVERY_RELAYS])];
   }
 
   // COUNTING IS THE PART WITH RULES, so all of them live here rather than in the view.
@@ -5255,17 +5721,26 @@
   // kind 1068 has no close: a poll posted without `endsAt` can take a vote on day 400,
   // and nothing in the protocol says otherwise. But a list that treats a poll from March
   // as live forever is a list where nothing is ever live, so after this long an
-  // open-ended poll moves in with the finished ones.
+  // open-ended poll moves in with the finished ones. Seven days, no longer thirty: the
+  // bell's Polls tab counts by the same window, and the two disagreeing was a tab saying
+  // nothing is live over a list still flying the poll under Open.
   //
   // It is a display rule and only a display rule. The tally still counts every ballot,
   // because discarding votes to match a number we invented would be the panel lying
   // about somebody else's poll rather than about its own housekeeping.
-  const POLL_WATCH_SECS = 30 * 86400;
+  const POLL_WATCH_SECS = 7 * 86400;
 
-  // True when a poll has no end date and has aged past the watch window.
+  // True when a poll has no end date and has aged past the watch window. The value form
+  // is what the tab's live count reads: the polls the notification loaders keep carry a
+  // posted time and an end date, not the whole event.
+  function pollWatchExpiredAt(createdAt, endsAt) {
+    if (endsAt) return false;
+    return (createdAt || 0) + POLL_WATCH_SECS <= Math.floor(Date.now() / 1000);
+  }
+
   function pollWatchExpired(ev) {
-    if (!ev || pollEndsAt(ev)) return false;
-    return (ev.created_at || 0) + POLL_WATCH_SECS <= Math.floor(Date.now() / 1000);
+    if (!ev) return false;
+    return pollWatchExpiredAt(ev.created_at, pollEndsAt(ev));
   }
 
   // "ends in 5d", "ended 2h ago", or the open-ended case. Deliberately coarse: the exact
@@ -5290,6 +5765,14 @@
     return !!endsAt && endsAt <= Math.floor(Date.now() / 1000);
   }
 
+  // LIVE FOR SIDECAR'S HOUSEKEEPING, not a fact about the poll: an end date still
+  // ahead, or an open-ended poll inside the watch window. One definition for both
+  // places that ask, the bell's Polls tab and the list's Open group, so a poll cannot
+  // leave one while it still holds the other.
+  function pollIsLive(createdAt, endsAt) {
+    return !pollHasEnded(endsAt) && !pollWatchExpiredAt(createdAt, endsAt);
+  }
+
   // DONE WITH, WHICH IS NOT THE SAME AS ENDED, and the difference is why this is its own
   // function rather than a widened pollHasEnded. That one answers a fact about the poll:
   // its end date passed. The tally sheet asks it and says "ended" on the strength of the
@@ -5297,7 +5780,7 @@
   // closed when its author never closed it.
   //
   // This one answers a question about the LIST: should this still sit among the live
-  // ones. An expired end date and an open-ended poll left a month both answer yes.
+  // ones. An expired end date and an open-ended poll left a week both answer yes.
   //
   // THREE GROUPS, NOT TWO, and the third is why. A poll whose end date passed is Ended,
   // and saying so is just reporting what its author set. A poll with no end date that has
@@ -5316,6 +5799,17 @@
     if (pollHasEnded(pollEndsAt(ev))) return 'ended';
     if (pollWatchExpired(ev)) return 'untracked';
     return 'open';
+  }
+
+  // HOW MANY OF A LIST'S POLLS ARE STILL LIVE, which is what the bell's Polls tab
+  // counts. The number it replaced was the list's whole length, so one poll that ended
+  // in March held a (1) on the tab forever: countable, but nothing anybody can act on.
+  // A capsule's job is to say something here may still be moving, and Ended and
+  // Untracked are not that.
+  function countLivePolls(polls) {
+    let n = 0;
+    for (const ev of polls) if (pollGroup(ev) === 'open') n++;
+    return n;
   }
 
   // A GROUP HEADING, AND FOR THE TWO THAT ARE NOT OPEN, THE CONTROL THAT FOLDS IT.
@@ -5363,8 +5857,10 @@
     options.forEach((o) => { top = Math.max(top, counts.get(o.id) || 0); });
     if (!top) return null;
     const leaders = options.filter((o) => (counts.get(o.id) || 0) === top);
-    if (leaders.length > 1) return { label: 'Tied', share: top + ' of ' + voters };
-    return { label: leaders[0].label, share: top + ' of ' + voters };
+    // "3 of 5": the winning votes against everyone who voted, as one phrase.
+    const share = t('{{top}} of {{voters}}', { top: I18N.fmtNum(top), voters: I18N.fmtNum(voters) });
+    if (leaders.length > 1) return { label: t('Tied'), share };
+    return { label: leaders[0].label, share };
   }
 
   // Whether the row shows a result rather than a countdown. Both non-open groups do.
@@ -5584,11 +6080,14 @@
   // deletion. A kind:5 would ask relays to forget the event, which is a request
   // they may ignore and which leaves readers holding the old text either way.
   // Publishing empty replaces it everywhere the addressable event already is.
+  //
+  // Labels are functions: this runs before the language file loads, so a string
+  // translated here would stay English.
   const STATUS_DURATIONS = [
-    { label: 'No expiry', seconds: 0 },
-    { label: '1 hour', seconds: 3600 },
-    { label: '4 hours', seconds: 4 * 3600 },
-    { label: '1 day', seconds: 24 * 3600 },
+    { label: () => t('No expiry'), seconds: 0 },
+    { label: () => tn('{{count}} hour', '{{count}} hours', 1), seconds: 3600 },
+    { label: () => tn('{{count}} hour', '{{count}} hours', 4), seconds: 4 * 3600 },
+    { label: () => tn('{{count}} day', '{{count}} days', 1), seconds: 24 * 3600 },
   ];
 
   // Pure, so the tag shape can be tested without a relay or a key.
@@ -5654,6 +6153,21 @@
   // empty kind:0 is not.
   async function fetchAndStoreProfile(pubkey) {
     try {
+      // THE IMPORT PREVIEW ALREADY ANSWERED. Pasting an nsec into a cold install shows
+      // its preview through the shared cache, read the fast way (configured set plus
+      // the aggregator), and then this backfill refetched everything the slow way: the
+      // NIP-65 list first, then kind:0, each a six-second window on a pool still
+      // opening its sockets, and a fifteen-second cooldown before the retry. The
+      // account sat on its placeholder name for all of it while a complete profile sat
+      // in memory. One the cache holds is stored at once — and the read below still
+      // runs, for the kind:0 baseline it seeds and because a fresher copy may live on
+      // the relays the account declares.
+      const hit = cachedCompleteProfile(pubkey);
+      if (hit) {
+        await call({ type: 'SIDECAR_SET_PROFILE', pubkey, name: hit.name, picture: hit.picture });
+        state = await call({ type: 'SIDECAR_GET_STATE' });
+        if (!state.locked) renderMain();
+      }
       // The same set the overview's profile read uses, because this is one of your own
       // accounts: its declared relays, purplepag.es and the configured set, or without
       // the configured set when NIP-65 only is on. Reading the configured set alone
@@ -5750,6 +6264,18 @@
     return cache.events.filter((ev) => ev.created_at > seenAt).length;
   }
 
+  // THE BADGE COUNTS THE NEWEST SCREENFUL, with a + when there is more unread than that:
+  // more than a screenful loaded, or unread reaching back past what has been loaded at all
+  // (the loaded stretch starts after you last looked, and older history is still there).
+  function notifBadgeText(count, cache, seenAt) {
+    if (count <= 0) return '';
+    const beyond = !!(cache && cache.covered && !cache.exhausted && cache.covered.since > seenAt);
+    if (count > NOTIF_SCREEN || beyond) {
+      return t('{{count}}+', { count: I18N.fmtNum(Math.min(count, NOTIF_SCREEN)) });
+    }
+    return I18N.fmtNum(count);
+  }
+
   function refreshBell() {
     const btn = $('notif-bell-btn');
     if (!btn) return;
@@ -5757,7 +6283,7 @@
     const count = pubkey ? notifUnseenCount(pubkey) : 0;
     const badge = btn.querySelector('.notif-badge');
     if (!badge) return;
-    badge.textContent = count > 99 ? t('{{count}}+', { count: I18N.fmtNum(99) }) : count > 0 ? I18N.fmtNum(count) : '';
+    badge.textContent = notifBadgeText(count, pubkey && _notifCache.get(pubkey), (pubkey && _notifSeenAt[pubkey]) || 0);
     badge.classList.toggle('hidden', count === 0);
   }
 
@@ -6268,67 +6794,9 @@
   //
   // Search is the escape hatch from that, and it reads across every group: nobody knows
   // which of the nine "shrug" is in. Results are capped for the same reason as above.
-  const EMOJI_SEARCH_MAX = 120;
-
-  // Match at a WORD START, never mid-word. Substring matching gave "love" a boxing glove
-  // and a pair of mittens, through "glove", while the words people actually type are
-  // prefixes: "surpris", "ital", "lovely". The haystack carries a leading space and has
-  // its punctuation flattened, so this is one indexOf rather than a regex per row.
-  const emojiHit = (hay, q) => hay.includes(' ' + q);
-  const emojiQuery = (raw) => raw.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-
-  // Words no emoji dataset carries, because they are associations rather than
-  // descriptions. Checked before writing this: emojibase tags 🇮🇹 as "IT, flag", 🍝 as
-  // "pasta, meatballs, restaurant" and 🤌 as "gesture, sarcastic, huh" — nothing ties any
-  // of them to Italy, and nothing anywhere says "spock" or "llap". iOS has them because
-  // Apple curates them by hand, and so do we.
-  //
-  // Each line is a decision somebody made, not a claim about what an emoji means. Add a
-  // word the moment you notice yourself typing it and getting nothing.
-  const EMOJI_ALIASES = {
-    spock: ['🖖'],
-    llap: ['🖖'],
-    italian: ['🇮🇹', '🍕', '🍝', '🤌'],
-  };
-
-  // The table, prepared once for searching: name lowercased, aliases folded in.
-  //
-  // THE NAMES ARE NOT ALL LOWERCASE. 338 of the 1,914 carry a capital — every flag is
-  // "flag Italy", "flag Japan" — and the search lowercased only the query, so "ital"
-  // matched nothing while "Ital" matched. Every flag in the picker was unreachable by the
-  // way anyone would actually type it.
-  //
-  // Done at index time rather than per keystroke: the search already runs across the
-  // whole table on a debounce, and lowercasing 1,914 strings on every one of those was
-  // the reason not to fix it in the comparison.
-  let _emojiIndex = null;
-  function emojiGroups() {
-    if (_emojiIndex) return _emojiIndex;
-    const table = self.SidecarEmoji;
-    if (!Array.isArray(table) || !table.length) return null;
-    const extra = new Map();
-    for (const [term, chars] of Object.entries(EMOJI_ALIASES)) {
-      for (const ch of chars) extra.set(ch, (extra.get(ch) || []) + ' ' + term);
-    }
-    // [char, name, haystack] — paintGrid reads the first two and ignores the rest.
-    //
-    // The haystack is the name, the vendored CLDR keywords and any alias, lowercased,
-    // with every run of punctuation flattened to a space and a space in front. That last
-    // detail lets the search match at word starts without a regex per row, and the
-    // punctuation pass is why "eyes" still finds "smiling face with heart-eyes".
-    // Unicode-aware, because "Åland Islands" and "Côte d'Ivoire" are in this table.
-    _emojiIndex = table.map(([group, rows]) => [
-      group,
-      rows.map(([ch, name, keywords]) => [
-        ch,
-        name,
-        ' ' + (name + ' ' + (keywords || '') + (extra.get(ch) || ''))
-          .toLowerCase()
-          .replace(/[^\p{L}\p{N}]+/gu, ' '),
-      ]),
-    ]);
-    return _emojiIndex;
-  }
+  // The index and the search words are shared with the composers' Emoji button, so they
+  // live in composer-core.js; the aliases and the lowercasing note are there.
+  const { emojiGroups, emojiQuery, emojiHit, EMOJI_SEARCH_MAX } = window.SidecarCore;
 
   // A short row of the ones people actually reach for, above the grid. Same idea as the
   // zap presets: most reactions are one of a handful, and making those a single tap is
@@ -6501,15 +6969,16 @@
         paintGrid(groups[i][1]);
       }
       groups.forEach((g, i) => {
-        const t = h('button', {
+        const label = window.SidecarCore.emojiGroupLabel(g[0]);
+        const tab = h('button', {
           className: 'emoji-tab',
           type: 'button',
           textContent: g[1][0] ? g[1][0][0] : '•',
-          title: g[0],
+          title: label,
         });
-        t.setAttribute('aria-label', g[0]);
-        t.addEventListener('click', () => { search.value = ''; showGroup(i); });
-        tabs.append(t);
+        tab.setAttribute('aria-label', label);
+        tab.addEventListener('click', () => { search.value = ''; showGroup(i); });
+        tabs.append(tab);
       });
 
       let searchTimer = null;
@@ -6575,6 +7044,35 @@
     const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: state.activePubkey });
     await publishSigned(signed);
     return signed;
+  }
+
+  // THE REACT FLOW, shared by every row that offers a heart: a notification's, and a reply
+  // in a comment's thread. One copy, so the quick row, the use counting and the take-back
+  // on failure cannot drift between the two.
+  async function reactToEvent(ev) {
+    // The row of the account the reaction will be signed as, and counted for the one
+    // that signed it.
+    const quickRow = rankQuickReactions(await loadReactionUse(state.activePubkey));
+    emojiPickerOver($('modal'), async (ch) => {
+      // Counted on the tap, so the next picker already has it, and taken back if the
+      // reaction fails: one that never signed or reached a relay is not one you made.
+      // Waiting for the publish instead left the row a reaction behind for as long as
+      // the slowest relay took. publishReaction signs only as the active account.
+      const who = state.activePubkey;
+      const counted = noteReactionUse(who, ch);
+      try {
+        await publishReaction(ev, ch);
+        // The chip is what makes this durable feedback. The toast says it happened;
+        // the chip is still there tomorrow, which is when you want to know whether
+        // you already answered something. A minimal event shape: the picker is
+        // unicode-only, so there is no emoji tag to carry.
+        addMyReaction(ev.id, { content: ch, tags: [] });
+        toast(t('Reacted {{reaction}}', { reaction: ch }), 'success');
+      } catch (e2) {
+        counted.then((prev) => undoReactionUse(who, ch, prev)).catch(() => {});
+        toast(e2.message, 'error');
+      }
+    }, quickRow);
   }
 
   // A REPOST (NIP-18). kind:6 for a kind:1, and kind:16 with a `k` tag for anything else —
@@ -7176,7 +7674,8 @@
     }
     // What the panel already holds about this list, brought into line without a reload.
     const total = new Set(tags.filter(isP).map((x) => x[1].toLowerCase())).size;
-    followCountCache.set(pubkey, total);
+    const prior = followCountCache.get(pubkey);
+    followCountCache.set(pubkey, { v: total, at: Date.now() });
     if (followListCache && followListPubkey === pubkey) {
       const at = followListCache.findIndex((c) => c.pubkey === target);
       if (remove && at >= 0) followListCache.splice(at, 1);
@@ -7185,6 +7684,12 @@
       }
     }
     forgetWot();
+    // The Overview drawer and the Profile tab are holding the number this just
+    // changed, and nothing else tells them. The cache above is already fresh,
+    // so the repainters read it and redraw in place. Announce whenever the
+    // cached figure moved, not only when a publish happened: a no-op follow
+    // that corrected a stale cache moved the number just as much.
+    if (changed || !prior || prior.v !== total) repaintFollowCounts();
     return changed;
   }
 
@@ -7442,7 +7947,7 @@
         (evs || [])
           .sort((x, y) => y.created_at - x.created_at)
           .slice(0, 50)
-          .forEach((e) => ids.add(e.id));
+          .forEach((e) => { ids.add(e.id); rememberPollMeta(pubkey, e); });
       } catch (_) {}
       return ids;
     })();
@@ -7454,11 +7959,22 @@
   // Polls tab is gated on this set, so without this your first poll of a session leaves no
   // way back to its tally once the post banner times out sixty seconds later. It also puts
   // the new id in the vote filter, which is built from this same set.
-  function rememberOwnPoll(pubkey, id) {
+  function rememberOwnPoll(pubkey, id, ev) {
     if (!pubkey || !id) return;
     const ids = _ownPollIds.get(pubkey) || new Set();
     ids.add(id);
     _ownPollIds.set(pubkey, ids);
+    if (ev) rememberPollMeta(pubkey, ev);
+  }
+
+  // Posted time and end date for one poll, so the tab can ask which of them are still
+  // live without holding the events. A poll signed in this panel arrives here whole,
+  // which is what seeds the count before any relay confirms it.
+  function rememberPollMeta(pubkey, ev) {
+    if (!pubkey || !ev || !ev.id) return;
+    let meta = _ownPollMeta.get(pubkey);
+    if (!meta) { meta = new Map(); _ownPollMeta.set(pubkey, meta); }
+    meta.set(ev.id, { created_at: ev.created_at || 0, endsAt: pollEndsAt(ev) });
   }
 
   // Drop the memo so the next load asks the relays again, for a poll posted somewhere else
@@ -7491,7 +8007,6 @@
     await loadNotifSeen();
     const relays = await relayUrls(false);
     if (!relays.length) return;
-    const since = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // notification backfill window
 
     // Only the ACTIVE account. refreshBell() reads state.activePubkey and nothing
     // renders an unseen count for any other account, so subscribing for the rest
@@ -7525,7 +8040,9 @@
       const cache = _notifCache.get(a.pubkey) || { events: [], liveSub: null };
       _notifCache.set(a.pubkey, cache);
 
-      const addEvent = (ev) => {
+      // `history` marks an event a fetch of the past brought in, as opposed to a live
+      // arrival: it is cached and counted, never inserted at the top of an open sheet.
+      const addEvent = (ev, history) => {
         if (ev.pubkey === a.pubkey) return;
         // The e-based query can also return citations. Keep mentions/quotes from the
         // existing routes, but require actual threading for this new reply route.
@@ -7537,12 +8054,17 @@
         if (cache.events.some((e) => e.id === ev.id)) return;
         cache.events.push(ev);
         cache.events.sort((x, y) => y.created_at - x.created_at);
-        if (cache.events.length > 100) cache.events.length = 100;
-        // What a refresh actually brought in. Counted here rather than compared as a
-        // length before and after, because the cap above makes those equal once the cache
-        // is full — a hundred-deep list would have reported "no new notifications" while
-        // quietly rotating new ones in.
-        if (cache.refetching) cache.refetchAdded++;
+        if (cache.events.length > NOTIF_CACHE_MAX) {
+          cache.events.length = NOTIF_CACHE_MAX;
+          // The oldest fell off, so what is loaded no longer reaches as far back. Paging
+          // older asks from here again rather than from a start the cache no longer holds.
+          const oldest = cache.events[cache.events.length - 1].created_at;
+          if (cache.covered && cache.covered.since < oldest) cache.covered.since = oldest;
+          cache.exhausted = false;
+        }
+        // What a fetch actually brought in. Counted here rather than compared as a length
+        // before and after, because the cap above makes those equal once the cache is full.
+        if (history) cache.historyAdded = (cache.historyAdded || 0) + 1;
         // zapSender: fetch the profile of whoever the row will NAME — for a zap
         // that is the zapper, not the LNURL service that signed the receipt.
         // When it resolves, pruneNameMuted re-checks this event against the
@@ -7554,13 +8076,12 @@
         // event to the visible list instead of leaving it to only show up the
         // next time the modal is reopened.
         //
-        // NOT DURING A REFETCH. That path is a backfill: it replays up to a week of
-        // history through this same function, and addLive puts an arrival at the TOP of
-        // the list because a live event is newer than everything by definition. A
-        // two-day-old note prepended above "just now" is what refresh looked like when
-        // it went out — reported. The refresh rebuilds the list from the sorted cache
-        // when it finishes instead, which is also what makes its paging right.
-        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey && !cache.refetching) {
+        // NOT FOR HISTORY. A fetch of the past replays it through this same function, and
+        // addLive puts an arrival at the TOP of the list because a live event is newer than
+        // everything by definition. A two-day-old note prepended above "just now" is what
+        // refresh looked like when it went out — reported. A refresh rebuilds the list from
+        // the sorted cache when it finishes instead, and Load more appends what it found.
+        if (_openNotifBell && _openNotifBell.pubkey === a.pubkey && !history) {
           // Routed through the bell's own sort rather than prepended blind: it decides
           // in-network versus the collapsed group, clears the empty state, and marks the
           // end of the list.
@@ -7571,7 +8092,8 @@
       // Mentions/replies/reactions/zaps tagging the account, plus reposts
       // (kind:6, `e` tag) and quote reposts (kind:1, `q` tag) of the account's
       // own notes — matched by id so they're caught even without a `p` tag.
-      function buildFilters(sinceTs, limit) {
+      // sinceTs may be undefined (no lower bound); untilTs bounds a stretch of history.
+      function buildFilters(sinceTs, limit, untilTs) {
         const ownIdList = [...(_ownNoteIds.get(a.pubkey) || [])];
         // POLL IDS ARE READ HERE, NOT FROZEN WHEN THE SUBSCRIPTION STARTED. A poll posted
         // afterwards is in the set by the time this runs again (rememberOwnPoll), and the
@@ -7613,8 +8135,96 @@
           const votes = { kinds: [POLL_RESPONSE_KIND], '#e': ownPollIdList, since: sinceTs };
           list.push(limit ? Object.assign({ limit }, votes) : votes);
         }
+        for (const f of list) {
+          if (sinceTs == null) delete f.since;
+          if (untilTs != null) f.until = untilTs;
+        }
         return list;
       }
+
+      // ONE STRETCH OF HISTORY, through addEvent as history. Settles NOTIF_SETTLE_MS after
+      // the first event, when every relay has finished, or at NOTIF_FETCH_MAX_MS, and closes
+      // the subscription when it does, so a relay that never answers cannot hold the sheet
+      // and a late one cannot drop old events into it afterwards.
+      const fetchRange = (urls, since, until) => new Promise((resolve) => {
+        let settled = false;
+        let closer = null;
+        let settleTimer = null;
+        let capTimer = null;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(settleTimer);
+          clearTimeout(capTimer);
+          try { if (closer) closer.close(); } catch (_) {}
+          resolve();
+        };
+        capTimer = setTimeout(finish, NOTIF_FETCH_MAX_MS);
+        try {
+          closer = poolSubscribeAllEose(urls, buildFilters(since, NOTIF_RANGE_LIMIT, until), {
+            onevent: (ev) => {
+              addEvent(ev, true);
+              if (!settleTimer) settleTimer = setTimeout(finish, NOTIF_SETTLE_MS);
+            },
+            onclose: finish,
+          });
+          if (settled && closer) closer.close();
+        } catch (_) {
+          finish();
+        }
+      });
+      const countSince = (ts) => cache.events.filter((e) => e.created_at >= ts).length;
+
+      // THE NEWEST SCREENFUL. A day back from now, widened (NOTIF_SPANS) until it holds a
+      // screenful. Each step asks only for the stretch the step before did not cover, and a
+      // refresh stops as soon as it meets what is already loaded, so the usual refresh is
+      // one stretch of a day. cache.covered is the stretch loaded without a gap.
+      cache.loadNewest = async (urls) => {
+        const now = Math.floor(Date.now() / 1000);
+        const had = cache.covered;
+        let upper;
+        let since = now;
+        for (const span of NOTIF_SPANS) {
+          const lower = now - span;
+          await fetchRange(urls, lower, upper);
+          upper = lower;
+          since = lower;
+          if (had && lower <= had.until) break;
+          if (countSince(lower) >= NOTIF_SCREEN) break;
+        }
+        cache.covered = had && since <= had.until
+          ? { since: Math.min(had.since, since), until: now }
+          : { since, until: now };
+        if (!had || since > had.until) cache.exhausted = false;
+      };
+
+      // THE NEXT SCREENFUL BACK, from where the loaded stretch starts, widened the same way.
+      // A stretch reaching NOTIF_SPANS' last step back with nothing in it is the end: the
+      // sheet says so and points at the client for anything older. Returns how many
+      // notifications it added. One run at a time; a second press shares it.
+      cache.loadOlder = () => {
+        if (cache.olderRun) return cache.olderRun;
+        cache.olderRun = (async () => {
+          if (cache.exhausted || !cache.covered) return 0;
+          const urls = await inboxRelays(a.pubkey);
+          if (!urls.length) return 0;
+          const start = cache.covered.since;
+          const before = cache.historyAdded || 0;
+          let upper = start;
+          for (const span of NOTIF_SPANS) {
+            const lower = start - span;
+            await fetchRange(urls, lower, upper);
+            upper = lower;
+            cache.covered.since = Math.min(cache.covered.since, lower);
+            if ((cache.historyAdded || 0) - before >= NOTIF_SCREEN) break;
+          }
+          const added = (cache.historyAdded || 0) - before;
+          if (!added) cache.exhausted = true;
+          if (a.pubkey === state?.activePubkey) refreshBell();
+          return added;
+        })().finally(() => { cache.olderRun = null; });
+        return cache.olderRun;
+      };
 
       // The bell's refresh button asks the relays again, through THIS addEvent rather
       // than a copy of it. addEvent is what drops your own events, applies the mute
@@ -7633,37 +8243,22 @@
       // ask at once; a second run would reset refetchAdded under the first and its sheet
       // would skip the rebuild. They share the run in flight instead. lastRefetchAt is
       // when the last one finished, which is how the sheet knows its cache is fresh.
-      cache.refetch = async () => {
+      // keepLive: leave the live subscription as it is (startup, which has just opened it).
+      cache.refetch = async (opts) => {
         if (cache.refetchRun) return cache.refetchRun;
         let ran;
         cache.refetchRun = new Promise((resolve) => { ran = resolve; });
         try {
           const urls = await inboxRelays(a.pubkey);
           if (!urls.length) return;
-          cache.replaceLive(urls);
-          const from = Math.floor(Date.now() / 1000) - 7 * 24 * 3600; // same window as the backfill
-          // Marks everything arriving from here as history rather than a live arrival, so
-          // addEvent above keeps filtering and caching it but stops inserting it into an
-          // open sheet at the top. Cleared in a finally, or one failed refresh would leave
-          // every later live notification invisible until the sheet was reopened.
-          cache.refetching = true;
+          if (!(opts && opts.keepLive)) cache.replaceLive(urls);
+          // What arrives here is history (see fetchRange), so it is cached and counted but
+          // never inserted at the top of an open sheet; the sheet rebuilds when this lands.
+          const before = cache.historyAdded || 0;
           cache.refetchAdded = 0;
-          try {
-            await new Promise((resolve) => {
-              let settled = false;
-              const finish = () => { if (!settled) { settled = true; resolve(); } };
-              // Capped, because a relay that never sends EOSE would otherwise leave the
-              // button spinning for as long as the sheet stays open.
-              setTimeout(finish, 6000);
-              try {
-                poolSubscribeAllEose(urls, buildFilters(from, 50), { onevent: addEvent, onclose: finish });
-              } catch (_) {
-                finish();
-              }
-            });
-          } finally {
-            cache.refetching = false;
-          }
+          await cache.loadNewest(urls);
+          cache.refetchAdded = (cache.historyAdded || 0) - before;
+          if (a.pubkey === state?.activePubkey) refreshBell();
         } finally {
           cache.lastRefetchAt = Date.now();
           cache.refetchRun = null;
@@ -7677,11 +8272,6 @@
       if (!inbox.length) continue;
       if (state?.activePubkey !== a.pubkey || cache.liveSub) continue;
       const liveSince = Math.floor(Date.now() / 1000);
-      // Every filter in one REQ per relay (poolSubscribeAll): one subscription per filter
-      // was seven requests per relay for this set alone.
-      try {
-        poolSubscribeAllEose(inbox, buildFilters(since, 50), { onevent: addEvent });
-      } catch (_) {}
       let liveRelays = inbox;
       cache.replaceLive = (urls = liveRelays) => {
         if (state?.activePubkey !== a.pubkey) return;
@@ -7697,21 +8287,43 @@
           : null;
       };
       cache.replaceLive();
+      // The newest screenful, through the same run the refresh button uses. The live
+      // subscription was opened just above, so this one does not reopen it.
+      cache.refetch({ keepLive: true }).catch(() => {});
 
-      // THE STARTUP BACKFILL IS NOT ENOUGH ON ITS OWN. It goes out while the panel is
+      // THE STARTUP LOAD IS NOT ENOUGH ON ITS OWN. It goes out while the panel is
       // loading everything else at once (mutes, own notes, relay lists, profiles, the
       // web-of-trust build), and it closes as soon as every relay has sent EOSE or timed
       // out, so a relay slowed by that crowd is cut off before it sends anything. The live
       // subscription only covers what arrives after it starts, so nothing filled the gap:
       // the bell sat days behind until the refresh button was pressed. That press is what
-      // this does, once, after the panel has settled.
-      // It does not rebuild an open sheet: a sheet opened before this runs asked on open
-      // (nothing had finished yet), shares this run, and rebuilds itself when it lands.
+      // this does, once, after the panel has settled. It only reaches back to where the
+      // startup load got to, so it is one short stretch, and it is skipped when a refresh
+      // (the bell opening, say) finished moments ago.
       setTimeout(() => {
-        if (state?.activePubkey !== a.pubkey || cache.lastRefetchAt || !cache.refetch) return;
+        if (state?.activePubkey !== a.pubkey || !cache.refetch) return;
+        if (cache.lastRefetchAt && Date.now() - cache.lastRefetchAt < 5000) return;
         cache.refetch().catch(() => {});
       }, 12000);
     }
+  }
+
+  // ASK THE RELAYS FOR THE NEWEST, AND WAIT FOR THE ANSWER. What the open bell's refresh
+  // does, and the reason it is a function of its own: with no cache yet (the sheet opened
+  // before startup got as far as building one), initNotifSubs only STARTS the first load,
+  // and returns while it is still on the wire. The sheet took that for the answer, read a
+  // count of nothing, stopped the spinner and stayed empty, and the notes landed in the
+  // cache a second later with nothing to draw them; closing and reopening built the list
+  // from that cache. So after starting the subscriptions this asks the cache itself, which
+  // joins the load already running or runs its own, and returns when it has settled.
+  async function refreshNotifCache(pubkey) {
+    const cached = _notifCache.get(pubkey);
+    // A refetch on the cache means the subscriptions are up. None means they never
+    // started for this account (no relays at the time, say), so start them.
+    if (cached && cached.refetch) { await cached.refetch(); return; }
+    await initNotifSubs();
+    const started = _notifCache.get(pubkey);
+    if (started && started.refetch) await started.refetch();
   }
 
   // THE ⋮ MENU: the event itself rather than what it says — its kind, and the ids, npub
@@ -7751,6 +8363,7 @@
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     };
     let built = false;
+    const disarmers = [];
     btn.addEventListener('click', (e) => {
       stop(e);
       if (!built) build();
@@ -7760,43 +8373,92 @@
     // On first open rather than with the row: the list builds 25 of these at a time.
     function build() {
       built = true;
-      // Named from the approval card's table, so a kind reads the same here as it did
-      // when you were asked to sign one.
-      const kindName = approvalKindLabels()[ev.kind] || '';
-      // The number as written in the NIPs, never grouped: kind 9735, not 9,735.
-      const kind = String(ev.kind);
-      panel.appendChild(h('div', {
-        className: 'notif-more-kind',
-        textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
-      }));
+      if (ev) {
+        // Named from the approval card's table, so a kind reads the same here as it did
+        // when you were asked to sign one.
+        const kindName = approvalKindLabels()[ev.kind] || '';
+        // The number as written in the NIPs, never grouped: kind 9735, not 9,735.
+        const kind = String(ev.kind);
+        panel.appendChild(h('div', {
+          className: 'notif-more-kind',
+          textContent: kindName ? t('Kind {{kind}} · {{name}}', { kind, name: kindName }) : t('Kind {{kind}}', { kind }),
+        }));
 
-      const who = opts && 'npubOf' in opts ? opts.npubOf : zapSender(ev);
-      const targetId = notifTargetId(ev);
-      const items = [
-        [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
-        who ? [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)] : null,
-        targetId ? [opts && opts.sourceNote ? t('Copy source note ID') : t('Copy parent note ID'), 'copy',
-          () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
-        linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
-        [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
-      ].filter(Boolean);
-      // A reaction or a zap is only ever about the note it landed on, so that is all its
-      // menu offers. One whose note cannot be found keeps the full list rather than
-      // opening empty.
-      const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
-      const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
+        const who = opts && 'npubOf' in opts ? opts.npubOf : zapSender(ev);
+        const targetId = notifTargetId(ev);
+        const items = [
+          [t('Copy event ID'), 'copy', () => NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: ev.kind, relays: [] })],
+          who ? [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)] : null,
+          targetId ? [opts && opts.sourceNote ? t('Copy source note ID') : t('Copy parent note ID'), 'copy',
+            () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
+          linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
+          [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
+        ].filter(Boolean);
+        // A reaction or a zap is only ever about the note it landed on, so that is all its
+        // menu offers. One whose note cannot be found keeps the full list rather than
+        // opening empty.
+        const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
+        const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
 
-      for (const [label, glyph, value] of shown) {
+        for (const [label, glyph, value] of shown) {
+          const row = h('button', { className: 'notif-more-item', type: 'button' });
+          row.append(icon(glyph), h('span', { textContent: label }));
+          row.addEventListener('click', async (e) => {
+            stop(e);
+            try {
+              await copyPlain(value());
+              toast(t('Copied'), 'success');
+              setOpen(false);
+            } catch (e2) {
+              toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
+            }
+          });
+          panel.appendChild(row);
+        }
+
+      }
+
+      // A remove item, for a row that can be taken out of the list it is in. It takes two taps like the
+      // mute rows: the first rewrites its own label and turns it red, the second does it, and it lets go
+      // after a few seconds, on Escape or on any tap outside the menu (the caller hears of each, to
+      // do the last two). A tap straight after the first is a double-tap, not an answer.
+      const rmv = opts && opts.remove;
+      if (rmv) {
         const row = h('button', { className: 'notif-more-item', type: 'button' });
-        row.append(icon(glyph), h('span', { textContent: label }));
+        const label = h('span', { textContent: rmv.label });
+        row.append(icon('trash'), label);
+        let armedAt = 0;
+        let timer = null;
+        const disarm = () => {
+          if (!armedAt) return;
+          clearTimeout(timer);
+          armedAt = 0;
+          label.textContent = rmv.label;
+          row.classList.remove('armed');
+          if (rmv.onDisarm) rmv.onDisarm();
+        };
+        disarmers.push(disarm);
         row.addEventListener('click', async (e) => {
           stop(e);
+          if (!armedAt) {
+            armedAt = Date.now();
+            label.textContent = t('Tap again to confirm');
+            row.classList.add('armed');
+            timer = setTimeout(disarm, 5000);
+            if (rmv.onArm) rmv.onArm();
+            return;
+          }
+          if (Date.now() - armedAt < 400) return;
+          clearTimeout(timer);
+          row.disabled = true;
+          label.textContent = t('Removing…');
           try {
-            await copyPlain(value());
-            toast(t('Copied'), 'success');
+            await rmv.run();
             setOpen(false);
-          } catch (e2) {
-            toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
+          } catch (_) {
+            row.disabled = false;
+            armedAt = 1;
+            disarm();
           }
         });
         panel.appendChild(row);
@@ -7854,7 +8516,7 @@
         }
       }
     }
-    return { btn, panel };
+    return { btn, panel, disarm: () => disarmers.forEach((f) => f()) };
   }
 
   // `place` puts the sheet back where it was: how many pages had been loaded, and how far
@@ -7890,7 +8552,7 @@
     const split = wotSet ? self.SidecarWot.partition(wotSet, shown, zapSender) : null;
     const events = split ? split.inn : shown;
     const offNet = split ? split.out : [];
-    const PAGE = 25;
+    const PAGE = NOTIF_SCREEN;
 
     function buildItem(ev) {
       const isNew = ev.created_at > seenAt;
@@ -8037,7 +8699,7 @@
         const cleaned = cleanSnippet(ev.content);
         if (cleaned) {
           snippetText = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
-          contentEl = h('p', { className: 'notif-content', textContent: snippetText });
+          contentEl = h('p', { className: 'notif-content', dir: 'auto', textContent: snippetText });
           // data-note-id lets the background mention-name patch below (see
           // showNotifModal) find and re-render this snippet once a mentioned
           // profile resolves — it's rendered here with whatever names are
@@ -8281,31 +8943,9 @@
       });
 
       const reactBtn = actBtn(t('React'), icon('heart'));
-      reactBtn.addEventListener('click', async (e) => {
+      reactBtn.addEventListener('click', (e) => {
         stop(e);
-        // The row of the account the reaction will be signed as, and counted for the one
-        // that signed it.
-        const quickRow = rankQuickReactions(await loadReactionUse(state.activePubkey));
-        emojiPickerOver($('modal'), async (ch) => {
-          // Counted on the tap, so the next picker already has it, and taken back if the
-          // reaction fails: one that never signed or reached a relay is not one you made.
-          // Waiting for the publish instead left the row a reaction behind for as long as
-          // the slowest relay took. publishReaction signs only as the active account.
-          const who = state.activePubkey;
-          const counted = noteReactionUse(who, ch);
-          try {
-            await publishReaction(ev, ch);
-            // The chip is what makes this durable feedback. The toast says it happened;
-            // the chip is still there tomorrow, which is when you want to know whether
-            // you already answered something. A minimal event shape: the picker is
-            // unicode-only, so there is no emoji tag to carry.
-            addMyReaction(ev.id, { content: ch, tags: [] });
-            toast(t('Reacted {{reaction}}', { reaction: ch }), 'success');
-          } catch (e2) {
-            counted.then((prev) => undoReactionUse(who, ch, prev)).catch(() => {});
-            toast(e2.message, 'error');
-          }
-        }, quickRow);
+        reactToEvent(ev);
       });
 
       // REPOST OR QUOTE, one button and two answers. Both are "send this on", and they
@@ -8422,12 +9062,12 @@
       // Same gate the profile sheet uses: an address without allowsNostr can take a
       // payment but can never produce a receipt, so a Zap button on it is a promise it
       // cannot keep.
-      relayUrls(false)
-        .then((relays) => poolGetProfile(relays, who))
-        .then(async (prof) => {
+      zapRecipientProfile(who)
+        .then(async ({ profile, answered }) => {
           if (!zapForm.isConnected) return;
-          let lud = '';
-          try { lud = (JSON.parse(prof.content) || {}).lud16 || ''; } catch (_) {}
+          // Nobody answered is not evidence of anything, so it does not say "no address".
+          if (!profile && !answered) throw new Error(t('Could not load their profile.'));
+          const lud = (profile && typeof profile.lud16 === 'string' && profile.lud16.trim()) || '';
           if (!lud) throw new Error(t('They have no lightning address.'));
           const p = await lnAddressParams(lud);
           if (!p.zappable) throw new Error(t('Their lightning address cannot receive zaps.'));
@@ -8470,6 +9110,8 @@
           const res = await client.payInvoice(invoice);
           await savePayMeta(invoice, {
             zapPubkey: who,
+            // The note the request's e tag names, so the details pane can link to it.
+            zapEvent: (ev && ev.id) || undefined,
             address: addr,
             comment: comment.value.trim(),
             feeMsat: res && res.fees_paid,
@@ -8523,15 +9165,13 @@
           forgetOwnPollQuery(a.pubkey);
           forgetOwnNoteQuery(a.pubkey);
           const askRelays = await relayUrls(false);
+          // Shorter when the sheet asked for itself: the newest screenful is what someone
+          // opening the bell is waiting for. A late note query still updates the filters.
           await Promise.race([
             Promise.all([loadOwnPollIds(a.pubkey, askRelays), loadOwnNoteIds(a.pubkey, askRelays)]),
-            new Promise((resolve) => setTimeout(resolve, 5000)),
+            new Promise((resolve) => setTimeout(resolve, auto ? 1500 : 5000)),
           ]);
-          const cached = _notifCache.get(a.pubkey);
-          // No refetch on the cache means the subscriptions never started for this
-          // account (no relays at the time, say), so start them.
-          if (cached && cached.refetch) await cached.refetch();
-          else await initNotifSubs();
+          await refreshNotifCache(a.pubkey);
         } catch (_) {
           // A relay failing is the normal case here, and the answer is simply that the
           // list does not grow. An error toast would be noise on a surface that is
@@ -8548,7 +9188,14 @@
         // 'success', not 'info': toast() only draws two kinds and treats anything that is
         // not 'error' as a success, so 'info' would read in the source as a neutral toast
         // this app cannot draw.
-        const added = (_notifCache.get(a.pubkey) || {}).refetchAdded || 0;
+        const cacheNow = _notifCache.get(a.pubkey) || {};
+        const added = cacheNow.refetchAdded || 0;
+        // AN EMPTY SHEET OVER A CACHE THAT HAS NOTES is never the right answer, whatever
+        // the count says. Another run (startup's, finishing while this one waited) can have
+        // brought them in and left this run counting zero new; history is never drawn into
+        // an open sheet, so nothing else would. Build the list from the cache, quietly.
+        const drawnNothing = !list.children.length && !offNet.length && (cacheNow.events || []).length > 0;
+        if (!added && drawnNothing && refreshBtn.isConnected) return void showNotifModal(a);
         if (!added) return auto ? undefined : toast(t('No new notifications'), 'success');
 
         // REBUILT FROM THE CACHE, not streamed in. The cache is sorted newest-first and
@@ -8564,12 +9211,15 @@
       };
       refreshBtn.addEventListener('click', () => runRefresh());
       modal.appendChild(refreshBtn);
-      // OPENING THE BELL ASKS, unless an ask finished in the last minute. The sheet opens
-      // from cache, and a cache the startup backfill left behind stayed behind until the
-      // button was pressed by hand.
+      // OPENING THE BELL ASKS, unless an ask finished in the last few seconds. The sheet
+      // opens from cache, and a cache the startup load left behind stayed behind for a
+      // minute at a time when this waited that long: the newest were missing on a cold
+      // open. The ask is the newest stretch only, back to what is already loaded. The few
+      // seconds cover the sheet a refresh rebuilds and the trip back from a reply or a
+      // poll's results, which would otherwise ask again for what just arrived.
       {
         const c = _notifCache.get(a.pubkey);
-        if (!c || !c.lastRefetchAt || Date.now() - c.lastRefetchAt > 60000) runRefresh({ auto: true });
+        if (!c || !c.lastRefetchAt || Date.now() - c.lastRefetchAt > 10000) runRefresh({ auto: true });
       }
 
       // WHOSE notifications — but only when that is a real question.
@@ -8641,9 +9291,11 @@
           if (cap) cap.textContent = String(n);
           else tabPolls.append(h('span', { className: 'modal-tab-count', textContent: String(n) }));
         };
-        // Seeded from the notification filters' own ids, which cost nothing and are usually
-        // right, then corrected by the list when it answers. See ownPollCount.
-        setCount(ownPollCount(a.pubkey));
+        // Seeded from the notification filters' own polls, which cost nothing and are
+        // usually right, then corrected by the list when it answers. Live ones only:
+        // the old seed counted every poll the account had, and one poll that ended in
+        // March held the (1) forever. See liveOwnPollCount.
+        setCount(liveOwnPollCount(a.pubkey));
 
         // .notif-scroll again, not a class of its own: the pane needs the same overflow
         // and the same edge-to-edge negative margins, and a second rule saying so is a
@@ -8836,23 +9488,91 @@
         scroll.appendChild(endNote);
       }
 
-      function loadMore() {
+      // The next page of what is already here.
+      function showNextPage() {
         const next = events.slice(shown, shown + PAGE);
         next.forEach((ev) => list.appendChild(buildItem(ev)));
         shown += next.length;
-        if (shown >= events.length) {
-          if (moreBtn) { moreBtn.remove(); moreBtn = null; }
-          showEndNote();
-        } else if (!moreBtn) {
-          moreBtn = h('button', { className: 'notif-load-more', textContent: t('Load more') });
-          moreBtn.addEventListener('click', loadMore);
-          scroll.appendChild(moreBtn);
+      }
+
+      // Older history the relays still have: what is loaded has a start, and the stretch
+      // before it has not been found empty.
+      const olderToAsk = () => {
+        const c = _notifCache.get(a.pubkey);
+        return !!(c && c.loadOlder && c.covered && !c.exhausted);
+      };
+
+      // Load more stays while there is a page in hand OR older history to ask for; the end
+      // note takes its place only when neither is left.
+      function syncMore() {
+        if (shown < events.length || ((events.length || offNet.length) && olderToAsk())) {
+          if (!moreBtn) {
+            moreBtn = h('button', { className: 'notif-load-more', textContent: t('Load more') });
+            moreBtn.addEventListener('click', loadMore);
+            // Before the out-of-network group when it is already up, so the button stays
+            // at the foot of the list it pages.
+            if (offNetBox) scroll.insertBefore(moreBtn, offNetBox);
+            else scroll.appendChild(moreBtn);
+          }
+          return;
         }
+        if (moreBtn) { moreBtn.remove(); moreBtn = null; }
+        showEndNote();
+      }
+
+      // What this sheet holds, so a page of history adds only what it has not drawn.
+      const drawnIds = new Set([...events, ...offNet].map((e) => e.id));
+      // Anything older than this is history the sheet has not seen; newer is live or drawn.
+      let oldestDrawn = [...events, ...offNet].reduce((m, e) => Math.min(m, e.created_at), Infinity);
+
+      // A page from the relays, sorted the way this sheet sorted the rest: muted dropped,
+      // in-network appended to the list, the rest counted into the collapsed group.
+      function takeOlderFromCache() {
+        const c = _notifCache.get(a.pubkey);
+        if (!c) return;
+        const mute = _muteLists.get(a.pubkey);
+        const fresh = c.events.filter((e) => e.created_at <= oldestDrawn && !drawnIds.has(e.id) &&
+          !(mute && mute.size && isMutedNotif(mute, e)));
+        if (!fresh.length) return;
+        for (const e of fresh) { drawnIds.add(e.id); oldestDrawn = Math.min(oldestDrawn, e.created_at); }
+        const part = wotSet ? self.SidecarWot.partition(wotSet, fresh, zapSender) : { inn: fresh, out: [] };
+        events.push(...part.inn);
+        if (part.out.length) {
+          offNet.push(...part.out);
+          if (offNetBox) {
+            const lbl = offNetBox.querySelector('.notif-offnet-toggle span');
+            if (lbl) lbl.textContent = tn('{{count}} from outside your network', '{{count}} from outside your network', offNet.length);
+            const inner = offNetBox.querySelector('.notif-offnet-list');
+            const note = inner && inner.querySelector('.notif-offnet-note');
+            // Only when expanded; collapsed, the count is the update.
+            if (inner && note && inner.children.length > 1) part.out.forEach((ev) => inner.insertBefore(buildItem(ev), note));
+          } else if (endNote || moreBtn) {
+            showOffNet();
+          }
+        }
+      }
+
+      // A page in hand is drawn at once. Past it, the relays are asked for the next
+      // screenful back, with the button saying so while they answer.
+      async function loadMore() {
+        if (shown < events.length) { showNextPage(); syncMore(); return; }
+        const c = _notifCache.get(a.pubkey);
+        if (!c || !c.loadOlder || !moreBtn) { syncMore(); return; }
+        const btn = moreBtn;
+        btn.disabled = true;
+        btn.textContent = t('Loading…');
+        try { await c.loadOlder(); } catch (_) {}
+        if (!btn.isConnected) return; // the sheet closed while the relays answered
+        btn.disabled = false;
+        btn.textContent = t('Load more');
+        takeOlderFromCache();
+        showNextPage();
+        syncMore();
       }
 
       // An empty main list can still have notifications in the outside-network group.
       // Run the end-of-list render for that case so its toggle remains reachable.
-      if (events.length || offNet.length) loadMore();
+      if (events.length || offNet.length) { showNextPage(); syncMore(); }
 
       // Back to where you were. The pages first — scrolling to an offset that nothing has
       // been rendered into yet would just clamp to the bottom of a short list — and then
@@ -8862,7 +9582,8 @@
       // the list taller, so the offset lands a row or two off. Which is the right kind of
       // wrong — the alternative is the top of the list, every time.
       if (place && place.pages > 1) {
-        for (let i = 1; i < place.pages && shown < events.length; i++) loadMore();
+        for (let i = 1; i < place.pages && shown < events.length; i++) showNextPage();
+        syncMore();
       }
       if (place && place.scrollTop) {
         const want = place.scrollTop;
@@ -8993,12 +9714,12 @@
     wrap.append(
       sparks,
       mark,
-      h('h2', { className: 'welcome-title', textContent: 'Welcome to Sidecar' }),
+      h('h2', { className: 'welcome-title', textContent: t('Welcome to Sidecar') }),
       h('p', {
         className: 'welcome-sub',
-        textContent: 'A classy Nostr signer and Lightning wallet that lives in your browser sidebar.',
+        textContent: t('A classy Nostr signer and Lightning wallet that lives in your browser sidebar.'),
       }),
-      h('p', { className: 'welcome-cta', textContent: 'Create a new account or import your nsec to begin.' })
+      h('p', { className: 'welcome-cta', textContent: t('Create a new account or import your nsec to begin.') })
     );
     return wrap;
   }
@@ -9015,7 +9736,8 @@
   function panelIsCovered() {
     if (document.documentElement.classList.contains('modal-open')) return true;
     const approval = $('view-approval');
-    return !!approval && !approval.classList.contains('hidden');
+    const ask = $('view-payanywhere');
+    return (!!approval && !approval.classList.contains('hidden')) || (!!ask && !ask.classList.contains('hidden'));
   }
 
   // Draw whatever was skipped while an overlay was up. Callers must clear their own
@@ -9039,8 +9761,8 @@
     const entry = showOnThisDay ? pickOnThisDay(null, state.activePubkey) : null;
     if (!entry) { host.textContent = ''; hide(host); return; }
 
-    const share = h('button', { className: 'otd-share', type: 'button', title: 'Post this' }, [icon('share')]);
-    share.setAttribute('aria-label', 'Post this');
+    const share = h('button', { className: 'otd-share', type: 'button', title: t('Post this') }, [icon('share')]);
+    share.setAttribute('aria-label', t('Post this'));
     share.addEventListener('click', () => {
       // The composer, prefilled and editable, never a silent publish. The mention
       // rides in the text as a NIP-27 nostr: reference so a reader can tap through
@@ -9050,16 +9772,15 @@
       // Norton declared himself Emperor". This mirrors the card, which already reads
       // as a kicker above a sentence, and needs nothing from the text.
       openComposer(
-        'On this day in ' + entry.year + ': ' + entry.text +
-        '\n\nvia nostr:' + SIDECAR_NPUB
+        t('On this day in {{year}}: {{text}}\n\nvia {{mention}}', {year:String(entry.year), text:entry.text, mention:'nostr:' + SIDECAR_NPUB})
       );
     });
 
     host.textContent = '';
     host.append(
       h('div', { className: 'otd-main' }, [
-        h('p', { className: 'otd-kicker', textContent: 'On this day in ' + entry.year }),
-        h('p', { className: 'otd-text', textContent: entry.text }),
+        h('p', { className: 'otd-kicker', textContent: t('On this day in {{year}}', {year:String(entry.year)}) }),
+        h('p', { className: 'otd-text', dir: 'auto', textContent: entry.text }),
       ]),
       share
     );
@@ -9112,7 +9833,7 @@
     if (!hasAccounts && !tip) {
       tip = h('div', { id: 'welcome-tip', className: 'welcome-tip' }, [
         icon('pin'),
-        h('span', { textContent: 'For the best experience, keep Sidecar pinned and open in your sidebar.' }),
+        h('span', { textContent: t('For the best experience, keep Sidecar pinned and open in your sidebar.') }),
       ]);
       document.querySelector('#tab-accounts .add-actions').insertAdjacentElement('afterend', tip);
     } else if (hasAccounts && tip) {
@@ -9158,7 +9879,7 @@
     applyAvatar($('chip-av'), active || {});
     // The name is no longer drawn in the bar, so the tooltip has to carry it —
     // otherwise two accounts with similar avatars are indistinguishable here.
-    $('acct-btn').title = active ? 'Switch account — ' + displayName(active) : 'No account';
+    $('acct-btn').title = active ? t('Switch account: {{name}}', { name: displayName(active) }) : t('No account');
     // LAST, and after everything above has had its say. See the note by acct-btn.
     if (miningStatus) setComposeLocked(true);
     refreshBell();
@@ -9334,7 +10055,7 @@
       check.classList.add('active-check');
       actions.appendChild(check);
     }
-    const moreBtn = iconButton('Account options', 'more', () => accountMenuModal(a));
+    const moreBtn = iconButton(t('Account options'), 'more', () => accountMenuModal(a));
     actions.appendChild(moreBtn);
 
     if (!isActive) {
@@ -9344,7 +10065,7 @@
       const clickables = [av, main];
       for (const el of clickables) {
         el.style.cursor = 'pointer';
-        el.title = 'Set as active account';
+        el.title = t('Set as active account');
       }
       // WHILE ARMED, THE SLOT HOLDS A CANCEL INSTEAD OF THE MENU. Arming a row used to
       // have no way out: the two lines rewrite to "Set as active?" / "Tap again to
@@ -9358,7 +10079,7 @@
       // take width from the name beside it. The menu is not reachable for the moment
       // the row is armed, which is the right trade — you are mid-decision, and the way
       // out of that decision is the only action that matters.
-      const cancelBtn = iconButton('Cancel', 'x', (e) => {
+      const cancelBtn = iconButton(t('Cancel'), 'x', (e) => {
         e.stopPropagation();
         resetRow();
       });
@@ -9379,12 +10100,12 @@
           // The account you just picked, clear of the compose button: refresh keeps your
           // place, which for a row low in the list is under it.
           revealActiveAccount();
-          toast('Switched to ' + displayName(a), 'success');
+          toast(t('Switched to {{name}}', {name:displayName(a)}), 'success');
           if (!(await offerTabReload())) maybeShowSwitchTip();
         } else {
           row.classList.add('item-pending');
-          label.textContent = 'Set as active?';
-          sub.textContent = 'Tap again to confirm';
+          label.textContent = t('Set as active?');
+          sub.textContent = t('Tap again to confirm');
           if (moreBtn.parentElement) actions.replaceChild(cancelBtn, moreBtn);
         }
       };
@@ -9405,18 +10126,49 @@
     const open = accountStatsOpen();
     drawer.className = 'account-stats' + (open ? '' : ' collapsed');
 
+    // The header row: the toggle (chevron + Overview) opens and closes, and
+    // beside it a refresh re-reads the stats in place — the manual half of the
+    // staleness contract, since another client can move these numbers without
+    // anything in the panel announcing it. The spinner covers the follow read,
+    // the slowest of the three.
+    const head = document.createElement('div');
+    head.className = 'account-stats-head';
     const header = document.createElement('button');
     header.className = 'account-stats-toggle';
     const chev = icon('chevron-down');
     chev.classList.add('account-stats-chevron');
     if (!open) chev.style.transform = 'rotate(-90deg)';
-    header.append(chev, document.createTextNode('Overview'));
+    header.append(chev, document.createTextNode(t('Overview')));
+    // Draw the drawer as accountStatsOpen() says now, loading its numbers the first time it opens.
+    const applyOpen = () => {
+      const now = accountStatsOpen();
+      drawer.classList.toggle('collapsed', !now);
+      chev.style.transform = now ? '' : 'rotate(-90deg)';
+      if (now && !drawer.dataset.loaded) loadStats();
+    };
+    accountStatsSync = () => { if (drawer.isConnected) applyOpen(); };
     header.addEventListener('click', () => {
-      accountStatsExpanded = !accountStatsOpen();
-      drawer.classList.toggle('collapsed', !accountStatsExpanded);
-      chev.style.transform = accountStatsExpanded ? '' : 'rotate(-90deg)';
-      if (accountStatsExpanded && !drawer.dataset.loaded) loadStats();
+      accountStatsExpanded = drawer.classList.contains('collapsed');
+      statsCollapsedForPlayer = false;
+      applyOpen();
     });
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'account-stats-refresh';
+    refreshBtn.title = t('Refresh');
+    refreshBtn.setAttribute('aria-label', t('Refresh'));
+    refreshBtn.appendChild(icon('refresh'));
+    let refreshingStats = false;
+    refreshBtn.addEventListener('click', async () => {
+      if (refreshingStats) return;
+      refreshingStats = true;
+      refreshBtn.classList.add('spinning');
+      // force: the follow count is cached for five minutes, and a refresh that is
+      // handed the cache has refreshed nothing.
+      try { await loadStats(true); } catch (_) {}
+      refreshBtn.classList.remove('spinning');
+      refreshingStats = false;
+    });
+    head.append(header, refreshBtn);
 
     const body = document.createElement('div');
     body.className = 'account-stats-body';
@@ -9434,7 +10186,7 @@
     const relayNum = placeholder();
     // The relay label is variable, unlike the other two: the number is meaningless
     // without saying WHICH set it counts, so loadStats() rewrites it below.
-    const relayLabel = h('span', { className: 'account-stat-block-label', textContent: 'Relays' });
+    const relayLabel = h('span', { className: 'account-stat-block-label', textContent: t('Relays') });
     function statBlock(iconName, numEl, label) {
       const ic = icon(iconName);
       ic.classList.add('account-stat-block-ic');
@@ -9448,8 +10200,8 @@
     }
     const relayBlock = statBlock('wifi', relayNum, relayLabel);
     const topRow = h('div', { className: 'account-stat-grid' }, [
-      statBlock('users', followNum, 'Following'),
-      statBlock('bell', notifNum, 'Alerts'),
+      statBlock('users', followNum, t('Following')),
+      statBlock('bell', notifNum, t('Alerts')),
       relayBlock,
     ]);
 
@@ -9470,7 +10222,7 @@
       const btn = h('button', { className: 'account-stat-notset', title });
       const ic = icon('help-circle');
       ic.classList.add('account-stat-help');
-      btn.append(ic, document.createTextNode('Not set'));
+      btn.append(ic, document.createTextNode(t('Not set')));
       btn.addEventListener('click', () => openExtensionPage('help.html', hash));
       return btn;
     }
@@ -9486,21 +10238,30 @@
 
     // Following: a dash when no relay answered (getFollowCount returns null and caches
     // nothing), which the retry above turns back into a number once the relays reply.
-    function loadFollows() {
+    function loadFollows(force) {
+      if (force) followCountCache.delete(pubkey);
       setWaiting(followNum, '…', true);
-      getFollowCount(pubkey).then((n) => {
+      return getFollowCount(pubkey).then((n) => {
         followsFailed = n == null;
         setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
         followNum.classList.add('account-stat-num');
       });
     }
 
+    // A follow or unfollow anywhere in the panel repaints this drawer's figure
+    // through the registered repainter, in place instead of stale-until-rebuild.
+    registerFollowRepainter(drawer, () => {
+      if (!drawer.dataset.loaded) return;
+      const n = followCountCache.get(pubkey);
+      if (n && Date.now() - n.at < FOLLOW_COUNT_TTL && n.v != null) setWaiting(followNum, I18N.fmtNum(n.v), false);
+    });
+
     // Same shape as notSetLink, for a read that failed rather than came back empty.
     function retryLink() {
-      const btn = h('button', { className: 'account-stat-notset', title: 'The relays didn’t answer. Try again.' });
+      const btn = h('button', { className: 'account-stat-notset', title: t('The relays didn’t answer. Try again.') });
       const ic = icon('reload');
       ic.classList.add('account-stat-help');
-      btn.append(ic, document.createTextNode('Couldn’t load'));
+      btn.append(ic, document.createTextNode(t('Couldn’t load')));
       btn.addEventListener('click', retryFailed);
       return btn;
     }
@@ -9512,13 +10273,13 @@
 
     const idSection = h('div', { className: 'account-stat-ids' }, [
       idRow('badge-check', 'NIP-05', nip05Val),
-      idRow('zap', 'Lightning', lud16Val),
-      idRow('wallet', 'Wallet', walletVal),
+      idRow('zap', t('Lightning'), lud16Val),
+      idRow('wallet', t('Wallet'), walletVal),
     ]);
 
     // Profile link.
     const profileLink = h('button', { className: 'account-stats-link' }, [
-      document.createTextNode('View full profile'),
+      document.createTextNode(t('View full profile')),
       icon('arrow-up-right'),
     ]);
     profileLink.addEventListener('click', () => {
@@ -9527,19 +10288,26 @@
     });
 
     body.append(topRow, idSection, profileLink);
-    drawer.append(header, body);
+    drawer.append(head, body);
 
     // Identity rows — need the profile. A null record is a read that got no answer
     // at all, which says nothing about whether these are set: saying "Not set" there
     // told a user their NIP-05 and lightning address were missing when the relays had
     // simply not replied. It gets a retry instead.
+    // Runs overlap — the refresh pressed while an earlier read is still out, or the
+    // retry link — and each paints into the same cells. A run that finds a newer one
+    // has started drops its answer: the older read can land AFTER the newer one, and
+    // would otherwise be the one left on screen.
+    let identityRun = 0;
     async function loadIdentity() {
+      const run = ++identityRun;
       // A word, not the stats' "…": the shimmer needs something to sweep across, and a
       // row can take up to the 8s backstop, long enough that a static mark looks stuck.
       nip05Val.textContent = '';
       lud16Val.textContent = '';
-      const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), 'Loading…', true)));
+      const idWait = [nip05Val, lud16Val].map((v) => v.appendChild(setWaiting(h('span'), t('Loading…'), true)));
       const rec = await getProfile(pubkey);
+      if (run !== identityRun) return;
       idWait.forEach((w) => setWaiting(w, '', false));
       nip05Val.textContent = '';
       lud16Val.textContent = '';
@@ -9556,7 +10324,7 @@
         // domain without exposing a handle. Display the bare domain.
         const nip05 = content.nip05.startsWith('_@') ? content.nip05.slice(2) : content.nip05;
         const badge = h('span', { className: 'nip05-badge' });
-        nip05Val.append(badge, document.createTextNode(nip05));
+        nip05Val.append(badge, h('span', { className: 'account-stat-id-text', textContent: nip05, title: nip05 }));
         const paint = () => verifyNip05(content.nip05, pubkey, { force: true }).then((res) => {
           badge.innerHTML = '';
           paintNip05Badge(badge, res, paint);
@@ -9567,29 +10335,38 @@
           paintNip05Favicon(nip05Val, content.nip05, res);
         });
       } else {
-        nip05Val.appendChild(notSetLink('What is a NIP-05?', '#nip05'));
+        nip05Val.appendChild(notSetLink(t('What is a NIP-05?'), '#nip05'));
       }
 
       if (content.lud16) {
         const ok = icon('check');
         ok.classList.add('stat-mini-ok');
-        lud16Val.append(ok, document.createTextNode(content.lud16));
+        lud16Val.append(ok, h('span', { className: 'account-stat-id-text', textContent: content.lud16, title: content.lud16 }));
       } else {
-        lud16Val.appendChild(notSetLink('What is a Lightning address?', '#lightning-address'));
+        lud16Val.appendChild(notSetLink(t('What is a Lightning address?'), '#lightning-address'));
       }
     }
 
-    async function loadStats() {
+    // Same rule for the wallet cell, which paints in two steps around an await: the
+    // clear happens before the backup read and the badge after it, so two overlapping
+    // runs each cleared once and then each appended a badge.
+    let walletRun = 0;
+    async function loadStats(force = false) {
+      const run = ++walletRun;
       drawer.dataset.loaded = '1';
       overviewOnline = () => { if (drawer.isConnected) retryFailed(); };
 
-      // Numeric stats.
-      loadFollows();
+      // Numeric stats. The header's refresh button awaits this read before
+      // clearing its spinner; alerts and relays repaint when their own reads
+      // land.
+      await loadFollows(force);
 
       const unseen = notifUnseenCount(pubkey);
       notifNum.textContent = unseen > 0 ? String(unseen) : '0';
       notifNum.classList.add('account-stat-num');
-      if (!unseen) notifNum.classList.add('account-stat-dim');
+      // toggle, not add: a refresh that finds something unseen must undo the dim
+      // an earlier zero put there.
+      notifNum.classList.toggle('account-stat-dim', !unseen);
 
       // This number has to say WHICH relays, because it was misleading in both
       // directions when it didn't. It counted only the declared NIP-65 set, so an
@@ -9600,32 +10377,33 @@
       Promise.all([getNip65(pubkey), nip65OnlyFor(pubkey)]).then(async ([nip65, only]) => {
         const declared = nip65 ? new Set([...nip65.read, ...nip65.write]).size : 0;
         let count = declared;
-        let label = 'Relays';
+        let label = t('Relays');
         let warn = false;
+        let title = null;
         if (!declared) {
           if (only) {
             // Fail-closed with nothing declared: this account genuinely cannot
             // publish. 0 is accurate here, but it's a fault to flag, not a neutral
             // zero to dim — the same failure the per-account fix was about.
             warn = true;
-            relayBlock.title =
-              'Bootstrap relays are off for this account, but it has no published relay list, ' +
-              'so it can’t publish. Publish a relay list from the Profile tab, or turn ' +
-              'bootstrap relays back on in Settings.';
+            title = t('Bootstrap relays are off for this account, but it has no published relay list, so it can’t publish. Publish a relay list from the Profile tab, or turn bootstrap relays back on in Settings.');
           } else {
             // Bootstrap relays are what this account is actually using. Naming them
             // keeps the number honest instead of silently reporting a different set.
             count = (await relayUrls(false)).length;
-            label = 'Bootstrap';
-            relayBlock.title =
-              'Using Sidecar’s bootstrap relays. Publish a relay list from the Profile ' +
-              'tab to use your own.';
+            label = t('Bootstrap');
+            title = t('Using Sidecar’s bootstrap relays. Publish a relay list from the Profile tab to use your own.');
           }
         }
         relayNum.textContent = String(count);
         relayNum.classList.add('account-stat-num');
-        if (warn) relayNum.classList.add('account-stat-warn');
-        else if (!count) relayNum.classList.add('account-stat-dim');
+        // Every state is set from this run's answer: a refresh paints into the same
+        // elements, so a warning, a dim or an explanation left by an earlier run
+        // would outlive the condition that earned it.
+        relayNum.classList.toggle('account-stat-warn', warn);
+        relayNum.classList.toggle('account-stat-dim', !warn && !count);
+        if (title) relayBlock.title = title;
+        else relayBlock.removeAttribute('title');
         relayLabel.textContent = label;
       });
 
@@ -9634,8 +10412,13 @@
       // Wallet: two mini badges — connected and backed up — each with a
       // colored check or X so the state reads at a glance.
       call({ type: 'SIDECAR_NWC_META' }).then(async ({ has }) => {
+        if (run !== walletRun) return;
+        // The header's refresh re-runs this paint into the same cell — clear it
+        // first, or badges and "Add wallet" links pile up one per refresh.
+        walletVal.replaceChildren();
+        walletVal.classList.remove('account-stat-dim');
         if (!has) {
-          const link = h('button', { className: 'account-stat-add-link', textContent: 'Add wallet →' });
+          const link = h('button', { className: 'account-stat-add-link', textContent: t('Add wallet →') });
           link.addEventListener('click', () => {
             const tab = document.querySelector('.tab[data-tab="wallet"]');
             if (tab) tab.click();
@@ -9647,13 +10430,23 @@
         const connIc = icon('check');
         connIc.classList.add('stat-mini-ok');
         walletVal.appendChild(h('span', { className: 'wallet-badge' }, [connIc, document.createTextNode('Connected')]));
-        // Backup status — green check if current, orange X if missing/stale.
-        let backupOk = null;
-        try {
-          const backup = await nwcBackupState();
-          backupOk = backup.state === 'current';
-        } catch (_) {}
-        if (backupOk === true) {
+        // Backup status — green check if current, orange X if missing/stale, and a
+        // plain "Couldn't check" when it could not tell. That last used to fall in with
+        // the X, so a slow read at startup told you a backed-up wallet was not, while
+        // the Wallet tab said it was. One retry first: the overview loads while the
+        // panel is still starting up, when relay reads are at their slowest.
+        let backupState = 'unknown';
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (attempt) await new Promise((r) => setTimeout(r, 4000));
+          if (!walletVal.isConnected && attempt) return;
+          try { backupState = (await nwcBackupState()).state; } catch (_) { backupState = 'unknown'; }
+          if (run !== walletRun) return;
+          if (backupState !== 'unknown') break;
+        }
+        const backupOk = backupState === 'current' ? true : backupState === 'unknown' ? null : false;
+        if (backupOk === null) {
+          walletVal.appendChild(h('span', { className: 'wallet-badge account-stat-dim', textContent: NWC_BACKUP_LABEL.unknown }));
+        } else if (backupOk === true) {
           const ic = icon('check');
           ic.classList.add('stat-mini-ok');
           walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Backed up')]));
@@ -9663,6 +10456,7 @@
           walletVal.appendChild(h('span', { className: 'wallet-badge' }, [ic, document.createTextNode('Not backed up')]));
         }
       }).catch(() => {
+        if (run !== walletRun) return;
         walletVal.textContent = '—';
         walletVal.classList.add('account-stat-dim');
       });
@@ -9687,11 +10481,18 @@
     b.textContent = '';
     b.append(icon(name), h('span', { textContent: text }));
   }
-  labelButton('add-generate', 'user-plus', 'Generate new');
-  labelButton('add-import', 'download', 'Import nsec');
+  // Labeled at load and again once the language file is in: this runs before it has
+  // loaded, when t() still answers in English.
+  const labelAddButtons = () => {
+    labelButton('add-generate', 'user-plus', t('Generate new'));
+    labelButton('add-import', 'download', t('Import nsec'));
+  };
+  labelAddButtons();
+  I18N.ready.catch(() => {}).then(labelAddButtons);
   $('add-generate').addEventListener('click', () => generateAccount());
   $('add-import').addEventListener('click', () => importAccountModal());
   $('add-account-link').addEventListener('click', () => addAccountModal());
+  $('add-client-btn').addEventListener('click', () => customClientModal('', null));
   $('explore-apps-link').addEventListener('click', (e) => {
     e.preventDefault();
     openExtensionPage('welcome.html');
@@ -9745,7 +10546,7 @@
         chrome.storage.local.set({ firstPostTipSeenPubkeys: [..._firstPostSeenPubkeys] });
       }
       balloon.classList.add('hidden');
-      openComposer('Just setting up my #Sidecar 🍸');
+      openComposer(t('Just setting up my #Sidecar 🍸'));
     });
   })();
 
@@ -9875,13 +10676,13 @@
       // once overwrote an unrelated existing profile.
       if (gen && gen.pubkey) await call({ type: 'SIDECAR_SET_ACTIVE', pubkey: gen.pubkey });
       await refresh(); // renderMain() then pulls the profile for the new account
-      toast('Account created', 'success');
+      toast(t('Account created'), 'success');
       if (gen && gen.nsec) {
         nsecModal({
           nsec: gen.nsec,
-          title: 'Back up your new key',
+          title: t('Back up your new key'),
           intro:
-            'Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.',
+            tSec('Sidecar generated a new account. This nsec is the only way to recover it — save it now. You can view it again later behind your PIN.'),
           // A brand-new key has no profile yet — once they've backed it up, run a
           // short setup wizard (name → photo → bio), which publishes what they
           // fill in and lands them on the Profile tab to complete the rest.
@@ -9932,7 +10733,7 @@
           if (!settle) return;
           nip49Pending.delete(id);
           if (ok) settle.resolve(result);
-          else settle.reject(new Error(error || 'NIP-49 worker failed'));
+          else settle.reject(new Error(error || t('NIP-49 worker failed')));
         };
         nip49Worker.onerror = () => {
           // A packaging miss or a load failure: settle everything waiting and
@@ -9941,7 +10742,7 @@
           nip49WorkerBroken = true;
           for (const [id, settle] of nip49Pending) {
             nip49Pending.delete(id);
-            settle.reject(new Error('NIP-49 worker failed'));
+            settle.reject(new Error(t('NIP-49 worker failed')));
           }
         };
       }
@@ -9988,7 +10789,7 @@
     // are 16–18. A null (undecodable here) falls through — nip49.decrypt is
     // still the validity gate, this only caps the work we'll attempt.
     if (ncryptsecLogn(ncryptsec) > 20) {
-      throw new Error('Incorrect password, or not a valid ncryptsec key.');
+      throw new Error(tSec('Incorrect password, or not a valid ncryptsec key.'));
     }
     let sk;
     try {
@@ -9997,7 +10798,7 @@
       // would otherwise throw nostr-tools' raw error at the user.
       return NT.nip19.nsecEncode(sk);
     } catch (_) {
-      throw new Error('Incorrect password, or not a valid ncryptsec key.');
+      throw new Error(tSec('Incorrect password, or not a valid ncryptsec key.'));
     }
   }
 
@@ -10012,8 +10813,8 @@
     _jsqrPromise = new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = 'jsqr.js';
-      s.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error('QR reader failed to load')));
-      s.onerror = () => { _jsqrPromise = null; reject(new Error('QR reader failed to load')); };
+      s.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error(t('QR reader failed to load'))));
+      s.onerror = () => { _jsqrPromise = null; reject(new Error(t('QR reader failed to load'))); };
       document.head.appendChild(s);
     });
     return _jsqrPromise;
@@ -10024,6 +10825,47 @@
   function extractSecretFromText(text) {
     const m = /(?:nostr:)?((?:nsec|ncryptsec)1[a-z0-9]{20,})/i.exec(String(text || ''));
     return m ? m[1].toLowerCase() : '';
+  }
+
+  // An ncryptsec is always 162 characters: NIP-49's 91 bytes, bech32 encoded.
+  const NCRYPTSEC_LENGTH = 162;
+
+  // The same, for the text of a PDF's content stream. The encrypted sheet sets its 162
+  // characters as two lines of 81, each its own `(...) Tj` string, and the pattern above
+  // stops at the end of a string, so it returned the first half and the import failed with
+  // "Incorrect password". The plain sheet's 63-character nsec is one string and was never
+  // affected. So: when a string ends in the start of an ncryptsec, take the strings that
+  // follow it, as long as they are nothing but key characters, until it is whole.
+  //
+  // Bounded on purpose. It stops at the length every ncryptsec has, and it only joins
+  // strings made entirely of letters and digits, so it cannot swallow a caption that
+  // happens to come next. A key that comes out short falls through to the plain pattern,
+  // which is the old behavior, rather than being invented.
+  function extractSecretFromPdfText(text) {
+    const s = String(text || '');
+    const runs = [];
+    const re = /\(((?:\\[\s\S]|[^\\)])*)\)\s*Tj/g;
+    let m;
+    while ((m = re.exec(s))) runs.push(m[1].replace(/\\([()\\])/g, '$1'));
+    for (let i = 0; i < runs.length; i++) {
+      const head = /(?:nostr:)?(ncryptsec1[a-z0-9]*)$/i.exec(runs[i]);
+      if (!head) continue;
+      let key = head[1];
+      for (let j = i + 1; j < runs.length && key.length < NCRYPTSEC_LENGTH && /^[a-z0-9]+$/i.test(runs[j]); j++) {
+        key += runs[j];
+      }
+      if (key.length >= NCRYPTSEC_LENGTH) return key.slice(0, NCRYPTSEC_LENGTH).toLowerCase();
+    }
+    return extractSecretFromText(s);
+  }
+
+  // A pasted private key with the whitespace taken out of it. The encrypted sheet sets its
+  // ncryptsec on two lines, so copying it from a PDF viewer gives two pieces with a line
+  // break between them, and a single-line field turns that break into a space. No key has
+  // whitespace in it, so dropping it all is safe, and it means the two lines paste back
+  // together without anyone having to assemble them.
+  function cleanPastedKey(value) {
+    return String(value || '').replace(/\s+/g, '');
   }
 
   // Decode `file` at one scale. Separated so callers can retry at a larger size:
@@ -10061,7 +10903,7 @@
       return s;
     };
     const raw = asText(buf);
-    let secret = extractSecretFromText(raw);
+    let secret = extractSecretFromPdfText(raw);
     if (secret) return secret;
 
     // Sidecar's own sheets are uncompressed, but a PDF re-saved by another tool
@@ -10082,25 +10924,25 @@
           const inflated = await new Response(
             new Blob([slice]).stream().pipeThrough(new DecompressionStream('deflate'))
           ).arrayBuffer();
-          secret = extractSecretFromText(asText(new Uint8Array(inflated)));
+          secret = extractSecretFromPdfText(asText(new Uint8Array(inflated)));
           if (secret) return secret;
         } catch (_) { /* not a Flate stream, or truncated — try the next */ }
       }
     }
-    throw new Error("No key found in that PDF — is it a Sidecar backup sheet?");
+    throw new Error(t('No key found in that PDF. Is it a Sidecar backup sheet?'));
   }
 
   // Read a key from an image of the backup sheet. Entirely local — the image is a
   // plaintext key and never leaves the extension.
   async function secretFromImageFile(file) {
-    if (!file) throw new Error('No image to read');
-    if (file.type && !/^image\//.test(file.type)) throw new Error('That file is not an image');
+    if (!file) throw new Error(t('No image to read'));
+    if (file.type && !/^image\//.test(file.type)) throw new Error(t('That file is not an image'));
     const jsQR = await ensurePanelJsQR();
     let bmp;
     try {
       bmp = await createImageBitmap(file);
     } catch (_) {
-      throw new Error("Couldn't read that image");
+      throw new Error(t("Couldn't read that image"));
     }
     try {
       // Ascending sizes: the small pass is fast and usually enough for a tight
@@ -10112,9 +10954,9 @@
         if (secret) return secret;
         // A QR was found but holds something else — an npub, a URL, a wallet
         // string. Say so rather than reporting "no code found".
-        throw new Error('That QR code is not a private key');
+        throw new Error(tSec('That QR code is not a private key'));
       }
-      throw new Error('No QR code found in that image');
+      throw new Error(t('No QR code found in that image'));
     } finally {
       if (bmp.close) bmp.close();
     }
@@ -10122,7 +10964,7 @@
 
   // Route on what the user actually picked, so the PDF and a photo of it both work.
   function secretFromFile(file) {
-    if (!file) throw new Error('No file to read');
+    if (!file) throw new Error(t('No file to read'));
     const isPdf = /pdf/i.test(file.type || '') || /\.pdf$/i.test(file.name || '');
     return isPdf ? secretFromPdfFile(file) : secretFromImageFile(file);
   }
@@ -10134,14 +10976,14 @@
     // watching you.
     let stopCamera = null;
     openModal((modal) => {
-      modal.append(h('h3', { textContent: 'Import account' }));
+      modal.append(h('h3', { textContent: t('Import account') }));
       const err = h('div', { className: 'error' });
       const secretInput = h('input', {
         type: 'password',
         className: 'nsec-field',
-        placeholder: 'nsec1…, ncryptsec1…, or 64-char hex',
+        placeholder: tSec('nsec1…, ncryptsec1…, or 64-char hex'),
       });
-      modal.append(h('label', { textContent: 'Private key' }), secretInput);
+      modal.append(h('label', { textContent: tSec('Private key') }), secretInput);
 
       // Read the key from a photo or scan of the printable backup sheet, so
       // restoring doesn't mean transcribing 63 bech32 characters by hand. Fills the
@@ -10152,11 +10994,11 @@
       // matches the Generate/Import buttons on the Accounts tab (.add-actions).
       const camBtn = h('button', { className: 'secondary hidden', type: 'button' }, [
         icon('qr'),
-        h('span', { textContent: 'Scan with camera' }),
+        h('span', { textContent: t('Scan with camera') }),
       ]);
       const fileBtn = h('button', { className: 'secondary', type: 'button' }, [
         icon('file-text'),
-        h('span', { textContent: 'Choose file' }),
+        h('span', { textContent: t('Choose file') }),
       ]);
       const scanRow = h('div', { className: 'scan-qr-row' }, [camBtn, fileBtn]);
       // Labels live in their own spans: assigning textContent to the button would
@@ -10169,7 +11011,7 @@
         className: 'hint compact scan-qr-hint',
         // Leads with the PDF because it's the most reliable path and the one people
         // are most likely to have — the sheet tells them keeping the file is fine.
-        textContent: 'Choose your backup sheet — the PDF, a photo, or a scan. You can paste an image here too.',
+        textContent: t('Choose your backup sheet: the PDF, a photo, or a scan. You can paste an image here too.'),
       });
       const scanFile = document.createElement('input');
       scanFile.type = 'file';
@@ -10182,20 +11024,20 @@
         secretInput.value = secret;
         // Drive the existing pipeline rather than duplicating any of it.
         secretInput.dispatchEvent(new Event('input'));
-        toast('Key read from ' + how, 'success');
+        toast(how==='PDF'?tSec('Key read from PDF'):how==='camera'?tSec('Key read from camera'):tSec('Key read from image'), 'success');
       }
 
       async function readFile(file) {
         err.textContent = '';
         fileBtn.disabled = true;
-        fileLabel.textContent = 'Reading…';
+        fileLabel.textContent = t('Reading…');
         try {
           accept(await secretFromFile(file), /pdf/i.test(file.type || '') ? 'PDF' : 'image');
         } catch (e) {
           err.textContent = e.message;
         }
         fileBtn.disabled = false;
-        fileLabel.textContent = 'Choose file';
+        fileLabel.textContent = t('Choose file');
       }
 
       fileBtn.addEventListener('click', () => scanFile.click());
@@ -10217,13 +11059,13 @@
         err.textContent = '';
         if (stopCamera) stopCamera(); // a re-click replaces the previous poll
         camBtn.disabled = true;
-        camLabel.textContent = 'Scanning…';
+        camLabel.textContent = t('Scanning…');
         try {
           await call({ type: 'SIDECAR_OPEN_QR_SCANNER' });
         } catch (_) {
           camBtn.disabled = false;
-          camLabel.textContent = 'Scan with camera';
-          err.textContent = "Couldn't open the scanner window.";
+          camLabel.textContent = t('Scan with camera');
+          err.textContent = t("Couldn't open the scanner window.");
           return;
         }
         let tries = 0;
@@ -10247,7 +11089,7 @@
           clearInterval(timer);
           stopCamera = null;
           camBtn.disabled = false;
-          camLabel.textContent = 'Scan with camera';
+          camLabel.textContent = t('Scan with camera');
         };
       });
 
@@ -10264,9 +11106,9 @@
 
       // ncryptsec (NIP-49) is a password-encrypted key, so it needs a second field
       // to decrypt — shown only once the pasted value looks like one.
-      const cryptPass = h('input', { type: 'password', placeholder: 'Decryption password' });
+      const cryptPass = h('input', { type: 'password', placeholder: tSec('Decryption password') });
       const cryptRow = h('div', { className: 'stack hidden' }, [
-        h('label', { textContent: 'Password' }),
+        h('label', { textContent: tSec('Password') }),
         cryptPass,
       ]);
       modal.append(cryptRow);
@@ -10286,7 +11128,7 @@
       let previewTimer = null;
       async function updatePreview() {
         err.textContent = '';
-        const raw = secretInput.value.trim();
+        const raw = cleanPastedKey(secretInput.value);
         const isNcryptsec = /^ncryptsec1/i.test(raw);
         cryptRow.classList.toggle('hidden', !isNcryptsec);
 
@@ -10310,7 +11152,7 @@
         if (!pubkey) return preview.classList.add('hidden');
         const npub = NT.nip19.npubEncode(pubkey);
         applyAvatar(pav, {});
-        pname.textContent = 'Fetching profile…';
+        pname.textContent = t('Fetching profile…');
         pnpub.textContent = shortNpub(npub);
         preview.classList.remove('hidden');
         const prof = await fetchPreviewProfile(pubkey);
@@ -10319,10 +11161,13 @@
           applyAvatar(pav, { picture: prof.picture, name: prof.name });
           pname.textContent = prof.name || shortNpub(npub);
         } else {
-          pname.textContent = 'No profile found';
+          pname.textContent = t('No profile found');
         }
       }
       secretInput.addEventListener('input', () => {
+        // Show the key as it will be read, so a paste that came in as two lines is one.
+        const clean = cleanPastedKey(secretInput.value);
+        if (clean !== secretInput.value) secretInput.value = clean;
         clearTimeout(previewTimer);
         previewTimer = setTimeout(updatePreview, 350);
       });
@@ -10335,35 +11180,35 @@
         h('p', {
           className: 'hint',
           textContent:
-            'Your nsec stays encrypted on this device. Sidecar signs locally, so sites only get signatures, never your key. Much safer than pasting it into a website.',
+            tSec('Your nsec stays encrypted on this device. Sidecar signs locally, so sites only get signatures, never your key. Much safer than pasting it into a website.'),
         })
       );
       modal.append(err);
 
-      const save = h('button', { className: 'primary', textContent: 'Import account' });
+      const save = h('button', { className: 'primary', textContent: t('Import account') });
       save.addEventListener('click', async () => {
         err.textContent = '';
         // Busy through the decrypt: a ncryptsec import runs the same scrypt as
         // a sheet mint, and with the panel no longer frozen mid-click, an idle
         // button invites a second one.
         save.disabled = true;
-        save.textContent = 'Importing…';
+        save.textContent = t('Importing…');
         try {
-          const raw = secretInput.value.trim();
-          if (!raw) throw new Error('Enter an nsec, ncryptsec, or hex private key.');
+          const raw = cleanPastedKey(secretInput.value);
+          if (!raw) throw new Error(tSec('Enter an nsec, ncryptsec, or hex private key.'));
           const secret = /^ncryptsec1/i.test(raw) ? await decryptNcryptsec(raw, cryptPass.value) : raw;
           await call({ type: 'SIDECAR_ADD_ACCOUNT', secret });
           closeModal();
           await refresh();
-          toast('Account added', 'success');
+          toast(t('Account added'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
         save.disabled = false;
-        save.textContent = 'Import account';
+        save.textContent = t('Import account');
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [save, cancel]));
       setTimeout(() => secretInput.focus(), 50);
@@ -10393,7 +11238,7 @@
     openModal((modal) => {
       const canvas = document.createElement('canvas');
       canvas.className = 'npub-qr';
-      const value = h('button', { className: 'secondary npub-qr-value', title: 'Copy' });
+      const value = h('button', { className: 'secondary npub-qr-value', title: t('Copy') });
       const valueText = h('span');
       value.append(valueText);
 
@@ -10431,12 +11276,13 @@
         try {
           await copyPlain(encoded());
           const prev = valueText.textContent;
-          valueText.textContent = 'Copied ✓';
-          setTimeout(() => { if (valueText.textContent === 'Copied ✓') valueText.textContent = prev; }, 1200);
+          const copied = t('Copied ✓');
+          valueText.textContent = copied;
+          setTimeout(() => { if (valueText.textContent === copied) valueText.textContent = prev; }, 1200);
         } catch (_) {}
       });
 
-      const done = h('button', { className: 'ghost', textContent: 'Done' });
+      const done = h('button', { className: 'ghost', textContent: t('Done') });
       done.addEventListener('click', closeModal);
 
       // The face sits OVER the code as an element rather than being drawn into it. Two
@@ -10455,7 +11301,7 @@
       }
 
       modal.append(
-        h('h3', { textContent: displayName(a) || 'Your npub' }),
+        h('h3', { textContent: displayName(a) || t('Your npub') }),
         h('div', { className: 'npub-qr-wrap' }, [stack, chips, value]),
         h('div', { className: 'actions' }, [done])
       );
@@ -10475,7 +11321,7 @@
       const list = h('div', { className: 'menu-list' }, [
         menuItem('Copy npub', 'copy', () => {
           copyPlain(a.npub);
-          toast('npub copied', 'success');
+          toast(t('npub copied'), 'success');
           closeModal();
         }),
         menuItem('Show npub QR', 'qr', () => npubQrModal(a)),
@@ -10492,7 +11338,7 @@
         menuItem('Rename', 'edit', () => renameModal(a)),
         menuItem('Remove account', 'trash', () => removeModal(a), true),
       ]);
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
         h('h3', { textContent: displayName(a) }),
@@ -10521,10 +11367,10 @@
         closeModal();
         importAccountModal();
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Add account' }),
+        h('h3', { textContent: t('Add account') }),
         h('div', { className: 'add-actions modal-add-actions' }, [generate, importBtn]),
         h('div', { className: 'actions' }, [cancel])
       );
@@ -10548,7 +11394,7 @@
     // either/or view — showing the QR hides the string + its copy button and back
     // — so the two don't stack into an overlong panel.
     const qrExclusive = !!opts.qrExclusive;
-    const hideMsg = (s) => 'Hiding in ' + s + 's. Reveal again with your PIN.';
+    const hideMsg = (s) => tSec('Hiding in {{seconds}}s. Reveal again with your PIN.', { seconds: I18N.fmtNum(s) });
 
     // ---- text-secret auto-hide ----
     // The copyable string auto-hides after a short window; its countdown sits at
@@ -10577,14 +11423,14 @@
     // just the QR when it lapses — while it's open the text auto-hide is paused.
     // Case-sensitive bech32/URI, so encode as-is (byte mode).
     const qrCanvasWrap = h('div', { className: 'qr-reveal hidden' });
-    const qrHint = h('p', { className: 'hint hidden', textContent: opts.qrHint || 'Scan to sign in on a mobile client that supports QR login.' });
+    const qrHint = h('p', { className: 'hint hidden', textContent: opts.qrHint || tSec('Scan to sign in on a mobile client that supports QR login.') });
     const qrCountdown = h('p', { className: 'hint hidden' });
     const showQr = h('button', { className: 'secondary qr-reveal-btn' });
     let qrShown = false, qrCanvas = null, qrRemaining = QR_REVEAL_TIMEOUT_S, qrTimer = null;
-    const qrMsg = (s) => 'QR code hiding in ' + s + 's.';
+    const qrMsg = (s) => t('QR code hiding in {{seconds}}s.', { seconds: I18N.fmtNum(s) });
     const setQrLabel = () => {
       showQr.innerHTML = '';
-      showQr.append(icon('qr'), h('span', { textContent: qrShown ? 'Hide QR code' : 'Show QR code' }));
+      showQr.append(icon('qr'), h('span', { textContent: qrShown ? t('Hide QR code') : t('Show QR code') }));
     };
     function stopQr() { if (qrTimer) { clearInterval(qrTimer); qrTimer = null; } }
     function hideQr() {
@@ -10625,11 +11471,11 @@
     showQr.addEventListener('click', () => { if (qrShown) hideQr(); else openQr(); });
 
     const box = h('div', { className: 'secret-box', textContent: secret });
-    const copy = h('button', { className: 'secondary', textContent: 'Copy ' + noun });
+    const copy = h('button', { className: 'secondary', textContent: t('Copy {{what}}', { what: noun }) });
     copy.addEventListener('click', async () => {
       try {
         await copySecret(secret);
-        toast(noun + ' copied — clipboard clears in ' + CLIPBOARD_CLEAR_S + 's', 'success');
+        toast(t('{{what}} copied. The clipboard clears in {{seconds}}s.', { what: noun, seconds: I18N.fmtNum(CLIPBOARD_CLEAR_S) }), 'success');
       } catch (_) {}
     });
 
@@ -10642,7 +11488,7 @@
       qrCountdown, // sits with the QR so its timer is always in view while scanning
       h('p', {
         className: 'hint warn',
-        textContent: opts.warnText || 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
+        textContent: opts.warnText || tSec('Anyone with this key fully controls the account. Store it somewhere safe and never share it.'),
       }),
       countdown
     );
@@ -10730,10 +11576,10 @@
       // a password manager or an encrypted drive is a good home for it. What isn't
       // fine is leaving it in ~/Downloads or mailing it to yourself, so say that
       // rather than telling people to delete something they may want to keep.
-      toast('Saved — store it safely, never by email', 'success');
+      toast(tSec('Saved — store it safely, never by email'), 'success');
       return true;
     } catch (e) {
-      toast("Couldn't create the backup sheet", 'error');
+      toast(t("Couldn't create the backup sheet"), 'error');
       return false;
     }
   }
@@ -10746,26 +11592,26 @@
   // password is used once, in-panel, and dropped — same discipline as the
   // ncryptsec tab in keyBackupModal, which this deliberately mirrors.
   function encryptedPageControls(goBtn) {
-    const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
-    const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+    const pass = h('input', { type: 'password', placeholder: tSec('At least 8 characters') });
+    const pass2 = h('input', { type: 'password', placeholder: tSec('Confirm password') });
     const block = h('div', {}, [
       // Said up front, because the field looks like a login field: this is
       // not where an existing password gets entered, it's where a new one is
       // coined, for this sheet alone.
       h('p', {
         className: 'hint',
-        textContent: 'This password is unique to the sheet — choose a new one, not one you use anywhere else.',
+        textContent: tSec('This password is unique to the sheet — choose a new one, not one you use anywhere else.'),
       }),
-      h('label', { textContent: 'Set a password' }),
+      h('label', { textContent: tSec('Set a password') }),
       pass,
-      h('label', { textContent: 'Confirm password' }),
+      h('label', { textContent: tSec('Confirm password') }),
       pass2,
       // The two secrets get conflated the moment both are called passwords:
       // the PIN unlocks Sidecar on this device, this one travels with the
       // paper and is the only way back into the printed sheet.
       h('p', {
         className: 'hint',
-        textContent: 'This unlocks the printed sheet. It is not your Sidecar PIN.',
+        textContent: tSec('This unlocks the printed sheet. It is not your Sidecar PIN.'),
       }),
     ]);
     // Live check/x feedback on the pair, same as the ncryptsec tab and PIN
@@ -10787,17 +11633,17 @@
       // label the frozen panel could never paint.
       collect: async (nsec, errEl) => {
         if (!pass.value || pass.value.length < 8) {
-          errEl.textContent = 'Use a password of at least 8 characters.';
+          errEl.textContent = tSec('Use a password of at least 8 characters.');
           return null;
         }
         if (pass.value !== pass2.value) {
-          errEl.textContent = 'Passwords do not match.';
+          errEl.textContent = tSec('Passwords do not match.');
           return null;
         }
         try {
           return await nip49('encrypt', [NT.nip19.decode(nsec).data, pass.value]);
         } catch (_) {
-          errEl.textContent = 'Could not encrypt the key.';
+          errEl.textContent = t('Could not encrypt the key.');
           return null;
         }
       },
@@ -10815,18 +11661,18 @@
   // they're opting into.
   function backupSheetPromptModal(nsec, account) {
     openModal((modal) => {
-      const grab = h('button', { className: 'primary', textContent: 'Download' });
+      const grab = h('button', { className: 'primary', textContent: t('Download') });
       grab.addEventListener('click', () => {
         closeModal();
         downloadBackupSheet(nsec, account);
       });
-      const skip = h('button', { className: 'ghost', textContent: 'Not now' });
+      const skip = h('button', { className: 'ghost', textContent: t('Not now') });
       skip.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Print a backup sheet' }),
+        h('h3', { textContent: t('Print a backup sheet') }),
         h('p', {
           className: 'hint',
-          textContent: 'One page with your key and a QR code. Print it, or keep the file somewhere safe.',
+          textContent: tSec('One page with your key and a QR code. Print it, or keep the file somewhere safe.'),
         }),
         h('div', { className: 'actions' }, [grab, skip])
       );
@@ -10838,7 +11684,7 @@
     openModal(
       (modal) => {
         const body = h('div', {});
-        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        const done = h('button', { className: 'primary', textContent: tSec("I've saved it") });
         done.addEventListener('click', closeModal);
 
         // No sheet button here on purpose. At account creation there is no profile
@@ -10875,7 +11721,17 @@
   // encryption), so this is the one moment to make sure it actually got captured
   // somewhere durable, not just typed and forgotten. A gently swaying antique key
   // (distinct from the small modern 'key' glyph used elsewhere) draws the eye.
-  function pinReminderModal(onDone) {
+  //
+  // It also asks how long Sidecar may sit idle before it locks. A new keystore starts at
+  // the background's default, so the choice is already made and this only shows it; a
+  // change is saved the moment it is picked, so closing the sheet any other way keeps it.
+  // The options are the Settings list's own, which keeps the two from drifting apart.
+  async function pinReminderModal(onDone) {
+    let current = 30;
+    try {
+      const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      if (s && typeof s.autoLockMinutes === 'number') current = s.autoLockMinutes;
+    } catch (_) { /* the shown value is the starting default; saving still works */ }
     openModal(
       (modal) => {
         const keyWrap = h('div', { className: 'pin-reminder-icon' });
@@ -10894,10 +11750,32 @@
         const body = h('p', { className: 'hint pin-reminder-body' });
         const warn = h('strong', { className: 'pin-reminder-warn', textContent: tSec("This PIN can't be recovered") });
         body.append(...I18N.fill(tSec('Write it down, or save it in a password manager, before you go any further. {{warning}}. Only a separate backup of your keys can get your accounts back.'), { warning: warn }));
+        const lockSelect = h('select', { id: 'pin-reminder-autolock' });
+        for (const o of $('autolock-select').options) {
+          if (o.dataset && o.dataset.legacy) continue;
+          lockSelect.append(h('option', { value: o.value, textContent: o.textContent }));
+        }
+        ensureAutoLockOption(lockSelect, current);
+        lockSelect.value = String(current);
+        let saved = String(current);
+        lockSelect.addEventListener('change', async () => {
+          try {
+            await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(lockSelect.value) } });
+            saved = lockSelect.value;
+          } catch (e) {
+            lockSelect.value = saved; // not saved, so do not show a time that is not in force
+            toast(e.message, 'error');
+          }
+        });
+        const lockRow = h('div', { className: 'pin-reminder-lock' }, [
+          h('label', { htmlFor: 'pin-reminder-autolock', textContent: t('Auto-lock') }),
+          lockSelect,
+        ]);
         modal.append(
           keyWrap,
           h('h3', { className: 'pin-reminder-title', textContent: tSec('Save your PIN somewhere safe') }),
           body,
+          lockRow,
           h('div', { className: 'actions' }, [ok])
         );
       },
@@ -10932,12 +11810,14 @@
   function autoLockNoticeModal(minutes) {
     openModal((modal) => {
       const body = h('p', { className: 'hint pin-reminder-body' });
-      body.append(
-        document.createTextNode('Sidecar now locks itself after ' + minutes + ' minutes of inactivity. Unlocking uses the PIN you chose when you set up Sidecar — '),
-        h('strong', { className: 'pin-reminder-warn', textContent: "it can't be recovered" }),
-        document.createTextNode(", so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.")
-      );
-      const settingsBtn = h('button', { className: 'ghost', textContent: 'Auto-lock settings' });
+      // One sentence with the warning set inside it, through fill(), rather than three
+      // fragments a translation could not reorder.
+      const warn = h('strong', { className: 'pin-reminder-warn', textContent: tSec("it can't be recovered") });
+      body.append(...I18N.fill(tn(
+        "Sidecar now locks itself after {{count}} minute of inactivity. Unlocking uses the PIN you chose when you set up Sidecar, and {{warning}}, so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.",
+        "Sidecar now locks itself after {{count}} minutes of inactivity. Unlocking uses the PIN you chose when you set up Sidecar, and {{warning}}, so make sure it's written down or in a password manager. You can adjust or turn off auto-lock in Settings.",
+        minutes, { warning: '{{warning}}' }), { warning: warn }));
+      const settingsBtn = h('button', { className: 'ghost', textContent: t('Auto-lock settings') });
       settingsBtn.addEventListener('click', () => {
         closeModal();
         hide($('view-main'));
@@ -10947,10 +11827,10 @@
         openSettingsSection('security');
         renderSettings();
       });
-      const ok = h('button', { className: 'primary', textContent: 'OK, got it' });
+      const ok = h('button', { className: 'primary', textContent: t('OK, got it') });
       ok.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { className: 'pin-reminder-title', textContent: 'Sidecar now locks automatically' }),
+        h('h3', { className: 'pin-reminder-title', textContent: t('Sidecar now locks automatically') }),
         body,
         h('div', { className: 'actions' }, [settingsBtn, ok])
       );
@@ -10974,15 +11854,15 @@
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const goLabel = encrypted ? 'Download encrypted sheet' : sheetOnly ? 'Download sheet' : 'Reveal';
+      const goLabel = encrypted ? t('Download encrypted sheet') : sheetOnly ? t('Download sheet') : tSec('Reveal');
       const go = h('button', { className: 'primary', textContent: goLabel });
       // Built after go because the password pair gates it.
       const enc = encrypted ? encryptedPageControls(go) : null;
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        if (!pin.value) return (err.textContent = tSec('Enter your PIN.'));
         go.disabled = true;
-        go.textContent = sheetOnly ? 'Preparing…' : 'Revealing…';
+        go.textContent = sheetOnly ? t('Preparing…') : t('Revealing…');
         try {
           const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
           // Validate the optional password pair BEFORE closing: a mismatch must
@@ -11007,17 +11887,17 @@
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: sheetOnly ? 'Download key sheet' : 'Back up private key' }),
+        h('h3', { textContent: sheetOnly ? t('Download key sheet') : t('Back up private key') }),
         h('p', {
           className: 'hint',
           textContent: sheetOnly
-            ? 'Enter your PIN to build a printable backup sheet for ' + displayName(a) + '.'
-            : 'Enter your PIN to reveal the key for ' + displayName(a) + '.',
+            ? tSec('Enter your PIN to build a printable backup sheet for {{name}}.', { name: displayName(a) })
+            : tSec('Enter your PIN to reveal the key for {{name}}.', { name: displayName(a) }),
         }),
-        h('label', { textContent: 'PIN' }),
+        h('label', { textContent: tSec('PIN') }),
         pin,
         ...(enc ? [enc.block] : []),
         err,
@@ -11061,8 +11941,8 @@
           stopReveal = renderSecretReveal(body, {
             secret: nsec,
             noun: 'nsec',
-            warnText: 'Anyone with this key fully controls the account. Store it somewhere safe and never share it.',
-            qrHint: 'Scan to sign in on a mobile client that supports QR login.',
+            warnText: tSec('Anyone with this key fully controls the account. Store it somewhere safe and never share it.'),
+            qrHint: tSec('Scan to sign in on a mobile client that supports QR login.'),
             onExpire: closeModal,
           });
         }
@@ -11070,40 +11950,40 @@
         function showNcryptsecTab() {
           stop();
           body.innerHTML = '';
-          const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
-          const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+          const pass = h('input', { type: 'password', placeholder: tSec('At least 8 characters') });
+          const pass2 = h('input', { type: 'password', placeholder: tSec('Confirm password') });
           const err = h('div', { className: 'error' });
           ncPass = pass;
           ncPass2 = pass2;
           ncErr = err;
-          const go = h('button', { className: 'primary', textContent: 'Encrypt & show' });
+          const go = h('button', { className: 'primary', textContent: tSec('Encrypt & show') });
           go.addEventListener('click', async () => {
             err.textContent = '';
-            if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
-            if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+            if (!pass.value || pass.value.length < 8) return (err.textContent = tSec('Use a password of at least 8 characters.'));
+            if (pass.value !== pass2.value) return (err.textContent = tSec('Passwords do not match.'));
             go.disabled = true;
-            go.textContent = 'Encrypting…';
+            go.textContent = t('Encrypting…');
             try {
               const ncryptsec = await nip49('encrypt', [NT.nip19.decode(nsec).data, pass.value]);
               currentNcryptsec = ncryptsec;
               revealNcryptsec(); // rebuilds the body, taking the form (and its button) with it
             } catch (e) {
-              err.textContent = 'Could not encrypt the key.';
+              err.textContent = t('Could not encrypt the key.');
               // Restore through the pair's own validator, not blindly: the
               // button's enabled state belongs to the passwords, not to this click.
               go.disabled = !validatePair();
-              go.textContent = 'Encrypt & show';
+              go.textContent = tSec('Encrypt & show');
             }
           });
           body.append(
             h('p', {
               className: 'hint',
               textContent:
-                "This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it.",
+                tSec("This is not the same as your nsec — it won't work anywhere that only accepts a plain nsec. Choose a password to encrypt it with; you'll need to give this exact password to wherever you import it."),
             }),
-            h('label', { textContent: 'Password' }),
+            h('label', { textContent: tSec('Password') }),
             pass,
-            h('label', { textContent: 'Confirm password' }),
+            h('label', { textContent: tSec('Confirm password') }),
             pass2,
             err,
             h('div', { className: 'actions' }, [go])
@@ -11122,8 +12002,8 @@
           stopReveal = renderSecretReveal(body, {
             secret: currentNcryptsec,
             noun: 'ncryptsec',
-            warnText: 'Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.',
-            qrHint: 'Scan to import into another NIP-49-compatible app.',
+            warnText: tSec('Anyone with this ncryptsec and the password fully controls the account. Store them somewhere safe, separately from each other.'),
+            qrHint: tSec('Scan to import into another NIP-49-compatible app.'),
             onExpire: closeModal,
           });
         }
@@ -11147,7 +12027,7 @@
           syncSheetLabel();
         });
 
-        const done = h('button', { className: 'primary', textContent: "I've saved it" });
+        const done = h('button', { className: 'primary', textContent: tSec("I've saved it") });
         done.addEventListener('click', closeModal);
 
         // Also offered here, so someone who came to look at the key can leave with
@@ -11159,11 +12039,11 @@
         // ncryptsec already revealed. Never the plain sheet from this tab — being
         // here is a statement of intent, and honoring it is how the right version
         // gets printed from here as from the Profile page.
-        const sheet = h('button', { className: 'secondary', textContent: 'Download backup sheet' });
+        const sheet = h('button', { className: 'secondary', textContent: t('Download backup sheet') });
         function syncSheetLabel() {
           sheet.textContent = tabNcrypt.classList.contains('active')
-            ? 'Download encrypted sheet'
-            : 'Download backup sheet';
+            ? t('Download encrypted sheet')
+            : t('Download backup sheet');
         }
         sheet.addEventListener('click', async () => {
           if (!tabNcrypt.classList.contains('active')) {
@@ -11186,13 +12066,13 @@
           // checks, so the only messages here are the honest ones — too short,
           // mismatch), mint, print. "Encrypt & show" stays the other exit, for
           // those who also want to see it.
-          if (!ncPass.value || ncPass.value.length < 8) return (ncErr.textContent = 'Use a password of at least 8 characters.');
-          if (ncPass.value !== ncPass2.value) return (ncErr.textContent = 'Passwords do not match.');
+          if (!ncPass.value || ncPass.value.length < 8) return (ncErr.textContent = tSec('Use a password of at least 8 characters.'));
+          if (ncPass.value !== ncPass2.value) return (ncErr.textContent = tSec('Passwords do not match.'));
           // Busy through the mint and the save: the scrypt is a second-plus even
           // off-thread, and with the panel live again a second click would queue
           // a second download.
           sheet.disabled = true;
-          sheet.textContent = 'Preparing…';
+          sheet.textContent = t('Preparing…');
           try {
             const ncryptsec = await nip49('encrypt', [NT.nip19.decode(nsec).data, ncPass.value]);
             // Deliberately NOT stored in currentNcryptsec: that would arm the
@@ -11200,17 +12080,17 @@
             // ncryptsec on screen — the one thing this path's user declined.
             await downloadBackupSheet(nsec, a, ncryptsec);
           } catch (e) {
-            ncErr.textContent = 'Could not encrypt the key.';
+            ncErr.textContent = t('Could not encrypt the key.');
           }
           sheet.disabled = false;
           syncSheetLabel();
         });
 
         modal.append(
-          h('h3', { textContent: 'Back up private key' }),
+          h('h3', { textContent: t('Back up private key') }),
           h('p', {
             className: 'hint',
-            textContent: 'Two formats of the same key for ' + displayName(a) + ' — nsec works with most apps; ncryptsec is password-protected, for apps that support it.',
+            textContent: tSec('Two formats of the same key for {{name}}: nsec works with most apps; ncryptsec is password-protected, for apps that support it.', { name: displayName(a) }),
           }),
           h('div', { className: 'modal-tabs' }, [tabNsec, tabNcrypt]),
           body,
@@ -11225,9 +12105,9 @@
 
   function renameModal(a) {
     openModal((modal) => {
-      const input = h('input', { type: 'text', value: a.name || '', placeholder: 'Display name' });
+      const input = h('input', { type: 'text', value: a.name || '', placeholder: t('Display name') });
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Save' });
+      const save = h('button', { className: 'primary', textContent: t('Save') });
       save.addEventListener('click', async () => {
         try {
           await call({ type: 'SIDECAR_RENAME_ACCOUNT', pubkey: a.pubkey, name: input.value.trim() });
@@ -11237,13 +12117,13 @@
           err.textContent = e.message;
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Rename account' }),
-        h('label', { textContent: 'Name' }),
+        h('h3', { textContent: t('Rename account') }),
+        h('label', { textContent: t('Name') }),
         input,
-        h('p', { className: 'hint', textContent: 'Overrides the name from your Nostr profile on this device.' }),
+        h('p', { className: 'hint', textContent: t('Overrides the name from your Nostr profile on this device.') }),
         err,
         h('div', { className: 'actions' }, [save, cancel])
       );
@@ -11256,25 +12136,23 @@
       const warn = h('p', {
         className: 'hint',
         textContent:
-          'Removing ' +
-          displayName(a) +
-          ' deletes its encrypted key from this device. Make sure you have a backup of the nsec — this cannot be undone.',
+          tSec('Removing {{name}} deletes its encrypted key from this device. Make sure you have a backup of the nsec. This cannot be undone.', { name: displayName(a) }),
       });
-      const del = h('button', { className: 'danger', textContent: 'Remove account' });
+      const del = h('button', { className: 'danger', textContent: tSec('Remove account') });
       del.addEventListener('click', async () => {
         try {
           await call({ type: 'SIDECAR_REMOVE_ACCOUNT', pubkey: a.pubkey });
           closeModal();
           await refresh();
-          toast('Account removed', 'success');
+          toast(t('Account removed'), 'success');
         } catch (e) {
           err.textContent = e.message;
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
-      modal.append(h('h3', { textContent: 'Remove account?' }), warn, err, h('div', { className: 'actions' }, [del, cancel]));
+      modal.append(h('h3', { textContent: tSec('Remove account?') }), warn, err, h('div', { className: 'actions' }, [del, cancel]));
     });
   }
 
@@ -11308,17 +12186,33 @@
     // the row is not a mystery when nothing is selected.
     const clientBy = settings.defaultClientBy || {};
     const own = state.activePubkey ? clientBy[state.activePubkey] : '';
-    $('client-select').value = own || '';
-    const globalLabel = (VIEW_CLIENTS[settings.defaultClient || DEFAULT_CLIENT] || {}).label || '';
+    // The user's own clients join the picker after the built-ins, rebuilt on every
+    // render so an edit never leaves a stale label or a removed client behind. The
+    // options exist BEFORE the value is set: an account whose choice is a custom one
+    // would otherwise read back as "use the default" the moment this drew.
+    const clientSel = $('client-select');
+    for (const old of [...clientSel.options]) if (old.dataset.custom) old.remove();
+    const customs = settings.customClients || {};
+    for (const key of Object.keys(customs)) {
+      const o = h('option', { value: key, textContent: customs[key].label || key });
+      o.dataset.custom = '1';
+      clientSel.append(o);
+    }
+    clientSel.value = own || '';
+    const globalKey = settings.defaultClient || DEFAULT_CLIENT;
+    const globalLabel = (VIEW_CLIENTS[globalKey] || {}).label || (customs[globalKey] || {}).label || '';
     const defaultOpt = $('client-select').querySelector('option[value=""]');
     if (defaultOpt) defaultOpt.textContent = globalLabel ? t('Use the default ({{client}})', { client: globalLabel }) : t('Use the default');
+    renderCustomClients(customs);
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('paypill-anywhere-toggle').checked = settings.payPillAnywhere === true; // default off
     $('webln-takeover-toggle').checked = settings.weblnTakeover === true; // default off (#501)
     $('clienttag-toggle').checked = settings.showClientTag !== false; // default on
+    $('videoimeta-toggle').checked = settings.videoImeta !== false; // default on
     $('datasync-toggle').checked = settings.confirmDataSync === true; // default off (auto-allow)
-    // The way back from "Don't show this again": clears both flags in the local
+    $('relax-per-account-toggle').checked = settings.relaxPerAccount === true; // default off: one account at a time
+    // The way back from the old explainer's "never again" answer: clears both flags in the local
     // store both surfaces read, and refreshes this document's memo so the next
     // shared-site confirm in the panel explains again.
     $('headsup-restore').addEventListener('click', async () => {
@@ -11329,6 +12223,7 @@
     $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
     $('livevideo-toggle').checked = settings.liveVideoEnabled !== false;
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
+    $('btc-sweep-toggle').checked = settings.btcSweep === true; // default off — nothing is looked up until it is on
     $('hidebalance-toggle').checked = settings.hideBalances === true; // default off
     $('balancepeek-toggle').checked = settings.autoHideBalances === true; // default off
     syncPeekRow(); // greyed out until the switch above it is on
@@ -11433,6 +12328,195 @@
     $('relay-ws-warn').classList.toggle('hidden', !Object.keys(relays).some((url) => url.startsWith('ws://')));
   }
 
+  // The saved list under "Your added clients". Empty draws nothing: the hint above and
+  // the Add button below already say what this is, unlike the budgets list, whose rows
+  // are the only place that explains how one is made.
+  function renderCustomClients(customs) {
+    const list = $('custom-clients');
+    list.innerHTML = '';
+    const keys = Object.keys(customs).sort((a, b) => (customs[a].label || a).localeCompare(customs[b].label || b));
+    for (const key of keys) list.append(customClientRow(key, customs[key]));
+  }
+
+  function customClientRow(key, c) {
+    const row = h('div', { className: 'item' });
+    const label = h('div', { className: 'item-label', textContent: c.label || key });
+    // The host is what the key is made of and the only line that says where these
+    // links point.
+    let host = '';
+    try { host = new URL(c.url).host; } catch (_) {}
+    const sub = h('div', { className: 'item-sub', textContent: host });
+    const main = h('div', { className: 'item-main' }, [label, sub]);
+
+    // Removal only drops Sidecar's memory of the client — the client's own site is
+    // untouched — but it also erases two links someone typed, so the first tap arms
+    // the row (the .item-pending grammar: the two lines rewrite, gold) and the second
+    // removes. Any other tap on the row lets go, same as the account rows.
+    function resetRow() {
+      row.classList.remove('item-pending');
+      label.textContent = c.label || key;
+      sub.textContent = host;
+    }
+    row._resetRow = resetRow;
+    const edit = iconButton(t('Edit {{name}}', { name: c.label || key }), 'edit', () => {
+      if (row.classList.contains('item-pending')) return resetRow();
+      customClientModal(key, c);
+    });
+    const rm = iconButton(t('Remove {{name}}', { name: c.label || key }), 'trash', () => {
+      if (row.classList.contains('item-pending')) {
+        call({ type: 'SIDECAR_REMOVE_CUSTOM_CLIENT', key }).then(() => renderSettings());
+        return;
+      }
+      row.classList.add('item-pending');
+      label.textContent = t('Remove {{name}}?', { name: c.label || key });
+      sub.textContent = t('Tap again to confirm');
+    });
+    row.addEventListener('click', (e) => {
+      if (row.classList.contains('item-pending') && !e.target.closest('.icon-btn')) resetRow();
+    });
+    row.append(main, h('div', { className: 'item-actions' }, [edit, rm]));
+    return row;
+  }
+
+  // Add or edit one of the user's own clients. The user pastes one note link and one
+  // profile link that work in the client; Sidecar finds the address in each, works out
+  // how the client writes it, and says so in a line under the field. Save stays shut
+  // until the name is filled and both links read cleanly — and reading cleanly includes
+  // rebuilding the pasted link from what was found and getting it back unchanged.
+  function customClientModal(key, existing) {
+    openModal((modal) => {
+      // Bech32 of all zeros: a valid address whose only job is to give an edit's fields
+      // the shape of the stored link. The stored entry is a template and a form, not the
+      // link it came from, so the link shown is that template filled with a stand-in.
+      const ZERO = '0'.repeat(64);
+      const { nip19 } = NT;
+      const standIn = {
+        note: { hex: ZERO, note: nip19.noteEncode(ZERO), 'nevent-short': nip19.neventEncode({ id: ZERO }), nevent: nip19.neventEncode({ id: ZERO, author: ZERO }) },
+        profile: { hex: ZERO, npub: nip19.npubEncode(ZERO), nprofile: nip19.nprofileEncode({ pubkey: ZERO }) },
+      };
+      const shown = (template, mark, kind, form) => template && standIn[kind][form] ? template.replace(mark, () => standIn[kind][form]) : (template || '');
+
+      const FORM_SAYS = {
+        note: {
+          hex: t('Notes are sent as a hex ID.'),
+          note: t('Notes are sent as a note1 address.'),
+          'nevent-short': t('Notes are sent as a short nevent.'),
+          nevent: t('Notes are sent as a full nevent.'),
+        },
+        profile: {
+          hex: t('Profiles are sent as a hex key.'),
+          npub: t('Profiles are sent as an npub.'),
+          nprofile: t('Profiles are sent as an nprofile.'),
+        },
+      };
+      const PROBLEM = {
+        parse: t('Paste a full link that starts with https://'),
+        none: { note: t('No note address found in that link.'), profile: t('No profile address found in that link.') },
+        many: t('That link has more than one address in it.'),
+        kind: { note: t('That is a link to something else. Paste a link to a note.'), profile: t('That is a link to something else. Paste a link to a profile.') },
+        mismatch: t('Sidecar could not rebuild that link from its parts.'),
+      };
+
+      const err = h('div', { className: 'error' });
+      const name = h('input', { type: 'text', value: existing ? existing.label : '', placeholder: t('My client'), maxLength: 40, autocomplete: 'off', spellcheck: false });
+      // What an edit opens with is the entry's shape filled with a stand-in address, not
+      // a link anyone pasted, so trying it would open a note that does not exist. The
+      // test button waits for a link that was pasted this time.
+      const notePrefill = existing ? shown(existing.url, '{ne}', 'note', existing.urlForm || 'nevent') : '';
+      const profilePrefill = existing ? shown(existing.profile, '{np}', 'profile', existing.profileForm || 'npub') : '';
+      const noteIn = h('input', { type: 'url', value: notePrefill, placeholder: 'https://', autocomplete: 'off', spellcheck: false });
+      const profileIn = h('input', { type: 'url', value: profilePrefill, placeholder: 'https://', autocomplete: 'off', spellcheck: false });
+      const noteSays = h('div', { className: 'custom-client-preview' });
+      const profileSays = h('div', { className: 'custom-client-preview' });
+      const noteWarn = h('div', { className: 'custom-client-warn' });
+      const profileWarn = h('div', { className: 'custom-client-warn' });
+      // Opens the pasted link, the way a saved client will open (same tab reuse), so a
+      // link the user never actually tried is tried before it is kept. Shut until the
+      // field reads cleanly: only a link that passed the https check is ever opened.
+      const tryLabel = t('Try this link');
+      const tryButton = (input) => {
+        const b = iconButton(tryLabel, 'external', () => { if (!b.disabled) openInClient(input.value.trim()); });
+        b.type = 'button';
+        b.setAttribute('aria-label', tryLabel);
+        b.disabled = true;
+        return b;
+      };
+      const noteTry = tryButton(noteIn);
+      const profileTry = tryButton(profileIn);
+      const save = h('button', { className: 'primary', textContent: existing ? t('Save changes') : t('Add client'), disabled: true });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
+      cancel.addEventListener('click', closeModal);
+
+      // One field's reading, drawn under it. An empty field says nothing: no scolding
+      // before there has been a chance to paste.
+      function read(input, says, warn, kind) {
+        const value = input.value.trim();
+        says.classList.remove('error');
+        warn.textContent = '';
+        if (!value) { says.textContent = ''; return null; }
+        const got = parseClientLink(value, kind);
+        if (got.error) {
+          const p = PROBLEM[got.error];
+          says.textContent = typeof p === 'string' ? p : p[kind];
+          says.classList.add('error');
+          return null;
+        }
+        says.textContent = FORM_SAYS[kind][got.form];
+        // A note, never a block: some clients need a parameter, and the user chose the link.
+        if (got.extra) warn.textContent = t('Sidecar will keep {{params}} from this link on every link it opens.', { params: got.extra.join(', ') });
+        return got;
+      }
+
+      let note = null;
+      let profile = null;
+      function update() {
+        note = read(noteIn, noteSays, noteWarn, 'note');
+        profile = read(profileIn, profileSays, profileWarn, 'profile');
+        noteTry.disabled = !note || noteIn.value === notePrefill;
+        profileTry.disabled = !profile || profileIn.value === profilePrefill;
+        save.disabled = !name.value.trim() || !note || !profile;
+      }
+      for (const input of [name, noteIn, profileIn]) input.addEventListener('input', update);
+      update();
+
+      save.addEventListener('click', async () => {
+        const label = name.value.trim();
+        if (!label || !note || !profile) return;
+        try {
+          await call({
+            type: 'SIDECAR_SET_CUSTOM_CLIENT', label,
+            url: note.template, urlForm: note.form,
+            profile: profile.template, profileForm: profile.form,
+            replaceKey: key || '',
+          });
+          closeModal();
+          await renderSettings();
+          toast(t('{{name}} saved', { name: label }), 'success');
+        } catch (e) {
+          err.textContent = e.message;
+        }
+      });
+
+      modal.append(
+        h('h3', { textContent: existing ? t('Edit {{name}}', { name: existing.label || key }) : t('Add a client') }),
+        h('p', { className: 'hint', textContent: t('Paste any note link and any profile link from the Nostr client you want to add.') }),
+        h('label', { textContent: t('Name') }),
+        name,
+        h('label', { textContent: t('Note link') }),
+        h('div', { className: 'row-actions' }, [noteIn, noteTry]),
+        noteSays,
+        noteWarn,
+        h('label', { textContent: t('Profile link') }),
+        h('div', { className: 'row-actions' }, [profileIn, profileTry]),
+        profileSays,
+        profileWarn,
+        err,
+        h('div', { className: 'actions' }, [save, cancel])
+      );
+      setTimeout(() => name.focus(), 50);
+    });
+  }
+
   // Currencies offered for the fiat leg of the balance display. One list feeds BOTH
   // pickers (Settings and the wallet screen), so they can't drift apart. Declared up
   // here with the other shared lists since renderSettings() below reads it.
@@ -11453,25 +12537,30 @@
   }
 
   // ---- activity tab: connected sites (permission tiers) + signing history ----
-  const LEVELS = [
-    ['ask', 'Ask every time'],
-    ['readonly', 'Read only'],
-    ['trusted', 'Trusted'],
-    ['blocked', 'Blocked'],
+  // A function, not a table: it is read at render, after the language file has loaded,
+  // and each label is a literal t() so the key script lists it for translators.
+  const LEVELS = () => [
+    ['ask', t('Ask every time')],
+    ['readonly', t('Read only')],
+    ['trusted', t('Trusted')],
+    ['blocked', t('Blocked')],
   ];
-  const KIND_NAMES = {
-    0: 'profile', 1: 'note', 3: 'contacts', 4: 'direct message', 5: 'deletion',
-    6: 'repost', 7: 'reaction', 8: 'badge award', 62: 'vanish request',
-    1018: 'poll response', 1059: 'gift wrap', 1068: 'poll', 1111: 'comment', 1222: 'voice message',
-    1337: 'code snippet', 1985: 'label', 4454: 'DM device key', 4455: 'DM key transfer',
-    4550: 'community post', 9041: 'zap goal', 9321: 'nutzap', 9734: 'zap request',
-    9802: 'highlight', 10000: 'mute list', 10002: 'relay list', 10006: 'blocked relays',
-    10007: 'search relays', 10012: 'favorite relays', 10015: 'interests', 10030: 'emoji list',
-    10044: 'DM encryption key', 10050: 'DM relay list', 10063: 'blossom servers',
-    22242: 'relay auth', 24133: 'connect', 24242: 'blossom auth', 27235: 'HTTP auth',
-    30000: 'follow set', 30023: 'article', 30078: 'app data', 30315: 'status',
-    30818: 'wiki article', 34550: 'community', 39089: 'starter pack', 39701: 'web bookmark',
-  };
+  // The kind names the activity list says it signed. A function for the reason LEVELS
+  // is one: read at render, each name a literal t().
+  const activityKindName = (kind) => ({
+    0: t('profile'), 1: t('note'), 3: t('contacts'), 4: t('direct message'),
+    5: t('deletion'), 6: t('repost'), 7: t('reaction'), 8: t('badge award'),
+    62: t('vanish request'), 1018: t('poll response'), 1059: t('gift wrap'), 1068: t('poll'),
+    1111: t('comment'), 1222: t('voice message'), 1337: t('code snippet'), 1985: t('label'),
+    4454: t('DM device key'), 4455: t('DM key transfer'), 4550: t('community post'), 9041: t('zap goal'),
+    9321: t('nutzap'), 9734: t('zap request'), 9802: t('highlight'), 10000: t('mute list'),
+    10002: t('relay list'), 10006: t('blocked relays'), 10007: t('search relays'), 10012: t('favorite relays'),
+    10015: t('interests'), 10030: t('emoji list'), 10044: t('DM encryption key'), 10050: t('DM relay list'),
+    10063: t('blossom servers'), 22242: t('relay auth'), 24133: t('connect'), 24242: t('blossom auth'),
+    27235: t('HTTP auth'), 30000: t('follow set'), 30023: t('article'), 30078: t('app data'),
+    30315: t('status'), 30818: t('wiki article'), 34550: t('community'), 39089: t('starter pack'),
+    39701: t('web bookmark'),
+  })[kind];
 
   // Which icon each signed kind gets in the Recent activity list. Everything used to
   // show the same feather, so a client firing a dozen relay auths produced an
@@ -11509,7 +12598,7 @@
     9041: 'zap',              // zap goal
     9321: 'zap',              // nutzap
     9734: 'zap',              // zap request
-    9802: 'edit',             // highlight
+    9802: 'highlighter',      // highlight — the same mark as the Yours sheet's tab
     10000: 'user-x',          // mute list
     10002: 'wifi',            // relay list
     10006: 'wifi',            // blocked relays
@@ -11535,20 +12624,22 @@
   };
 
   const METHOD_META = {
-    getPublicKey: { icon: 'key', label: () => 'Shared public key' },
+    getPublicKey: { icon: 'key', label: () => t('Shared public key') },
     signEvent: {
       icon: (e) => KIND_ICONS[e.kind] || KIND_ICON_DEFAULT,
-      label: (e) => 'Signed ' + (KIND_NAMES[e.kind] || ('kind ' + e.kind)),
+      label: (e) => (activityKindName(e.kind)
+        ? t('Signed {{what}}', { what: activityKindName(e.kind) })
+        : t('Signed kind {{kind}}', { kind: e.kind })),
     },
-    getRelays: { icon: 'wifi', label: () => 'Read relay list' },
-    'nip04.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
-    'nip04.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
-    'nip44.encrypt': { icon: 'lock', label: () => 'Encrypted a message' },
-    'nip44.decrypt': { icon: 'unlock', label: () => 'Decrypted a message' },
+    getRelays: { icon: 'wifi', label: () => t('Read relay list') },
+    'nip04.encrypt': { icon: 'lock', label: () => t('Encrypted a message') },
+    'nip04.decrypt': { icon: 'unlock', label: () => t('Decrypted a message') },
+    'nip44.encrypt': { icon: 'lock', label: () => t('Encrypted a message') },
+    'nip44.decrypt': { icon: 'unlock', label: () => t('Decrypted a message') },
     // Without these the activity list falls through to the default and prints the raw
     // method string under a quill — 'webln.keysend' four times over for one boost.
-    'webln.sendPayment': { icon: 'zap', label: () => 'Paid a Lightning invoice' },
-    'webln.keysend': { icon: 'zap', label: () => 'Sent a keysend payment' },
+    'webln.sendPayment': { icon: 'zap', label: () => t('Paid a Lightning invoice') },
+    'webln.keysend': { icon: 'zap', label: () => t('Sent a keysend payment') },
   };
 
 
@@ -11568,14 +12659,14 @@
     if (boundAcct) {
       const who = h('div', { className: 'site-bound' + (isActiveBound ? '' : ' site-bound-other') });
       who.append(avatarEl(boundAcct, 'site-bound-av'));
-      who.append(h('span', { textContent: 'Signs in as ' + displayName(boundAcct) }));
+      who.append(h('span', { textContent: t('Signs in as {{name}}', { name: displayName(boundAcct) }) }));
       main.append(who);
     }
     if (isShared) {
       const shared = h('div', { className: 'site-shared' });
       shared.append(icon('users'));
-      shared.append(h('span', { textContent: authorizedPks.length + ' accounts have signed in here' }));
-      const manage = h('button', { className: 'site-shared-manage', textContent: 'Manage' });
+      shared.append(h('span', { textContent: tn('{{count}} account has signed in here', '{{count}} accounts have signed in here', authorizedPks.length) }));
+      const manage = h('button', { className: 'site-shared-manage', textContent: t('Manage') });
       manage.addEventListener('click', () => sharedSiteModal(host, authorizedPks));
       shared.append(manage);
       main.append(shared);
@@ -11589,7 +12680,8 @@
       wrap.append(h('div', { className: 'kind-grants-title', textContent: t('Signs without asking:') }));
       for (const g of grants) {
         const line = h('div', { className: 'kind-grant' });
-        const label = (KIND_NAMES[g.kind] || 'kind ' + g.kind) + (g.d ? ' · “' + g.d + '”' : '');
+        const kindName = activityKindName(g.kind) || tSec('kind {{kind}}', { kind: I18N.fmtNum(g.kind) });
+        const label = g.d ? tSec('{{kind}} · “{{d}}”', { kind: kindName, d: g.d }) : kindName;
         line.append(h('span', { className: 'kind-grant-label', textContent: label }));
         line.append(iconButton(t('Stop always signing this'), 'x', async () => {
           await call({ type: 'SIDECAR_REMOVE_KIND_GRANT', host, kind: g.kind, d: g.d });
@@ -11612,8 +12704,8 @@
       const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
       const btn = h('button', {
         className: 'switch-site-btn',
-        textContent: 'Use ' + (active ? displayName(active) : 'this account'),
-        title: 'Switch ' + host + ' to the active account',
+        textContent: active ? t('Use {{name}}', { name: displayName(active) }) : t('Use this account'),
+        title: t('Switch {{host}} to the active account', { host }),
       });
       btn.addEventListener('click', () => switchSiteModal(host, boundAcct, active));
       controls.append(btn);
@@ -11629,7 +12721,7 @@
       controls.innerHTML = '';
       const sel = document.createElement('select');
       sel.className = 'level-select';
-      LEVELS.forEach(([v, l]) => {
+      LEVELS().forEach(([v, l]) => {
         const o = h('option', { value: v, textContent: l });
         if (v === level) o.selected = true;
         sel.append(o);
@@ -11637,11 +12729,11 @@
       sel.addEventListener('change', () => call({ type: 'SIDECAR_SET_LEVEL', host, level: sel.value }));
       // Forget needs a deliberate step — first tap swaps the controls for an inline
       // "Forget this site?" confirm so a stray click can't wipe a site's trust.
-      const rm = iconButton('Forget site', 'trash', () => {
+      const rm = iconButton(t('Forget site'), 'trash', () => {
         controls.innerHTML = '';
-        const msg = h('span', { className: 'confirm-msg', textContent: 'Forget this site?' });
-        const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
-        const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+        const msg = h('span', { className: 'confirm-msg', textContent: t('Forget this site?') });
+        const yes = h('button', { className: 'mini del-confirm', textContent: t('Forget') });
+        const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
         no.addEventListener('click', buildControls); // restore controls in place
         yes.addEventListener('click', async () => {
           await call({ type: 'SIDECAR_REMOVE_HOST', host });
@@ -11660,17 +12752,16 @@
   // Detaching alone isn't enough — the web client caches the old pubkey, so the
   // user must sign out and back in for Sidecar to re-bind it.
   function switchSiteModal(host, boundAcct, active) {
-    const activeName = active ? displayName(active) : 'the active account';
+    const activeName = active ? displayName(active) : t('the active account');
     openModal((modal) => {
-      const p = h('p', { className: 'hint' }, [
-        document.createTextNode(host + ' is signing in as '),
-        h('b', { textContent: displayName(boundAcct) }),
-        document.createTextNode('. To use '),
-        h('b', { textContent: activeName }),
-        document.createTextNode(' instead:'),
-      ]);
-      const go = h('button', { className: 'primary', textContent: 'Detach ' + host });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      // One sentence with the two names set in bold inside it, through fill(), rather
+      // than five fragments a translation could not reorder.
+      const p = h('p', { className: 'hint' }, I18N.fill(
+        t('{{host}} is signing in as {{bound}}. To use {{active}} instead:', { host, bound: '{{bound}}', active: '{{active}}' }),
+        { bound: h('b', { textContent: displayName(boundAcct) }), active: h('b', { textContent: activeName }) }
+      ));
+      const go = h('button', { className: 'primary', textContent: t('Detach {{host}}', { host }) });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       go.addEventListener('click', async () => {
         await call({ type: 'SIDECAR_CLEAR_BINDING', host });
@@ -11679,11 +12770,11 @@
         renderActivity();
       });
       modal.append(
-        h('h3', { textContent: 'Switch ' + host }),
+        h('h3', { textContent: t('Switch {{host}}', { host }) }),
         p,
         h('ol', { className: 'restore-list' }, [
-          h('li', { textContent: 'Detach the site below.' }),
-          h('li', { textContent: 'On ' + host + ', sign out and sign back in.' }),
+          h('li', { textContent: t('Detach the site below.') }),
+          h('li', { textContent: t('On {{host}}, sign out and sign back in.', { host }) }),
         ]),
         h('div', { className: 'actions' }, [go, cancel])
       );
@@ -11703,7 +12794,7 @@
     openModal((modal) => {
       modal.append(
         h('h3', { textContent: host }),
-        h('p', { className: 'hint', textContent: 'More than one account has signed in here, so Sidecar asks who is posting each time. Remove one to stop.' })
+        h('p', { className: 'hint', textContent: t('More than one account has signed in here, so Sidecar asks who is posting each time. Remove one to stop.') })
       );
       const list = h('div', { className: 'stack' });
       authorizedPks.forEach((pk) => {
@@ -11712,11 +12803,11 @@
         const row = h('div', { className: 'shared-acct-row' });
         row.append(avatarEl(a, 'site-bound-av'));
         row.append(h('span', { className: 'shared-acct-name', textContent: displayName(a) }));
-        const rm = iconButton('Remove from this site', 'trash', async () => {
+        const rm = iconButton(t('Remove from this site'), 'trash', async () => {
           await call({ type: 'SIDECAR_REMOVE_SITE_ACCOUNT', host, pubkey: pk });
           closeModal();
           renderActivity();
-          toast(displayName(a) + ' removed from ' + host, 'success');
+          toast(t('{{name}} removed from {{host}}', { name: displayName(a), host }), 'success');
         });
         row.append(rm);
         list.append(row);
@@ -11739,8 +12830,8 @@
       // sheet and did not need saying twice in smaller type.
       const row = h('label', { className: 'shared-acct-row always-active-row' }, [
         h('span', { className: 'shared-acct-name' }, [
-          h('span', { className: 'always-active-label', textContent: 'Don\u2019t ask which account' }),
-          h('span', { className: 'always-active-note', textContent: 'Posts may not match the client.' }),
+          h('span', { className: 'always-active-label', textContent: tSec('Don\u2019t ask which account') }),
+          h('span', { className: 'always-active-note', textContent: tSec('Posts may not match the client.') }),
         ]),
         toggle,
       ]);
@@ -11749,7 +12840,7 @@
         toggle.disabled = true;
         try {
           await call({ type: 'SIDECAR_SET_ALWAYS_ACTIVE', host, on });
-          toast(on ? 'Signing as the active account on ' + host : 'Confirms are back on ' + host, 'success');
+          toast(on ? t('Signing as the active account on {{host}}', { host }) : t('Confirms are back on {{host}}', { host }), 'success');
         } catch (e) {
           toggle.checked = !on; // put the switch back where the stored state actually is
           toast(e.message, 'error');
@@ -11759,12 +12850,33 @@
       });
       modal.append(row);
 
-      const close = h('button', { className: 'ghost', textContent: 'Close' });
+      const close = h('button', { className: 'ghost', textContent: t('Close') });
       close.addEventListener('click', closeModal);
       modal.append(h('div', { className: 'actions' }, [close]));
     });
   }
 
+  // WHICH SIGNED EVENTS A CLIENT CAN SHOW. A relay auth, an app's saved settings, a list or
+  // a zap request has no page of its own, so the row's link-out opened a client on nothing.
+  // These do: notes and their reposts, reactions, media, polls, comments, voice, highlights,
+  // articles, starter packs, communities and live events (the kinds a web client renders as
+  // a page, taken from the ones the default client supports). Every other signed event gets
+  // Copy event ID instead, which is what you want from one of those anyway.
+  const ACTIVITY_VIEWABLE_KINDS = new Set([
+    1, 6, 7, 16, 20, 21, 22, 1068, 1111, 1222, 1244, 9802, 30023, 30311, 34235, 34236, 34550, 39089,
+  ]);
+
+
+  // The host and how long ago, as two pieces that wrap as pieces. One string with a
+  // break-anywhere rule cut "jumble.social" in half in a narrow panel; as two spans the
+  // age drops to its own line when the pair does not fit, and only a host that is wider than
+  // the whole row is shortened, with an ellipsis.
+  function actSub(host, ts) {
+    return h('div', { className: 'item-sub act-sub' }, [
+      h('span', { className: 'act-host', textContent: host }),
+      h('span', { className: 'act-when', textContent: '· ' + relTime(ts) }),
+    ]);
+  }
   function activityRow(e) {
     // A request Sidecar refused on shape (see normalizeSignEventParams in
     // background.js) never reached the key, so it must not borrow METHOD_META's
@@ -11777,8 +12889,8 @@
       const iconBox = h('div', { className: 'act-icon' });
       iconBox.appendChild(icon('alert'));
       const main = h('div', { className: 'item-main' }, [
-        h('div', { className: 'item-label', textContent: 'Refused an unreadable signing request' }),
-        h('div', { className: 'item-sub', textContent: (e.host || '') + ' · ' + relTime(e.ts) }),
+        h('div', { className: 'item-label', textContent: tSec('Refused an unreadable signing request') }),
+        actSub(e.host || '', e.ts),
         h('div', { className: 'item-sub', textContent: String(e.rejected).replace(/^signEvent: /, '') }),
       ]);
       if (e.shape) {
@@ -11796,7 +12908,7 @@
     iconBox.appendChild(icon(iconName || 'feather'));
     const main = h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: meta.label(e) }),
-      h('div', { className: 'item-sub', textContent: e.host + ' · ' + relTime(e.ts) }),
+      actSub(e.host, e.ts),
     ]);
     row.append(iconBox, main);
 
@@ -11810,14 +12922,25 @@
     // also goes on the row title, so it can be read and copied without leaving.
     if (e.id) {
       row.title = e.id;
-      const open = iconButton('View this event', 'external', async () => {
-        try {
-          const nevent = NT.nip19.neventEncode({ id: e.id, author: e.pubkey || undefined });
-          const client = await preferredClient();
-          window.open(client.url(nevent), '_blank', 'noopener');
-        } catch (_) {}
-      });
-      row.append(h('div', { className: 'item-actions' }, [open]));
+      const nevent = () => NT.nip19.neventEncode({ id: e.id, author: e.pubkey || undefined, kind: e.kind != null ? e.kind : undefined });
+      const action = e.method === 'signEvent' && ACTIVITY_VIEWABLE_KINDS.has(e.kind)
+        ? iconButton(t('View this event'), 'external', async () => {
+          try {
+            const client = await preferredClient();
+            window.open(client.url(nevent()), '_blank', 'noopener');
+          } catch (_) {}
+        })
+        // The same copy the notification menu's Copy event ID gives: the nevent, with the
+        // author and kind riding along so a client can find it.
+        : iconButton(t('Copy event ID'), 'copy', async () => {
+          try {
+            await copyPlain(nevent());
+            toast(t('Copied'), 'success');
+          } catch (_) {
+            toast(t('Could not copy'), 'error');
+          }
+        });
+      row.append(h('div', { className: 'item-actions' }, [action]));
     }
     return row;
   }
@@ -11866,7 +12989,7 @@
     if (!hosts.length) {
       sites.innerHTML = '';
       sites.classList.add('empty');
-      listState(sites, 'No sites have connected yet.');
+      listState(sites, t('No sites have connected yet.'));
       hide(sitesMore);
       hide(sitesFilter);
     } else {
@@ -11877,7 +13000,7 @@
       const onSiteForgotten = () => {
         if (sites.querySelector('.site-item')) return;
         sites.classList.add('empty');
-        listState(sites, 'No sites have connected yet.');
+        listState(sites, t('No sites have connected yet.'));
         hide(sitesMore);
         hide(sitesFilter);
       };
@@ -11887,7 +13010,7 @@
         const filtered = q ? hosts.filter((host) => host.toLowerCase().includes(q)) : hosts;
         sites.classList.toggle('empty', !filtered.length);
         if (!filtered.length) {
-          listState(sites, 'No sites match "' + sitesFilter.value.trim() + '".');
+          listState(sites, t('No sites match “{{query}}”.', { query: sitesFilter.value.trim() }));
           hide(sitesMore);
           return;
         }
@@ -11906,7 +13029,7 @@
           if (shownSites >= filtered.length) hide(sitesMore);
           else {
             show(sitesMore);
-            sitesMore.textContent = 'Show more (' + (filtered.length - shownSites) + ')';
+            sitesMore.textContent = t('Show more ({{count}})', { count: I18N.fmtNum(filtered.length - shownSites) });
           }
         };
         sitesMore.onclick = () => { sitesShownN = Math.min(shownSites + SITES_PAGE, filtered.length); renderSitesPage(); };
@@ -11931,11 +13054,11 @@
       show(forgetWrap);
       const buildForgetAll = () => {
         forgetWrap.innerHTML = '';
-        const btn = h('button', { className: 'ghost', textContent: 'Forget all sites' });
+        const btn = h('button', { className: 'ghost', textContent: t('Forget all sites') });
         btn.addEventListener('click', () => {
           forgetWrap.innerHTML = '';
-          const yes = h('button', { className: 'mini del-confirm', textContent: 'Forget' });
-          const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
+          const yes = h('button', { className: 'mini del-confirm', textContent: t('Forget') });
+          const no = h('button', { className: 'mini ghost', textContent: t('Cancel') });
           no.addEventListener('click', buildForgetAll);
           yes.addEventListener('click', async () => {
             await call({ type: 'SIDECAR_FORGET_ALL_SITES' });
@@ -11946,7 +13069,7 @@
           forgetWrap.append(
             h('span', {
               className: 'confirm-msg',
-              textContent: 'Forget every site? Pairings, permission tiers, and Recent activity are erased.',
+              textContent: tSec('Forget every site? Pairings, permission tiers, and Recent activity are erased.'),
             }),
             yes,
             no
@@ -11964,7 +13087,7 @@
     const more = $('activity-more');
     if (!log.length) {
       list.innerHTML = '';
-      listState(list, 'No signing activity yet.');
+      listState(list, t('No signing activity yet.'));
       hide(more);
       hide(activityFilter);
       return;
@@ -11976,7 +13099,7 @@
       const q = activityFilter.value.trim().toLowerCase();
       const filtered = q ? log.filter((e) => (e.host || '').toLowerCase().includes(q)) : log;
       if (!filtered.length) {
-        listState(list, 'No activity matches "' + activityFilter.value.trim() + '".');
+        listState(list, t('No activity matches “{{query}}”.', { query: activityFilter.value.trim() }));
         hide(more);
         return;
       }
@@ -11990,7 +13113,7 @@
         if (shown >= filtered.length) hide(more);
         else {
           show(more);
-          more.textContent = 'Show more (' + (filtered.length - shown) + ')';
+          more.textContent = t('Show more ({{count}})', { count: I18N.fmtNum(filtered.length - shown) });
         }
       }
       more.onclick = () => { logShownN = Math.min(shown + PAGE, filtered.length); renderPage(); };
@@ -12161,17 +13284,17 @@
   // one; not having reached the host is neutral and shaped differently, so it cannot be
   // mistaken for a finding about the identifier.
   const NIP05_BADGE = {
-    ok:          { cls: 'nip05-ok',      glyph: 'check', title: 'Verified' },
-    mismatch:    { cls: 'nip05-alarm',   glyph: 'alert', title: 'This address points to a different key' },
-    absent:      { cls: 'nip05-bad',     glyph: 'alert', title: 'This domain doesn’t list this name' },
-    http:        { cls: 'nip05-unknown', glyph: 'help',  title: 'The domain didn’t serve its nostr.json' },
-    malformed:   { cls: 'nip05-unknown', glyph: 'help',  title: 'The domain’s nostr.json isn’t valid' },
-    unreachable: { cls: 'nip05-unknown', glyph: 'help',  title: 'Couldn’t reach the domain to check' },
+    ok:          { cls: 'nip05-ok',      glyph: 'check', title: () => t('Verified') },
+    mismatch:    { cls: 'nip05-alarm',   glyph: 'alert', title: () => t('This address points to a different key') },
+    absent:      { cls: 'nip05-bad',     glyph: 'alert', title: () => t('This domain doesn’t list this name') },
+    http:        { cls: 'nip05-unknown', glyph: 'help',  title: () => t('The domain didn’t serve its nostr.json') },
+    malformed:   { cls: 'nip05-unknown', glyph: 'help',  title: () => t('The domain’s nostr.json isn’t valid') },
+    unreachable: { cls: 'nip05-unknown', glyph: 'help',  title: () => t('Couldn’t reach the domain to check') },
   };
   function paintNip05Badge(badge, res, recheck) {
     const b = NIP05_BADGE[res && res.status] || NIP05_BADGE.unreachable;
     badge.classList.add(b.cls);
-    badge.title = b.title + (recheck ? ' Tap to check again.' : '');
+    badge.title = recheck ? t('{{verdict}} Tap to check again.', { verdict: b.title() }) : b.title();
     badge.append(icon(b.glyph));
     // The badge is the refresh: a check is only as fresh as its last network trip,
     // and the verdict a user is staring at may be days stale for reasons (a host's
@@ -12266,7 +13389,7 @@
     const active = state.accounts.find((a) => a.pubkey === state.activePubkey);
     view.innerHTML = '';
     if (!active) {
-      view.append(h('p', { className: 'hint', textContent: 'No active account.' }));
+      view.append(h('p', { className: 'hint', textContent: t('No active account.') }));
       return;
     }
     view.append(profileSkeleton());
@@ -12289,7 +13412,7 @@
     // remark, not a field, and giving it a labelled section made the profile read
     // like a settings screen. Empty status = no balloon at all, so the profile of
     // someone who never sets one is exactly what it was before this shipped.
-    const balloon = h('button', { className: 'status-balloon hidden', title: 'Edit status' });
+    const balloon = h('button', { className: 'status-balloon hidden', title: t('Edit status') });
     const balloonText = h('span', { className: 'status-balloon-text' });
     balloon.append(balloonText);
     balloon.addEventListener('click', () => openStatusEditor(active, paintStatus));
@@ -12302,6 +13425,7 @@
     body.append(
       h('div', {
         className: 'profile-name',
+        dir: 'auto',
         textContent: content.display_name || content.name || active.name || shortNpub(active.npub),
       })
     );
@@ -12326,7 +13450,7 @@
     // The chip copies; the button beside it shows the code. Two affordances rather than
     // one that does both, because the chip's whole behavior is copy-on-tap and adding a
     // second meaning to the same tap would make neither obvious.
-    const qrBtn = iconButton('Show npub QR', 'qr', () => npubQrModal(active));
+    const qrBtn = iconButton(t('Show npub QR'), 'qr', () => npubQrModal(active));
     qrBtn.classList.add('profile-npub-qr');
     body.append(h('div', { className: 'profile-npub-row' }, [npubChip(active.npub), qrBtn]));
 
@@ -12337,47 +13461,43 @@
     // a refresh, so it is one now. Follow List Recovery already sits at the bottom of
     // this screen under its own clear label, so the jump wasn't earning the icon.
     //
-    // Profile data is cached for PROFILE_TTL (5 min) and the follow count is cached for
-    // the whole session, so an edit made elsewhere can look stuck. This drops both for
-    // the active account and refetches.
-    const refreshBtn = h('button', { className: 'profile-backup-jump', title: 'Refresh profile, follow and mute counts' });
-    // Clockwise, near-closed circle with a short arrow at the top right — the
-    // conventional "reload" glyph. The old mark was counter-clockwise and filled,
-    // which reads more like "undo" than "refresh". Stroked so it inherits the same
-    // weight as the panel's other icons.
-    refreshBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M20 12a8 8 0 1 1-2.34-5.66"></path>' +
-      '<polyline points="20 4.5 20 9 15.5 9"></polyline></svg>';
+    // Profile data and the follow count are both cached for five minutes, so a
+    // follow list changed elsewhere can look stuck. This drops the two count
+    // caches for the active account, re-reads, and repaints the figures in
+    // place; profile data self-corrects on the next natural render.
+    const refreshBtn = h('button', { className: 'profile-backup-jump', title: t('Refresh follow and mute counts') });
+    // Same glyph as the Overview drawer's refresh (the two-arrow mark from the
+    // shared icon set), so every refresh affordance in the panel reads alike.
+    refreshBtn.appendChild(icon('refresh'));
     refreshBtn.addEventListener('click', async () => {
       if (refreshBtn.disabled) return;
       refreshBtn.disabled = true;
       refreshBtn.classList.add('spinning');
       try {
-        _profileCache.delete(active.pubkey);
+        // Counts only, in place: drop the two count caches for the active
+        // account, re-read, and repaint the two figures — without rebuilding
+        // the screen this button sits on. Profile data (name, picture) keeps
+        // its own five-minute TTL and picks up on the next natural render.
         followCountCache.delete(active.pubkey);
-        // The mute list is cached as a PROMISE per account, and never expires on its own,
-        // so a mute added in another client is invisible until something drops it. The
-        // refresh has to reach this too, or the number beside the follow count is the one
-        // stat on the screen the button does not refresh.
         _muteListPromises.delete(active.pubkey);
-        profileFetchState.delete(active.pubkey); // clear tries + settled so it refetches
-        await fetchAndStoreProfile(active.pubkey);
-        renderProfile();
-        toast('Profile refreshed', 'success');
+        // Both reads start together and the button waits for both: the spinner and
+        // the disabled flag cover the whole refresh, and a second press cannot start
+        // a mute read that races the first.
+        const muted = paintMuteCount(active.pubkey, muteNum, muteStat);
+        const n = await getFollowCount(active.pubkey);
+        setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
+        await muted;
       } catch (_) {
-        toast("Couldn't reach your relays", 'error');
+        toast(t('Couldn’t reach your relays'), 'error');
       } finally {
-        // renderProfile() may have replaced this button; guard against a detached node.
         refreshBtn.disabled = false;
         refreshBtn.classList.remove('spinning');
       }
     });
     const muteNum = setWaiting(h('strong'), '…', true);
-    const muteStat = h('span', { className: 'profile-stat' }, [muteNum, document.createTextNode(' muted')]);
+    const muteStat = h('span', { className: 'profile-stat' }, I18N.fill(t('{{count}} muted'), { count: muteNum }));
     const followStat = h('div', { className: 'profile-stats' }, [
-      h('span', { className: 'profile-stat' }, [followNum, document.createTextNode(' following')]),
+      h('span', { className: 'profile-stat' }, I18N.fill(t('{{count}} following'), { count: followNum })),
       muteStat,
       refreshBtn,
     ]);
@@ -12385,17 +13505,23 @@
     getFollowCount(active.pubkey).then((n) => {
       setWaiting(followNum, n == null ? '—' : I18N.fmtNum(n), false);
     });
+    // The repaint-on-follow contract the Overview drawer honors too: a follow
+    // or unfollow elsewhere in the panel lands here at once.
+    registerFollowRepainter(followNum, () => {
+      const n = followCountCache.get(active.pubkey);
+      if (n && Date.now() - n.at < FOLLOW_COUNT_TTL && n.v != null) setWaiting(followNum, I18N.fmtNum(n.v), false);
+    });
     paintMuteCount(active.pubkey, muteNum, muteStat);
 
     const editBtn = h('button', { className: 'secondary profile-edit-cta' });
-    editBtn.append(icon('edit'), h('span', { textContent: 'Edit profile' }));
+    editBtn.append(icon('edit'), h('span', { textContent: t('Edit profile') }));
     editBtn.addEventListener('click', () => openProfileEdit(content));
 
     // Always present, whether or not a status exists. The balloon is also a way in,
     // but it is small, sits on the banner, and is easy to miss as a control; a
     // fixed button beside Edit profile is the one you can always find.
     const statusBtn = h('button', { className: 'secondary profile-status-cta' });
-    statusBtn.append(icon('message-circle'), h('span', { textContent: 'Set status' }));
+    statusBtn.append(icon('message-circle'), h('span', { textContent: t('Set status') }));
     statusBtn.addEventListener('click', () => openStatusEditor(active, paintStatus));
 
     body.append(h('div', { className: 'profile-cta-row' }, [editBtn, statusBtn]));
@@ -12412,7 +13538,7 @@
     fetchStatus(active.pubkey).then((st) => { if (header.isConnected) paintStatus(st); });
 
     if (content.about) {
-      const about = h('p', { className: 'profile-about' });
+      const about = h('p', { className: 'profile-about', dir: 'auto' });
       body.append(about);
       renderAbout(about, content.about);
     }
@@ -12420,14 +13546,14 @@
     // splitting them is what hid the offer. The offer reads through profileOffer, so a
     // field that does not decode shows nothing rather than a broken line, exactly as it
     // behaves on somebody else's sheet.
-    if (content.lud16) body.append(payLine(content.lud16, boltIcon(), 'Lightning address'));
+    if (content.lud16) body.append(payLine(content.lud16, boltIcon(), t('Lightning address')));
     const ownOffer = profileOffer(content);
     // Cut in the middle, at the same 18/6 the handoff button uses, so an offer reads the
     // same wherever it is shown. An offer is around a hundred characters of bech32 and
     // trailing off after the first forty says nothing the first twenty had not: the head
     // is what identifies it at a glance, and the tail is what you check a paste against.
     if (ownOffer) {
-      body.append(payLine(ownOffer.raw, boltIcon(), 'CLINK offer', truncMid(ownOffer.raw, 18, 6)));
+      body.append(payLine(ownOffer.raw, boltIcon(), t('CLINK offer'), truncMid(ownOffer.raw, 18, 6)));
     }
     if (content.website) {
       const w = h('div', { className: 'profile-meta' });
@@ -12475,27 +13601,27 @@
 
     const title = h('div', { className: 'lud16-sync-title' }, [
       boltIcon('lud16-sync-bolt'),
-      h('span', { textContent: 'Lightning address' }),
+      h('span', { textContent: t('Lightning address') }),
     ]);
     const msg = h('p', {
       className: 'lud16-sync-msg',
       textContent: profileAddr
-        ? "Your profile's lightning address differs from your connected wallet's."
-        : "Add your wallet's lightning address to your profile so people can zap you.",
+        ? t('Your profile’s lightning address differs from your connected wallet’s.')
+        : t('Add your wallet’s lightning address to your profile so people can zap you.'),
     });
     const addr = h('div', { className: 'lud16-sync-addr', textContent: walletAddr });
-    const useBtn = h('button', { className: 'primary', textContent: profileAddr ? 'Use wallet address' : 'Add to profile' });
-    const dismiss = h('button', { className: 'ghost', textContent: 'Not now' });
+    const useBtn = h('button', { className: 'primary', textContent: profileAddr ? t('Use wallet address') : t('Add to profile') });
+    const dismiss = h('button', { className: 'ghost', textContent: t('Not now') });
     useBtn.addEventListener('click', async () => {
       useBtn.disabled = true;
-      useBtn.textContent = 'Updating…';
+      useBtn.textContent = t('Updating…');
       try {
         await publishProfile({ lud16: walletAddr }, null); // unlocked → no step-up PIN; additive
-        toast('Lightning address updated', 'success');
+        toast(t('Lightning address updated'), 'success');
         renderProfile(); // re-render: the address now matches, so the notice won't reappear
       } catch (e) {
         useBtn.disabled = false;
-        useBtn.textContent = profileAddr ? 'Use wallet address' : 'Add to profile';
+        useBtn.textContent = profileAddr ? t('Use wallet address') : t('Add to profile');
         toast(e.message, 'error');
       }
     });
@@ -12531,7 +13657,8 @@
   // fresh account); only a thrown error returns null, which the UI renders as "—".
   async function getFollowCount(pubkey) {
     if (!pubkey) return null;
-    if (followCountCache.has(pubkey)) return followCountCache.get(pubkey);
+    const cached = followCountCache.get(pubkey);
+    if (cached && Date.now() - cached.at < FOLLOW_COUNT_TTL) return cached.v;
     let count = null;
     let answered = false;
     try {
@@ -12559,7 +13686,7 @@
         count = 0;
       }
     } catch (_) {}
-    if (answered) followCountCache.set(pubkey, count);
+    if (answered) followCountCache.set(pubkey, { v: count, at: Date.now() });
     return count;
   }
 
@@ -12583,13 +13710,12 @@
     try {
       const m = await loadMuteList(pubkey, await readRelayUrls(pubkey));
       setWaiting(numEl, I18N.fmtNum(m.pubkeys.size), false);
-      const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
       const extras = [];
-      if (m.hashtags.size) extras.push(plural(m.hashtags.size, 'hashtag'));
-      if (m.words.length) extras.push(plural(m.words.length, 'word'));
-      if (m.threads.size) extras.push(plural(m.threads.size, 'thread'));
+      if (m.hashtags.size) extras.push(tn('{{count}} hashtag', '{{count}} hashtags', m.hashtags.size));
+      if (m.words.length) extras.push(tn('{{count}} word', '{{count}} words', m.words.length));
+      if (m.threads.size) extras.push(tn('{{count}} thread', '{{count}} threads', m.threads.size));
       if (labelEl && extras.length) {
-        labelEl.title = 'Also muted: ' + extras.join(', ') + '. Only people are counted here.';
+        labelEl.title = t('Also muted: {{list}}. Only people are counted here.', { list: extras.join(', ') });
       }
     } catch (_) {
       setWaiting(numEl, '—', false); // a dash is an answer, and must not keep sweeping
@@ -12653,10 +13779,10 @@
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
-      textContent: 'Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.',
+      textContent: t('Also search every Nostr name? This uses a third-party index ({{host}}) that sees what you type and who you follow.', { host: 'api.nostrarchives.com' }),
     }));
-    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: 'Search everyone' });
-    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: 'Just my follows' });
+    const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: t('Search everyone') });
+    const no = h('button', { className: 'na-ask-no', type: 'button', textContent: t('Just my follows') });
     const pick = (on) => (e) => { e.preventDefault(); e.stopPropagation(); onDecided(on); };
     yes.addEventListener('mousedown', pick(true));
     no.addEventListener('mousedown', pick(false));
@@ -12799,14 +13925,14 @@
   }
 
   function npubChip(npub) {
-    const el = h('div', { className: 'profile-npub', title: 'Copy npub' });
+    const el = h('div', { className: 'profile-npub', title: t('Copy npub') });
     el.append(icon('copy'), h('span', { textContent: shortNpub(npub) }));
     el.addEventListener('click', async () => {
       try {
         await copyPlain(npub);
         const span = el.querySelector('span');
         const prev = span.textContent;
-        span.textContent = 'Copied ✓';
+        span.textContent = t('Copied ✓');
         setTimeout(() => (span.textContent = prev), 1200);
       } catch (_) {}
     });
@@ -12881,12 +14007,12 @@
 
     requestAnimationFrame(() => {
       if (bodyEl.scrollHeight > bodyEl.clientHeight + 4) {
-        const toggle = h('button', { className: 'show-toggle', textContent: 'Show more' });
+        const toggle = h('button', { className: 'show-toggle', textContent: t('Show more') });
         let expanded = false;
         toggle.addEventListener('click', () => {
           expanded = !expanded;
           bodyEl.classList.toggle('about-clamp', !expanded);
-          toggle.textContent = expanded ? 'Show less' : 'Show more';
+          toggle.textContent = expanded ? t('Show less') : t('Show more');
         });
         container.append(toggle);
       } else {
@@ -12909,8 +14035,10 @@
 
   // ---- image upload (Blossom → nostr.build via NIP-98) ----
   async function uploadImage(file, kind, forPubkey) {
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
-    if (file.size > 10 * 1024 * 1024) throw new Error('Image too large (max 10MB)');
+    if (!file.type.startsWith('image/')) throw new Error(t('Choose an image file'));
+    if (file.size > 10 * 1024 * 1024) throw new Error(t('Image too large (max {{max}} MB)', { max: I18N.fmtNum(10) }));
+    // Profile and banner pictures too: no location or camera metadata leaves with them.
+    file = await window.SidecarCore.stripPrivateMetadata(file);
     const forPk = forPubkey || state.activePubkey;
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) return blossomUrl;
@@ -12926,10 +14054,10 @@
     const form = new FormData();
     form.append('file', file);
     const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
-    if (!resp.ok) throw new Error('Upload failed (' + resp.status + ')');
+    if (!resp.ok) throw new Error(t('Upload failed ({{status}})', { status: resp.status }));
     const json = await resp.json().catch(() => null);
     const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
-    if (!u) throw new Error('Upload returned no URL');
+    if (!u) throw new Error(t('Upload returned no URL'));
     return u;
   }
 
@@ -13014,14 +14142,14 @@
   // modal for any account — including back to the default, which the gallery cannot say.
   function themeOverrideModal(a) {
     openModal((modal) => {
-      modal.append(h('h3', { textContent: 'Theme for ' + displayName(a) }));
+      modal.append(h('h3', { textContent: t('Theme for {{name}}', { name: displayName(a) }) }));
       modal.append(h('p', {
         className: 'hint',
-        textContent: 'The theme this account wears, so you can tell at a glance which one you are in.',
+        textContent: t('The theme this account wears, so you can tell at a glance which one you are in.'),
       }));
 
       const sel = h('select');
-      sel.append(h('option', { value: '', textContent: 'Use the default' }));
+      sel.append(h('option', { value: '', textContent: t('Use the default') }));
       // Grouped Dark and Light, the same split the gallery shows, and READ FROM THE
       // GALLERY'S OWN CARDS rather than restated here. sidepanel.html says data-mode is
       // the only place that split is made; a second copy in this file would be right
@@ -13039,8 +14167,8 @@
         return (card && card.dataset.mode) === 'light' ? 'light' : 'dark';
       };
       const groups = {
-        dark: h('optgroup', { label: 'Dark' }),
-        light: h('optgroup', { label: 'Light' }),
+        dark: h('optgroup', { label: t('Dark') }),
+        light: h('optgroup', { label: t('Light') }),
       };
       THEME_LABELS.forEach(([key, label]) =>
         groups[modeOf(key)].append(h('option', { value: key, textContent: label })));
@@ -13051,8 +14179,8 @@
       sel.addEventListener('change', () => { touched = true; });
 
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Save' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const save = h('button', { className: 'primary', textContent: t('Save') });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
 
       save.addEventListener('click', async () => {
@@ -13068,7 +14196,7 @@
             paintThemePicker(applyResolvedTheme(await call({ type: 'SIDECAR_GET_SETTINGS' })));
           }
           closeModal();
-          toast(sel.value ? 'Theme set' : 'Using the default theme', 'success');
+          toast(sel.value ? t('Theme set') : t('Using the default theme'), 'success');
         } catch (e) {
           err.textContent = e.message;
           save.disabled = false;
@@ -13182,9 +14310,11 @@
     }
   }
 
-  async function neventFor(signed) {
-    let relays = [];
-    try { relays = (await postRelays()).slice(0, 2); } catch (_) {}
+  // The hints are relays that ACCEPTED the note. They were the first two write relays, accepted
+  // or not, so the banner's link could send a client first to a relay that had refused it.
+  async function neventFor(signed, accepted) {
+    let relays = (accepted || []).slice(0, 2);
+    if (!relays.length) { try { relays = (await postRelays()).slice(0, 2); } catch (_) {} }
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
@@ -13195,11 +14325,11 @@
     if (banner) hide(banner);
   }
 
-  async function showPostBanner(signed, isReply) {
+  async function showPostBanner(signed, isReply, report) {
     const banner = $('post-banner');
     if (!banner) return;
     let nevent;
-    try { nevent = await neventFor(signed); } catch (_) { return; }
+    try { nevent = await neventFor(signed, report && report.accepted); } catch (_) { return; }
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     // The account that just signed the note, not whatever is active by the time the
     // banner paints — they can differ if the user switches while it is up.
@@ -13218,8 +14348,8 @@
     open.href = client.url(nevent);
     open.target = '_blank';
     open.rel = 'noreferrer noopener';
-    open.append(h('span', { textContent: 'Open in ' + client.label }));
-    const close = h('button', { className: 'post-banner-x', title: 'Dismiss' });
+    open.append(h('span', { textContent: t('Open in {{client}}', { client: client.label }) }));
+    const close = h('button', { className: 'post-banner-x', title: t('Dismiss') });
     close.append(icon('x'));
     close.addEventListener('click', dismissPostBanner);
     // ONE WORDED ACTION FITS ON THE MESSAGE'S ROW. TWO DO NOT.
@@ -13235,19 +14365,38 @@
     // and the two actions share the row beneath. They wrap to a row each if they cannot
     // both fit, which happens below about a 310px panel with the longest client name,
     // rather than running out past the border.
-    banner.classList.toggle('post-banner-stacked', isPoll);
-    if (!isPoll) {
+    // WHEN NOT EVERY RELAY ACCEPTED IT, the shared row from the tab's receipt goes under the
+    // message: "Published to N relays.", opening onto which accepted it and why the others did
+    // not. A row with words, so it takes the stacked layout's full width; the banner also stops
+    // counting down once it is opened, so it does not vanish while it is being read.
+    const partial = !!(report && report.failed && report.failed.length);
+    const relaysRow = partial ? window.SidecarCore.relayReportNode(report) : null;
+    if (relaysRow) {
+      relaysRow.classList.add('post-banner-relays');
+      relaysRow.addEventListener('toggle', () => {
+        if (relaysRow.open && _postBannerTimer) { clearTimeout(_postBannerTimer); _postBannerTimer = null; }
+      });
+    }
+    banner.classList.toggle('post-banner-stacked', isPoll || partial);
+    if (!isPoll && !partial) {
       banner.append(msg, open, close);
+    } else if (!isPoll) {
+      banner.append(
+        h('div', { className: 'post-banner-head' }, [msg, close]),
+        relaysRow,
+        h('div', { className: 'post-banner-actions' }, [open])
+      );
     } else {
       // The results sheet first: it is the thing just made, and the one view the web
       // client link cannot stand in for.
-      const results = h('button', { className: 'post-banner-link post-banner-btn', textContent: 'See results' });
+      const results = h('button', { className: 'post-banner-link post-banner-btn', textContent: t('See results') });
       results.addEventListener('click', () => {
         dismissPostBanner();
         openPollResults(signed);
       });
       banner.append(
         h('div', { className: 'post-banner-head' }, [msg, close]),
+        ...(relaysRow ? [relaysRow] : []),
         h('div', { className: 'post-banner-actions' }, [results, open])
       );
     }
@@ -13289,8 +14438,8 @@
     // "Reload client window", not "Reload jumble.social". The host was noise — this
     // banner only ever offers the tab you're already looking at, so naming it told
     // the user something they could see, and a long host stretched the button.
-    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: 'Reload client window' })]);
-    reload.title = 'Reload ' + host; // still available on hover, just not shouted
+    const reload = h('button', { className: 'reload-banner-btn' }, [icon('refresh'), h('span', { textContent: t('Reload client window') })]);
+    reload.title = t('Reload {{host}}', { host }); // still available on hover, just not shouted
     reload.addEventListener('click', () => {
       try { chrome.tabs.reload(tab.id); } catch (_) {}
       dismissReloadBanner();
@@ -13299,13 +14448,13 @@
     // but a user who has decided not to reload shouldn't have to wait it out.
     const close = h('button', {
       className: 'reload-banner-x',
-      title: 'Dismiss',
+      title: t('Dismiss'),
       textContent: '✕',
     });
     // setAttribute, not h(): h() does Object.assign, which sets a JS PROPERTY named
     // 'aria-label' and never reaches the attribute — so this button had no accessible
     // name at all, only a hover title. Same trap as elsewhere in this file.
-    close.setAttribute('aria-label', 'Dismiss');
+    close.setAttribute('aria-label', t('Dismiss'));
     close.addEventListener('click', dismissReloadBanner);
     banner.append(reload, close);
     show(banner);
@@ -13340,9 +14489,13 @@
     resolveQuotePreviews, sha256Hex, glyphBeat, relTime, quoteSnippet, firstQuoteImage,
     powSetting, postCountdownSetting,
     renderNoteText, renderLinkCard, resolveMentions, embedRef, tryBlossomFirst,
-    paintCountdownNum, fetchBlossomServers,
+    paintCountdownNum, fetchBlossomServers, buildQuoteBlock, checkPastedQuote,
   } = window.SidecarCore.installComposer({
       NT, applyAvatar, cachedProfile, fetchPreviewProfile, getFollowList,
+      // Said when the account's own Blossom servers took none of a file and nostr.build did.
+      onUploadFallback: (message) => toast(message, 'info'),
+      // Upload decisions into Settings → Developer → Debug log (unpacked builds only).
+      devLog: (level, msg, data) => { call({ type: 'SIDECAR_UPLOAD_LOG', level, msg, data }).catch(() => {}); },
       naAskEl, naAvailable, naDecide, naSetting, naSuggest, noteActivity, shortNpub,
       // The synchronous half of getFollowList: the already-loaded list for the account
       // that is active right now, or null. Kept as a function rather than a value because
@@ -13353,6 +14506,7 @@
       // so the core never touches this panel's pool and a second page can bring its own.
       call, poolGet, poolQuerySync, relayUrls, cacheProfile,
       activePubkey: () => state.activePubkey,
+      onUploadNotice: (message) => toast(message, 'info'),
       // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
       // exactly the kind of thing that setting is for.
       reduceBalanceMotion: () => reduceBalanceMotion,
@@ -13496,7 +14650,7 @@
     author.append(avatarEl(active || {}, 'compose-author-av'));
     author.append(
       h('div', { className: 'compose-author-info' }, [
-        h('span', { className: 'compose-author-eyebrow', textContent: 'Posting as' }),
+        h('span', { className: 'compose-author-eyebrow', textContent: t('Posting as') }),
         h('span', { className: 'compose-author-name', textContent: active ? displayName(active) : '—' }),
       ])
     );
@@ -13629,7 +14783,7 @@
     const acct = $('acct-btn');
     if (acct) {
       acct.disabled = locked || !((state && state.accounts) || []).length;
-      if (locked) acct.title = 'Mining a post for this account';
+      if (locked) acct.title = t('Mining a post for this account');
       else acct.removeAttribute('title');
     }
   }
@@ -13771,6 +14925,18 @@
     chrome.tabs.create({ url });
   }
 
+  // WHAT A PREFILL BECOMES. The Quote button hands in the note's reference on a line of its
+  // own; as a block under the field it shows the note being quoted rather than a line of
+  // bech32, the same as a pasted one. Any other prefill is the words it always was.
+  function seedFrom(text) {
+    const quotes = quoteEntriesFromPaste(text, []);
+    return quotes.length ? { text: '', media: quotes } : { text: text || '', media: [] };
+  }
+  // The quote a prefill carries, if it is one (the Quote button's), else null.
+  function quoteFrom(text) {
+    return seedFrom(text).media.find((m) => m && m.quote) || null;
+  }
+
   async function openComposer(initialText, opts) {
     if (!state.activePubkey) {
       toast(t('Add an account first'), 'error');
@@ -13801,11 +14967,16 @@
       if (composeTabHoldsDraft(open, wantId)) {
         // Focused rather than refused. The tab may be in another window, and a panel that
         // simply does nothing when you tap Compose is indistinguishable from a broken one.
+        // A Quote tap is handed over too, so the tab opens the note in a fresh draft and
+        // sets aside the one it had (takeQuote), instead of the tap being lost behind
+        // "already open"; the tab says what it did.
+        const quote = quoteFrom(initialText);
+        if (quote) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_QUOTE', ref: quote.quote }).catch(() => {});
         try {
           await chrome.tabs.update(open.tabId, { active: true });
           await chrome.windows.update(open.windowId, { focused: true });
         } catch (_) { /* the tab went away between the query and the focus */ }
-        toast(t('Your draft is already open in a tab'), 'info');
+        if (!quote) toast(t('Your draft is already open in a tab'), 'info');
         return;
       }
     }
@@ -13827,8 +14998,20 @@
         // Seeded FIRST, or "Just setting up my Sidecar" and a quote-repost arrive in the
         // tab blank: those routes pass their text in rather than having it typed. Never
         // over what is already there, because a draft in progress outranks a prefill.
-        if (initialText && !(slot && slot.text && slot.text.trim())) {
-          all[dk] = { ...(slot || { media: [] }), text: initialText, savedAt: Date.now() };
+        // A quote already in the slot counts as work in progress too: the strip holds one.
+        const slotBusy = slot && ((slot.text && slot.text.trim()) || (slot.media || []).some((m) => m && m.quote));
+        // EXCEPT A QUOTE, which is an explicit choice of note: it opens in a fresh note,
+        // and the one in progress is set aside under Saved drafts (shelveNoteDraft) rather
+        // than having the quote dropped into it or the tap dropped without a word.
+        const quote = quoteFrom(initialText);
+        if (quote && !(opts && opts.replyTo)) {
+          const kept = draftHasWork(slot) ? shelveNoteDraft(all, dk, Date.now()) : null;
+          all[dk] = { text: '', media: [quote], savedAt: Date.now() };
+          await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+          if (kept) toast(t('Your draft is in Saved drafts.'), 'success');
+        } else if (initialText && !slotBusy) {
+          const seed = seedFrom(initialText);
+          all[dk] = { ...(slot || { media: [] }), text: seed.text, media: [...((slot && slot.media) || []), ...seed.media], savedAt: Date.now() };
           await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
         }
         await handOffToTab(dk, (opts && opts.replyTo) || null);
@@ -13868,7 +15051,7 @@
     // The end time is stored as a DURATION rather than a timestamp, because a draft
     // written on Monday and posted on Thursday should still run its full duration instead
     // of arriving three days spent. See pollEndsAtFor.
-    let draft = { text: initialText || '', media: [], replyTo, poll: null };
+    let draft = { ...seedFrom(initialText), replyTo, poll: null };
     const modal = $('modal');
     let countdown = null; // active review countdown, if any (see showPostCountdown)
     let saveTimer = null;
@@ -14017,7 +15200,10 @@
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
       const open = await liveComposeTab();
       const tabKey = open ? draftKey(pubkey, open.replyId ? { id: open.replyId } : null) : null;
-      return otherDraftEntries(all, pubkey, dkey).filter((e) => e.key !== tabKey);
+      // Notes set aside come back through the note slot, so while the tab is writing it
+      // they are the tab's to bring back, the same as the note itself.
+      return otherDraftEntries(all, pubkey, dkey)
+        .filter((e) => e.key !== tabKey && !(e.shelved && tabKey === pubkey));
     }
 
     function addCorner(withDrafts) {
@@ -14329,6 +15515,14 @@
         target = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content };
       }
       await flushDraftNow();
+      // A NOTE SET ASIDE comes back into the note slot, and whatever the note slot held
+      // goes aside in its place, so picking one never writes over another.
+      if (entry.shelved) {
+        const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+        if (!unshelveNoteDraft(all, pubkey, entry.key, Date.now())) return;
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        target = null;
+      }
       const wasReply = !!replyTo && !!((draft.text || '').trim() || (draft.media || []).length);
       switchingDraft = true;
       closeModal();
@@ -14434,9 +15628,9 @@
       // which is the same thing the preview showed.
       // A bare reference becomes its nostr: form first, so it tags and renders (core).
       const prose = window.SidecarCore.linkBareRefs(draft.text.trim(), NT);
-      const content = composeNoteContent(prose, draft.media);
       // The "client" tag (attributes the note to Sidecar) is opt-out via Settings.
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+      const content = composeNoteContent(prose, draft.media);
       // A reply carries its threading tags FIRST: NIP-10 readers take the first `e`
       // marked root as the thread, and NIP-22 scope is read positionally by some
       // clients. Mentions and quotes from the body follow, deduped against the
@@ -14448,7 +15642,8 @@
       // What the text tags: mentions, quoted authors, and the quotes themselves, deduped
       // against the threading. composer-core's, so the expanded tab tags the same note
       // the same way.
-      const body = window.SidecarCore.noteBodyTags(prose, NT, reply ? reply.tags : []);
+      // A quote moved into the strip is read from there too: the content carries it.
+      const body = window.SidecarCore.noteBodyTags(window.SidecarCore.proseWithQuotes(prose, draft.media), NT, reply ? reply.tags : []);
       const bodyP = body.p;
       const quotes = { tags: body.q };
       // DEV ONLY, and gated three ways like the kind override beside it: the build, the
@@ -14473,7 +15668,7 @@
       // URLs is byte-identical to what it published before alt text existed. A poll
       // carries no media: the editor enforces one-or-the-other (paintEitherOr), so a
       // 1068 wearing appended URLs and imeta tags cannot be built from here.
-      tags.push(...imetaTagsForMedia(draft.media));
+      tags.push(...imetaTagsForMedia(draft.media, { videoImeta: settings?.videoImeta }));
       const now = Math.floor(Date.now() / 1000);
       // A poll is never a reply: the editor does not offer one on a reply, and reply
       // drafts live in their own slot, so this cannot arrive carrying both. Guarded
@@ -14529,7 +15724,9 @@
         toSign = rest;
       }
       const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: toSign, expectedPubkey: pubkey });
-      await publishSigned(signed);
+      // Which relays accepted it, for the banner. Set here, read by finishPublish.
+      lastPublishReport = {};
+      await publishSigned(signed, lastPublishReport);
       return signed;
     }
 
@@ -14666,10 +15863,14 @@
 
       // Rich text box with @mention autocomplete, shared with the page-comment
       // modal. Edits flow back through onChange into the draft + Post button.
+      // The attachments drawer is built further down; an edit can land before it exists.
+      let syncDrawer = () => {};
       const mentionEditor = createMentionEditor({
         placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
         onChange: (text) => {
           draft.text = text;
+          // The quote offer appears only while the post ends on a quoted note.
+          syncDrawer();
           // An edit makes it a different note, so the repeat question no longer applies.
           if (repeatAsked) { repeatAsked = null; post.textContent = replyTo ? t('Reply') : t('Post'); err.textContent = ''; }
           updatePostState();
@@ -14683,7 +15884,7 @@
           // the prose line and keeps the existing entry — and its description —
           // rather than appending the image a second time.
           if (!draft.media.some((m) => m && m.url === url)) {
-            draft.media.push({ url, isVideo: urlIsVideo(url) });
+            window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url) });
           }
           mentionEditor.sync(); // re-emit after the direct DOM cut, so the draft agrees
           scheduleSave();
@@ -14736,6 +15937,9 @@
         addBtn.classList.toggle('hidden', p || !!draft.poll);
         gifPicker.addBtn.classList.toggle('hidden', p || !!draft.poll || !gifPicker.available);
         if (p) gifPicker.close();
+        // The editor it writes into is hidden in Preview, so the button goes with it.
+        emojiPicker.addBtn.classList.toggle('hidden', p || !emojiPicker.available);
+        if (p) emojiPicker.close();
         pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
         pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
@@ -14752,9 +15956,52 @@
       // posted rather than after.
       const THUMB_RETRIES = 2;
       const THUMB_RETRY_MS = 600;
+      // The block for a quote in the strip. The order is the array's, edited in place: the
+      // drawer and the autosave read `draft.media` afresh, and the array is shared with them.
+      function quoteBlockFor(m, i) {
+        const moveTo = (dir) => {
+          closeAltEditor(); // flush first: the row's slot is about to change places
+          const next = window.SidecarCore.moveQuoteEntry(draft.media, i, dir);
+          window.SidecarCore.replaceMedia(draft.media, next);
+          scheduleSave();
+          renderThumbs();
+        };
+        return buildQuoteBlock(m.quote, {
+          canUp: i > 0,
+          canDown: i < draft.media.length - 1,
+          onUp: () => moveTo(-1),
+          onDown: () => moveTo(1),
+          onRemove: () => {
+            draft.media.splice(i, 1);
+            closeAltEditor(false); // the row edits a media slot that no longer exists
+            scheduleSave();
+            updatePostState();
+            renderThumbs();
+            paintEitherOr();
+          },
+        });
+      }
       function renderThumbs() {
         thumbs.innerHTML = '';
+        const SCore = window.SidecarCore;
+        const qi = draft.media.findIndex((m) => m && m.quote);
+        const pics = SCore.pictureCount(draft.media);
+        const firstPicture = draft.media.findIndex((m) => m && !m.quote);
+        const lastPicture = draft.media.findLastIndex((m) => m && !m.quote);
+        // The arrow is the quote's, seen from the pictures: below the quote is the quote first.
+        const picturesGroup = qi >= 0 ? SCore.buildAttachmentsLabel(pics, {
+          urls: draft.media.filter((x) => x && x.url).map((x) => x.url),
+          canUp: qi === 0,
+          canDown: qi > 0,
+          onUp: () => { closeAltEditor(); SCore.replaceMedia(draft.media, SCore.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
+          onDown: () => { closeAltEditor(); SCore.replaceMedia(draft.media, SCore.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
+        }) : null;
         draft.media.forEach((m, i) => {
+          // A quoted note is a block, not a thumbnail: it is shown as the note it quotes,
+          // in the strip's order, and steps above or below the pictures with its own buttons.
+          if (m.quote) { thumbs.append(quoteBlockFor(m, i)); return; }
+          // Beside a quote the pictures are one block with a label and an arrow of their own.
+          if (picturesGroup && i === firstPicture) thumbs.append(picturesGroup.label);
           const cell = h('div', { className: 'compose-thumb' });
           const el = m.isVideo ? document.createElement('video') : document.createElement('img');
           // Match the rest of the app: many media hosts (e.g. Blossom) reject the
@@ -14812,7 +16059,7 @@
           // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the
           // editor and are appended at publish in this array's order, so with more
           // than one attachment the thumbs drag.
-          cell.draggable = draft.media.length > 1;
+          cell.draggable = pics > 1;
           cell.addEventListener('dragstart', (e) => {
             dragFrom = i;
             cell.classList.add('dragging');
@@ -14831,8 +16078,7 @@
             cell.classList.remove('drop-target');
             if (dragFrom === -1 || dragFrom === i) return;
             closeAltEditor(); // flush first: the row's slot is still where it was opened
-            const moved = draft.media.splice(dragFrom, 1)[0];
-            draft.media.splice(i, 0, moved);
+            window.SidecarCore.replaceMedia(draft.media, window.SidecarCore.movePicture(draft.media, dragFrom, i));
             dragFrom = -1;
             scheduleSave();
             renderThumbs();
@@ -14842,42 +16088,38 @@
             cell.classList.remove('dragging');
             thumbs.querySelectorAll('.drop-target').forEach((t) => t.classList.remove('drop-target'));
           });
-          if (!m.isVideo) {
-            // The chip zap.cooking puts on its own thumbnails: + ALT until the image
-            // is described, ✓ ALT once it is. Tapping it opens the editor row below
-            // the strip; the tag itself only goes out for described images.
-            const alt = h('button', {
-              className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
-              title: m.alt ? t('Edit the image description') : t('Add a description'),
-              type: 'button',
-            });
-            alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
-            alt.addEventListener('click', () => openAltEditor(i));
-            cell.append(alt);
-          }
+          // The chip zap.cooking puts on its own thumbnails: + ALT until the image
+          // is described, ✓ ALT once it is. Tapping it opens the editor row below
+          // the strip; the tag itself only goes out for described media.
+          const alt = h('button', {
+            className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
+            title: m.alt ? (m.isVideo ? t('Edit the video description') : t('Edit the image description')) : t('Add a description'),
+            type: 'button',
+          });
+          alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
+          alt.addEventListener('click', () => openAltEditor(i));
+          cell.append(alt);
             // THE STRIP REORDERS BY MORE THAN DRAG. HTML5 drag-and-drop never fires
             // on touch, so a touchscreen had no way to reorder at all and a keyboard
             // had none either; the steppers are the cheapest reorder there is, and
             // they are buttons, which touch and Tab both reach. The ends hide theirs,
             // because a disabled arrow is a control answering "you can't".
-            if (draft.media.length > 1) {
+            if (pics > 1) {
               const step = (dir, label) => {
                 const b = h('button', { className: 'compose-thumb-move ' + (dir < 0 ? 'left' : 'right'), title: label, type: 'button' });
                 b.append(icon(dir < 0 ? 'arrow-left' : 'arrow-right'));
                 b.addEventListener('click', () => {
-                  const to = i + dir;
-                  if (to < 0 || to >= draft.media.length) return;
+                  if (!window.SidecarCore.canMovePicture(draft.media, i, dir)) return;
                   closeAltEditor(); // flush first: the row's slot is still where it was opened
-                  const movedItem = draft.media.splice(i, 1)[0];
-                  draft.media.splice(to, 0, movedItem);
+                  window.SidecarCore.replaceMedia(draft.media, window.SidecarCore.movePicture(draft.media, i, i + dir));
                   scheduleSave();
                   renderThumbs();
                   paintEitherOr();
                 });
                 return b;
               };
-              if (i > 0) cell.append(step(-1, t('Move earlier')));
-              if (i < draft.media.length - 1) cell.append(step(1, t('Move later')));
+              if (window.SidecarCore.canMovePicture(draft.media, i, -1)) cell.append(step(-1, t('Move earlier')));
+              if (window.SidecarCore.canMovePicture(draft.media, i, 1)) cell.append(step(1, t('Move later')));
             }
           const rm = h('button', { className: 'compose-thumb-x', title: t('Remove') });
           rm.append(icon('trash'));
@@ -14893,14 +16135,35 @@
           });
           cell.append(rm);
           thumbs.append(cell);
+          // The pictures' links close their block, under the last of them.
+          if (picturesGroup && i === lastPicture) thumbs.append(picturesGroup.list);
         });
         mediaDrawer.sync();
       }
       // The attachments' reference drawer, seated between the strip and whatever
-      // row comes next: collapsed it is one line saying where the attachments go.
+      // row comes next: collapsed it is one line saying how many attachments there are,
+      // and the one place a trailing quote is offered to the strip.
       // Appended as a sibling in the modal's own list — a thumbs.after() here would
       // run while thumbs is still detached and never reach the document.
-      const mediaDrawer = buildMediaDrawer(() => draft.media);
+      const mediaDrawer = buildMediaDrawer(() => draft.media, {
+        getText: () => draft.text,
+        // THE QUOTE MOVES INTO THE STRIP: cut from the end of the words, appended as a card
+        // after the pictures (the order that shows them as part of the post), and from
+        // there it drags and steps like any of them. The editor is re-read after the cut
+        // so the draft agrees with what is on screen.
+        onMoveQuote: () => {
+          const { head, quotes } = takeTrailingQuote(draft.text, draft.media);
+          if (!quotes.length) return;
+          mentionEditor.setText(head);
+          mentionEditor.sync();
+          draft.media.push(...quotes);
+          scheduleSave();
+          updatePostState();
+          renderThumbs();
+          paintEitherOr();
+        },
+      });
+      syncDrawer = () => mediaDrawer.sync();
       renderThumbs();
 
       // ---- the ALT editor, one image at a time ----
@@ -14942,7 +16205,9 @@
         }
         altRow = buildAltEditorRow({
           url: m.url,
+          isVideo: !!m.isVideo,
           alt: m.alt,
+          count: draft.media.filter((x) => x && x.url).length,
           onChange: (value) => saveAltInto(i, value),
           onSave: (value) => {
             closeAltEditor();
@@ -14956,35 +16221,25 @@
       fileInput.type = 'file';
       fileInput.accept = 'image/*,video/*';
       fileInput.style.display = 'none';
-      const addBtn = h('button', { className: 'mini compose-add' });
-      addBtn.append(icon('camera'), h('span', { textContent: t('Media') }));
+      const addBtn = composeToolBtn('camera', t('Media'));
       addBtn.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files && fileInput.files[0];
         if (!file) return;
         err.textContent = '';
         addBtn.disabled = true;
-        const lbl = addBtn.querySelector('span');
-        const prev = lbl.textContent;
-        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
-        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
-        // label: a longer one claims more of the row and leaves less free space to share,
-        // which took 10px off Poll and 10px off PoW every time an upload started. The
-        // rule against it is already written three functions down, on the PoW button,
-        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
-        // the row. Same toolbar, same reason.
-        //
-        // The shimmer is the panel's idiom for a value waiting in place where a spinner
-        // does not fit beside it, which is exactly a 15px icon and one word.
-        setWaiting(lbl, prev, true);
-        addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
+        // The whole button sweeps (styles.css). The button has no word to shimmer, and
+        // the stripes are what say it is busy.
+        addBtn.classList.add('is-uploading');
         try {
-          const url = await uploadMedia(file, pubkey);
+          // The file is read for its type and size while it uploads, not after.
+          const [url, meta] = await Promise.all([uploadMedia(file, pubkey), readVideoMeta(file)]);
           // Into the media slot only. The URL is appended to the content at publish
           // (composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
-          draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+          // A video carries its type and pixel size into its imeta tag; an image gets {}.
+          window.SidecarCore.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...meta });
           scheduleSave();
           updatePostState();
           renderThumbs();
@@ -14994,7 +16249,6 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        setWaiting(lbl, prev, false);
         addBtn.classList.remove('is-uploading');
         fileInput.value = '';
       });
@@ -15007,6 +16261,37 @@
         if (imageFiles.length === 0) {
           e.preventDefault();
           const plain = e.clipboardData.getData('text/plain');
+          // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
+          // or naddr references becomes a block under the field, showing the note, so there is
+          // something to check it against and it can be put above or below the pictures. A poll
+          // carries no attachments, so there it pastes as the text it is.
+          const quotes = draft.poll ? [] : quoteEntriesFromPaste(plain, draft.media);
+          if (quotes.length) {
+            draft.media.push(...quotes);
+            scheduleSave();
+            updatePostState();
+            renderThumbs();
+            paintEitherOr();
+            // A note no relay shows us does not stay a quote block: it goes back to the text
+            // it was pasted as, and the toast says why.
+            checkPastedQuote(quotes[0], () => {
+              const at = draft.media.indexOf(quotes[0]);
+              // Already removed, posted, handed to the tab or closed: nothing to undo, and no
+              // saved draft to bring back.
+              if (at < 0 || published || handedToTab || !editor.isConnected) return;
+              draft.media.splice(at, 1);
+              closeAltEditor(false); // the row edits a media slot that may no longer exist
+              const words = String(draft.text || '').replace(/\s+$/, '');
+              mentionEditor.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
+              mentionEditor.sync();
+              scheduleSave();
+              updatePostState();
+              renderThumbs();
+              paintEitherOr();
+              toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
+            });
+            return;
+          }
           if (plain) document.execCommand('insertText', false, plain);
           return;
         }
@@ -15015,24 +16300,13 @@
         // hidden while a poll is open; a paste was the way round that.
         if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
         addBtn.disabled = true;
-        const lbl = addBtn.querySelector('span');
-        const prev = lbl.textContent;
-        // THE LABEL STAYS "Media" AND SHIMMERS. Swapping it to "Uploading…" made this
-        // button 21px wider, and .compose-add is flex: 1 0 auto, so its basis is its own
-        // label: a longer one claims more of the row and leaves less free space to share,
-        // which took 10px off Poll and 10px off PoW every time an upload started. The
-        // rule against it is already written three functions down, on the PoW button,
-        // where "PoW 18" and "PoW off" were made the same width so cycling never moves
-        // the row. Same toolbar, same reason.
-        //
-        // The shimmer is the panel's idiom for a value waiting in place where a spinner
-        // does not fit beside it, which is exactly a 15px icon and one word.
-        setWaiting(lbl, prev, true);
-        addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
+        // The whole button sweeps (styles.css). The button has no word to shimmer, and
+        // the stripes are what say it is busy.
+        addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file, pubkey);
-            draft.media.push({ url, isVideo: urlIsVideo(url) });
+            const url = await uploadMedia(file, pubkey, { pasted: true });
+            window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();
           updatePostState();
@@ -15043,7 +16317,6 @@
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
-        setWaiting(lbl, prev, false);
         addBtn.classList.remove('is-uploading');
       });
 
@@ -15059,20 +16332,14 @@
       //
       // Cycles Off, 16, 18, 20, 22 and back. Five states is too many for a
       // toggle and too few to be worth a sheet, and a chooser would be a second surface
-      // saying what Settings already says. The label carries the current state, so what
-      // one more tap costs is always on screen rather than in a tooltip.
+      // saying what Settings already says. The badge on the pickaxe carries the current
+      // state, so what one more tap costs is always on screen rather than in a tooltip.
       //
       // Seeded from Settings and never written back: this is a decision about this note.
-      const powBtn = h('button', { className: 'mini compose-add', type: 'button' });
-      const powBtnLabel = h('span');
-      powBtn.append(icon('pickaxe'), powBtnLabel);
+      const powControl = buildPowButton();
+      const powBtn = powControl.btn;
       function paintPowBtn() {
-        const lvl = powForThisPost.on ? powLevelFor(powForThisPost.bits) : null;
-        // "PoW 18" and "PoW off" are the same width, so cycling never makes the row
-        // opposite it jump. The full name is in the title and in Settings.
-        powBtnLabel.textContent = lvl ? t('PoW {{bits}}', { bits: lvl.bits }) : t('PoW off');
-        powBtn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
-        powBtn.classList.toggle('compose-add-on', !!lvl);
+        powControl.paint(powForThisPost.on ? powLevelFor(powForThisPost.bits) : null);
       }
       powBtn.addEventListener('click', () => {
         const order = [null, ...POW_LEVELS.map((l) => l.bits)];
@@ -15095,13 +16362,19 @@
           if (!draft.media.some((m) => m && m.url === gif.url)) {
             // The GIF's own title as its description to start from: nostr.build names
             // each one, and a GIF with no alt text is a blank to a screen reader.
-            draft.media.push({ url: gif.url, isVideo: false, alt: gif.title || '' });
+            window.SidecarCore.addMedia(draft.media, { url: gif.url, isVideo: false, alt: gif.title || '' });
           }
           scheduleSave();
           updatePostState();
           renderThumbs();
           paintEitherOr();
         },
+      });
+
+      // ---- emoji, into the note at the caret ----
+      const emojiPicker = buildEmojiPicker({
+        onPick: (ch) => mentionEditor.insertText(ch),
+        onClose: () => mentionEditor.focus(),
       });
 
       const pollEditor = buildPollEditor({
@@ -15202,20 +16475,23 @@
       // arrived there would quietly publish as one, which is the exact failure the draft
       // store learned to carry replyTo to avoid.
       //
-      // A WORD, ON THE TAB BAR, rather than an icon in the corner. The corner already
-      // belongs to the close box, so a second button there sat on top of it, and the
+      // ON THE TAB BAR, not in the corner. The corner already belongs to the close box, so
+      // a second button there sat on top of it. And corner BRACKETS, not an arrow: the
       // outward arrow that reads as "expand" in most apps reads here as leaving the
       // browser entirely. Write / Preview / Expand is a row of three things you can do
-      // with what you are writing, and the third one says what it is.
+      // with what you are writing; the third is the frame growing, named by its title and
+      // its accessible name.
       // REPLIES EXPAND NOW TOO. This was null for a reply because the tab could not
       // build threading tags and would have published a top-level note detached from the
       // thread. compose.js takes replyTags from composer-core and reads the target off
       // the draft, so the two produce identical tags from identical input.
       const expand = h('button', {
-        className: 'compose-expand', type: 'button', textContent: t('Expand'),
+        className: 'compose-expand', type: 'button',
         title: replyTo ? t('Reply in a tab, with room to read the thread')
                        : t('Write in a tab, with room to read it back'),
       });
+      expand.setAttribute('aria-label', t('Expand'));
+      expand.append(icon('maximize'));
       if (expand) {
         expand.addEventListener('click', async () => {
           expand.disabled = true;
@@ -15251,9 +16527,10 @@
         previewPane,
         thumbs,
         mediaDrawer.wrap,
-        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, pollAdd, powBtn]),
+        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollAdd, powBtn]),
         fileInput,
         gifPicker.wrap,
+        emojiPicker.wrap,
         pollWrap,
         err,
         h('div', { className: 'actions' }, [post, cancel])
@@ -15263,6 +16540,7 @@
       editor.focus();
     }
 
+    let lastPublishReport = null; // the relays that accepted the last publish, from doPublish
     // Publish the note and finish (clear draft, close, banner) — shared by the
     // countdown's auto/now fire and the immediate (countdown-off) post path.
     async function finishPublish() {
@@ -15278,7 +16556,7 @@
         const signed = await doPublish();
         // Before the banner, because the banner is the only other way back to this tally
         // and it dismisses itself after a minute.
-        if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id);
+        if (signed.kind === POLL_KIND) rememberOwnPoll(signed.pubkey, signed.id, signed);
         else if (signed.kind === 1) rememberOwnNote(signed.pubkey, signed.id);
         else if (signed.kind === WEB_COMMENT_KIND) rememberOwnComment(signed.pubkey, signed.id);
         published = true;
@@ -15289,7 +16567,7 @@
         if (miningStatus) postedMinimizedMine(); else endMinimizedMine();
         closeModal();
         toast(signed.kind === POLL_KIND ? t('Poll published') : replyTo ? t('Reply published') : t('Note published'), 'success');
-        showPostBanner(signed, !!replyTo);
+        showPostBanner(signed, !!replyTo, lastPublishReport);
       } catch (e) {
         // BACK TO THE EDITOR WITH THE TEXT INTACT, whether the mine failed, the signer
         // refused or every relay did. draft is untouched on all three paths and was just
@@ -15341,7 +16619,7 @@
       // what this last screen shows. Media alone still previews as the note it is.
       const bodyText = composeNoteContent(draft.text, draft.media);
       if (bodyText) renderNotePreview(previewBody, bodyText);
-      else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? 'Empty reply.' : 'Empty note.' }));
+      else previewBody.append(h('p', { className: 'hint', textContent: replyTo ? t('Empty reply.') : t('Empty note.') }));
       previewScroll.append(previewBody);
       // THE CHOICES BELONG ON THIS SCREEN TOO. It is the last thing seen before the
       // event goes out, and for a poll the options are most of what is being published:
@@ -15419,7 +16697,7 @@
         .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
       const when = saved.savedAt ? relativeTime(Math.floor(saved.savedAt / 1000)) : '';
       const mediaNote = saved.media && saved.media.length
-        ? saved.media.length + ' attachment' + (saved.media.length > 1 ? 's' : '')
+        ? tn('{{count}} attachment', '{{count}} attachments', saved.media.length)
         : '';
 
       const resume = h('button', { className: 'primary', textContent: t('Resume draft') });
@@ -15430,7 +16708,7 @@
         // The target you ARRIVED with, not the saved one. Discarding an old draft must
         // not also discard the Reply you just tapped to get here.
         replyTo = (opts && opts.replyTo) || null;
-        draft = { text: initialText || '', media: [], replyTo, poll: null };
+        draft = { ...seedFrom(initialText), replyTo, poll: null };
         showEditor();
       });
 
@@ -15459,7 +16737,20 @@
     }
 
     const saved = await loadComposeDraft(dkey);
-    const hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+    let hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
+    // TAPPED QUOTE OVER A NOTE IN PROGRESS. No "Resume your draft?": the quote opens in a
+    // fresh note, and the note in progress is set aside under Saved drafts, where the
+    // folder in the corner leads back to it. A draft holding nothing but an older quote
+    // has nothing to keep, and the new quote simply takes its place.
+    let setAside = false;
+    if (hasSaved && !replyTo && quoteFrom(initialText)) {
+      if (draftHasWork(saved)) {
+        const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+        setAside = !!shelveNoteDraft(all, dkey, Date.now());
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+      }
+      hasSaved = false;
+    }
 
     openModal(
       () => {
@@ -15481,6 +16772,7 @@
         if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
         else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
         else showEditor();
+        if (setAside) toast(t('Your draft is in Saved drafts.'), 'success');
         // The close box comes with each view (addCorner). An X is where people look for
         // the way out, and someone who does not find one clicks the background instead,
         // which is guarded and does nothing, so without it the guard would read as a
@@ -15561,7 +16853,7 @@
     const urlInputs = {};
     const setPreviewFns = {};
 
-    const makeUpload = (label, kind, field, isBanner) => {
+    const makeUpload = (label, kind, field, isBanner, changeLabel, uploadLabel) => {
       const prev = h('div', { className: 'upload-preview' + (isBanner ? ' banner' : '') });
       const overlay = h('span', { className: 'upload-overlay' });
       overlay.append(icon('camera'));
@@ -15575,7 +16867,7 @@
           prev.append(im);
         }
         prev.append(overlay);
-        if (capLabel) capLabel.textContent = url ? 'Change ' + label.toLowerCase() : 'Upload ' + label.toLowerCase();
+        if (capLabel) capLabel.textContent = url ? changeLabel : uploadLabel;
       }
 
       const input = document.createElement('input');
@@ -15583,7 +16875,7 @@
       input.accept = 'image/*';
       input.style.display = 'none';
       const capLabel = h('span', { className: 'upload-cap-label' });
-      const capHint = h('span', { className: 'upload-cap-hint', textContent: 'JPG, PNG or GIF' });
+      const capHint = h('span', { className: 'upload-cap-hint', textContent: t('JPG, PNG or GIF') });
       const caption = h('div', { className: 'upload-caption' }, [capLabel, capHint]);
 
       setPreviewFns[field] = setPreview;
@@ -15599,7 +16891,7 @@
         err.textContent = '';
         prev.classList.add('uploading');
         const before = capLabel.textContent;
-        capLabel.textContent = 'Uploading…';
+        capLabel.textContent = t('Uploading…');
         try {
           const u = await uploadImage(file, kind);
           draft[field] = u;
@@ -15619,16 +16911,16 @@
       );
     };
 
-    makeUpload('Avatar', 'profile', 'picture', false);
-    makeUpload('Banner', 'files', 'banner', true);
+    makeUpload(t('Avatar'), 'profile', 'picture', false, t('Change avatar'), t('Upload avatar'));
+    makeUpload(t('Banner'), 'files', 'banner', true, t('Change banner'), t('Upload banner'));
 
     const fieldDefs = [
-      ['display_name', 'Display name', 'text'],
-      ['name', 'Username', 'text'],
-      ['about', 'About', 'textarea'],
-      ['nip05', 'NIP-05 identifier', 'text'],
-      ['lud16', 'Lightning address', 'text'],
-      ['website', 'Website', 'text'],
+      ['display_name', t('Display name'), 'text'],
+      ['name', t('Username'), 'text'],
+      ['about', t('About'), 'textarea'],
+      ['nip05', t('NIP-05 identifier'), 'text'],
+      ['lud16', t('Lightning address'), 'text'],
+      ['website', t('Website'), 'text'],
     ];
     const inputs = {};
     fieldDefs.forEach(([key, label, type]) => {
@@ -15645,9 +16937,9 @@
     const adv = document.createElement('details');
     adv.className = 'advanced';
     const sum = document.createElement('summary');
-    sum.textContent = 'Advanced';
+    sum.textContent = t('Advanced');
     adv.append(sum);
-    [['picture', 'Avatar URL'], ['banner', 'Banner URL']].forEach(([field, label]) => {
+    [['picture', t('Avatar URL')], ['banner', t('Banner URL')]].forEach(([field, label]) => {
       adv.append(h('label', { className: 'field-label', textContent: label }));
       const inp = document.createElement('input');
       inp.type = 'text';
@@ -15665,7 +16957,7 @@
     // Lightning address a CLINK wallet can pay without any custodian in the
     // middle. Cleared as easily as set: an empty field removes it from the
     // profile entirely.
-    adv.append(h('label', { className: 'field-label', textContent: 'CLINK offer' }));
+    adv.append(h('label', { className: 'field-label', textContent: t('CLINK offer') }));
     const nofferInp = document.createElement('input');
     nofferInp.type = 'text';
     nofferInp.placeholder = 'noffer1…';
@@ -15676,20 +16968,20 @@
     adv.append(nofferInp);
     adv.append(h('p', {
       className: 'hint',
-      textContent: 'A CLINK static offer for self-custodial Lightning payments. Generate one with Zeus, ShockWallet or Lightning.Pub.',
+      textContent: t('A CLINK static offer for self-custodial Lightning payments. Generate one with Zeus, ShockWallet or Lightning.Pub.'),
     }));
     body.append(adv);
 
-    body.append(h('label', { className: 'field-label', textContent: 'PIN (required to publish)' }));
+    body.append(h('label', { className: 'field-label', textContent: tSec('PIN (required to publish)') }));
     const pin = h('input', { type: 'password', maxLength: 32 });
     body.append(pin, err);
 
-    const publish = h('button', { className: 'primary', textContent: 'Publish profile' });
+    const publish = h('button', { className: 'primary', textContent: t('Publish profile') });
     publish.addEventListener('click', async () => {
       err.textContent = '';
-      if (!pin.value) return (err.textContent = 'Enter your PIN to publish.');
+      if (!pin.value) return (err.textContent = tSec('Enter your PIN to publish.'));
       publish.disabled = true;
-      publish.textContent = 'Publishing…';
+      publish.textContent = t('Publishing…');
       try {
         const fields = { picture: draft.picture || '', banner: draft.banner || '' };
         fieldDefs.forEach(([k]) => (fields[k] = inputs[k].value));
@@ -15705,7 +16997,7 @@
         // compared the panel's source against the same wrong literal, so it agreed with
         // the bug instead. One function, no charset here to get wrong.
         if (draft.noffer && !window.SidecarCLINK.isNofferString(draft.noffer)) {
-          return (err.textContent = 'That does not look like a CLINK offer. It starts with noffer1.');
+          return (err.textContent = t('That does not look like a CLINK offer. It starts with noffer1.'));
         }
         fields.noffer = draft.noffer;
         // Whichever alternate key the value was read from, publishing consolidates
@@ -15718,11 +17010,11 @@
         show($('view-main'));
         renderProfile();
         renderMain();
-        toast('Profile published', 'success');
+        toast(t('Profile published'), 'success');
       } catch (e) {
         err.textContent = e.message;
         publish.disabled = false;
-        publish.textContent = 'Publish profile';
+        publish.textContent = t('Publish profile');
         toast(e.message, 'error');
       }
     });
@@ -15770,10 +17062,10 @@
       // for — never risk overwriting a different account's profile.
       const targetOk = !newPubkey || state.activePubkey === newPubkey;
       if (hasContent && !targetOk) {
-        toast('Profile setup skipped — active account changed.', 'error');
+        toast(t('Profile setup skipped — active account changed.'), 'error');
       } else if (hasContent) {
         const primaryBtn = $('modal').querySelector('button.primary');
-        if (primaryBtn) { primaryBtn.disabled = true; primaryBtn.textContent = 'Saving…'; }
+        if (primaryBtn) { primaryBtn.disabled = true; primaryBtn.textContent = t('Saving…'); }
         // Publish and wait for the store to update BEFORE navigating/closing, so
         // the Profile tab renders the chosen name, not the interim cocktail name.
         try {
@@ -15786,7 +17078,7 @@
       if (tab) tab.click();
       renderMain();
       closeModal();
-      if (hasContent && targetOk) toast('Profile saved', 'success');
+      if (hasContent && targetOk) toast(t('Profile saved'), 'success');
       // Deferred a tick for the same reason nsecModal defers: closeModal clears
       // #modal right after this returns, and onDone opens another modal.
       if (onDone) setTimeout(onDone, 0);
@@ -15794,7 +17086,7 @@
 
     openModal(
       (modal) => {
-        const xBtn = h('button', { className: 'modal-x', title: 'Skip' });
+        const xBtn = h('button', { className: 'modal-x', title: t('Skip') });
         xBtn.appendChild(icon('x'));
         xBtn.addEventListener('click', commit);
         const body = h('div', { className: 'setup-modal' });
@@ -15802,7 +17094,7 @@
 
         const head = (title, sub) => {
           const parts = [
-            h('div', { className: 'setup-progress', textContent: 'Step ' + step + ' of ' + STEPS }),
+            h('div', { className: 'setup-progress', textContent: t('Step {{step}} of {{total}}', { step: I18N.fmtNum(step), total: I18N.fmtNum(STEPS) }) }),
             h('h3', { textContent: title }),
           ];
           if (sub) parts.push(h('p', { className: 'hint', textContent: sub }));
@@ -15812,14 +17104,14 @@
         const footer = (primaryLabel, onPrimary) => {
           const row = h('div', { className: 'actions setup-actions' });
           if (step > 1) {
-            const back = h('button', { className: 'ghost', textContent: 'Back' });
+            const back = h('button', { className: 'ghost', textContent: t('Back') });
             back.addEventListener('click', () => { step -= 1; render(); });
             row.append(back);
           }
           const primary = h('button', { className: 'primary', textContent: primaryLabel });
           primary.addEventListener('click', onPrimary);
           row.append(primary);
-          const later = h('button', { className: 'setup-skip', textContent: "I'll do this later" });
+          const later = h('button', { className: 'setup-skip', textContent: t('I’ll do this later') });
           later.addEventListener('click', commit);
           return h('div', {}, [row, later]);
         };
@@ -15832,14 +17124,14 @@
         }
 
         function renderName() {
-          const input = h('input', { type: 'text', placeholder: 'e.g. Gatsby' });
+          const input = h('input', { type: 'text', placeholder: t('e.g. Gatsby') });
           input.value = draft.display_name;
           input.addEventListener('input', () => { draft.display_name = input.value; });
           body.append(
-            ...head('What should people call you?', 'Your display name — you can change it any time.'),
-            h('label', { className: 'field-label', textContent: 'Display name' }),
+            ...head(t('What should people call you?'), t('Your display name — you can change it any time.')),
+            h('label', { className: 'field-label', textContent: t('Display name') }),
             input,
-            footer('Continue', () => { step = 2; render(); })
+            footer(t('Continue'), () => { step = 2; render(); })
           );
           setTimeout(() => input.focus(), 30);
         }
@@ -15853,7 +17145,7 @@
           fileInput.accept = 'image/*';
           fileInput.style.display = 'none';
           const capLabel = h('span', { className: 'upload-cap-label' });
-          const capHint = h('span', { className: 'upload-cap-hint', textContent: 'JPG, PNG or GIF' });
+          const capHint = h('span', { className: 'upload-cap-hint', textContent: t('JPG, PNG or GIF') });
           const setPreview = (url) => {
             prev.innerHTML = '';
             prev.classList.toggle('empty', !url);
@@ -15864,7 +17156,7 @@
               prev.append(im);
             }
             prev.append(overlay);
-            capLabel.textContent = url ? 'Change photo' : 'Upload a photo';
+            capLabel.textContent = url ? t('Change photo') : t('Upload a photo');
           };
           setPreview(draft.picture);
           const trigger = () => fileInput.click();
@@ -15876,7 +17168,7 @@
             if (!file) return;
             prev.classList.add('uploading');
             const before = capLabel.textContent;
-            capLabel.textContent = 'Uploading…';
+            capLabel.textContent = t('Uploading…');
             try {
               const u = await uploadImage(file, 'profile');
               draft.picture = u;
@@ -15889,22 +17181,22 @@
             fileInput.value = '';
           });
           body.append(
-            ...head('Add a photo', 'Optional — a picture helps people recognize you.'),
+            ...head(t('Add a photo'), t('Optional — a picture helps people recognize you.')),
             h('div', { className: 'upload-row', role: 'button' }, [prev, caption, fileInput]),
-            footer('Continue', () => { step = 3; render(); })
+            footer(t('Continue'), () => { step = 3; render(); })
           );
         }
 
         function renderBio() {
           const ta = document.createElement('textarea');
           ta.value = draft.about;
-          ta.placeholder = 'A sentence or two about you.';
+          ta.placeholder = t('A sentence or two about you.');
           ta.addEventListener('input', () => { draft.about = ta.value; });
           body.append(
-            ...head('Write a short bio', 'Optional — you can flesh out your profile next.'),
-            h('label', { className: 'field-label', textContent: 'About' }),
+            ...head(t('Write a short bio'), t('Optional — you can flesh out your profile next.')),
+            h('label', { className: 'field-label', textContent: t('About') }),
             ta,
-            footer('Finish', commit)
+            footer(t('Finish'), commit)
           );
           autosizeTextarea(ta); // after append — see the helper
         }
@@ -15946,8 +17238,8 @@
   // bell's Polls tab is where that list lives, and this fills it.
   //
   // `openPoll` is how a row opens, so the caller that took the panel over can hand the
-  // reader a way back to where they were. `onCount` gets the real number of polls as soon
-  // as the rows are built, for the count on the tab's own label.
+  // reader a way back to where they were. `onCount` gets the real number of live polls
+  // as soon as the rows are built, for the count on the tab's own label.
   async function fillPollsList(list, pubkey, { openPoll, onCount }) {
     const active = { pubkey };
     // Before anything is drawn. The read is almost always long settled by the time anybody
@@ -15964,7 +17256,7 @@
       if (!polls.length) {
         list.classList.add('empty');
         list.append(
-          h('p', { className: 'hint', textContent: 'No polls yet. The composer can post one.' })
+          h('p', { className: 'hint', textContent: t('No polls yet. The composer can post one.') })
         );
         return { cells: new Map(), leads: new Map() };
       }
@@ -16042,7 +17334,7 @@
       // Straight to rows, with last time's numbers already in them. The query below still
       // runs and still corrects them; what it no longer does is make you watch it.
       rows = paint(cached.polls, cached.counts, cached.wins);
-      onCount(cached.polls.length);
+      onCount(countLivePolls(cached.polls));
     } else {
       list.innerHTML = '';
       // .empty drops the flat list's card chrome, which is the thing that draws a capsule
@@ -16052,7 +17344,7 @@
       // The same row the bookmarks list uses, because it is the same situation: a list with
       // room for a line, waiting to fill. It shimmered here and spun there, which is the
       // divergence this rule exists to end.
-      list.append(waitingRow('Looking for your polls…'));
+      list.append(waitingRow(t('Looking for your polls…')));
     }
 
     let polls = [];
@@ -16092,7 +17384,7 @@
     // The moment the rows exist, not after the vote query below: the count is a fact about
     // this list, and it would be odd for the rows to be on screen under a number that
     // still disagrees with them for the eight seconds that query is allowed.
-    onCount(polls.length);
+    onCount(countLivePolls(polls));
     if (!polls.length) {
       _pollListCache.set(pubkey, { polls, counts: new Map() });
       return;
@@ -16104,20 +17396,16 @@
     // so a vote is still only counted against a poll that was open when it was cast.
     let votes = [];
     try {
-      const urls = [
-        ...new Set([
-          ...polls.flatMap((ev) => pollRelayTags(ev)),
-          ...(await pollReadRelays(active.pubkey)),
-        ]),
-      ];
-      if (urls.length) {
-        votes =
-          (await poolQuerySync(
-            urls,
-            { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
-            { maxWait: 8000 }
-          )) || [];
-      }
+      const urls = pollVoteQueryUrls(
+        polls.flatMap((ev) => pollRelayTags(ev)),
+        await pollReadRelays(active.pubkey)
+      );
+      votes =
+        (await poolQuerySync(
+          urls,
+          { kinds: [POLL_RESPONSE_KIND], '#e': polls.map((ev) => ev.id) },
+          { maxWait: 8000 }
+        )) || [];
     } catch (_) {}
     // The cache is written even if the sheet has gone, since the answer is about the
     // account rather than about this list, and it is what the next open paints from.
@@ -16164,6 +17452,19 @@
     return ids ? ids.size : 0;
   }
 
+  // How many of those polls are still live, judged from the posted times and end dates
+  // the loaders keep, by the same pollIsLive the list's Open group answers to — so the
+  // seed and the correction that replaces it cannot disagree about what counts. The tab
+  // itself stays gated on ownPollCount: an all-finished account loses its capsule, not
+  // its way back to the tallies.
+  function liveOwnPollCount(pubkey) {
+    const meta = _ownPollMeta.get(pubkey);
+    if (!meta) return 0;
+    let n = 0;
+    for (const p of meta.values()) if (pollIsLive(p.created_at, p.endsAt)) n++;
+    return n;
+  }
+
   // Whether the bell has a Polls tab to offer. Why that tab exists is written at the
   // call site in showNotifModal.
   function accountHasPolls(pubkey) {
@@ -16195,13 +17496,13 @@
   }
 
   // Votes live wherever the poll said they should, which is not necessarily where this
-  // account reads. Both sets are asked, deduped, because a poll written by another
-  // client names its own relays and ignoring them is how a real count comes back empty.
+  // account reads — and, since the big clients file ballots with their own backends,
+  // not necessarily there either. All three layers are asked, deduped, because a poll
+  // written by another client names its own relays and ignoring them is how a real
+  // count comes back empty; see POLL_VOTE_DISCOVERY_RELAYS for the third layer.
   async function fetchPollVotes(pollEv) {
     const endsAt = pollEndsAt(pollEv);
-    const mine = await pollReadRelays(state.activePubkey);
-    const urls = [...new Set([...pollRelayTags(pollEv), ...mine])];
-    if (!urls.length) return [];
+    const urls = pollVoteQueryUrls(pollRelayTags(pollEv), await pollReadRelays(state.activePubkey));
     const filter = { kinds: [POLL_RESPONSE_KIND], '#e': [pollEv.id] };
     // Asked for as well as enforced in the tally. The filter saves pulling ballots that
     // can never count; tallyPollVotes drops them again because a relay is free to
@@ -16303,14 +17604,14 @@
     const ended = pollHasEnded(endsAt);
 
     const meta = [
-      multiple ? 'Multiple choice' : 'Single choice',
+      multiple ? t('Multiple choice') : t('Single choice'),
       pollEndsText(endsAt),
       tn('{{count}} vote', '{{count}} votes', voters),
     ];
     container.append(h('div', { className: 'poll-result-meta', textContent: meta.join(' · ') }));
 
     if (!options.length) {
-      container.append(h('p', { className: 'hint', textContent: 'This poll carries no options.' }));
+      container.append(h('p', { className: 'hint', textContent: t('This poll carries no options.') }));
       return;
     }
 
@@ -16429,12 +17730,29 @@
           // gets asked: a poll with nothing on it is the moment an author wonders whether
           // anyone saw it. Only on an empty tally, so it is not repeated copy, and a plain
           // hint rather than .hint warn, because here it is an explanation, not a caution.
-          textContent:
-            (ended ? 'This poll closed without any votes.' : 'No votes yet.') +
-            ' Clients without poll support show nothing to vote on.',
+          textContent: ended
+            ? t('This poll closed without any votes. Clients without poll support show nothing to vote on.')
+            : t('No votes yet. Clients without poll support show nothing to vote on.'),
         })
       );
     }
+  }
+
+  // THE POLL'S OWN ⋮: the event rather than its votes, so its id, a link and the JSON, from
+  // the same menu every notification row carries (without the npub row: the author is not
+  // what anyone opens a tally to copy), and in the same place:
+  // beside the poll itself, at the end of its question line. Not in the sheet's corners,
+  // which are the two exits and are what the heading is centered between. Icon only in that
+  // slot (the question truncates beside it, never the button); its rows open under the
+  // question at full width, because each one has words. Added once the poll is in hand, and
+  // once only, since Refresh runs the load again.
+  function attachPollMenu(questionRow, pollEv, link) {
+    if (!pollEv || questionRow.querySelector('.notif-more-btn')) return null;
+    const menu = buildEventMenu(pollEv, link || null, { npubOf: null });
+    menu.panel.classList.add('poll-more-menu');
+    questionRow.append(menu.btn);
+    questionRow.after(menu.panel);
+    return menu;
   }
 
   // `poll` is either the event or an id to go and find. A vote notification only
@@ -16455,25 +17773,27 @@
       // both the way back to that sheet and the way out of the whole stack. Icon buttons
       // in the corners rather than words in the actions column: the column is where the
       // things you do to this poll live, and neither of these is one of those.
-      const xBtn = h('button', { className: 'modal-x', type: 'button', title: 'Close' });
+      const xBtn = h('button', { className: 'modal-x', type: 'button', title: t('Close') });
       xBtn.append(icon('x'));
       xBtn.addEventListener('click', () => { dismissAll = true; closeModal(); });
       modal.append(xBtn);
       if (returnTo) {
-        const backBtn = h('button', { className: 'modal-x modal-back', type: 'button', title: 'Back' });
+        const backBtn = h('button', { className: 'modal-x modal-back', type: 'button', title: t('Back') });
         backBtn.append(icon('arrow-left'));
         backBtn.addEventListener('click', closeModal);
         modal.append(backBtn);
       }
 
-      modal.append(h('h3', { textContent: 'Poll results' }));
+      modal.append(h('h3', { textContent: t('Poll results') }));
       const question = h('p', { className: 'poll-result-question' });
+      // The question's line, with room at its end for the poll's ⋮.
+      const questionRow = h('div', { className: 'poll-question-row' }, [question]);
       const body = h('div', { className: 'poll-result-body' });
-      body.append(waitingRow('Counting votes…'));
-      const recount = h('button', { className: 'secondary', textContent: 'Refresh' });
+      body.append(waitingRow(t('Counting votes…')));
+      const recount = h('button', { className: 'secondary', textContent: t('Refresh') });
       const openOut = h('button', { className: 'ghost hidden' });
       const actions = h('div', { className: 'actions' }, [recount, openOut]);
-      modal.append(question, body, actions);
+      modal.append(questionRow, body, actions);
 
       let pollEv = typeof poll === 'string' ? null : poll;
 
@@ -16482,14 +17802,14 @@
         try {
           if (!pollEv) {
             body.innerHTML = '';
-            body.append(waitingRow('Fetching the poll…'));
+            body.append(waitingRow(t('Fetching the poll…')));
             pollEv = await loadPollEvent(typeof poll === 'string' ? poll : poll.id, relayHints);
           }
           if (!pollEv) {
             question.textContent = '';
             body.innerHTML = '';
             body.append(
-              h('p', { className: 'hint', textContent: 'That poll could not be found on your relays.' })
+              h('p', { className: 'hint', textContent: t('That poll could not be found on your relays.') })
             );
             return;
           }
@@ -16500,16 +17820,18 @@
           // two different places. Null when settings could not be read, which the rows
           // read as "no link" rather than guessing at a URL.
           let client = null;
+          let url = null;
           try {
             const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
             client = resolveClient(settings, state.activePubkey);
-            const url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
-            openOut.textContent = 'Open in ' + client.label;
+            url = client.url(NT.nip19.neventEncode({ id: pollEv.id, author: pollEv.pubkey, relays: [] }));
+            openOut.textContent = t('Open in {{client}}', { client: client.label });
             openOut.classList.remove('hidden');
             openOut.onclick = () => openInClient(url);
           } catch (_) {}
+          attachPollMenu(questionRow, pollEv, url);
           body.innerHTML = '';
-          body.append(waitingRow('Counting votes…'));
+          body.append(waitingRow(t('Counting votes…')));
           const votes = await fetchPollVotes(pollEv);
           if (!body.isConnected) return;
           paintPollResults(body, pollEv, votes, client);
@@ -16554,7 +17876,7 @@
   async function fetchBookmarkLists() {
     return poolQuerySync(
       await readRelayUrls(state.activePubkey),
-      { kinds: [10003, 30001], authors: [state.activePubkey] },
+      { kinds: [10003, 30003, 30001], authors: [state.activePubkey] },
       { maxWait: 6000 }
     );
   }
@@ -16573,13 +17895,13 @@
   // that is the right way round.
   async function addBookmark(ev) {
     const pubkey = state.activePubkey;
-    if (!pubkey) throw new Error('No account is unlocked.');
+    if (!pubkey) throw new Error(t('No account is unlocked.'));
     const relays = await readRelayUrls(pubkey);
     const got = await poolQuerySync(relays, { kinds: [0, 10003], authors: [pubkey] }, { maxWait: 6000 });
     const lists = (got || []).filter((e) => e.kind === 10003).sort((a, b) => b.created_at - a.created_at);
     const list = lists[0] || null;
     if (!list && !(got || []).some((e) => e.kind === 0)) {
-      throw new Error('Could not read your bookmarks, so nothing was published.');
+      throw new Error(t('Could not read your bookmarks, so nothing was published.'));
     }
     const tags = list ? list.tags.map((t) => t.slice()) : [];
     if (tags.some((t) => t[0] === 'e' && t[1] === ev.id)) return false;
@@ -16609,18 +17931,139 @@
     const latest = new Map();
     for (const ev of evs || []) {
       const d = ev.kind === 10003 ? '' : (ev.tags.find((t) => t[0] === 'd') || [])[1] || '';
-      const key = (ev.kind === 10003 ? 'F|' : 'C|') + d;
+      // F: the one flat list (10003). S: a bookmark set (30003), the list NIP-51 defines for named
+      // groups, which Wisp and Zap Cooking write. C: an older generic list (30001), still read.
+      const key = (ev.kind === 10003 ? 'F|' : ev.kind === 30003 ? 'S|' : 'C|') + d;
       const cur = latest.get(key);
       if (!cur || ev.created_at >= cur.created_at) latest.set(key, ev);
     }
+    // NOT EVERY LIST IN THESE KINDS IS A SHELF. The older generic list (30001) is also what mute packs
+    // are published as, and a set can be a people list: anything that holds people, words to mute or a
+    // label namespace is not something a bookmark was ever kept in, and its notes (a muted thread, say)
+    // are not bookmarks. The newest copy decides, so an older version of a list cannot come back.
+    for (const [k, ev] of [...latest.entries()]) {
+      if (k[0] !== 'F' && ev.tags.some((t) => t[0] === 'p' || t[0] === 'word' || t[0] === 'L')) latest.delete(k);
+    }
     const sections = [];
     const flat = latest.get('F|');
-    if (flat) sections.push({ title: '', ev: flat });
+    if (flat) sections.push({ title: '', ev: flat, key: 'F|', desc: '' });
+    // A list is named by its title tag, the way the clients that write them name them, and by its
+    // d tag only when it has none.
+    const named = (ev, d) => ((ev.tags.find((t) => t[0] === 'title') || ev.tags.find((t) => t[0] === 'name') || [])[1] || '').trim() || d;
     [...latest.entries()]
-      .filter(([k]) => k[0] === 'C')
-      .sort((a, b) => a[0].slice(2).localeCompare(b[0].slice(2)))
-      .forEach(([k, ev]) => sections.push({ title: k.slice(2), ev }));
+      .filter(([k]) => k[0] !== 'F')
+      .map(([k, ev]) => ({
+        key: k, ev, title: named(ev, k.slice(2)), d: k.slice(2),
+        // What its author said the list is for: NIP-51 names the tag description, and Zap Cooking writes summary.
+        desc: String(((ev.tags.find((t) => t[0] === 'description') || ev.tags.find((t) => t[0] === 'summary') || [])[1]) || '').trim(),
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .forEach((x) => sections.push(x));
     return sections;
+  }
+
+  // Pure: everything one list holds that the tab can show, as entries. The tags in the open come
+  // first, then the account's private ones (the list's encrypted content, already read back into
+  // tags by the caller). Four kinds of entry: a note (e), an addressable event such as an article or a
+  // recipe (a), a web address (r) and a hashtag (t). One saved twice is one entry, and the public
+  // copy is the one kept. Hashtags belong to the main list (NIP-51 puts them there); in a set or a generic
+  // list a t tag is a category, so `opts.hashtags === false` leaves them out. Lifted into
+  // test/bookmark-sections.test.js, so it stays self-contained.
+  function bookmarkEntries(tags, privateTags, opts) {
+    const out = [];
+    const seen = new Set();
+    const take = (list, priv) => {
+      for (const tg of Array.isArray(list) ? list : []) {
+        if (!Array.isArray(tg) || typeof tg[1] !== 'string' || !tg[1]) continue;
+        const type = tg[0];
+        const value = tg[1];
+        const ok = type === 'e' ? /^[0-9a-f]{64}$/.test(value)
+          : type === 'a' ? /^\d+:[0-9a-f]{64}:/.test(value)
+          : type === 'r' ? /^https?:\/\/\S+$/i.test(value)
+          : type === 't' && !(opts && opts.hashtags === false);
+        if (!ok) continue;
+        const key = type + '|' + (type === 't' ? value.toLowerCase() : value);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ type, value, key, priv, hint: typeof tg[2] === 'string' ? tg[2] : '' });
+      }
+    };
+    take(tags, false);
+    take(privateTags, true);
+    return out;
+  }
+
+  // A list's private entries. NIP-51 keeps them in the list's content, encrypted to its owner's own
+  // key: NIP-44 on current lists, NIP-04 (told by ?iv=) on older ones. Read through the same signer
+  // call the mute list uses, and remembered for the life of the page so a refresh asks once per
+  // version of a list. A list that will not read says so instead of showing as shorter than it is.
+  const _privMemo = new Map();
+  async function privateBookmarkTags(ev) {
+    if (!ev || !ev.content) return { tags: [], unreadable: false };
+    const pubkey = state.activePubkey;
+    const key = pubkey + ':' + ev.id;
+    if (_privMemo.has(key)) return _privMemo.get(key);
+    for (const nip of ev.content.includes('?iv=') ? [4, 44] : [44, 4]) {
+      try {
+        const parsed = JSON.parse(await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip, expectedPubkey: pubkey }));
+        if (Array.isArray(parsed)) {
+          const got = { tags: parsed.filter(Array.isArray), unreadable: false };
+          if (_privMemo.size > 200) _privMemo.clear();
+          _privMemo.set(key, got);
+          return got;
+        }
+      } catch (_) { /* the other scheme may be the one */ }
+    }
+    return { tags: [], unreadable: true };
+  }
+
+  // Articles, recipes and the like that a list points at by address. One query per kind, in chunks,
+  // and an answer is matched back to the address that asked for it. Remembered like notes are.
+  const _addrMemo = new Map();
+  async function fetchAddrEvents(coords, hints) {
+    const found = new Map();
+    const missing = [];
+    for (const c of coords) {
+      const hit = _addrMemo.get(c);
+      if (hit) found.set(c, hit); else missing.push(c);
+    }
+    if (!missing.length) return found;
+    const pubkey = state.activePubkey;
+    const read = await readRelayUrls(pubkey);
+    let write = [];
+    try { write = await postRelays(); } catch (_) {}
+    let extra = [];
+    if (!(await nip65OnlyFor(pubkey))) {
+      extra = [...new Set((hints || []).filter((u) => /^wss:\/\/\S+$/.test(u)).map(normalizeRelay))];
+    }
+    const relays = [...new Set([...read, ...write, ...extra].map(normalizeRelay))];
+    const byKind = new Map();
+    for (const c of missing) {
+      const [k, pk, ...rest] = c.split(':');
+      const kind = Number(k);
+      if (!byKind.has(kind)) byKind.set(kind, []);
+      byKind.get(kind).push({ coord: c, pk, d: rest.join(':') });
+    }
+    const jobs = [];
+    for (const [kind, list] of byKind) {
+      for (let i = 0; i < list.length; i += 40) {
+        const part = list.slice(i, i + 40);
+        const filter = { kinds: [kind], authors: [...new Set(part.map((x) => x.pk))] };
+        if (kind >= 30000 && kind < 40000) filter['#d'] = [...new Set(part.map((x) => x.d))];
+        jobs.push(poolQuerySync(relays, filter, { maxWait: 5000 }).then((evs) => {
+          for (const ev of evs || []) {
+            const d = ((ev.tags || []).find((tg) => tg[0] === 'd') || [])[1] || '';
+            const coord = ev.kind + ':' + ev.pubkey + ':' + (ev.kind >= 30000 && ev.kind < 40000 ? d : '');
+            if (!part.some((x) => x.coord === coord)) continue;
+            const cur = found.get(coord);
+            if (!cur || ev.created_at > cur.created_at) found.set(coord, ev);
+          }
+        }).catch(() => {}));
+      }
+    }
+    await Promise.all(jobs);
+    for (const c of missing) if (found.has(c)) _addrMemo.set(c, found.get(c));
+    return found;
   }
 
   // The bookmarked events themselves. Relays cap ids per filter, so ids go out
@@ -16633,7 +18076,26 @@
   // So the write relays always join, and the relay each bookmark names as its hint joins
   // too, but only for an account that allows reaching past its own lists: with bootstrap
   // relays off, contacting relays it never chose is what that setting rules out.
-  async function fetchEventsByIds(ids, hints) {
+  // NOTES ALREADY SEEN THIS SESSION. A note never changes, so one that was fetched for a row is
+  // the answer the next time a row asks, and a list reopened a minute later needs no relay for
+  // the notes it showed before. Misses are not kept: a note that was not there may be by now.
+  const _noteMemo = new Map();
+  const NOTE_MEMO_MAX = 1500;
+  const rememberNote = (ev) => {
+    if (!ev || !HEX_ID.test(ev.id || '')) return;
+    _noteMemo.delete(ev.id);
+    _noteMemo.set(ev.id, ev);
+    if (_noteMemo.size > NOTE_MEMO_MAX) _noteMemo.delete(_noteMemo.keys().next().value);
+  };
+  // `offline` returns only what is remembered and asks nothing.
+  async function fetchEventsByIds(ids, hints, opts) {
+    const found = new Map();
+    const missing = [];
+    for (const id of ids) {
+      const hit = _noteMemo.get(id);
+      if (hit) found.set(id, hit); else missing.push(id);
+    }
+    if (!missing.length || (opts && opts.offline)) return found;
     const pubkey = state.activePubkey;
     const read = await readRelayUrls(pubkey);
     let write = [];
@@ -16643,16 +18105,80 @@
       extra = [...new Set((hints || []).filter((u) => /^wss:\/\/\S+$/.test(u)).map(normalizeRelay))];
     }
     const relays = [...new Set([...read, ...write, ...extra].map(normalizeRelay))];
-    const found = new Map();
     const chunks = [];
-    for (let i = 0; i < ids.length; i += 64) chunks.push(ids.slice(i, i + 64));
+    for (let i = 0; i < missing.length; i += 64) chunks.push(missing.slice(i, i + 64));
     await Promise.all(chunks.map(async (chunk) => {
       try {
         const evs = await poolQuerySync(relays, { ids: chunk }, { maxWait: 5000 });
-        (evs || []).forEach((ev) => { if (!found.has(ev.id)) found.set(ev.id, ev); });
+        (evs || []).forEach((ev) => { if (!found.has(ev.id)) { found.set(ev.id, ev); rememberNote(ev); } });
+        markAsked(chunk.map((id) => 'n:' + id));
       } catch (_) {}
     }));
     return found;
+  }
+
+  // ---- the library, kept current ----
+  //
+  // Once the library has been opened, one subscription listens for this account's own events
+  // that the lists are made of (reactions, highlights, web comments, the bookmark list) and
+  // for deletions, for as long as the panel is open. A new one lands in its cache the moment a
+  // relay sends it, and in the open list if the list is showing; one made from Sidecar itself
+  // comes back the same way, from the account's own relays, so nothing has to be told by hand.
+  // The caches live in this page, so closing the panel lets go of them and the next open starts
+  // from the relays; within an open panel the library never has to be asked twice.
+  const _libLive = { pubkey: null, sub: null, token: null, bookmarks: null };
+  const LIB_CACHE_MAX = 5000;
+  function stopLibraryLive() {
+    if (_libLive.sub) { try { _libLive.sub.close(); } catch (_) {} }
+    _libLive.sub = null;
+    _libLive.pubkey = null;
+    _libLive.token = null;
+  }
+  async function startLibraryLive() {
+    const pubkey = state.activePubkey;
+    if (!pubkey) return;
+    if (_libLive.pubkey === pubkey && (_libLive.sub || _libLive.token)) return;
+    stopLibraryLive();
+    const token = {};
+    _libLive.pubkey = pubkey;
+    _libLive.token = token;
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (_libLive.token !== token || state.activePubkey !== pubkey) return;
+    _libLive.token = null;
+    if (!relays.length) { _libLive.pubkey = null; return; }
+    // A little before now, so an event published as the sheet opened is not missed in the gap.
+    const since = Math.floor(Date.now() / 1000) - 60;
+    _libLive.sub = poolSubscribeMany(relays, { kinds: [5, 7, 1111, 9802, 10003, 30003, 30001], authors: [pubkey], since }, {
+      onevent: (ev) => { try { libraryEvent(pubkey, ev); } catch (_) {} },
+    });
+  }
+  function libraryEvent(pubkey, ev) {
+    if (!ev || ev.pubkey !== pubkey || state.activePubkey !== pubkey) return;
+    const into = (cache) => {
+      if (cache.pubkey !== pubkey || !cache.evs || cache.evs.some((e) => e.id === ev.id)) return;
+      cache.evs = [ev, ...cache.evs].sort((a, b) => b.created_at - a.created_at).slice(0, LIB_CACHE_MAX);
+      if (cache.repaint) cache.repaint();
+    };
+    if (ev.kind === 7) into(_rctCache);
+    else if (ev.kind === 9802) into(_hlCache);
+    else if (ev.kind === 1111) {
+      const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+      if (scope && /^https?:\/\//i.test(scope[1] || '')) into(_cmCache);
+    } else if (ev.kind === 10003 || ev.kind === 30003 || ev.kind === 30001) {
+      if (_libLive.bookmarks) _libLive.bookmarks(); else _bmCache.pubkey = null;
+    } else if (ev.kind === 5) {
+      // A deleted list is named by address: the bookmarks refresh finds it gone.
+      if ((ev.tags || []).some((tg) => tg[0] === 'a' && /^3000[13]:/.test(tg[1] || ''))) {
+        if (_libLive.bookmarks) _libLive.bookmarks(); else _bmCache.pubkey = null;
+      }
+      const gone = new Set((ev.tags || []).filter((tg) => tg[0] === 'e' && tg[1]).map((tg) => tg[1]));
+      for (const cache of [_rctCache, _hlCache, _cmCache]) {
+        if (cache.pubkey !== pubkey || !cache.evs || !cache.evs.some((e) => gone.has(e.id))) continue;
+        cache.evs = cache.evs.filter((e) => !gone.has(e.id));
+        if (cache.repaint) cache.repaint();
+      }
+    }
   }
 
   // Opened from the topbar icon: a full-height modal (modal-sheet) that paints
@@ -16660,38 +18186,189 @@
   // modal, not something content has to grow into. A modal closed mid-fetch
   // leaves its DOM merely hidden, so "gone" is the overlay check, not
   // isConnected.
+  // Tab capsules cap at two digits — a heart with 424 is not a number a capsule can
+  // carry, and the fetch behind it is a window anyway — while the lists page in
+  // screens of thirty, appending under a Show more button like the wallet history
+  // does. The {{count}}+ template is the bell badge's, already translated.
+  const SAVED_PAGE = 30;
+  const tabCount = (n) => n > 99
+    ? t('{{count}}+', { count: I18N.fmtNum(99) })
+    : I18N.fmtNum(n);
+  // A tab's count capsule hangs off the corner of its icon, the way the bell's badge
+  // hangs off the bell. One writer for all four tabs: each list used to carry its own
+  // copy of this closure, which is how three copies drift apart.
+  const setTabCount = (tab, n) => {
+    const host = tab.querySelector('.tab-glyph') || tab;
+    const cap = host.querySelector('.modal-tab-count');
+    if (!n) { if (cap) cap.remove(); return; }
+    if (cap) cap.textContent = tabCount(n);
+    else host.append(h('span', { className: 'modal-tab-count', textContent: tabCount(n) }));
+  };
+  // The shape every Yours list shares: paint what is cached at once, ask the relays,
+  // and repaint only if they said something different. One copy, because the same
+  // eleven lines pasted into each list is where a highlights list once wrote itself
+  // into the comments cache. A cache that belongs to another account is not a cache.
+  //
+  // A paint is asked first to answer from what is already known (quick: no relay), and says
+  // whether that was everything. When it was not, a second, asking paint follows, so a reopened
+  // list is on screen at once and fills in what it was missing instead of waiting to appear.
+  // `cache.repaint` is how a live event reaches the open list: see libraryEvent.
+  async function loadSavedList(pane, gone, cache, fetchList, paint, failText, quote) {
+    const pubkey = state.activePubkey;
+    const warm = cache.pubkey === pubkey && cache.evs;
+    const settle = async () => {
+      if (gone()) return;
+      const keep = pane.scrollTop;
+      const complete = await paint(cache.evs, true);
+      if (complete === false && !gone()) await paint(cache.evs, false);
+      if (!gone()) pane.scrollTop = keep;
+    };
+    // The same paint without the guard below: for a list that has just grown by its own doing.
+    cache.redraw = settle;
+    cache.repaint = () => {
+      // Never under a hand that is using a row: an open menu or a delete confirm would vanish.
+      if (gone() || pane.querySelector('.notif-more:not(.hidden), .del-confirm')) return;
+      return settle();
+    };
+    let complete = true;
+    if (warm) complete = await paint(cache.evs, true);
+    else pane.append(loadingQuote(t('Reading your relays…'), quote));
+    let evs;
+    try { evs = await fetchList(pubkey); } catch (_) { evs = null; }
+    if (gone() || !evs || state.activePubkey !== pubkey) {
+      if (!warm && !gone()) { pane.textContent = ''; pane.append(emptyQuote(failText, quote)); }
+      return;
+    }
+    const changed = !warm || cache.evs.map((e) => e.id).join() !== evs.map((e) => e.id).join();
+    cache.pubkey = pubkey;
+    cache.evs = evs;
+    if (changed || complete === false) {
+      const keep = pane.scrollTop;
+      await paint(evs, false);
+      if (!gone() && warm) pane.scrollTop = keep;
+    }
+  }
+  // The rows of a list, a screen at a time. When the screen being asked for is past the end of what
+  // was read and the relays filled their last page, there is more: the next page is asked for, from
+  // where the last one ended, and the list is drawn again at the length it had plus one screen, so the
+  // reader keeps their place. (A page that comes back with nothing for this list, because it was all
+  // other kinds of event, is followed by the next, a few times, before the list gives up.)
+  const paged = (list, evs, makeRow, cache) => {
+    let shown = 0;
+    const first = (cache && cache.reshow) || SAVED_PAGE;
+    if (cache) cache.reshow = 0;
+    const more = h('button', { className: 'ghost show-more-btn', type: 'button', textContent: t('Show more') });
+    const draw = (count) => {
+      more.remove();
+      for (const ev of evs.slice(shown, shown + count)) list.append(makeRow(ev));
+      shown = Math.min(shown + count, evs.length);
+      if (shown < evs.length || (cache && cache.more && cache.older)) list.append(more);
+    };
+    more.addEventListener('click', async () => {
+      if (shown < evs.length) return draw(SAVED_PAGE);
+      more.disabled = true;
+      more.textContent = t('Reading your relays…');
+      const known = new Set(evs.map((e) => e.id));
+      let fresh = [];
+      let failed = false;
+      for (let round = 0; round < 6 && !fresh.length; round++) {
+        let page = null;
+        try { page = await cache.older(cache.cursor); } catch (_) {}
+        if (!page) { failed = true; break; }
+        // Never the same page twice: a cursor that did not move ends the list.
+        const moved = page.oldest < cache.cursor;
+        cache.cursor = page.oldest;
+        cache.more = page.full && moved;
+        fresh = page.evs.filter((e) => !known.has(e.id));
+        if (!cache.more) break;
+      }
+      more.disabled = false;
+      more.textContent = t('Show more');
+      if (failed) return;
+      if (!fresh.length) { more.remove(); return; }
+      cache.evs = [...evs, ...fresh].sort((a, b) => b.created_at - a.created_at);
+      cache.reshow = shown + SAVED_PAGE;
+      await cache.redraw();
+    });
+    draw(first);
+  };
+
   function renderBookmarks() {
     if (!state?.activePubkey) return;
     openModal((modal) => {
       modal.classList.add('modal-sheet');
-      const x = h('button', { className: 'modal-x', title: 'Close' });
+      const x = h('button', { className: 'modal-x', title: t('Close') });
       x.appendChild(icon('x'));
       x.addEventListener('click', closeModal);
       const scroll = h('div', { className: 'bm-scroll' });
-      // TWO VIEWS OF WHAT THIS ACCOUNT HAS SAVED: its bookmarks, and the passages it has
-      // highlighted. Separate tabs because they are separate things on Nostr, a list the
-      // account keeps and events it published, and one list mixing them would read as
-      // bookmarks that cannot be removed the same way. The heading names both.
-      const tabBm = h('button', { className: 'modal-tab active', type: 'button', textContent: t('Bookmarks') });
-      const tabHl = h('button', { className: 'modal-tab', type: 'button', textContent: t('Highlights') });
-      const hlPane = h('div', { className: 'bm-scroll hidden' });
-      modal.append(x, h('h3', { textContent: t('Saved') }), h('div', { className: 'modal-tabs' }, [tabBm, tabHl]), scroll, hlPane);
-      let hlFilled = false;
-      const pick = (hl) => {
-        tabBm.classList.toggle('active', !hl);
-        tabHl.classList.toggle('active', hl);
-        scroll.classList.toggle('hidden', hl);
-        hlPane.classList.toggle('hidden', !hl);
-        // On the first switch only, so opening bookmarks never pays for a highlights query
-        // nobody asked for.
-        if (hl && !hlFilled) {
-          hlFilled = true;
-          fillHighlights(hlPane, () => $('modal-overlay').classList.contains('hidden'), tabHl);
-        }
-      };
-      tabBm.addEventListener('click', () => pick(false));
-      tabHl.addEventListener('click', () => pick(true));
+      // FOUR VIEWS OF WHAT THIS ACCOUNT KEEPS AND HAS PUT INTO THE WORLD: the bookmarks
+      // it keeps (a NIP-51 list), the passages it highlighted (NIP-84), the web pages it
+      // commented on (its own kind 1111s over web addresses) and the notes it reacted to
+      // (its kind 7s). Separate tabs because they are separate things on Nostr, and one
+      // list mixing a list the account keeps with events it published would read as
+      // rows that cannot all be removed the same way.
+      //
+      // ICON TABS, because three labels plus three count capsules wrapped at the
+      // panel's width. An icon alone is a guess, so the sheet's heading takes the name
+      // of whichever tab is open (title and aria-label carry it for the rest), and the
+      // bar's traveling underline says which one that is without leaning on color.
+      // Order: the entry point's own list first, then what the account wrote, then the
+      // lightest thing it does.
+      const tabDefs = [
+        ['bookmarks', t('Bookmarks'), 'bookmark'],
+        ['highlights', t('Highlights'), 'highlighter'],
+        ['comments', t('Comments'), 'message-circle'],
+        ['reactions', t('Reactions'), 'heart'],
+      ];
       const gone = () => $('modal-overlay').classList.contains('hidden');
+      const heading = h('h3', { textContent: tabDefs[0][1] });
+      const tabEls = {};
+      const panes = {
+        bookmarks: scroll,
+        highlights: h('div', { className: 'bm-scroll hidden' }),
+        comments: h('div', { className: 'bm-scroll hidden' }),
+        reactions: h('div', { className: 'bm-scroll hidden' }),
+      };
+      for (const [name, title, iconName] of tabDefs) {
+        const tab = h('button', { className: 'modal-tab icon-tab', type: 'button', title });
+        // setAttribute, not a prop: h() assigns properties, and "aria-label" is not one.
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', 'false');
+        tab.setAttribute('aria-label', title);
+        tab.append(h('span', { className: 'tab-glyph' }, [icon(iconName)]));
+        tabEls[name] = tab;
+      }
+      const bar = h('div', { className: 'modal-tabs', role: 'tablist' }, tabDefs.map(([name]) => tabEls[name]));
+      // The name of the place, small above the name of the tab, so the sheet says what it is
+      // whichever tab it is on. The same words as the button that opens it.
+      const eyebrow = h('div', { className: 'modal-eyebrow', textContent: t('Your library') });
+      modal.append(x, eyebrow, heading, bar, ...Object.values(panes));
+      wireTabSlider(bar, '.modal-tab');
+      // Filled on the first visit only, so opening bookmarks never pays for a query
+      // nobody asked for.
+      const fillers = {
+        highlights: () => fillHighlights(panes.highlights, gone, tabEls.highlights),
+        comments: () => fillComments(panes.comments, gone, tabEls.comments),
+        reactions: () => fillReactions(panes.reactions, gone, tabEls.reactions),
+      };
+      const pick = (which) => {
+        for (const [name, title] of tabDefs) {
+          tabEls[name].classList.toggle('active', name === which);
+          tabEls[name].setAttribute('aria-selected', String(name === which));
+          panes[name].classList.toggle('hidden', name !== which);
+          if (name === which) heading.textContent = title;
+        }
+        if (fillers[which]) { const go = fillers[which]; delete fillers[which]; go(); }
+      };
+      for (const [name] of tabDefs) tabEls[name].addEventListener('click', () => pick(name));
+      // The bookmark list changed somewhere (another device, another client): the same quiet
+      // refresh the sheet does on opening, never while a removal confirm is on screen.
+      _libLive.bookmarks = () => refreshBookmarks().then((changed) => {
+        if (changed && !gone() && !scroll.querySelector('.del-confirm')) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
+      });
+      startLibraryLive();
+      tabEls.bookmarks.classList.add('active');
+      tabEls.bookmarks.setAttribute('aria-selected', 'true');
       if (_bmCache.pubkey === state.activePubkey && _bmCache.evs) {
         fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events);
         // Quiet refresh behind the cached rows: the screen only moves when the
@@ -16707,7 +18384,7 @@
         // goes straight from this screen to the empty one, and a quote that changed on
         // the way would be a quote nobody finished reading.
         const waitQuote = pickQuote();
-        scroll.append(loadingQuote('Reading your relays…', waitQuote));
+        scroll.append(loadingQuote(t('Reading your relays…'), waitQuote));
         refreshBookmarks().then(() => {
           if (!gone()) fillBookmarks(scroll, gone, _bmCache.evs, _bmCache.events, waitQuote);
         });
@@ -16715,21 +18392,33 @@
     });
   }
 
-  // ---- the account's own highlights (NIP-84), the Saved sheet's second tab ----
+  // ---- the account's own highlights (NIP-84), the library's second tab ----
   //
   // Read from where they were written and where the account reads, newest first. A row is
   // the passage, the comment if there was one, and where it came from: a web page by its
   // host, a Nostr note or article by its author. Tapping it opens the highlight itself in
   // the web client, as a bookmark opens its note.
   const _hlCache = { pubkey: null, evs: null };
-  async function fetchHighlights(pubkey) {
+  // A page of them, newest first, from `until` back (the newest when none). `full` says a relay filled the
+  // page, so there may be older ones; `oldest` is where the next page starts, taken before anything is
+  // filtered out, so a page that came back all filtered still moves the list on.
+  async function fetchHighlightsPage(pubkey, until) {
     let relays = [];
     try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
-    if (!relays.length) return [];
-    const got = await poolQuerySync(relays, { kinds: [9802], authors: [pubkey], limit: 100 }, { maxWait: 6000 });
+    if (!relays.length) return { evs: [], full: false, oldest: 0 };
+    const filter = { kinds: [9802], authors: [pubkey], limit: 100 };
+    if (until) filter.until = until;
+    const got = await poolQuerySync(relays, filter, { maxWait: 6000 });
     const byId = new Map();
     for (const ev of got || []) if (ev && ev.kind === 9802 && ev.pubkey === pubkey) byId.set(ev.id, ev);
-    return [...byId.values()].sort((a, b) => b.created_at - a.created_at);
+    return { evs: [...byId.values()].sort((a, b) => b.created_at - a.created_at), full: (got || []).length >= 100, oldest: Math.min(...(got || []).map((e) => e.created_at), Infinity) };
+  }
+  async function fetchHighlights(pubkey) {
+    const page = await fetchHighlightsPage(pubkey);
+    _hlCache.more = page.full;
+    _hlCache.cursor = page.oldest;
+    _hlCache.older = (until) => fetchHighlightsPage(pubkey, until);
+    return page.evs;
   }
   // Where a highlight came from, as the row says it: { kind: 'page', host } or
   // { kind: 'note' | 'article', author }, from the tag marked source, then e, a, r.
@@ -16753,87 +18442,376 @@
   }
   async function fillHighlights(pane, gone, tab) {
     const pubkey = state.activePubkey;
-    const setCount = (n) => {
-      const cap = tab.querySelector('.modal-tab-count');
-      if (!n) { if (cap) cap.remove(); return; }
-      if (cap) cap.textContent = I18N.fmtNum(n);
-      else tab.append(h('span', { className: 'modal-tab-count', textContent: I18N.fmtNum(n) }));
-    };
+    const setCount = (n) => setTabCount(tab, n);
     const quote = pickQuote();
-    const paint = async (evs) => {
+    const paint = async (evs, quick) => {
       setCount(evs.length);
+      const client = await preferredClient();
       if (!evs.length) {
         pane.textContent = '';
         pane.append(emptyQuote(t('Highlight a passage on any web page and it shows up here.'), quote));
-        return;
+        return true;
       }
       // A highlight that cites a note without naming its author takes the author from the
       // note itself, read once for all of them.
       const sources = new Map(evs.map((ev) => [ev.id, highlightSource(ev)]));
       const unknown = [...new Set([...sources.values()].filter((s) => s && s.id && !s.author).map((s) => s.id))];
       if (unknown.length) {
-        const notes = await fetchEventsByIds(unknown).catch(() => new Map());
+        const notes = await fetchEventsByIds(unknown, undefined, { offline: quick }).catch(() => new Map());
         for (const s of sources.values()) if (s && s.id && !s.author && notes.get(s.id)) s.author = notes.get(s.id).pubkey;
       }
       const comments = new Map(evs.map((ev) => [ev.id, ((ev.tags || []).find((tg) => tg[0] === 'comment') || [])[1] || '']));
-      const profiles = await profilesFor([
+      const wanted = [
         ...[...sources.values()].filter((s) => s && s.author).map((s) => s.author),
         ...evs.flatMap((ev) => [...mentionPubkeys(ev.content), ...mentionPubkeys(comments.get(ev.id))]),
-      ]);
-      if (gone()) return;
+      ];
+      const profiles = await profilesFor(wanted, { offline: quick });
+      if (gone()) return true;
       // Cleared only now, after the lookups, so the loading quote stays up through them.
       pane.textContent = '';
       const list = h('div', { className: 'bm-list' });
-      for (const ev of evs) {
+      const makeRow = (ev) => {
         const src = sources.get(ev.id);
+        // WHERE IT CAME FROM leads the row, as it does on a comment: a globe and the host for a
+        // page, a note or article icon and its author's name for Nostr. The date sits alone
+        // below, so a long name never shares a line with it and wraps.
         let from = '';
+        let fromIcon = 'globe';
         if (src && src.kind === 'page') from = src.host;
         else if (src) {
           const prof = src.author ? profiles.get(src.author) : null;
           let who = prof && prof.name;
           if (!who && src.author) { try { who = shortNpub(NT.nip19.npubEncode(src.author)); } catch (_) {} }
-          from = who
-            ? (src.kind === 'article' ? t('Nostr article by {{name}}', { name: who }) : t('Nostr note by {{name}}', { name: who }))
-            : (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
+          fromIcon = src.kind === 'article' ? 'file-text' : 'message-filled';
+          from = who || (src.kind === 'article' ? t('A Nostr article') : t('A Nostr note'));
         }
         const comment = mentionsAsNames(comments.get(ev.id), profiles);
-        const item = h('div', { className: 'bm-item hl-item', title: t('Open in your web client') });
+        const item = h('div', { className: 'bm-item hl-item', title: t('Open in {{client}}', { client: client.label }) });
         // The same ⋮ as a notification's; its npub is the quoted author's, not yours.
         const menu = buildEventMenu(ev, null, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
         item.append(h('div', { className: 'bm-main' }, [
+          from ? h('div', { className: 'cm-src', title: from }, [icon(fromIcon), h('span', { dir: 'auto', textContent: from })]) : null,
           h('div', { className: 'hl-item-passage', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
           comment ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: comment }) : null,
-          h('div', { className: 'bm-meta', textContent: from ? from + ' · ' + relativeTime(ev.created_at) : relativeTime(ev.created_at) }),
+          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
           menu.panel,
         ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
         item.addEventListener('click', async () => {
           const client = await preferredClient();
           try { openInClient(client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 9802, relays: [] }))); } catch (_) {}
         });
-        list.append(item);
-      }
+        return item;
+      };
       pane.append(list);
+      paged(list, evs, makeRow, _hlCache);
       pane.append(endQuote(quote));
+      // A quick paint is whole only when it knew every note's author and every name.
+      return !quick || (![...sources.values()].some((s) => s && s.id && !s.author && !wasAsked('n:' + s.id)) && wanted.every((pk) => profiles.get(pk) || wasAsked('p:' + pk)));
     };
-    if (_hlCache.pubkey === pubkey && _hlCache.evs) await paint(_hlCache.evs);
-    else pane.append(loadingQuote(t('Reading your relays…'), quote));
-    let evs;
-    try { evs = await fetchHighlights(pubkey); } catch (_) { evs = null; }
-    if (gone() || !evs || state.activePubkey !== pubkey) {
-      if (!_hlCache.evs && !gone()) { pane.textContent = ''; pane.append(emptyQuote(t('Couldn’t read your highlights from your relays.'), quote)); }
-      return;
+    await loadSavedList(pane, gone, _hlCache, fetchHighlights, paint, t('Couldn’t read your highlights from your relays.'), quote);
+  }
+
+  // ---- the account's own web comments (NIP-22 kind 1111 over NIP-73 targets),
+  // the library's third tab ----
+  //
+  // A webpage comment is a kind 1111 whose scope tag (uppercase I) is a web address,
+  // so the query asks the account's relays for its own 1111s and the rows keep only
+  // those with an http(s) scope — comments on Nostr threads belong to other clients,
+  // not to the sheet that lists pages.
+  // The direct parent of a comment: NIP-22's lowercase e tags read root-to-leaf, so
+  // the last one names what this comment answers.
+  function commentParentId(ev) {
+    const es = (ev.tags || []).filter((tg) => tg[0] === 'e');
+    return es.length ? es[es.length - 1][1] : '';
+  }
+  const _cmCache = { pubkey: null, evs: null };
+  async function fetchCommentsPage(pubkey, until) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return { evs: [], full: false, oldest: 0 };
+    const filter = { kinds: [1111], authors: [pubkey], limit: 100 };
+    if (until) filter.until = until;
+    const got = await poolQuerySync(relays, filter, { maxWait: 6000 });
+    const byId = new Map();
+    for (const ev of got || []) {
+      if (!ev || ev.kind !== 1111 || ev.pubkey !== pubkey) continue;
+      const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+      if (!scope || !/^https?:\/\//i.test(scope[1] || '')) continue;
+      byId.set(ev.id, ev);
     }
-    const changed = _hlCache.pubkey !== pubkey || (_hlCache.evs || []).map((e) => e.id).join() !== evs.map((e) => e.id).join();
-    _hlCache.pubkey = pubkey;
-    _hlCache.evs = evs;
-    if (changed) await paint(evs);
+    return { evs: [...byId.values()].sort((a, b) => b.created_at - a.created_at), full: (got || []).length >= 100, oldest: Math.min(...(got || []).map((e) => e.created_at), Infinity) };
+  }
+  async function fetchComments(pubkey) {
+    const page = await fetchCommentsPage(pubkey);
+    _cmCache.more = page.full;
+    _cmCache.cursor = page.oldest;
+    _cmCache.older = (until) => fetchCommentsPage(pubkey, until);
+    return page.evs;
+  }
+  function commentPage(ev) {
+    const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+    try { return new URL(scope[1]).host; } catch (_) { return ''; }
+  }
+  async function fillComments(pane, gone, tab) {
+    const pubkey = state.activePubkey;
+    const setCount = (n) => setTabCount(tab, n);
+    const quote = pickQuote();
+    const paint = async (evs, quick) => {
+      setCount(evs.length);
+      const mentioned = [...evs.flatMap((ev) => [...mentionPubkeys(ev.content)])];
+      const profiles = await profilesFor(mentioned, { offline: quick });
+      if (gone()) return true;
+      // A comment on a Nostr thread answers a note; name that note, or the row is a
+      // bare sentence with nowhere to point. The parents hydrate in one batch.
+      const parentIds = [...new Set(evs.map(commentParentId).filter(Boolean))];
+      const parents = parentIds.length ? await fetchEventsByIds(parentIds, undefined, { offline: quick }).catch(() => new Map()) : new Map();
+      const parentAuthors = [...new Set([...parents.values()].map((p) => p.pubkey))];
+      const parentProfiles = await profilesFor(parentAuthors, { offline: quick });
+      if (gone()) return true;
+      // Cleared only after the lookups, so the loading quote stays up through them.
+      pane.textContent = '';
+      if (!evs.length) {
+        pane.append(emptyQuote(t('Comment on a web page through Sidecar and it shows up here.'), quote));
+        return true;
+      }
+      const list = h('div', { className: 'bm-list' });
+      const makeRow = (ev) => {
+        const host = commentPage(ev);
+        const parent = parents.get(commentParentId(ev));
+        const pWho = parent ? (parentProfiles.get(parent.pubkey) || {}).name || '' : '';
+        const item = h('div', { className: 'bm-item', title: t('Open this comment') });
+        // Always the account's own comment, so there is no one else's npub to copy: left to
+        // itself the menu offers the author's, which here is you.
+        const menu = buildEventMenu(ev, null, { npubOf: null });
+        // The site the comment was written on leads the row, so a list of comments reads as
+        // a list of places. The address itself is the tooltip; the time stays below.
+        const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
+        const src = host ? h('div', { className: 'cm-src', title: (scope && scope[1]) || host }, [icon('globe'), h('span', { textContent: host })]) : null;
+        item.append(h('div', { className: 'bm-main' }, [
+          src,
+          parent ? h('div', { className: 'cm-ref', dir: 'auto', textContent: (pWho ? t('Replying to {{name}}', { name: pWho }) : t('Replying to a note')) + ' · ' + noteGist(parent) }) : null,
+          // Your own words are the row, so they are drawn as content, three lines like a highlight.
+          h('div', { className: 'bm-text bm-text-3', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
+          h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
+          menu.panel,
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        // Most clients render a kind 1111 nowhere at all, so the row opens Sidecar's
+        // own page for the comment rather than betting on a client.
+        item.addEventListener('click', () => openThreadTab(ev));
+        return item;
+      };
+      pane.append(list);
+      paged(list, evs, makeRow, _cmCache);
+      pane.append(endQuote(quote));
+      return !quick || (parentIds.every((id) => parents.has(id) || wasAsked('n:' + id)) && [...mentioned, ...parentAuthors].every((pk) => profiles.get(pk) || parentProfiles.get(pk) || wasAsked('p:' + pk)));
+    };
+    await loadSavedList(pane, gone, _cmCache, fetchComments, paint, t('Couldn’t read your comments from your relays.'), quote);
+  }
+
+  // ---- one comment, read in its own tab ----
+  //
+  // Most clients render a kind 1111 over a web address nowhere at all, so a comment is read
+  // on Sidecar's own page (thread.html): the page it was written on, the comment in full,
+  // and its replies as the tree they are. A 344px sheet is no place for a reply tree, and it
+  // could only ask the relays this account is configured with, where the page asks the
+  // inboxes of whoever is being answered. The panel's part is the doorway: open the tab, or
+  // point the one already open at this comment.
+  async function liveThreadTab() {
+    try {
+      if (!chrome.runtime.getContexts) return null;
+      const url = chrome.runtime.getURL('thread.html');
+      const ctxs = await chrome.runtime.getContexts({ contextTypes: ['TAB'] });
+      // Matched on the path, query stripped: the tab carries ?id=<comment> in its address.
+      return (ctxs || []).find((c) => c.documentUrl && c.documentUrl.split(/[?#]/)[0] === url) || null;
+    } catch (_) { return null; }
+  }
+  // The comment, left for the page to read. The panel already holds it, and a comment is its
+  // own hash and cannot change, so the page can show it at once instead of asking relays for
+  // something this panel has just listed. A handful kept, oldest dropped: session storage is
+  // memory, and this is a courtesy, never a record.
+  const THREAD_SEEDS_KEY = 'sidecar_thread_seeds';
+  async function seedThread(ev) {
+    try {
+      const got = await chrome.storage.session.get(THREAD_SEEDS_KEY);
+      const all = (got && got[THREAD_SEEDS_KEY]) || {};
+      delete all[ev.id];
+      all[ev.id] = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, content: ev.content, tags: ev.tags, created_at: ev.created_at, sig: ev.sig };
+      for (const old of Object.keys(all).slice(0, Math.max(0, Object.keys(all).length - 20))) delete all[old];
+      await chrome.storage.session.set({ [THREAD_SEEDS_KEY]: all });
+    } catch (_) { /* the page will ask the relays, as it does for a comment it was not handed */ }
+  }
+  async function openThreadTab(ev) {
+    if (!ev || !/^[0-9a-f]{64}$/.test(ev.id || '')) return;
+    await seedThread(ev);
+    const open = await liveThreadTab();
+    if (open) {
+      try {
+        // TOLD, NOT NAVIGATED: pointing an open tab at another address needs the "tabs"
+        // permission, which this extension does not ask for. The page re-keys itself.
+        chrome.runtime.sendMessage({ type: 'SIDECAR_THREAD_OPEN', id: ev.id }).catch(() => {});
+        await chrome.tabs.update(open.tabId, { active: true });
+        await chrome.windows.update(open.windowId, { focused: true });
+        return;
+      } catch (_) { /* fall through to a new tab */ }
+    }
+    chrome.tabs.create({ url: chrome.runtime.getURL('thread.html') + '?id=' + ev.id });
+  }
+
+  // ---- the account's own reactions (kind 7), the library's heart ----
+  //
+  // A reaction is only a marker on the note it reacted to, so a row shows the two
+  // together: the mark first, then the author and the opening of the note's text. NIP-25
+  // names the target in the LAST e tag (earlier ones are the thread above it). The
+  // targets hydrate in one batch; a reaction aimed at a profile rather than a note shows
+  // the profile's name and opens the profile. The mark is drawn by reactionDisplay, the
+  // same function the notification list uses, so one event is one picture on every screen.
+  // THE GIST OF A NOTE, for a row that names it: its words, without the things a one-line
+  // row cannot carry. A link, a nostr reference and an invoice are dropped (quoteSnippet, the
+  // bookmarks list's own rule, so the two lists read a note the same way), and a note that was
+  // only a picture, a video or a link says so instead of reading as nothing. Raw, those rows
+  // were a column of bare addresses and npubs.
+  function noteGist(note) {
+    const words = quoteSnippet(note && note.content);
+    if (words) return words;
+    const url = (String((note && note.content) || '').match(/https?:\/\/[^\s<>"']+/) || [])[0];
+    if (url) {
+      if (IMG_EXT.test(url)) return t('Image');
+      if (VID_EXT.test(url)) return t('Video');
+      try { return new URL(url).host; } catch (_) { /* not an address: the generic line below */ }
+    }
+    return note && note.kind === 30023 ? t('A Nostr article') : t('A Nostr note');
+  }
+
+  // The mark a reaction left, as a small element: a heart for the plain like (the glyph
+  // the notification list and the note's own React button already use, drawn from the
+  // icon set rather than as an emoji so it follows the theme's colors), the character
+  // itself for an emoji, and the picture for a custom one.
+  function reactionMark(ev) {
+    const d = reactionDisplay(ev);
+    const mark = h('span', { className: 'cm-reaction-mark' });
+    if (d.emojiUrl) {
+      const img = document.createElement('img');
+      img.className = 'notif-reacted-chip-img';
+      img.alt = d.glyph;
+      img.referrerPolicy = 'no-referrer';
+      img.onerror = () => { mark.textContent = d.glyph; };
+      img.src = d.emojiUrl;
+      mark.append(img);
+    } else if (d.glyph === reactionDisplay({ content: '+' }).glyph) {
+      mark.append(icon('heart'));
+    } else {
+      mark.textContent = d.glyph;
+    }
+    return mark;
+  }
+  const _rctCache = { pubkey: null, evs: null };
+  async function fetchReactionsPage(pubkey, until) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return { evs: [], full: false, oldest: 0 };
+    const filter = { kinds: [7], authors: [pubkey], limit: 200 };
+    if (until) filter.until = until;
+    const got = await poolQuerySync(relays, filter, { maxWait: 6000 });
+    const byId = new Map();
+    for (const ev of got || []) if (ev && ev.kind === 7 && ev.pubkey === pubkey) byId.set(ev.id, ev);
+    return { evs: [...byId.values()].sort((a, b) => b.created_at - a.created_at), full: (got || []).length >= 200, oldest: Math.min(...(got || []).map((e) => e.created_at), Infinity) };
+  }
+  async function fetchReactions(pubkey) {
+    const page = await fetchReactionsPage(pubkey);
+    _rctCache.more = page.full;
+    _rctCache.cursor = page.oldest;
+    _rctCache.older = (until) => fetchReactionsPage(pubkey, until);
+    return page.evs;
+  }
+  async function fillReactions(pane, gone, tab) {
+    const pubkey = state.activePubkey;
+    const setCount = (n) => setTabCount(tab, n);
+    const quote = pickQuote();
+    const client = await preferredClient();
+    const paint = async (evs, quick) => {
+      setCount(evs.length);
+      const noteIds = new Set();
+      const profileIds = new Set();
+      // A reaction's e tag often names the relay the note was seen on. A note by a stranger is
+      // rarely on this account's own relays, so asking only those left most rows unresolved.
+      const hints = [];
+      for (const ev of evs) {
+        for (const tg of (ev.tags || [])) {
+          if (tg[0] === 'e' && HEX_ID.test(tg[1] || '')) {
+            noteIds.add(tg[1]);
+            if (typeof tg[2] === 'string' && /^wss:\/\/\S+$/.test(tg[2])) hints.push(tg[2]);
+          } else if (tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || '')) profileIds.add(tg[1]);
+        }
+      }
+      const notes = noteIds.size ? await fetchEventsByIds([...noteIds], hints, { offline: quick }).catch(() => new Map()) : new Map();
+      const authors = [...profileIds, ...[...notes.values()].map((n) => n.pubkey)];
+      const profiles = await profilesFor(authors, { offline: quick });
+      if (gone()) return true;
+      pane.textContent = '';
+      if (!evs.length) {
+        pane.append(emptyQuote(t('React to a note and it shows up here.'), quote));
+        return true;
+      }
+      const list = h('div', { className: 'bm-list' });
+      const makeRow = (ev) => {
+        const es = (ev.tags || []).filter((tg) => tg[0] === 'e' && HEX_ID.test(tg[1] || ''));
+        const ps = (ev.tags || []).filter((tg) => tg[0] === 'p' && /^[0-9a-f]{64}$/.test(tg[1] || ''));
+        const targetId = es.length ? es[es.length - 1][1] : '';
+        const note = targetId ? notes.get(targetId) : null;
+        // Who it was aimed at: the note's author when the note came back, else the
+        // reaction's own p tag, which NIP-25 makes the author of the note.
+        const aimed = note ? note.pubkey : (ps.length ? ps[ps.length - 1][1] : '');
+        const who = aimed ? ((profiles.get(aimed) || {}).name
+          || (() => { try { return shortNpub(NT.nip19.npubEncode(aimed)); } catch (_) { return ''; } })()) : '';
+        // The author is the row's headline and the note's words sit under it, one shape for every
+        // row. A note the relays did not return is still a note by someone: it says so under the
+        // name rather than turning into a different sentence. An e tag with no note is not a profile.
+        const headline = who || (targetId ? t('A Nostr note') : t('A profile'));
+        const gist = noteGist(note);   // no note back: the generic line, a string that already exists
+        // Anything the row can name opens: a note the relays did not return is still a note, and
+        // a client looks it up by id. A row that does nothing when pressed reads as a broken one.
+        const opens = note || targetId || aimed;
+        const item = h('div', { className: 'bm-item', title: opens ? t('Open in {{client}}', { client: client.label }) : '' });
+        const menu = buildEventMenu(ev, null, { npubOf: null });
+        item.append(h('div', { className: 'bm-main' }, [
+          h('div', { className: 'cm-reaction' }, [
+            reactionMark(ev),
+            h('div', { className: 'cm-reaction-body' }, [
+              h('div', { className: 'cm-reaction-head' }, [
+                h('span', { className: 'cm-reaction-who', dir: 'auto', textContent: headline }),
+                h('span', { className: 'cm-reaction-when', textContent: relativeTime(ev.created_at) }),
+              ]),
+              // A profile reaction has no note to quote, and a gist that only repeats the headline is noise.
+              (note || targetId) && gist !== headline ? h('div', { className: 'cm-reaction-gist', dir: 'auto', textContent: gist }) : null,
+            ]),
+          ]),
+          menu.panel,
+        ]), h('div', { className: 'item-actions' }, [menu.btn]));
+        // The note renders everywhere, so the row opens the target, not the reaction.
+        if (opens) item.addEventListener('click', () => {
+          try {
+            openInClient(note
+              ? client.url(NT.nip19.neventEncode({ id: note.id, author: note.pubkey, kind: note.kind, relays: [] }))
+              : targetId
+                ? client.url(NT.nip19.neventEncode({ id: targetId, author: aimed || undefined, relays: [] }))
+                : client.profile(NT.nip19.npubEncode(aimed)));
+          } catch (_) {}
+        });
+        return item;
+      };
+      pane.append(list);
+      paged(list, evs, makeRow, _rctCache);
+      pane.append(endQuote(quote));
+      return !quick || ([...noteIds].every((id) => notes.has(id) || wasAsked('n:' + id)) && authors.every((pk) => profiles.get(pk) || wasAsked('p:' + pk)));
+    };
+    await loadSavedList(pane, gone, _rctCache, fetchReactions, paint, t('Couldn’t read your reactions from your relays.'), quote);
   }
 
   // Session cache per account: the modal opens instantly from the last fetch,
   // and a background refresh keeps it honest. Signatures compare which list
   // events exist (id + created_at) and which bookmark ids resolved, so an
   // unchanged refresh costs nothing on screen.
-  const _bmCache = { pubkey: null, evs: null, events: null };
+  const _bmCache = { pubkey: null, evs: null, events: null, priv: null, addrs: null };
   const bmListsSig = (evs) => (evs || []).map((e) => e.id + ':' + e.created_at).sort().join('|');
   const bmFoundSig = (events) => [...(events || new Map()).keys()].sort().join(',');
   async function refreshBookmarks() {
@@ -16844,24 +18822,94 @@
     } catch (_) {
       return false;
     }
+    const sections = bookmarkSections(evs);
+    // Each list's private entries, read back from its content (see privateBookmarkTags).
+    const priv = new Map();
+    await Promise.all(sections.map(async (s) => { priv.set(s.ev.id, await privateBookmarkTags(s.ev)); }));
     const ids = [];
+    const coords = [];
     const hints = [];
     const seen = new Set();
-    bookmarkSections(evs).forEach((s) => s.ev.tags.forEach((t) => {
-      const id = t && t[0] === 'e' && t[1];
-      if (HEX_ID.test(id || '') && !seen.has(id)) { seen.add(id); ids.push(id); }
-      if (t && t[0] === 'e' && typeof t[2] === 'string' && t[2]) hints.push(t[2]);
+    sections.forEach((s) => bookmarkEntries(s.ev.tags, priv.get(s.ev.id).tags, { hashtags: s.ev.kind === 10003 }).forEach((en) => {
+      if (seen.has(en.key)) return;
+      seen.add(en.key);
+      if (en.type === 'e') ids.push(en.value);
+      else if (en.type === 'a') coords.push(en.value);
+      if (en.hint) hints.push(en.hint);
     }));
-    const events = await fetchEventsByIds(ids, hints);
+    const [events, addrs] = await Promise.all([fetchEventsByIds(ids, hints), fetchAddrEvents(coords, hints)]);
+    const unreadable = (m) => [...m.values()].filter((p) => p.unreadable).length;
     const changed = _bmCache.pubkey !== pubkey ||
       bmListsSig(_bmCache.evs) !== bmListsSig(evs) ||
-      bmFoundSig(_bmCache.events) !== bmFoundSig(events);
+      bmFoundSig(_bmCache.events) !== bmFoundSig(events) ||
+      bmFoundSig(_bmCache.addrs) !== bmFoundSig(addrs) ||
+      unreadable(_bmCache.priv || new Map()) !== unreadable(priv);
     _bmCache.pubkey = pubkey;
     _bmCache.evs = evs;
     _bmCache.events = events;
+    _bmCache.priv = priv;
+    _bmCache.addrs = addrs;
     return changed;
   }
 
+  // ---- changing a named list: its title, and the list itself ----
+  //
+  // Only a named list can be: a bookmark set (30003) or an older generic list (30001) with a d tag
+  // to address it by. The main bookmark list (10003) has no name to change and is the account's
+  // whole bookmark shelf, so it is never offered for deletion. The two lists below are Zap Cooking's
+  // own shelves (its default Saved list and its saved packs), which that app treats as permanent, so
+  // they are left for it to manage.
+  const PROTECTED_LIST_DS = new Set(['nostrcooking-bookmarks', 'zapcooking-saved-packs']);
+  const editableList = (sec) => !!sec && (sec.ev.kind === 30003 || sec.ev.kind === 30001) && !!sec.d && !PROTECTED_LIST_DS.has(sec.d);
+  // THE NEWEST COPY, READ FIRST. A list is replaceable, so publishing it from what this sheet read
+  // minutes ago would erase whatever another client added since. The sheet's own copy is not the
+  // base for an edit: the relays' newest is, and when they say nothing at all nothing is published.
+  async function latestOwnList(kind, d) {
+    const pubkey = state.activePubkey;
+    const relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])];
+    const got = await poolQuerySync(relays, { kinds: [kind], authors: [pubkey], '#d': [d] }, { maxWait: 6000 });
+    const mine = (got || [])
+      .filter((e) => e && e.kind === kind && e.pubkey === pubkey && ((e.tags || []).find((tg) => tg[0] === 'd') || [])[1] === d)
+      .sort((a, b) => b.created_at - a.created_at);
+    if (!mine.length) throw new Error(t('Could not read your bookmarks, so nothing was published.'));
+    return mine[0];
+  }
+  const ownListsSign = (event) => call({ type: 'SIDECAR_OWNER_SIGN', event });
+  // The list with a new title and everything else as it was: its d tag, notes, description, cover
+  // and any encrypted private items in its content. The title goes right after the d tag so a client
+  // that takes the first name it finds takes this one.
+  async function renameBookmarkList(sec, name) {
+    const base = await latestOwnList(sec.ev.kind, sec.d);
+    const rest = base.tags.filter((tg) => tg[0] !== 'title');
+    const at = rest.findIndex((tg) => tg[0] === 'd');
+    const tags = rest.map((tg) => (tg[0] === 'name' ? ['name', name] : tg.slice()));
+    tags.splice(at + 1, 0, ['title', name]);
+    const signed = await ownListsSign({ kind: base.kind, created_at: Math.max(Math.floor(Date.now() / 1000), base.created_at + 1), tags, content: base.content || '' });
+    await publishSigned(signed);
+    return signed;
+  }
+  // Deleting a list, the way both of the apps that make them do: the list is first replaced by an empty
+  // one (what Wisp does, and what every client sees whether or not it honors deletions), then a NIP-09
+  // request names it by address (what Zap Cooking does), so a relay that honors it drops every copy.
+  // Nothing about the notes themselves is touched.
+  async function deleteBookmarkList(sec) {
+    const base = await latestOwnList(sec.ev.kind, sec.d);
+    const at = Math.max(Math.floor(Date.now() / 1000), base.created_at + 1);
+    const empty = await ownListsSign({ kind: base.kind, created_at: at, tags: [['d', sec.d]], content: '' });
+    await publishSigned(empty);
+    try {
+      const request = await ownListsSign({
+        kind: 5, created_at: at,
+        tags: [['a', base.kind + ':' + state.activePubkey + ':' + sec.d], ['e', base.id], ['e', empty.id], ['k', String(base.kind)]],
+        content: '',
+      });
+      await publishSigned(request);
+    } catch (_) { /* the empty list already says it: the request only asks relays to forget the old copies */ }
+    return empty;
+  }
+  // The list the Bookmarks tab is showing: 'ALL', or a list's key. Held for the life of the panel,
+  // so closing the sheet and opening it again lands where it was left.
+  let _bmPick = 'ALL';
   async function fillBookmarks(scroll, gone, evs, events, q) {
     // Sections: the flat list first (what clients without categories write),
     // then categories by name. A list with no e-tags renders nothing — no
@@ -16876,13 +18924,15 @@
     const panelQuote = q || pickQuote();
     const empty = () => {
       scroll.textContent = '';
-      scroll.append(emptyQuote('Bookmark a note from any Nostr client and it shows up here.', panelQuote));
+      scroll.append(emptyQuote(t('Bookmark a note from any Nostr client and it shows up here.'), panelQuote));
     };
     if (!sections.length) return empty();
 
     // Profiles for the authors, in one query (profilesFor); cached, so a reopen
     // resolves instantly.
-    const profiles = await profilesFor([...events.values()].map((e) => e.pubkey));
+    const priv = _bmCache.priv || new Map();
+    const addrs = _bmCache.addrs || new Map();
+    const profiles = await profilesFor([...events.values(), ...addrs.values()].map((e) => e.pubkey));
     if (gone()) return;
 
     // The scroll container is cleared rather than appended to: the quiet
@@ -16890,158 +18940,346 @@
     // run replaces the spinner), and a second .bm-list under the first would
     // duplicate every bookmark. Cleared only now, after the profile lookup, so
     // the loading quote stays up through the wait instead of a blank sheet.
-    scroll.textContent = '';
-    const list = h('div', { className: 'bm-list' });
-    scroll.append(list);
+    // Every list that has something in it, newest first. A list that holds nothing is not offered:
+    // there is nothing in it to see or remove.
+    //
+    // NEWEST NOTE FIRST, not the order the tags happen to sit in.
+    //
+    // This used to render the e-tags in list order, on the reasoning that it was "the
+    // owning client's own order". It isn't an order: a replaceable list is rewritten whole by
+    // every client on every add and remove, and they do not agree on where a new entry goes.
+    // What we were faithfully displaying was whatever the last client to touch the list happened
+    // to emit, which is why the same bookmarks read in one order here and another in Jumble or
+    // Wisp. Sorting by the note's own created_at gives a list the same shape in every client. It
+    // is not "recently bookmarked", which would be better and is not available: nothing in a list
+    // records WHEN an entry was added.
+    //
+    // WHAT NO RELAY RETURNS IS COUNTED, NOT LISTED. An entry whose note nobody answers for used to sort
+    // to the bottom as "Unknown author" with a shortened id, and a column of them read as a broken
+    // sheet. Hiding them silently made a list look shorter than it is. So they stay out of the rows and
+    // the list says how many it could not find; they appear here the moment a relay answers.
+    //
+    // WHAT A LIST HOLDS, ALL OF IT. Notes, articles and recipes that a list points at by address, web
+    // addresses and hashtags, and the private entries a list keeps encrypted to its owner. What no relay
+    // returns is counted and said, so a list never reads as shorter than it is.
+    const itemsOf = (s) => {
+      const got = priv.get(s.ev.id) || { tags: [], unreadable: false };
+      const all = bookmarkEntries(s.ev.tags, got.tags, { hashtags: s.ev.kind === 10003 });
+      const ref = (en) => (en.type === 'e' ? events.get(en.value) : en.type === 'a' ? addrs.get(en.value) : null);
+      const shown = all.filter((en) => (en.type === 'e' || en.type === 'a' ? !!ref(en) : true));
+      // Ties keep tag order, which is at least stable within one read. Web addresses and hashtags
+      // carry no date, so they follow the dated entries.
+      const dated = shown.filter((en) => ref(en)).sort((a, b) => (ref(b).created_at || 0) - (ref(a).created_at || 0));
+      const undated = shown.filter((en) => !ref(en));
+      return { items: [...dated, ...undated], missing: all.length - shown.length, locked: got.unreadable };
+    };
+    const hasAny = (g) => g.items.length > 0 || g.missing > 0 || g.locked;
+    let groups = sections.map((s) => ({ s, ...itemsOf(s) })).filter(hasAny);
+    // Lists can exist and hold nothing: remove your last bookmark and the kind 10003 is
+    // republished empty rather than deleted. That used to render as a blank panel.
+    if (!groups.length) return empty();
 
-    // One bookmark: the referenced event's author and a snippet, opening in
-    // the preferred web client, removable by republishing the owning list.
-    // `missing` rows (the relays no longer return the event) still render —
-    // dimmed, sorted below the found ones — because they remain bookmarks:
-    // openable by id, and removable.
-    const buildRow = (id, parent, missing) => {
-      const ref = missing ? null : events.get(id);
+    scroll.textContent = '';
+    let list = null;
+    // WHICH LIST, when there is more than one. A native select, so it is as narrow as the sheet
+    // needs and reads in a screen reader; it exists only for an account that has a second list,
+    // and the rest see the tab exactly as it was. All stacks the lists under their names; one
+    // list shows just its own notes. A note in two lists is in both, and removing it from one
+    // takes it from that list only, which the stacked view makes plain.
+    // The title row of a named list: its name, a pencil that turns the name into a field, and a
+    // trash that asks, in words and in its own box, before anything is deleted.
+    const listHeader = (g) => {
+      const block = h('div', { className: 'bm-title-block' });
+      const row = h('div', { className: 'bm-title-row' });
+      const actions = h('div', { className: 'bm-title-actions' });
+      let box = null;
+      let menu = null;
+      const closeBox = () => { if (box) { box._off(); box.remove(); box = null; } };
+      const closeMenu = () => { if (menu) { menu.remove(); menu = null; } };
+      // What can be done to the list sits behind one ⋮, the menu a notification has, so a row of
+      // bookmarks does not sit under a second set of trash cans. Rename first, then the one that is
+      // not undone, in red; Delete asks again, in its own box, before anything is published.
+      const resting = () => {
+        closeBox();
+        closeMenu();
+        row.textContent = '';
+        actions.textContent = '';
+        const more = h('button', { className: 'notif-more-btn', type: 'button', title: t('More options') });
+        more.setAttribute('aria-label', t('More options'));
+        more.setAttribute('aria-expanded', 'false');
+        more.append(icon('more-v'));
+        more.addEventListener('click', () => {
+          if (menu) { closeMenu(); more.classList.remove('open'); more.setAttribute('aria-expanded', 'false'); return; }
+          const item = (label, glyph, cls, go) => {
+            const b = h('button', { className: 'notif-more-item' + (cls ? ' ' + cls : ''), type: 'button' });
+            b.append(icon(glyph), h('span', { textContent: label }));
+            b.addEventListener('click', () => { closeMenu(); more.classList.remove('open'); more.setAttribute('aria-expanded', 'false'); go(); });
+            return b;
+          };
+          menu = h('div', { className: 'notif-more bm-title-menu' }, [
+            item(t('Rename list'), 'edit', '', rename),
+            item(t('Delete list'), 'trash', 'bm-danger', ask),
+          ]);
+          row.after(menu);
+          more.classList.add('open');
+          more.setAttribute('aria-expanded', 'true');
+        });
+        actions.append(more);
+        row.append(h('div', { className: 'bm-title', dir: 'auto', title: g.s.title, textContent: g.s.title }), actions);
+      };
+      // The new name goes in where the old one was. Enter saves, Escape lets go (and does not also
+      // close the sheet), an empty or unchanged name saves nothing.
+      function rename() {
+        closeBox();
+        closeMenu();
+        const input = h('input', { className: 'bm-title-input', type: 'text', value: g.s.title, maxLength: 80 });
+        input.setAttribute('aria-label', t('List name'));
+        let saving = false;
+        const stop = () => { document.removeEventListener('keydown', onKey, true); };
+        const cancel = () => { stop(); resting(); };
+        const save = async () => {
+          if (saving) return;
+          const name = input.value.trim();
+          if (!name || name === g.s.title) return cancel();
+          saving = true;
+          input.disabled = true;
+          try {
+            const signed = await renameBookmarkList(g.s, name);
+            stop();
+            _bmCache.evs = (_bmCache.evs || []).filter((e) => !(e.kind === signed.kind && ((e.tags.find((tg) => tg[0] === 'd') || [])[1]) === g.s.d)).concat(signed);
+            // The content rides through a rename untouched, so what was read from it still holds.
+            if (_bmCache.priv && _bmCache.priv.has(g.s.ev.id)) _bmCache.priv.set(signed.id, _bmCache.priv.get(g.s.ev.id));
+            g.s.ev = signed;
+            g.s.title = name;
+            renderAll();
+          } catch (err) {
+            toast((err && err.message) || t('Could not rename the list'), 'error');
+            saving = false;
+            input.disabled = false;
+            input.focus();
+          }
+        };
+        function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); cancel(); } }
+        document.addEventListener('keydown', onKey, true);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        row.textContent = '';
+        actions.textContent = '';
+        const ok = iconButton(t('Save'), 'check', save);
+        ok.setAttribute('aria-label', t('Save'));
+        const no = iconButton(t('Cancel'), 'x', cancel);
+        no.setAttribute('aria-label', t('Cancel'));
+        actions.append(ok, no);
+        row.append(input, actions);
+        input.focus();
+        input.select();
+      }
+      // The warning is a box under the row, in words, with the buttons beneath it at full width.
+      // Cancel has the focus, so Enter does the safe thing, and Delete ignores a tap for a moment
+      // after it appears (by the clock, not a timer, which a background panel would delay). Escape closes it.
+      function ask() {
+        if (box) return;
+        const del = h('button', { className: 'mini del-confirm', type: 'button', textContent: t('Delete list') });
+        const shownAt = Date.now();
+        const no = h('button', { className: 'mini ghost', type: 'button', textContent: t('Cancel') });
+        const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeBox(); } };
+        box = h('div', { className: 'bm-delete-box', role: 'alertdialog' }, [
+          h('div', { className: 'bm-delete-title', dir: 'auto', textContent: t('Delete the list “{{name}}”?', { name: g.s.title }) }),
+          h('div', { className: 'bm-delete-note', textContent: t('It is removed from every app that reads it. The notes in it are not deleted.') }),
+          h('div', { className: 'bm-delete-actions' }, [del, no]),
+        ]);
+        document.addEventListener('keydown', onKey, true);
+        box._off = () => document.removeEventListener('keydown', onKey, true);
+        no.addEventListener('click', closeBox);
+        del.addEventListener('click', async () => {
+          // A tap straight after the box appears is a double-tap or a stray one, not a decision.
+          if (Date.now() - shownAt < 400) return;
+          del.disabled = true;
+          no.disabled = true;
+          del.textContent = t('Removing…');
+          try {
+            await deleteBookmarkList(g.s);
+            _bmCache.evs = (_bmCache.evs || []).filter((e) => !(e.kind === g.s.ev.kind && ((e.tags.find((tg) => tg[0] === 'd') || [])[1]) === g.s.d));
+            groups = groups.filter((x) => x !== g);
+            _bmPick = 'ALL';
+            toast(t('List deleted'), 'success');
+            if (!groups.length) return empty();
+            renderAll();
+          } catch (err) {
+            toast((err && err.message) || t('Could not delete the list'), 'error');
+            del.disabled = false;
+            no.disabled = false;
+            del.textContent = t('Delete list');
+          }
+        });
+        block.append(box);
+        no.focus();
+      }
+      resting();
+      block.append(row);
+      if (g.s.desc) block.append(h('div', { className: 'bm-cat-desc', dir: 'auto', textContent: g.s.desc }));
+      return block;
+    };
+    const renderAll = () => {
+      scroll.textContent = '';
+      if (_bmPick !== 'ALL' && !groups.some((g) => g.s.key === _bmPick)) _bmPick = 'ALL';
+      if (groups.length > 1) {
+        // A list is named by its title and how many notes it holds. Two that still read the same
+        // (a set called Bookmarks beside the main list, say) also carry their d tag, the one
+        // thing a client cannot repeat, so they can be told apart without renaming either.
+        const label = (g) => (g.s.title || t('Bookmarks')) + ' (' + I18N.fmtNum(g.items.length) + ')';
+        const same = (a, b) => label(a).toLowerCase() === label(b).toLowerCase();
+        const named = (g) => (groups.some((o) => o !== g && same(o, g)) && g.s.d ? label(g) + ' · ' + g.s.d : label(g));
+        const pick = h('select', { className: 'bm-pick' }, [
+          h('option', { value: 'ALL', textContent: t('All bookmarks') }),
+          ...groups.map((g) => h('option', { value: g.s.key, textContent: named(g) })),
+        ]);
+        pick.setAttribute('aria-label', t('Bookmarks'));
+        pick.value = _bmPick;
+        pick.addEventListener('change', () => { _bmPick = pick.value; renderAll(); });
+        scroll.append(pick);
+      }
+      // One named list chosen: its name is a row of its own, with the two things that can be done to
+      // it, and its description beneath. The main list, and every list in the All view, have none.
+      const chosen = _bmPick === 'ALL' ? null : groups.find((g) => g.s.key === _bmPick);
+      const headed = !!chosen && editableList(chosen.s);
+      if (headed) scroll.append(listHeader(chosen));
+      list = h('div', { className: 'bm-list' });
+      scroll.append(list);
+      groups.filter((g) => _bmPick === 'ALL' || g.s.key === _bmPick).forEach((g) => {
+        const { s, items, missing, locked } = g;
+        const group = h('div', { className: 'bm-group' });
+        // In the All view a list that can be changed carries its own pencil and trash in its heading,
+        // the same title row a single list gets, so nobody has to know to pick the list first.
+        const own = _bmPick === 'ALL' && editableList(s);
+        const name = _bmPick !== 'ALL' || own ? '' : (s.title || (groups.length > 1 ? t('Bookmarks') : ''));
+        if (own) group.append(listHeader(g));
+        if (name) group.append(h('div', { className: 'bm-cat', textContent: name }));
+        if (s.desc && !headed && !own) group.append(h('div', { className: 'bm-cat-desc', dir: 'auto', textContent: s.desc }));
+        items.forEach((en) => group.append(buildRow(en, s.ev)));
+        // What the list holds that this sheet cannot show, said plainly and once.
+        if (missing) group.append(h('div', { className: 'bm-unseen', textContent: tn('{{count}} saved item couldn’t be found on your relays.', '{{count}} saved items couldn’t be found on your relays.', missing) }));
+        if (locked) group.append(h('div', { className: 'bm-unseen', textContent: t('Some private items couldn’t be read.') }));
+        list.append(group);
+      });
+      // The bottom of a list that has no more to give. Bookmarks do not paginate, so
+      // reaching the end here is always the real end.
+      scroll.append(endQuote(panelQuote));
+    };
+    // After a removal: take the note from its list's group, and redraw only when a list has
+    // been emptied, so the picker never offers one with nothing in it.
+    const removed = (key, parent) => {
+      const g = groups.find((x) => x.s.ev === parent);
+      if (g) g.items = g.items.filter((x) => x.key !== key);
+      if (groups.some((x) => !hasAny(x))) {
+        groups = groups.filter(hasAny);
+        if (!groups.length) return empty();
+        renderAll();
+      }
+    };
+
+    // One entry: for a note or an addressable event, its author and a snippet, opening in the
+    // preferred web client; for a web address its host and the address, opening in a new tab; for a
+    // hashtag its name, opening that tag in the client. Removable by republishing the owning list,
+    // except a private entry, which is shown and not edited here (changing it means re-encrypting the
+    // list, and a list is not worth risking for a row).
+    const kindLabel = (ref) => BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind;
+    const firstTag = (ev, name) => ((ev.tags || []).find((tg) => tg[0] === name) || [])[1] || '';
+    const buildRow = (en, parent) => {
+      const ref = en.type === 'e' ? events.get(en.value) : en.type === 'a' ? addrs.get(en.value) : null;
       const prof = ref ? profiles.get(ref.pubkey) : null;
       let npub = '';
       if (ref) { try { npub = NT.nip19.npubEncode(ref.pubkey); } catch (_) {} }
-      const item = h('div', { className: 'bm-item' + (missing ? ' bm-missing' : ''), title: 'Open in your web client' });
+      let host = '';
+      if (en.type === 'r') { try { host = new URL(en.value).host.replace(/^www\./, ''); } catch (_) { host = en.value; } }
+      const item = h('div', { className: 'bm-item', title: en.type === 'r' ? en.value : t('Open in your web client') });
+      const name = ref ? ((prof && prof.name) || (npub ? shortNpub(npub) : t('Unknown author'))) : en.type === 'r' ? host : '#' + en.value;
+      const text = ref
+        ? (en.type === 'a' ? firstTag(ref, 'title') || firstTag(ref, 'name') : '') || quoteSnippet(ref.content) || '“' + kindLabel(ref) + '”'
+        : en.type === 'r' ? en.value.replace(/^https?:\/\//i, '') : '';
+      const metaText = ref ? kindLabel(ref) + ' · ' + relativeTime(ref.created_at) : en.type === 'r' ? t('Web page') : t('Hashtag');
+      const lock = en.priv ? h('span', { className: 'bm-lock', title: t('Private') }, [icon('lock')]) : null;
+      if (lock) lock.setAttribute('aria-label', t('Private'));
       const main = h('div', { className: 'bm-main' }, [
         h('div', { className: 'bm-head' }, [
-          avatarEl({ picture: prof && prof.picture, npub }, 'bm-av'),
-          h('div', { className: 'bm-name', textContent: (prof && prof.name) || (npub ? shortNpub(npub) : 'Unknown author') }),
+          ref
+            ? avatarEl({ picture: prof && prof.picture, npub }, 'bm-av')
+            : h('span', { className: 'bm-av bm-av-glyph' }, [en.type === 'r' ? icon('globe') : '#']),
+          h('div', { className: 'bm-name', textContent: name }),
+          lock,
         ]),
-        h('div', {
-          className: 'bm-snippet',
-          textContent: missing
-            ? id.slice(0, 8) + '…' + id.slice(-6)
-            : quoteSnippet(ref.content) || '“' + (BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind) + '”',
-        }),
-        h('div', {
-          className: 'bm-meta',
-          textContent: missing ? 'not found on your relays' : (BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind) + ' · ' + relativeTime(ref.created_at),
-        }),
+        text ? h('div', { className: 'bm-text', dir: 'auto', textContent: text }) : null,
+        h('div', { className: 'bm-meta', textContent: metaText }),
       ]);
       const actions = h('div', { className: 'item-actions' });
-      // The same ⋮ menu as a notification's, for a bookmark whose note was found: its
-      // event ID, its author's npub and its JSON, to copy. Opens under the content.
-      const menu = ref ? buildEventMenu(ref, null) : null;
-      if (menu) main.append(menu.panel);
-      // The resting row keeps a lone icon button in the inline slot; the confirm
-      // has words, so it takes its own full-width row under the content (the
-      // connected-site grammar) instead of squeezing a label and two buttons
-      // beside a 300px-wide row.
-      const confirmRow = h('div', { className: 'bm-confirm' });
-      let confirming = false;
-      const drawResting = () => {
-        confirming = false;
-        item.classList.remove('bm-confirming');
-        confirmRow.remove();
-        confirmRow.textContent = '';
-        actions.textContent = '';
-        if (menu) actions.append(menu.btn);
-        actions.append(iconButton('Remove bookmark', 'x', (e) => {
-          e.stopPropagation();
-          drawConfirm();
-        }));
-      };
-      const drawConfirm = () => {
-        confirming = true;
-        item.classList.add('bm-confirming');
-        confirmRow.textContent = '';
-        const yes = h('button', { className: 'mini del-confirm', textContent: 'Remove' });
-        const no = h('button', { className: 'mini ghost', textContent: 'Cancel' });
-        yes.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          yes.disabled = true;
-          yes.textContent = 'Removing…';
-          // Republish the owning list minus EVERY e-tag for this id — a client
-          // that wrote the same bookmark twice should see both copies go. The
-          // 30001's d-tag rides through untouched (only e-tags are filtered),
-          // so the category stays the same replaceable stream.
-          const tags = parent.tags.filter((t) => !(t[0] === 'e' && t[1] === id));
-          try {
-            const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: { kind: parent.kind, created_at: Math.floor(Date.now() / 1000), tags, content: parent.content || '' } });
-            await publishSigned(signed);
-            parent.tags = tags; // keep the in-memory copy honest for this session
-            const group = item.closest('.bm-group');
-            item.remove();
-            if (group && !group.querySelector('.bm-item')) group.remove();
-            if (!list.querySelector('.bm-item')) empty();
-            toast('Bookmark removed', 'success');
-          } catch (err) {
-            toast((err && err.message) || 'Could not remove the bookmark', 'error');
-            drawResting();
-          }
-        });
-        no.addEventListener('click', (e) => { e.stopPropagation(); drawResting(); });
-        confirmRow.append(h('span', { className: 'confirm-msg', textContent: 'Remove this bookmark?' }), yes, no);
-        item.append(confirmRow);
-      };
-      drawResting();
-      item.addEventListener('click', async () => {
-        // While the confirm is open the row isn't a link — a tap on the message
-        // (or the gap beside it) must not open the client behind the confirm.
-        if (confirming) return;
-        const client = await preferredClient();
+      // THE ⋮ IS WHERE REMOVING LIVES, so the row carries no trash can of its own. It is the same ⋮ as
+      // a notification's (the event ID, its author's npub and its JSON, to copy, for an entry whose event
+      // was found), with Remove bookmark at the end: the first tap turns it red and says "Tap again to
+      // confirm", the second removes, and anything else lets go (a tap outside the menu, the row itself,
+      // Escape, a few seconds of nothing). A private entry has no remove item (see above), and so, when
+      // there is nothing to copy either, no ⋮.
+      let armed = false;
+      let off = null;
+      const remove = async () => {
+        // Republish the owning list minus EVERY tag for this entry: a client that wrote the same
+        // bookmark twice should see both copies go. The 30001's d-tag rides through untouched (only
+        // this entry's tags are filtered), so the category stays the same replaceable stream.
+        const tags = parent.tags.filter((tg) => !(tg[0] === en.type && (en.type === 't' ? String(tg[1]).toLowerCase() === en.value.toLowerCase() : tg[1] === en.value)));
         try {
-          openInClient(client.url(NT.nip19.neventEncode({ id, author: ref ? ref.pubkey : undefined, relays: [] })));
+          const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: { kind: parent.kind, created_at: Math.floor(Date.now() / 1000), tags, content: parent.content || '' } });
+          await publishSigned(signed);
+          parent.tags = tags; // keep the in-memory copy honest for this session
+          item.remove();
+          removed(en.key, parent);
+          toast(t('Bookmark removed'), 'success');
+        } catch (err) {
+          toast((err && err.message) || t('Could not remove the bookmark'), 'error');
+          throw err;
+        }
+      };
+      const menu = ref || !en.priv ? buildEventMenu(ref || null, null, en.priv ? undefined : {
+        remove: {
+          label: t('Remove bookmark'),
+          run: remove,
+          onArm: () => {
+            armed = true;
+            // Capture, and stopped: the first Escape cancels this, it does not also close the sheet.
+            const onDoc = () => menu.disarm();
+            const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); menu.disarm(); } };
+            document.addEventListener('click', onDoc);
+            document.addEventListener('keydown', onKey, true);
+            off = () => { document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey, true); };
+          },
+          onDisarm: () => { armed = false; if (off) { off(); off = null; } },
+        },
+      }) : null;
+      if (menu) { main.append(menu.panel); actions.append(menu.btn); }
+      item.addEventListener('click', async () => {
+        // An armed row is not a link: a tap on it only lets go, so the question is never
+        // answered by opening the client behind it.
+        if (armed) { menu.disarm(); return; }
+        try {
+          if (en.type === 'r') {
+            // A web address is its own page, not something to hand to a Nostr client, and it opens
+            // in a new tab rather than taking over a tab that happens to be on the same site.
+            if (chrome.tabs && chrome.tabs.create) chrome.tabs.create({ url: en.value }); else window.open(en.value, '_blank', 'noopener');
+            return;
+          }
+          const client = await preferredClient();
+          if (en.type === 't') {
+            openInClient((client.hashtag || VIEW_CLIENTS.primal.hashtag)(en.value));
+          } else if (en.type === 'a') {
+            const [k, pk, ...rest] = en.value.split(':');
+            openInClient(client.url(NT.nip19.naddrEncode({ identifier: rest.join(':'), pubkey: pk, kind: Number(k), relays: [] })));
+          } else {
+            openInClient(client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] })));
+          }
         } catch (_) {}
       });
       item.append(main, actions);
       return item;
     };
 
-    sections.forEach((s) => {
-      // NEWEST NOTE FIRST, not the order the tags happen to sit in.
-      //
-      // This used to render the e-tags in list order, on the reasoning that it was "the
-      // owning client's own order". It isn't an order — a kind 10003 is replaceable, so
-      // every client rewrites the whole list on every add and remove, and they do not
-      // agree on where a new entry goes. Some prepend, some append, some rebuild from
-      // their own internal state. What we were faithfully displaying was whatever the
-      // last client to touch the list happened to emit, which is why the same bookmarks
-      // read in one order here and a completely different one in Jumble or Wisp.
-      //
-      // Sorting by the referenced note's created_at gives the same list the same shape in
-      // every client, and it matches what the others already show.
-      //
-      // Not "recently bookmarked", which would be the better sort and is not available:
-      // nothing in a kind 10003 records WHEN an entry was added. That absence is the
-      // whole reason this drifts between clients.
-      //
-      // ONLY WHAT CAN BE SHOWN. An entry whose note no relay returns used to sort to the
-      // bottom as "Unknown author" with a shortened id: still a bookmark, but one nobody
-      // could read, open meaningfully or recognize, and a column of them read as a broken
-      // sheet. They are left out. They stay in the list itself, untouched, and appear
-      // here again the moment a relay answers for them.
-      const found = [];
-      const seen = new Set();
-      s.ev.tags.forEach((t) => {
-        const id = t && t[0] === 'e' && t[1];
-        if (!HEX_ID.test(id || '') || seen.has(id)) return;
-        seen.add(id);
-        if (events.has(id)) found.push(id);
-      });
-      // Ties keep tag order, which is at least stable within one read.
-      found.sort((a, b) => (events.get(b).created_at || 0) - (events.get(a).created_at || 0));
-      if (!found.length) return;
-      const group = h('div', { className: 'bm-group' });
-      if (s.title) group.append(h('div', { className: 'bm-cat', textContent: s.title }));
-      found.forEach((id) => group.append(buildRow(id, s.ev, false)));
-      list.append(group);
-    });
-
-    // Lists can exist and hold nothing: remove your last bookmark and the kind 10003 is
-    // republished empty rather than deleted. That used to render as a blank panel.
-    if (!list.children.length) {
-      list.remove();
-      return empty();
-    }
-
-    // The bottom of a list that has no more to give. Bookmarks do not paginate, so
-    // reaching the end here is always the real end.
-    scroll.append(endQuote(panelQuote));
-    if (!list.children.length) return empty();
+    renderAll();
   }
 
 
@@ -17064,12 +19302,31 @@
     return [...new Set(urls.map(normalizeRelay))];
   }
 
+  // The newest copy of a backup record, or null when the relays answered and have none.
+  //
+  // NOBODY ANSWERING IS NOT "NO BACKUP". This used to race the read against six seconds
+  // and return null either way, so a read that ran long (the panel starting up, a relay
+  // on the list that never connects) reported a wallet as not backed up while the Wallet
+  // tab, asking later, said it was. Now it throws when it cannot tell, which every caller
+  // reads as "couldn't check".
+  //
+  // It still waits for every relay rather than settling on the first answer: the record
+  // is replaceable and relays keep different copies, and the first to answer can hold an
+  // older one. Capped, so a relay that never connects cannot hold it forever; at the cap
+  // the newest copy that arrived is used, and an empty-handed read counts as unchecked.
+  const BACKUP_READ_CAP_MS = 8000;
   async function fetchBackupEvent(dtag) {
     const relays = await backupReadRelays();
-    return Promise.race([
-      poolGet(relays, { kinds: [30078], authors: [state.activePubkey], '#d': [dtag] }),
-      new Promise((res) => setTimeout(() => res(null), 6000)),
-    ]).catch(() => null);
+    const author = state.activePubkey;
+    const { events, answered, complete } = await poolQueryAnswered(relays,
+      { kinds: [30078], authors: [author], '#d': [dtag] }, { capMs: BACKUP_READ_CAP_MS });
+    const ev = events.filter((e) => e && e.pubkey === author)
+      .sort((x, y) => y.created_at - x.created_at)[0] || null;
+    // An empty record is a deleted one (see deleteNwcBackup), and being the newest it
+    // outranks any older copy a relay kept. Answered, and nothing there: no backup.
+    if (ev) return ev.content ? ev : null;
+    if (!answered || !complete) throw new Error(t('Could not reach your relays to check for a backup.'));
+    return null;
   }
 
   // ---- wallet (NWC) backup to relays — NIP-78, encrypted to self ----
@@ -17100,7 +19357,8 @@
   // compare can say 'stale' when the wallet is really the same. That false positive
   // only prompts a harmless re-backup, where a false 'current' is the bug itself.
   async function nwcBackupState() {
-    const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+    let ev;
+    try { ev = await fetchBackupEvent(NWC_BACKUP_DTAG); } catch (_) { return { state: 'unknown' }; }
     if (!ev) return { state: 'none' };
     // Presence comes from the metadata view; the decrypt-and-compare runs in the
     // service worker (SIDECAR_NWC_BACKUP_MATCHES) so the raw connection string
@@ -17153,14 +19411,43 @@
     await publishSigned(signed);
   }
 
+  // Remove the backup from the relays. A kind 5 alone is a request a relay may ignore, and
+  // it cannot reach a copy the relay holds under another event id, so the deletion that
+  // works is the replacement: the same record with nothing in it, newer than the one it
+  // replaces. A kind 5 for the address goes along for the relays that honor one. Both
+  // go to every relay the backup is READ from, since an older copy may sit only on the
+  // configured relays. Then it asks again and counts the relays still holding a
+  // ciphertext, so the answer is what the relays say and not what was sent.
+  async function deleteNwcBackup() {
+    const author = state.activePubkey;
+    let at = Math.floor(Date.now() / 1000);
+    try {
+      const prev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+      if (prev && prev.created_at >= at) at = prev.created_at + 1; // a replacement must be newer
+    } catch (_) {}
+    const sign = (event) => call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: author });
+    const tombstone = await sign({ kind: 30078, created_at: at, tags: [['d', NWC_BACKUP_DTAG]], content: '' });
+    const request = await sign({
+      kind: 5, created_at: at, content: '',
+      tags: [['a', '30078:' + author + ':' + NWC_BACKUP_DTAG], ['k', '30078']],
+    });
+    const relays = await backupReadRelays();
+    await publishToRelays(relays, tombstone);
+    try { await publishToRelays(relays, request); } catch (_) {} // a courtesy; the tombstone is the deletion
+    const { events } = await poolQueryAnswered(relays,
+      { kinds: [30078], authors: [author], '#d': [NWC_BACKUP_DTAG] }, { capMs: BACKUP_READ_CAP_MS });
+    const remaining = events.filter((e) => e && e.pubkey === author && e.content).length;
+    return { remaining };
+  }
+
   async function restoreNwcFromRelays() {
     const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
-    if (!ev) throw new Error('No wallet backup found on your relays');
+    if (!ev) throw new Error(t('No wallet backup found on your relays'));
     const scheme = (ev.tags.find((x) => x[0] === 'encryption') || [])[1];
     const nip = scheme === 'nip04' ? 4 : 44;
     const connection = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: ev.content, nip });
     if (!connection || !connection.startsWith('nostr+walletconnect://')) {
-      throw new Error('Backup could not be read');
+      throw new Error(t('Backup could not be read'));
     }
     // Validate with a getInfo round-trip before saving, like manual connect.
     const client = window.SidecarNWC.makeClient(connection);
@@ -17182,30 +19469,30 @@
     openModal((modal) => {
       const pin = h('input', { type: 'password', maxLength: 32 });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Continue' });
+      const go = h('button', { className: 'primary', textContent: t('Continue') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pin.value) return (err.textContent = 'Enter your PIN.');
+        if (!pin.value) return (err.textContent = tSec('Enter your PIN.'));
         go.disabled = true;
-        go.textContent = 'Verifying…';
+        go.textContent = t('Verifying…');
         try {
           const { valid } = await call({ type: 'SIDECAR_VERIFY_PIN', pin: pin.value });
-          if (!valid) throw new Error('Incorrect PIN');
+          if (!valid) throw new Error(tSec('Incorrect PIN'));
           closeModal();
           setTimeout(() => encryptVaultModal(pin.value), 0);
         } catch (e) {
           err.textContent = e.message;
           go.disabled = false;
-          go.textContent = 'Continue';
+          go.textContent = t('Continue');
           toast(e.message, 'error');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Export vault' }),
-        h('p', { className: 'hint', textContent: 'Enter your PIN to export every account on this device.' }),
-        h('label', { textContent: 'PIN' }),
+        h('h3', { textContent: t('Export vault') }),
+        h('p', { className: 'hint', textContent: tSec('Enter your PIN to export every account on this device.') }),
+        h('label', { textContent: tSec('PIN') }),
         pin,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -17215,16 +19502,16 @@
 
   function encryptVaultModal(pin) {
     openModal((modal) => {
-      const pass = h('input', { type: 'password', placeholder: 'At least 8 characters' });
-      const pass2 = h('input', { type: 'password', placeholder: 'Confirm password' });
+      const pass = h('input', { type: 'password', placeholder: tSec('At least 8 characters') });
+      const pass2 = h('input', { type: 'password', placeholder: tSec('Confirm password') });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Export' });
+      const go = h('button', { className: 'primary', textContent: t('Export') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pass.value || pass.value.length < 8) return (err.textContent = 'Use a password of at least 8 characters.');
-        if (pass.value !== pass2.value) return (err.textContent = 'Passwords do not match.');
+        if (!pass.value || pass.value.length < 8) return (err.textContent = tSec('Use a password of at least 8 characters.'));
+        if (pass.value !== pass2.value) return (err.textContent = tSec('Passwords do not match.'));
         go.disabled = true;
-        go.textContent = 'Exporting…';
+        go.textContent = t('Exporting…');
         try {
           const accounts = [];
           for (const a of state.accounts) {
@@ -17252,25 +19539,25 @@
           a2.click();
           URL.revokeObjectURL(url);
           closeModal();
-          toast('Exported ' + accounts.length + ' account(s)', 'success');
+          toast(tn('Exported {{count}} account', 'Exported {{count}} accounts', accounts.length), 'success');
         } catch (e) {
-          err.textContent = e.message || 'Could not export the vault.';
+          err.textContent = e.message || t('Could not export the vault.');
           go.disabled = false;
-          go.textContent = 'Export';
+          go.textContent = t('Export');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Set an export password' }),
+        h('h3', { textContent: tSec('Set an export password') }),
         h('p', {
           className: 'hint',
           textContent:
-            "Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it.",
+            tSec("Choose a password to encrypt the vault file. Use something other than your Sidecar PIN — you'll need this exact password to restore it."),
         }),
-        h('label', { textContent: 'Password' }),
+        h('label', { textContent: tSec('Password') }),
         pass,
-        h('label', { textContent: 'Confirm password' }),
+        h('label', { textContent: tSec('Confirm password') }),
         pass2,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -17283,26 +19570,26 @@
   // counted as "already have it" and simply skipped.
   function importVaultModal(file) {
     openModal((modal) => {
-      const pass = h('input', { type: 'password', placeholder: 'Vault export password' });
+      const pass = h('input', { type: 'password', placeholder: tSec('Vault export password') });
       const err = h('div', { className: 'error' });
-      const go = h('button', { className: 'primary', textContent: 'Restore' });
+      const go = h('button', { className: 'primary', textContent: t('Restore') });
       go.addEventListener('click', async () => {
         err.textContent = '';
-        if (!pass.value) return (err.textContent = 'Enter the export password.');
+        if (!pass.value) return (err.textContent = tSec('Enter the export password.'));
         go.disabled = true;
-        go.textContent = 'Restoring…';
+        go.textContent = t('Restoring…');
         try {
-          if (!file || !file.kdf || !file.iv || !file.ct) throw new Error('Not a valid Sidecar vault file.');
+          if (!file || !file.kdf || !file.iv || !file.ct) throw new Error(t('Not a valid Sidecar vault file.'));
           const key = await window.SidecarCrypto.deriveKey(pass.value, file.kdf);
           let payload;
           try {
             payload = await window.SidecarCrypto.decryptString(key, { iv: file.iv, ct: file.ct });
           } catch (_) {
-            throw new Error('Incorrect password, or a corrupted file.');
+            throw new Error(tSec('Incorrect password, or a corrupted file.'));
           }
           const bundle = JSON.parse(payload);
           const accounts = Array.isArray(bundle.accounts) ? bundle.accounts : [];
-          if (!accounts.length) throw new Error('That vault has no accounts to restore.');
+          if (!accounts.length) throw new Error(t('That vault has no accounts to restore.'));
           let imported = 0, skipped = 0;
           for (const a of accounts) {
             try {
@@ -17322,19 +19609,23 @@
           }
           closeModal();
           await refresh();
-          toast('Imported ' + imported + ' account(s)' + (skipped ? ', ' + skipped + ' already present' : ''), 'success');
+          // Whole sentences, not a clause glued on: the count can sit anywhere in another
+          // language, and "already present" agrees with its own number.
+          toast(skipped
+            ? tn('Imported {{count}} account, {{skipped}} already on this device', 'Imported {{count}} accounts, {{skipped}} already on this device', imported, { skipped: I18N.fmtNum(skipped) })
+            : tn('Imported {{count}} account', 'Imported {{count}} accounts', imported), 'success');
         } catch (e) {
-          err.textContent = e.message || 'Could not restore the vault.';
+          err.textContent = e.message || t('Could not restore the vault.');
           go.disabled = false;
-          go.textContent = 'Restore';
+          go.textContent = t('Restore');
         }
       });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
       cancel.addEventListener('click', closeModal);
       modal.append(
-        h('h3', { textContent: 'Restore vault' }),
-        h('p', { className: 'hint', textContent: 'Enter the password this vault was exported with. Accounts already on this device are left untouched.' }),
-        h('label', { textContent: 'Password' }),
+        h('h3', { textContent: t('Restore vault') }),
+        h('p', { className: 'hint', textContent: tSec('Enter the password this vault was exported with. Accounts already on this device are left untouched.') }),
+        h('label', { textContent: tSec('Password') }),
         pass,
         err,
         h('div', { className: 'actions' }, [go, cancel])
@@ -17541,26 +19832,26 @@
   // like a settings screen (see the balloon in renderProfile).
   function openStatusEditor(active, onDone) {
     openModal((modal) => {
-      modal.append(h('h3', { textContent: 'Status' }));
+      modal.append(h('h3', { textContent: t('Status') }));
       modal.append(h('p', {
         className: 'hint',
-        textContent: 'A short line about what you are doing. Anyone can see it.',
+        textContent: t('A short line about what you are doing. Anyone can see it.'),
       }));
 
-      const text = h('input', { type: 'text', className: 'status-input', placeholder: 'Working, hiking, out of office…' });
+      const text = h('input', { type: 'text', className: 'status-input', placeholder: t('Working, hiking, out of office…') });
       text.maxLength = 140;
-      const link = h('input', { type: 'text', className: 'status-input', placeholder: 'Optional link' });
+      const link = h('input', { type: 'text', className: 'status-input', placeholder: t('Optional link') });
       const expiry = h('select', { className: 'status-input' });
       STATUS_DURATIONS.forEach((d, i) => {
-        expiry.append(h('option', { value: String(d.seconds), textContent: d.label, selected: i === 0 }));
+        expiry.append(h('option', { value: String(d.seconds), textContent: d.label(), selected: i === 0 }));
       });
 
       const err = h('div', { className: 'error' });
-      const save = h('button', { className: 'primary', textContent: 'Set status' });
+      const save = h('button', { className: 'primary', textContent: t('Set status') });
       // Full width beneath the content, never inline beside it (CLAUDE.md): a
       // labelled destructive action in a side slot is what collapses these rows.
-      const clear = h('button', { className: 'secondary hidden', textContent: 'Clear status' });
-      const cancel = h('button', { className: 'ghost', textContent: 'Cancel' });
+      const clear = h('button', { className: 'secondary hidden', textContent: t('Clear status') });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
 
       async function publish(fields, btn, busy) {
         err.textContent = '';
@@ -17570,7 +19861,7 @@
         try {
           const st = await publishStatus(fields);
           if (onDone) onDone(st);
-          toast(st ? 'Status set' : 'Status cleared', 'success');
+          toast(st ? t('Status set') : t('Status cleared'), 'success');
           closeModal();
         } catch (e) {
           err.textContent = e.message;
@@ -17581,11 +19872,11 @@
 
       save.addEventListener('click', () => {
         const value = text.value.trim();
-        if (!value) { err.textContent = 'Write something, or clear the status.'; return; }
-        publish({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, save, 'Publishing…');
+        if (!value) { err.textContent = t('Write something, or clear the status.'); return; }
+        publish({ text: value, url: link.value, seconds: Number(expiry.value) || 0 }, save, t('Publishing…'));
       });
       // Empty content IS the clear — see statusEvent. Not a deletion request.
-      clear.addEventListener('click', () => publish({ text: '' }, clear, 'Clearing…'));
+      clear.addEventListener('click', () => publish({ text: '' }, clear, t('Clearing…')));
       cancel.addEventListener('click', closeModal);
 
       modal.append(text, link, expiry, err, save, clear, cancel);
@@ -17605,32 +19896,48 @@
   function renderNip65Section(view, active) {
     const setting = h('div', { className: 'setting nip65-setting' });
     setting.append(
-      h('h3', { textContent: 'Relays' }),
+      h('h3', { textContent: t('Relays') }),
       h('p', {
         className: 'hint',
         textContent:
-          'Your public relay list (NIP-65) — tells other Nostr apps where to find your notes and where to send you replies and DMs. Keep it small and reliable.',
+          t('Your public relay list (NIP-65) — tells other Nostr apps where to find your notes and where to send you replies and DMs. Keep it small and reliable.'),
       })
     );
 
-    const status = h('p', { className: 'hint compact nip65-status', textContent: 'Loading…' });
+    const status = h('p', { className: 'hint compact nip65-status', textContent: t('Loading…') });
     const list = h('div', { className: 'list flat nip65-list' });
     const warn = h('p', { className: 'hint warn nip65-warn' });
     const addInput = h('input', { type: 'text', placeholder: 'wss://relay.example.com' });
-    const addBtn = h('button', { className: 'secondary', textContent: 'Add' });
+    const addBtn = h('button', { className: 'secondary', textContent: t('Add') });
     const err = h('div', { className: 'error' });
-    const publishBtn = h('button', { className: 'primary', textContent: 'Publish relay list' });
+
+    // "Add anyway?" for a relay that failed the add-time probe. The message on its own
+    // full-width line, the answers stretched beneath — a question with words never
+    // shares the input's line in a panel this narrow (same shape as .site-item +
+    // .site-controls). Hidden until a probe fails; see the Add handler below.
+    const addConfirmMsg = h('p', { className: 'confirm-msg' });
+    const addConfirmRow = h('div', { className: 'relay-add-confirm' }, [
+      addConfirmMsg,
+      h('div', { className: 'relay-add-confirm-actions' }, [
+        h('button', { className: 'secondary', textContent: t('Add anyway') }),
+        h('button', { className: 'ghost', textContent: t('Cancel') }),
+      ]),
+    ]);
+    addConfirmRow.hidden = true;
+    const [addConfirmYes, addConfirmNo] = addConfirmRow.querySelectorAll('button');
+
+    const publishBtn = h('button', { className: 'primary', textContent: t('Publish relay list') });
 
     // MANUAL, NEVER ON RENDER. Probing opens a socket to every relay in the list; doing
     // that on each repaint would hammer them for nothing and make the panel's presence
     // legible to anyone watching. It runs when asked and the answers are kept for the
     // session.
-    const checkBtn = h('button', { className: 'secondary nip65-check', textContent: 'Check relay health' });
+    const checkBtn = h('button', { className: 'secondary nip65-check', textContent: t('Check relay health') });
 
     // Its own full-width row under the status line, not a control beside it: it carries
     // words, and the panel is too narrow for a label and a button to share a line
     // (see CLAUDE.md). Hidden unless the list is remembered or missing.
-    const retryBtn = h('button', { className: 'secondary nip65-retry', textContent: 'Retry loading relay list' });
+    const retryBtn = h('button', { className: 'secondary nip65-retry', textContent: t('Retry loading relay list') });
     // The ROW is hidden, not just the button — a hidden child still leaves the row's
     // own margin behind, which reads as a gap nobody can explain.
     const retryRow = h('div', { className: 'actions nip65-retry-row' }, [retryBtn]);
@@ -17642,6 +19949,7 @@
       list,
       warn,
       h('div', { className: 'row-actions' }, [addInput, addBtn]),
+      addConfirmRow,
       err,
       h('div', { className: 'actions nip65-check-row' }, [checkBtn]),
       h('div', { className: 'actions nip65-publish' }, [publishBtn])
@@ -17659,11 +19967,11 @@
       // and it can arrive from a PUBLISHED list as easily as from the input below —
       // this check covers both, which is why it doesn't live in the Add handler.
       if (relayList.some((r) => r.url.startsWith('ws://'))) {
-        warn.textContent = 'A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.';
+        warn.textContent = t('A ws:// relay is unencrypted — fine for a local or Tor relay, but anything on the open internet should be wss://.');
       } else if (!relayList.some((r) => r.write)) {
-        warn.textContent = 'No write relays selected — other apps may not find your new notes.';
+        warn.textContent = t('No write relays selected — other apps may not find your new notes.');
       } else if (!relayList.some((r) => r.read)) {
-        warn.textContent = 'No read relays selected — you may not see replies or mentions here.';
+        warn.textContent = t('No read relays selected — you may not see replies or mentions here.');
       } else {
         warn.textContent = '';
       }
@@ -17672,17 +19980,17 @@
     // WORD PLUS COLOR, never color alone (WCAG 1.4.1) — and the word carries the whole
     // verdict, so a theme that renders the dot poorly still leaves the row readable.
     const VERDICT_TEXT = {
-      healthy: 'Healthy',
+      healthy: t('Healthy'),
       // "Paid", not "Gated". This verdict comes from NIP-11 flags read anonymously, and
       // it does NOT mean your posts bounce: an EVENT is signed, so a paid relay reads
       // event.pubkey and accepts a subscriber's note without any connection auth. The
       // old wording read as breakage and invited dropping a relay that works.
-      gated: 'Paid',
+      gated: t('Paid'),
       // Only ever shown now when signing in was impossible or refused — an answered
       // challenge classifies as healthy. See relay-health.js classify().
-      'auth-gated': 'Sign-in needed',
-      'not-serving': 'Not answering',
-      down: 'Unreachable',
+      'auth-gated': t('Sign-in needed'),
+      'not-serving': t('Not answering'),
+      down: t('Unreachable'),
     };
     // A relay's CLOSED/OK reason is free text and can be any length, in any tone —
     // nostrelites.org answers a burst with "rate-limited: there is a bug in the client,
@@ -17693,25 +20001,40 @@
     // not have to show the prose. Use that; keep the prose only when there is no word we
     // recognize, and cap it.
     const REASON_WORDS = {
-      'rate-limited': 'rate limited',
-      blocked: 'blocked',
-      restricted: 'restricted',
-      'auth-required': 'needs sign-in',
-      pow: 'wants proof of work',
-      invalid: 'rejected as invalid',
-      duplicate: 'already have it',
+      'rate-limited': t('rate limited'),
+      blocked: t('blocked'),
+      restricted: t('restricted'),
+      'auth-required': t('needs sign-in'),
+      pow: t('wants proof of work'),
+      invalid: t('rejected as invalid'),
+      duplicate: t('already have it'),
       error: '',
     };
+    // The probe's own reasons (relay-health.js) are fixed English phrases, so they are
+    // translated here, where they are shown, keyed by that same English; the module stays
+    // usable without the translation layer.
+    const PROBE_REASONS = {
+      'connect timeout': t('connect timeout'),
+      'no WebSocket': t('no WebSocket'),
+      'no EOSE': t('no EOSE'),
+      'signed in but never answered': t('signed in but never answered'),
+      'demands AUTH': t('demands AUTH'),
+      'connection refused': t('connection refused'),
+      'closed before serving': t('closed before serving'),
+    };
     function shortReason(why) {
-      let t = String(why || '').replace(/^CLOSED:\s*/i, '').trim();
-      if (!t) return '';
-      const m = /^([a-z-]+):\s*(.*)$/i.exec(t);
+      let text = String(why || '').replace(/^CLOSED:\s*/i, '').trim();
+      if (!text) return '';
+      if (Object.prototype.hasOwnProperty.call(PROBE_REASONS, text)) return PROBE_REASONS[text];
+      const bad = /^bad url \((.*)\)$/.exec(text);
+      if (bad) return t('bad url ({{detail}})', { detail: bad[1] });
+      const m = /^([a-z-]+):\s*(.*)$/i.exec(text);
       if (m && Object.prototype.hasOwnProperty.call(REASON_WORDS, m[1].toLowerCase())) {
         const word = REASON_WORDS[m[1].toLowerCase()];
         if (word) return word;
-        t = m[2] || m[1]; // "error:" carries nothing itself — fall through to its detail
+        text = m[2] || m[1]; // "error:" carries nothing itself — fall through to its detail
       }
-      return t.length > 44 ? t.slice(0, 43).trimEnd() + '…' : t;
+      return text.length > 44 ? text.slice(0, 43).trimEnd() + '…' : text;
     }
 
     function healthLine(url) {
@@ -17720,7 +20043,7 @@
       const line = h('div', { className: 'nip65-health' });
       if (r === 'checking') {
         line.classList.add('checking');
-        line.append(h('span', { className: 'nip65-dot' }), document.createTextNode('Checking…'));
+        line.append(h('span', { className: 'nip65-dot' }), document.createTextNode(t('Checking…')));
         return line;
       }
       line.classList.add('v-' + r.verdict);
@@ -17731,16 +20054,16 @@
       const bits = [VERDICT_TEXT[r.verdict] || r.verdict];
       // Which account the verdict is FOR. Without it, a verdict on a subscriber-only
       // relay reads as though it would hold for anyone, which is the opposite of true.
-      if (r.authed) bits.push('signed in');
+      if (r.authed) bits.push(t('signed in'));
       // Latency for anything that actually served, not just the unpaid ones — a paid
       // relay's speed is exactly as relevant to keeping it.
-      if (r.probe && r.probe.served && r.probe.connectMs != null) bits.push(r.probe.connectMs + 'ms');
+      if (r.probe && r.probe.served && r.probe.connectMs != null) bits.push(t('{{ms}}ms', { ms: I18N.fmtNum(r.probe.connectMs) }));
       // The keep-or-drop signal, and the one no client shows: up, serving, and holding
       // nothing of yours. Only stated when the probe actually asked for this account.
-      if (r.probe && r.probe.served && r.probe.hasAuthorData === false) bits.push('no notes here');
+      if (r.probe && r.probe.served && r.probe.hasAuthorData === false) bits.push(t('no notes here'));
       // "Writes unknown" rather than silence: NIP-11 not answering is not evidence that
       // posting works, and this screen exists to decide whether to keep a relay.
-      if (r.verdict === 'healthy' && r.writeKnown === false) bits.push('writes unverified');
+      if (r.verdict === 'healthy' && r.writeKnown === false) bits.push(t('writes unverified'));
       // A paid relay's NIP-11 flags describe what a STRANGER faces. Restating them at the
       // user implies their own posts are failing, which is not what the flags mean.
       if (r.verdict !== 'gated' && r.why) bits.push(shortReason(r.why));
@@ -17753,7 +20076,7 @@
       const urls = relayList.map((r) => r.url);
       if (!RH || !urls.length) return;
       checkBtn.disabled = true;
-      checkBtn.textContent = 'Checking…';
+      checkBtn.textContent = t('Checking…');
       urls.forEach((u) => health.set(u, 'checking'));
       renderRows();
       try {
@@ -17765,7 +20088,7 @@
           // as this account sees it; anything else stays anonymous.
           onauth: (template) => {
             if (!authRelays.has(normalizeRelay(urlOfTemplate(template)))) {
-              return Promise.reject(new Error('not an allowlisted relay'));
+              return Promise.reject(new Error(t('not an allowlisted relay')));
             }
             return signRelayAuth(template);
           },
@@ -17783,14 +20106,14 @@
         renderRows();
       } finally {
         checkBtn.disabled = false;
-        checkBtn.textContent = 'Check relay health';
+        checkBtn.textContent = t('Check relay health');
       }
     }
     checkBtn.addEventListener('click', runHealthCheck);
 
     function renderRows() {
       if (!relayList.length) {
-        listState(list, 'No relays yet — add one below.');
+        listState(list, t('No relays yet — add one below.'));
         updateWarn();
         return;
       }
@@ -17803,7 +20126,7 @@
         writeCb.checked = r.write;
         writeCb.addEventListener('change', () => { r.write = writeCb.checked; updateWarn(); });
 
-        const rm = iconButton('Remove', 'trash', () => {
+        const rm = iconButton(t('Remove'), 'trash', () => {
           relayList.splice(i, 1);
           renderRows();
         });
@@ -17820,8 +20143,8 @@
             h('div', { className: 'nip65-url', textContent: r.url }),
           ]),
           h('div', { className: 'nip65-controls' }, [
-            h('label', { className: 'nip65-chip' }, [readCb, document.createTextNode('Read')]),
-            h('label', { className: 'nip65-chip' }, [writeCb, document.createTextNode('Write')]),
+            h('label', { className: 'nip65-chip' }, [readCb, document.createTextNode(t('Read'))]),
+            h('label', { className: 'nip65-chip' }, [writeCb, document.createTextNode(t('Write'))]),
             rm,
           ]),
         ]);
@@ -17835,33 +20158,90 @@
       updateWarn();
     }
 
-    addBtn.addEventListener('click', () => {
-      let url = addInput.value.trim();
-      if (!url) return;
-      if (!/^wss?:\/\//i.test(url)) url = 'wss://' + url;
-      url = url.replace(/\/+$/, ''); // drop trailing slash so wss://x and wss://x/ dedupe
-      if (!/^wss?:\/\/[^/]+/i.test(url)) { err.textContent = "That doesn't look like a relay URL."; return; }
-      if (relayList.some((r) => r.url === url)) { addInput.value = ''; return; }
+    // Adding a relay: normalize what was typed, then ask the relay itself before it
+    // joins the list — the same shape as the Settings relay list's Add. https:// becomes
+    // wss:// rather than the mangled entry the old prefix-only code produced, and a
+    // relay that fails the probe gets its own "Add anyway?" row below the input.
+    //
+    // The relay whose probe failed, kept between the question and the answer so "Add
+    // anyway" adds exactly what was probed, even if the field has been edited since.
+    let addPending = '';
+
+    addBtn.addEventListener('click', async () => {
+      const RH = self.SidecarRelayHealth;
+      // The module is on every panel load; without it Add does nothing, like Check.
+      if (!RH) return;
+      if (!addInput.value.trim()) return;
+      addPending = '';
+      addConfirmRow.hidden = true;
       err.textContent = '';
-      relayList.push({ url, read: true, write: true });
+
+      const n = RH.normalizeRelayUrl(addInput.value);
+      if (!n.ok) { err.textContent = t("That doesn't look like a relay URL."); return; }
+      // The clamped value, written back into the field — a silent change to what was
+      // typed would sit on screen looking like what the user entered (see default-zap).
+      addInput.value = n.url;
+      if (relayList.some((r) => r.url === n.url)) { addInput.value = ''; return; }
+
+      addBtn.disabled = true;
+      addBtn.textContent = t('Checking…');
+      let p = null;
+      try { p = await RH.probe(n.url, null, {}); } catch (_) {} // a probe that throws reads as unreachable
+      addBtn.disabled = false;
+      addBtn.textContent = t('Add');
+
+      // What the probe said becomes the row's verdict the moment it is added — an
+      // "Add anyway" relay whose row says nothing would read as one that passed.
+      if (p) health.set(n.url, Object.assign({ url: n.url, probe: p, nip11: { ok: false } }, RH.classify(p)));
+
+      if (p && !RH.blocksAdd(p)) {
+        relayList.push({ url: n.url, read: true, write: true });
+        addInput.value = '';
+        renderRows();
+        return;
+      }
+      addPending = n.url;
+      addConfirmMsg.textContent = p && p.up
+        ? t('{{url}} is up but not answering requests. Add it anyway?', { url: n.url })
+        : t("Couldn't reach {{url}}. Add it anyway?", { url: n.url });
+      addConfirmRow.hidden = false;
+    });
+
+    // A field edit means the question on screen is about a URL that is no longer in the
+    // field; "Add anyway" must not add something other than what the user is looking at.
+    addInput.addEventListener('input', () => {
+      if (addConfirmRow.hidden) return;
+      addPending = '';
+      addConfirmRow.hidden = true;
+    });
+
+    addConfirmYes.addEventListener('click', () => {
+      if (!addPending) { addConfirmRow.hidden = true; return; }
+      relayList.push({ url: addPending, read: true, write: true });
+      addPending = '';
+      addConfirmRow.hidden = true;
       addInput.value = '';
       renderRows();
+    });
+    addConfirmNo.addEventListener('click', () => {
+      addPending = '';
+      addConfirmRow.hidden = true;
     });
 
     publishBtn.addEventListener('click', async () => {
       err.textContent = '';
-      if (!relayList.length) { err.textContent = 'Add at least one relay first.'; return; }
+      if (!relayList.length) { err.textContent = t('Add at least one relay first.'); return; }
       if (!relayList.some((r) => r.read || r.write)) {
-        err.textContent = 'Check Read or Write on at least one relay first.';
+        err.textContent = t('Check Read or Write on at least one relay first.');
         return;
       }
       publishBtn.disabled = true;
-      publishBtn.textContent = 'Publishing…';
+      publishBtn.textContent = t('Publishing…');
       try {
         await publishNip65(active.pubkey, relayList);
-        status.textContent = 'Published ✓';
+        status.textContent = t('Published ✓');
         status.classList.add('done');
-        toast('Relay list published', 'success');
+        toast(t('Relay list published'), 'success');
         // Offer to switch to NIP-65-only mode if bootstrap relays are still active.
         if (!(await nip65OnlyFor(active.pubkey))) {
           maybeOfferNip65Only(active.pubkey);
@@ -17871,7 +20251,7 @@
         toast(e.message, 'error');
       }
       publishBtn.disabled = false;
-      publishBtn.textContent = 'Publish relay list';
+      publishBtn.textContent = t('Publish relay list');
     });
 
     // 'unknown' is the state worth being careful about: the editor has nothing to show,
@@ -17885,17 +20265,17 @@
       publishBtn.disabled = failed;
       retryRow.hidden = !failed && res.state !== 'remembered';
       status.classList.toggle('warn', failed || res.state === 'remembered');
-      if (res.state === 'published') status.textContent = 'Loaded from your published relay list.';
-      else if (res.state === 'remembered') status.textContent = 'Relays did not answer — showing your last known list.';
-      else if (res.state === 'none') status.textContent = 'Not published yet — starting from your configured relays.';
-      else status.textContent = 'Could not load your relay list. Retry before publishing.';
+      if (res.state === 'published') status.textContent = t('Loaded from your published relay list.');
+      else if (res.state === 'remembered') status.textContent = t('Relays did not answer — showing your last known list.');
+      else if (res.state === 'none') status.textContent = t('Not published yet — starting from your configured relays.');
+      else status.textContent = t('Could not load your relay list. Retry before publishing.');
       renderRows();
     }
 
     function loadEditor() {
       status.classList.remove('warn');
       loadRelayIcons().then(renderRows, () => {}); // cached icons, then repaint with them
-      status.textContent = 'Loading your relay list…';
+      status.textContent = t('Loading your relay list…');
       retryRow.hidden = true;
       loadNip65Editor(active.pubkey)
         .then(applyLoad)
@@ -17922,18 +20302,18 @@
     openModal((modal) => {
       modal.append(
         h('div', { className: 'setup-modal' }, [
-          h('h3', { textContent: 'Switch to your relay list?' }),
+          h('h3', { textContent: t('Switch to your relay list?') }),
           h('p', { className: 'hint', textContent:
-            'You’ve published a relay list (NIP-65). Sidecar can now read and publish through those relays exclusively, leaving the bootstrap relays behind. They’ll stay in Settings if you ever need them again.'
+            t('You’ve published a relay list (NIP-65). Sidecar can now read and publish through those relays exclusively, leaving the bootstrap relays behind. They’ll stay in Settings if you ever need them again.')
           }),
           h('div', { className: 'row-actions' }, [
-            h('button', { className: 'secondary', textContent: 'Not now', onclick: closeModal }),
-            h('button', { className: 'primary', textContent: 'Use my relays only', onclick: async () => {
+            h('button', { className: 'secondary', textContent: t('Not now'), onclick: closeModal }),
+            h('button', { className: 'primary', textContent: t('Use my relays only'), onclick: async () => {
               // `pubkey`, not state.activePubkey — the account whose list was just
               // published is the one this applies to, even if the active one changed.
               await call({ type: 'SIDECAR_SET_NIP65_ONLY', pubkey, on: true });
               closeModal();
-              toast('Now using your NIP-65 relays only', 'success');
+              toast(t('Now using your NIP-65 relays only'), 'success');
             }}),
           ]),
         ])
@@ -17942,6 +20322,113 @@
   }
 
   // ---- Lazarus: recovery of user data from relay history ----
+  //
+  // WHAT LAZARUS SAYS IN ENGLISH, translated here. lazarus.js stays free of the
+  // translation layer, as relay-health.js does, so its kind names, item nouns and the
+  // notes its delta explains itself with are mapped where the panel shows them. Each is
+  // a function, not a table built once, because t() answers in English until the
+  // language file has loaded.
+  //
+  // Two forms of a kind's name: the label on its chip, and the phrase for inside a
+  // sentence ("your follow list"), so a language can decline or inflect the whole
+  // phrase rather than have a lowercased label dropped into its grammar.
+  function lzName(kind) {
+    return ({
+      3: t('Follow list'), 10000: t('Mute list'), 0: t('Profile'), 10003: t('Bookmarks'),
+      10044: t('Encryption keys'), 10002: t('Relay list'), 10050: t('DM relays'), 10006: t('Blocked relays'),
+    })[kind] || String(kind);
+  }
+  function lzYour(kind) {
+    return ({
+      3: t('your follow list'), 10000: t('your mute list'), 0: t('your profile'), 10003: t('your bookmarks'),
+      10044: t('your encryption keys'), 10002: t('your relay list'), 10050: t('your DM relays'), 10006: t('your blocked relays'),
+    })[kind] || String(kind);
+  }
+  function lzYourCurrent(kind) {
+    return ({
+      3: t('your current follow list'), 10000: t('your current mute list'), 0: t('your current profile'),
+      10003: t('your current bookmarks'), 10044: t('your current encryption keys'), 10002: t('your current relay list'),
+      10050: t('your current DM relays'), 10006: t('your current blocked relays'),
+    })[kind] || String(kind);
+  }
+  // The same at the start of a sentence, where the language capitalizes it.
+  function lzYourCurrentCap(kind) {
+    return ({
+      3: t('Your current follow list'), 10000: t('Your current mute list'), 0: t('Your current profile'),
+      10003: t('Your current bookmarks'), 10044: t('Your current encryption keys'), 10002: t('Your current relay list'),
+      10050: t('Your current DM relays'), 10006: t('Your current blocked relays'),
+    })[kind] || String(kind);
+  }
+  // A count of a kind's items, as one phrase with the number in it. countOf takes the
+  // count to choose the plural by and what to print in its place, so a range or a
+  // "12+" can stand where the number goes.
+  function lzCountOf(kind, n, shown) {
+    const p = { count: shown == null ? I18N.fmtNum(n) : shown };
+    switch (kind) {
+      case 0: return tn('{{count}} profile field', '{{count}} profile fields', n, p);
+      case 3: return tn('{{count}} following', '{{count}} following', n, p);
+      case 10000: return tn('{{count}} muted', '{{count}} muted', n, p);
+      case 10003: return tn('{{count}} bookmarked', '{{count}} bookmarked', n, p);
+      case 10044: return tn('{{count}} key', '{{count}} keys', n, p);
+      case 10002: return tn('{{count}} relay', '{{count}} relays', n, p);
+      case 10050: return tn('{{count}} inbox', '{{count}} inboxes', n, p);
+      case 10006: return tn('{{count}} blocked', '{{count}} blocked', n, p);
+      default: return tn('{{count}} item', '{{count}} items', n, p);
+    }
+  }
+  // The notes lazarus.js attaches to a delta, keyed by their own English. One carries a
+  // number and is matched as a pattern; anything else passes through untranslated
+  // rather than disappearing.
+  function lzNote(note) {
+    const removed = /^(\d+) of the items in your current list aren’t in this version and would be removed\.$/.exec(note);
+    if (removed) {
+      const n = Number(removed[1]);
+      return tn('{{count}} of the items in your current list isn’t in this version and would be removed.',
+        '{{count}} of the items in your current list aren’t in this version and would be removed.', n);
+    }
+    return ({
+      'Restoring an old follow list re-follows the accounts it holds. That is mostly benign.':
+        tSec('Restoring an old follow list re-follows the accounts it holds. That is mostly benign.'),
+      'This re-silences accounts you may have unmuted since: a moderation action taken on your behalf.':
+        tSec('This re-silences accounts you may have unmuted since: a moderation action taken on your behalf.'),
+      'This replaces your current profile fields with this version’s.':
+        tSec('This replaces your current profile fields with this version’s.'),
+      'Restoring an old bookmark list affects nobody but you.':
+        tSec('Restoring an old bookmark list affects nobody but you.'),
+      'Restoring these keys means clients will encrypt direct messages to them again.':
+        tSec('Restoring these keys means clients will encrypt direct messages to them again.'),
+      'This announces you no longer use NIP-4e, so clients stop encrypting direct messages to your keys.':
+        tSec('This announces you no longer use NIP-4e, so clients stop encrypting direct messages to your keys.'),
+      'Your current version lists keys that clients encrypt direct messages to.':
+        tSec('Your current version lists keys that clients encrypt direct messages to.'),
+      'Your current empty version announces that you do not use NIP-4e.':
+        tSec('Your current empty version announces that you do not use NIP-4e.'),
+      'An old relay list can strand you on dead relays and silently break delivery. Check them first.':
+        tSec('An old relay list can strand you on dead relays and silently break delivery. Check them first.'),
+      'A wrong DM inbox list silently breaks direct-message delivery. Check the relays first.':
+        tSec('A wrong DM inbox list silently breaks direct-message delivery. Check the relays first.'),
+      'Low stakes: this only re-blocks relays you had blocked.':
+        tSec('Low stakes: this only re-blocks relays you had blocked.'),
+      'This version’s encrypted items couldn’t be read, so the counts leave private items out.':
+        tSec('This version’s encrypted items couldn’t be read, so the counts leave private items out.'),
+      'Your current encrypted items couldn’t be read. Restoring replaces them, so some may be lost.':
+        tSec('Your current encrypted items couldn’t be read. Restoring replaces them, so some may be lost.'),
+    })[note] || note;
+  }
+  // The outcome of asking one relay, in the words shown beside it.
+  function lzOutcome(state) {
+    return ({
+      answered: t('answered'), failed: t('failed'), 'timed out': t('timed out'), 'older page failed': t('older page failed'),
+    })[state] || state;
+  }
+  // A phrase with its number set in bold: the translated text is split where the number
+  // goes, so the bold follows the number wherever a language puts it.
+  const LZ_NUM = '\u0001';
+  function lzBold(text, shown) {
+    const at = text.indexOf(LZ_NUM);
+    if (at < 0) return [text];
+    return [text.slice(0, at), h('strong', { textContent: shown }), text.slice(at + LZ_NUM.length)].filter((x) => x !== '');
+  }
   // github.com/dmnyc/lazarus, spec 0.6.2-draft; the concept first shipped in
   // Mutable and was hardened in the Jumble fork. kind:3, 10000 and friends are
   // replaceable, so a buggy client publishing its own version destroys every
@@ -18128,21 +20615,25 @@
     scan.writeDefaults = false;
     scan.listNote = '';
     if (list.state === 'unknown') {
-      scan.listNote = 'Your relay list couldn’t be read, so your current version can’t be confirmed.';
+      scan.listNote = t('Your relay list couldn’t be read, so your current version can’t be confirmed.');
     } else if (list.state === 'none' || !list.write.length) {
-      const why = list.state === 'none' ? 'You have no relay list' : 'Your relay list names no write relays';
+      const none = list.state === 'none';
       if (scan.nip65Only) {
-        scan.listNote = why + ', and bootstrap relays are off, so no relay can confirm your current version.';
+        scan.listNote = none
+          ? t('You have no relay list, and bootstrap relays are off, so no relay can confirm your current version.')
+          : t('Your relay list names no write relays, and bootstrap relays are off, so no relay can confirm your current version.');
       } else {
         let fallback = [];
         try { fallback = await relayUrls(true); } catch (_) {}
         scan.writeRelays = lazarusRelaySet(fallback);
         scan.writeDefaults = true;
-        scan.listNote = why + ', so your configured relays stand in as write relays.';
+        scan.listNote = none
+          ? t('You have no relay list, so your configured relays stand in as write relays.')
+          : t('Your relay list names no write relays, so your configured relays stand in as write relays.');
       }
     } else {
       scan.writeRelays = lazarusRelaySet(list.write);
-      if (list.saved) scan.listNote = 'No relay returned your relay list, so the copy Sidecar saved stands in.';
+      if (list.saved) scan.listNote = t('No relay returned your relay list, so the copy Sidecar saved stands in.');
     }
   }
 
@@ -18279,7 +20770,8 @@
     seedBaseline(pubkey, signed); // the wipe check now measures against the restore
     if (signed.kind === 3) {
       const follows = new Set(signed.tags.filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]));
-      followCountCache.set(pubkey, follows.size);
+      followCountCache.set(pubkey, { v: follows.size, at: Date.now() });
+      repaintFollowCounts(); // the restore just moved the number the drawer is showing
       followListCache = null;
       followListPubkey = null;
       forgetWot();
@@ -18337,7 +20829,7 @@
     const markD = 'M123.24 275.7L72.8499 236.99V0H9.66992V274.24L118.49 358.59H123.24V275.7ZM160.26 64.63L118.63 116.85L146.75 143.87L92.3399 213.62L138.72 263.28L194.96 189.88L267.99 259.99H335.55V0H258.86L187.65 90.93L160.26 64.64V64.63ZM272.36 88.01V174.19L233.29 136.94L272.36 88.01ZM564.3 260V254.16L527.78 195H433.57L535.09 56.97L503.31 0H372.94V65H448.16L355.04 189.52L405.07 260H564.28H564.3ZM630.09 64.63L588.46 116.85L616.58 143.87L562.17 213.62L608.55 263.28L664.79 189.88L737.82 259.99H805.38V0H728.69L657.48 90.93L630.09 64.64V64.63ZM752.2 88.01V174.19L713.13 136.94L752.2 88.01ZM967.28 173.82L1026.07 126.35L930.04 0H924.56L888.04 48.93V0H824.87V260H888.04V187.7L1000.51 325.37L1050.9 277.9L967.28 173.83V173.82ZM889.87 132.92L919.45 95.67L948.66 132.92H889.87ZM1241.28 260V0H1178.11V108.09L1108.73 170.17V0H1045.56V218.01L1088.65 264.02L1178.12 183.32V260.01H1241.29L1241.28 260ZM1420 260L1470.03 189.52L1376.91 65H1452.13V0H1321.76L1289.99 56.97L1391.51 195H1297.3L1260.78 254.16V260H1419.99H1420Z';
     const mark = h('span', { className: 'lazarus-mark' });
     mark.innerHTML = '<svg viewBox="0 0 1461 359" aria-hidden="true" focusable="false"><path d="' + markD + '" fill="currentColor"/></svg>';
-    a.append(h('span', { textContent: 'Follows the Lazarus recovery spec (' + self.SidecarLazarus.SPEC_VERSION + ').' }), mark);
+    a.append(h('span', { textContent: t('Follows the Lazarus recovery spec ({{version}}).', { version: self.SidecarLazarus.SPEC_VERSION }) }), mark);
     return a;
   }
 
@@ -18358,7 +20850,7 @@
     };
     const settle = () => { if (session.closed) Promise.resolve(busy).catch(() => {}).finally(release); };
     openModal((modal) => {
-      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      const xBtn = h('button', { className: 'modal-x', title: t('Close') });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       const body = h('div', { className: 'recovery-modal' });
@@ -18371,7 +20863,7 @@
       const openRows = new Set(); // versions whose relays are showing, kept across redraws
       // Tier 3 is the relay lists: an old version can name relays that are dead or
       // moved, which the confirm screen spells out per kind.
-      const TIER_LABELS = { 1: 'Most worth recovering', 2: 'Also yours', 3: 'Check before restoring' };
+      const TIER_LABELS = { 1: t('Most worth recovering'), 2: t('Also yours'), 3: t('Check before restoring') };
 
       const rec = () => Lz.REGISTRY[kind];
 
@@ -18379,10 +20871,10 @@
       function intro() {
         clear();
         body.append(
-          h('h3', { textContent: 'Data recovery' }),
+          h('h3', { textContent: t('Data recovery') }),
           h('p', {
             className: 'hint',
-            textContent: 'Pick what to look for. Relays often keep older versions, and nothing is restored until you click.',
+            textContent: t('Pick what to look for. Relays often keep older versions, and nothing is restored until you click.'),
           })
         );
         let scanBtn = null;
@@ -18395,7 +20887,7 @@
             const chip = h('button', {
               className: 'lazarus-chip' + (kind === k ? ' on' : ''),
               type: 'button',
-              textContent: Lz.REGISTRY[k].name,
+              textContent: lzName(k),
             });
             chip.addEventListener('click', () => {
               kind = k;
@@ -18408,7 +20900,7 @@
           });
           body.append(row);
         });
-        scanBtn = h('button', { className: 'primary', textContent: 'Scan relays' });
+        scanBtn = h('button', { className: 'primary', textContent: t('Scan relays') });
         scanBtn.disabled = !kind;
         scanBtn.addEventListener('click', () => runScan());
         body.append(h('div', { className: 'actions' }, [scanBtn]), lazarusAttribution());
@@ -18417,8 +20909,8 @@
       async function runScan() {
         clear();
         body.append(
-          h('h3', { textContent: 'Scanning…' }),
-          waitingRow('Checking relays for older versions of your ' + rec().name.toLowerCase() + '…')
+          h('h3', { textContent: t('Scanning…') }),
+          waitingRow(t('Checking relays for older versions of {{what}}…', { what: lzYour(kind) }))
         );
         try {
           const res = await lazarusScan(active.pubkey, kind, session);
@@ -18437,8 +20929,8 @@
       async function runMore(what) {
         clear();
         body.append(
-          h('h3', { textContent: 'Scanning…' }),
-          waitingRow(what === 'page' ? 'Loading older versions…' : 'Asking the relays that failed again…')
+          h('h3', { textContent: t('Scanning…') }),
+          waitingRow(what === 'page' ? t('Loading older versions…') : t('Asking the relays that failed again…'))
         );
         try {
           const fresh = what === 'page'
@@ -18455,19 +20947,21 @@
       // One line saying how many items a version holds, honest about certainty:
       // exact after decryption, a band from the encrypted size, or "uncounted"
       // when neither applies. A private-only list must not read as a zero.
+      // One phrase per state, each with its number in it, bolded after translation.
       function countLine(c) {
         const range = Lz.itemRange(c);
-        const num = (n) => h('strong', { textContent: I18N.fmtNum(n) });
-        if (kind === 0) return [num(range.min), ' profile field' + (range.min === 1 ? '' : 's')];
-        const noun = rec().noun || 'items';
-        if (range.certainty === 'exact') return [num(range.min), ' ' + noun];
+        if (kind === 0 || range.certainty === 'exact') {
+          return lzBold(lzCountOf(kind, range.min, LZ_NUM), I18N.fmtNum(range.min));
+        }
         if (range.certainty === 'estimated') {
           const band = '≈' + I18N.fmtNum(range.min) + '–' + I18N.fmtNum(range.max);
-          return [h('strong', { textContent: band }), ' ' + noun + ' (encrypted)'];
+          return lzBold(t('{{items}} (encrypted)', { items: lzCountOf(kind, range.max, LZ_NUM) }), band);
         }
-        return range.min
-          ? [num(range.min), '+ ' + noun + ' (encrypted, uncounted)']
-          : [noun + ' (encrypted, uncounted)'];
+        if (range.min) {
+          return lzBold(t('{{items}} (encrypted, uncounted)', { items: lzCountOf(kind, range.min, LZ_NUM) }),
+            I18N.fmtNum(range.min) + '+');
+        }
+        return [t('Encrypted, uncounted')];
       }
 
       // Each relay's outcome, on request: a count alone can't say which relays a
@@ -18476,16 +20970,16 @@
       function outcomesBlock() {
         const rows = scan.asked.map((r) => {
           const outcome = scan.outcomes.get(r) || 'timed out';
-          const role = scan.writeRelays.includes(r) ? (scan.writeDefaults ? 'write (configured)' : 'write') : '';
+          const role = scan.writeRelays.includes(r) ? (scan.writeDefaults ? t('write (configured)') : t('write')) : '';
           const state = outcome === 'answered' && scan.pageFailed.has(r) ? 'older page failed' : outcome;
           return h('div', { className: 'lazarus-relay' + (state === 'answered' ? '' : ' bad') }, [
             h('span', { className: 'relay', textContent: lazarusRelayLabel(r), title: r }),
             role ? h('span', { className: 'role', textContent: role }) : null,
-            h('span', { className: 'state', textContent: state }),
+            h('span', { className: 'state', textContent: lzOutcome(state) }),
           ].filter(Boolean));
         });
         return h('details', { className: 'lazarus-outcomes' }, [
-          h('summary', { textContent: 'Relay outcomes' }),
+          h('summary', { textContent: t('Relay outcomes') }),
           ...rows,
         ]);
       }
@@ -18495,7 +20989,7 @@
       // account has no usable relay list, as in the outcomes block.
       function foundOnRows(c) {
         const write = new Set(scan.writeRelays);
-        const role = scan.writeDefaults ? 'write (configured)' : 'write';
+        const role = scan.writeDefaults ? t('write (configured)') : t('write');
         const byLabel = (a, b) => lazarusRelayLabel(a).localeCompare(lazarusRelayLabel(b));
         return [...c.foundOn]
           .sort((a, b) => (write.has(b) - write.has(a)) || byLabel(a, b))
@@ -18516,53 +21010,60 @@
         currentId = current ? current.id : null;
 
         const n = r.ordered.length;
-        const versions = n + ' version' + (n === 1 ? '' : 's');
         const quiet = scan.failedRelays.length;
-        const retry = h('button', { className: scan.failedScan ? 'primary' : 'secondary', textContent: 'Retry the relays that failed' });
+        const retry = h('button', { className: scan.failedScan ? 'primary' : 'secondary', textContent: t('Retry the relays that failed') });
         retry.addEventListener('click', () => runMore('retry'));
 
         if (scan.failedScan) {
           body.append(
-            h('h3', { textContent: 'No relay answered' }),
+            h('h3', { textContent: t('No relay answered') }),
             h('p', {
               className: 'hint warn',
               textContent: n
-                ? 'This history is incomplete. The ' + versions + ' below arrived before the relays went quiet.'
-                : 'None of the ' + scan.asked.length + ' relays asked answered. They may still hold versions.',
+                ? tn('This history is incomplete. The {{count}} version below arrived before the relays went quiet.',
+                  'This history is incomplete. The {{count}} versions below arrived before the relays went quiet.', n)
+                : tn('The {{count}} relay asked didn’t answer. It may still hold versions.',
+                  'None of the {{count}} relays asked answered. They may still hold versions.', scan.asked.length),
             }),
             h('div', { className: 'actions' }, [retry])
           );
         } else {
           body.append(
-            h('h3', { textContent: 'Choose a version to restore' }),
+            h('h3', { textContent: t('Choose a version to restore') }),
             h('p', {
               className: 'hint',
-              textContent: versions + ' found. ' + scan.answeredRelays.length + ' of ' + scan.asked.length + ' relays answered'
-                + (quiet ? ', ' + quiet + ' failed or timed out.' : '.'),
+              // Two sentences, each whole: how many versions, then how the relays did.
+              textContent: tn('{{count}} version found.', '{{count}} versions found.', n) + ' '
+                + (quiet
+                  ? tn('{{answered}} of {{count}} relay answered, {{quiet}} failed or timed out.',
+                    '{{answered}} of {{count}} relays answered, {{quiet}} failed or timed out.', scan.asked.length,
+                    { answered: I18N.fmtNum(scan.answeredRelays.length), quiet: I18N.fmtNum(quiet) })
+                  : tn('{{answered}} of {{count}} relay answered.', '{{answered}} of {{count}} relays answered.', scan.asked.length,
+                    { answered: I18N.fmtNum(scan.answeredRelays.length) })),
             })
           );
         }
         if (scan.listNote) body.append(h('p', { className: 'hint', textContent: scan.listNote }));
         if (!scan.failedScan) {
           if (r.currentUnconfirmed) {
-            body.append(h('p', { className: 'hint warn', textContent: 'No write relay answered, so the newest version may not be current. Nothing is recommended.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('No write relay answered, so the newest version may not be current. Nothing is recommended.') }));
           } else if (rec().meaningfulEmpty) {
-            body.append(h('p', { className: 'hint warn', textContent: 'An empty version here is a choice, not damage: it says you no longer use NIP-4e. Nothing is recommended.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('An empty version here is a choice, not damage: it says you no longer use NIP-4e. Nothing is recommended.') }));
           } else if (r.currentUnknown) {
             // Not "no recoverable improvement": nothing could be measured against it.
-            body.append(h('p', { className: 'hint warn', textContent: 'Your current version couldn’t be counted, so nothing is recommended.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('Your current version couldn’t be counted, so nothing is recommended.') }));
           } else if (r.recommended) {
-            body.append(h('p', { className: 'hint', textContent: 'Highlighted: the fullest version from before a sudden drop your list hasn’t recovered from.' }));
+            body.append(h('p', { className: 'hint', textContent: t('Highlighted: the fullest version from before a sudden drop your list hasn’t recovered from.') }));
           } else if (r.settled) {
-            body.append(h('p', { className: 'hint', textContent: 'After a sudden drop, you edited this list 5+ times over a week. Nothing is recommended.' }));
+            body.append(h('p', { className: 'hint', textContent: t('After a sudden drop, you edited this list 5+ times over a week. Nothing is recommended.') }));
           } else if (rec().profile === 'count') {
-            body.append(h('p', { className: 'hint', textContent: 'No recoverable improvement found. You can still restore any version below.' }));
+            body.append(h('p', { className: 'hint', textContent: t('No recoverable improvement found. You can still restore any version below.') }));
           }
           // A version that couldn't be counted is never recommended and takes no
           // part in finding a clobber (spec 0.6.2), so the answer above rests on the
           // others. The spec's partially-counted marker exists to warn of exactly this.
           if (r.skipped && !r.currentUnknown) {
-            body.append(h('p', { className: 'hint warn', textContent: 'Versions that couldn’t be counted were left out, so this may be wrong.' }));
+            body.append(h('p', { className: 'hint warn', textContent: t('Versions that couldn’t be counted were left out, so this may be wrong.') }));
           }
         }
 
@@ -18572,22 +21073,22 @@
           const isRec = r.recommended && c.id === r.recommended.id;
           const empty = Lz.itemRange(c).max === 0;
           const badges = [];
-          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: 'Current' }));
-          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: 'Recommended' }));
+          if (isCurrent) badges.push(h('span', { className: 'recovery-badge cur', textContent: t('Current') }));
+          if (isRec) badges.push(h('span', { className: 'recovery-badge rec', textContent: t('Recommended') }));
           if (empty && !rec().meaningfulEmpty) {
-            badges.push(h('span', { className: 'recovery-badge', textContent: isCurrent ? 'Empty, usually the clobber' : 'Empty, not offered' }));
+            badges.push(h('span', { className: 'recovery-badge', textContent: isCurrent ? t('Empty, usually the clobber') : t('Empty, not offered') }));
           }
           // WHERE THIS VERSION LIVES, one tap away: the row opens to the relays that
           // returned it. The whole head toggles, like a wallet tx row, and the relay
           // count is the button inside it, so the control has a name and a keyboard
           // path. The caret rides on the count, which says what opening reveals.
           const n = c.foundOn.length;
-          const where = h('button', { className: 'recovery-relays-btn', type: 'button', textContent: n + ' relay' + (n === 1 ? '' : 's') });
+          const where = h('button', { className: 'recovery-relays-btn', type: 'button', textContent: tn('{{count}} relay', '{{count}} relays', n) });
           where.append(icon('chevron-down'));
           const meta = h('div', { className: 'recovery-meta' }, [
             h('div', { className: 'recovery-count' }, countLine(c)),
             h('div', { className: 'recovery-sub' }, [
-              new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt) + ' · ',
+              I18N.fmtDate(c.createdAt * 1000, { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + relativeTime(c.createdAt) + ' · ',
               where,
             ]),
             badges.length ? h('div', { className: 'recovery-badges' }, badges) : null,
@@ -18597,7 +21098,7 @@
             // An icon, not a word: the inline action slot holds icon buttons only
             // (CLAUDE.md, row controls), and the count beside it does the truncating.
             // It stops the click here, so choosing a version never also opens its row.
-            head.append(h('div', { className: 'item-actions' }, [iconButton('Restore this version', 'rotate-ccw', (e) => {
+            head.append(h('div', { className: 'item-actions' }, [iconButton(t('Restore this version'), 'rotate-ccw', (e) => {
               e.stopPropagation();
               showConfirm(c);
             })]));
@@ -18625,7 +21126,7 @@
         // inclusive, so the next page repeats that event and the dedupe eats it.
         const more = [];
         if (scan.pages.size) {
-          const older = h('button', { className: 'secondary', textContent: 'Load older versions' });
+          const older = h('button', { className: 'secondary', textContent: t('Load older versions') });
           older.addEventListener('click', () => runMore('page'));
           more.push(older);
         }
@@ -18640,24 +21141,24 @@
         if (!current) { showResults(); return; }
         clear();
         const d = Lz.delta(c, current, kind);
-        const name = rec().name.toLowerCase();
+        const yours = lzYour(kind);
         // Nothing would change only when every item is counted on both sides: an
         // unreadable encrypted list on either side can hide a difference.
         const unchanged = kind !== 0 && !d.added && !d.removed && !d.uncounted;
 
         body.append(
-          h('h3', { textContent: 'Restore this version?' }),
-          h('p', { className: 'hint warn', textContent: 'This republishes your ' + name + ' everywhere and can’t be automatically undone.' })
+          h('h3', { textContent: tSec('Restore this version?') }),
+          h('p', { className: 'hint warn', textContent: tSec('This republishes {{what}} everywhere and can’t be automatically undone.', { what: yours }) })
         );
         if (recheck) {
-          body.append(h('p', { className: 'hint warn', textContent: 'Your current version changed while you reviewed. The counts below are against the new one.' }));
+          body.append(h('p', { className: 'hint warn', textContent: tSec('Your current version changed while you reviewed. The counts below are against the new one.') }));
         }
         body.append(
           h('div', { className: 'recovery-confirm' }, [
             h('div', { className: 'recovery-count-lg' }, countLine(c)),
             h('div', {
               className: 'recovery-sub',
-              textContent: new Date(c.createdAt * 1000).toLocaleString() + ' · ' + relativeTime(c.createdAt),
+              textContent: I18N.fmtDate(c.createdAt * 1000, { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + relativeTime(c.createdAt),
             }),
           ])
         );
@@ -18667,22 +21168,25 @@
         // delta says so where they can't.
         const deltaBox = h('div', { className: 'recovery-confirm' });
         if (kind === 0) {
+          // A sentence for each kind of change rather than clauses joined with semicolons,
+          // which a translation could not reorder. The field names are the profile's own
+          // keys (name, about, picture) and go in as they are.
           const bits = [];
-          if (d.fields.changed.length) bits.push('changes ' + d.fields.changed.join(', '));
-          if (d.fields.added.length) bits.push('adds ' + d.fields.added.join(', '));
-          if (d.fields.removed.length) bits.push('removes ' + d.fields.removed.join(', '));
-          if (d.tagsAdded) bits.push('adds ' + d.tagsAdded + ' tag' + (d.tagsAdded === 1 ? '' : 's'));
-          if (d.tagsRemoved) bits.push('removes ' + d.tagsRemoved + ' tag' + (d.tagsRemoved === 1 ? '' : 's'));
-          deltaBox.append(h('p', { className: 'hint', textContent: bits.length ? 'This version ' + bits.join('; ') + '.' : 'This version matches your current profile fields and tags.' }));
+          if (d.fields.changed.length) bits.push(tSec('This version changes {{fields}}.', { fields: d.fields.changed.join(', ') }));
+          if (d.fields.added.length) bits.push(tSec('This version adds {{fields}}.', { fields: d.fields.added.join(', ') }));
+          if (d.fields.removed.length) bits.push(tSec('This version removes {{fields}}.', { fields: d.fields.removed.join(', ') }));
+          if (d.tagsAdded) bits.push(tn('This version adds {{count}} tag.', 'This version adds {{count}} tags.', d.tagsAdded));
+          if (d.tagsRemoved) bits.push(tn('This version removes {{count}} tag.', 'This version removes {{count}} tags.', d.tagsRemoved));
+          deltaBox.append(h('p', { className: 'hint', textContent: bits.length ? bits.join(' ') : t('This version matches your current profile fields and tags.') }));
         } else if (unchanged) {
-          deltaBox.append(h('p', { className: 'hint', textContent: 'This version has the same items as your current list. Nothing would change.' }));
+          deltaBox.append(h('p', { className: 'hint', textContent: t('This version has the same items as your current list. Nothing would change.') }));
         } else {
-          deltaBox.append(h('p', { className: 'hint', textContent: 'Adds ' + d.added + ', removes ' + d.removed + ' against your current list.' }));
+          deltaBox.append(h('p', { className: 'hint', textContent: tSec('Adds {{added}}, removes {{removed}} against your current list.', { added: I18N.fmtNum(d.added), removed: I18N.fmtNum(d.removed) }) }));
         }
-        d.notes.forEach((note) => deltaBox.append(h('p', { className: 'hint warn', textContent: note })));
+        d.notes.forEach((note) => deltaBox.append(h('p', { className: 'hint warn', textContent: lzNote(note) })));
         body.append(deltaBox);
 
-        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        const back = h('button', { className: 'ghost', textContent: t('Back') });
         back.addEventListener('click', () => showResults());
 
         // A restore that shrinks the list, or may (the current version's encrypted
@@ -18693,16 +21197,17 @@
           clear();
           const publish = h('button', {
             className: 'primary danger',
-            textContent: d.removed ? 'Publish restore (removes ' + d.removed + ')' : 'Publish restore',
+            textContent: d.removed ? tSec('Publish restore (removes {{count}})', { count: I18N.fmtNum(d.removed) }) : tSec('Publish restore'),
           });
           publish.addEventListener('click', () => runRestore(c, { destructiveOk: true }));
           body.append(
-            h('h3', { textContent: 'This restore removes items' }),
+            h('h3', { textContent: tSec('This restore removes items') }),
             h('p', {
               className: 'hint warn',
               textContent: d.removed
-                ? d.removed + ' of the items in your current ' + name + ' aren’t in this version. Restoring removes them everywhere.'
-                : 'Your current ' + name + ' has encrypted items Sidecar couldn’t read. Restoring replaces them everywhere.',
+                ? tn('{{count}} of the items in {{what}} isn’t in this version. Restoring removes it everywhere.',
+                  '{{count}} of the items in {{what}} aren’t in this version. Restoring removes them everywhere.', d.removed, { what: lzYourCurrent(kind) })
+                : tSec('{{What}} has encrypted items Sidecar couldn’t read. Restoring replaces them everywhere.', { What: lzYourCurrentCap(kind) }),
             }),
             h('div', { className: 'actions' }, [publish, back])
           );
@@ -18711,14 +21216,14 @@
         // MEANINGFUL-EMPTY kinds ask the intent question before anything
         // publishes: which endpoint the user means. The answer is the button
         // itself, so nothing is pre-selected.
-        let label = d.shrink ? 'Continue' : 'Publish restore';
+        let label = d.shrink ? t('Continue') : tSec('Publish restore');
         if (rec().meaningfulEmpty) {
           const toEmpty = !Lz.itemRange(c).max;
           body.append(h('p', {
             className: 'hint',
-            textContent: toEmpty ? 'Do you mean to stop using NIP-4e encryption keys?' : 'Do you want direct messages encrypted to these keys again?',
+            textContent: toEmpty ? tSec('Do you mean to stop using NIP-4e encryption keys?') : tSec('Do you want direct messages encrypted to these keys again?'),
           }));
-          label = toEmpty ? 'Yes, stop using NIP-4e' : 'Yes, restore these keys';
+          label = toEmpty ? tSec('Yes, stop using NIP-4e') : tSec('Yes, restore these keys');
         }
         const go = h('button', { className: 'primary', textContent: label, disabled: unchanged });
         go.addEventListener('click', () => (d.shrink ? shrinkStep() : runRestore(c, {})));
@@ -18758,7 +21263,7 @@
           type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: active.pubkey, confirmedDestructive: !!destructiveOk,
         });
         if (!signed || signed.pubkey !== active.pubkey) {
-          throw new Error('Signing came back for a different account, so nothing was published.');
+          throw new Error(tSec('Signing came back for a different account, so nothing was published.'));
         }
         // Kind 10002 replaces the write relays themselves, so the restored list's
         // own write relays judge it: marked write, or unmarked, which NIP-65
@@ -18773,7 +21278,7 @@
         // NIP-65 only on, the write set is the only place this account publishes.
         const targets = scan.nip65Only ? judges : lazarusRelaySet([...judges, ...scan.answeredRelays]);
         if (!targets.length) {
-          throw new Error('No relay to publish to: bootstrap relays are off and no write relay is known.');
+          throw new Error(t('No relay to publish to: bootstrap relays are off and no write relay is known.'));
         }
         busy = lazarusPublish(targets, signed, judges);
         let pub;
@@ -18788,7 +21293,7 @@
       async function runRestore(c, opts) {
         opts = opts || {};
         clear();
-        body.append(h('h3', { textContent: 'Restoring…' }), waitingRow('Confirming your current version, then signing…'));
+        body.append(h('h3', { textContent: t('Restoring…') }), waitingRow(t('Confirming your current version, then signing…')));
         try {
           // THE RE-READ, decided by the core: proceed, changed, or unconfirmed.
           // Only a version NEWER than the reviewed one is a change: the re-read
@@ -18835,7 +21340,7 @@
 
       function showPublishing() {
         clear();
-        body.append(h('h3', { textContent: 'Restoring…' }), waitingRow('Signing and publishing your ' + rec().name.toLowerCase() + '…'));
+        body.append(h('h3', { textContent: t('Restoring…') }), waitingRow(t('Signing and publishing {{what}}…', { what: lzYour(kind) })));
       }
 
       // The wipe check (replaceable-baseline.js) refused the signature: it
@@ -18844,13 +21349,13 @@
       // ahead is its own explicit click, which re-runs the re-read first.
       function showDestructive(c, finding, opts) {
         clear();
-        const anyway = h('button', { className: 'primary danger', textContent: 'Restore anyway' });
+        const anyway = h('button', { className: 'primary danger', textContent: tSec('Restore anyway') });
         anyway.addEventListener('click', () => runRestore(c, { ...opts, destructiveOk: true }));
-        const back = h('button', { className: 'ghost', textContent: 'Back' });
+        const back = h('button', { className: 'ghost', textContent: t('Back') });
         back.addEventListener('click', () => showResults());
         body.append(
-          h('h3', { textContent: 'This restore removes data' }),
-          h('p', { className: 'hint warn', textContent: describeFinding(finding) || 'Sidecar’s wipe check flagged this restore.' }),
+          h('h3', { textContent: tSec('This restore removes data') }),
+          h('p', { className: 'hint warn', textContent: describeFinding(finding) || tSec('Sidecar’s wipe check flagged this restore.') }),
           h('div', { className: 'actions' }, [anyway, back])
         );
       }
@@ -18862,23 +21367,23 @@
       // never pre-selected, and nothing remembers it between restores.
       function showUnconfirmed(c, opts) {
         clear();
-        const retry = h('button', { className: 'secondary', textContent: 'Retry' });
+        const retry = h('button', { className: 'secondary', textContent: t('Retry') });
         retry.addEventListener('click', () => runRestore(c, { ...opts, retried: true }));
         body.append(
-          h('h3', { textContent: 'Current version couldn’t be confirmed' }),
+          h('h3', { textContent: tSec('Current version couldn’t be confirmed') }),
           h('p', {
             className: 'hint warn',
-            textContent: 'No write relay answered, so Sidecar can’t confirm your current version. Nothing was signed.',
+            textContent: tSec('No write relay answered, so Sidecar can’t confirm your current version. Nothing was signed.'),
           }),
           h('div', { className: 'actions' }, [retry])
         );
         if (opts.retried) {
-          const anyway = h('button', { className: 'primary danger', textContent: 'Restore without confirming' });
+          const anyway = h('button', { className: 'primary danger', textContent: tSec('Restore without confirming') });
           anyway.addEventListener('click', () => {
             const reviewed = scan.byId.get(currentId) || null;
             publishAndReport(c, reviewed ? reviewed.createdAt : 0, opts);
           });
-          body.append(h('p', { className: 'hint warn', textContent: 'Restoring now may overwrite edits made since your review. Sidecar won’t remember this choice.' }));
+          body.append(h('p', { className: 'hint warn', textContent: tSec('Restoring now may overwrite edits made since your review. Sidecar won’t remember this choice.') }));
           body.append(h('div', { className: 'actions' }, [anyway]));
         }
       }
@@ -18912,15 +21417,15 @@
 
       function showDone(pub) {
         clear();
-        const done = h('button', { className: 'primary', textContent: 'Done' });
+        const done = h('button', { className: 'primary', textContent: t('Done') });
         done.addEventListener('click', () => { closeModal(); if (kind === 0) renderProfile(); });
         const accepted = pub.acceptedWrite.length
-          ? 'Accepted by ' + pub.acceptedWrite.map(lazarusRelayLabel).join(', ') + '.'
-          : 'Accepted by ' + pub.otherOk + ' relay' + (pub.otherOk === 1 ? '' : 's') + ' outside your write set.';
+          ? t('Accepted by {{relays}}.', { relays: pub.acceptedWrite.map(lazarusRelayLabel).join(', ') })
+          : tn('Accepted by {{count}} relay outside your write set.', 'Accepted by {{count}} relays outside your write set.', pub.otherOk);
         body.append(
-          h('h3', { textContent: 'Version restored' }),
+          h('h3', { textContent: t('Version restored') }),
           h('p', { className: 'hint', textContent: accepted }),
-          h('p', { className: 'hint', textContent: 'Your other clients will pick it up as the current version.' }),
+          h('p', { className: 'hint', textContent: t('Your other clients will pick it up as the current version.') }),
           h('div', { className: 'actions' }, [done])
         );
       }
@@ -18930,14 +21435,19 @@
       // choices the user already made.
       function showPublishFailed(pub, c, opts) {
         clear();
-        const retry = h('button', { className: 'secondary', textContent: 'Try publishing again' });
+        const retry = h('button', { className: 'secondary', textContent: t('Try publishing again') });
         retry.addEventListener('click', () => runRestore(c, opts));
+        // Up to two whole sentences: who refused it, then what that leaves.
+        const said = [];
+        if (pub.rejectedWrite.length) said.push(t('Refused by {{relays}}.', { relays: pub.rejectedWrite.map(lazarusRelayLabel).join(', ') }));
+        said.push(pub.otherOk
+          ? tn('{{count}} other relay took it, but only your write relays count.', '{{count}} other relays took it, but only your write relays count.', pub.otherOk)
+          : t('Nothing was restored.'));
         body.append(
-          h('h3', { textContent: 'No write relay accepted the restore' }),
+          h('h3', { textContent: t('No write relay accepted the restore') }),
           h('p', {
             className: 'hint warn',
-            textContent: (pub.rejectedWrite.length ? 'Refused by ' + pub.rejectedWrite.map(lazarusRelayLabel).join(', ') + '. ' : '')
-              + (pub.otherOk ? pub.otherOk + ' other relay' + (pub.otherOk === 1 ? '' : 's') + ' took it, but only your write relays count.' : 'Nothing was restored.'),
+            textContent: said.join(' '),
           }),
           h('div', { className: 'actions' }, [retry])
         );
@@ -18945,11 +21455,11 @@
 
       function showError(msg) {
         clear();
-        const retry = h('button', { className: 'secondary', textContent: 'Try again' });
+        const retry = h('button', { className: 'secondary', textContent: t('Try again') });
         retry.addEventListener('click', () => (scan ? showResults() : runScan()));
         body.append(
-          h('h3', { textContent: 'Something went wrong' }),
-          h('p', { className: 'error', textContent: msg || 'Please try again.' }),
+          h('h3', { textContent: t('Something went wrong') }),
+          h('p', { className: 'error', textContent: msg || t('Please try again.') }),
           h('div', { className: 'actions' }, [retry])
         );
       }
@@ -18964,14 +21474,14 @@
   function renderRecoverySection(view, active) {
     const setting = h('div', { className: 'setting backup-setting' });
     setting.append(
-      h('h3', { textContent: 'Data recovery' }),
+      h('h3', { textContent: t('Data recovery') }),
       h('p', {
         className: 'hint',
-        textContent: 'If an app wiped your follows, mutes, bookmarks or profile, relays may still hold older versions.',
+        textContent: t('If an app wiped your follows, mutes, bookmarks, profile or relay lists, relays may still hold older versions.'),
       })
     );
     const wrap = h('div', { className: 'export-block recovery-block' });
-    const open = h('button', { className: 'secondary', textContent: 'Scan for older versions' });
+    const open = h('button', { className: 'secondary', textContent: t('Scan for older versions') });
     open.addEventListener('click', () => lazarusModal(active));
     wrap.append(open, lazarusAttribution());
     setting.append(wrap);
@@ -18982,11 +21492,11 @@
     // exactly the mistake that matters most here.
     const keyBackupWrap = h('div', { className: 'export-block' });
     keyBackupWrap.append(
-      h('h3', { textContent: 'Private key backup' }),
+      h('h3', { textContent: t('Private key backup') }),
       h('p', {
         className: 'hint',
         textContent:
-          'Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.',
+          tSec('Export your secret key as copyable text or an encrypted ncryptsec, or print it as a one-page sheet. This IS your key — never send it by email or chat.'),
       })
     );
     // The Accounts screen's "Back up private key" entry, mirrored here — the backup
@@ -18996,7 +21506,7 @@
     // action INSIDE the modal (plain from the nsec tab, encrypted masquerade from
     // the ncryptsec tab — printable straight from the typed password), which is
     // why this block carries no sheet button or encrypt toggle of its own.
-    const keyBtn = h('button', { className: 'secondary', textContent: 'Back up private key' });
+    const keyBtn = h('button', { className: 'secondary', textContent: t('Back up private key') });
     keyBtn.addEventListener('click', () => backupKeyModal(active));
     keyBackupWrap.append(keyBtn);
     setting.append(keyBackupWrap);
@@ -19010,6 +21520,7 @@
   let nwcConn = null; // the connection string it was built from — see ensureNwc
   let nwcNotifSub = null; // NIP-47 notification subscription handle
   let nwcPollTimer = null; // fallback balance polling interval
+  let nwcQuiet = false; // the wallet wakes a phone per request: never poll it, see startWalletMonitor
   const fmtSats = (n) => I18N.fmtNum(Math.round(n));
   // Bytes for the publish card's size row, word for word the number prompt.js's
   // fmtBytes draws: one number and a unit, exact under 1 MB, rounded above it.
@@ -19106,13 +21617,15 @@
   // spot(target) / lastUsdClose. The shape of the day is what the chart conveys, and it
   // ends exactly on the spot price the balance is showing — verified to land within a
   // unit across JPY/CHF/NGN/KRW.
-  // Ranges the chart offers, in display order.
+  // Ranges the chart offers, in display order. Each label is a function: this table is built
+  // as the panel script starts, before the language file has loaded, so a label translated
+  // here would stay English. The chart calls it when it draws the row.
   const PRICE_RANGES = [
-    { key: '24h', label: '24H' },
-    { key: '7d', label: '7D' },
-    { key: '30d', label: '30D' },
-    { key: '1y', label: '1Y' },
-    { key: 'all', label: 'ALL' },
+    { key: '24h', label: () => t('24H') },
+    { key: '7d', label: () => t('7D') },
+    { key: '30d', label: () => t('30D') },
+    { key: '1y', label: () => t('1Y') },
+    { key: 'all', label: () => t('ALL') },
   ];
   const RANGE_SECONDS = {
     '24h': 24 * 3600,
@@ -19307,11 +21820,11 @@
   function fmtScrubTime(ms, range) {
     const d = new Date(ms);
     try {
-      if (range === '24h') return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      if (range === '7d') return d.toLocaleString([], { weekday: 'short', hour: 'numeric' });
-      if (range === '30d') return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-      if (range === '1y') return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-      return d.toLocaleDateString([], { month: 'short', year: 'numeric' });
+      if (range === '24h') return I18N.fmtDate(d, { hour: 'numeric', minute: '2-digit' });
+      if (range === '7d') return I18N.fmtDate(d, { weekday: 'short', hour: 'numeric' });
+      if (range === '30d') return I18N.fmtDate(d, { month: 'short', day: 'numeric' });
+      if (range === '1y') return I18N.fmtDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
+      return I18N.fmtDate(d, { month: 'short', year: 'numeric' });
     } catch (_) { return d.toISOString().slice(0, 10); }
   }
 
@@ -19388,7 +21901,7 @@
     PRICE_RANGES.forEach(({ key, label }) => {
       const b = h('button', {
         className: 'wallet-chart-range-btn' + (key === range ? ' active' : ''),
-        textContent: label,
+        textContent: label(),
       });
       b.addEventListener('click', (e) => {
         e.stopPropagation(); // the card itself has a click handler
@@ -20002,6 +22515,12 @@
   // the setting is on, an account is active, and a wallet is connected. Paints
   // the shared balanceCache instantly, then fetches fresh if it's empty or stale
   // (>60s) for this account.
+  // A figure on screen is refetched once it is a minute old, except for a wallet that wakes a
+  // phone per request: that one is read only when there is nothing to show.
+  function pinnedNeedsFetch(cached, ts) {
+    return !cached || (!nwcQuiet && (!ts || Date.now() - ts > 60000));
+  }
+
   async function renderPinnedBalanceBar() {
     const bar = $('pinned-balance');
     if (!bar) return;
@@ -20021,8 +22540,7 @@
     const cached = balanceCache && balanceCache.pubkey === state.activePubkey && balanceCache.sats != null;
     if (cached) paintBalanceEl(amt, denomParts(balanceCache.sats), 'pinned-fiat-sym');
     else amt.textContent = '···';
-    const stale = !cached || !balanceCache.ts || Date.now() - balanceCache.ts > 60000;
-    if (stale) {
+    if (pinnedNeedsFetch(cached, balanceCache && balanceCache.ts)) {
       try {
         const client = await ensureNwc();
         if (client) {
@@ -20151,14 +22669,20 @@
   // Primal's wallet is Spark-based and only works inside Primal's own apps, over their
   // own nostrconnect session — the NWC string it hands out (routed through a primal.net
   // relay) can't be driven as a standalone NWC wallet, so a getInfo round-trip just
-  // hangs. Detect it from the relay host and reject up front with a clear reason.
+  // hangs. Detect it and reject up front with a clear reason. A primal.net relay alone
+  // is not the sign: other wallets list it among several, and Sidecar talks to the
+  // first. Primal's own string has a primal.net Lightning address, or no relay but
+  // primal.net.
   function isPrimalNwc(connection) {
     try {
       const q = connection.split('?')[1];
       if (!q) return false;
-      return new URLSearchParams(q).getAll('relay').some((r) => {
+      const params = new URLSearchParams(q);
+      if (/@primal\.net$/i.test((params.get('lud16') || '').trim())) return true;
+      const relays = params.getAll('relay').map((r) => String(r).trim()).filter(Boolean);
+      return relays.length > 0 && relays.every((r) => {
         let host;
-        try { host = new URL(r).hostname; } catch (_) { host = String(r); }
+        try { host = new URL(r).hostname; } catch (_) { host = r; }
         return /(^|\.)primal\.net$/i.test(host);
       });
     } catch (_) { return false; }
@@ -20357,8 +22881,21 @@
     if (nwcPollTimer) { clearInterval(nwcPollTimer); nwcPollTimer = null; }
   }
 
-  function startWalletMonitor(client) {
+  // Whether a balance is in front of the user: the panel is showing, and either the Wallet
+  // tab or the pinned bar is. A poll for a figure nobody can see is a request for nothing.
+  function balanceOnScreen() {
+    if (document.visibilityState !== 'visible') return false;
+    const tab = document.querySelector('.tab.active');
+    if (tab && tab.dataset.tab === 'wallet') return true;
+    const bar = $('pinned-balance');
+    return !!bar && !bar.classList.contains('hidden');
+  }
+
+  const NWC_POLL_MS = 60000;
+
+  function startWalletMonitor(client, connection) {
     stopWalletMonitor();
+    nwcQuiet = window.SidecarNWC.wakesByPush(connection);
     // Push: listen for NIP-47 kind:23196 payment notifications.
     nwcNotifSub = client.subscribeNotifications((payload) => {
       if (!state || state.locked) return;
@@ -20370,15 +22907,20 @@
         refreshTransactionList();
         if (type === 'payment_received') {
           const amt = payload.notification && payload.notification.amount;
-          if (amt) toast('Received ' + fmtSats(msatToSat(amt)) + ' sats', 'success');
+          if (amt) toast(t('Received {{amount}} sats', {amount:fmtSats(msatToSat(amt))}), 'success');
           else toast(t('Payment received'), 'success');
         }
       }
     });
-    // Fallback: poll every 30s for wallets that don't send notifications.
-    nwcPollTimer = setInterval(() => {
-      if (state && !state.locked) refreshWalletBalance();
-    }, 30000);
+    // Fallback: poll for wallets that don't send notifications, and only while a balance is
+    // showing. Not at all for a wallet that wakes a phone per request: there every poll is a
+    // lock-screen alert (nine in three minutes at the old 30s), so its balance is read when the
+    // panel opens, after a payment, and when the user taps refresh.
+    if (!nwcQuiet) {
+      nwcPollTimer = setInterval(() => {
+        if (state && !state.locked && balanceOnScreen()) refreshWalletBalance();
+      }, NWC_POLL_MS);
+    }
   }
 
   // Build (or reuse) the NWC client for the active account from its stored string.
@@ -20405,7 +22947,7 @@
     nwc = window.SidecarNWC.makeClient(connection);
     nwcPubkey = pk;
     nwcConn = connection;
-    startWalletMonitor(nwc);
+    startWalletMonitor(nwc, connection);
     return nwc;
   }
 
@@ -20746,6 +23288,13 @@
     browseBtn.addEventListener('click', () => openExtensionPage('wallets.html'));
     quick.append(browseBtn);
     view.append(quick);
+
+    // On-chain balance rides the UNCONNECTED view too. The person it exists
+    // for — coins sitting on an address their Nostr key can spend — may well
+    // have no Lightning wallet at all, and gating the rescue behind a wallet
+    // connection would hide it from exactly them. It needs no NWC: it reads
+    // from the account's key and the explorer, and signs against the keystore.
+    if (btcSweepOn) appendBtcSweepCard(view);
   }
 
   async function renderWalletConnected(view) {
@@ -21007,6 +23556,10 @@
     disc.addEventListener('click', () => disconnectModal());
     view.append(disc);
 
+    // On-chain balance (opt-in; Settings → Wallet & payments). Sits at the foot
+    // of the Wallet tab, above the disclaimer it is morally adjacent to.
+    if (btcSweepOn) appendBtcSweepCard(view);
+
     // Self-custody disclaimer (bottom of the wallet screen).
     view.append(
       h('p', { className: 'wallet-disclaimer' }, [
@@ -21070,6 +23623,434 @@
     // collapse trigger repeatedly and flicker (worst on the loading "…" state).
     await loadTransactions(txList, client);
     observeWalletCard(card, sentinel, spacer);
+  }
+
+  // ---- On-chain balance --------------------------------------------------------
+  //
+  // The Bitcoin addresses a Nostr key can spend, and one way out of them. Two
+  // forms hang off the account's pubkey: the BIP-86-style "tweaked" one and the
+  // raw "untweaked" one, both plain OP_1 key-path outputs. Some nostr-key
+  // wallet tools have sent people's coins to these by accident; this is the
+  // rescue hatch, not an endorsement — the disclaimer says the address is
+  // public, tied to the npub, and worth sweeping to a FRESH address.
+  //
+  // Opt-in from Settings, and inert until then: nothing is looked up, no
+  // explorer sees anything, and web pages never see any of it (no
+  // window.nostr surface). Balance and UTXO reads go to mempool.space —
+  // already a Sidecar price source — and only confirmed outputs sweep.
+  // Signing happens in the service worker against the unlocked keystore; the
+  // panel handles only public data (addresses, the unsigned transaction,
+  // serialization) and the worker derives every key and computes every
+  // sighash itself, so it never signs bytes the panel chose. One action: sweep EVERYTHING to a single pasted or scanned
+  // destination. No general send, no change output, no Lightning swap — any
+  // bitcoin wallet's receive address works, and the hint says to verify it.
+  const MEMPOOL_API = 'https://mempool.space/api';
+
+  async function btcFetch(path, opts) {
+    const r = await fetch(MEMPOOL_API + path, Object.assign({ credentials: 'omit' }, opts));
+    if (!r.ok) {
+      // The broadcast's rejection body carries Bitcoin Core's own reason
+      // ("bad-txns-inputs-missingorspent", "invalid Schnorr signature", …) —
+      // the one string that says WHAT went wrong, so it rides the error.
+      let detail = '';
+      try { detail = (await r.text()).trim().slice(0, 160); } catch (_) {}
+      throw new Error('mempool ' + r.status + (detail ? ': ' + detail : ''));
+    }
+    return r;
+  }
+
+  // Confirmed UTXOs for one form, via the module's mapping. Mempool outputs
+  // sit in the mempool first; sweeping those would chase an RBF-able target.
+  async function btcConfirmedUtxos(address, form) {
+    const list = await (await btcFetch('/address/' + encodeURIComponent(address) + '/utxo')).json();
+    return window.SidecarBitcoin.explorerUtxos(list, form);
+  }
+
+  function btcSatsText(sats) {
+    // Real figures always paint; `main.balances-hidden` masks .btc-sweep-amt
+    // the same way it masks the wallet card and transaction rows.
+    const parts = denomParts(Number(sats));
+    return parts.text + ' ' + parts.unit;
+  }
+
+  function appendBtcSweepCard(view) {
+    const BTC = window.SidecarBitcoin;
+    if (!BTC || !state.activePubkey) return;
+
+    const card = h('div', { className: 'setting btc-sweep' });
+    const open = h('div', { className: 'btc-sweep-body' });
+    // The header row: the title+total area toggles the card (buttons may not
+    // carry headings, so the title is a styled span), and beside it a refresh
+    // that re-reads the balances without waiting for a tab rebuild — which is
+    // the only other way figures move, and the wrong pace while watching a
+    // faucet land.
+    const head = h('div', { className: 'btc-sweep-head' });
+    const headToggle = h('button', { type: 'button', className: 'btc-sweep-head-toggle' }, [
+      h('span', { className: 'btc-sweep-title', textContent: t('On-chain balance') }),
+      h('span', { className: 'btc-sweep-total btc-sweep-amt', textContent: '…' }),
+    ]);
+    headToggle.addEventListener('click', () => card.classList.toggle('open'));
+    const refresh = h('button', { type: 'button', className: 'btc-sweep-refresh', title: t('Refresh') });
+    refresh.appendChild(icon('refresh'));
+    head.append(headToggle, refresh);
+    card.append(head, open);
+
+    // One row per form: the type and its balance on a line, the address on its
+    // own line beneath — a ~360px row has no room for label, address AND
+    // balance side by side, and everything ellipsized into nothing.
+    const rows = {};
+    for (const [form, label] of [['tweaked', t('Tweaked address')], ['untweaked', t('Untweaked address')]]) {
+      const addr = h('button', { className: 'address-value btc-sweep-addr', title: t('Copy address') }, [
+        h('span', { textContent: '…' }),
+      ]);
+      const amt = h('span', { className: 'btc-sweep-amt', textContent: '' });
+      addr.addEventListener('click', async () => {
+        const text = addr.dataset.address;
+        if (!text) return;
+        try {
+          await copyPlain(text);
+          const s = addr.querySelector('span');
+          const prev = s.textContent;
+          s.textContent = t('Copied ✓');
+          setTimeout(() => (s.textContent = prev), 1200);
+        } catch (_) {}
+      });
+      open.append(h('div', { className: 'btc-sweep-row' }, [
+        h('div', { className: 'btc-sweep-line' }, [
+          h('span', { className: 'btc-sweep-label', textContent: label }),
+          amt,
+        ]),
+        addr,
+      ]));
+      rows[form] = { addr, amt };
+    }
+
+    open.append(
+      h('p', {
+        className: 'hint compact',
+        textContent: t('These addresses are public and tied to your npub. If they ever hold coins, sweep them to a fresh address — the sweep itself links the two on-chain.'),
+      }),
+      h('p', {
+        className: 'hint compact',
+        textContent: t('Paste a receive address from any bitcoin wallet, and verify it before you sweep.'),
+      })
+    );
+
+    // Destination: a full-width field, one icon beside it — a ~360px panel has
+    // no room for more on a row.
+    const dest = h('input', {
+      type: 'text', className: 'btc-sweep-dest', spellcheck: false, autocomplete: 'off',
+      placeholder: t('Destination address'),
+    });
+    const scanBtn = h('button', { type: 'button', className: 'btc-sweep-scan', title: t('Scan with camera') });
+    scanBtn.appendChild(icon('qr'));
+    const destRow = h('div', { className: 'btc-sweep-dest-row' }, [dest, scanBtn]);
+    const err = h('div', { className: 'error' });
+    const review = h('div', { className: 'btc-sweep-review hidden' });
+    const reviewMsg = h('p', { className: 'confirm-msg' });
+    const reviewFee = h('p', { className: 'hint compact' });
+    const go = h('button', { className: 'primary', textContent: t('Sweep now') });
+    review.append(reviewMsg, reviewFee, err, go);
+    open.append(destRow, err, review);
+
+    // ---- state -----------------------------------------------------------
+
+    let addresses = null; // { tweaked, untweaked }
+    let utxos = null; // confirmed only, form-tagged
+    let pending = null; // { address, utxos } the review is showing
+
+    function readDest(raw) {
+      const parsed = BTC.readDestination(raw);
+      if (!parsed.error) return parsed;
+      err.textContent = {
+        lightning: t('That QR holds a Lightning payment code, not a bitcoin address.'),
+        testnet: t('Testnet and signet addresses are not supported.'),
+        legacy: t('Use a bc1 address — legacy addresses are not supported here.'),
+        empty: '',
+        invalid: t("That doesn't look like a bitcoin address."),
+      }[parsed.error] || t("That doesn't look like a bitcoin address.");
+      return null;
+    }
+
+    function paintBalances() {
+      const per = { tweaked: 0n, untweaked: 0n };
+      let all = 0n;
+      for (const u of utxos || []) { per[u.form] += u.valueSats; all += u.valueSats; }
+      rows.tweaked.amt.textContent = utxos ? btcSatsText(per.tweaked) : '';
+      rows.untweaked.amt.textContent = utxos ? btcSatsText(per.untweaked) : '';
+      head.querySelector('.btc-sweep-total').textContent = utxos ? btcSatsText(all) : '…';
+      // Agreed behavior: the card opens itself when the address holds a balance.
+      if (all > 0n) card.classList.add('open');
+    }
+
+    // One lookup, shared by the first paint and the refresh button: both
+    // addresses in parallel, confirmed outputs only, then repaint.
+    let refreshing = false;
+    async function refreshBalances() {
+      if (refreshing || !addresses) return;
+      refreshing = true;
+      refresh.classList.add('spinning');
+      try {
+        const [tw, un] = await Promise.all([
+          btcConfirmedUtxos(addresses.tweaked, 'tweaked'),
+          btcConfirmedUtxos(addresses.untweaked, 'untweaked'),
+        ]);
+        utxos = tw.concat(un);
+        paintBalances();
+      } catch (_) {
+        head.querySelector('.btc-sweep-total').textContent = '—';
+      }
+      refresh.classList.remove('spinning');
+      refreshing = false;
+    }
+    refresh.addEventListener('click', refreshBalances);
+
+    // Fill in the background: derive, then look up. Runs only because the
+    // switch is on — appendBtcSweepCard is never called while it is off.
+    (async () => {
+      addresses = await BTC.deriveAddresses(state.activePubkey);
+      rows.tweaked.addr.dataset.address = addresses.tweaked;
+      rows.untweaked.addr.dataset.address = addresses.untweaked;
+      rows.tweaked.addr.querySelector('span').textContent = addresses.tweaked;
+      rows.untweaked.addr.querySelector('span').textContent = addresses.untweaked;
+      await refreshBalances();
+    })().catch(() => {
+      head.querySelector('.btc-sweep-total').textContent = '—';
+    });
+
+    // ---- destination -----------------------------------------------------
+
+    async function scanDestination() {
+      err.textContent = '';
+      scanBtn.disabled = true;
+      try {
+        await call({ type: 'SIDECAR_OPEN_QR_SCANNER', mode: 'address' });
+      } catch (_) {
+        scanBtn.disabled = false;
+        err.textContent = t("Couldn't open the scanner window.");
+        return;
+      }
+      let tries = 0;
+      const timer = setInterval(async () => {
+        if (++tries > 180) return stopScan(); // ~90s, matching the worker's TTL
+        let value = null;
+        try {
+          value = (await call({ type: 'SIDECAR_QR_SCAN_CLAIM' })).value;
+        } catch (_) {
+          return; // worker momentarily asleep; keep polling
+        }
+        if (!value) return;
+        stopScan();
+        dest.value = value;
+        dest.dispatchEvent(new Event('input'));
+      }, 500);
+      function stopScan() {
+        clearInterval(timer);
+        scanBtn.disabled = false;
+      }
+    }
+    scanBtn.addEventListener('click', scanDestination);
+
+    // Fee choice: three tiers off mempool's own recommendations. Standard is
+    // the half-hour rate the review always used; Fast takes fastestFee,
+    // Economy takes the hour rate — slower, cheaper, still a real target
+    // rather than mempool's floor. The chips repaint the review's fee line
+    // from the rates already fetched; no refetch, no refetch of UTXOs.
+    const FEE_TIERS = [
+      ['fast', () => t('Fast'), 'fastestFee'],
+      ['standard', () => t('Standard'), 'halfHourFee'],
+      ['economy', () => t('Economy'), 'hourFee'],
+    ];
+    let feeChoice = 'standard';
+    let feeRates = null;
+    let armed = false; // the sweep button's second-press confirmation
+    let disarmTimer = 0;
+
+    function disarm() {
+      armed = false;
+      clearTimeout(disarmTimer);
+      go.classList.remove('armed');
+      go.textContent = t('Sweep now');
+    }
+
+    const feeRow = h('div', { className: 'btc-sweep-fees' });
+    const feeChips = {};
+    for (const [key, label, rateKey] of FEE_TIERS) {
+      const chip = h('button', { type: 'button', className: 'btc-sweep-fee-chip' + (key === feeChoice ? ' active' : '') }, [
+        h('span', { textContent: label() }),
+      ]);
+      chip.addEventListener('click', () => {
+        if (feeChoice === key) return;
+        feeChoice = key;
+        for (const [k, el] of Object.entries(feeChips)) el.classList.toggle('active', k === key);
+        // A new fee rebuilds the plan, so the armed confirmation is stale.
+        disarm();
+        reviewDestination();
+      });
+      feeRow.append(chip);
+      feeChips[key] = chip;
+    }
+    // The chips lead the review: pick a tier, and the fee line beneath answers.
+    review.prepend(feeRow);
+
+    function rateFor(choice) {
+      const tier = FEE_TIERS.find(([k]) => k === choice);
+      return feeRates ? feeRates[tier[2]] : null;
+    }
+
+    // Every edit starts a review, and the first one waits on the fee lookup. A
+    // review still waiting when a newer one starts is stale, and must never
+    // land on top of it: the armed sweep would carry a destination the field
+    // no longer shows.
+    let reviewSeq = 0;
+    async function reviewDestination() {
+      const seq = ++reviewSeq;
+      disarm();
+      err.textContent = '';
+      pending = null;
+      review.classList.add('hidden');
+      const parsed = readDest(dest.value.trim());
+      if (!parsed) return;
+      if (!utxos || !utxos.length) {
+        err.textContent = t('Nothing to sweep yet.');
+        return;
+      }
+      if (!addresses) return;
+      // Refuse sweeping to one of the card's own addresses: the only outcome
+      // is paying a fee to churn coins between two keys you control.
+      if (parsed.address === addresses.tweaked || parsed.address === addresses.untweaked) {
+        err.textContent = t('That is one of these addresses — sweep to a different wallet.');
+        return;
+      }
+      if (!feeRates) {
+        let rates;
+        try {
+          rates = await (await btcFetch('/v1/fees/recommended')).json();
+        } catch (_) {
+          if (seq === reviewSeq) err.textContent = t("Couldn't reach mempool.space. Try again.");
+          return;
+        }
+        feeRates = rates;
+        if (seq !== reviewSeq) return;
+      }
+      const feeRate = rateFor(feeChoice);
+      if (feeRate == null || feeRate <= 0) {
+        err.textContent = t("Couldn't reach mempool.space. Try again.");
+        return;
+      }
+      let script;
+      try {
+        script = BTC.destScriptFor(parsed.address);
+      } catch (_) {
+        err.textContent = t("That doesn't look like a bitcoin address.");
+        return;
+      }
+      let plan;
+      try {
+        plan = BTC.planSweep(utxos, script, feeRate);
+      } catch (e) {
+        err.textContent = /fee/.test(e.message)
+          ? t('Balance does not cover the fee.')
+          : t('Nothing to sweep yet.');
+        return;
+      }
+      pending = { parsed, plan, feeRate, script };
+      const amount = btcSatsText(plan.outValueSats);
+      reviewMsg.textContent = t('Sweep {{amount}} to {{address}}', { amount, address: parsed.address });
+      reviewFee.textContent = t('Fee {{fee}} at {{rate}} sat/vB', {
+        fee: btcSatsText(plan.feeSats),
+        rate: String(feeRate),
+      });
+      review.classList.remove('hidden');
+    }
+    dest.addEventListener('input', reviewDestination);
+
+    // ---- the sweep -------------------------------------------------------
+
+    // Everything-out is irreversible, so the button carries the account
+    // switcher's two-tap confirm: the first press arms — same words, red —
+    // the second, within four seconds, fires. Editing the destination or the
+    // fee disarms, since the review those taps confirmed has changed.
+    //
+    // While a sweep is out, and after it lands, the field, the scanner and the
+    // fee chips hold still: an edit or a fee tap would tear the review down
+    // under a transaction already signed, or rebuild one over spent coins.
+    function holdStill(on) {
+      go.disabled = on;
+      dest.disabled = on;
+      scanBtn.disabled = on;
+      for (const chip of Object.values(feeChips)) chip.disabled = on;
+    }
+    go.addEventListener('click', async () => {
+      if (!pending) return;
+      // The review must still describe what the field holds; if not, review
+      // again rather than confirm.
+      const now = BTC.readDestination(dest.value.trim());
+      if (now.error || now.address !== pending.parsed.address) {
+        reviewDestination();
+        return;
+      }
+      if (!armed) {
+        armed = true;
+        go.classList.add('armed');
+        go.textContent = t('Tap again to confirm');
+        clearTimeout(disarmTimer);
+        disarmTimer = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
+      holdStill(true);
+      go.textContent = t('Sweeping…');
+      err.textContent = '';
+      const { plan, parsed } = pending;
+      try {
+        // The worker hashes what it signs: it gets the unsigned transaction
+        // and each coin's value and form, derives the spent scripts itself,
+        // and computes every sighash itself (SidecarBitcoin.signSweepTx).
+        const { sigs } = await call({ type: 'SIDECAR_BTC_SIGN_INPUTS', pubkey: state.activePubkey, sweep: BTC.sweepRequest(plan) });
+        const hex = BTC.bytesToHex(BTC.serializeTx(plan.tx, BTC.sweepWitness(sigs)));
+        const res = await btcFetch('/tx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: hex,
+        });
+        const txid = (await res.text()).trim();
+        reviewMsg.textContent = t('Swept {{amount}} to {{address}}', {
+          amount: btcSatsText(plan.outValueSats), address: parsed.address,
+        });
+        reviewFee.textContent = '';
+        // The txid itself is the copy affordance — the full id goes to the
+        // clipboard on tap, since pasting it into another tool is the reason
+        // anyone wants the string at all.
+        const txBtn = h('button', { type: 'button', className: 'btc-sweep-txid', title: t('Copy txid') }, [
+          h('span', { textContent: txid.slice(0, 10) + '…' }),
+        ]);
+        txBtn.addEventListener('click', async () => {
+          try {
+            await copyPlain(txid);
+            const s = txBtn.querySelector('span');
+            const prev = s.textContent;
+            s.textContent = t('Copied ✓');
+            setTimeout(() => (s.textContent = prev), 1200);
+          } catch (_) {}
+        });
+        const link = h('a', { href: '#', className: 'explore-link', textContent: t('View on mempool.space') });
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          chrome.tabs.create({ url: 'https://mempool.space/tx/' + txid });
+        });
+        const doneLine = h('p', { className: 'hint compact' });
+        doneLine.append(txBtn, document.createTextNode(' '), link);
+        review.append(doneLine);
+        go.remove(); // the card is a receipt now, and stays held
+      } catch (e) {
+        err.textContent = t('The sweep was refused: {{reason}}', { reason: (e && e.message) || 'error' });
+        holdStill(false);
+        go.textContent = t('Sweep now');
+      }
+    });
+
+    view.append(card);
   }
 
   // Centered placeholder for list cards (loading / empty / error) so the text
@@ -21301,6 +24282,30 @@
     return String(val);
   }
 
+  // A zap's details gain a way to the note it landed on, opened in the client this
+  // account chose — the same companion-not-client reasoning as the post receipt's link.
+  // Built as a button styled as a link, so it needs no href to point nowhere, and the
+  // click stops here: the row above toggles the pane on any click it sees.
+  function zapNoteRow(id) {
+    const clientReady = preferredClient().catch(() => null);
+    const link = h('button', { className: 'tx-d-link', textContent: t('Open') });
+    link.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      let nevent = '';
+      try { nevent = NT.nip19.neventEncode({ id, relays: [] }); } catch (_) { return; }
+      const client = await clientReady;
+      if (client) openInClient(client.url(nevent));
+    });
+    // Name where it opens once that is known, the same in-place upgrade the names use.
+    clientReady.then((c) => {
+      if (c && c.label) link.textContent = t('Open in {{client}}', { client: c.label });
+    });
+    return h('div', { className: 'tx-d-row' }, [
+      h('span', { className: 'tx-d-label', textContent: t('Zapped note') }),
+      link,
+    ]);
+  }
+
   function txDetailRow(label, value, copyValue, prose) {
     if (value == null || value === '') return null;
     const val = h('span', { className: 'tx-d-val' + (prose ? ' prose' : ''), textContent: String(value) });
@@ -21388,6 +24393,12 @@
     // Only ever consulted for outgoing: an incoming zap has the real event to read, and
     // payMeta is keyed by an invoice we paid.
     const zapParty = zap ? (incoming ? zap.pubkey : zap.recipient) : (!incoming && meta.zapPubkey) || '';
+    // The note the zap landed on, when there is one. An incoming zap carries the event
+    // itself, e tag included; a sent one is a description_hash invoice with nothing to
+    // parse, so the id comes from the request Sidecar signed seconds earlier. payMeta is
+    // keyed by an invoice WE paid, so its half is outgoing-only for the same reason the
+    // recipient's is.
+    const zapNoteId = (zap && zap.eventId) || (!incoming && meta.zapEvent) || '';
     // Either source makes it a zap. Note this is the recorded pubkey, so a zap sent from
     // another client and paid by the same wallet still reads as a plain payment — there
     // is nothing on it that says otherwise.
@@ -21412,7 +24423,7 @@
       if (String(note).trim()) {
         const mark = h('span', { className: 'tx-note', title: note });
         mark.setAttribute('role', 'img');
-        mark.setAttribute('aria-label', t('Note: {{note}}', { note }));
+        mark.setAttribute('aria-label', t('Message: {{message}}', { message: note }));
         mark.append(icon('message-filled'));
         labelEl.classList.add('has-note');
         labelEl.append(mark);
@@ -21450,7 +24461,9 @@
       const zapWho = isZap ? zapLabel(incoming, zapParty, cachedProfile(zapParty)).replace(/^Zap (from|to) /, '') : '';
       const rows = [
         txDetailRow(incoming ? t('From') : t('To'), counterparty || zapWho),
-        txDetailRow(t('Note'), note, null, true),
+        // "Message", not "Note": a note is the Nostr post, which the row below links to.
+        txDetailRow(t('Message'), note, null, true),
+        zapNoteId ? zapNoteRow(zapNoteId) : null,
         txDetailRow(t('Amount'), satsLabel(sats)),
         incoming ? null : txDetailRow(t('Fee'), fmtFeeMsat(fee)),
         txDetailRow(t('Date'), when ? I18N.fmtDate(when * 1000,
@@ -21535,7 +24548,7 @@
         // longer, so the QR uses level 'L' for the extra capacity.
         stop = renderSecretReveal(body, {
           secret: connection,
-          noun: 'connection string',
+          noun: t('connection string'),
           qrLevel: 'L',
           qrExclusive: true, // the URI is long — show the string OR the QR, not both
           qrHint: tSec('Scan in an NWC-compatible app to connect the same wallet.'),
@@ -21604,6 +24617,27 @@
     });
   }
 
+  // Deleting the backup leaves the connected wallet alone; what goes is the copy that
+  // restores it on another device. Action first, Cancel last, in the destructive color.
+  function confirmDeleteNwcBackup(onConfirm) {
+    openModal((modal) => {
+      const body = h('p', { className: 'hint' });
+      body.append(
+        document.createTextNode(t('Removes the backup Sidecar saved on your relays. Other apps’ backups and the connected wallet stay.') + ' '),
+        document.createTextNode(t('Delete requests are best effort, so some relays may keep a copy.'))
+      );
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
+      cancel.addEventListener('click', closeModal);
+      const go = h('button', { className: 'danger', textContent: t('Delete backup') });
+      go.addEventListener('click', () => { closeModal(); onConfirm(); });
+      modal.append(
+        h('h3', { textContent: t('Delete wallet backup?') }),
+        body,
+        h('div', { className: 'actions' }, [go, cancel])
+      );
+    });
+  }
+
   // `statePromise` is shared with the nudge in renderWalletConnected so the relay
   // fetch + decrypt happens once per wallet render, not once per consumer.
   function renderWalletBackup(statePromise) {
@@ -21619,19 +24653,17 @@
     const restore = h('button', { className: 'secondary', textContent: t('Restore') });
     const doBackup = async () => {
       back.disabled = true;
+      deleteBtn.disabled = true; // one change to the relay copy at a time
       back.textContent = t('Backing up…');
       try {
         await backupNwcToRelays();
-        backupState = 'current';
-        status.textContent = NWC_BACKUP_LABEL.current;
-        status.classList.add('done');
-        status.classList.remove('warn');
-        staleNote.classList.add('hidden');
+        showBackupState('current');
         toast(t('Wallet backed up'), 'success');
       } catch (e) {
         toast(e.message, 'error');
       }
       back.disabled = false;
+      deleteBtn.disabled = false;
       back.textContent = t('Back up');
     };
     back.addEventListener('click', () => {
@@ -21645,6 +24677,7 @@
     });
     const doRestore = async () => {
       restore.disabled = true;
+      deleteBtn.disabled = true;
       restore.textContent = t('Restoring…');
       try {
         await restoreNwcFromRelays();
@@ -21653,6 +24686,7 @@
       } catch (e) {
         toast(e.message, 'error');
         restore.disabled = false;
+        deleteBtn.disabled = false;
         restore.textContent = t('Restore');
       }
     };
@@ -21671,6 +24705,36 @@
     exportBtn.append(icon('key'));
     exportBtn.addEventListener('click', exportNwcModal);
     hide(exportBtn); // shown only when a connection exists for the active account
+    // Shown unless the relays are known to hold nothing: "couldn't check" may still be a backup.
+    const deleteBtn = h('button', { className: 'wallet-delete-link', textContent: t('Delete backup') });
+    deleteBtn.prepend(icon('trash'));
+    hide(deleteBtn);
+    const showBackupState = (st) => {
+      backupState = st;
+      status.textContent = NWC_BACKUP_LABEL[st] || NWC_BACKUP_LABEL.unknown;
+      status.classList.toggle('done', st === 'current');
+      status.classList.toggle('warn', st === 'stale');
+      staleNote.classList.toggle('hidden', st !== 'stale');
+      deleteBtn.classList.toggle('hidden', st === 'none');
+    };
+    const doDelete = async () => {
+      // A Back up or Restore started now would race the deletion, and a backup landing
+      // after it would bring the record back.
+      deleteBtn.disabled = back.disabled = restore.disabled = true;
+      try {
+        const { remaining } = await deleteNwcBackup();
+        if (remaining) {
+          toast(tn('{{count}} relay still holds the backup.', '{{count}} relays still hold the backup.', remaining), 'error');
+        } else {
+          showBackupState('none');
+          toast(t('Backup deleted'), 'success');
+        }
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+      deleteBtn.disabled = back.disabled = restore.disabled = false;
+    };
+    deleteBtn.addEventListener('click', () => confirmDeleteNwcBackup(doDelete));
 
     const card = h('div', { className: 'wallet-backup-card' }, [
       h('div', { className: 'wallet-backup-head' }, [
@@ -21680,21 +24744,13 @@
       staleNote,
       h('div', { className: 'wallet-backup-actions' }, [back, restore]),
       exportBtn,
+      deleteBtn,
     ]);
     wrap.append(card);
 
     (statePromise || nwcBackupState())
-      .then((r) => {
-        backupState = (r && r.state) || 'unknown';
-        status.textContent = NWC_BACKUP_LABEL[backupState] || NWC_BACKUP_LABEL.unknown;
-        status.classList.toggle('done', backupState === 'current');
-        status.classList.toggle('warn', backupState === 'stale');
-        staleNote.classList.toggle('hidden', backupState !== 'stale');
-      })
-      .catch(() => {
-        backupState = 'unknown';
-        status.textContent = NWC_BACKUP_LABEL.unknown;
-      });
+      .then((r) => showBackupState((r && r.state) || 'unknown'))
+      .catch(() => showBackupState('unknown'));
     // Only offer export when this account actually has a connection saved.
     call({ type: 'SIDECAR_HAS_NWC', pubkey: state.activePubkey })
       .then((r) => { if (r && r.has) show(exportBtn); })
@@ -22069,6 +25125,13 @@
       pay.addEventListener('click', async () => {
         const val = input.value.replace(/^lightning:/i, '').trim();
         if (!val) return (err.textContent = tSec('Paste an invoice or lightning address.'));
+        // A withdraw link is money coming IN, which is not what this sheet does. Hand it to
+        // Receive's Withdraw tab, which shows what the service offers before anything is sent.
+        if (window.SidecarLnurlWithdraw.looksLikeLink(val)) {
+          closeModal();
+          receiveModal({ withdraw: val });
+          return;
+        }
         err.textContent = '';
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
@@ -22171,9 +25234,51 @@
 
   const RECEIVE_PRESETS = [100, 1000, 5000, 10000];
 
-  function receiveModal() {
+  // The wallet's NIP-47 method list, asked once per client. Unknown (no answer, or a shape
+  // we do not read) is an empty list, which nothing treats as "no": see canMakeInvoice.
+  const walletMethodsCache = new WeakMap();
+  function walletMethodsOf(client) {
+    if (!walletMethodsCache.has(client)) {
+      walletMethodsCache.set(client, client.getInfo()
+        .then((info) => window.SidecarLnurlWithdraw.parseMethods(info && info.methods))
+        .catch(() => []));
+    }
+    return walletMethodsCache.get(client);
+  }
+
+  // What a failed withdrawal says. The module reports codes, never prose, so the sentences
+  // are whole here and a translator sees each one entire. `reason` and `domain` are the
+  // service's own words and name: data, never part of the sentence.
+  function withdrawErrorText(e) {
+    const domain = (e && e.domain) || '';
+    const reason = (e && e.reason) || '';
+    switch (e && e.code) {
+      case 'not-link':
+      case 'bad-link': return tSec("That doesn't read as a withdraw link.");
+      case 'insecure': return tSec("{{domain}} isn't using a secure connection, so Sidecar won't use it.", { domain });
+      case 'private': return tSec("That link points at a private address, so Sidecar won't open it.");
+      case 'unreachable': return tSec("Couldn't reach {{domain}}", { domain });
+      case 'bad-response': return tSec("{{domain}} didn't answer with a withdraw link.", { domain });
+      case 'not-withdraw': return tSec('That link is not a withdraw link.');
+      case 'bad-limits': return tSec('{{domain}} gave withdrawal limits that make no sense.', { domain });
+      case 'refused': return reason ? tSec('{{domain}} said: {{reason}}', { domain, reason }) : tSec('{{domain}} refused the withdrawal.', { domain });
+      case 'restricted': return tSec("This wallet connection doesn't allow creating invoices.");
+      case 'make-invoice': return reason ? tSec("Your wallet couldn't make an invoice: {{reason}}", { reason }) : tSec("Your wallet couldn't make an invoice.");
+      case 'unconfirmed': return tSec("Sidecar can't tell whether the first attempt was paid. Check your wallet's history before trying again.");
+      default: return (e && e.message) || tSec('Something went wrong.');
+    }
+  }
+
+  // opts.withdraw: a link to open straight on the Withdraw tab (Send hands one over).
+  function receiveModal(opts) {
     let pollTimer = null;
     const stopPoll = () => { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } };
+    // Set when the sheet closes, which ends any wait on a withdrawal. The payment itself
+    // does not depend on the sheet: the wallet's own monitor picks it up either way.
+    let withdrawStopped = false;
+    // The invoice last sent to a withdraw service, so a retry asks the wallet whether it was
+    // paid before making another. Kept for the life of the sheet, keyed by the link.
+    let lastAttempt = null;
 
     openModal((modal) => {
       const xClose = h('button', { className: 'modal-x', title: tSec('Close') });
@@ -22186,6 +25291,14 @@
       const tabInvoice = h('button', { className: 'compose-tab active', textContent: tSec('Invoice') });
       tabs.append(tabInvoice);
       modal.append(tabs);
+      // Address and Withdraw arrive when their lookups answer, in either order. Each takes
+      // its own slot (Invoice, Address, Withdraw) so the bar reads the same on every open.
+      const slots = [{ tab: tabInvoice, rank: 0 }];
+      function placeTab(tab, rank) {
+        const later = slots.find((x) => x.rank > rank);
+        if (later) tabs.insertBefore(tab, later.tab); else tabs.append(tab);
+        slots.push({ tab, rank });
+      }
       const body = h('div');
       modal.append(body);
 
@@ -22283,12 +25396,196 @@
         body.append(out);
       }
 
+      // ---- Withdraw: cash an LNURL-withdraw link (or an LNURLcash note) ----------------
+      //
+      // NIP-47 has no withdraw, so the panel does what a withdrawing wallet does: asks the
+      // wallet for an invoice, gives it to the service, and waits to see it land. The steps
+      // live in lnurl-withdraw.js; this is the sheet around them.
+      const W = window.SidecarLnurlWithdraw;
+      // While a withdrawal is in flight the tabs are held, so nothing on screen can drop the
+      // result of an invoice that has already gone to a service.
+      const lockTabs = (locked) => tabs.querySelectorAll('.compose-tab').forEach((b) => { b.disabled = locked; });
+
+      function showWithdrawMode(prefill, notice) {
+        stopPoll();
+        body.innerHTML = '';
+        const input = h('textarea', { className: 'compose-text', placeholder: tSec('Withdraw link (lnurl1…)'), spellcheck: false });
+        input.value = prefill || '';
+        const err = h('div', { className: 'error', textContent: notice || '' });
+        const go = h('button', { className: 'primary', textContent: tSec('Continue') });
+        go.addEventListener('click', async () => {
+          let u;
+          try { u = W.parseLink(input.value); } catch (e) { err.textContent = withdrawErrorText(e); return; }
+          err.textContent = '';
+          body.innerHTML = '';
+          body.append(waitingRow(tSec('Checking {{domain}}…', { domain: u.hostname })));
+          try {
+            const req = await W.fetchRequest(u);
+            if (!withdrawStopped) showWithdrawCard(req);
+          } catch (e) {
+            if (!withdrawStopped) showWithdrawMode(input.value, withdrawErrorText(e));
+          }
+        });
+        body.append(
+          h('label', { textContent: tSec('Withdraw link') }),
+          input,
+          h('p', { className: 'hint', textContent: tSec('Paste a withdraw link or an LNURLcash note to cash it into your wallet.') }),
+          err,
+          h('div', { className: 'actions' }, [go])
+        );
+        if (prefill && !notice) go.click();
+      }
+
+      // What the service offers, before anything is sent: its name and its terms. The
+      // service wrote all of it, so it is textContent and nothing else.
+      function showWithdrawCard(req) {
+        stopPoll();
+        body.innerHTML = '';
+        const range = W.amountRange(req);
+        const card = h('div', { className: 'ln-recipient' });
+        const who = h('div', { className: 'ln-recipient-who' });
+        who.append(h('span', { className: 'ln-recipient-name', textContent: req.domain }));
+        const wholeSats = range.fixedMsat % 1000 === 0;
+        who.append(h('span', {
+          className: 'ln-recipient-limits',
+          textContent: range.fixed
+            ? (wholeSats
+              ? tSec('{{amount}} sats only', { amount: fmtSats(range.fixedMsat / 1000) })
+              : tSec('{{amount}} msats only', { amount: I18N.fmtNum(range.fixedMsat) }))
+            : tSec('{{min}} to {{max}} sats', { min: fmtSats(range.minSats), max: fmtSats(range.maxSats) }),
+        }));
+        card.append(h('div', { className: 'ln-recipient-head' }, [who]));
+        if (req.description) card.append(h('p', { className: 'ln-recipient-desc', textContent: req.description }));
+
+        const amount = satsInput(tSec('Amount in sats'));
+        // Everything on offer is the usual wish: this is money coming in.
+        if (!range.fixed) amount.value = String(range.maxSats);
+        const err = h('div', { className: 'error' });
+        const go = h('button', { className: 'primary' });
+        const back = h('button', { className: 'ghost', textContent: tSec('Back') });
+        const paint = () => {
+          const sats = range.fixed ? (wholeSats ? range.fixedMsat / 1000 : null) : parseInt(amount.value, 10) || 0;
+          go.textContent = sats ? tn('Withdraw {{count}} sat', 'Withdraw {{count}} sats', sats) : tSec('Withdraw');
+        };
+        amount.addEventListener('input', () => { err.textContent = ''; paint(); });
+        paint();
+        back.addEventListener('click', () => showWithdrawMode(''));
+        go.addEventListener('click', () => {
+          const amountMsat = W.msatFor(req, parseInt(amount.value, 10));
+          if (amountMsat == null) {
+            err.textContent = tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(range.minSats), max: fmtSats(range.maxSats) });
+            return;
+          }
+          withdrawNow(req, amountMsat);
+        });
+        body.append(card);
+        if (!range.fixed) body.append(h('label', { textContent: tSec('Amount (sats)') }), amount);
+        body.append(err, h('div', { className: 'actions' }, [go, back]));
+      }
+
+      function showWithdrawProblem(req, text, retry) {
+        body.innerHTML = '';
+        const card = h('div', { className: 'ln-recipient failed' });
+        card.append(h('span', { className: 'ln-recipient-fail-title', textContent: text }));
+        const again = h('button', { className: 'primary', textContent: retry.label });
+        again.addEventListener('click', retry.run);
+        const done = h('button', { className: 'ghost', textContent: tSec('Done') });
+        done.addEventListener('click', closeModal);
+        body.append(card, h('div', { className: 'actions' }, [again, done]));
+      }
+
+      // Wait for the payment to reach the wallet. Reached after the service said OK, which
+      // may only mean the payment is in flight, and after a callback that may or may not
+      // have arrived. Never makes another invoice: that is claim()'s rule, and Try again
+      // goes back through it.
+      async function waitForWithdrawal(req, attempt) {
+        body.innerHTML = '';
+        body.append(waitingRow(tSec('Waiting for {{domain}} to pay…', { domain: req.domain })));
+        lockTabs(true);
+        let result = 'waiting';
+        try {
+          const client = await ensureNwc();
+          result = await W.watch({ client, attempt, isStopped: () => withdrawStopped });
+        } catch (_) {
+          // Could not even ask: the same position as a window that ran out. Nothing is
+          // known, so nothing is retried.
+        } finally {
+          lockTabs(false);
+        }
+        if (withdrawStopped || result === 'stopped') return;
+        if (result === 'settled') {
+          showReceiveSuccess(body, Math.floor(attempt.amountMsat / 1000));
+          renderWallet();
+          renderPinnedBalanceBar();
+        } else if (result === 'failed') {
+          showWithdrawProblem(req, tSec("{{domain}}'s payment didn't go through.", { domain: req.domain }),
+            { label: tSec('Try again'), run: () => showWithdrawCard(req) });
+        } else {
+          showWithdrawProblem(req, tSec('Still waiting for {{domain}}. The payment may yet arrive, so check your wallet before trying again.', { domain: req.domain }),
+            { label: tSec('Check again'), run: () => waitForWithdrawal(req, attempt) });
+        }
+      }
+
+      async function withdrawNow(req, amountMsat) {
+        body.innerHTML = '';
+        body.append(waitingRow(tSec('Asking {{domain}} to pay you…', { domain: req.domain })));
+        lockTabs(true);
+        let outcome;
+        const mine = lastAttempt && lastAttempt.url === req.url && lastAttempt.k1 === req.k1 ? lastAttempt.attempt : null;
+        try {
+          const client = await ensureNwc();
+          outcome = await W.claim({ req, amountMsat, client, previous: mine });
+          lastAttempt = { url: req.url, k1: req.k1, attempt: outcome.attempt };
+        } catch (e) {
+          lockTabs(false);
+          if (e && e.attempt) lastAttempt = { url: req.url, k1: req.k1, attempt: e.attempt };
+          if (withdrawStopped) return;
+          showWithdrawProblem(req, withdrawErrorText(e), { label: tSec('Try again'), run: () => showWithdrawCard(req) });
+          return;
+        }
+        lockTabs(false);
+        if (withdrawStopped) return;
+        if (outcome.state === 'settled') {
+          showReceiveSuccess(body, Math.floor(outcome.attempt.amountMsat / 1000));
+          renderWallet();
+          renderPinnedBalanceBar();
+          return;
+        }
+        waitForWithdrawal(req, outcome.attempt);
+      }
+
       tabInvoice.addEventListener('click', () => {
         tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
         tabInvoice.classList.add('active');
         showInvoiceMode();
       });
       showInvoiceMode();
+
+      // The Withdraw tab, once the wallet has said it can make an invoice. A wallet whose
+      // method list leaves make_invoice out never sees it; one that told us nothing does.
+      function addWithdrawTab(active, link) {
+        const tab = h('button', { className: 'compose-tab', textContent: tSec('Withdraw') });
+        tab.addEventListener('click', () => {
+          tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          showWithdrawMode('');
+        });
+        placeTab(tab, 2);
+        if (active) {
+          tabs.querySelectorAll('.compose-tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          showWithdrawMode(link);
+        }
+      }
+      ensureNwc().then((client) => (client ? walletMethodsOf(client) : [])).then((methods) => {
+        const link = opts && opts.withdraw;
+        if (W.canMakeInvoice(methods)) return addWithdrawTab(!!link, link);
+        if (link) {
+          // Handed a link by Send on a wallet that cannot cash it: say so, rather than land
+          // on an invoice form with no hint of why nothing happened.
+          showWithdrawProblem(null, withdrawErrorText({ code: 'restricted' }), { label: tSec('Back'), run: showInvoiceMode });
+        }
+      }).catch(() => {});
 
       // If a lightning address is available (NWC string or profile), add an
       // Address tab so the user can toggle between an invoice and their address.
@@ -22300,9 +25597,9 @@
           tabAddress.classList.add('active');
           showAddressMode(lud16);
         });
-        tabs.append(tabAddress);
+        placeTab(tabAddress, 1);
       });
-    }, stopPoll);
+    }, () => { stopPoll(); withdrawStopped = true; });
   }
 
   function showReceiveSuccess(container, sats) {
@@ -22313,7 +25610,9 @@
     wrap.append(
       badge,
       h('div', { className: 'recv-success-title', textContent: tSec('Payment received') }),
-      h('div', { className: 'recv-success-amt', textContent: '+' + tn('{{count}} sat', '{{count}} sats', sats) })
+      // The LRM in front keeps the "+" on the left of the number on a right-to-left page,
+      // where a sign at the start of a line would otherwise land on its far side ("21+").
+      h('div', { className: 'recv-success-amt', textContent: '\u200E+' + tn('{{count}} sat', '{{count}} sats', sats) })
     );
     const done = h('button', { className: 'primary', textContent: tSec('Done') });
     done.addEventListener('click', closeModal);
@@ -22625,7 +25924,7 @@
   // ---- About + zap the creator (opened from the Sidecar logo) ----
   function aboutModal() {
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: t('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
 
@@ -22648,16 +25947,16 @@
         if (rec && rec.name) creator.textContent = '@' + rec.name.replace(/^@/, '');
       }).catch(() => {});
 
-      const website = h('a', { className: 'about-link', textContent: 'Website', href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const privacy = h('a', { className: 'about-link', textContent: 'Privacy Policy', href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });
+      const website = h('a', { className: 'about-link', textContent: t('Website'), href: SIDECAR_SITE_URL, target: '_blank', rel: 'noopener noreferrer' });
+      const privacy = h('a', { className: 'about-link', textContent: t('Privacy Policy'), href: SIDECAR_SITE_URL + '/privacy', target: '_blank', rel: 'noopener noreferrer' });
       const repo = h('a', { className: 'about-link', textContent: 'GitHub', href: GITHUB_URL, target: '_blank', rel: 'noopener noreferrer' });
-      const support = h('a', { className: 'about-link', textContent: 'Support', href: SIDECAR_SITE_URL + '/support', target: '_blank', rel: 'noopener noreferrer' });
-      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode('Donate '), boltIcon()]);
+      const support = h('a', { className: 'about-link', textContent: t('Support'), href: SIDECAR_SITE_URL + '/support', target: '_blank', rel: 'noopener noreferrer' });
+      const zap = h('button', { className: 'about-link about-link-btn' }, [document.createTextNode(t('Donate') + ' '), boltIcon()]);
       zap.addEventListener('click', () => { closeModal(); creatorZapModal(); });
 
       // Firefox has no requestUpdateCheck — the browser updates add-ons itself.
       const canCheckUpdates = typeof chrome.runtime.requestUpdateCheck === 'function';
-      const updateBtn = h('button', { className: 'about-update-btn', textContent: 'Check for updates' });
+      const updateBtn = h('button', { className: 'about-update-btn', textContent: t('Check for updates') });
       const updateStatus = h('p', { className: 'hint about-update-status' });
       updateBtn.addEventListener('click', () => checkForUpdates(updateBtn, updateStatus));
 
@@ -22674,8 +25973,8 @@
         xClose,
         h('div', { className: 'about-modal' }, [
           logo,
-          h('p', { className: 'about-description', textContent: 'A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.' }),
-          h('div', { className: 'about-creator' }, [document.createTextNode('Created by '), creator]),
+          h('p', { className: 'about-description', textContent: t('A classy multi-account Nostr signer with a built-in Lightning wallet. Your keys stay encrypted on this device.') }),
+          h('div', { className: 'about-creator' }, I18N.fill(t('Created by {{creator}}', { creator: '{{creator}}' }), { creator })),
           // The height is data, so it goes in as a parameter, ungrouped: a block height
           // is an identifier people look up, written the way explorers write it.
           h('a', {
@@ -22697,10 +25996,10 @@
   async function creatorZapModal() {
     const { has } = await call({ type: 'SIDECAR_HAS_NWC' });
     openModal((modal) => {
-      const xClose = h('button', { className: 'modal-x', title: 'Close' });
+      const xClose = h('button', { className: 'modal-x', title: t('Close') });
       xClose.append(icon('x'));
       xClose.addEventListener('click', closeModal);
-      modal.append(xClose, h('h3', {}, [document.createTextNode('Zap the creator '), boltIcon()]));
+      modal.append(xClose, h('h3', {}, [document.createTextNode(t('Zap the creator') + ' '), boltIcon()]));
 
       const qr = h('div', { className: 'recv-out' });
       const canvas = document.createElement('canvas');
@@ -22710,33 +26009,33 @@
       copy.addEventListener('click', async () => {
         try {
           await copyPlain(CREATOR_LN);
-          copy.textContent = 'Copied ✓';
+          copy.textContent = t('Copied ✓');
           setTimeout(() => (copy.textContent = CREATOR_LN), 1200);
         } catch (_) {}
       });
-      qr.append(canvas, copy, h('p', { className: 'hint', textContent: 'Scan to zap from any wallet.' }));
+      qr.append(canvas, copy, h('p', { className: 'hint', textContent: t('Scan to zap from any wallet.') }));
       modal.append(qr);
 
       // No connected wallet: leave the QR/address only, with a gentle nudge.
       if (!has) {
-        modal.append(h('p', { className: 'hint zap-noconnect', textContent: 'Connect a wallet in the Wallet tab to zap from here.' }));
+        modal.append(h('p', { className: 'hint zap-noconnect', textContent: t('Connect a wallet in the Wallet tab to zap from here.') }));
         return;
       }
 
       // Inline send via the connected NWC wallet.
       const err = h('div', { className: 'error' });
-      const message = h('input', { type: 'text', placeholder: 'Message (optional)', value: 'Thanks for Sidecar! 🍸', maxLength: 200 });
+      const message = h('input', { type: 'text', placeholder: t('Message (optional)'), value: 'Thanks for Sidecar! 🍸', maxLength: 200 });
       const amount = satsInput('sats');
-      const send = h('button', { className: 'primary', textContent: 'Zap' });
-      const creatorGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => 'Zap', confirmLabel: 'Confirm' });
+      const send = h('button', { className: 'primary', textContent: tSec('Zap') });
+      const creatorGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Zap'), confirmLabel: tSec('Confirm') });
       amount.addEventListener('input', creatorGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
-        if (!sats || sats < 1) return (err.textContent = 'Enter an amount in sats.');
+        if (!sats || sats < 1) return (err.textContent = tSec('Enter an amount in sats.'));
         err.textContent = '';
         if (!creatorGate.pass(sats)) return;
         send.disabled = true;
-        send.textContent = 'Sending…';
+        send.textContent = t('Sending…');
         // One payment bar for every path (#495): the flight starts once the invoice
         // exists and the payment is genuinely going out, so a failure before that
         // still fails back into this form.
@@ -22758,7 +26057,7 @@
         }
       });
       modal.append(
-        h('label', { textContent: 'Message' }),
+        h('label', { textContent: t('Message') }),
         message,
         h('div', { className: 'zap-inline' }, [amount, send]),
         err
@@ -22769,7 +26068,7 @@
   // Footer logo on every screen (main tabs + settings) opens the About card.
   document.querySelectorAll('.brand-foot').forEach((foot) => {
     foot.classList.add('brand-foot-btn');
-    foot.title = 'About Sidecar';
+    foot.title = t('About Sidecar');
     foot.addEventListener('click', aboutModal);
   });
 
@@ -22864,6 +26163,11 @@
     }).observe(el, { attributes: true, attributeFilter: ['class'] });
   }
 
+  // The pay-anywhere question is a surface of the same kind: no game beside it either.
+  new MutationObserver(() => {
+    if (!$('view-payanywhere').classList.contains('hidden')) closeRider();
+  }).observe($('view-payanywhere'), { attributes: true, attributeFilter: ['class'] });
+
   $('autolock-select').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: Number(e.target.value) } });
   });
@@ -22892,6 +26196,14 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { payPillAnywhere: e.target.checked } });
   });
 
+  $('btc-sweep-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { btcSweep: e.target.checked } });
+    // The card lives on the Wallet tab; render it (or take it away) right away.
+    btcSweepOn = e.target.checked;
+    const active = document.querySelector('.tab.active');
+    if (active && active.dataset.tab === 'wallet') renderWallet();
+  });
+
   $('webln-takeover-toggle').addEventListener('change', async (e) => {
     // Rides the live settings push (pushPageSettings) to every open page, so taking
     // over — or handing the slot back — needs no reload.
@@ -22902,8 +26214,16 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { showClientTag: e.target.checked } });
   });
 
+  $('videoimeta-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { videoImeta: e.target.checked } });
+  });
+
   $('datasync-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { confirmDataSync: e.target.checked } });
+  });
+
+  $('relax-per-account-toggle').addEventListener('change', async (e) => {
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { relaxPerAccount: e.target.checked } });
   });
 
   $('na-toggle').addEventListener('change', async (e) => {
@@ -23020,7 +26340,7 @@
     _notifCache.get(state.activePubkey)?.refetch?.();
   });
 
-  // Use them for notifications: shown under Use bootstrap relays while it is off.
+  // Use for notifications only: shown under Use bootstrap relays while it is off.
   $('notif-bootstrap-toggle').addEventListener('change', async (e) => {
     await call({ type: 'SIDECAR_SET_NOTIF_BOOTSTRAP', pubkey: state.activePubkey, on: e.target.checked });
     _notifCache.get(state.activePubkey)?.refetch?.();
@@ -23339,18 +26659,81 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoZapDailyMaxSats: daily } });
   });
 
-  $('relay-add').addEventListener('click', async () => {
-    const input = $('relay-input');
-    let url = input.value.trim();
-    if (!url) return;
-    if (!/^wss?:\/\//.test(url)) url = 'wss://' + url;
+  // Adding a relay to the Settings list: normalize what was typed, then ask the relay
+  // itself before saving it. The same shape as the Profile tab's NIP-65 editor — the
+  // address bar's https://relay.nostr.build becomes wss://relay.nostr.build instead of
+  // the mangled entry the old prefix-only code produced, and a relay that fails the
+  // probe gets an "Add anyway?" question on its own row, because a relay the app cannot
+  // reach is notes it cannot publish.
+  //
+  // The relay whose probe failed, kept between the question and the answer so "Add
+  // anyway" saves exactly what was probed, even if the field has been edited since.
+  let relayAddPending = '';
+  const relayAddConfirm = $('relay-add-confirm');
+  const relayAddMsg = $('relay-add-confirm-msg');
+
+  function hideRelayAddConfirm() {
+    relayAddPending = '';
+    relayAddConfirm.classList.add('hidden');
+  }
+
+  async function saveRelayAdd(url) {
     const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
     relays[url] = { read: true, write: true };
     await call({ type: 'SIDECAR_SET_RELAYS', relays });
     refreshAuthRelays().catch(() => {});
-    input.value = '';
+    $('relay-input').value = '';
+    hideRelayAddConfirm();
     renderSettings();
+  }
+
+  // A field edit means the pending question is about a URL that is no longer on screen;
+  // leaving it up would let "Add anyway" add something other than what the user is now
+  // looking at.
+  $('relay-input').addEventListener('input', () => {
+    $('relay-add-error').textContent = '';
+    hideRelayAddConfirm();
   });
+
+  $('relay-add').addEventListener('click', async () => {
+    const input = $('relay-input');
+    const addBtn = $('relay-add');
+    if (addBtn.disabled) return; // a probe from the previous click is still out
+    if (!input.value.trim()) return;
+    $('relay-add-error').textContent = '';
+    hideRelayAddConfirm();
+
+    const RH = self.SidecarRelayHealth;
+    if (!RH) return; // the module is on every panel load; without it Add does nothing, like Check
+    const n = RH.normalizeRelayUrl(input.value);
+    if (!n.ok) { $('relay-add-error').textContent = t("That doesn't look like a relay URL."); return; }
+    // The clamped value, written back into the field — a silent change to what was
+    // typed would sit on screen looking like what the user entered (see default-zap).
+    input.value = n.url;
+
+    const relays = await call({ type: 'SIDECAR_GET_RELAYS' });
+    if (relays[n.url]) { input.value = ''; return; } // already saved, silently like the NIP-65 editor
+
+    addBtn.disabled = true;
+    addBtn.textContent = t('Checking…');
+    let p = null;
+    try { p = await RH.probe(n.url, null, {}); } catch (_) {} // a probe that throws reads as unreachable
+    addBtn.disabled = false;
+    addBtn.textContent = t('Add');
+
+    if (p && !RH.blocksAdd(p)) { await saveRelayAdd(n.url); return; }
+    relayAddPending = n.url;
+    relayAddMsg.textContent = p && p.up
+      ? t('{{url}} is up but not answering requests. Add it anyway?', { url: n.url })
+      : t("Couldn't reach {{url}}. Add it anyway?", { url: n.url });
+    relayAddConfirm.classList.remove('hidden');
+  });
+
+  $('relay-add-anyway').addEventListener('click', () => {
+    if (relayAddPending) saveRelayAdd(relayAddPending);
+    else hideRelayAddConfirm();
+  });
+  $('relay-add-cancel').addEventListener('click', hideRelayAddConfirm);
 
   if (typeof chrome.runtime.requestUpdateCheck === 'function') {
     $('check-update-btn').addEventListener('click', () => {
@@ -23557,6 +26940,21 @@
       24133: tSec('This is a remote-signing handshake. Approving it could hand control of your account to another app or device.'),
     };
   }
+  // A SIGN CARD SAYS WHAT IT SIGNS, in the line under the host. Every sign card used to read
+  // "wants to sign an event with your key", so a run of them from one site (an app's
+  // settings sync, a like, a post) looked like the same card refusing to go away, and the
+  // kind sat further down in the preview. The kind's name rides in as a parameter after a
+  // colon, which no language has to build an article around. An unrecognized kind keeps
+  // the general line; the preview still gives its number and the warning. Same as prompt.js.
+  function approvalAsk(data) {
+    if (data && data.method === 'signEvent') {
+      const ev = data.params && (data.params.event || data.params);
+      const label = ev && ev.kind != null ? approvalKindLabels()[ev.kind] : null;
+      if (label) return tSec('wants to sign: {{kind}}', { kind: label });
+    }
+    return approvalMethodAsk(data && data.method);
+  }
+
   // The number beside the name, always (docs/i18n-design.md §3.7). Same as prompt.js.
   function approvalKindLabel(kind) {
     if (kind == null) return '—';
@@ -23893,49 +27291,19 @@
     // A payment's switch button is worded by the capsule ("Pay from a different account"); the
     // shared-identity wording below is for signing.
     if (isPaymentApproval(data)) return;
-    if (!data.sharedIdentity) {
-      $('approval-switch-toggle').textContent = tSec('Sign in with a different account');
-      return;
-    }
+    if (!data.sharedIdentity) return;
     await sharedHeadsUpReady; // the flags are known before a branch is taken
-    $('approval-switch-toggle').textContent = tSec('Sign as a different account');
     const acct = $('approval-account');
     if (!acct) return;
-    // Opted out: no note at all. The confirm itself and the account picker stay —
+    // Opted out: no note at all. The confirm itself and the account menu stay —
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
-    let note;
-    if (sharedHeadsUp.dismissed) {
-      note = h('div', { id: 'approval-shared-note', className: 'shared-caption' }, [
-        icon('users'),
-        h('span', { textContent: tSec('Multiple accounts used') }),
-      ]);
-    } else {
-      note = h('div', { id: 'approval-shared-note', className: 'shared-headsup' }, [
-        h('div', { className: 'shared-headsup-title' }, [icon('users'), h('span', { textContent: t('Heads up!') })]),
-        h('p', {
-          className: 'shared-headsup-body',
-          textContent: tSec("Multiple accounts are signed in here. Confirm who's posting each time."),
-        }),
-      ]);
-      const got = h('button', { className: 'shared-headsup-btn', textContent: t('Got it') });
-      got.addEventListener('click', () => {
-        sharedHeadsUp.dismissed = true;
-        chrome.storage.local.set({ sharedHeadsUpDismissed: true });
-        renderSharedNote(data); // collapse to the compact caption immediately
-      });
-      // THE QUIET SECOND ANSWER. Some users have seen the explainer, understand the
-      // choice, and want the note gone altogether — "Got it" only ever collapsed it
-      // to the caption, and the caption never ended. This writes the opt-out both
-      // surfaces and the Settings restorer all read.
-      const never = h('button', { className: 'shared-headsup-btn shared-headsup-btn-quiet', textContent: t("Don't show this again") });
-      never.addEventListener('click', () => {
-        sharedHeadsUp.optedOut = true;
-        chrome.storage.local.set({ sharedHeadsUpOptOut: true });
-        renderSharedNote(data); // gone altogether, immediately
-      });
-      note.append(h('div', { className: 'shared-headsup-actions' }, [got, never]));
-    }
+    // Two lines, no buttons: the fact, then the ask, which carries the weight. The
+    // 30-minute window sits in the scope row on the same card, so this does not point at it.
+    const note = h('p', { id: 'approval-shared-note', className: 'shared-caption' }, [
+      h('span', { textContent: tSec('Multiple accounts are signed in here.') }),
+      h('strong', { textContent: tSec('Confirm who’s posting each time.') }),
+    ]);
     acct.parentNode.insertBefore(note, acct);
   }
 
@@ -23999,6 +27367,7 @@
     ];
   }
 
+  let approvalSwitchToggle = null;
   function renderApprovalAccountCapsule(data) {
     const payment = isPaymentApproval(data);
     const payOptions = payment ? (data.payFromOptions || []) : [];
@@ -24009,25 +27378,30 @@
     const acct = $('approval-account');
     acct.innerHTML = '';
     acct.append(h('div', { className: 'approval-as', textContent: payment ? tSec('Paying from') : tSec('Signing as') }));
-    acct.append(
-      h('div', { className: 'active-account approval-capsule' }, [
-        avatarEl({ picture: chosen.picture }, 'aa-avatar'),
-        h('div', { className: 'aa-info' }, [
-          h('div', { className: 'aa-label', textContent: chosen.name || shortNpub(chosen.npub) }),
-          h('div', { className: 'aa-npub', textContent: shortNpub(chosen.npub) }),
-        ]),
-      ])
-    );
+    const capsule = h('div', { className: 'active-account approval-capsule' }, [
+      avatarEl({ picture: chosen.picture }, 'aa-avatar'),
+      h('div', { className: 'aa-info' }, [
+        h('div', { className: 'aa-label', textContent: chosen.name || shortNpub(chosen.npub) }),
+        h('div', { className: 'aa-npub', textContent: shortNpub(chosen.npub) }),
+      ]),
+    ]);
+    acct.append(capsule);
 
-    const toggle = $('approval-switch-toggle');
+    // Held, not looked up: the toggle lives inside the capsule while it is offered, and
+    // the capsule is rebuilt (and the old one dropped from the document) on every render.
+    const toggle = approvalSwitchToggle || (approvalSwitchToggle = $('approval-switch-toggle'));
     const menu = $('approval-switch-menu');
+    // The detach group ("Other accounts") opens the menu too, as in prompt.js: on a host
+    // with one account signed in, it is the only way to reach the others.
+    const detachable = !payment && !!data.wrongAccountEscape && Array.isArray(data.allAccounts) &&
+      data.allAccounts.some((a) => !list.some((x) => x.pubkey === a.pubkey));
     const canSwitch = payment
       ? payOptions.length > 0 && !!data.payerPubkey
-      : Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0;
+      : (Array.isArray(data.otherAccounts) && data.otherAccounts.length > 0) || detachable;
     menu.innerHTML = '';
     hide(menu);
     // The same button serves both cards, so its words follow the card it is on.
-    toggle.textContent = payment ? t('Pay from a different account') : t('Sign in with a different account');
+    toggle.textContent = payment ? t('Pay from a different account') : t('Use a different account');
     // "Use {name} for all further payments on this site": offered once another account is
     // picked, unticked every time the pick changes, so keeping a site on an account is
     // always a deliberate tap and never a leftover from an earlier pick.
@@ -24043,27 +27417,46 @@
       hide(toggle);
       return;
     }
+    // The capsule IS the switch: the toggle covers it (styles.css), keeping its words for
+    // screen readers, and a chevron on the capsule says it opens.
     show(toggle);
+    capsule.classList.add('switchable');
+    capsule.append(toggle);
+    toggle.setAttribute('aria-expanded', 'false');
     toggle.onclick = () => {
-      if (menu.classList.contains('hidden')) {
-        buildApprovalSwitchMenu(data, list, chosen.pubkey);
+      const open = menu.classList.contains('hidden');
+      if (open) {
+        buildApprovalAccountMenu(data, list, chosen.pubkey);
         show(menu);
       } else {
         hide(menu);
       }
+      toggle.setAttribute('aria-expanded', String(open));
+      capsule.classList.toggle('open', open);
     };
   }
 
-  function buildApprovalSwitchMenu(data, list, chosenPubkey) {
+  // ONE account menu with two groups, where the old card stacked two escape
+  // hatches. Group 1 ("Signed in here") is the switcher's own list: picking a row
+  // chooses who signs this event and the card stays open. Group 2 ("Other
+  // accounts") is the detach escape, shown when this host has 2+ signed-in
+  // accounts and the intended identity is not among the switcher's rows: picking
+  // a row cancels the request and makes that account active. The two lists are
+  // disjoint by construction, so no account repeats.
+  function buildApprovalAccountMenu(data, list, chosenPubkey) {
     const menu = $('approval-switch-menu');
     menu.innerHTML = '';
-    list.forEach((a) => {
-      const isChosen = a.pubkey === chosenPubkey;
-      const row = h('button', { className: 'acct-row' + (isChosen ? ' active' : '') });
+    // `detach` is fixed per row when the row is built. It used to be read from a
+    // variable that flipped to true once the first group was built, so by click time
+    // every row detached: picking an account under "Signed in here" canceled the
+    // request and unbound the site instead of choosing who signs.
+    const row = (a, detach) => {
+      const isChosen = !detach && a.pubkey === chosenPubkey;
+      const b = h('button', { className: 'acct-row' + (isChosen ? ' active' : '') });
       const av = document.createElement('span');
       av.className = 'acct-row-av';
       applyAvatar(av, a);
-      row.append(
+      b.append(
         av,
         h('div', { className: 'acct-row-info' }, [
           h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
@@ -24073,9 +27466,13 @@
       if (isChosen) {
         const c = icon('check');
         c.classList.add('acct-row-check');
-        row.append(c);
+        b.append(c);
       }
-      row.addEventListener('click', () => {
+      b.addEventListener('click', () => {
+        if (detach) {
+          decideApproval('detach', { detachPubkey: a.pubkey });
+          return;
+        }
         if (isPaymentApproval(data) && data.payerPubkey) {
           // Paying from this account; the card's own account is "no pick".
           pendingApproval.payFrom = a.pubkey === data.payerPubkey ? null : a.pubkey;
@@ -24086,8 +27483,30 @@
         hide(menu);
         renderApprovalAccountCapsule(data);
       });
-      menu.append(row);
-    });
+      return b;
+    };
+    if (!isPaymentApproval(data)) {
+      const g1 = h('div', { className: 'menu-group' });
+      g1.append(h('div', { className: 'menu-head', textContent: t('Signed in here') }));
+      list.forEach((a) => g1.append(row(a, false)));
+      menu.append(g1);
+      const others = data.wrongAccountEscape && Array.isArray(data.allAccounts)
+        ? data.allAccounts.filter((a) => !list.some((x) => x.pubkey === a.pubkey))
+        : [];
+      if (others.length) {
+        const g2 = h('div', { className: 'menu-group' });
+        g2.append(h('div', { className: 'menu-head', textContent: t('Other accounts') }));
+        g2.append(h('p', { className: 'menu-lede', textContent: t('Cancels this request and makes the selected account active.') }));
+        others.forEach((a) => {
+          const r = row(a, true);
+          if (a.active) r.append(h('span', { className: 'wrong-acct-tag', textContent: t('Active') }));
+          g2.append(r);
+        });
+        menu.append(g2);
+      }
+    } else {
+      list.forEach((a) => menu.append(row(a, false)));
+    }
   }
 
   // "Wrong account?" escape. Offers exactly the accounts the switcher above cannot: it
@@ -24103,64 +27522,8 @@
   // Shown generously (see the gate in background.js — any content sign with 2+ accounts).
   // Sidecar can't see the client's UI, so it can't tell a correct prompt from a wrong one;
   // only the user can.
-  function renderWrongAcctEscape(data) {
-    const hint = $('approval-wrong-acct');
-    const toggle = $('approval-wrong-acct-toggle');
-    const list = $('approval-wrong-acct-list');
-    if (!hint || !toggle || !list) return;
-    // Collapse on every render, not just the first: the panel re-shows the approval on
-    // queue advance and unlock, and an expanded list left over from the previous request
-    // would be offering to detach a different host.
-    list.innerHTML = '';
-    hide(list);
-    toggle.setAttribute('aria-expanded', 'false');
-    const accts = Array.isArray(data.allAccounts) ? data.allAccounts : [];
-    if (!data.wrongAccountEscape || !accts.length) {
-      hide(hint);
-      return;
-    }
-    show(hint);
-    toggle.onclick = () => {
-      if (list.classList.contains('hidden')) {
-        buildWrongAcctList(data, accts);
-        show(list);
-        toggle.setAttribute('aria-expanded', 'true');
-      } else {
-        hide(list);
-        toggle.setAttribute('aria-expanded', 'false');
-      }
-    };
-  }
 
-  function buildWrongAcctList(data, accts) {
-    const list = $('approval-wrong-acct-list');
-    list.innerHTML = '';
-    // Only the two things the user can't learn afterwards: that this cancels, and that the
-    // switch is app-wide rather than just this site. "Makes the selected account active"
-    // carries the second in Sidecar's own vocabulary, tying to the ACTIVE tag on the row
-    // below.
-    // The reconnect instruction is deliberately NOT here — it lands as a toast the moment
-    // the detach settles, with the account name filled in, which this can't do. Three lines
-    // of lede in a sidebar to pre-announce it was too much.
-    list.append(h('p', { className: 'wrong-acct-lede', textContent: tSec('Cancels this request and makes the selected account active.') }));
-    accts.forEach((a) => {
-      const row = h('button', { className: 'acct-row' });
-      const av = document.createElement('span');
-      av.className = 'acct-row-av';
-      applyAvatar(av, a);
-      row.append(
-        av,
-        h('div', { className: 'acct-row-info' }, [
-          h('div', { className: 'acct-row-name', textContent: a.name || shortNpub(a.npub) }),
-          h('div', { className: 'acct-row-npub', textContent: shortNpub(a.npub) }),
-        ])
-      );
-      if (a.active) row.append(h('span', { className: 'wrong-acct-tag', textContent: t('Active') }));
-      row.addEventListener('click', () => decideApproval('detach', { detachPubkey: a.pubkey }));
-      list.append(row);
-    });
-  }
-
+  let scopeCardId = null; // the card the scope row's selection belongs to
   function showApproval() {
     if (!pendingApproval) return;
     // Tell the worker this is actually on screen. It hands an approval to the panel and
@@ -24195,13 +27558,10 @@
     $('approval-host').textContent = data.host;
     $('approval-ask').textContent = payment
       ? tSec('wants to send a Lightning payment')
-      : approvalMethodAsk(data.method);
+      : approvalAsk(data);
 
     renderApprovalAccountCapsule(data);
-    renderWrongAcctEscape(data);
 
-    // Shared-identity confirm: host signed in with 2+ of your accounts. Make the
-    // "who's posting" choice explicit; relabel the switcher for signing context.
     renderSharedNote(data);
 
     renderApprovalPreview(data);
@@ -24280,10 +27640,12 @@
         // WebLN reads grant the rest of the session (the consent note under the
         // preview says so) — the button can't claim "once" when it means "until
         // Sidecar locks". Mirrors the payment relabel just above.
+        // Sign on a sign card, as in prompt.js, even when the card has no scope row
+        // (an overwrite warning, a wallet-control kind); Allow once on anything else.
         allow.textContent =
           data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice'
             ? tSec('Allow this session')
-            : tSec('Allow once');
+            : data.method === 'signEvent' ? t('Sign') : tSec('Allow once');
         show(trust);
       }
     }
@@ -24333,43 +27695,76 @@
     // unwarned. Honoring the flag rather than re-deriving the rule is the point: this
     // gate, prompt.js's, and the background's were three separate copies, and a
     // profile edit that wasn't itself destructive slipped past all but the background.
-    const relaxRow = $('approval-relax-row');
     const offerRelax =
       !payment && groupN === 1 && data.needApproval && !data.destructive &&
       data.relaxEligible !== false &&
       (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
-    if (offerRelax) {
-      show(relaxRow);
-      relaxRow.querySelectorAll('.relax-chip').forEach((chip) => {
-        chip.onclick = () => decideApproval('relax', { relaxMs: Number(chip.dataset.mins) * 60000 });
-      });
-    } else {
-      hide(relaxRow);
+    const scopeFs = $('approval-scope');
+    const signCard = data.method === 'signEvent' && !isPaymentApproval(data);
+    // The Always segment shares the relax row's single-card rule, and adds the
+    // background's grantability verdict for this kind (canKindGrant already
+    // excludes the kinds RELAX.neverRelaxes names).
+    const offerAlwaysKind =
+      !payment && groupN === 1 && data.needApproval &&
+      data.canKindGrant && signCard;
+    // Every card starts at Once — per card, not per render: the panel re-shows a
+    // pending card on incidental refreshes, and that must not undo a pick, while a
+    // pick made on the last card (even one with no scope row) must not carry over.
+    if (scopeCardId !== pendingApproval.id) {
+      scopeCardId = pendingApproval.id;
+      $('approval-scope-once').checked = true;
     }
-
-    // "Always allow this event type" (#482): on a single card whose kind a
-    // standing grant may cover, offer the checkbox and say exactly what
-    // ticking it signs from now on — site, account, kind, and the record's
-    // `d` tag when the event carries one. textContent only: host and `d` are
-    // page-controlled. Single cards only — a batch shares its kind but not
-    // necessarily its `d` record, so one checkbox cannot describe what it
-    // would save. Toggled on every render (this card is reused) and unticked
-    // on every fresh card, like the payment offers above.
-    const alwaysKindOffer = $('approval-always-kind-offer');
-    const offerAlwaysKind = !payment && groupN === 1 && data.needApproval && data.canKindGrant;
-    if (offerAlwaysKind) {
+    if (offerRelax || offerAlwaysKind) {
+      // THE SCOPE ROW: Once is the default on every card; the 30-minute window
+      // and Always appear only when this render offers them, and the caption
+      // under the row says what the chosen segment does. The primary button's
+      // label follows the segment on sign cards (Sign · Sign for 30 min ·
+      // Always sign); every other method keeps "Allow once".
+      show(scopeFs);
+      $('approval-scope-relax-opt').classList.toggle('hidden', !offerRelax);
+      $('approval-scope-always-opt').classList.toggle('hidden', !offerAlwaysKind);
       const kindEv = data.params && (data.params.event || data.params);
       const kind = kindEv ? kindEv.kind : null;
       const kindName = approvalKindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
-      const who = data.accountName || shortNpub(data.npub);
-      $('approval-always-kind-note').textContent = data.kindDTag != null
-        ? tSec('Sidecar will sign {{host}}’s future {{kind}} events named “{{d}}” as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, d: data.kindDTag, account: who })
-        : tSec('Sidecar will sign {{host}}’s future {{kind}} events as {{account}} without asking, until you remove it in the Activity tab.', { host: data.host, kind: kindName, account: who });
-      $('approval-always-kind-box').checked = false;
-      show(alwaysKindOffer);
+      // A one-line header over the row, one sentence per segment, the same as
+      // prompt.js. All three share one cell (styles.css), so the row never moves.
+      $('approval-scope-cap-once').textContent = tSec('Asks again next time.');
+      $('approval-scope-cap-relax').textContent = signCard
+        ? tSec('Signs here without asking for 30 minutes.')
+        : tSec('Approves this kind here without asking for 30 minutes.');
+      $('approval-scope-cap-always').textContent = data.kindDTag != null
+        ? tSec('Signs future versions of “{{d}}” here without asking.', { d: data.kindDTag })
+        : tSec('Signs future {{kind}} events here without asking.', { kind: kindName });
+      const radios = [$('approval-scope-once'), $('approval-scope-relax'), $('approval-scope-always')];
+      const applyScope = () => {
+        // The button says what pressing it does for THIS segment — on every card,
+        // not just sign cards: a 30-minute window under an "Allow once" label is
+        // the same lie that started this redesign.
+        if (!signCard && $('approval-scope-relax').checked) { $('approval-allow').textContent = t('Allow for 30 min'); return; }
+        if (!signCard) { $('approval-allow').textContent = t('Allow once'); return; }
+        if ($('approval-scope-always').checked) $('approval-allow').textContent = t('Always sign');
+        else if ($('approval-scope-relax').checked) $('approval-allow').textContent = t('Sign for 30 min');
+        else $('approval-allow').textContent = t('Sign');
+      };
+      // The caption under the row follows the selection too — without this the
+      // Once caption stayed visible over a 30-minute selection.
+      const setCap = () => {
+        $('approval-scope-cap-once').classList.toggle('on', $('approval-scope-once').checked);
+        $('approval-scope-cap-relax').classList.toggle('on', offerRelax && $('approval-scope-relax').checked);
+        $('approval-scope-cap-always').classList.toggle('on', offerAlwaysKind && $('approval-scope-always').checked);
+      };
+      // Assigned, not added: the radios are static and this runs on every card, so
+      // addEventListener would stack one handler per card, each holding that card's
+      // signCard/offerRelax.
+      radios.forEach((r) => { r.onchange = () => { applyScope(); setCap(); }; });
+      applyScope();
+      setCap();
     } else {
-      hide(alwaysKindOffer);
+      hide(scopeFs);
     }
+
+    // The standing-grant checkbox (#482) is gone: its offer is the scope row's
+    // Always segment above, and offerAlwaysKind is computed there.
 
     // Point at Trust once this site has been approved one-time several times over.
     // textContent, never innerHTML — `host` is attacker-controlled.
@@ -24435,7 +27830,7 @@
           st && st.status === 'throttled' ? tSec('Too many attempts. Try again in {{seconds}}s.', { seconds: Math.ceil(st.waitMs / 1000) })
           : st && st.status === 'bad' ? tn('Incorrect PIN. {{count}} attempt left before all data is erased.', 'Incorrect PIN. {{count}} attempts left before all data is erased.', st.remaining)
           : st && st.status === 'wiped' ? tSec('Too many attempts. All data on this device was erased.')
-          : (resp && resp.error) || tSec('Incorrect PIN');
+          : I18N.controlError(st) || I18N.controlError(resp) || tSec('Incorrect PIN');
         $('approval-pin').value = '';
         $('approval-pin').focus();
         return;
@@ -24460,7 +27855,7 @@
     }
     // Timed auto-sign window chosen via the relax chips.
     if (action === 'relax') {
-      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 15 * 60000 });
+      extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 30 * 60000 });
     }
     // Carry the still-ticked auto-zap offer back with the approval. Only an approval
     // reaches here, so declining the payment can never enable the setting.
@@ -24477,7 +27872,7 @@
     // re-validates eligibility before writing anything. The box is hidden on
     // batch cards, so an "Allow all" can never attach a grant.
     if (pendingApproval && pendingApproval.data && pendingApproval.data.canKindGrant &&
-        action === 'once' && $('approval-always-kind-box').checked) {
+        action === 'once' && $('approval-scope-always') && $('approval-scope-always').checked) {
       extra = Object.assign({}, extra, { alwaysKind: true });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
@@ -24519,7 +27914,19 @@
     if (action === 'relax') setTimeout(syncRelax, 500);
   }
 
-  $('approval-allow').addEventListener('click', () => decideApproval('once'));
+  // Only a segment the card is showing counts, as in prompt.js: a batch card hides the
+  // row, and a hidden radio left checked must not turn "Allow all" into a window.
+  const scopeRelaxChecked = () =>
+    $('approval-scope-relax').checked &&
+    !$('approval-scope').classList.contains('hidden') &&
+    !$('approval-scope-relax-opt').classList.contains('hidden');
+  $('approval-allow').addEventListener('click', () => {
+    if (scopeRelaxChecked()) {
+      decideApproval('relax', { relaxMs: 30 * 60000 });
+      return;
+    }
+    decideApproval('once');
+  });
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
   // Escape hatch: reject the whole backlog at once (this request + all waiting).
@@ -24564,7 +27971,13 @@
     // Respect the destructive lock: Enter here calls decideApproval directly, so
     // without this check it would approve a wipe that the disabled Allow button is
     // supposed to be holding back.
-    if (e.key === 'Enter' && !$('approval-allow').disabled) decideApproval('once');
+    if (e.key === 'Enter' && !$('approval-allow').disabled) {
+      if (scopeRelaxChecked()) {
+        decideApproval('relax', { relaxMs: 30 * 60000 });
+        return;
+      }
+      decideApproval('once');
+    }
   });
   // Numeric-only, capped budget input (static element, so not built via satsInput).
   $('approval-budget-amount').addEventListener('input', (e) => {
@@ -24601,6 +28014,15 @@
         // the batch count without resetting the user's account pick.
         pendingApproval.groupIds = group;
         pendingApproval.members = head.members || [];
+        showApproval();
+      } else if (head.data && head.data.needUnlock !== pendingApproval.data.needUnlock) {
+        // The keystore locked while this card was showing (idle auto-lock — see
+        // markPendingUnlocks in background.js). The entry is re-marked needUnlock and
+        // the card must follow: re-rendered with its PIN field, the approval unlocks
+        // inline instead of failing the sign with "Keystore is locked" after the fact.
+        // showApproval keeps an already-picked switcher, so nothing the user chose is
+        // reset by the re-render.
+        pendingApproval.data = head.data;
         showApproval();
       } else {
         // Same head, already built — just ensure the overlay is visible. This is
@@ -24682,13 +28104,14 @@
   // "Use Sidecar for Lightning payments?", offered once, where another wallet extension
   // already answers a page's Lightning calls (#501). It lives here and not on the page
   // because a page can forge the notice that raises it, and a switch that moves money
-  // must not be one a site can flip. Either button retires it for good.
+  // must not be one a site can flip. Either button retires it for good. The setting is
+  // browser-wide, so the card does not name a site: `host` only says whether one is due.
   function renderWeblnOffer(host) {
     const card = $('webln-offer');
     if (!card) return;
     if (!host) { hide(card); card.innerHTML = ''; return; }
     card.innerHTML = '';
-    const msg = h('span', { className: 'webln-offer-msg', textContent: t('Sidecar isn’t set as your default Lightning wallet on {{host}}. Switch?', { host }) });
+    const msg = h('span', { className: 'webln-offer-msg', textContent: t('Another wallet handles Lightning payments in your browser. Use Sidecar instead?') });
     const use = h('button', { className: 'primary', textContent: t('Use Sidecar') });
     const later = h('button', { className: 'ghost', textContent: t('Not now') });
     const answer = async (yes) => {
@@ -24701,10 +28124,42 @@
     card.append(msg, h('div', { className: 'webln-offer-controls' }, [use, later]));
     show(card);
   }
+  // "Show Sidecar on sites you're not signed in to?", raised by the pay card's first-time
+  // offer when the person chose "Pay on any page". Confirmed here and not on the page
+  // for the same reason as the offer above: a site must not be able to switch this on.
+  // Either button ends the question; the setting changes only on "Turn on".
+  function renderPayAnywhereAsk(host) {
+    const view = $('view-payanywhere');
+    if (!view) return;
+    if (!host) { hide(view); flushDeferredMainRender(); return; }
+    // Behind the lock screen it would be a question about a wallet nobody has unlocked;
+    // it is asked again the moment the lock goes (see the observer below).
+    if (!$('view-lock').classList.contains('hidden')) { hide(view); return; }
+    $('payanywhere-host').textContent = host;
+    $('payanywhere-text').textContent = t('showed an invoice. Let Sidecar pay on sites you’re not signed in to?');
+    // Over everything, the way a signing approval is: show first, then close any sheet, so
+    // the panel is never briefly uncovered between the two.
+    show(view);
+    closeAcctMenu();
+    if (document.documentElement.classList.contains('modal-open')) closeModal('payanywhere');
+  }
+  const answerPayAnywhere = async (yes) => {
+    renderPayAnywhereAsk('');
+    await bg({ type: 'SIDECAR_PAY_ANYWHERE_ANSWER', use: yes });
+    if (yes) { const tgl = $('paypill-anywhere-toggle'); if (tgl) tgl.checked = true; }
+  };
+  $('payanywhere-on').addEventListener('click', () => answerPayAnywhere(true));
+  $('payanywhere-later').addEventListener('click', () => answerPayAnywhere(false));
+  // Unlocking is when a question that arrived behind the lock screen can finally be asked.
+  new MutationObserver(() => {
+    if ($('view-lock').classList.contains('hidden')) refreshWeblnOffer();
+  }).observe($('view-lock'), { attributes: true, attributeFilter: ['class'] });
   async function refreshWeblnOffer() {
     try {
       const s = await call({ type: 'SIDECAR_GET_SETTINGS' });
-      renderWeblnOffer(s && s.weblnOfferHost ? s.weblnOfferHost : '');
+      // The worker says what is due: nothing until a wallet has been added.
+      renderWeblnOffer(String((await call({ type: 'SIDECAR_WEBLN_OFFER_GET' })) || ''));
+      renderPayAnywhereAsk(s && s.payAnywhereAskHost ? s.payAnywhereAskHost : '');
     } catch (_) {}
   }
 
@@ -24751,6 +28206,7 @@
     port.onMessage.addListener((msg) => {
       if (msg && msg.type === 'SIDECAR_QUEUE_UPDATED') refreshApproval();
       if (msg && msg.type === 'SIDECAR_WEBLN_OFFER') renderWeblnOffer(String(msg.host || ''));
+      if (msg && msg.type === 'SIDECAR_PAY_ANYWHERE_ASK') renderPayAnywhereAsk(String(msg.host || ''));
       if (msg && msg.type === 'SIDECAR_LOG_UPDATED' && debugPanelRefresh) debugPanelRefresh();
     });
     port.onDisconnect.addListener(() => {
@@ -24787,6 +28243,13 @@
     });
     $('pseudo-locale-toggle').checked = settings.language === I18N.PSEUDO;
     $('pseudo-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.PSEUDO : 'auto'));
+    $('dev-autolock-toggle').checked = settings.autoLockMinutes === 1;
+    $('dev-autolock-toggle').addEventListener('change', async (e) => {
+      const minutes = e.target.checked ? 1 : 15;
+      await call({ type: 'SIDECAR_SET_SETTINGS', settings: { autoLockMinutes: minutes } });
+      ensureAutoLockOption($('autolock-select'), minutes);
+      $('autolock-select').value = String(minutes);
+    });
     $('test-locale-toggle').checked = settings.language === I18N.TEST;
     $('test-locale-toggle').addEventListener('change', (e) => setLanguage(e.target.checked ? I18N.TEST : 'auto'));
     // A pretend date for the special editions (seasons.js). Clearing the card's record
@@ -24814,13 +28277,22 @@
     const langs = I18N.languages();
     if (langs.length < 2) return;
     try { await I18N.ready; } catch (_) {}
-    const select = $('language-select');
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
     const current = (settings && settings.language) || 'auto';
-    select.append(h('option', { value: 'auto', textContent: t('Automatic (browser language)') }));
-    for (const l of langs) select.append(h('option', { value: l.code, textContent: l.name }));
-    select.value = langs.some((l) => l.code === current) ? current : 'auto';
-    select.addEventListener('change', () => setLanguage(select.value));
+    // The same choices in Settings and on the first screen, so a person can switch before they
+    // have a keystore. Either one reloads the panel in the new language.
+    for (const select of [$('language-select'), $('ob-language-select')]) {
+      select.append(h('option', { value: 'auto', textContent: t('Automatic (browser language)') }));
+      for (const l of langs) select.append(h('option', { value: l.code, textContent: l.name }));
+      select.value = langs.some((l) => l.code === current) ? current : 'auto';
+      select.addEventListener('change', () => setLanguage(select.value));
+    }
+    show($('ob-language-setting'));
+    // The translations are drafts with no native review behind them, so say so, and say where a
+    // correction goes. The link is built here, not in the catalogs, which never carry markup.
+    const report = h('a', { className: 'explore-link', href: '#', textContent: t('Tell us on GitHub') });
+    report.addEventListener('click', (e) => { e.preventDefault(); chrome.tabs.create({ url: 'https://github.com/dmnyc/sidecar/issues/new?title=Translation%20mistake' }); });
+    $('language-setting').append(h('p', { className: 'hint' }, I18N.fill(t('These translations are drafts. Spotted a mistake? {{link}}'), { link: report })));
     show($('language-setting'));
   }
   function applyDevBadge(on) {
@@ -24849,7 +28321,7 @@
     }
     row.append(h('div', { className: 'item-main' }, [
       h('div', { className: 'item-label', textContent: '[' + e.tag + '] ' + e.msg }),
-      h('div', { className: 'item-sub', textContent: [new Date(e.ts).toLocaleTimeString(), ...parts].join(' · ') }),
+      h('div', { className: 'item-sub', textContent: [I18N.fmtDate(e.ts, { hour: 'numeric', minute: '2-digit', second: '2-digit' }), ...parts].join(' · ') }),
     ]));
     return row;
   }
@@ -24861,6 +28333,8 @@
     }).join('\n');
   }
 
+  // English only, on purpose. This is developer tooling, shown on unpacked builds alone, so
+  // none of it is worth a translator's time or a line in 21 catalogs.
   async function openDebugPanel() {
     await devBuildReady;
     if (!isDevBuild()) return;
@@ -24983,7 +28457,7 @@
 
       function render() {
         if (!entries.length) {
-          listState(list, 'No log entries yet — use the app and they’ll appear here.');
+          listState(list, 'No log entries yet. Use the app and they’ll appear here.');
           return;
         }
         list.innerHTML = '';
@@ -25044,6 +28518,215 @@
       if (PERMS_API.onRemoved) PERMS_API.onRemoved.addListener(syncHostPermBanner);
     } catch (_) {}
     syncHostPermBanner();
+  }
+
+  // ---- panel zoom ----
+  // THE PANEL IS OUR PAGE, so a UI scale is ours to offer (issue #565). CSS zoom on the
+  // body reflows the whole panel uniformly — scrollbars, layout and line boxes together
+  // — which is what “zoom the contents” means. It is not --display-scale, and must not
+  // become it: that token changes the theme's face while line boxes stay pinned, so
+  // switching themes never reflows the panel. A zoom is the opposite contract — the
+  // user asked for more or less room taken — and a root zoom multiplies the pinned
+  // values along with everything else, so those reflow guards still hold.
+  //
+  // Six stops, not a continuum: sizes a person can hold a preference about, and a
+  // stored value that always means one of them. CSS zoom is standard since 2024
+  // (Chrome 128+, Firefox 126+); where the browser is older the control hides, because
+  // a slider that changes nothing reads as broken.
+  const PANEL_ZOOM_STOPS = [80, 90, 100, 110, 120];
+  const PANEL_ZOOM_DEFAULT = 100;
+
+  function panelZoomPercent(index) {
+    const i = Math.round(Number(index));
+    if (!Number.isFinite(i) || i < 0 || i >= PANEL_ZOOM_STOPS.length) return PANEL_ZOOM_DEFAULT;
+    return PANEL_ZOOM_STOPS[i];
+  }
+
+  // A stored percent is whatever an older build or a hand edit left behind: snap to the
+  // nearest stop, and anything that is not a number wears the default.
+  function panelZoomIndex(pct) {
+    const n = Number(pct);
+    if (pct == null || !Number.isFinite(n)) return PANEL_ZOOM_STOPS.indexOf(PANEL_ZOOM_DEFAULT);
+    let best = 0;
+    for (let i = 1; i < PANEL_ZOOM_STOPS.length; i++) {
+      if (Math.abs(PANEL_ZOOM_STOPS[i] - n) < Math.abs(PANEL_ZOOM_STOPS[best] - n)) best = i;
+    }
+    return best;
+  }
+
+  // Empty string at 100% so the default panel carries no inline zoom at all. The
+  // factor is published to :root because viewport units do not shrink with CSS zoom:
+  // 100vh inside a zoomed subtree is still the physical viewport, so a lock screen
+  // sized 100vh rendered one-and-a-half panels tall. Viewport lengths in the
+  // stylesheets divide by this (calc(100vh / var(--panel-zoom, 1))).
+  function applyPanelZoom(pct) {
+    const zoom = pct === PANEL_ZOOM_DEFAULT ? '' : String(pct / 100);
+    document.body.style.zoom = zoom;
+    if (zoom) document.documentElement.style.setProperty('--panel-zoom', zoom);
+    else document.documentElement.style.removeProperty('--panel-zoom');
+  }
+
+  // THE WIDTH THE CONTENT ACTUALLY HAS: the viewport divided by the zoom. Media
+  // queries never see CSS zoom — the window is still its physical size — so the
+  // collapse below is computed here instead of in CSS. It is also the honest answer
+  // for a genuinely narrow sidebar (Firefox drags below Chrome's floor): zoom or no
+  // zoom, under this line the rows stack rather than clip. Nothing shrinks — the
+  // narrow-panel rules run on stacking, never on smaller controls.
+  const PANEL_NARROW_PX = 340;
+
+  function effectivePanelWidth() {
+    const zoom = parseFloat(document.body.style.zoom);
+    return window.innerWidth / (Number.isFinite(zoom) && zoom > 0 ? zoom : 1);
+  }
+
+  function updatePanelNarrow() {
+    const narrow = effectivePanelWidth() < PANEL_NARROW_PX;
+    document.body.classList.toggle('panel-narrow', narrow);
+    applyTopbarFold(topbarFoldCount(narrow));
+  }
+
+  // THE ⬧ THAT KEEPS THE TOPBAR TO ONE LINE. Three stay visible, and each for a
+  // reason: the bell carries the notification badge; settings and lock are the way
+  // OUT — if a zoom or a theme goes wrong, the exit must never live inside the thing
+  // that broke. The other four MOVE into #topbar-more-menu, only as many as the width
+  // makes necessary and the least-used first, so a panel a little under 340px keeps
+  // most of its icons instead of folding all of them. Moved, not rebuilt:
+  // appendChild keeps every listener wired by id, so folding is invisible to the rest
+  // of the panel. The recorded parent and next sibling put each icon back exactly
+  // where the inline row had it when the width comes back.
+  const TOPBAR_FOLD = ['stream-entry', 'bookmarks-btn', 'help-btn', 'search-btn']; // the tray's order
+  const TOPBAR_FOLD_FIRST = ['help-btn', 'bookmarks-btn', 'stream-entry', 'search-btn']; // who leaves first
+  const TOPBAR_FIXED = 3; // bell, settings, lock
+  let topbarFolded = 0; // how many are in the tray
+  const topbarRestore = new Map(); // id -> [parent, nextSibling] as the inline row had it
+
+  // How many to fold at this width: none while all seven icons fit beside the account chip,
+  // then the fewest that make room. One icon is never enough, because the ⬧ takes the
+  // place of the one it replaces.
+  function topbarFoldCount(narrow) {
+    // The icon and chip sizes are measured when the row is laid out, and the CSS values
+    // otherwise (the panel boots with the main view hidden behind a lock). The padding is
+    // .topbar's, which body.panel-narrow cuts from 16px to 10px.
+    const icon = ($('settings-btn') && $('settings-btn').offsetWidth) || 31;
+    const chip = ($('acct-btn') && $('acct-btn').offsetWidth) || 60;
+    const room = effectivePanelWidth() - (narrow ? 20 : 32) - chip - 6;
+    const row = (buttons) => buttons * icon + (buttons - 1) * 4;
+    const all = TOPBAR_FIXED + TOPBAR_FOLD.length;
+    if (row(all) <= room) return 0;
+    for (let folded = 2; folded < TOPBAR_FOLD.length; folded++) {
+      if (row(all - folded + 1) <= room) return folded;
+    }
+    return TOPBAR_FOLD.length;
+  }
+
+  function applyTopbarFold(count) {
+    if (count === topbarFolded) return;
+    const more = $('topbar-more-btn');
+    const menu = $('topbar-more-menu');
+    // ALL the restore spots are recorded before the first move, in one pass. Folding
+    // in list order shifts the siblings under later icons — search's "next" would
+    // have been bookmarks-after-stream-was-gone, and the row would have rebuilt with
+    // search at the wrong end. Record first, then move.
+    if (!topbarRestore.size) {
+      for (const id of TOPBAR_FOLD) {
+        const el = $(id);
+        topbarRestore.set(id, [el.parentElement, el.nextSibling]);
+      }
+    }
+    // Put back whatever is in the tray. An icon goes home once the sibling it sat before is
+    // there, or insertBefore has nothing to measure against and throws.
+    let away = TOPBAR_FOLD.filter((id) => $(id).parentElement === menu);
+    while (away.length) {
+      const ready = away.filter((id) => { const next = topbarRestore.get(id)[1]; return !next || next.parentElement !== menu; });
+      for (const id of ready.length ? ready : away) {
+        const at = topbarRestore.get(id);
+        at[0].insertBefore($(id), at[1]);
+      }
+      away = away.filter((id) => $(id).parentElement === menu);
+    }
+    const leaving = TOPBAR_FOLD_FIRST.slice(0, count);
+    for (const id of TOPBAR_FOLD) if (leaving.includes(id)) menu.appendChild($(id));
+    topbarFolded = count;
+    more.classList.toggle('hidden', !count);
+    more.setAttribute('aria-expanded', String(!!count));
+    if (!count) closeTopbarMore();
+  }
+
+  function topbarMoreOpen() {
+    const menu = $('topbar-more-menu');
+    return !menu.classList.contains('hidden') && !menu.classList.contains('is-closing');
+  }
+  function closeTopbarMore() {
+    const menu = $('topbar-more-menu');
+    if (menu.classList.contains('hidden')) return;
+    $('topbar-more-btn').setAttribute('aria-expanded', 'false');
+    menu.classList.remove('is-open');
+    menu.classList.add('is-closing');
+    setTimeout(() => {
+      menu.classList.remove('is-closing');
+      menu.classList.add('hidden');
+    }, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150);
+  }
+
+  // Wired once at boot, never in renderSettings(), which runs on every gear entry and
+  // would stack listeners (the rule the settings accordion already lives by).
+  function initPanelZoom() {
+    // Narrow mode answers a wider question than zoom — a sidebar dragged narrow
+    // clips the same way with no zoom at all — so it is wired before the feature
+    // gate, and again on every resize, which the zoom case rides through anyway.
+    updatePanelNarrow();
+    addEventListener('resize', updatePanelNarrow);
+    // The tray opens from its button and closes on any click outside itself — the
+    // account menu's contract, on the same dropdown tokens.
+    $('topbar-more-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = $('topbar-more-menu');
+      if (topbarMoreOpen()) { closeTopbarMore(); return; }
+      menu.classList.remove('is-closing');
+      menu.classList.remove('hidden');
+      requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add('is-open')));
+      $('topbar-more-btn').setAttribute('aria-expanded', 'true');
+    });
+    document.addEventListener('click', (e) => {
+      const menu = $('topbar-more-menu');
+      if (topbarMoreOpen() && !menu.contains(e.target) && !$('topbar-more-btn').contains(e.target)) {
+        closeTopbarMore();
+      }
+    });
+    const setting = $('panel-zoom-setting');
+    if (!CSS.supports('zoom', '1')) {
+      setting.classList.add('hidden'); // a control that changes nothing reads as broken
+      return;
+    }
+    const down = $('panel-zoom-down');
+    const up = $('panel-zoom-up');
+    const readout = $('panel-zoom-reset');
+    let at = PANEL_ZOOM_STOPS.indexOf(PANEL_ZOOM_DEFAULT);
+    const paint = (pct) => {
+      applyPanelZoom(pct);
+      updatePanelNarrow();
+      at = panelZoomIndex(pct);
+      // The readout is the one place the size is written; the ends of the range switch the
+      // button that would go past them off, so the stepper never offers a size it lacks.
+      readout.textContent = I18N.fmtNum(PANEL_ZOOM_STOPS[at] / 100, { style: 'percent' });
+      readout.classList.toggle('is-changed', PANEL_ZOOM_STOPS[at] !== PANEL_ZOOM_DEFAULT);
+      down.disabled = at <= 0;
+      up.disabled = at >= PANEL_ZOOM_STOPS.length - 1;
+    };
+    // A tap is a commit: paint, then one settings write.
+    const commit = (pct) => {
+      paint(pct);
+      call({ type: 'SIDECAR_SET_SETTINGS', settings: { panelZoom: pct } }).catch(() => {});
+    };
+    down.addEventListener('click', () => { if (at > 0) commit(PANEL_ZOOM_STOPS[at - 1]); });
+    up.addEventListener('click', () => { if (at < PANEL_ZOOM_STOPS.length - 1) commit(PANEL_ZOOM_STOPS[at + 1]); });
+    readout.addEventListener('click', () => { if (PANEL_ZOOM_STOPS[at] !== PANEL_ZOOM_DEFAULT) commit(PANEL_ZOOM_DEFAULT); });
+    // Shown at once, so the readout is never blank while the stored size is on its way. A
+    // stored value that is not one of the stops (a hand edit) snaps to the nearest one.
+    paint(PANEL_ZOOM_DEFAULT);
+    call({ type: 'SIDECAR_GET_SETTINGS' }).then((settings) => {
+      paint(panelZoomPercent(panelZoomIndex(settings && settings.panelZoom)));
+    }).catch(() => {});
   }
 
   // ---- collapsible settings sections ----
@@ -25163,6 +28846,7 @@
   initDevBadge();
   initLanguagePicker();
   initHostPermGuard();
+  initPanelZoom();
   initSettingsSections();
   initStampedType();
   // At boot rather than on a tab or an account switch, because an update is about the

@@ -70,6 +70,7 @@ function harness(deps = {}) {
     closePopupWindow() { ctx.popupWindowId = null; },
     qPersist() {},
     broadcastQueue() {},
+    dlog() {},
     stopKeepaliveIfIdle() {},
     async waitForPanelPort() {},
     async createPopup(url) { popups.push(url); ctx.popupWindowId = 99; return true; },

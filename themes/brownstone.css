@@ -1,18 +1,15 @@
 /* ============================================================
    Sidecar — Brownstone Theme
-   New York sandstone after dark: warm stone, lit windows, ivy, black iron.
+   New York sandstone after dark: carved flowers, broad courses, off-frame lamplight.
    Groups with Speakeasy and Film Noir as a dark theme.
    ============================================================ */
 
 [data-theme="brownstone"] {
   color-scheme: dark;
 
-  /* Bitter — a slab serif, for the sturdy 19th-century New York the theme is named for.
-     Slab rather than another Didone specifically to stay off Speakeasy: the two are the
-     closest pair in the set (both dark, both warm), so they could not also share a
-     serif category. Bitter's square slabs carry no stroke contrast at all; Playfair is
-     nothing but stroke contrast. */
-  --font-display: 'Bitter', Rockwell, Georgia, serif;
+  /* Text's semibold cut gives headings more presence; the brass figures retain
+     Display's fine regular outline. */
+  --font-display: 'Libre Caslon Text', 'Bitter', Georgia, serif;
 
   /* How far this theme's display face has to move to sit optically centered, in em.
      A property of the FACE, not of any one widget: read by the relax countdown ring
@@ -42,15 +39,15 @@
   --success: #8FA05E;
   --success-rgb: 143, 160, 94;
 
-  /* brand — lamplight through a parlour window. Money is gold across all themes
-     and this is the warmest reading of it: 8.74:1 on the ground. */
+  /* Muted brass gold for highlights, with a pale gold step for brighter accents. */
   --orange: #B4643A;
   /* Neither ink clears 4.5 on --orange (#B4643A: white 4.35, near-black 4.21), so
      the badge takes a darker step of the same terracotta and keeps white: 6.28. */
   --badge-bg: #9C4726;
-  --amber: #F0C46B;
-  --gold: #E0A94A;
-  --gold-soft: rgba(224, 169, 74, 0.5);
+  --amber: #E4C587;
+  --gold: #D2AD70;
+  --accent-rgb: 210, 173, 112;
+  --gold-soft: rgba(210, 173, 112, 0.5);
   /* Sandstone in daylight takes the accent slot the other dark themes fill with
      purple and silver. 6.45:1 and 5.95:1. */
   --purple: #C98B5E;
@@ -65,17 +62,22 @@
   --scroll-thumb: linear-gradient(180deg, #2E211A, #221812);
   --scroll-thumb-hover: #3C2B21;
 
-  /* primary button — the lit window */
-  --btn-primary-top: #F0C46B;
-  --btn-primary-mid: #E0A94A;
-  --btn-primary-bot: #B48230;
-  --btn-shadow: rgba(224, 169, 74, 0.34);
+  /* Brass hardware: broad reflected light, with a darker bronze edge. */
+  --btn-primary-top: #F1D9A4;
+  --btn-primary-mid: #C9A260;
+  --btn-primary-bot: #B18A4C;
+  --btn-primary-text: #21170E;
+  --btn-shadow: rgba(180, 138, 72, 0.18);
+  --brownstone-button-metal: linear-gradient(116deg, #B48A48 0%, #D7B574 18%, #F1D9A4 35%, #B58C4C 49%, #C9A260 64%, #E4C587 83%, #B18A4C 100%);
+  --fab-bg: var(--brownstone-button-metal);
+  --fab-icon: var(--btn-primary-text);
 
   /* ink — warm ivory, the color of the limestone trim, never pure white */
   --text: #F2E7DD;
   --text-2: #D8C7B8;
-  --muted: #A89383;
-  --faint: #7A6A5E;
+  /* Secondary ink clears the lit stone as well as the flat card surfaces. */
+  --muted: #B4A08F;
+  --faint: #A89383;
   --red: #C4574A;
 
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
@@ -87,8 +89,37 @@
   /* Tokens the base sheet reads instead of hardcoding. A dark theme could inherit
      the fallbacks, but they're Speakeasy's purple and would sit cold in here. */
   --input-bg: linear-gradient(180deg, rgba(8, 5, 4, 0.65), rgba(18, 12, 10, 0.65));
-  --focus-ring: rgba(224, 169, 74, 0.18);
-  --card-wash: rgba(224, 169, 74, 0.13);
+  --focus-ring: rgba(210, 173, 112, 0.18);
+  --card-wash: rgba(210, 173, 112, 0.13);
+}
+
+html[data-theme="brownstone"] :is(.primary, .reload-banner-btn, .host-perm-grant-btn, .na-ask-yes, .relax-status-x) {
+  background: var(--brownstone-button-metal);
+  color: var(--btn-primary-text);
+  box-shadow:
+    inset 0 1px 0 #fff0c5aa,
+    inset 0 -1px 0 #62421c99,
+    inset 0 0 0 1px #e8cb9155,
+    0 4px 12px var(--btn-shadow);
+}
+html[data-theme="brownstone"] :is(.primary, .reload-banner-btn, .host-perm-grant-btn, .na-ask-yes, .relax-status-x):active:not(:disabled) {
+  box-shadow: inset 0 1px 2px #62421c88, inset 0 -1px 0 #fff0c566;
+}
+html[data-theme="brownstone"] :is(.primary, .reload-banner-btn, .host-perm-grant-btn, .na-ask-yes, .relax-status-x):disabled {
+  box-shadow: none;
+  filter: none;
+  transform: none;
+}
+/* The floating brass disc keeps a deeper shadow than an inline action button. */
+html[data-theme="brownstone"] .fab:not(:disabled) {
+  box-shadow:
+    inset 0 1px 0 #fff0c5aa,
+    inset 0 -1px 0 #62421c99,
+    inset 0 0 0 1px #e8cb9155,
+    0 8px 22px #0008;
+}
+html[data-theme="brownstone"] .fab:not(:disabled):active {
+  box-shadow: inset 0 1px 2px #62421c88, inset 0 -1px 0 #fff0c566, 0 4px 12px #0006;
 }
 
 /* Outgoing transactions in brick red, off the same facade as --warn. */
@@ -101,72 +132,99 @@
   color: var(--text);
 }
 
-/* ---- balance animation: the flame in the mantle ---------------------------
-   A gaslamp does not glow steadily, it gutters: the flame wanders, the light
-   swells and drops, and it never quite goes out. So the figure arrives by
-   flickering up rather than fading in — the swell this replaces was smooth, which
-   is what an electric lamp on a dimmer does.
+/* Raised brass numerals, with the regular serif outline preserved at every size.
+   The numeral finish stays on glyph spans, independent of the privacy mask. */
+html[data-theme="brownstone"] .wallet-balance,
+html[data-theme="brownstone"] .pinned-balance-amt,
+html[data-theme="brownstone"] .countdown-num {
+  font-family: 'Libre Caslon Display', 'Bitter', Georgia, serif;
+  font-weight: 400;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+html[data-theme="brownstone"] .wallet-balance {
+  letter-spacing: 0.03em;
+}
+html[data-theme="brownstone"] .wallet-card.compact .wallet-balance,
+html[data-theme="brownstone"] .pinned-balance-amt {
+  letter-spacing: 0.02em;
+}
+html[data-theme="brownstone"] .wallet-balance .bal-glyph,
+html[data-theme="brownstone"] .pinned-balance-amt .bal-glyph,
+html[data-theme="brownstone"] .countdown-num .bal-glyph {
+  color: #d8b777;
+  /* One highlight crosses the figure; --i places each glyph along the pass.
+     The lower layer preserves the approved brass finish throughout. */
+  --shine-center: calc((var(--brownstone-shine) * (var(--n, 1) + 3) - var(--i, 0) - 1.5) * 100%);
+  background-image:
+    linear-gradient(110deg, transparent calc(var(--shine-center) - 100%), #fff4ccbb var(--shine-center), transparent calc(var(--shine-center) + 100%)),
+    linear-gradient(116deg, #efd7a0 0%, #b38b4e 22%, #fff0c5 29%, #b28a50 39%, #d6b779 57%, #9b703e 76%, #e8cb91 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.22px #d7b67688;
+  /* Carry the paint beyond the numeral and comma ink at line-height 1. */
+  padding: 0.1em 0 0.3em;
+  margin: -0.1em 0 -0.3em;
+}
+html[data-theme="brownstone"] .wallet-balance,
+html[data-theme="brownstone"] .pinned-balance-amt,
+html[data-theme="brownstone"] .countdown-num {
+  filter: drop-shadow(0.6px 1.3px 0.2px #17110b) drop-shadow(0 3px 2px #0008);
+}
+html[data-theme="brownstone"] .wallet-balance:hover,
+html[data-theme="brownstone"] .pinned-balance-amt:hover {
+  filter: brightness(1.12) drop-shadow(0.6px 1.3px 0.2px #17110b) drop-shadow(0 3px 2px #0008);
+}
 
-   Irregular on purpose. The keyframe stops are at uneven positions and the
-   brightness never repeats a value, because anything periodic reads as a pulse
-   instead of a flame. It bottoms out around 0.6 rather than 0, for the same
-   reason: a guttering flame dims, it does not blink.
+/* Four static brass studs. Only wallet balance masks take this finish; transaction
+   amounts and PIN fields keep their existing treatment. The hidden digits remain
+   visibility:hidden beneath the separately painted, fixed-length mask. */
+html[data-theme="brownstone"] .balances-hidden .wallet-balance::after,
+html[data-theme="brownstone"] .balances-hidden .pinned-balance-amt::after {
+  color: #d8b777;
+  background: linear-gradient(180deg, #efd7a0 28%, #b38b4e 46%, #e8cb91 53%, #9b703e 72%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.2px #d7b67688;
+  animation: none;
+}
 
-   Each glyph runs at its own rate — duration grows with --i — so the digits
-   drift out of phase with each other, the way separate mantles do. That, plus the
-   stagger, is what stops seven flames from flickering in lockstep. The wander is
-   tiny (thousandths of an em) and it lands back at zero: a figure that moves is
-   a figure you cannot read.
-
-   Deliberately not Nixie's stutter, which is the same century away: gas has no
-   failed strikes and no hard edges, so every step here is a ramp. */
-@keyframes brownstone-flame {
-  0% { opacity: 0; transform: translate(0, 0.06em); text-shadow: none; }
-  8% {
-    opacity: 0.88;
-    text-shadow: 0 0 0.55em rgba(240, 196, 107, 0.55), 0 0 1.2em rgba(180, 100, 58, 0.34);
-  }
-  15% {
-    opacity: 0.62;
-    transform: translate(-0.006em, 0.012em);
-    text-shadow: 0 0 0.3em rgba(224, 169, 74, 0.38);
-  }
-  22% {
-    opacity: 1;
-    text-shadow: 0 0 0.72em rgba(255, 205, 130, 0.6), 0 0 1.45em rgba(180, 100, 58, 0.4);
-  }
-  31% {
-    opacity: 0.71;
-    transform: translate(0.005em, 0.004em);
-    text-shadow: 0 0 0.38em rgba(224, 169, 74, 0.42);
-  }
-  39% { opacity: 0.96; text-shadow: 0 0 0.62em rgba(255, 205, 130, 0.5); }
-  48% {
-    opacity: 0.66;
-    transform: translate(-0.004em, 0.008em);
-    text-shadow: 0 0 0.34em rgba(224, 169, 74, 0.36);
-  }
-  58% {
-    opacity: 1;
-    text-shadow: 0 0 0.68em rgba(255, 205, 130, 0.52), 0 0 1.3em rgba(180, 100, 58, 0.32);
-  }
-  69% { opacity: 0.79; transform: translate(0.003em, 0); }
-  79% { opacity: 0.97; text-shadow: 0 0 0.5em rgba(240, 196, 107, 0.42); }
-  89% { opacity: 0.87; text-shadow: 0 0 0.34em rgba(224, 169, 74, 0.26); }
-  100% { opacity: 1; transform: translate(0, 0); text-shadow: none; }
+/* ---- balance animation: a slow pass of light across raised brass ----------
+   All glyphs share the same clock. Their existing --i / --n coordinates place the
+   highlight along the figure, so it travels left to right instead of flashing
+   each digit at once. The figures first brighten from dark bronze, then the
+   highlight passes across them. No movement or pulsing glow. Both shine endpoints
+   put the highlight outside the ink, returning to the same resting brass.
+   Repainting without .bal-in remains still. */
+@property --brownstone-shine {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@keyframes brownstone-shine {
+  from { --brownstone-shine: 0; }
+  to { --brownstone-shine: 1; }
+}
+@keyframes brownstone-brass-reveal {
+  from { filter: brightness(0.3); }
+  to { filter: brightness(1); }
 }
 [data-theme="brownstone"] .bal-glyph { display: inline-block; }
 [data-theme="brownstone"] .bal-glyph.bal-in {
-  animation-name: brownstone-flame;
-  /* Stagger window, not a per-glyph step: the delay is clamped so the last glyph is
-     never more than 174ms behind the first, however many there are. See splitGlyphs
-     in sidepanel.js for the --i/--n contract and why the window is three steps wide. */
-  /* The duration grows with --i too — this theme's flame burns longer down the figure —
-     so it takes the same clamp, or a long balance still outlasts a short one. */
-  animation-duration: calc(980ms + var(--i) * min(47ms, 141ms / max(var(--n) - 1, 1)));
-  animation-delay: calc(var(--i) * min(58ms, 174ms / max(var(--n) - 1, 1)));
-  animation-timing-function: ease-in-out;
+  animation-name: brownstone-brass-reveal, brownstone-shine;
+  animation-duration: 650ms, 2800ms;
+  animation-delay: 0ms, 650ms;
+  animation-timing-function: ease-out, linear;
   animation-fill-mode: both;
+}
+/* Incoming payments already repaint the digits and play the shine. Suppress the
+   shared pulsing glow so it cannot wash over the brass at the same time. */
+html[data-theme="brownstone"] .balance-bump {
+  animation: none;
+}
+html[data-theme="brownstone"].reduce-balance-motion .bal-glyph.bal-in {
+  animation: none;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="brownstone"] .bal-glyph.bal-in { animation: none; }

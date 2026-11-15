@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { withI18n } = require('./helpers/i18n');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '..', 'sidepanel.js'), 'utf8');
 // replyTags moved to composer-core so the expanded tab can build the same threading;
@@ -21,6 +22,7 @@ function lift(name, from) {
 function setup(dev = true) {
   const ctx = { state: { activePubkey: 'me' }, WEB_COMMENT_KIND: 1111,
     isDevBuild: () => dev, fetchNoteById: async () => ({ pubkey: 'root-author' }) };
+  withI18n(ctx); // the errors go through t() now
   vm.createContext(ctx);
   vm.runInContext(
     lift('function replyTags(', core) + '\n' +

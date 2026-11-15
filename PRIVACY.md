@@ -133,6 +133,13 @@ Sidecar only talks to services **you choose**:
   lists your currency, with the other as a fallback. At most the request names the
   currency; nothing about your keys or your wallet is sent. Prices are cached for
   five minutes. With **Bitcoin only** turned on in Settings, no price is fetched.
+- **On-chain balance** — if you turn on on-chain balance in Settings, Sidecar
+  asks **mempool.space** for the balances and confirmed outputs of the two
+  Bitcoin addresses this account's key can spend, so coins sent there can be
+  swept back out. Those addresses are publicly derivable from your Nostr public
+  key, so each request tells mempool.space which addresses you are checking, and
+  shows it your IP address. Nothing is looked up until the switch is on, and a
+  sweep broadcast is an ordinary, public Bitcoin transaction.
 - **Data recovery** — a recovery scan asks your own relays, plus a fixed set of
   well-known public relays that keep long histories, for earlier versions of the
   data you chose to scan. The request is a read for your public key's events of
@@ -140,12 +147,18 @@ Sidecar only talks to services **you choose**:
 - **Wallet quick-start** — if you choose to set up a wallet through **Rizful**,
   Sidecar exchanges the one-time code you enter for a wallet connection with
   rizful.com. Nothing is sent there unless you use that option.
+- **Withdraw links** — if you cash an LNURL-withdraw link or an LNURLcash note
+  from the Receive sheet, Sidecar contacts the service the link names, with no
+  cookies and no referrer, which shows that service your IP address. It sends the
+  service an invoice from your own wallet, and nothing else about you or your
+  wallet. Links to private or local network addresses are refused. Nothing is
+  sent until you paste a link and press Continue.
 
 Sidecar does not send any of this data to the developer. The services above are
 the only ones it contacts — those you configure (relays, wallet), those a display
 you choose depends on (relay icons, NIP-05 marks, the Bitcoin price), and those you
 invoke by a specific action (a link preview, a media upload, an @-mention search, a
-recovery scan, a wallet quick-start) — and there
+recovery scan, a wallet quick-start, a withdraw link) — and there
 is no analytics or tracking of any kind.
 
 ## Permissions
@@ -155,6 +168,9 @@ Sidecar requests only the permissions it needs to function:
 - **Storage** — to keep your encrypted keystore, settings, and local activity.
 - **Side panel** — to show the Sidecar interface.
 - **Alarms** — to auto-lock the keystore after a period of inactivity.
+- **Idle** — to tell whether you are away from your computer, so auto-lock counts
+  time away rather than time since the last signature. Sidecar reads only whether
+  the computer is active, idle or locked.
 - **Context menus** — for the right-click "Pay with Sidecar" option.
 - **Notifications** — to confirm payment results.
 - **Scripting** — to reconnect tabs that were already open when Sidecar updated or

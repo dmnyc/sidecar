@@ -48,6 +48,7 @@ vm.runInContext(
     lift(/function pollEndsAt\(ev\)\s*\{[\s\S]*?\n  \}/, 'pollEndsAt') + '\n' +
     lift(/function tallyPollVotes\(pollEv, votes\)\s*\{[\s\S]*?\n  \}/, 'tallyPollVotes') + '\n' +
     lift(/const POLL_WATCH_SECS = [^;]*;/, 'POLL_WATCH_SECS') + '\n' +
+    lift(/function pollWatchExpiredAt\(createdAt, endsAt\)\s*\{[\s\S]*?\n  \}/, 'pollWatchExpiredAt') + '\n' +
     lift(/function pollWatchExpired\(ev\)\s*\{[\s\S]*?\n  \}/, 'pollWatchExpired') + '\n' +
     lift(/function pollHasEnded\(endsAt\)\s*\{[\s\S]*?\n  \}/, 'pollHasEnded') + '\n' +
     lift(/const POLL_GROUPS = \[[^\]]*\];/, 'POLL_GROUPS') + '\n' +
@@ -89,14 +90,17 @@ const vote = (optId, at) => ({
   created_at: at || NOW(), tags: [['e', 'p1'], ['response', optId]],
 });
 
-test('THE WATCH WINDOW IS THIRTY DAYS, AND ONLY FOR POLLS WITH NO END DATE', () => {
-  assert.equal(POLL_WATCH_SECS, 30 * DAY, 'the window moved');
+test('THE WATCH WINDOW IS SEVEN DAYS, AND ONLY FOR POLLS WITH NO END DATE', () => {
+  // Seven, not the thirty it was: the bell's Polls tab counts live polls by this same
+  // window, and a tab saying nothing is live over a list still flying the poll under
+  // Open was the two rules disagreeing.
+  assert.equal(POLL_WATCH_SECS, 7 * DAY, 'the window moved');
 
-  assert.equal(pollWatchExpired(poll({ createdAt: NOW() - 29 * DAY })), false, 'expired a day early');
-  assert.equal(pollWatchExpired(poll({ createdAt: NOW() - 31 * DAY })), true, 'never expires');
+  assert.equal(pollWatchExpired(poll({ createdAt: NOW() - 6 * DAY })), false, 'expired a day early');
+  assert.equal(pollWatchExpired(poll({ createdAt: NOW() - 8 * DAY })), true, 'never expires');
   // Exactly on the boundary counts as expired: the comparison is <=, so a poll posted
-  // thirty days ago to the second stops being watched rather than hanging on for a tick.
-  assert.equal(pollWatchExpired(poll({ createdAt: NOW() - 30 * DAY })), true);
+  // seven days ago to the second stops being watched rather than hanging on for a tick.
+  assert.equal(pollWatchExpired(poll({ createdAt: NOW() - 7 * DAY })), true);
 
   // A poll that named an end date is governed by that date and nothing else, however old.
   assert.equal(pollWatchExpired(poll({ createdAt: NOW() - 400 * DAY, endsAt: NOW() + DAY })), false,

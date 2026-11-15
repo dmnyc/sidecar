@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="themes/mycelium.css" />
   <link rel="stylesheet" href="themes/ben-day.css" />
   <link rel="stylesheet" href="themes/sleepy-hollow.css" />
+  <link rel="stylesheet" href="themes/phantom-bouquet.css" />
   <link rel="stylesheet" href="themes/patterns.css" />
   <!-- Marks which Constellation plate this session shows; see sky-plate.js. In the head
        and synchronous, so the mark is set before the first paint. -->
@@ -58,14 +59,14 @@
       <div class="stream-directory-actions">
         <button class="icon-btn" id="stream-refresh" aria-label="Refresh streams" title="Refresh streams" data-i18n-aria-label="Refresh streams" data-i18n-title="Refresh streams"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
         <button id="stream-saved-toggle" class="icon-btn" aria-pressed="false" aria-label="Saved streams" title="Saved streams" data-i18n-aria-label="Saved streams" data-i18n-title="Saved streams"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg></button>
-        <button id="stream-more-toggle" class="ghost" aria-expanded="false" aria-controls="stream-more-list" data-i18n="More" hidden>More</button>
+        <button id="stream-more-toggle" class="ghost" aria-expanded="false" aria-controls="stream-more-list" hidden><span class="stream-more-label">More</span><svg class="stream-more-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
         <button id="stream-url-toggle" class="ghost" aria-expanded="false" aria-controls="stream-advanced" aria-label="Open a stream" data-i18n-aria-label="Open a stream" data-i18n="Open a stream">Open a stream</button>
       </div>
       <div id="stream-more-list" hidden></div>
       <div id="stream-advanced" hidden>
       <form id="stream-form" class="stack">
         <label for="stream-url" data-i18n="Stream link or naddr">Stream link or naddr</label>
-        <input id="stream-url" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://…/live.m3u8 or naddr1…" required />
+        <input id="stream-url" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://…/live.m3u8 or naddr1…" data-i18n-placeholder="https://…/live.m3u8 or naddr1…" required />
         <label for="stream-url-name" data-i18n="Name (optional)">Name (optional)</label>
         <input id="stream-url-name" type="text" maxlength="240" />
         <label><input id="stream-url-save" type="checkbox" /> <span data-i18n="Save stream">Save stream</span></label>
@@ -93,6 +94,13 @@
       <div class="error" id="ob-error"></div>
       <button type="submit" class="primary" id="ob-submit" data-i18n="Create keystore">Create keystore</button>
     </form>
+    <!-- The first screen is where a language matters most: the PIN and key-backup warnings
+         that follow are the text nobody should have to read in a language they do not. Shown
+         by initLanguagePicker, with the same choices as Settings. -->
+    <div class="ob-language hidden" id="ob-language-setting">
+      <label for="ob-language-select" data-i18n="Language">Language</label>
+      <select id="ob-language-select" aria-label="Language" data-i18n-aria-label="Language"></select>
+    </div>
     <div id="onboarding-version" class="pre-version-row"></div>
   </section>
 
@@ -103,15 +111,19 @@
     <!-- Sleepy Hollow's candle: a halo over the Horseman's pumpkin that breathes on the
          lock screen (themes/sleepy-hollow.css). Empty and invisible in every other theme. -->
     <div class="lock-ember" aria-hidden="true"></div>
-    <!-- Sleepy Hollow's falling leaves: ten leaves that let go of the sky and drift down
-         while the lock screen shows, fading out as they land so new ones enter above
-         (themes/sleepy-hollow.css). Empty and invisible in every other theme. -->
-    <div class="lock-leaves" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <!-- The special editions' falling leaves, twelve slots: Sleepy Hollow flies ten that
+         let go of the sky and drift down while the lock screen shows, fading out as they
+         land so new ones enter above (themes/sleepy-hollow.css), and Phantom Bouquet lets
+         all twelve fall down the cloth (themes/phantom-bouquet.css). Empty and invisible
+         in every other theme. -->
+    <div class="lock-leaves" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <!-- Turnstile's station signs, one above the logo and one below the form; hidden in
-         every other theme. Tilework, so never translated, like the composer's sign. -->
-    <div class="lock-sign lock-sign-up" aria-hidden="true" translate="no"><span>Uptown</span></div>
+         every other theme. Tilework, so never translated, like the composer's sign. The
+         upper one hangs from the logo itself, so it keeps its distance however long the
+         message under the logo runs. -->
     <div class="lock-sign lock-sign-down" aria-hidden="true" translate="no"><span>Downtown</span></div>
     <div class="brand-lg">
+      <div class="lock-sign lock-sign-up" aria-hidden="true" translate="no"><span>Uptown</span></div>
       <img class="brand-logo" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
     </div>
     <p class="lede" data-i18n="Enter your PIN to unlock.">Enter your PIN to unlock.</p>
@@ -131,16 +143,21 @@
   <!-- ===== Main app (unlocked) ===== -->
   <section id="view-main" class="hidden">
     <header class="topbar">
-      <button id="acct-btn" class="acct-chip" title="Switch account">
+      <button id="acct-btn" class="acct-chip" title="Switch account" data-i18n-title="Switch account">
         <span class="chip-av" id="chip-av"></span>
         <svg class="chip-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
       <div class="topbar-actions">
+        <!-- TWO GROUPS, because the comments below already drew the line: these four
+             act on content, and help/settings/lock are app chrome. The groups are
+             atomic units when body.panel-narrow wraps the row, so a wrap lands
+             between groups instead of stranding two icons on a ragged second line. -->
+        <span class="topbar-group">
         <button id="notif-bell-btn" class="icon-btn notif-bell" title="Notifications" data-i18n-title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           <span class="notif-badge hidden"></span>
         </button>
-        <button id="search-btn" class="icon-btn" title="Find a profile or note" aria-expanded="false" aria-controls="search-bar">
+        <button id="search-btn" class="icon-btn" title="Find a profile or note" data-i18n-title="Find a profile or note" aria-expanded="false" aria-controls="search-bar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="9"></circle><line x1="21" y1="21" x2="16.35" y2="16.35"></line></svg>
         </button>
         <!-- Comment on the current page (NIP-22 kind 1111). Feather's message-circle:
@@ -159,22 +176,37 @@
              (rather than bumping the CSS size) keeps stroke-width 2 rendering at the
              same weight as every other icon. -->
         <button id="stream-entry" class="icon-btn" title="Live streams" aria-label="Live streams" data-i18n-title="Live streams" data-i18n-aria-label="Live streams" aria-expanded="false" aria-controls="stream-directory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="translate(0 1)"><circle cx="12" cy="8" r="1"/><path d="m8 21 4-11 4 11M9.5 17h5M7.1 12.9a7 7 0 0 1 0-9.8m9.8 0a7 7 0 0 1 0 9.8M4.3 15.7a11 11 0 0 1 0-15.4m15.4 0a11 11 0 0 1 0 15.4"/></g></svg></button>
-        <!-- The account's bookmarks (NIP-51 lists, written by other clients):
-             feather's bookmark. Grouped with the content icons for the same
-             reason the comment button is. -->
-        <button id="bookmarks-btn" class="icon-btn" title="Your bookmarks">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        <!-- The account's library: the sheet behind it holds its bookmarks, highlights,
+             comments and reactions. Drawn for Sidecar: a book with a bookmark in it, so
+             the entry and its first tab agree without wearing the same glyph. Converted
+             from the 600-unit artwork to this 24-unit grid at the house 2px stroke, and scaled
+             to 20 units tall about its center, the bell's and the lock's height, because at
+             its drawn size it sat two units short of the row.
+             The id stays: the topbar's fold order and its tests are keyed to it. -->
+        <button id="bookmarks-btn" class="icon-btn" title="Your library" aria-label="Your library" data-i18n-title="Your library" data-i18n-aria-label="Your library">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.111 19.778V5.556c0 -1.244 0 -1.867 0.242 -2.342 0.213 -0.418 0.553 -0.758 0.971 -0.971 0.476 -0.242 1.098 -0.242 2.342 -0.242h10.667c1.244 0 1.867 0 2.342 0.242 0.418 0.213 0.758 0.553 0.971 0.971 0.242 0.476 0.242 1.098 0.242 2.342v12H5.333c-1.228 0 -2.222 0.996 -2.222 2.222ZM3.111 19.778c0 1.228 0.996 2.222 2.222 2.222h15.556M19.778 17.556v4.444"></path><path d="M8.667 2v10l3.333 -3.333 3.333 3.333V2M8.667 2h6.667"></path></svg>
         </button>
-        <button id="help-btn" class="icon-btn" title="Help &amp; guides">
+        </span>
+        <span class="topbar-group topbar-group-chrome">
+        <button id="help-btn" class="icon-btn" title="Help &amp; guides" data-i18n-title="Help &amp; guides">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line><line x1="9.17" y1="14.83" x2="4.93" y2="19.07"></line></svg>
         </button>
-        <button id="settings-btn" class="icon-btn" title="Settings">
+        <button id="settings-btn" class="icon-btn" title="Settings" data-i18n-title="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         </button>
-        <button id="lock-btn" class="icon-btn" title="Lock">
+        <button id="lock-btn" class="icon-btn" title="Lock" data-i18n-title="Lock">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
         </button>
+        </span>
+        <!-- The overflow affordance for body.panel-narrow: the five icons that fold
+             behind it MOVE into #topbar-more-menu (applyTopbarFold) — moved, not
+             rebuilt, so every listener wired by id keeps working. Hidden at any width
+             the inline row can hold all seven. -->
+        <button id="topbar-more-btn" class="icon-btn topbar-more hidden" title="More" aria-label="More" data-i18n-title="More" data-i18n-aria-label="More" aria-expanded="false" aria-controls="topbar-more-menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="none"><circle cx="5" cy="12" r="1.6" fill="currentColor"></circle><circle cx="12" cy="12" r="1.6" fill="currentColor"></circle><circle cx="19" cy="12" r="1.6" fill="currentColor"></circle></svg>
+        </button>
       </div>
+      <div id="topbar-more-menu" class="topbar-more-menu hidden"></div>
       <div id="acct-menu" class="acct-menu hidden"></div>
     </header>
 
@@ -184,13 +216,13 @@
     <div id="search-bar" class="search-bar hidden">
       <div class="search-row">
         <input id="search-input" type="text" spellcheck="false" autocomplete="off"
-               placeholder="npub, note, nevent, naddr, or username" />
+               placeholder="npub, note, nevent, naddr, or username" data-i18n-placeholder="npub, note, nevent, naddr, or username" />
         <!-- Scope chip: name search is either your follows (users) or every Nostr
              name via the Nostr Archives index (globe). Painted by
              paintSearchModeIcon; click toggles, with the one-time ask when
              turning global on. -->
-        <button id="search-mode" class="icon-btn search-mode" title="" aria-label="Name search scope"></button>
-        <button id="search-close" class="icon-btn search-close" title="Close search" aria-label="Close search">
+        <button id="search-mode" class="icon-btn search-mode" title="" aria-label="Name search scope" data-i18n-aria-label="Name search scope"></button>
+        <button id="search-close" class="icon-btn search-close" title="Close search" aria-label="Close search" data-i18n-title="Close search" data-i18n-aria-label="Close search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
@@ -231,8 +263,8 @@
          it there is no window.nostr anywhere and the signer looks dead. Chrome grants
          at install, so this only shows there if the user restricted site access. -->
     <div id="host-perm-banner" class="host-perm-banner hidden">
-      <div class="host-perm-msg"><strong>Sidecar can't see websites yet.</strong> Grant site access so Nostr apps can use your signer.</div>
-      <button id="host-perm-grant-btn" class="host-perm-grant-btn">Grant access</button>
+      <div class="host-perm-msg"><strong data-i18n="Sidecar can&#x27;t see websites yet.">Sidecar can't see websites yet.</strong> <span data-i18n="Grant site access so Nostr apps can use your signer.">Grant site access so Nostr apps can use your signer.</span></div>
+      <button id="host-perm-grant-btn" class="host-perm-grant-btn" data-i18n="Grant access">Grant access</button>
     </div>
     <div id="post-banner" class="post-banner hidden"></div>
     <!-- Offer to reload the open Nostr site so an account switch takes effect there. -->
@@ -246,11 +278,11 @@
       <!-- Accounts -->
       <div class="tabview" id="tab-accounts">
         <div class="active-account" id="active-account"></div>
-        <h2 id="accounts-heading">Accounts</h2>
+        <h2 id="accounts-heading" data-i18n="Accounts">Accounts</h2>
         <div id="account-list" class="list"></div>
         <div class="add-actions">
-          <button class="secondary" id="add-generate">Generate new</button>
-          <button class="secondary" id="add-import">Import nsec</button>
+          <button class="secondary" id="add-generate" data-i18n="Generate new">Generate new</button>
+          <button class="secondary" id="add-import" data-i18n="Import nsec">Import nsec</button>
         </div>
         <button class="add-account-link hidden" id="add-account-link">
           <!-- Same geometry as ICONS.plus in sidepanel.js, which the account
@@ -259,11 +291,11 @@
           <span class="add-account-badge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </span>
-          <span>Add account</span>
+          <span data-i18n="Add account">Add account</span>
         </button>
         <div class="explore-link-wrap">
-          <a class="explore-link" id="explore-apps-link" href="#">Explore Nostr apps →</a>
-          <a class="explore-link share-link" id="share-sidecar-link" href="#"><span>Share Sidecar with a friend</span></a>
+          <a class="explore-link" id="explore-apps-link" href="#" data-i18n="Explore Nostr apps →">Explore Nostr apps →</a>
+          <a class="explore-link share-link" id="share-sidecar-link" href="#"><span data-i18n="Share Sidecar with a friend">Share Sidecar with a friend</span></a>
         </div>
         <!-- On this day: filled by renderOnThisDay, and left hidden on any date with
              nothing written for it. See ON_THIS_DAY in sidepanel.js. -->
@@ -272,16 +304,16 @@
 
       <!-- Activity: signing history + per-site permission tiers -->
       <div class="tabview hidden" id="tab-activity">
-        <h2>Activity</h2>
+        <h2 data-i18n="Activity">Activity</h2>
         <div class="modal-tabs" id="activity-subtabs">
-          <button class="modal-tab active" data-subtab="sites">Connected sites</button>
-          <button class="modal-tab" data-subtab="log">Recent activity</button>
+          <button class="modal-tab active" data-subtab="sites" data-i18n="Connected sites">Connected sites</button>
+          <button class="modal-tab" data-subtab="log" data-i18n="Recent activity">Recent activity</button>
         </div>
         <div class="setting activity-pane" id="activity-pane-sites">
-          <p class="hint">Each site stays with the account it signed in with. Tap Use, then sign in again to move one.</p>
-          <input type="text" class="filter-input hidden" id="sites-filter" placeholder="Filter by site…" />
+          <p class="hint" data-i18n="Each site stays with the account it signed in with. Tap Use, then sign in again to move one.">Each site stays with the account it signed in with. Tap Use, then sign in again to move one.</p>
+          <input type="text" class="filter-input hidden" id="sites-filter" placeholder="Filter by site…" data-i18n-placeholder="Filter by site…" />
           <div id="sites-list" class="list flat"></div>
-          <button class="ghost show-more-btn hidden" id="sites-more">Show more</button>
+          <button class="ghost show-more-btn hidden" id="sites-more" data-i18n="Show more">Show more</button>
           <!-- Bulk sibling of each row's "Forget site": erase every site record at
                once — account pairings, permission tiers, shared-identity history,
                and the site rows in Recent activity. Built by renderActivity only
@@ -289,10 +321,10 @@
           <div class="row-actions" id="sites-forget-all-wrap"></div>
         </div>
         <div class="setting activity-pane hidden" id="activity-pane-log">
-          <input type="text" class="filter-input hidden" id="activity-filter" placeholder="Filter by site…" />
+          <input type="text" class="filter-input hidden" id="activity-filter" placeholder="Filter by site…" data-i18n-placeholder="Filter by site…" />
           <div id="activity-list" class="list flat"></div>
-          <button class="ghost show-more-btn hidden" id="activity-more">Show more</button>
-          <button class="ghost" id="activity-clear">Clear history</button>
+          <button class="ghost show-more-btn hidden" id="activity-more" data-i18n="Show more">Show more</button>
+          <button class="ghost" id="activity-clear" data-i18n="Clear history">Clear history</button>
         </div>
       </div>
 
@@ -311,7 +343,7 @@
       </div>
     </main>
 
-    <div id="first-post-balloon" class="first-post-balloon hidden">Try the composer →</div>
+    <div id="first-post-balloon" class="first-post-balloon hidden" data-i18n="Try the composer →">Try the composer →</div>
     <div id="compose-menu" class="t-dropdown" data-origin="bottom-right" hidden>
       <button id="compose-note-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><path d="m16 8-14 14m15.5-7H9"/></svg><span data-i18n="Compose a note">Compose a note</span></button>
       <button id="comment-btn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg><span data-i18n="Comment on this page">Comment on this page</span></button>
@@ -343,7 +375,7 @@
     <div id="mining-status" class="mining-status hidden">
       <span class="mining-status-glyph" id="mining-status-glyph" aria-hidden="true"></span>
       <span class="mining-status-main">
-        <span class="mining-status-line" id="mining-status-line">Mining</span>
+        <span class="mining-status-line" id="mining-status-line" data-i18n="Mining">Mining</span>
         <span class="mining-status-who" id="mining-status-who"></span>
       </span>
       <button type="button" id="mining-status-stop" class="mining-status-stop" data-i18n="Stop">Stop</button>
@@ -370,6 +402,9 @@
          is active. Status dot + signing account + live mm:ss
          countdown + Restart / End. See renderRelaxStatus in sidepanel.js. -->
     <div id="relax-status" class="relax-status hidden">
+      <!-- The other accounts' windows, opened from the +N capsule. A sheet over the
+           panel rather than more bar, so the compose button's lift stays the bar's. -->
+      <div id="relax-status-list" class="relax-status-list hidden"></div>
       <div class="relax-status-top">
         <span class="relax-status-who">
           <span class="relax-status-dot" aria-hidden="true"></span>
@@ -377,10 +412,11 @@
           <span class="relax-status-sep">·</span>
           <span id="relax-status-host">—</span>
         </span>
-        <button type="button" id="relax-status-restart" class="relax-status-restart" aria-label="Restart auto-sign timer" title="Restart timer">
+        <button type="button" id="relax-status-more" class="relax-status-more hidden" aria-expanded="false"></button>
+        <button type="button" id="relax-status-restart" class="relax-status-restart" aria-label="Restart auto-sign timer" title="Restart timer" data-i18n-aria-label="Restart auto-sign timer" data-i18n-title="Restart timer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
         </button>
-        <button type="button" id="relax-status-end" class="relax-status-x" aria-label="End auto-sign" title="End auto-sign">
+        <button type="button" id="relax-status-end" class="relax-status-x" aria-label="End auto-sign" title="End auto-sign" data-i18n-aria-label="End auto-sign" data-i18n-title="End auto-sign">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
         </button>
       </div>
@@ -395,12 +431,12 @@
   <section id="view-profile-edit" class="hidden">
     <header class="topbar">
       <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
-      <button id="profile-edit-close" class="icon-btn" title="Close">
+      <button id="profile-edit-close" class="icon-btn" title="Close" data-i18n-title="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </header>
     <main class="content">
-      <h2>Edit profile</h2>
+      <h2 data-i18n="Edit profile">Edit profile</h2>
       <div id="profile-edit-body"></div>
     </main>
   </section>
@@ -427,6 +463,26 @@
           <button type="button" class="settings-section-toggle" aria-expanded="true" aria-controls="section-body-appearance" data-i18n="Appearance">Appearance</button>
         </h3>
         <div class="settings-section-body" id="section-body-appearance">
+
+          <!-- THE STEPS ARE SIX BY DESIGN (80 to 150), and the slider snaps to them:
+               index 0..5 in the markup, percents in sidepanel.js (PANEL_ZOOM_STOPS).
+               Hidden entirely where CSS zoom is unsupported (initPanelZoom). -->
+          <div class="setting" id="panel-zoom-setting">
+            <h3 data-i18n="Panel zoom">Panel zoom</h3>
+            <p class="hint" data-i18n="Make everything in the panel larger or smaller.">Make everything in the panel larger or smaller.</p>
+            <!-- Smaller, the current size, larger: a stepper over five stops, 80 to 120. The
+               middle button is the reset. A slider was geometry to fight at this width, six
+               stops did not fit it, and 150 percent was more than a narrow panel can hold. -->
+            <div class="zoom-stepper" role="group" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom">
+              <button type="button" class="zoom-step" id="panel-zoom-down" aria-label="Smaller" title="Smaller" data-i18n-aria-label="Smaller" data-i18n-title="Smaller">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+              <button type="button" class="zoom-readout" id="panel-zoom-reset" aria-label="Reset to 100%" title="Reset to 100%" data-i18n-aria-label="Reset to 100%" data-i18n-title="Reset to 100%">100%</button>
+              <button type="button" class="zoom-step" id="panel-zoom-up" aria-label="Larger" title="Larger" data-i18n-aria-label="Larger" data-i18n-title="Larger">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+            </div>
+          </div>
 
           <!-- Hidden until i18n.js lists a second language: a picker with one choice in it
                is a question with no answer. Each language is named in itself. -->
@@ -654,6 +710,12 @@
             <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span data-i18n="Tag posts as made with Sidecar">Tag posts as made with Sidecar</span></label>
           </div>
 
+          <div class="setting">
+            <h3 data-i18n="Video details">Video details</h3>
+            <p class="hint" data-i18n="Adds a video’s type and size to the post so apps can play it inline.">Adds a video’s type and size to the post so apps can play it inline.</p>
+            <label class="toggle-row"><input type="checkbox" id="videoimeta-toggle" /> <span data-i18n="Add video details to posts">Add video details to posts</span></label>
+          </div>
+
         </div>
       </section>
 
@@ -677,7 +739,7 @@
               <option value="zapcooking">Zap Cooking</option>
               <option value="noornote">NoorNote</option>
               <option value="jank">JANK</option>
-              <option value="nostrich">Nostrich</option>
+              <option value="nostrvault">Nostr Vault</option>
               <option value="ditto">Ditto</option>
               <option value="razr">Razr</option>
               <option value="grimoire">Grimoire</option>
@@ -685,6 +747,13 @@
               <option value="njump">njump</option>
             </select>
             <label class="toggle-row"><input type="checkbox" id="reuse-tab-toggle" /> <span data-i18n="Reuse an open client tab">Reuse an open client tab</span></label>
+          </div>
+
+          <div class="setting">
+            <h3 data-i18n="Your added clients">Your added clients</h3>
+            <p class="hint" data-i18n="A client not on the list. Paste both a note link and a profile link from it, as clients build the two differently.">A client not on the list. Paste both a note link and a profile link from it, as clients build the two differently.</p>
+            <div class="list flat" id="custom-clients"></div>
+            <button type="button" id="add-client-btn" class="secondary" data-i18n="Add a client">Add a client</button>
           </div>
 
 
@@ -697,6 +766,15 @@
                  for anyone who wants to see each one anyway. -->
             <p class="hint" data-i18n="Read status and preferences, not posts. Signed without asking.">Read status and preferences, not posts. Signed without asking.</p>
             <label class="toggle-row"><input type="checkbox" id="datasync-toggle" /> <span data-i18n="Confirm background app-data syncs">Confirm background app-data syncs</span></label>
+          </div>
+
+          <div class="setting">
+            <h3 data-i18n="Auto-sign with multiple accounts">Auto-sign with multiple accounts</h3>
+            <!-- Off by default, and the reason it is: two accounts each able to sign without
+                 asking is how a multi-account client's slot mix-up goes out under the wrong
+                 account with no card. One at a time, the wrong one still asks. -->
+            <p class="hint" data-i18n="For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no warning.">For several accounts sharing one client. Riskier: a mix-up can post as the wrong account with no warning.</p>
+            <label class="toggle-row"><input type="checkbox" id="relax-per-account-toggle" /> <span data-i18n="Keep a 30-minute timer for each account">Keep a 30-minute timer for each account</span></label>
           </div>
 
           <div class="setting">
@@ -779,6 +857,12 @@
           </div>
 
           <div class="setting">
+            <h3 data-i18n="On-chain balance">On-chain balance</h3>
+            <p class="hint" data-i18n="Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.">Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.</p>
+            <label class="toggle-row"><input type="checkbox" id="btc-sweep-toggle" /> <span data-i18n="Show on-chain balance in the Wallet">Show on-chain balance in the Wallet</span></label>
+          </div>
+
+          <div class="setting">
             <h3 data-i18n="Default zap amount" data-i18n-review>Default zap amount</h3>
             <p class="hint" data-i18n="Offered as a preset wherever you send a zap. Set for the account you are in." data-i18n-review>Offered as a preset wherever you send a zap. Set for the account you are in.</p>
             <label class="toggle-row">
@@ -828,7 +912,7 @@
                  (nip65-only-scope): "Bootstrap relays for {{name}}", one sentence, so a
                  language can order it its own way. With more than one account it is
                  clear these switches are not global. -->
-            <h3 id="nip65-only-scope">Bootstrap relays</h3>
+            <h3 id="nip65-only-scope" data-i18n="Bootstrap relays">Bootstrap relays</h3>
             <p class="hint" data-i18n="Used to find your relay list, and as a fallback if it cannot be reached.">Used to find your relay list, and as a fallback if it cannot be reached.</p>
             <!-- No second hint. "Per account" is said by the scope beside the switch, and what
                  off means by the switch that appears under it. The discovery fetch still
@@ -848,7 +932,7 @@
             <!-- Under the switch while it is off: whether the bell still reads these relays.
                  On by default; see SIDECAR_SET_NOTIF_BOOTSTRAP. -->
             <label class="switch-label switch-nested hidden" id="notif-bootstrap-row">
-              <span><span data-i18n="Use them for notifications">Use them for notifications</span>
+              <span><span data-i18n="Use for notifications only">Use for notifications only</span>
                 <span class="switch-note" data-i18n="Recommended">Recommended</span></span>
               <span class="switch">
                 <input type="checkbox" id="notif-bootstrap-toggle" checked />
@@ -860,6 +944,19 @@
               <div class="row-actions">
                 <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
                 <button class="secondary" id="relay-add" data-i18n="Add">Add</button>
+              </div>
+              <!-- Validation errors from the Add field. -->
+              <div class="error hidden" id="relay-add-error"></div>
+              <!-- A relay that failed the add-time health check: the question on its own
+                   full-width row below the input (a label and two buttons never share the
+                   input's line in a panel this narrow), the answers stretched beneath the
+                   message. Filled in and shown by the relay-add handler. -->
+              <div class="relay-add-confirm hidden" id="relay-add-confirm">
+                <p class="confirm-msg" id="relay-add-confirm-msg"></p>
+                <div class="relay-add-confirm-actions">
+                  <button class="secondary" id="relay-add-anyway" data-i18n="Add anyway">Add anyway</button>
+                  <button class="ghost" id="relay-add-cancel" data-i18n="Cancel">Cancel</button>
+                </div>
               </div>
               <!-- Shown while any bootstrap relay is ws:// — same advisory as the
                    Profile tab's NIP-65 editor. Hidden by renderSettings. -->
@@ -887,7 +984,7 @@
               <option value="1440" data-i18n="After 24 hours" data-i18n-review>After 24 hours</option>
               <option value="0" data-i18n="When browser closes" data-i18n-review>When browser closes</option>
             </select>
-            <p class="hint" data-i18n="Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session." data-i18n-review>Locks after the selected time with nothing signed, approved, or written in the panel. Your PIN is required once per browser session.</p>
+            <p class="hint" data-i18n="Locks after the selected time away from your computer. Your PIN is required once per browser session." data-i18n-review>Locks after the selected time away from your computer. Your PIN is required once per browser session.</p>
           </div>
 
           <div class="setting">
@@ -954,6 +1051,10 @@
             <!-- en-XB: the test locale, a real file written by
                  `node scripts/i18n-keys.mjs --test-locale`. Every string ⟦marked⟧; one that
                  is not was never extracted, or its file did not load. -->
+            <!-- Auto-lock after one minute, for testing the idle lock without waiting five. The
+                 Auto-lock picker shows a stored value it does not offer, so it reads "After 1
+                 minute" while this is on; turning it off goes back to the default, 15. -->
+            <label class="toggle-row"><input type="checkbox" id="dev-autolock-toggle" /> <span data-i18n="Auto-lock after 1 minute">Auto-lock after 1 minute</span></label>
             <label class="toggle-row"><input type="checkbox" id="test-locale-toggle" /> <span data-i18n="Test locale file (en-XB)">Test locale file (en-XB)</span></label>
             <!-- The special editions are offered by the calendar, so this is how one is seen
                  out of season: the panel, the composer and the background all read it
@@ -985,10 +1086,30 @@
        stop, and clearing the src on close is the entire teardown, audio and animation
        frames included. Empty src on purpose, set when it is actually asked for. -->
   <div id="view-rider" class="rider-overlay hidden">
-    <button type="button" class="rider-close" id="rider-close" title="Close">
+    <button type="button" class="rider-close" id="rider-close" title="Close" data-i18n-title="Close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
     </button>
     <iframe id="rider-frame" title="Relay Rider"></iframe>
+  </div>
+
+  <!-- The question behind the pay card's "Pay on any page": confirmed here, never on the
+       page. Drawn as an approval, over whatever is open, because a page raises it and the
+       person can be anywhere in the panel. Before #view-approval so a signing request
+       still sits on top. -->
+  <div id="view-payanywhere" class="approval-overlay hidden">
+    <div class="approval-card">
+      <div class="approval-scroll">
+        <div class="brand"><img class="brand-logo-sm" src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
+        <div class="approval-host" id="payanywhere-host"></div>
+        <div class="approval-ask" id="payanywhere-text"></div>
+      </div>
+      <div class="approval-footer">
+        <div class="approval-actions">
+          <button class="primary" id="payanywhere-on" data-i18n="Turn on">Turn on</button>
+          <button class="ghost" id="payanywhere-later" data-i18n="Not now">Not now</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ===== Signing approval (inline, replaces the popup when the panel is open) ===== -->
@@ -1007,7 +1128,7 @@
       <!-- Account capsule ABOVE the event preview — mirrors the popup (prompt.html).
            Below the preview it was pushed off-screen by a long event. -->
       <div class="approval-account" id="approval-account"></div>
-      <button class="approval-switch-toggle hidden" id="approval-switch-toggle" data-i18n="Sign in with a different account" data-i18n-review>Sign in with a different account</button>
+      <button class="approval-switch-toggle hidden" id="approval-switch-toggle" aria-expanded="false" data-i18n="Use a different account" data-i18n-review>Use a different account</button>
       <div class="approval-switch-menu hidden" id="approval-switch-menu"></div>
       <!-- Payment cards: keep the site on the account picked above, instead of only this payment. -->
       <div id="approval-bind-payer" class="remember hidden">
@@ -1025,11 +1146,9 @@
            the same primitive as Settings -> Sites -> "Use <account>", so both routes leave
            identical state. See the 'detach' branch in background.js for why signing this
            request as a different account would be worse than failing it. -->
-      <div class="approval-wrong-acct hidden" id="approval-wrong-acct">
-        <strong data-i18n="Not the right account?" data-i18n-review>Not the right account?</strong>
-        <button class="approval-wrong-acct-toggle" id="approval-wrong-acct-toggle" aria-expanded="false" data-i18n="Detach and use another identity." data-i18n-review>Detach and use another identity.</button>
-        <div class="approval-wrong-acct-list hidden" id="approval-wrong-acct-list"></div>
-      </div>
+      <!-- The account escape: ONE menu with two groups (see renderWrongAcctEscape).
+           "Signed in here" picks who signs this event; "Other accounts" detaches —
+           the old Detach row, folded into the same menu. -->
 
       <div id="approval-preview" class="card hidden"></div>
 
@@ -1063,6 +1182,26 @@
           <div class="error" id="approval-pin-error"></div>
         </div>
 
+        <!-- THE SCOPE ROW: Once is the default on every card; 30 min opens the timed
+             window; Always writes the standing per-kind grant (#482), never on a
+             shared-identity card. One line above the row says what the chosen segment
+             does; the three lines share one cell, so the row never moves. Outside the
+             check group, which sizes to its content: the row spans the card like the
+             button under it. -->
+        <fieldset class="scope hidden" id="approval-scope">
+          <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
+          <div class="scope-caps" aria-live="polite">
+            <div class="scope-cap on" id="approval-scope-cap-once"></div>
+            <div class="scope-cap" id="approval-scope-cap-relax"></div>
+            <div class="scope-cap" id="approval-scope-cap-always"></div>
+          </div>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="approval-scope" value="once" id="approval-scope-once" checked><span data-i18n="Once" data-i18n-review>Once</span></label>
+            <label class="hidden" id="approval-scope-relax-opt"><input type="radio" name="approval-scope" value="relax" id="approval-scope-relax"><span data-i18n="30 min" data-i18n-review>30 min</span></label>
+            <label class="hidden" id="approval-scope-always-opt"><input type="radio" name="approval-scope" value="always" id="approval-scope-always"><span data-i18n="Always" data-i18n-review>Always</span></label>
+          </div>
+        </fieldset>
+
         <!-- One group, so stacked checkboxes share a left edge — see prompt.html. -->
         <div class="check-group">
         <!-- Offered by the payment card, confirmed here — see prompt.html. -->
@@ -1075,17 +1214,6 @@
           <span data-i18n="Offer Sidecar on sites like this" data-i18n-review>Offer Sidecar on sites like this</span></label>
         </div>
 
-        <!-- "Always allow this event type" (#482): a standing, revocable grant for one
-             event kind — or, when the event carries a `d` tag, that one record — from this
-             site, signed by the account that granted it. The background offers it
-             (data.canKindGrant) only on kinds a grant may ever cover; the note below names
-             the site, account, kind, and record. Panel twin of the popup's
-             #always-kind-offer; see prompt.html. -->
-        <div id="approval-always-kind-offer" class="remember hidden">
-          <label class="check"><input type="checkbox" id="approval-always-kind-box" />
-          <span data-i18n="Always allow this event type for this site" data-i18n-review>Always allow this event type for this site</span></label>
-          <div id="approval-always-kind-note" class="always-kind-note"></div>
-        </div>
 
         <div id="approval-remember" class="remember hidden">
           <label class="check"><input type="checkbox" id="approval-remember-budget" /> <span data-i18n="Allow this site to spend up to" data-i18n-review>Allow this site to spend up to</span></label>
@@ -1096,14 +1224,6 @@
         </div>
         </div>
 
-        <div id="approval-relax-row" class="relax-row hidden">
-          <div class="relax-label" data-i18n="Auto-sign for the next" data-i18n-review>Auto-sign for the next</div>
-          <div class="relax-chips">
-            <button type="button" class="relax-chip" data-mins="5" data-i18n="5 min" data-i18n-review>5 min</button>
-            <button type="button" class="relax-chip" data-mins="15" data-i18n="15 min" data-i18n-review>15 min</button>
-            <button type="button" class="relax-chip" data-mins="30" data-i18n="30 min" data-i18n-review>30 min</button>
-          </div>
-        </div>
 
         <div class="error" id="approval-error"></div>
 
@@ -1149,11 +1269,16 @@
   <script src="ws-guard.js"></script>
   <script src="nip49.js"></script>
   <script src="crypto.js"></script>
+  <script src="bitcoin.js"></script>
   <script src="qrcode-generator.js"></script>
   <script src="qr.js"></script>
   <!-- after qrcode-generator: pdf-backup draws the QR from its module matrix -->
   <script src="pdf-backup.js"></script>
   <script src="nwc-client.js"></script>
+  <!-- Cashing an LNURL-withdraw link through the wallet (Receive, Withdraw). The host guard
+       first: a link is somebody else's address, and lnurl-withdraw.js reads it before fetching. -->
+  <script src="private-host.js"></script>
+  <script src="lnurl-withdraw.js"></script>
   <!-- CLINK offers (noffer), the payer half. Before sidepanel.js, which installs it
        with this panel's signer and pool on the way up. -->
   <script src="clink.js"></script>
@@ -1181,7 +1306,6 @@
   <!-- The nsite shapes the Saved list reads: manifests, snapshots, gateway addresses. -->
   <script src="nsite.js"></script>
   <script src="sidepanel.js"></script>
-  <script src="hls.js"></script>
   <script src="stream-core.js?v=cocktail-names"></script>
   <script src="stream-chat.js"></script><script src="stream-details.js"></script><script src="streams.js"></script>
 </body>

@@ -53,12 +53,34 @@
     accounts, because the bell drops your own events.</p>
   </a>
 
+  <a class="lab" href="approval-lab.html" id="approval">
+    <h2>Approval lab</h2>
+    <p>The approval card's Once · 30 min · Always row, the 30-minute window, standing Always
+    grants and the two-account confirm, in both the panel and the popup. Times each request, so
+    it can tell a silent signature from an answered card. Open it on <code>single.localhost</code>
+    and <code>shared.localhost</code>. Signs, never publishes.</p>
+  </a>
+
+  <a class="lab" href="theme-sweep.html" id="theme-sweep">
+    <h2>Theme sweep</h2>
+    <p>Every theme the panel offers, side by side, with the measurable checks run on each: square
+    themes stay square, nothing overflows, the composer toolbar holds one line. Part of the release
+    checklist. Publishes nothing.</p>
+  </a>
+
+  <a class="lab" href="lock-sweep.html" id="lock-sweep">
+    <h2>Lock-screen sweep</h2>
+    <p>Every theme's lock screen, side by side, with the longer “Locked since your browser closed”
+    message, and a check that no decoration touches the logo, the message or the PIN form. Size,
+    zoom and message are set in the address. Part of the release checklist. Publishes nothing.</p>
+  </a>
+
   <p class="note">A page shown dashed is on a branch that isn't checked out. They live under
   <code>test/manual/</code>.</p>
 </div>
 <script>
   // Mark whichever lab isn't present on this branch, rather than leaving a 404 to click.
-  for (const id of ['invoice', 'encrypt', 'comment']) {
+  for (const id of ['invoice', 'encrypt', 'comment', 'approval']) {
     const a = document.getElementById(id);
     fetch(a.getAttribute('href'), { method: 'HEAD' })
       .then((r) => { if (!r.ok) a.classList.add('gone'); })

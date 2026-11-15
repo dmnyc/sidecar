@@ -79,9 +79,9 @@ test('BOTH BRANCHES SIT BEHIND THE SAME ZAP BUTTON', () => {
   assert.match(sheet, /zapPanel = \(zapHasWallet && !isSelf\)[\s\S]*?\n\s*enableBolt\(\);\s*\n\s*zapWrap\.append\(zapPanel\);/, 'the reveal no longer enables the button it opens');
   assert.match(sheet, /zapWrap\.append\(zapPanel\);/, 'the panel it opens is no longer attached');
   assert.match(sheet, /className: 'recv-out peek-zap-pay hidden'/, 'the pay block is exposed on load again');
-  assert.match(sheet, /zapPanel\.classList\.toggle\('hidden'\)/, 'the button no longer opens whichever panel applies');
+  assert.match(sheet, /zapPanel\.classList\.remove\('hidden'\)/, 'the button no longer opens whichever panel applies');
   // Focus belongs to the form alone; the other panel is a QR and a button.
-  assert.match(sheet, /zapPanel === zapForm && !zapForm\.classList\.contains\('hidden'\)/,
+  assert.match(sheet, /focus !== false && zapPanel === zapForm/,
     'opening the pay block tries to focus an amount field that is not there');
 
   const block = sheet.slice(sheet.indexOf('function zapPayBlock('), sheet.indexOf('function revealZap('));
@@ -133,7 +133,7 @@ test('THE QR SAYS PAY, BECAUSE THAT IS WHAT IT DOES', () => {
 test('it still only offers to pay someone who can be paid', () => {
   // The gate is unchanged on purpose: this changes how you pay, not who you can pay. An
   // address with no allowsNostr can take money but can never produce a receipt.
-  assert.match(sheet, /if \(!p\.zappable\) return;/, 'the zappable gate went away');
+  assert.match(sheet, /if \(!p\.zappable\) return settleZapSheetOffer\(\);/, 'the zappable gate went away');
 });
 
 test('a long address stays readable and copyable', () => {

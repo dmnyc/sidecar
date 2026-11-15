@@ -145,12 +145,18 @@
       if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
       const ws = (window.SidecarWsGuard && window.SidecarWsGuard.impl()) || undefined;
       const pool = new NT.SimplePool({ websocketImplementation: ws });
-      const results = await Promise.allSettled(pool.publish(relays, signed));
+      // Who TOOK it: an unreachable relay is not a success, and a relay that wants a signed
+      // AUTH gets one, the way the composer tab does it.
+      const report = await SC.publishToRelays({
+        pool, relays, signed, normalize: (u) => NT.utils.normalizeURL(u),
+        params: { onauth: (template) => call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey }) },
+      });
       try { pool.close(relays); } catch (_) {}
-      const ok = results.filter((r) => r.status === 'fulfilled').length;
+      const ok = report.accepted.length;
       if (!ok) throw new Error(t('No relay accepted the highlight.'));
       call({ type: 'SIDECAR_HIGHLIGHT_DROP', id }).catch(() => {});
-      await showPosted(signed, ok, relays);
+      // The link's relay hints are the relays that took it.
+      await showPosted(signed, ok, report.accepted);
     } catch (e) {
       status.textContent = '';
       if (/is locked/i.test((e && e.message) || '')) {

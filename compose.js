@@ -53,7 +53,7 @@
   }
   async function call(message) {
     const resp = await bg(message);
-    if (!resp || !resp.ok) throw new Error((resp && resp.error) || t('Request failed'));
+    if (!resp || !resp.ok) throw new Error(I18N.controlError(resp) || t('Request failed'));
     return resp.result;
   }
 
@@ -162,10 +162,30 @@
     }
     return _pool;
   }
+  // WHERE A NOTE GOES: the account's own relays, by the rule the panel and the NIP-07
+  // getRelays() answer use (declared first, then the bootstrap set unless the account turned
+  // it off), plus whatever the panel worked out when it handed the draft over. This used to
+  // be the handover alone and, when the panel had none, Settings' bootstrap relays, which
+  // ignore the account's declared list: a reply went to four default relays and never to the
+  // six the account names, and nothing said so. The two sources are merged, not chosen
+  // between, because the handover can be a stale answer and the worker's last-known list can
+  // be behind: a relay either one names is a relay the account asked for. Nothing falls back
+  // to Settings' map any more; an account that resolves to no relay gets the "No relays
+  // configured" refusal rather than a post that quietly went somewhere else.
   async function targetRelays() {
-    if (handoverRelays && handoverRelays.length) return handoverRelays;
-    return relayUrls(true);
+    const out = [];
+    const add = (urls) => { for (const u of urls || []) if (u && !out.includes(u)) out.push(u); };
+    try {
+      const map = await call({ type: 'SIDECAR_GET_ACCOUNT_RELAYS', pubkey: state && state.activePubkey });
+      add(Object.keys(map || {}).filter((u) => map[u] && map[u].write !== false));
+    } catch (_) { /* the handover below may still answer */ }
+    if (handoverRelays && handoverRelays.length) add(handoverRelays);
+    return out;
   }
+
+  // A relay that wants a signed AUTH gets one, the way the panel signs it. Only for the relays a
+  // post goes to, which are the account's own; the pool's lookups never carry this.
+  const signAuth = (template) => call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
 
   // READING IS NOT PUBLISHING, and conflating the two cost the uploader its Blossom
   // server. relayUrls(false) means every configured relay, read-only ones included, and
@@ -196,9 +216,23 @@
   function cacheProfile(pubkey, content) {
     profileCache.set(pubkey, {
       pubkey,
-      name: (content && (content.display_name || content.name)) || null,
+      name: metaName(content),
       picture: (content && content.picture) || null,
     });
+  }
+  // The panel's rule (cacheProfile in sidepanel.js): display_name, then the camelCase
+  // spelling some clients write, then name. The tab read two of the three, so a profile
+  // the panel named came out as an npub here.
+  function metaName(meta) {
+    return (meta && (meta.display_name || meta.displayName || meta.name)) || null;
+  }
+  // A pubkey's write relays from its kind 10002: for a name lookup, and for an nevent that
+  // names its author.
+  async function outboxOf(pubkey) {
+    const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+    const ev = await pool().get(relays, { kinds: [10002], authors: [pubkey] }).catch(() => null);
+    if (!ev || ev.pubkey !== pubkey) return [];
+    return ev.tags.filter((tg) => tg[0] === 'r' && tg[1] && (!tg[2] || tg[2] === 'write')).map((tg) => tg[1]);
   }
   // A NAME FOR THE PREVIEW, for a mention or an embedded note's author.
   //
@@ -208,29 +242,97 @@
   // its search card; this is the same fix. Your own accounts answer first, from the
   // store, with no relay at all; then purplepag.es (the kind:0 aggregator) beside the
   // configured relays, capped; and only a name found is kept.
-  async function fetchPreviewProfile(pubkey) {
+  //
+  // WHERE A STRANGER'S kind:0 LIVES. Their own write relays (NIP-65) are the source of
+  // truth; the configured set and purplepag.es are where it often is not. So the lookup
+  // asks both at once, and a name from either one wins: a slow or dead relay in one set
+  // no longer holds up a name the other had in a tenth of a second. Each read settles a
+  // moment after its first answer instead of waiting on every relay, and keeps the newest
+  // copy it saw. Two callers asking for the same person (the header and a mention pill)
+  // share one lookup.
+  const PROFILE_SETTLE_MS = 300;
+  const PROFILE_WAIT_MS = 6000;
+  const OUTBOX_WAIT_MS = 3000;
+  const OUTBOX_MAX = 4;
+  const profileInflight = new Map();
+  const outboxCache = new Map();
+
+  function readProfileEvent(relays, pubkey) {
+    return new Promise((resolve) => {
+      if (!relays.length) return resolve(null);
+      let best = null, done = false, settle = null, sub = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(settle);
+        clearTimeout(cap);
+        try { if (sub) sub.close(); } catch (_) {}
+        resolve(best);
+      };
+      const cap = setTimeout(finish, PROFILE_WAIT_MS);
+      try {
+        sub = pool().subscribeMany(relays, { kinds: [0], authors: [pubkey] }, {
+          onevent: (ev) => {
+            // A relay is not obliged to honor the author filter.
+            if (!ev || ev.pubkey !== pubkey) return;
+            if (!best || ev.created_at > best.created_at) best = ev;
+            if (!settle) settle = setTimeout(finish, PROFILE_SETTLE_MS);
+          },
+          oneose: finish,
+        });
+        if (done) sub.close();
+      } catch (_) { finish(); }
+    });
+  }
+
+  // The relays this person writes to, minus the ones the other read already covers.
+  async function outboxRelaysFor(pubkey, covered) {
+    if (!outboxCache.has(pubkey)) {
+      outboxCache.set(pubkey, new Promise((resolve) => {
+        const timer = setTimeout(() => resolve([]), OUTBOX_WAIT_MS);
+        outboxOf(pubkey).catch(() => []).then((list) => { clearTimeout(timer); resolve(list); });
+      }));
+    }
+    const list = await outboxCache.get(pubkey);
+    return list.filter((u) => /^wss:\/\//.test(u) && !covered.includes(u)).slice(0, OUTBOX_MAX);
+  }
+
+  function fetchPreviewProfile(pubkey) {
     // A cached entry counts only if it has a name: anything nameless is a miss, asked again.
     const hit = profileCache.get(pubkey);
-    if (hit && hit.name) return hit;
+    if (hit && hit.name) return Promise.resolve(hit);
     const own = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
     if (own && own.name) {
       const p = { pubkey, name: own.name, picture: own.picture || null };
       profileCache.set(pubkey, p);
-      return p;
+      return Promise.resolve(p);
     }
-    try {
-      const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
-      const ev = await Promise.race([
-        pool().get(relays, { kinds: [0], authors: [pubkey] }),
-        new Promise((res) => setTimeout(() => res(null), 6000)),
-      ]);
-      if (!ev || ev.pubkey !== pubkey) return null;
-      const meta = JSON.parse(ev.content) || {};
-      const name = meta.display_name || meta.name || null;
-      const p = { pubkey, name, picture: meta.picture || null };
-      if (name) profileCache.set(pubkey, p);
-      return p;
-    } catch (_) { return null; }
+    if (profileInflight.has(pubkey)) return profileInflight.get(pubkey);
+    const run = (async () => {
+      try {
+        const wide = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+        const general = readProfileEvent(wide, pubkey);
+        const theirs = outboxRelaysFor(pubkey, wide).then((relays) => readProfileEvent(relays, pubkey));
+        const parse = (ev) => { try { return JSON.parse(ev.content) || {}; } catch (_) { return {}; } };
+        const ev = await new Promise((resolve) => {
+          // The first copy that has a name settles it; failing that, the newest copy there is.
+          for (const read of [general, theirs]) {
+            read.then((e) => { if (e && metaName(parse(e))) resolve(e); }).catch(() => {});
+          }
+          Promise.all([general, theirs]).then(([a, b]) => {
+            resolve(a && b ? (b.created_at > a.created_at ? b : a) : (a || b));
+          }).catch(() => resolve(null));
+        });
+        if (!ev) return null;
+        const meta = parse(ev);
+        const name = metaName(meta);
+        const p = { pubkey, name, picture: meta.picture || null };
+        if (name) profileCache.set(pubkey, p);
+        return p;
+      } catch (_) { return null; } finally { profileInflight.delete(pubkey); }
+    })();
+    profileInflight.set(pubkey, run);
+    return run;
   }
   function applyAvatar(box, a) {
     box.innerHTML = '';
@@ -269,7 +371,7 @@
       followCache = pubkeys.map((pk) => {
         let meta = {};
         try { meta = JSON.parse((byKey.get(pk) || {}).content || '{}'); } catch (_) {}
-        const entry = { pubkey: pk, name: meta.display_name || meta.name || null, picture: meta.picture || null };
+        const entry = { pubkey: pk, name: metaName(meta), picture: meta.picture || null };
         profileCache.set(pk, entry);
         return entry;
       }).filter((c) => c.name);
@@ -390,6 +492,10 @@
 
   const composer = SC.installComposer({
     NT,
+    // Said when the account's own Blossom servers took none of a file and nostr.build did.
+    onUploadFallback: (message) => toast(message, 'info'),
+    // Upload decisions into Settings → Developer → Debug log (unpacked builds only).
+    devLog: (level, msg, data) => { call({ type: 'SIDECAR_UPLOAD_LOG', level, msg, data }).catch(() => {}); },
     applyAvatar,
     cachedProfile,
     cacheProfile,
@@ -405,6 +511,7 @@
     poolQuerySync: (relays, filter, params) => pool().querySync(relays, filter, params),
     relayUrls,
     activePubkey: () => state.activePubkey,
+    onUploadNotice: (message) => toast(message, 'info'),
     // Settings → Reduce motion. The countdown's digits re-enter per glyph, which is
     // exactly the kind of thing that setting is for.
     reduceBalanceMotion: () => reduceMotion,
@@ -745,13 +852,6 @@
     ]);
   }
 
-  // A pubkey's write relays from its kind 10002, for an nevent that names its author.
-  async function devOutboxOf(pubkey) {
-    const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
-    const ev = await pool().get(relays, { kinds: [10002], authors: [pubkey] }).catch(() => null);
-    if (!ev || ev.pubkey !== pubkey) return [];
-    return ev.tags.filter((tg) => tg[0] === 'r' && tg[1] && (!tg[2] || tg[2] === 'write')).map((tg) => tg[1]);
-  }
   async function devAuthorOf(id) {
     const ev = await pool().get(await relayUrls(false), { ids: [id] }).catch(() => null);
     return ev && ev.id === id ? ev.pubkey : null;
@@ -782,7 +882,7 @@
       hint.textContent = t('Looking for the event…');
       const ev = await SC.fetchEventRef(ref, {
         ownRelays: () => relayUrls(false),
-        outboxOf: devOutboxOf,
+        outboxOf,
         get: (relays, filter) => pool().get(relays, filter),
       });
       if (!ev) {
@@ -850,8 +950,10 @@
     const btn = $('compose-drafts-btn');
     if (!btn || !state || !state.activePubkey) return;
     const inPanel = await draftOpenInPanel();
+    // Notes set aside come back through the note slot, so while the panel is writing it
+    // they are the panel's to bring back, the same as the note itself.
     const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
-      .filter((e) => e.key !== inPanel);
+      .filter((e) => e.key !== inPanel && !(e.shelved && inPanel === state.activePubkey));
     const pane = $('compose-drafts-pane');
     const listing = !pane.classList.contains('hidden');
     // Not while the list is up: the list is what it opens, and "Back to your draft" is
@@ -870,7 +972,7 @@
     pane.append(SC.buildSavedDraftList({
       entries: others,
       nameFor: (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null),
-      onPick: (entry) => entry.kind === 'site' ? switchToDraft(null, entry.siteId) : switchToDraft(entry.replyId),
+      onPick: (entry) => entry.kind === 'site' ? switchToDraft(null, entry.siteId) : (entry.shelved ? unshelve(entry.key) : switchToDraft(entry.replyId)),
       onDelete: async (entry) => {
         // A pending save writes the whole store back, so it lands first rather than
         // putting the deleted draft back a moment later.
@@ -883,6 +985,56 @@
       },
     }));
     pane.append(back);
+  }
+
+  // A QUOTE TAPPED IN THE PANEL while this tab holds the note. The note being written may
+  // have nothing to do with the one just chosen, so it is set aside under Saved drafts
+  // (shelveNoteDraft) and the quote opens here in a fresh note. A draft holding nothing
+  // but an older quote has nothing to keep, and the new quote takes its place.
+  // The reference is rebuilt into an entry the same way a paste is, so only a lone
+  // note1/nevent1/naddr reference gets in. Not while posting, not onto the receipt, and
+  // not into a reply: the panel sends this only when the tab is on the note.
+  async function takeQuote(ref) {
+    if (busy() || receiptShown || replyId) return;
+    const entry = SC.quoteEntriesFromPaste(typeof ref === 'string' ? ref : '', [])[0];
+    if (!entry) return;
+    if (!SC.draftHasWork(draft)) {
+      const placed = SC.placeQuote(draft.poll ? [] : draft.media, entry);
+      if (!placed.change && !draft.poll) return;
+      draft.media = placed.media;
+      draft.poll = null;
+      closeAltEditor(false); // the row may be editing the slot that just changed
+      if (pollEditor) pollEditor.paint();
+      scheduleSave();
+      paintCount();
+      renderThumbs();
+      showTab('write');
+      return;
+    }
+    await flushDraft();
+    const all = await readAllDrafts();
+    const kept = SC.shelveNoteDraft(all, dkey, Date.now());
+    all[dkey] = { text: '', media: [entry], savedAt: Date.now() };
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    await reopenDraft();
+    showTab('write');
+    if (kept) toast(t('Your draft is in Saved drafts.'), 'success');
+  }
+
+  // A NOTE SET ASIDE, picked from Saved drafts: it comes back into the note slot, and
+  // whatever the note slot held goes aside in its place, so nothing is written over.
+  async function unshelve(key) {
+    if (busy()) return;
+    const leavingReply = !!replyTo && draftHasContent(draft);
+    await flushDraft();
+    const all = await readAllDrafts();
+    if (!SC.unshelveNoteDraft(all, state.activePubkey, key, Date.now())) return;
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    replyId = null;
+    try { history.replaceState(null, '', location.pathname); } catch (_) {}
+    await reopenDraft();
+    showTab('write');
+    if (leavingReply) toast(t('Your reply is saved.'), 'info');
   }
 
   // The panel pointing this tab at a draft. A tab showing its receipt has no editor to
@@ -1064,7 +1216,7 @@
       return;
     }
     const n = (draft.text || '').trim().length;
-    $('compose-count').textContent = n ? n + (n === 1 ? ' character' : ' characters') : '';
+    $('compose-count').textContent = n ? tn('{{count}} character', '{{count}} characters', n) : '';
     // Media alone is a postable note, the same as in the panel: an image with no caption
     // is a thing people post. The button itself is decided in one place.
     paintPostButton();
@@ -1195,7 +1347,8 @@
       // every author quoted, and a q tag for every note quoted. This page went without
       // them from its first release, so a mention written here never notified anyone
       // and a quote did not read as one.
-      const body = SC.noteBodyTags(text, NT, reply ? reply.tags : []);
+      // A quote moved into the strip is read from there too: the content carries it.
+      const body = SC.noteBodyTags(SC.proseWithQuotes(text, draft.media), NT, reply ? reply.tags : []);
       const clientTag = settings.showClientTag === false ? [] : [['client', 'Sidecar']];
       // DEV ONLY: silent p tags, deduped against the threading and the text's own.
       const replyP = new Set((reply ? reply.tags : []).filter((tg) => tg[0] === 'p').map((tg) => tg[1]));
@@ -1221,7 +1374,7 @@
           ...silentP,
           ...body.q,
           ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
-          ...SC.imetaTagsForMedia(draft.media),
+          ...SC.imetaTagsForMedia(draft.media, { videoImeta: settings.videoImeta }),
         ],
         content: SC.composeNoteContent(text, draft.media),
       };
@@ -1253,8 +1406,11 @@
       status.textContent = t('Publishing…');
       const relays = await targetRelays();
       if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
-      const results = await Promise.allSettled(pool().publish(relays, signed));
-      const ok = results.filter((r) => r.status === 'fulfilled').length;
+      // WHO TOOK IT, not who did not hard-refuse: an unreachable relay is not a success.
+      const report = await SC.publishToRelays({
+        pool: pool(), relays, signed, params: { onauth: signAuth }, normalize: (u) => NT.utils.normalizeURL(u),
+      });
+      const ok = report.accepted.length;
       if (!ok) throw new Error(t('No relay accepted the note. It is still saved as a draft.'));
       // The draft goes only once the note is actually out. A cleared draft plus a failed
       // publish is the one outcome worth engineering against.
@@ -1282,7 +1438,7 @@
       editorSetText('');
       renderThumbs();
       status.textContent = '';
-      await showPosted(signed, ok, what);
+      await showPosted(signed, report, what);
     } catch (e) {
       status.textContent = '';
       // A stop is the user's own decision, and the editor coming back is the answer.
@@ -1558,13 +1714,15 @@
   //
   // A LINK, because Sidecar is a companion and not a client. It cannot show you the note
   // in a thread with its replies, and the client this account already chose can.
-  async function neventFor(signed) {
-    let relays = [];
-    try { relays = (await targetRelays()).slice(0, 2); } catch (_) {}
+  // The hints are relays that TOOK the note. They used to be the first two configured, taken or
+  // not, so a link could send a client to a relay that never had it.
+  async function neventFor(signed, accepted) {
+    let relays = (accepted || []).slice(0, 2);
+    if (!relays.length) { try { relays = (await targetRelays()).slice(0, 2); } catch (_) {} }
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
-  async function showPosted(signed, relayCount, what) {
+  async function showPosted(signed, report, what) {
     const sheet = document.querySelector('.compose-sheet');
     // THE ADDRESS SAYS SO. The panel cannot ask a tab anything without the "tabs"
     // permission, but getContexts reports each document's URL, fragment and all, so a
@@ -1580,7 +1738,7 @@
       // The account that SIGNED it, not whatever is active by the time this paints. They
       // can differ if the panel switched while the tab was open.
       const client = composer.resolveClient(settings, signed.pubkey || state.activePubkey);
-      href = client.url(await neventFor(signed));
+      href = client.url(await neventFor(signed, report.accepted));
       label = client.label;
     } catch (_) { /* no link is better than a broken one */ }
 
@@ -1595,10 +1753,9 @@
       mark,
       h('h2', { className: 'compose-done-title', textContent: what === 'poll' ? t('Your poll is live.')
         : what === 'reply' ? t('Your reply is live.') : t('Your note is live.') }),
-      h('p', {
-        className: 'compose-done-sub',
-        textContent: tn('Published to {{count}} relay.', 'Published to {{count}} relays.', relayCount),
-      })
+      // "Published to N relays.", and when not every relay accepted it, a row that opens onto
+      // which did and why the others did not. The panel's banner draws the same thing.
+      SC.relayReportNode(report, 'compose-done-sub')
     );
 
     const row = h('div', { className: 'compose-done-actions' });
@@ -1624,6 +1781,31 @@
   }
 
   // ---- thumbnails for what has been uploaded ----
+  // The block for a quote in the strip. The order is the array's, edited in place: the
+  // drawer and the autosave read `draft.media` afresh, and the array is shared with them.
+  function quoteBlockFor(m, i) {
+    const moveTo = (dir) => {
+      closeAltEditor(); // flush first: the row's slot is about to change places
+      const next = SC.moveQuoteEntry(draft.media, i, dir);
+      SC.replaceMedia(draft.media, next);
+      scheduleSave();
+      renderThumbs();
+    };
+    return composer.buildQuoteBlock(m.quote, {
+      canUp: i > 0,
+      canDown: i < draft.media.length - 1,
+      onUp: () => moveTo(-1),
+      onDown: () => moveTo(1),
+      onRemove: () => {
+        draft.media.splice(i, 1);
+        closeAltEditor(false); // the row edits a media slot that no longer exists
+        scheduleSave();
+        paintCount();
+        renderThumbs();
+      },
+    });
+  }
+
   function renderThumbs() {
     const host = $('compose-thumbs');
     host.innerHTML = '';
@@ -1631,9 +1813,28 @@
     // comes through here: an upload, a paste, a removal, a draft loaded. The Poll button
     // stood its ground after an upload, because nothing here told it to.
     if (pollEditor) pollEditor.paintEitherOr();
+    // And the preview, when that is what is showing: the attachments are part of what it draws.
+    paintPreview();
     // Where a dragged thumb will land, across renderThumbs' rebuilds.
     let dragFrom = -1;
+    const qi = draft.media.findIndex((m) => m && m.quote);
+    const pics = SC.pictureCount(draft.media);
+    const firstPicture = draft.media.findIndex((m) => m && !m.quote);
+    const lastPicture = draft.media.findLastIndex((m) => m && !m.quote);
+    // The arrow is the quote's, seen from the pictures: below the quote is the quote first.
+    const picturesGroup = qi >= 0 ? SC.buildAttachmentsLabel(pics, {
+      urls: draft.media.filter((x) => x && x.url).map((x) => x.url),
+      canUp: qi === 0,
+      canDown: qi > 0,
+      onUp: () => { closeAltEditor(); SC.replaceMedia(draft.media, SC.moveQuoteEntry(draft.media, qi, 1)); scheduleSave(); renderThumbs(); },
+      onDown: () => { closeAltEditor(); SC.replaceMedia(draft.media, SC.moveQuoteEntry(draft.media, qi, -1)); scheduleSave(); renderThumbs(); },
+    }) : null;
     draft.media.forEach((m, i) => {
+      // A quoted note is a block, not a thumbnail: it is shown as the note it quotes, in
+      // the strip's order, and steps above or below the pictures with its own buttons.
+      if (m.quote) { host.append(quoteBlockFor(m, i)); return; }
+      // Beside a quote the pictures are one block with a label and an arrow of their own.
+      if (picturesGroup && i === firstPicture) host.append(picturesGroup.label);
       const cell = h('div', { className: 'compose-thumb' });
       const el = document.createElement(m.isVideo ? 'video' : 'img');
       // Many media hosts reject a chrome-extension:// referrer and answer 403, which
@@ -1656,7 +1857,7 @@
       // THE ORDER ON THE STRIP IS THE ORDER IN THE NOTE. The URLs leave the editor
       // and are appended at publish in this array's order, so with more than one
       // attachment the thumbs drag.
-      cell.draggable = draft.media.length > 1;
+      cell.draggable = pics > 1;
       cell.addEventListener('dragstart', (e) => {
         dragFrom = i;
         cell.classList.add('dragging');
@@ -1675,8 +1876,7 @@
         cell.classList.remove('drop-target');
         if (dragFrom === -1 || dragFrom === i) return;
         closeAltEditor(); // flush first: the row's slot is still where it was opened
-        const moved = draft.media.splice(dragFrom, 1)[0];
-        draft.media.splice(i, 0, moved);
+        SC.replaceMedia(draft.media, SC.movePicture(draft.media, dragFrom, i));
         dragFrom = -1;
         scheduleSave();
         renderThumbs();
@@ -1686,40 +1886,36 @@
         cell.classList.remove('dragging');
         host.querySelectorAll('.drop-target').forEach((t) => t.classList.remove('drop-target'));
       });
-      if (!m.isVideo) {
-        // Same chip the panel's composer wears: + ALT until the image is described,
-        // ✓ ALT once it is. The tag itself only goes out for described images.
-        const alt = h('button', {
-          className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
-          title: m.alt ? t('Edit the image description') : t('Add a description'),
-          type: 'button',
-        });
-        alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
-        alt.addEventListener('click', () => openAltEditor(i));
-        cell.append(alt);
-      }
+      // Same chip the panel's composer wears: + ALT until the image is described,
+      // ✓ ALT once it is. The tag itself only goes out for described media.
+      const alt = h('button', {
+        className: 'compose-thumb-alt' + (m.alt ? ' has-alt' : ''),
+        title: m.alt ? (m.isVideo ? t('Edit the video description') : t('Edit the image description')) : t('Add a description'),
+        type: 'button',
+      });
+      alt.textContent = m.alt ? '✓ ALT' : '+ ALT';
+      alt.addEventListener('click', () => openAltEditor(i));
+      cell.append(alt);
       // THE STRIP REORDERS BY MORE THAN DRAG. HTML5 drag-and-drop never fires
       // on touch, so a touchscreen had no way to reorder at all and a keyboard
       // had none either; the steppers are the cheapest reorder there is, and
       // they are buttons, which touch and Tab both reach. The ends hide theirs,
       // because a disabled arrow is a control answering "you can't".
-      if (draft.media.length > 1) {
+      if (pics > 1) {
         const step = (dir, label) => {
           const b = h('button', { className: 'compose-thumb-move ' + (dir < 0 ? 'left' : 'right'), title: label, type: 'button' });
           b.append(icon(dir < 0 ? 'arrow-left' : 'arrow-right'));
           b.addEventListener('click', () => {
-            const to = i + dir;
-            if (to < 0 || to >= draft.media.length) return;
+            if (!SC.canMovePicture(draft.media, i, dir)) return;
             closeAltEditor(); // flush first: the row's slot is still where it was opened
-            const movedItem = draft.media.splice(i, 1)[0];
-            draft.media.splice(to, 0, movedItem);
+            SC.replaceMedia(draft.media, SC.movePicture(draft.media, i, i + dir));
             scheduleSave();
             renderThumbs();
           });
           return b;
         };
-        if (i > 0) cell.append(step(-1, t('Move earlier')));
-        if (i < draft.media.length - 1) cell.append(step(1, t('Move later')));
+        if (SC.canMovePicture(draft.media, i, -1)) cell.append(step(-1, t('Move earlier')));
+        if (SC.canMovePicture(draft.media, i, 1)) cell.append(step(1, t('Move later')));
       }
       const rm = h('button', { className: 'compose-thumb-x', title: t('Remove'), type: 'button' });
       rm.append(icon('trash'));
@@ -1734,13 +1930,32 @@
       });
       cell.append(rm);
       host.append(cell);
+      // The pictures' links close their block, under the last of them.
+      if (picturesGroup && i === lastPicture) host.append(picturesGroup.list);
     });
     mediaDrawer.sync();
   }
 
   // The attachments' reference drawer, seated between the strip and whatever row
-  // comes next: collapsed it is one line saying where the attachments go.
-  const mediaDrawer = SC.buildMediaDrawer(() => draft.media);
+  // comes next: collapsed it is one line saying how many attachments there are, and the
+  // one place a trailing quote is offered to the strip.
+  const mediaDrawer = SC.buildMediaDrawer(() => draft.media, {
+    getText: () => draft.text,
+    // THE QUOTE MOVES INTO THE STRIP: cut from the end of the words, appended as a card
+    // after the pictures (the order that shows them as part of the post), and from there
+    // it drags and steps like any of them. The editor is re-read after the cut so the
+    // draft agrees with what is on screen.
+    onMoveQuote: () => {
+      const { head, quotes } = SC.takeTrailingQuote(draft.text, draft.media);
+      if (!quotes.length) return;
+      editorApi.setText(head);
+      editorApi.sync();
+      draft.media.push(...quotes);
+      scheduleSave();
+      paintCount();
+      renderThumbs();
+    },
+  });
   $('compose-thumbs').after(mediaDrawer.wrap);
 
   // ---- the ALT editor, one image at a time ----
@@ -1782,7 +1997,9 @@
     }
     altRow = SC.buildAltEditorRow({
       url: m.url,
+      isVideo: !!m.isVideo,
       alt: m.alt,
+      count: draft.media.filter((x) => x && x.url).length,
       onChange: (value) => saveAltInto(i, value),
       onSave: (value) => {
         closeAltEditor();
@@ -1799,6 +2016,9 @@
   let uploadFiles = async () => {};
   // Set by buildToolbar: closes the GIF picker, which sits outside the toolbar row.
   let closeGifPicker = () => {};
+  // The same for the emoji picker, and the button that opens it, which goes with the editor.
+  let closeEmojiPicker = () => {};
+  let emojiBtn = null;
 
   // ---- the site editor ----
   //
@@ -2051,8 +2271,7 @@
     fileInput.type = 'file';
     fileInput.accept = 'image/*,video/*';
     fileInput.style.display = 'none';
-    const addBtn = h('button', { className: 'mini compose-add', type: 'button' });
-    addBtn.append(icon('camera'), h('span', { textContent: t('Media') }));
+    const addBtn = SC.composeToolBtn('camera', t('Media'));
     addBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0];
@@ -2062,20 +2281,16 @@
     // The Media button and a pasted image take the one path. In site mode the same
     // button uploads through the same Blossom path and inserts a Markdown image at
     // the caret instead: an attachment slot belongs to a note, and a site page is prose.
-    uploadFiles = async (files) => {
+    uploadFiles = async (files, { pasted = false } = {}) => {
       err.textContent = '';
       addBtn.disabled = true;
-      const lbl = addBtn.querySelector('span');
-      // THE LABEL STAYS "Media" AND SHIMMERS, as it does in the panel. Swapping in
-      // "Uploading…" made this button 23px wider and took 8px each off GIF, Poll and
-      // PoW, so the whole row moved the moment an upload started. The stripes say it is
-      // busy; the word does not need to change to say it too.
-      lbl.dataset.text = lbl.textContent;
-      lbl.classList.add('t-shimmer');
-      addBtn.classList.add('is-uploading'); // the whole button sweeps (styles.css)
+      // The whole button sweeps (styles.css), as it does in the panel: there is no word
+      // to shimmer, and the stripes are what say it is busy.
+      addBtn.classList.add('is-uploading');
       try {
         for (const file of files) {
-          const url = await composer.uploadMedia(file, state.activePubkey);
+          // The file is read for its type and size while it uploads, not after.
+          const [url, meta] = await Promise.all([composer.uploadMedia(file, state.activePubkey, { pasted }), SC.readVideoMeta(file)]);
           if (draft.site) {
             siteEditor.insertImage(url, file.type.startsWith('video/'));
             continue;
@@ -2084,7 +2299,9 @@
           // (SC.composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
-          draft.media.push({ url, isVideo: file.type.startsWith('video/') });
+          // A video carries its type and pixel size into its imeta tag (SC.readVideoMeta);
+          // an image has nothing to add and gets {}.
+          SC.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...meta });
         }
         scheduleSave();
         paintCount();
@@ -2095,21 +2312,14 @@
       }
       addBtn.disabled = false;
       addBtn.classList.remove('is-uploading');
-      lbl.classList.remove('t-shimmer');
-      delete lbl.dataset.text;
     };
 
-    // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same labels as the
-    // panel. The labels are not quite the same width, so the row's cells are equal rather
-    // than sized to them (styles.css), and cycling moves nothing.
-    const powBtn = h('button', { className: 'mini compose-add', type: 'button' });
-    const powLabel = h('span');
-    powBtn.append(icon('pickaxe'), powLabel);
+    // Cycles Off, 16, 18, 20, 22 and back, the same ladder and the same badge as the
+    // panel.
+    const powControl = SC.buildPowButton();
+    const powBtn = powControl.btn;
     function paintPow() {
-      const lvl = powForThisPost.on ? SC.powLevelFor(powForThisPost.bits) : null;
-      powLabel.textContent = lvl ? t('PoW {{bits}}', { bits: lvl.bits }) : t('PoW off');
-      powBtn.title = lvl ? lvl.cost() : t('Off. Tap to mine one into this post.');
-      powBtn.classList.toggle('compose-add-on', !!lvl);
+      powControl.paint(powForThisPost.on ? SC.powLevelFor(powForThisPost.bits) : null);
     }
     repaintPow = paintPow;
     powBtn.addEventListener('click', () => {
@@ -2130,7 +2340,7 @@
         if (draft.poll) return;
         if (!draft.media.some((m) => m && m.url === gif.url)) {
           // The GIF's own title as its description to start from, as in the panel.
-          draft.media.push({ url: gif.url, isVideo: false, alt: gif.title || '' });
+          SC.addMedia(draft.media, { url: gif.url, isVideo: false, alt: gif.title || '' });
         }
         scheduleSave();
         paintCount();
@@ -2138,6 +2348,15 @@
       },
     });
     closeGifPicker = gifPicker.close;
+
+    // Emoji go into the note at the caret, through the editor, so the draft hears of them
+    // the way it hears of typing.
+    const emojiPicker = SC.buildEmojiPicker({
+      onPick: (ch) => editorApi.insertText(ch),
+      onClose: () => editorApi.focus(),
+    });
+    closeEmojiPicker = emojiPicker.close;
+    emojiBtn = emojiPicker.addBtn;
 
     pollEditor = SC.buildPollEditor({
       poll: () => draft.poll || null,
@@ -2160,11 +2379,12 @@
       row.classList.add('compose-actions-site');
       return;
     }
-    row.append(addBtn, gifPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
+    row.append(addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
     // Below the toolbar rather than inside it: the editor is a form, and the row is a
     // row of buttons.
     row.after(pollEditor.wrap);
     row.after(gifPicker.wrap);
+    row.after(emojiPicker.wrap);
   }
 
   // ---- Write / Preview ----
@@ -2172,6 +2392,11 @@
   // The same renderer the panel previews with, so what this shows and what that shows
   // cannot disagree about a mention, an embed or a link card.
   let showTab = () => {};
+  // Draws the Preview pane from the draft as it is NOW, or does nothing while the pane is
+  // not the one showing. Set by buildTabs. renderThumbs calls it, so removing, adding or
+  // uploading an attachment from the strip, which stays on screen over Preview, is seen in
+  // the preview straight away instead of after a trip back to the editor and out again.
+  let paintPreview = () => {};
   function buildTabs() {
     const write = $('tab-write');
     const prev = $('tab-preview');
@@ -2179,6 +2404,7 @@
     const list = $('compose-drafts-pane');
     const slot = $('compose-slot');
     showTab = (which) => {
+      const wasListing = !list.classList.contains('hidden');
       // THE LIST TAKES THE EDITOR'S PLACE AT THE EDITOR'S SIZE, measured before the
       // editor is hidden, so the card does not jump when you open it.
       if (which === 'drafts' && !slot.classList.contains('hidden') && slot.offsetHeight) {
@@ -2195,14 +2421,31 @@
       // The toolbar edits this draft, so it stands down while another draft is being
       // chosen rather than offering to attach a photo to a list.
       $('compose-actions').classList.toggle('hidden', which === 'drafts');
-      if (which === 'drafts') closeGifPicker();
+      // AND SO DOES WHAT BELONGS TO IT: the attachment strip, the media drawer and the dev
+      // fields. Left up under the list, the open draft's quoted note read as part of the
+      // list. A class of its own rather than .hidden, which each of them sets for its own
+      // reasons and would get back wrong.
+      for (const el of [$('compose-thumbs'), mediaDrawer.wrap, $('compose-dev')]) {
+        el.classList.toggle('drafts-away', which === 'drafts');
+      }
+      if (which === 'drafts') { closeGifPicker(); closeAltEditor(); }
+      // It writes into the editor, which Preview and the drafts list both put away.
+      if (which !== 'write') closeEmojiPicker();
+      if (emojiBtn) emojiBtn.classList.toggle('hidden', which !== 'write' || !SC.emojiGroups());
       // And Post goes with it. From a list of other drafts it would publish the one you
-      // cannot see; Cancel and the setting beside it still apply, so they stay.
+      // cannot see; the setting beside it still applies, so it stays.
       $('compose-post').classList.toggle('hidden', which === 'drafts');
-      // Invisible rather than gone: it is the spacer that holds Cancel to the right.
+      // Invisible rather than gone: it is the spacer that holds the footer's end to the right.
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
-      if (which !== 'preview') return;
+      // THE FOLDER COMES BACK WITH THE EDITOR. It stands down while the list is up, and
+      // repainting it is what brings it back: Back to your draft, and a pick (whose own
+      // repaint ran while the list was still showing), left it hidden with drafts saved.
+      if (wasListing) paintSavedDrafts();
+      paintPreview();
+    };
+    paintPreview = () => {
+      if (pane.classList.contains('hidden')) return;
       // A SITE PREVIEWS ITSELF: the whole published document, not a note renderer's
       // approximation of one page of it.
       if (draft.site) { siteEditor.renderPreview(pane); return; }
@@ -2292,6 +2535,8 @@
         // An edit makes it a different note, so the repeat question no longer applies.
         if (repeatAsked) { repeatAsked = null; $('compose-err').textContent = ''; }
         paintCount();
+        // The quote offer appears only while the post ends on a quoted note.
+        mediaDrawer.sync();
         scheduleSave();
       },
       // A URL pasted on its own becomes a real attachment: cut from the prose,
@@ -2302,7 +2547,7 @@
         // the prose line and keeps the existing entry — and its description —
         // rather than appending the image a second time.
         if (!draft.media.some((m) => m && m.url === url)) {
-          draft.media.push({ url, isVideo: SC.urlIsVideo(url) });
+          SC.addMedia(draft.media, { url, isVideo: SC.urlIsVideo(url) });
         }
         editorApi.sync(); // re-emit after the direct DOM cut, so the draft agrees
         scheduleSave();
@@ -2326,13 +2571,40 @@
       e.preventDefault();
       if (!images.length) {
         const plain = e.clipboardData && e.clipboardData.getData('text/plain');
+        // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
+        // or naddr references becomes a block under the field, showing the note, so there is
+        // something to check it against and it can be put above or below the pictures. A poll
+        // carries no attachments, so there it pastes as the text it is.
+        const quotes = draft.poll ? [] : SC.quoteEntriesFromPaste(plain, draft.media);
+        if (quotes.length) {
+          draft.media.push(...quotes);
+          scheduleSave();
+          paintCount();
+          renderThumbs();
+          // A note no relay shows us does not stay a quote block: it goes back to the text it
+          // was pasted as, and the toast says why.
+          composer.checkPastedQuote(quotes[0], () => {
+            const at = draft.media.indexOf(quotes[0]);
+            if (at < 0) return; // already removed, moved on or replaced: nothing to undo
+            draft.media.splice(at, 1);
+            closeAltEditor(false); // the row edits a media slot that may no longer exist
+            const words = String(draft.text || '').replace(/\s+$/, '');
+            editorApi.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
+            editorApi.sync();
+            scheduleSave();
+            paintCount();
+            renderThumbs();
+            toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
+          });
+          return;
+        }
         if (plain) document.execCommand('insertText', false, plain);
         return;
       }
       // A poll and its attachments are one or the other; the Media button is hidden
       // for the same reason.
       if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
-      uploadFiles(images);
+      uploadFiles(images, { pasted: true });
     });
     } // end of the note-editor branch (a site tab builds its own editor above)
     // After the toolbar, because that is what builds the poll editor: a poll restored
@@ -2366,7 +2638,17 @@
     // THE PANEL BESIDE THIS TAB NEVER TAKES ITS FOCUS. Unlocking there would otherwise
     // leave this page still saying Unlock to post until something else happened to it,
     // so the worker says so instead. It already broadcast the lock for the same reason.
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg, sender) => {
+      // A QUOTE TAPPED IN THE PANEL while this tab holds the note (takeQuote), instead of
+      // the tap being lost behind "already open in a tab".
+      // From one of Sidecar's own pages only. A content script also reaches this
+      // listener, but it speaks from the web page's address, never the extension's.
+      if (msg && msg.type === 'SIDECAR_COMPOSE_QUOTE') {
+        if (!sender || sender.id !== chrome.runtime.id ||
+            !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return;
+        takeQuote(msg.ref).catch(() => {});
+        return;
+      }
       // SWITCH TO ANOTHER DRAFT, sent by the panel when Expand is pressed while this tab
       // is already open on something else. Focusing it without this showed whatever was
       // already here, which is how a reply arrived looking like a blank new note.
@@ -2395,7 +2677,6 @@
     const leave = () => { flushDraft().then(() => window.close()); };
     const x = $('compose-x');
     x.addEventListener('click', leave);
-    $('compose-close').addEventListener('click', leave);
 
     // WRITE HERE NEXT TIME. The panel's switch writes the same setting, so this one
     // follows storage rather than only its own clicks: flipping it in either place shows

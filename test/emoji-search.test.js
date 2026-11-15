@@ -20,7 +20,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
+// The index moved to composer-core.js, where the composers' Emoji button shares it.
+const source = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
+const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const emojiData = fs.readFileSync(path.join(ROOT, 'emoji-data.js'), 'utf8');
 
 const stripComments = (src) =>
@@ -129,9 +131,14 @@ test('the index is built once, not per keystroke', () => {
   // that loop is the reason this was not simply fixed in the comparison.
   const fn = stripComments(lift('function emojiGroups('));
   assert.match(fn, /if \(_emojiIndex\) return _emojiIndex/, 'the index is rebuilt every call');
-  const picker = stripComments(lift('function emojiPickerOver('));
-  assert.match(picker, /emojiHit\(row\[2\], q\)/, 'the search reads the raw name again');
-  assert.doesNotMatch(picker, /row\[1\]\.toLowerCase\(\)/, 'lowercasing moved back into the query loop');
+  // The panel's reaction picker and the composers' Emoji button both search the one index.
+  const at = panel.indexOf('function emojiPickerOver(');
+  const panelPicker = stripComments(panel.slice(at, panel.indexOf('\n  }\n', at)));
+  const composerPicker = stripComments(lift('function buildEmojiPicker('));
+  for (const picker of [panelPicker, composerPicker]) {
+    assert.match(picker, /emojiHit\(row\[2\], q\)/, 'the search reads the raw name again');
+    assert.doesNotMatch(picker, /row\[1\]\.toLowerCase\(\)/, 'lowercasing moved back into the query loop');
+  }
 });
 
 test('the empty state spans the grid instead of one 34px column', () => {

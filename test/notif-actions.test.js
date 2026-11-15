@@ -215,8 +215,8 @@ test('A REACTION OF YOURS SHOWS ON THE ROW', () => {
   const item = stripComments(lift('function buildItem('));
   assert.match(item, /className: 'notif-reacted hidden'/, 'the row has nowhere to show a reaction');
   assert.match(item, /paintMyReactions\(reactedEl, ev\.id\)/, 'an existing reaction is not drawn on build');
-  const actions = stripComments(lift('function buildActions('));
-  assert.match(actions, /addMyReaction\(ev\.id, \{ content: ch, tags: \[\] \}\)/, 'a reaction is published but never shown');
+  const react = stripComments(lift('async function reactToEvent('));
+  assert.match(react, /addMyReaction\(ev\.id, \{ content: ch, tags: \[\] \}\)/, 'a reaction is published but never shown');
 });
 
 test('the same emoji twice is one chip', () => {
@@ -300,7 +300,9 @@ test('THE PICKER OPENS OVER THE SHEET, NOT INSTEAD OF IT', () => {
   assert.match(f, /const close = \(\) => sheet\.remove\(\)/, 'dismissing the picker does more than remove it');
   assert.doesNotMatch(f, /closeModal\(\)/, 'the picker can still close the sheet behind it');
   const actions = stripComments(lift('function buildActions('));
-  assert.match(actions, /emojiPickerOver\(\$\('modal'\)/, 'the React button no longer opens it over the sheet');
+  assert.match(actions, /reactToEvent\(ev\)/, 'the React button no longer goes through the shared react flow');
+  const react = stripComments(lift('async function reactToEvent('));
+  assert.match(react, /emojiPickerOver\(\$\('modal'\)/, 'the React flow no longer opens the picker over the sheet');
   assert.match(css, /\.emoji-over \{[^}]*position: absolute/, 'the layer does not cover the sheet');
 });
 

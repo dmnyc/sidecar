@@ -9,19 +9,21 @@ const NT=ctx.NostrTools;
 const sender=NT.generateSecretKey(), server=NT.generateSecretKey();
 const recipient='a'.repeat(64),address='30311:'+recipient+':show';
 const digest=s=>crypto.createHash('sha256').update(s).digest('hex');
-function invoice(description,hash='12'.repeat(32)) {
+function invoice(description,hash='12'.repeat(32),plain) {
  const alphabet='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
  const words=hex=>{let bits=0,value=0;const out=[];for(const b of Buffer.from(hex,'hex')){value=(value<<8)|b;bits+=8;while(bits>=5){bits-=5;out.push((value>>>bits)&31);}}if(bits)out.push((value<<(5-bits))&31);return out;};
- const data=[...Array(7).fill(0),1,1,20,...words(hash),23,1,20,...words(digest(description)),...Array(104).fill(0)];
+ const text=plain===undefined||plain===null?null:(()=>{const b=Buffer.from(plain);let bits=0,value=0;const out=[];for(const x of b){value=(value<<8)|x;bits+=8;while(bits>=5){bits-=5;out.push((value>>>bits)&31);value&=(1<<bits)-1;}}if(bits)out.push((value<<(5-bits))&31);return out;})();
+ const committed=plain===null?[]:text?[13,Math.floor(text.length/32),text.length%32,...text]:[23,1,20,...words(digest(description))];
+ const data=[...Array(7).fill(0),1,1,20,...words(hash),...committed,...Array(104).fill(0)];
  const prefix='lnbc210n';let chk=1;
  const step=v=>{const top=chk>>>25;chk=((chk&0x1ffffff)<<5)^v;[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3].forEach((g,i)=>{if((top>>>i)&1)chk^=g;});};
  for(const c of prefix)step(c.charCodeAt(0)>>>5);step(0);for(const c of prefix)step(c.charCodeAt(0)&31);for(const w of data)step(w);for(let i=0;i<6;i++)step(0);chk^=1;
  return prefix+'1'+[...data,...Array.from({length:6},(_,i)=>(chk>>>(5*(5-i)))&31)].map(w=>alphabet[w]).join('');
 }
-function receipt(requestTags=[],receiptTags=[],time=1) {
- const request=NT.finalizeEvent({kind:9734,created_at:1,content:'',tags:[['p',recipient],['a',address],...requestTags]},sender);
+function receipt(requestTags=[],receiptTags=[],time=1,{content='',plain}={}) {
+ const request=NT.finalizeEvent({kind:9734,created_at:1,content,tags:[['p',recipient],['a',address],...requestTags]},sender);
  const description=JSON.stringify(request);
- return NT.finalizeEvent({kind:9735,created_at:time,content:'',tags:[['p',recipient],['a',address],['description',description],['bolt11',invoice(description)],...receiptTags]},server);
+ return NT.finalizeEvent({kind:9735,created_at:time,content:'',tags:[['p',recipient],['a',address],['description',description],['bolt11',invoice(description,undefined,plain)],...receiptTags]},server);
 }
 const opts={address,recipient,provider:NT.getPublicKey(server),verify:e=>NT.verifyEvent(e),digest};
 test('counts verified receipts using invoice amount, including requests without amount',async()=>{const total=new ZapTotals();assert.equal(await total.accept(receipt(),opts),true);assert.equal(total.msats,21000);assert.equal(total.count,1);});
@@ -44,4 +46,29 @@ test('zapper strip shows the top ten without changing the full totals',()=>{
  for(let i=1;i<=12;i++){total.authors.set('person'+i,i*1000);total.msats+=i*1000;total.count++;}
  const rows=topZappers(total);assert.equal(rows.length,10);assert.equal(rows[0].pubkey,'person12');assert.equal(rows.at(-1).pubkey,'person3');
  assert.equal(total.msats,78000);assert.equal(total.count,12);assert.equal(total.authors.size,12);
+});
+
+// Alby, asked for a zap that carries a comment, issues an invoice whose description is the
+// comment itself instead of the request's hash. Zap.stream counts that zap, so the chat does.
+test('counts a zap whose invoice carries the comment as a plain description, not a hash',async()=>{
+ const total=new ZapTotals(),comment='Shipshooooow LFG! ⛵️🔥';
+ assert.equal(await total.accept(receipt([],[],1,{content:comment,plain:comment}),opts),true);
+ assert.equal(total.msats,21000);assert.equal(total.count,1);
+});
+test('a plain-description zap is still checked for provider, tags and amount',async()=>{
+ const comment='hello';
+ for(const override of [{provider:'b'.repeat(64)},{address:address+'other'},{recipient:'b'.repeat(64)}])assert.equal(await new ZapTotals().accept(receipt([],[],1,{content:comment,plain:comment}),{...opts,...override}),false);
+ assert.equal(await new ZapTotals().accept(receipt([['amount','22000']],[],1,{content:comment,plain:comment}),opts),false);
+});
+test('a description hash that is not the request still rejects, whatever else the invoice holds',async()=>{
+ const e=receipt();e.tags=e.tags.map(t=>t[0]==='bolt11'?['bolt11',invoice('different')]:t);
+ assert.equal(await new ZapTotals().accept(NT.finalizeEvent({kind:e.kind,created_at:e.created_at,content:e.content,tags:e.tags},server),opts),false);
+});
+test('reads the real invoice from the Alby zap that went missing from the chat',()=>{
+ const bolt='lnbc2120n1p4w5fx3dpd2d5xjurndphk7mm0damjqnzxgusjpc5mkhhm3rlsn7222np4qdxxtjmnd9d2q8umtckm3x2254sgr6rt8sm39k9mwnnmuecedhe7xpp5az25pqxgzq8ll0fsvcl6y2ppd2vneqggsxtenkklrf7hhzq557jssp5ldqgcmu7ch7jmvfpm04cy6s7tatq7mp67akl0tumpdj62qf4suws9qyysgqcqzp2xqyz5vqpfzdt9rzm5s5fqu09whu53y05myqv5kwhjjyank7ysag5nt8xx2x6usgjhz3wqnvy3t4426j66taajxqqgyzhajv9f74w2mku6xcphsquy7jdx';
+ const got=invoiceDetails(bolt);
+ assert.equal(got.msats,212000);assert.equal(got.descriptionHash,null);assert.equal(got.description,'Shipshooooow LFG! ⛵️🔥');
+});
+test('an invoice that commits to no description at all is not readable',()=>{
+ assert.equal(invoiceDetails(invoice('x',undefined,null)),null);
 });

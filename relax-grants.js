@@ -7,12 +7,12 @@
 // outlive a service-worker restart, so it lives in chrome.storage.session with a
 // chrome.alarm firing the revoke.
 //
-// ONE WINDOW AT A TIME: relaxing on a new site takes over the countdown — a fresh
-// grant revokes any prior one, so the panel's single status bar always reflects
-// the one active site/account. Revoked early on a re-login to a different account
-// on the same host and on lock; the residual, undetectable case (a pure in-client
-// switcher flip that fires no getPublicKey) is what the panel's relax bar reminds
-// the user about.
+// ONE WINDOW PER SITE AND ACCOUNT. By default only one ACCOUNT holds windows at a
+// time: opening one ends any other account's, and switching accounts or posting on
+// a site as another account ends them (background.js, relaxPerAccount). Settings can
+// keep a timer for each account instead, and then they coexist. The panel's bar
+// shows the active account's window and lists the rest. Revoked early on lock, on
+// forgetting the site, and on detaching it from a wrong identity.
 //
 // Isolated (like keystore.js / permissions.js) so it can be unit-tested directly
 // against a chrome mock — see test/relax-grant.test.js.
@@ -23,7 +23,7 @@
   const STORAGE_KEY = 'sidecar_relax_grants';
   const ALARM_PREFIX = 'sidecar-relax:';
   const MAX_MS = 30 * 60 * 1000;      // hard cap, matching the prompt's presets
-  const DEFAULT_MS = 15 * 60 * 1000;  // fallback when a decision carries no duration
+  const DEFAULT_MS = 30 * 60 * 1000;  // fallback when a decision carries no duration — the row's only window
   // Kinds that hand control of the account/wallet to another app or device. These
   // never relax — a per-sign confirm is exactly what gates them, even mid-window.
   const CONTROL_KINDS = new Set([24133, 23194, 23195]);
@@ -81,19 +81,16 @@
     const dur = Math.min(ms || 0, MAX_MS);
     if (dur <= 0) return;
     const k = key(host, pubkey);
-    // One window at a time: clear any other grant (and its alarm) so the new site
-    // takes over the countdown. (The target's own alarm is cleared + re-armed
-    // below, so a re-grant extends rather than stacks.)
-    try {
-      const alarms = await chrome.alarms.getAll();
-      for (const a of alarms) {
-        if (a.name.startsWith(ALARM_PREFIX) && a.name !== ALARM_PREFIX + k) chrome.alarms.clear(a.name);
-      }
-    } catch (_) {}
-    const m = {};
+    // Per-account windows COEXIST. Wiping the map here — the old single-window
+    // rule — made a second profile's approval silently revoke the first
+    // profile's still-running window, which re-armed the prompt on every
+    // identity flip, however many times you approved. Re-granting the same key
+    // replaces its entry and its alarm (chrome.alarms.create with a taken name
+    // replaces it: extends, never stacks); other keys keep their own expiry
+    // alarms, and onAlarm drops each as it lapses.
+    const m = await map();
     m[k] = { exp: Date.now() + dur, dur };
     await ssetS({ [STORAGE_KEY]: m });
-    try { await chrome.alarms.clear(ALARM_PREFIX + k); } catch (_) {}
     chrome.alarms.create(ALARM_PREFIX + k, { delayInMinutes: dur / 60000 });
     broadcast();
   }
@@ -130,6 +127,17 @@
     broadcast();
   }
 
+  // Every window but this account's: the one-account-at-a-time default.
+  async function revokeOtherAccounts(pubkey) {
+    const m = await map();
+    const gone = Object.keys(m).filter((k) => { const p = splitKey(k); return p && p.pubkey !== pubkey; });
+    if (!gone.length) return;
+    for (const k of gone) delete m[k];
+    await ssetS({ [STORAGE_KEY]: m });
+    for (const k of gone) { try { await chrome.alarms.clear(ALARM_PREFIX + k); } catch (_) {} }
+    broadcast();
+  }
+
   async function revokeAll() {
     await ssetS({ [STORAGE_KEY]: {} });
     try {
@@ -142,7 +150,9 @@
   }
 
   // Active grants for the panel status bar; drops expired entries on the way out.
-  // In practice one entry (grant enforces single-window), but returns an array.
+  // One entry per (host, account) — a busy multi-profile session can hold several.
+  // Soonest expiry first, so the status bar, its Restart button and the action badge
+  // all speak about the same window.
   async function active() {
     const m = await map();
     const now = Date.now();
@@ -158,7 +168,7 @@
       for (const k of expired) delete m[k];
       await ssetS({ [STORAGE_KEY]: m });
     }
-    return out;
+    return out.sort((a, b) => a.expiresAt - b.expiresAt);
   }
 
   // chrome.alarms.onAlarm handler hook: if this is one of our expiry alarms,
@@ -171,9 +181,17 @@
     return false;
   }
 
+  // Of the active windows, the one the panel's bar and the toolbar badge speak about:
+  // the active account's (its soonest, when it has several sites), else the soonest.
+  function shownFor(grants, activePubkey) {
+    const list = grants || [];
+    return list.find((g) => g.pubkey === activePubkey) || list[0] || null;
+  }
+
   const api = {
+    shownFor,
     STORAGE_KEY, ALARM_PREFIX, MAX_MS, DEFAULT_MS, CONTROL_KINDS, REPLACEABLE_KINDS,
-    has, grant, revoke, revokeForHost, revokeAll, active, onAlarm,
+    has, grant, revoke, revokeForHost, revokeOtherAccounts, revokeAll, active, onAlarm,
     isControlKind: (k) => k != null && CONTROL_KINDS.has(k),
     isReplaceableKind: (k) => k != null && REPLACEABLE_KINDS.has(k),
     // The single question the callers ask: may a relax window ever cover this kind?

@@ -175,7 +175,7 @@ test('a stuck approval gives the buttons back', () => {
   // The worst state this window can reach. decide() disables allow/trust/reject BEFORE
   // sending, so a transport that never settled left an approval the user could neither
   // grant nor refuse, on a site waiting for an answer.
-  const fn = prompt.slice(prompt.indexOf('const chips = els.relaxRow'));
+  const fn = prompt.slice(prompt.indexOf('const payFromFlags = payFromExtra(action);'));
   const body = fn.slice(0, fn.indexOf('// Background either'));
   assert.match(body, /setDisabled\(true\);/);
   assert.match(body, /catch \(e\) \{[\s\S]*?setDisabled\(false\);/, 'the controls must come back on failure');
