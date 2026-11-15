@@ -2102,5 +2102,6 @@
   "Open Sidecar and unlock it, then open this comment again.": "Ανοίξτε το Sidecar και ξεκλειδώστε το, και μετά ανοίξτε ξανά αυτό το σχόλιο.",
   "Sidecar could not open this comment.": "Το Sidecar δεν μπόρεσε να ανοίξει αυτό το σχόλιο.",
   "Show {{count}} reply_one": "Εμφάνιση {{count}} απάντησης",
-  "Show {{count}} reply_other": "Εμφάνιση {{count}} απαντήσεων"
+  "Show {{count}} reply_other": "Εμφάνιση {{count}} απαντήσεων",
+  "Add an account to chat →": "Προσθήκη λογαριασμού για συνομιλία →"
 }

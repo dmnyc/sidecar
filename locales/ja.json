@@ -2030,5 +2030,6 @@
   "Could not open the composer.": "作成画面を開けませんでした。",
   "Open Sidecar and unlock it, then open this comment again.": "Sidecarを開いてロックを解除し、もう一度このコメントを開いてください。",
   "Sidecar could not open this comment.": "Sidecarがこのコメントを開けませんでした。",
-  "Show {{count}} reply_other": "{{count}}件の返信を表示"
+  "Show {{count}} reply_other": "{{count}}件の返信を表示",
+  "Add an account to chat →": "アカウントを追加してチャット →"
 }

@@ -2174,5 +2174,6 @@
   "Sidecar could not open this comment.": "Sidecar non è riuscito ad aprire questo commento.",
   "Show {{count}} reply_many": "Mostra {{count}} di risposte",
   "Show {{count}} reply_one": "Mostra {{count}} risposta",
-  "Show {{count}} reply_other": "Mostra {{count}} risposte"
+  "Show {{count}} reply_other": "Mostra {{count}} risposte",
+  "Add an account to chat →": "Aggiungi un account per chattare →"
 }

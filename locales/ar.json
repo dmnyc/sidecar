@@ -2390,5 +2390,6 @@
   "Show {{count}} reply_two": "عرض ردّين ({{count}})",
   "Show {{count}} reply_few": "عرض {{count}} ردود",
   "Show {{count}} reply_many": "عرض {{count}} ردًا",
-  "Show {{count}} reply_other": "عرض {{count}} رد"
+  "Show {{count}} reply_other": "عرض {{count}} رد",
+  "Add an account to chat →": "إضافة حساب للدردشة ←"
 }

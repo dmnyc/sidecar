@@ -2102,5 +2102,6 @@
   "Open Sidecar and unlock it, then open this comment again.": "Nyissa meg a Sidecart, oldja fel, majd nyissa meg újra ezt a hozzászólást.",
   "Sidecar could not open this comment.": "A Sidecar nem tudta megnyitni ezt a hozzászólást.",
   "Show {{count}} reply_one": "{{count}} válasz megjelenítése",
-  "Show {{count}} reply_other": "{{count}} válasz megjelenítése"
+  "Show {{count}} reply_other": "{{count}} válasz megjelenítése",
+  "Add an account to chat →": "Fiók hozzáadása a csevegéshez →"
 }

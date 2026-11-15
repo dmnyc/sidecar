@@ -2030,5 +2030,6 @@
   "Could not open the composer.": "작성기를 열지 못했어요.",
   "Open Sidecar and unlock it, then open this comment again.": "Sidecar를 열어 잠금을 해제한 뒤 이 댓글을 다시 여세요.",
   "Sidecar could not open this comment.": "Sidecar에서 이 댓글을 열지 못했어요.",
-  "Show {{count}} reply_other": "답글 {{count}}개 보기"
+  "Show {{count}} reply_other": "답글 {{count}}개 보기",
+  "Add an account to chat →": "채팅하려면 계정 추가 →"
 }
