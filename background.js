@@ -52,6 +52,21 @@ function resolveSettings(sidecar_settings) {
   return { autoLockMinutes: DEFAULT_AUTO_LOCK_MINUTES, ...(sidecar_settings || {}) };
 }
 
+// The forms an address can be written in. composer-core's parseClientLink produces
+// these names and noteEntityFor / profileEntityFor consume them.
+const CUSTOM_NOTE_FORMS = ['hex', 'note', 'nevent-short', 'nevent'];
+const CUSTOM_PROFILE_FORMS = ['hex', 'npub', 'nprofile'];
+
+// A custom client that is gone must not keep a seat. Resolution already falls back
+// for a key that names nothing, so scrubbing changes no behavior — what it changes is
+// the truth of the maps: a leftover choice would snap back to life the moment a
+// client reappears under the same key, with nobody choosing it again.
+function scrubClientChoice(settings, key) {
+  if (settings.defaultClient === key) delete settings.defaultClient;
+  const by = settings.defaultClientBy;
+  if (by) for (const pk of Object.keys(by)) if (by[pk] === key) delete by[pk];
+}
+
 // The host to offer "Use Sidecar for Lightning payments" for, or '' for no offer. One
 // offer at a time and never again once answered; a person who already opted in has
 // nothing to be offered. A page can send the notice for itself, so the worst a forged
@@ -4426,6 +4441,43 @@ async function handleControl(message, sender, sendResponse) {
         if (message.client) map[message.pubkey] = message.client;
         else delete map[message.pubkey]; // back to following the global
         await sset({ sidecar_settings: { ...prev, defaultClientBy: map } });
+        result = { ok: true };
+        break;
+      }
+      // The user's own clients (settings.customClients), written from Settings → Apps &
+      // browsing. Same read-modify-write-here rule as SIDECAR_SET_CLIENT_FOR: a panel
+      // sending the whole map would clobber a client another panel added a moment ago.
+      // The panel owns the trust boundary — it reads the links the user pasted and the
+      // user confirms what it found — and the key is derived here from the note link's
+      // host, so a custom entry can never shadow a built-in key. replaceKey carries an
+      // edit whose host moved: the old entry goes, and the choices that named it come
+      // back to the default rather than waiting to snap to the new client nobody chose.
+      case 'SIDECAR_SET_CUSTOM_CLIENT': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.customClients || {}) };
+        const key = 'custom:' + new URL(message.url).host;
+        const moved = message.replaceKey && message.replaceKey !== key;
+        if (moved) delete map[message.replaceKey];
+        // How each address is written, from the links the user pasted. Only a form the
+        // opener knows is kept: an unknown one would pass addresses through untouched,
+        // which is the right failure, but a stored value should still be one we wrote.
+        const entry = { label: message.label, url: message.url, profile: message.profile };
+        if (CUSTOM_NOTE_FORMS.includes(message.urlForm)) entry.urlForm = message.urlForm;
+        if (CUSTOM_PROFILE_FORMS.includes(message.profileForm)) entry.profileForm = message.profileForm;
+        map[key] = entry;
+        const next = { ...prev, customClients: map };
+        if (moved) scrubClientChoice(next, message.replaceKey);
+        await sset({ sidecar_settings: next });
+        result = { ok: true, key };
+        break;
+      }
+      case 'SIDECAR_REMOVE_CUSTOM_CLIENT': {
+        const prev = (await sget('sidecar_settings')).sidecar_settings || {};
+        const map = { ...(prev.customClients || {}) };
+        delete map[message.key];
+        const next = { ...prev, customClients: map };
+        scrubClientChoice(next, message.key);
+        await sset({ sidecar_settings: next });
         result = { ok: true };
         break;
       }

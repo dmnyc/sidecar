@@ -28,20 +28,39 @@ function lift(decl) {
 const ME = 'a'.repeat(64);
 const STRANGER = 'b'.repeat(64);
 
+// The lookup is several functions now (see compose-profile-lookup.test.js for the relay
+// behavior). Here the pool answers with `answer` from every relay it is asked, and `asked`
+// records each kind:0 read, so the assertions below stay about what is asked and kept.
+function slice(from, to) {
+  const a = page.indexOf(from);
+  const b = page.indexOf(to, a);
+  assert.ok(a !== -1 && b !== -1, 'compose.js no longer has ' + from);
+  return page.slice(a, b);
+}
 function tab({ answer = null, accounts = [] } = {}) {
   const asked = [];
   const ctx = {
-    JSON, Promise, Set, setTimeout,
+    JSON, Promise, Set, setTimeout, clearTimeout,
     profileCache: new Map(),
     state: { accounts },
     relayUrls: async () => ['wss://mine.example'],
-    pool: () => ({ get: async (relays, filter) => { asked.push({ relays, filter }); return answer; } }),
+    pool: () => ({
+      get: async () => null, // no kind:10002 for anyone
+      subscribeMany: (relays, filter, h) => {
+        asked.push({ relays, filter });
+        setTimeout(() => { if (answer) h.onevent(answer); h.oneose(); }, 0);
+        return { close() {} };
+      },
+    }),
   };
   vm.createContext(ctx);
-  vm.runInContext(lift('async function fetchPreviewProfile(pubkey)') + '\nglobalThis.f = fetchPreviewProfile;', ctx);
+  vm.runInContext(
+    slice('  function metaName(', '  // A NAME FOR THE PREVIEW') +
+    slice('  const PROFILE_SETTLE_MS', '  function applyAvatar(') +
+    '\nglobalThis.f = fetchPreviewProfile;', ctx);
   return { f: ctx.f, asked, ctx };
 }
-const kind0 = (pubkey, name) => ({ pubkey, content: JSON.stringify({ name, picture: 'https://p.example/x.png' }) });
+const kind0 = (pubkey, name) => ({ pubkey, created_at: 1, content: JSON.stringify({ name, picture: 'https://p.example/x.png' }) });
 
 test('your own accounts are named from the store, with no relay asked', async () => {
   const t = tab({ accounts: [{ pubkey: ME, name: 'Scrubby', picture: 'https://p.example/s.png' }] });

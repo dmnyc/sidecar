@@ -146,7 +146,18 @@
     function syncAccount(){
       const current=bridge()?.identity();
       if(account!==current?.pubkey){account=current?.pubkey || null;reactionPicker?.remove();reactionPicker=null;clearDraft();mentionEditor?.close();clearReply();}
-      identity.textContent=current?t('Posting as {{name}}',{name:current.name}):t('Unlock to chat');
+      // Locked and signed out are different: the first is a password away, the second needs an
+      // account. Signed out, the composer is gone and this line is the way to one: it closes the
+      // chat and lands on the Accounts tab, where an account is added.
+      const signedOut=!current && allowed();
+      form.classList.toggle('is-signed-out',signedOut);
+      if(signedOut){
+        // The same borderless gold link, with the same arrow, as "Add wallet →" and the zap sheet's
+        // "Connect a wallet to zap from here →": one errand, one way of saying it.
+        const link=el('button','stream-chat-signup account-stat-add-link',t('Add an account to chat →'));link.type='button';
+        link.onclick=()=>{show(false);bridge()?.showAccounts?.();};
+        identity.replaceChildren(link);
+      }else identity.textContent=current?t('Posting as {{name}}',{name:current.name}):t('Unlock to chat');
       const disabled=!account || busy || !allowed();
       input.disabled=send.disabled=disabled;
       if(mentionEditor){input.contentEditable=String(!disabled);input.setAttribute('aria-disabled',String(disabled));}
@@ -199,7 +210,8 @@
           bridge().hashtagUrl(part.hashtag).then(url=>{link.href=url;}).catch(()=>{});
           link.onclick=e=>{if(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)return;e.preventDefault();bridge().openHashtag(part.hashtag).catch(()=>{});};
         }
-        if(part.pubkey){link.dataset.pubkey=part.pubkey;link.onclick=e=>{e.preventDefault();bridge()?.profile(part.pubkey);};}
+        // Signed out there is no profile sheet to open, so the mention stays an ordinary link.
+        if(part.pubkey){link.dataset.pubkey=part.pubkey;if(account)link.onclick=e=>{e.preventDefault();bridge()?.profile(part.pubkey);};}
         node.append(link);
       }
     }
@@ -235,7 +247,7 @@
       for(const entry of top){
         const name=displayName(entry.pubkey),button=el('button','stream-top-zapper');button.type='button';button.dataset.pubkey=entry.pubkey;button.dataset.sats=entry.sats;
         button.title=t('{{name}} · {{sats}} sats',{name,sats:SidecarI18n.fmtNum(entry.sats)});button.setAttribute('aria-label',button.title);
-        button.onclick=()=>bridge()?.profile(entry.pubkey);
+        button.onclick=()=>bridge()?.profile(entry.pubkey);button.disabled=!account;
         button.append(avatar(profiles.get(entry.pubkey)?.picture,'leader:'+entry.pubkey));
         button.append(el('span',null,'⚡ '+SidecarI18n.fmtNum(entry.sats,{notation:'compact',maximumFractionDigits:1})));leaders.append(button);
       }
@@ -254,7 +266,7 @@
         if(day!==stamp){day=stamp;log.append(el('div','stream-chat-day',SidecarI18n.fmtDate(date,{year:'numeric',month:'short',day:'numeric'})));}
         const row=el('article','stream-chat-message'),head=el('div','stream-chat-head'),profile=profiles.get(event.pubkey);
         row.id='stream-chat-'+event.id;
-        const author=el('button','stream-chat-author');author.type='button';author.dataset.pubkey=event.pubkey;author.dataset.avatarSlot='message:'+event.id;author.onclick=()=>bridge()?.profile(event.pubkey);
+        const author=el('button','stream-chat-author');author.type='button';author.dataset.pubkey=event.pubkey;author.dataset.avatarSlot='message:'+event.id;author.onclick=()=>bridge()?.profile(event.pubkey);author.disabled=!account;
         const name=el('span','stream-chat-name',displayName(event.pubkey));name.dir='auto';author.append(name);author.title=displayName(event.pubkey);
         author.prepend(avatar(profile?.picture,author.dataset.avatarSlot));
         const time=el('time','stream-chat-time',SidecarI18n.fmtDate(date,{hour:'numeric',minute:'2-digit'}));time.dateTime=date.toISOString();time.title=SidecarI18n.fmtDate(date,{dateStyle:'full',timeStyle:'short'});
@@ -292,9 +304,10 @@
           const chips=el('div','stream-chat-reactions');
           for(const group of reactions.groups(event.id,account,e=>bridge()?.muted(e))){
             const chip=el('button','stream-chat-reaction',group.content+' '+SidecarI18n.fmtNum(group.count));chip.type='button';
-            chip.setAttribute('aria-pressed',String(group.mine));chip.title=(group.mine?t('You reacted {{reaction}}',{reaction:group.content}):t('React {{reaction}}',{reaction:group.content}));chip.setAttribute('aria-label',chip.title);chip.disabled=group.mine;chip.onclick=()=>react(event,group.content);chips.append(chip);
+            chip.setAttribute('aria-pressed',String(group.mine));chip.title=(group.mine?t('You reacted {{reaction}}',{reaction:group.content}):t('React {{reaction}}',{reaction:group.content}));chip.setAttribute('aria-label',chip.title);chip.disabled=group.mine || !account;chip.onclick=()=>react(event,group.content);chips.append(chip);
           }
-          row.append(more,chips,actions);clamps.push({body,more,event});
+          // Reply, react and zap all need an account, so a signed-out reader gets the message alone.
+          row.append(more,chips);if(account)row.append(actions);clamps.push({body,more,event});
         }
         log.append(row);
       }
@@ -375,7 +388,7 @@
       const token=run;paintTimer=setTimeout(()=>{paintTimer=null;if(token!==run)return;paint();hydrate(visibleRows(),token);},150);
     });
     function show(chat){
-      chat=chat && allowed() && !!bridge()?.identity() && addressOK(getItem()?.key);
+      chat=chat && allowed() && addressOK(getItem()?.key);
       if(chat && !pane.hidden)return;
       if(chat)onOpen?.();
       pane.hidden=!chat;document.documentElement.classList.toggle('stream-chat-active',!!chat);
@@ -420,8 +433,8 @@
       }catch(_){if(token===run)setNotice(t('Could not send. Check your account and connection, then try again.'),7000);}
       finally{busy=false;syncAccount();if(token===run && account===who.pubkey)input.focus();}
     };
-    root.addEventListener('sidecar-chat-account',()=>{syncAccount();if(!account){show(false);return;}if(!pane.hidden){bridge()?.prepare().then(paint).catch(()=>{});paint();}});
-    return {sync(){toggle.hidden=!addressOK(getItem()?.key) || !bridge()?.identity() || !allowed();if(toggle.hidden){show(false);clearDraft();mentionEditor?.close();clearReply();}syncAccount();},open(){show(true);},close(){show(false);},destroy:stop};
+    root.addEventListener('sidecar-chat-account',()=>{syncAccount();if(!allowed()){show(false);return;}if(!pane.hidden){bridge()?.prepare().then(paint).catch(()=>{});paint();}});
+    return {sync(){toggle.hidden=!addressOK(getItem()?.key) || !allowed();if(toggle.hidden){show(false);clearDraft();mentionEditor?.close();clearReply();}syncAccount();},open(){show(true);},close(){show(false);},destroy:stop};
   }
   const api={template,Messages,reactionTemplate,Reactions,readPage,contentParts,recentRows,pastePlainText,commentZapContext,mount};root.SidecarStreamChat=api;if(typeof module!=='undefined')module.exports=api;
 })(globalThis);
