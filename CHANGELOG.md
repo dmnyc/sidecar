@@ -17,7 +17,7 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Changed
 - **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
 - **Test streams no longer clutter the stream list.** A stream with “test” in its title, and a past stream with no recording, picture or description, now sit behind More with the untitled ones. Streams you saved stay where they are. The More button now turns into Less, with a chevron that turns over, while the list is open, since the faint shade it used before was hard to read.
-- **The store screenshots no longer show a build string.** The first-run screen printed the version at its foot, so the first gallery image went out of date with every release. The command that makes the gallery now photographs that line already faded, as it is a few seconds after the screen loads. It is a developer tool and ships nothing in the extension.
+- **The store screenshots no longer show a build string.** The first-run screen printed the version at its foot, so the first gallery image went out of date with every release. The command that makes the gallery now photographs that line already faded, as it is a few seconds after the screen loads. It can also make just the images that changed (`--changed`, `--only`) and carry the rest over from the previous set. It is a developer tool and ships nothing in the extension.
 
 ### Fixed
 - **Your library reads in your language.** The library added in 1.17.1 (its tabs, rows, list menu and messages) showed in English in every language but English. All 21 catalogs now carry its text, and the coverage check passes again.
