@@ -32,3 +32,17 @@ test('runtime uses days for long-running streams and omits unknown starts',()=>{
  const {runtime}=require('../stream-core');assert.equal(runtime(null),null);assert.equal(runtime(200,100),null);
  assert.deepEqual(runtime(1,1+367*86400+2*3600+14*60),{days:367,hours:2,minutes:14});
 });
+
+test('looksLikeTest: the word "test" in a title, or an ended stream with nothing to open',()=>{
+ const {looksLikeTest,behindMore}=require('../stream-core');
+ for(const title of ['Test B','test','Testing 1 2','my TEST stream','Sound tester','Tests'])assert.equal(looksLikeTest({title,status:'live'}),true,title);
+ for(const title of ['Contest night','The latest','Protest','Attestation'])assert.equal(looksLikeTest({title,status:'live'}),false,title);
+ // Ended, with no recording, picture or description: nothing to replay or look at.
+ assert.equal(looksLikeTest({title:'Ada',status:'ended'}),true);
+ for(const over of [{recording:'https://r.example/a.mp4'},{image:'https://i.example/a.png'},{thumb:'https://i.example/t.png'},{summary:'About it'}])assert.equal(looksLikeTest({title:'Ada',status:'ended',...over}),false,JSON.stringify(over));
+ // A live or planned stream with no picture is ordinary.
+ for(const status of ['live','planned'])assert.equal(looksLikeTest({title:'Ada',status}),false,status);
+ assert.equal(behindMore({title:'Untitled livestream',status:'live'}),true);
+ assert.equal(behindMore({title:'Ada',status:'live'}),false);
+ assert.equal(looksLikeTest(null),false);
+});

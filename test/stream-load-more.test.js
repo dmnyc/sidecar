@@ -12,7 +12,7 @@ function setup(load, {category='past'}={}) {
  const rows=Array.from({length:6},()=>({title:'A stream'})),painted=[];
  const ctx={historyBusy:false,historyStalled:false,savedOnly:false,category,detailItem:null,discoveryGeneration:1,
  relays:['relay'],historyCursors:new Map(),model:{events:{size:6},past:()=>rows,upcoming:()=>[]},
- t:s=>s,paint(){painted.push(1);},JSON,loadHistory:async()=>load(ctx,rows)};
+ t:s=>s,paint(){painted.push(1);},JSON,SidecarStreams:require('../stream-core.js'),loadHistory:async()=>load(ctx,rows)};
  vm.createContext(ctx);vm.runInContext(code,ctx);
  return {ctx,rows,painted,more:(kind='main')=>ctx.loadMoreHistory(kind)};
 }

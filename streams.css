@@ -155,6 +155,11 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-directory-actions .ghost { font:inherit; font-size:13px; border:0; padding:8px 10px; border-radius:8px; }
 .stream-directory-actions #stream-url-toggle { margin-inline-start:auto; }
 .stream-directory-actions #stream-refresh { margin:0; align-self:auto; }
+/* More turns into Less, and its chevron over, when the list behind it is open. */
+.stream-directory-actions #stream-more-toggle { display:inline-flex; align-items:center; justify-content:center; gap:4px; }
+.stream-directory-actions #stream-more-toggle .stream-more-chevron { width:16px; height:16px; flex:0 0 auto; }
+.stream-directory-actions #stream-more-toggle[aria-expanded="true"] .stream-more-chevron { transform:rotate(180deg); }
+.stream-directory-actions #stream-more-toggle[aria-expanded="true"] { color:var(--gold); }
 #stream-more-list { display:grid; gap:10px; margin-top:10px; }
 #stream-more-list[hidden] { display:none; }
 #stream-advanced { order:initial; border:0; margin-top:8px; }
