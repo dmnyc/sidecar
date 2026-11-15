@@ -14,6 +14,9 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Changed
 - **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
 
+### Fixed
+- **The composer tab names the person you are replying to, and the people you mention.** It asked only your configured relays and purplepag.es, so someone whose profile lives on their own relays showed as an npub. It now asks their relays too, takes the first name that comes back, and no longer waits on a relay that never answers.
+
 ## [1.17.1] — 2026-11-12
 
 ### Added

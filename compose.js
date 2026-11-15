@@ -213,9 +213,23 @@
   function cacheProfile(pubkey, content) {
     profileCache.set(pubkey, {
       pubkey,
-      name: (content && (content.display_name || content.name)) || null,
+      name: metaName(content),
       picture: (content && content.picture) || null,
     });
+  }
+  // The panel's rule (cacheProfile in sidepanel.js): display_name, then the camelCase
+  // spelling some clients write, then name. The tab read two of the three, so a profile
+  // the panel named came out as an npub here.
+  function metaName(meta) {
+    return (meta && (meta.display_name || meta.displayName || meta.name)) || null;
+  }
+  // A pubkey's write relays from its kind 10002: for a name lookup, and for an nevent that
+  // names its author.
+  async function outboxOf(pubkey) {
+    const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+    const ev = await pool().get(relays, { kinds: [10002], authors: [pubkey] }).catch(() => null);
+    if (!ev || ev.pubkey !== pubkey) return [];
+    return ev.tags.filter((tg) => tg[0] === 'r' && tg[1] && (!tg[2] || tg[2] === 'write')).map((tg) => tg[1]);
   }
   // A NAME FOR THE PREVIEW, for a mention or an embedded note's author.
   //
@@ -225,29 +239,97 @@
   // its search card; this is the same fix. Your own accounts answer first, from the
   // store, with no relay at all; then purplepag.es (the kind:0 aggregator) beside the
   // configured relays, capped; and only a name found is kept.
-  async function fetchPreviewProfile(pubkey) {
+  //
+  // WHERE A STRANGER'S kind:0 LIVES. Their own write relays (NIP-65) are the source of
+  // truth; the configured set and purplepag.es are where it often is not. So the lookup
+  // asks both at once, and a name from either one wins: a slow or dead relay in one set
+  // no longer holds up a name the other had in a tenth of a second. Each read settles a
+  // moment after its first answer instead of waiting on every relay, and keeps the newest
+  // copy it saw. Two callers asking for the same person (the header and a mention pill)
+  // share one lookup.
+  const PROFILE_SETTLE_MS = 300;
+  const PROFILE_WAIT_MS = 6000;
+  const OUTBOX_WAIT_MS = 3000;
+  const OUTBOX_MAX = 4;
+  const profileInflight = new Map();
+  const outboxCache = new Map();
+
+  function readProfileEvent(relays, pubkey) {
+    return new Promise((resolve) => {
+      if (!relays.length) return resolve(null);
+      let best = null, done = false, settle = null, sub = null;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(settle);
+        clearTimeout(cap);
+        try { if (sub) sub.close(); } catch (_) {}
+        resolve(best);
+      };
+      const cap = setTimeout(finish, PROFILE_WAIT_MS);
+      try {
+        sub = pool().subscribeMany(relays, { kinds: [0], authors: [pubkey] }, {
+          onevent: (ev) => {
+            // A relay is not obliged to honor the author filter.
+            if (!ev || ev.pubkey !== pubkey) return;
+            if (!best || ev.created_at > best.created_at) best = ev;
+            if (!settle) settle = setTimeout(finish, PROFILE_SETTLE_MS);
+          },
+          oneose: finish,
+        });
+        if (done) sub.close();
+      } catch (_) { finish(); }
+    });
+  }
+
+  // The relays this person writes to, minus the ones the other read already covers.
+  async function outboxRelaysFor(pubkey, covered) {
+    if (!outboxCache.has(pubkey)) {
+      outboxCache.set(pubkey, new Promise((resolve) => {
+        const timer = setTimeout(() => resolve([]), OUTBOX_WAIT_MS);
+        outboxOf(pubkey).catch(() => []).then((list) => { clearTimeout(timer); resolve(list); });
+      }));
+    }
+    const list = await outboxCache.get(pubkey);
+    return list.filter((u) => /^wss:\/\//.test(u) && !covered.includes(u)).slice(0, OUTBOX_MAX);
+  }
+
+  function fetchPreviewProfile(pubkey) {
     // A cached entry counts only if it has a name: anything nameless is a miss, asked again.
     const hit = profileCache.get(pubkey);
-    if (hit && hit.name) return hit;
+    if (hit && hit.name) return Promise.resolve(hit);
     const own = ((state && state.accounts) || []).find((a) => a.pubkey === pubkey);
     if (own && own.name) {
       const p = { pubkey, name: own.name, picture: own.picture || null };
       profileCache.set(pubkey, p);
-      return p;
+      return Promise.resolve(p);
     }
-    try {
-      const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
-      const ev = await Promise.race([
-        pool().get(relays, { kinds: [0], authors: [pubkey] }),
-        new Promise((res) => setTimeout(() => res(null), 6000)),
-      ]);
-      if (!ev || ev.pubkey !== pubkey) return null;
-      const meta = JSON.parse(ev.content) || {};
-      const name = meta.display_name || meta.name || null;
-      const p = { pubkey, name, picture: meta.picture || null };
-      if (name) profileCache.set(pubkey, p);
-      return p;
-    } catch (_) { return null; }
+    if (profileInflight.has(pubkey)) return profileInflight.get(pubkey);
+    const run = (async () => {
+      try {
+        const wide = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
+        const general = readProfileEvent(wide, pubkey);
+        const theirs = outboxRelaysFor(pubkey, wide).then((relays) => readProfileEvent(relays, pubkey));
+        const parse = (ev) => { try { return JSON.parse(ev.content) || {}; } catch (_) { return {}; } };
+        const ev = await new Promise((resolve) => {
+          // The first copy that has a name settles it; failing that, the newest copy there is.
+          for (const read of [general, theirs]) {
+            read.then((e) => { if (e && metaName(parse(e))) resolve(e); }).catch(() => {});
+          }
+          Promise.all([general, theirs]).then(([a, b]) => {
+            resolve(a && b ? (b.created_at > a.created_at ? b : a) : (a || b));
+          }).catch(() => resolve(null));
+        });
+        if (!ev) return null;
+        const meta = parse(ev);
+        const name = metaName(meta);
+        const p = { pubkey, name, picture: meta.picture || null };
+        if (name) profileCache.set(pubkey, p);
+        return p;
+      } catch (_) { return null; } finally { profileInflight.delete(pubkey); }
+    })();
+    profileInflight.set(pubkey, run);
+    return run;
   }
   function applyAvatar(box, a) {
     box.innerHTML = '';
@@ -286,7 +368,7 @@
       followCache = pubkeys.map((pk) => {
         let meta = {};
         try { meta = JSON.parse((byKey.get(pk) || {}).content || '{}'); } catch (_) {}
-        const entry = { pubkey: pk, name: meta.display_name || meta.name || null, picture: meta.picture || null };
+        const entry = { pubkey: pk, name: metaName(meta), picture: meta.picture || null };
         profileCache.set(pk, entry);
         return entry;
       }).filter((c) => c.name);
@@ -713,13 +795,6 @@
     ]);
   }
 
-  // A pubkey's write relays from its kind 10002, for an nevent that names its author.
-  async function devOutboxOf(pubkey) {
-    const relays = [...new Set([...(await relayUrls(false).catch(() => [])), 'wss://purplepag.es'])];
-    const ev = await pool().get(relays, { kinds: [10002], authors: [pubkey] }).catch(() => null);
-    if (!ev || ev.pubkey !== pubkey) return [];
-    return ev.tags.filter((tg) => tg[0] === 'r' && tg[1] && (!tg[2] || tg[2] === 'write')).map((tg) => tg[1]);
-  }
   async function devAuthorOf(id) {
     const ev = await pool().get(await relayUrls(false), { ids: [id] }).catch(() => null);
     return ev && ev.id === id ? ev.pubkey : null;
@@ -750,7 +825,7 @@
       hint.textContent = t('Looking for the event…');
       const ev = await SC.fetchEventRef(ref, {
         ownRelays: () => relayUrls(false),
-        outboxOf: devOutboxOf,
+        outboxOf,
         get: (relays, filter) => pool().get(relays, filter),
       });
       if (!ev) {
