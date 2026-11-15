@@ -13,6 +13,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Changed
 - **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
+- **Test streams no longer clutter the stream list.** A stream with “test” in its title, and a past stream with no recording, picture or description, now sit behind More with the untitled ones. Streams you saved stay where they are.
 
 ## [1.17.1] — 2026-11-12
 

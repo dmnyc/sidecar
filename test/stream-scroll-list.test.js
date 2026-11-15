@@ -53,6 +53,7 @@ function page({ live = many(55), savedStreams = [], savedOnly = false, category 
     drawDirectoryDetails: () => { calls.details++; list.append(node()); },   // the details are drawn into the list
     requestAnimationFrame: (f) => { calls.raf.push(f); return calls.raf.length; },
     JSON, Set, Map,
+    SidecarStreams: require('../stream-core.js'),
   };
   vm.createContext(ctx);
   vm.runInContext(CODE, ctx);
@@ -147,6 +148,25 @@ test('streams with no title go to the More group, with their own batch', () => {
   p.run("loadMore('more')");
   assert.equal(p.els['stream-more-list'].children.length, 40);
   assert.equal(p.list.children.length, 3, 'the main list is untouched by the More group\'s batch');
+});
+
+test('test streams go to the More group, in every list but the one you saved', () => {
+  const real = { image: 'https://art.example/a.png' };
+  const live = [
+    item(1, { ...real, status: 'ended' }),
+    item(2, { ...real, status: 'ended', title: 'Test B' }),
+    item(3, { status: 'ended', title: 'Ada' }),                       // ended, nothing to open
+    item(4, { status: 'ended', title: 'Gaming', recording: 'https://rec.example/r.mp4' }),
+  ];
+  const p = page({ live, category: 'past', moreOpen: true });
+  p.paint();
+  assert.deepEqual(rows(p.list), ['k1', 'k4'], 'a titled past stream with something to open stays in the list');
+  assert.deepEqual(rows(p.els['stream-more-list']), ['k2', 'k3']);
+  assert.equal(p.els['stream-more-toggle'].hidden, false);
+  // Saved on purpose, so it stays where it was put, unless it has no title.
+  const q = page({ live: [], savedStreams: live, savedOnly: true, moreOpen: true });
+  q.paint();
+  assert.deepEqual(rows(q.list), ['k1', 'k2', 'k3', 'k4']);
 });
 
 test('the More group stays shut until it is opened, and has no toggle when there is nothing in it', () => {

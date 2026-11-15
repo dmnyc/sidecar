@@ -528,7 +528,7 @@
     if(historyBusy || historyPaging || !canLoadHistory())return;
     const run=discoveryGeneration, view=category, extra=kind==='more';
     const current=()=>run===discoveryGeneration && view===category && !savedOnly && !detailItem;
-    const known=()=>(view==='past'?model.past():model.upcoming()).filter(item=>(item.title==='Untitled livestream')===extra).length;
+    const known=()=>(view==='past'?model.past():model.upcoming()).filter(item=>SidecarStreams.behindMore(item)===extra).length;
     const before=known();
     historyPaging=true;paint();
     try {
@@ -547,8 +547,7 @@
   // ROWS ARE KEPT ACROSS REPAINTS. paint() runs on every discovery event, on a timer and on every
   // history load, and a list that is rebuilt each time loses the reader's place and flashes
   // every thumbnail. A row is built once per stream and reused until something it shows changes.
-  const rowCache = new Map();
-  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.thumb||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
+  const rowCache = new Map();  const rowSig = item => JSON.stringify([item.title,item.status,item.starts,item.ends,item.recording||'',item.image||'',item.thumb||'',item.host||'',savedOnly,savedStreams.some(e=>e.key===item.key)]);
   function syncRows(container, items) {
     const wanted=[];
     for(const item of items) {
@@ -741,8 +740,11 @@
       detailItem=model.events.get(detailItem.key)||detailItem;more.hidden=true;document.getElementById('stream-advanced').hidden=true;drawDirectoryDetails(detailItem);return;
     }
     const items = savedOnly ? savedStreams : category==='upcoming' ? model.upcoming() : category==='past' ? model.past() : model.live();
-    const named = items.filter(item => item.title !== 'Untitled livestream');
-    const untitled = items.filter(item => item.title === 'Untitled livestream');
+    // Behind More: streams with no title, and ones that look like a test of the setup. A stream
+    // you saved is there because you chose it, so only the missing title moves it.
+    const behindMore = item => savedOnly ? item.title === 'Untitled livestream' : SidecarStreams.behindMore(item);
+    const named = items.filter(item => !behindMore(item));
+    const untitled = items.filter(behindMore);
     listTotals.main=named.length;listTotals.more=untitled.length;
     if (!items.length) { const p=document.createElement('p');p.className='stream-empty';p.setAttribute('role','status');p.textContent=savedOnly ? t('No saved streams yet.') : (lookingForStreams || historyBusy) ? t('Looking for streams…') : category==='upcoming' ? t('No upcoming streams found.') : category==='past' ? t('No past streams found.') : t('No live streams found. Try refreshing.');list.replaceChildren(p); }
     else syncRows(list,named.slice(0,reveal.main));

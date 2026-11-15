@@ -388,7 +388,20 @@
     const minutes=Math.floor((now-starts)/60);
     return {days:Math.floor(minutes/1440),hours:Math.floor(minutes/60)%24,minutes:minutes%60};
   }
-  const api = { parseStreamAddress, streamAddress, advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, zapRelayUrl, relayHints, extraZapRelays, ZAP_ARCHIVE_RELAYS, Directory, invoiceDetails, ZapTotals };
+  // A stream that is there to try the setup, not to be watched, so the list can fold it away.
+  // Two signs. The word "test" in the title (a whole word, so "contest" and "latest" pass).
+  // And, for an ended stream, nothing at all to open: no recording, no picture, no description.
+  // That is what a setup check leaves behind, and a past stream with nothing to replay or look
+  // at is not worth a row. A live or planned stream with no picture is ordinary, so the second
+  // sign never applies to those.
+  function looksLikeTest(item) {
+    if (!item) return false;
+    if (/\btest(?:s|ing|er)?\b/i.test(item.title || '')) return true;
+    return item.status === 'ended' && !item.recording && !item.image && !item.thumb && !item.summary;
+  }
+  // What the directory keeps behind its More button rather than in the list.
+  const behindMore = item => !!item && (item.title === 'Untitled livestream' || looksLikeTest(item));
+  const api = { looksLikeTest, behindMore, parseStreamAddress, streamAddress, advancingPlaylist, mergeBookmarks, encodeBookmarks, decodeBookmarks, topZappers, runtime, cocktailName, httpsUrl, parse, bookmark, zapProvider, relayPage, profileBatch, zapHistory, zapTotalMark, zapTotalUncertain, ZAP_QUORUM, zapRelayUrl, relayHints, extraZapRelays, ZAP_ARCHIVE_RELAYS, Directory, invoiceDetails, ZapTotals };
   if (typeof module !== 'undefined') module.exports = api;
   root.SidecarStreams = api;
 })(globalThis);
