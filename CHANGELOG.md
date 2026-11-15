@@ -9,7 +9,7 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
-## [Unreleased]
+## [1.17.2] — 2026-11-15
 
 ### Added
 - **A client that is not on the list can now be added by pasting two links from it.** "Your added clients" under Settings → Apps & browsing takes a name, a note link and a profile link copied from the client (clients build the two differently, so it needs one of each). Sidecar finds the address in each and works out how that client writes it — a hex ID, a note1, a short nevent or a full nevent, since clients differ and nothing declares which — and says so under the field before anything is saved. It refuses a link it cannot rebuild from what it found, names any extra query parameters it would keep on every link, and a button beside each field opens the link so it can be tried before saving. The saved client joins the "Open notes in" picker beside the built-ins and is sent addresses in the form it was shown. Removing one tidies up after itself: any account that had chosen it goes back to the default. The list itself stays curated and nostrich stays out; this is a door around it, not a re-add.

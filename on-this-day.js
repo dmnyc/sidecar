@@ -1082,14 +1082,20 @@ window.SIDECAR_ON_THIS_DAY = {
   '11-15': [
     { year: 1904, text: "King C. Gillette patented the first safety razor with disposable blades." }, // US 775,134
     { year: 1920, text: "Delegates from 41 nations met in Geneva for the first Assembly of the League of Nations." }, // Wikipedia, League of Nations
+    // 1.17.2. Checked against Wikipedia's November 15 page ("After 16 months of debate the Continental Congress approves the Articles of Confederation").
+    { year: 1777, text: "The Continental Congress approved the Articles of Confederation, the first constitution of the United States." }, // Wikipedia, November 15
   ],
   '11-16': [
     { year: 1933, text: "The United States and the Soviet Union formally established diplomatic relations." }, // Roosevelt and Litvinov
     { year: 1907, text: "Oklahoma became the forty-sixth state, joining the Oklahoma and Indian Territories into one." }, // Proclamation 780; National Archives, "Oklahoma Statehood, November 16, 1907"
+    // 1.17.2. Wikipedia's November 16 page ("UNESCO is founded") and the UNESCO article. The number of signing states is left out: the sources differ on it.
+    { year: 1945, text: "UNESCO was founded, to build peace through education, science and culture." }, // Wikipedia, November 16; UNESCO
   ],
   '11-17': [
     { year: 1869, text: "The Suez Canal opened, joining the Mediterranean to the Red Sea." },
     { year: 1558, text: "Elizabeth I came to the throne, and kept it for forty-four years." },
+    // 1.17.2. Wikipedia's November 17 page ("The United States Congress holds its first session in Washington, D.C.").
+    { year: 1800, text: "Congress held its first session in the new capital, Washington, D.C." }, // Wikipedia, November 17
   ],
   '11-18': [
     { year: 1883, text: "American railroads switched to standard time zones. Until then every town kept its own." },
