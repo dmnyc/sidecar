@@ -436,7 +436,12 @@
     }
   }
 
-  function hasPayIntent(el) {
+  // What an ancestor chain says about whether the person opened this on purpose: a
+  // wallet web-component, a dialog role, or an overlay pinned over the page. Shared by
+  // hasPayIntent, which adds a QR-near-the-invoice signal of its own, and by the
+  // clipboard path in findPageInvoice, which asks whether a QR on the page sits inside
+  // one of these.
+  function hasDialogIntent(el) {
     let node = el, hops = 0;
     while (node && hops < 24) {
       if (node.nodeType === 1) {
@@ -446,6 +451,20 @@
           const role = node.getAttribute('role');
           if (role === 'dialog' || role === 'alertdialog' || node.getAttribute('aria-modal') === 'true') return true;
         }
+        if (isOverlay(node)) return true;
+      }
+      node = node.parentNode || node.host || null;
+      hops++;
+    }
+    return false;
+  }
+
+  function hasPayIntent(el) {
+    if (hasDialogIntent(el)) return true;
+    let node = el, hops = 0;
+    while (node && hops < 24) {
+      if (node.nodeType === 1) {
+        const tag = (node.tagName || '').toLowerCase();
         // A QR NEAR the invoice is evidence; a QR somewhere else on the page is not. Both
         // limits are load-bearing: the hop count keeps the search inside the thing the
         // invoice belongs to, and the size cap rejects an ancestor that is really the page
@@ -454,10 +473,32 @@
         if (hops <= 4 && node.querySelector && !PAGE_LEVEL.has(tag) && isPanelSized(node)) {
           try { if (node.querySelector(QR_SEL)) return true; } catch (_) {}
         }
-        if (isOverlay(node)) return true;
       }
       node = node.parentNode || node.host || null;
       hops++;
+    }
+    return false;
+  }
+
+  // True when a QR is showing inside something the person opened. This is the shape of
+  // a pay modal that shortens its invoice (`lnbc50…` beside the QR): the full value
+  // never appears as page text, so the beside-the-QR branch above cannot see it, and
+  // the page's own Copy button is how the invoice leaves the modal. A copy made while
+  // such a QR is up counts as asked for; a copy with no QR in a dialog stays quiet.
+  function qrInOpenDialog() {
+    const roots = [document];
+    for (let i = 0; i < roots.length && i < 2000; i++) {
+      let qrs, all;
+      try {
+        qrs = roots[i].querySelectorAll(QR_SEL);
+        all = roots[i].querySelectorAll('*');
+      } catch (_) {
+        continue;
+      }
+      for (const q of qrs) {
+        if (hasDialogIntent(q)) return true;
+      }
+      for (const el of all) if (el.shadowRoot) roots.push(el.shadowRoot);
     }
     return false;
   }
@@ -555,8 +596,12 @@
       } else {
         // A copy is a gesture, but there is no payment UI on screen to tie it to, so it
         // stays quiet. When the copy came from a modal the QR branch above has already
-        // claimed it with asked: true.
-        return { invoice: copiedInvoice, asked: false };
+        // claimed it with asked: true — except when the modal shortens its invoice, the
+        // shape where the full text never reaches the DOM for that branch to read. So a
+        // copy made while a QR is up inside a dialog counts as asked for; the invoice
+        // and its expiry still come from the copied value above, and a copy with no
+        // such QR on screen stays quiet.
+        return { invoice: copiedInvoice, asked: qrInOpenDialog() };
       }
     }
     return '';
