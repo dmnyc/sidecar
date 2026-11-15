@@ -4244,9 +4244,137 @@ window.SidecarCore = (function () {
   };
   const DEFAULT_CLIENT = 'jumble';
 
+  // ---- a client of the user's own -----------------------------------------------------
+  //
+  // VIEW_CLIENTS is a curated directory: every entry's routes were read out of the
+  // client itself, and clients leave it on purpose (nostrich did). A user who wants a
+  // client the directory does not carry brings one link that works in it, and Sidecar
+  // works the rest out FROM that link.
+  //
+  // Two things vary between clients and they are not the same thing. The ROUTE is the
+  // part around the address (/thread/, /e/, /notes/). The FORM is how the address
+  // itself is written: a bare hex id, a note1, a short nevent (the id alone), or a full
+  // nevent (id, author, relays). Clients differ on both, nothing declares which a
+  // client takes, and a typed template can only guess the second. A link the user has
+  // seen open is the one reliable source for both, so that is what we read.
+  //
+  // Stored as settings.customClients[key] = { label, url, profile, urlForm, profileForm }
+  // with {ne} and {np} marking where the address goes. The key is namespaced off the
+  // note link's host so a custom entry can never collide with — or shadow — a built-in
+  // key, and adding a second client on a host that already has one is an edit. (The
+  // background derives the key; the forms it will keep are listed there.)
+
+  // Every candidate address in a link: a 64-character hex string, or a bech32 entity.
+  // Hex must stand alone (not part of a longer hex run), and a bech32 must not trail a
+  // letter, so "denote1…" is not a note — but "%20nevent1…" (a percent-escaped space in
+  // a query) still is one.
+  const ENTITY_RE = /(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])|(?<![a-z])(?:note|nevent|npub|nprofile|naddr)1[02-9ac-hj-np-z]{6,}/g;
+
+  // A note address in the form a client takes, from whatever the call site built. The
+  // call sites hand over a nevent (or an naddr for an article), and a form that cannot
+  // carry the thing — an naddr as hex — is passed through rather than mangled.
+  function noteEntityFor(form, entity) {
+    const { nip19 } = deps.NT;
+    let d;
+    try { d = nip19.decode(entity); } catch (_) { return entity; }
+    let id;
+    if (d.type === 'nevent') id = d.data.id;
+    else if (d.type === 'note') id = d.data;
+    else return entity;
+    if (form === 'hex') return id;
+    if (form === 'note') return nip19.noteEncode(id);
+    if (form === 'nevent-short') return nip19.neventEncode({ id });
+    return entity; // 'nevent': what the call site built, author and all
+  }
+
+  function profileEntityFor(form, entity) {
+    const { nip19 } = deps.NT;
+    let d;
+    try { d = nip19.decode(entity); } catch (_) { return entity; }
+    let pubkey;
+    if (d.type === 'npub') pubkey = d.data;
+    else if (d.type === 'nprofile') pubkey = d.data.pubkey;
+    else return entity;
+    if (form === 'hex') return pubkey;
+    if (form === 'npub') return nip19.npubEncode(pubkey);
+    if (form === 'nprofile') return nip19.nprofileEncode({ pubkey });
+    return entity;
+  }
+
+  // Reads one pasted link. kind is 'note' or 'profile'. Returns { template, form } —
+  // the link with its address swapped for {ne}/{np}, and how that address was written —
+  // or { error } naming what is wrong, for the panel to say in words:
+  //   parse     not a full https link        none     no address in it
+  //   many      more than one address        kind     an address of another sort
+  //   mismatch  rebuilding it does not give back what was pasted
+  // and a good result may carry `extra`: the names of query parameters that are not the
+  // address and will be kept on every link.
+  // The last is the check that matters: the stored pair must reproduce a link the user
+  // knows works, or Save stays shut.
+  function parseClientLink(link, kind) {
+    const text = String(link || '').trim();
+    let url;
+    try { url = new URL(text); } catch (_) { return { error: 'parse' }; }
+    if (url.protocol !== 'https:') return { error: 'parse' };
+    const found = [...text.matchAll(ENTITY_RE)];
+    if (!found.length) return { error: 'none' };
+    if (found.length > 1) return { error: 'many' };
+    const token = found[0][0];
+    let form;
+    if (/^[0-9a-f]{64}$/.test(token)) {
+      form = 'hex';
+    } else {
+      let d;
+      try { d = deps.NT.nip19.decode(token); } catch (_) { return { error: 'none' }; }
+      if (kind === 'note' && d.type === 'note') form = 'note';
+      else if (kind === 'note' && d.type === 'nevent') {
+        const { author, kind: k, relays } = d.data;
+        form = author || k !== undefined || (relays && relays.length) ? 'nevent' : 'nevent-short';
+      }
+      else if (kind === 'profile' && d.type === 'npub') form = 'npub';
+      else if (kind === 'profile' && d.type === 'nprofile') form = 'nprofile';
+      else return { error: 'kind' };
+    }
+    const mark = kind === 'note' ? '{ne}' : '{np}';
+    const template = text.slice(0, found[0].index) + mark + text.slice(found[0].index + token.length);
+    const make = kind === 'note' ? noteEntityFor : profileEntityFor;
+    // Rebuilt the way resolution will build it, from the token the way a call site
+    // would hand it over. Hex has no bech32 to hand over, so it goes through as itself.
+    const rebuilt = template.replace(mark, () => make(form, token));
+    // An nprofile's relay hints are a courtesy the client may or may not read; we have
+    // none of the person's to send, so the form is the pubkey alone and the comparison
+    // is made without them.
+    const expected = form === 'nprofile'
+      ? template.replace(mark, () => deps.NT.nip19.nprofileEncode({ pubkey: deps.NT.nip19.decode(token).data.pubkey }))
+      : text;
+    if (rebuilt !== expected) return { error: 'mismatch' };
+    // Everything around the address is stored as typed, so a query parameter that came
+    // along (a share tag, a session token) would ride on every link opened from now on.
+    // Not an error — some clients need one — but the user is told which. A parameter
+    // that CARRIES the address (?nostr={ne}, ?cmd=open {ne}) is the route, not a rider.
+    const extra = [];
+    for (const [k, v] of new URL(template).searchParams) {
+      if (!k.includes(mark) && !v.includes(mark) && k && !extra.includes(k)) extra.push(k);
+    }
+    return extra.length ? { template, form, extra } : { template, form };
+  }
+
+  // The stored entry is data; the address is a parameter filled in at open time, the
+  // same rule the i18n rules apply to text. The Settings preview is built with THIS,
+  // and resolveClient resolves through it too.
+  function customClient(entry) {
+    return {
+      label: entry.label,
+      url: (ne) => entry.url.replace('{ne}', () => noteEntityFor(entry.urlForm, ne)),
+      profile: (np) => entry.profile.replace('{np}', () => profileEntityFor(entry.profileForm, np)),
+    };
+  }
+
   function resolveClient(settings, pubkey) {
     const by = (settings && settings.defaultClientBy) || null;
     const key = (by && pubkey && by[pubkey]) || (settings && settings.defaultClient) || DEFAULT_CLIENT;
+    const custom = settings && settings.customClients && settings.customClients[key];
+    if (custom && custom.url && custom.profile) return customClient(custom);
     return VIEW_CLIENTS[key] || VIEW_CLIENTS[DEFAULT_CLIENT];
   }
 
@@ -4685,6 +4813,7 @@ window.SidecarCore = (function () {
     POW_LEVELS, POW_DEFAULT_BITS, powLevelFor,
     NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT,
     VIEW_CLIENTS, DEFAULT_CLIENT, resolveClient, renderLinkCard,
+    customClient, parseClientLink,
     IMG_EXT, VID_EXT, urlIsVideo,
     // The imeta write side and its editor row: pure of deps, so both pages take them
     // straight off the global like IMG_EXT rather than through installComposer.

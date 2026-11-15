@@ -11,11 +11,16 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ## [Unreleased]
 
+### Added
+- **A client that is not on the list can now be added by pasting two links from it.** "Your added clients" under Settings → Apps & browsing takes a name, a note link and a profile link copied from the client (clients build the two differently, so it needs one of each). Sidecar finds the address in each and works out how that client writes it — a hex ID, a note1, a short nevent or a full nevent, since clients differ and nothing declares which — and says so under the field before anything is saved. It refuses a link it cannot rebuild from what it found, names any extra query parameters it would keep on every link, and a button beside each field opens the link so it can be tried before saving. The saved client joins the "Open notes in" picker beside the built-ins and is sent addresses in the form it was shown. Removing one tidies up after itself: any account that had chosen it goes back to the default. The list itself stays curated and nostrich stays out; this is a door around it, not a re-add.
+
 ### Changed
 - **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
 
 ### Fixed
-- **A stream's chat can be read before you add an account.** The chat button only appeared once Sidecar had an account, so a new install could watch a stream and never see its chat. It now opens read-only: replying, reacting, zapping and opening a profile wait for an account, the message box gives way to an “Add an account to chat” link that opens the Accounts tab, and a locked panel still hides the chat.
+- **Your library reads in your language.** The library added in 1.17.1 (its tabs, rows, list menu and messages) showed in English in every language but English. All 21 catalogs now carry its text, and the coverage check passes again.
+- **The composer tab names the person you are replying to, and the people you mention.** It asked only your configured relays and purplepag.es, so someone whose profile lives on their own relays showed as an npub. It now asks their relays too, takes the first name that comes back, and no longer waits on a relay that never answers.
+- **A stream's chat can be read before you add an account.** The chat button only appeared once Sidecar had an account, so a new install could watch a stream and never see its chat. It now opens read-only: replying, reacting, zapping and opening a profile wait for an account, the message box gives way to an “Add an account to chat →” link that opens the Accounts tab, and a locked panel still hides the chat.
 
 ## [1.17.1] — 2026-11-12
 
