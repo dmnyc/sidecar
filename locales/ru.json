@@ -2246,5 +2246,6 @@
   "Show {{count}} reply_one": "Показать {{count}} ответ",
   "Show {{count}} reply_few": "Показать {{count}} ответа",
   "Show {{count}} reply_many": "Показать {{count}} ответов",
-  "Show {{count}} reply_other": "Показать {{count}} ответа"
+  "Show {{count}} reply_other": "Показать {{count}} ответа",
+  "Add an account to chat →": "Добавить аккаунт, чтобы писать в чат →"
 }

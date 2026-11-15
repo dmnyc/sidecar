@@ -2246,5 +2246,6 @@
   "Show {{count}} reply_one": "Pokaż {{count}} odpowiedź",
   "Show {{count}} reply_few": "Pokaż {{count}} odpowiedzi",
   "Show {{count}} reply_many": "Pokaż {{count}} odpowiedzi",
-  "Show {{count}} reply_other": "Pokaż {{count}} odpowiedzi"
+  "Show {{count}} reply_other": "Pokaż {{count}} odpowiedzi",
+  "Add an account to chat →": "Dodaj konto, aby czatować →"
 }

@@ -2102,5 +2102,6 @@
   "Open Sidecar and unlock it, then open this comment again.": "Sidecar کھولیں اور اسے ان لاک کریں، پھر یہ تبصرہ دوبارہ کھولیں۔",
   "Sidecar could not open this comment.": "Sidecar یہ تبصرہ نہیں کھول سکا۔",
   "Show {{count}} reply_one": "{{count}} جواب دکھائیں",
-  "Show {{count}} reply_other": "{{count}} جوابات دکھائیں"
+  "Show {{count}} reply_other": "{{count}} جوابات دکھائیں",
+  "Add an account to chat →": "چیٹ کرنے کے لیے اکاؤنٹ شامل کریں ←"
 }

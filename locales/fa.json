@@ -2102,5 +2102,6 @@
   "Open Sidecar and unlock it, then open this comment again.": "Sidecar را باز کنید و قفلش را بگشایید، سپس این نظر را دوباره باز کنید.",
   "Sidecar could not open this comment.": "Sidecar نتوانست این نظر را باز کند.",
   "Show {{count}} reply_one": "نمایش {{count}} پاسخ",
-  "Show {{count}} reply_other": "نمایش {{count}} پاسخ"
+  "Show {{count}} reply_other": "نمایش {{count}} پاسخ",
+  "Add an account to chat →": "افزودن حساب برای گفتگو ←"
 }

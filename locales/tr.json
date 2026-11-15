@@ -2102,5 +2102,6 @@
   "{{count}} saved item couldn’t be found on your relays._one": "Kayıtlı {{count}} öğe relay’lerinizde bulunamadı.",
   "{{count}} saved item couldn’t be found on your relays._other": "Kayıtlı {{count}} öğe relay’lerinizde bulunamadı.",
   "Show {{count}} reply_one": "{{count}} yanıtı göster",
-  "Show {{count}} reply_other": "{{count}} yanıtı göster"
+  "Show {{count}} reply_other": "{{count}} yanıtı göster",
+  "Add an account to chat →": "Sohbet için hesap ekle →"
 }

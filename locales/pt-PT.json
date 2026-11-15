@@ -2174,5 +2174,6 @@
   "{{count}} saved item couldn’t be found on your relays._other": "{{count}} itens guardados não foram encontrados nos teus relays.",
   "Show {{count}} reply_one": "Mostrar {{count}} resposta",
   "Show {{count}} reply_many": "Mostrar {{count}} de respostas",
-  "Show {{count}} reply_other": "Mostrar {{count}} respostas"
+  "Show {{count}} reply_other": "Mostrar {{count}} respostas",
+  "Add an account to chat →": "Adicionar conta para conversar →"
 }
