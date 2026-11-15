@@ -875,7 +875,7 @@
   for(const [value,label] of [['live',t('Live')],['upcoming',t('Upcoming')],['past',t('Past')]]) {
     const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-pressed',String(value===category));
     button.onclick=()=>{
-      directoryError('');category=value;detailItem=null;savedOnly=false;moreOpen=false;resetReveal();
+      directoryError('');category=value;detailItem=null;savedOnly=false;moreOpen=false;paintMoreToggle();resetReveal();
       document.getElementById('stream-saved-toggle').setAttribute('aria-pressed','false');updateBackup();
       for(const child of filters.children)child.setAttribute('aria-pressed',String(child===button));
       paint();if(value!=='live'&&!historyLoaded)loadHistory();
@@ -934,17 +934,27 @@
     if(!directory.hidden && ![directory, entry, browse, titleButton, feedToggle].some(node => node && path.includes(node)))closeFeed();
   });
   document.addEventListener?.('keydown', event => { if (event.key === 'Escape' && !directory.hidden) { closeFeed();entry?.focus(); } });
-  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();moreOpen=false;resetReveal();document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
+  document.getElementById('stream-saved-toggle').addEventListener('click',()=>{savedOnly=!savedOnly;detailItem=null;updateBackup();moreOpen=false;paintMoreToggle();resetReveal();document.getElementById('stream-saved-toggle').setAttribute('aria-pressed',String(savedOnly));paint();});
   document.getElementById('stream-refresh').addEventListener('click',()=>{resetReveal();discover(true);});
   function revealContent(element) {
     // Scroll only the picker, leaving the account view and browser page in place.
     directoryContent.scrollTop += element.getBoundingClientRect().top - directoryContent.getBoundingClientRect().top - 12;
   }
+  // The button says what it will do, not only what state it is in: More while the list behind it
+  // is shut, Less while it is open, and a chevron that turns over with it. A background shift
+  // alone was too faint to read. Called wherever moreOpen changes, so the button cannot be left
+  // saying "open" over a list that a change of tab has closed.
+  function paintMoreToggle() {
+    const toggle = document.getElementById('stream-more-toggle');
+    toggle.setAttribute('aria-expanded', String(moreOpen));
+    toggle.querySelector('.stream-more-label').textContent = moreOpen ? t('Less') : t('More');
+  }
+  paintMoreToggle();
   document.getElementById('stream-more-toggle').addEventListener('click', () => {
     moreOpen = !moreOpen;
     paint();
     document.getElementById('stream-more-list').hidden = !moreOpen;
-    document.getElementById('stream-more-toggle').setAttribute('aria-expanded', String(moreOpen));
+    paintMoreToggle();
     if (moreOpen) revealContent(document.getElementById('stream-more-list'));
   });
   document.getElementById('stream-url-toggle').addEventListener('click', () => {

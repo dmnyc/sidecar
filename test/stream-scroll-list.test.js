@@ -377,8 +377,8 @@ test('the end of each list is watched from inside the scroller, with a scroll fa
 });
 
 test('every view change starts the list at the top', () => {
-  assert.match(source, /directoryError\(''\);category=value;detailItem=null;savedOnly=false;moreOpen=false;resetReveal\(\);/, 'a category tab');
-  assert.match(source, /savedOnly=!savedOnly;detailItem=null;updateBackup\(\);moreOpen=false;resetReveal\(\);/, 'the saved toggle');
+  assert.match(source, /directoryError\(''\);category=value;detailItem=null;savedOnly=false;moreOpen=false;paintMoreToggle\(\);resetReveal\(\);/, 'a category tab, with the More button put back to More');
+  assert.match(source, /savedOnly=!savedOnly;detailItem=null;updateBackup\(\);moreOpen=false;paintMoreToggle\(\);resetReveal\(\);/, 'the saved toggle, with the More button put back to More');
   assert.match(source, /'stream-refresh'\)\.addEventListener\('click',\(\)=>\{resetReveal\(\);discover\(true\);\}\);/, 'refresh');
   assert.match(source, /if\(reset\)\{historyCursors\.clear\(\);historyLoaded=false;historyStalled=false;\}/, 'a history reset forgets that it stalled');
 });
