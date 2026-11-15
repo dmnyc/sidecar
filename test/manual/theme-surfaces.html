@@ -13,6 +13,7 @@
 <title>Theme surfaces</title>
 <link rel="stylesheet" href="../../fonts.css">
 <link rel="stylesheet" href="../../styles.css">
+<link rel="stylesheet" href="../../streams.css">
 <style>body { margin: 0; padding: 14px 16px 18px; } .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; } h4 { margin: 14px 0 4px; font-size: 11px; opacity: .6; letter-spacing: .06em; }</style>
 <div id="root"></div>
 <script src="../../i18n.js"></script>
@@ -121,6 +122,35 @@
   ]);
   section('library', titleBlock, bmList, delBox);
 
+  // ---- 1.17.2: the stream list's footer with More shut and open, the chat's signed-out line, and the custom-client
+  // sheet's reading of a pasted link. The footer is the panel's own markup, read from sidepanel.html, so a change
+  // to it is drawn here without anyone remembering to copy it.
+  const footHtml = html.slice(html.indexOf('<div class="stream-directory-actions">'), html.indexOf('<div id="stream-more-list"'));
+  const footer = (open) => {
+    const wrap = h('div', {});
+    wrap.innerHTML = footHtml;
+    const t = wrap.querySelector('#stream-more-toggle');
+    t.hidden = false;
+    t.setAttribute('aria-expanded', String(open));
+    t.querySelector('.stream-more-label').textContent = open ? 'Less' : 'More';
+    // The styles find the button by its id, so it keeps it (two copies on this page do no harm);
+    // the rest lose theirs so nothing here answers to the panel's own ids.
+    for (const el of wrap.querySelectorAll('[id]:not(#stream-more-toggle)')) el.removeAttribute('id');
+    return wrap;
+  };
+  const hideChat = h('button', { className: 'icon-btn stream-chat-hide', type: 'button', title: 'Hide chat', textContent: '▲' });
+  const signedOut = h('div', { className: 'stream-chat-form is-signed-out' }, [
+    h('div', { className: 'stream-chat-identity-row' }, [
+      h('div', { className: 'stream-chat-identity' }, [h('button', { className: 'stream-chat-signup account-stat-add-link', type: 'button', textContent: 'Add an account to chat →' })]),
+      hideChat,
+    ]),
+    h('textarea', { className: 'compose-editor' }),
+  ]);
+  section('streams', footer(false), footer(true), signedOut);
+  section('custom client', h('p', { className: 'custom-client-preview', textContent: 'Reads a short nevent: …/e/nevent1…' }),
+    h('p', { className: 'custom-client-preview error', textContent: 'That link has no note address in it.' }),
+    h('p', { className: 'custom-client-warn', textContent: 'It also carries ?ref=share, kept on every link.' }));
+
   // ---- checks ----
   const SQUARE = ['werkstatte', 'ben-day', 'turnstile'];
   const issues = [];
@@ -131,7 +161,7 @@
   if (SQUARE.includes(theme)) {
     const probe = ['button.primary', 'button.secondary', 'button.danger', 'button.mini', '.compose-add', '.setting input[type=text]',
       '.setting select', '.item', '.wallet-card', '.wallet-refresh', '.emoji-picker', '.emoji-cell', '.compose-editor',
-      '.bm-item', '.bm-delete-box', '.bm-title-menu', '.bm-unseen'];
+      '.bm-item', '.bm-delete-box', '.bm-title-menu', '.bm-unseen', '.stream-directory-actions .ghost', '.stream-directory-actions .icon-btn'];
     for (const sel of probe) {
       for (const el of document.querySelectorAll(sel)) {
         const r = getComputedStyle(el).borderTopLeftRadius;
@@ -141,7 +171,7 @@
   }
 
   // Nothing wider than its box, and the page itself does not scroll sideways.
-  for (const el of document.querySelectorAll('button, .item, .wallet-card, .emoji-picker, .bm-item, .bm-delete-box, .bm-title-menu')) {
+  for (const el of document.querySelectorAll('button, .item, .wallet-card, .emoji-picker, .bm-item, .bm-delete-box, .bm-title-menu, .stream-chat-identity-row')) {
     if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'hidden') {
       issues.push((el.className || el.tagName) + ' overflows by ' + (el.scrollWidth - el.clientWidth) + 'px'); break;
     }
@@ -168,6 +198,8 @@
     const fills = (cs.backgroundImage.match(/rgba?\([^)]*\)/g) || []).concat(cs.backgroundColor).filter(solid);
     if (fills.length) minContrast = Math.min(minContrast, ratio(cs.color, fills[0]));
   }
+  // ?focus=streams scrolls that section's heading to the top, for a contact sheet of one surface.
+  if (q.get('focus')) [...root.querySelectorAll('h4')].find((x) => x.textContent === q.get('focus'))?.scrollIntoView();
   parent.postMessage({ sweep: true, theme, issues, minContrast: minContrast === 99 ? null : +minContrast.toFixed(1), height: document.documentElement.scrollHeight }, '*');
 })();
 </script>

@@ -307,6 +307,12 @@
     { text: 'The voice of the sea speaks to the soul.', who: 'Kate Chopin, 1899' },
     { text: 'Ah, but a man’s reach should exceed his grasp, or what’s a Heaven for?', who: 'Robert Browning, 1855' },
     { text: 'The world stands out on either side no wider than the heart is wide.', who: 'Edna St. Vincent Millay, 1917' },
+    // 1.17.2. Checked against the Project Gutenberg texts: Wuthering Heights (1847), chapter 9,
+    // Catherine on Heathcliff; and Far from the Madding Crowd (1874), Bathsheba to Boldwood,
+    // which reads "difficult", not the "hard" it is often quoted with. Both are writers the
+    // list did not already have.
+    { text: 'Whatever our souls are made of, his and mine are the same.', who: 'Emily Brontë, 1847' },
+    { text: 'It is difficult for a woman to define her feelings in language which is chiefly made by men to express theirs.', who: 'Thomas Hardy, 1874' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

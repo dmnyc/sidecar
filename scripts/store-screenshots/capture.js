@@ -123,6 +123,15 @@ async function fillOnboarding(x, pin) {
   })()`);
 }
 
+// The build string on the first-run and lock screens ("Version 1.17.2 (abc1234)") is a footnote that
+// fades out four seconds after the screen loads (styles.css, .pre-version-row), so a person soon
+// sees the screen without it. A photograph is taken sooner than that, and it put a version number in
+// the gallery that was out of date with every release. This puts the chip in the same faded state
+// before each photograph, so the gallery never carries a build string. The chip stays in the page,
+// faded, exactly as the product leaves it. The fade is a 700ms transition, so callers wait it out.
+const FADE_VERSION = `(() => { for (const c of document.querySelectorAll('.pre-version-row .version-chip')) c.classList.add('faded'); })()`;
+const FADE_VERSION_MS = 900;
+
 // One of the extension's own pages, shown in the panel's tab at the size it has in the image, then
 // the panel again. It is the same Chrome, the same profile and the same hostnames.
 async function pageShot(x, file, relPath) {
@@ -145,7 +154,11 @@ async function tab(x, name) {
 // `live` ({ url, recipe }) makes the client window a real page: the client's own site, loaded over the network in
 // the capture browser, asking Sidecar for real. Without it the client is a stub page at `client`, and the images
 // that show the client's page are left for a supplied screenshot.
-async function capturePanels({ outDir, vaultAccounts, client = 'client.example', live = null, log = () => {} }) {
+async function capturePanels({ outDir, vaultAccounts, client = 'client.example', live = null, want = null, log = () => {} }) {
+  // `want`: the scene names to photograph (a Set); null takes them all. Scenes that lead to a wanted one still run, since
+  // each builds on the one before; a scene nobody wants is not photographed, and the live client is skipped when none of
+  // its scenes is wanted.
+  const wants = (name) => !want || want.has(name);
   if (live) client = new URL(live.url).hostname.replace(/^www\./, '');
   const NT = loadGlobals();
   fs.mkdirSync(outDir, { recursive: true });
@@ -164,7 +177,7 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     chromeArgsFor: (relay) => ['--ignore-certificate-errors', '--host-resolver-rules=' + hosts.map((h) => `MAP ${h} 127.0.0.1:${relay.port}`).join(', ')],
   });
   const hideBalloon = () => x.evaluate(`(() => { const b = document.getElementById('first-post-balloon'); if (b) b.classList.add('hidden'); })()`);
-  const shot = async (name, { balloon = false } = {}) => { if (!balloon) await hideBalloon(); const f = path.join(outDir, name + '.png'); await x.screenshot(f, PANEL); shots[name] = f; log('captured ' + name); };
+  const shot = async (name, { balloon = false } = {}) => { if (!wants(name)) return; if (!balloon) await hideBalloon(); await x.evaluate(FADE_VERSION); await x.sleep(FADE_VERSION_MS); const f = path.join(outDir, name + '.png'); await x.screenshot(f, PANEL); shots[name] = f; log('captured ' + name); };
   try {
     // 1. First run: a PIN typed into both fields. Reloaded first, so the settings written
     // before the keystore existed (no dev badge) are the ones the screen was drawn with.
@@ -182,9 +195,11 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     // The same screen once the toast has gone, for the image that sits beside a directory page.
     await x.waitFor(`!document.body.innerText.includes('Keystore created')`, 15000);
     await shot('welcome-clean');
-    shots.apps = path.join(outDir, 'apps.png');
-    await pageShot(x, shots.apps, 'welcome.html');
-    log('captured apps');
+    if (wants('apps')) {
+      shots.apps = path.join(outDir, 'apps.png');
+      await pageShot(x, shots.apps, 'welcome.html');
+      log('captured apps');
+    }
 
     // 3. The demo accounts, with Gatsby active, and everyone's profiles on the relay.
     for (const p of [personas.amelia, personas.gatsby]) {
@@ -203,137 +218,144 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     await x.reload();
     await tab(x, 'wallet');
     await shot('wallet-setup');
-    shots.wallets = path.join(outDir, 'wallets.png');
-    await pageShot(x, shots.wallets, 'wallets.html');
-    log('captured wallets');
+    if (wants('wallets')) {
+      shots.wallets = path.join(outDir, 'wallets.png');
+      await pageShot(x, shots.wallets, 'wallets.html');
+      log('captured wallets');
+    }
 
-    // 4. The pretend wallet, connected to Gatsby, and the record of whom his zaps went to.
-    const walletRelay = 'wss://' + WALLET_HOST;
-    await x.message({ type: 'SIDECAR_SET_NWC', pubkey: personas.gatsby.pubkey, connection: wallet.connectionString(walletRelay, 'b2'.repeat(32)) });
-    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'paymeta', value: payMeta });
+    const needClient = ['approve-login', 'approve-pay', 'client-login', 'client-pay'].some(wants);
+    if (needClient || wants('profile') || wants('wallet')) {
+      // 4. The pretend wallet, connected to Gatsby, and the record of whom his zaps went to.
+      const walletRelay = 'wss://' + WALLET_HOST;
+      await x.message({ type: 'SIDECAR_SET_NWC', pubkey: personas.gatsby.pubkey, connection: wallet.connectionString(walletRelay, 'b2'.repeat(32)) });
+      await x.message({ type: 'SIDECAR_SECRET_SET', store: 'paymeta', value: payMeta });
 
-    await x.reload();
-    await tab(x, 'profile');
-    await shot('profile', { balloon: true });
-    await tab(x, 'wallet');
-    await x.waitFor(`document.body.innerText.includes('412,905')`, 20000);
-    await x.sleep(1500);
-    // Two real pieces of the screen that say nothing about the product here: the nag that this
-    // wallet has no backup (dismissed as a person would, with its ×) and the first-post hint,
-    // which the profile shot already shows once.
-    await x.evaluate(`(() => { const n = document.querySelector('.wallet-nudge-x'); if (n) n.click(); const b = document.getElementById('first-post-balloon'); if (b) b.classList.add('hidden'); })()`);
-    await x.sleep(600);
-    await shot('wallet');
+      await x.reload();
+      await tab(x, 'profile');
+      await shot('profile', { balloon: true });
+      await tab(x, 'wallet');
+      await x.waitFor(`document.body.innerText.includes('412,905')`, 20000);
+      await x.sleep(1500);
+      // Two real pieces of the screen that say nothing about the product here: the nag that this
+      // wallet has no backup (dismissed as a person would, with its ×) and the first-post hint,
+      // which the profile shot already shows once.
+      await x.evaluate(`(() => { const n = document.querySelector('.wallet-nudge-x'); if (n) n.click(); const b = document.getElementById('first-post-balloon'); if (b) b.classList.add('hidden'); })()`);
+      await x.sleep(600);
+      await shot('wallet');
+    }
 
-    // 5. A client asking, through the same window.nostr and window.webln any site uses: the page is a
-    // real tab at the client's hostname with the extension's content scripts in it, and the cards
-    // are the panel's own. Each is answered with Reject afterward so the next starts clean.
-    const recipe = (live && live.recipe) || {};
-    const clientPage = await x.openPage(live ? live.url : 'https://' + client + '/');
-    // A client that picks its layout by the width it has (a phone layout in a narrow window) should be driven at the
-    // size it is photographed at. Opt-in, so a recipe tuned at the default window keeps working as it is.
-    if (recipe.viewport) await clientPage.viewport(PAGE);
-    await x.sleep(live ? 5000 : 1500);   // a real site takes a while to settle
-    const answerNo = async () => {
-      await x.evaluate(`[...document.querySelectorAll('#view-approval button')].find((b) => /^reject$/i.test(b.textContent.trim())).click()`);
-      await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden')`, 10000);
-    };
-    // Press a button on the panel's approval card when one is offered: how a recipe signs the client in, or signs
-    // what the client asks for before it can show a payment. Returns whether it found the button in time.
-    const approve = async (label, ms = 15000, when = null) => {
-      const want = JSON.stringify(String(label).toLowerCase());
-      const find = `[...document.querySelectorAll('#view-approval button')].find((b) => b.textContent.trim().toLowerCase() === ${want})`;
-      try { await x.waitFor(`!document.getElementById('view-approval').classList.contains('hidden') && !!(${find})`, ms); } catch (_) { return false; }
-      // Only the request the recipe named: a card for anything else is left exactly as it is.
-      if (when) {
-        const ask = await x.evaluate(`document.getElementById('approval-ask').textContent`);
-        if (!new RegExp(when, 'i').test(ask)) return false;
+    if (needClient) {
+      // 5. A client asking, through the same window.nostr and window.webln any site uses: the page is a
+      // real tab at the client's hostname with the extension's content scripts in it, and the cards
+      // are the panel's own. Each is answered with Reject afterward so the next starts clean.
+      const recipe = (live && live.recipe) || {};
+      const clientPage = await x.openPage(live ? live.url : 'https://' + client + '/');
+      // A client that picks its layout by the width it has (a phone layout in a narrow window) should be driven at the
+      // size it is photographed at. Opt-in, so a recipe tuned at the default window keeps working as it is.
+      if (recipe.viewport) await clientPage.viewport(PAGE);
+      await x.sleep(live ? 5000 : 1500);   // a real site takes a while to settle
+      const answerNo = async () => {
+        await x.evaluate(`[...document.querySelectorAll('#view-approval button')].find((b) => /^reject$/i.test(b.textContent.trim())).click()`);
+        await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden')`, 10000);
+      };
+      // Press a button on the panel's approval card when one is offered: how a recipe signs the client in, or signs
+      // what the client asks for before it can show a payment. Returns whether it found the button in time.
+      const approve = async (label, ms = 15000, when = null) => {
+        const want = JSON.stringify(String(label).toLowerCase());
+        const find = `[...document.querySelectorAll('#view-approval button')].find((b) => b.textContent.trim().toLowerCase() === ${want})`;
+        try { await x.waitFor(`!document.getElementById('view-approval').classList.contains('hidden') && !!(${find})`, ms); } catch (_) { return false; }
+        // Only the request the recipe named: a card for anything else is left exactly as it is.
+        if (when) {
+          const ask = await x.evaluate(`document.getElementById('approval-ask').textContent`);
+          if (!new RegExp(when, 'i').test(ask)) return false;
+        }
+        await x.evaluate(`(${find}).click()`);
+        try { await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden')`, 8000); } catch (_) { /* a queued card may follow */ }
+        return true;
+      };
+      // The card of this client's, and when `kind` is given, one that asks for that: a login card for the public key, a
+      // payment card for a payment. Anything else on top is left alone and does not count.
+      // For a recipe's answer step: what the panel is asking right now, and a press of one of its buttons.
+      const peekCard = () => x.evaluate(`(() => { const v = document.getElementById('view-approval'); return v && !v.classList.contains('hidden') ? { host: document.getElementById('approval-host').textContent, ask: document.getElementById('approval-ask').textContent, buttons: [...v.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean) } : null; })()`);
+      const pressCard = async (label) => {
+        await x.evaluate(`[...document.querySelectorAll('#view-approval button')].find((b) => b.textContent.trim().toLowerCase() === ${JSON.stringify(String(label).toLowerCase())}).click()`);
+        try { await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden') || document.getElementById('approval-ask').textContent !== ${JSON.stringify('')}`, 4000); } catch (_) { /* the next card may already be up */ }
+      };
+      const cardUp = (ms, kind = null) => x.waitFor(`!document.getElementById('view-approval').classList.contains('hidden') && document.getElementById('approval-host').textContent.includes(${JSON.stringify(client)})${kind ? ` && /${kind.source}/i.test(document.getElementById('approval-ask').textContent)` : ''}`, ms);
+      const clientShot = async (name) => { const f = path.join(outDir, name + '.png'); await clientPage.screenshot(f, PAGE); shots[name] = f; log('captured ' + name); };
+      await tab(x, 'activity');
+      // The extension puts window.nostr into a page as it loads. Wait for it, and say what the page was doing if it never comes.
+      const provided = await clientPage.evaluate('new Promise((r) => { let n = 0; const t = setInterval(() => { if (window.nostr || ++n > 100) { clearInterval(t); r(!!window.nostr); } }, 100); })');
+      if (!provided) {
+        const state = await clientPage.evaluate('({ href: location.href, title: document.title, text: (document.body && document.body.innerText || "").slice(0, 120) })');
+        throw new Error('window.nostr never appeared on the client page: ' + JSON.stringify(state));
       }
-      await x.evaluate(`(${find}).click()`);
-      try { await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden')`, 8000); } catch (_) { /* a queued card may follow */ }
-      return true;
-    };
-    // The card of this client's, and when `kind` is given, one that asks for that: a login card for the public key, a
-    // payment card for a payment. Anything else on top is left alone and does not count.
-    // For a recipe's answer step: what the panel is asking right now, and a press of one of its buttons.
-    const peekCard = () => x.evaluate(`(() => { const v = document.getElementById('view-approval'); return v && !v.classList.contains('hidden') ? { host: document.getElementById('approval-host').textContent, ask: document.getElementById('approval-ask').textContent, buttons: [...v.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean) } : null; })()`);
-    const pressCard = async (label) => {
-      await x.evaluate(`[...document.querySelectorAll('#view-approval button')].find((b) => b.textContent.trim().toLowerCase() === ${JSON.stringify(String(label).toLowerCase())}).click()`);
-      try { await x.waitFor(`document.getElementById('view-approval').classList.contains('hidden') || document.getElementById('approval-ask').textContent !== ${JSON.stringify('')}`, 4000); } catch (_) { /* the next card may already be up */ }
-    };
-    const cardUp = (ms, kind = null) => x.waitFor(`!document.getElementById('view-approval').classList.contains('hidden') && document.getElementById('approval-host').textContent.includes(${JSON.stringify(client)})${kind ? ` && /${kind.source}/i.test(document.getElementById('approval-ask').textContent)` : ''}`, ms);
-    const clientShot = async (name) => { const f = path.join(outDir, name + '.png'); await clientPage.screenshot(f, PAGE); shots[name] = f; log('captured ' + name); };
-    await tab(x, 'activity');
-    // The extension puts window.nostr into a page as it loads. Wait for it, and say what the page was doing if it never comes.
-    const provided = await clientPage.evaluate('new Promise((r) => { let n = 0; const t = setInterval(() => { if (window.nostr || ++n > 100) { clearInterval(t); r(!!window.nostr); } }, 100); })');
-    if (!provided) {
-      const state = await clientPage.evaluate('({ href: location.href, title: document.title, text: (document.body && document.body.innerText || "").slice(0, 120) })');
-      throw new Error('window.nostr never appeared on the client page: ' + JSON.stringify(state));
-    }
 
-    // Sign-in: the recipe clicks through the client's own login, which asks for the public key. With
-    // no recipe the page is asked directly.
-    if (recipe.login) {
-      try {
-        await runSteps(clientPage, recipe.login, { approve });
-      } catch (e) {
-        try { await clientShot('client-error'); } catch (_) { /* the failure matters more */ }
-        throw new Error(e.message + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
-      }
-    }
-    else await clientPage.evaluate('window.__ask = window.nostr.getPublicKey().catch(() => null); 1', { wait: false });
-    try { await cardUp(20000, /public key/); } catch (_) {
-      throw new Error('The client never asked Sidecar for the public key' + (recipe.login ? '; check the "login" steps in the recipe' : ''));
-    }
-    await x.sleep(900);
-    await shot('approve-login');
-    if (live) await clientShot('client-login');
-    if (recipe.signedIn) {
-      // The client is signed in for what follows (its feed, a zap). The public key goes to it, which is the demo
-      // account's own and public. Nothing is paid, and the pay card below is still answered with Reject.
-      const label = typeof recipe.signedIn === 'string' ? recipe.signedIn : 'Allow once';
-      if (!(await approve(label, 8000, 'public key'))) throw new Error('The login card offered no ' + label + ', so the client was not signed in');
-      await x.sleep(4000);
-    } else {
-      await answerNo();
-    }
-
-    // Payment: the recipe takes the client to something payable; if that does not raise the card on its
-    // own, the page asks for a 21-sat payment directly, so the card is the same either way.
-    const invoice = createInvoice({ sats: 21, description: 'Zap', seed: 3 });
-    const ask = () => clientPage.evaluate(`window.__pay = (async () => { await window.webln.enable(); return window.webln.sendPayment(${JSON.stringify(invoice)}); })().catch(() => null); 1`, { wait: false });
-    if (live && recipe.pay) {
-      if (recipe.pay.url) { await clientPage.evaluate(`location.href = ${JSON.stringify(recipe.pay.url)}`, { wait: false }); await x.sleep(5000); }
-      try {
-        await runSteps(clientPage, recipe.pay.steps || [], { approve, peekCard, pressCard });
-      } catch (e) {
-        // Say where the page was when a step failed: a recipe is debugged by looking.
-        try { await clientShot('client-error'); } catch (_) { /* the original failure matters more */ }
-        throw new Error(e.message + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
-      }
-    }
-    let raised = false;
-    if (live && recipe.pay && (recipe.pay.steps || []).length) { try { await cardUp(recipe.signedIn ? 25000 : 8000, /lightning payment/); raised = true; } catch (_) { /* ask directly below */ } }
-    if (!raised) {
-      // A recipe that signs the client in and walks to a real payment must end in the client's own request. If the card
-      // never came, saying so beats drawing a payment the client did not ask for.
-      if (live && recipe.pay && recipe.signedIn && (recipe.pay.steps || []).length) {
-        try { await clientShot('client-error'); } catch (_) { /* the failure matters more */ }
-        let waiting = 'no card is waiting in the panel';
+      // Sign-in: the recipe clicks through the client's own login, which asks for the public key. With
+      // no recipe the page is asked directly.
+      if (recipe.login) {
         try {
-          const card = await x.evaluate(`(() => { const v = document.getElementById('view-approval'); return v && !v.classList.contains('hidden') ? document.getElementById('approval-host').textContent + ' ' + document.getElementById('approval-ask').textContent + ' [' + [...v.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean).join(' | ') + ']' : null; })()`);
-          if (card) waiting = 'the panel is showing: ' + card;
-          await x.screenshot(path.join(outDir, 'panel-error.png'), PANEL);
-        } catch (_) { /* the failure matters more */ }
-        throw new Error('The client never asked Sidecar to pay, so there is no real payment card; ' + waiting + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
+          await runSteps(clientPage, recipe.login, { approve });
+        } catch (e) {
+          try { await clientShot('client-error'); } catch (_) { /* the failure matters more */ }
+          throw new Error(e.message + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
+        }
       }
-      await ask(); await cardUp(20000, /lightning payment/);
+      else await clientPage.evaluate('window.__ask = window.nostr.getPublicKey().catch(() => null); 1', { wait: false });
+      try { await cardUp(20000, /public key/); } catch (_) {
+        throw new Error('The client never asked Sidecar for the public key' + (recipe.login ? '; check the "login" steps in the recipe' : ''));
+      }
+      await x.sleep(900);
+      await shot('approve-login');
+      if (live) await clientShot('client-login');
+      if (recipe.signedIn) {
+        // The client is signed in for what follows (its feed, a zap). The public key goes to it, which is the demo
+        // account's own and public. Nothing is paid, and the pay card below is still answered with Reject.
+        const label = typeof recipe.signedIn === 'string' ? recipe.signedIn : 'Allow once';
+        if (!(await approve(label, 8000, 'public key'))) throw new Error('The login card offered no ' + label + ', so the client was not signed in');
+        await x.sleep(4000);
+      } else {
+        await answerNo();
+      }
+
+      // Payment: the recipe takes the client to something payable; if that does not raise the card on its
+      // own, the page asks for a 21-sat payment directly, so the card is the same either way.
+      const invoice = createInvoice({ sats: 21, description: 'Zap', seed: 3 });
+      const ask = () => clientPage.evaluate(`window.__pay = (async () => { await window.webln.enable(); return window.webln.sendPayment(${JSON.stringify(invoice)}); })().catch(() => null); 1`, { wait: false });
+      if (live && recipe.pay) {
+        if (recipe.pay.url) { await clientPage.evaluate(`location.href = ${JSON.stringify(recipe.pay.url)}`, { wait: false }); await x.sleep(5000); }
+        try {
+          await runSteps(clientPage, recipe.pay.steps || [], { approve, peekCard, pressCard });
+        } catch (e) {
+          // Say where the page was when a step failed: a recipe is debugged by looking.
+          try { await clientShot('client-error'); } catch (_) { /* the original failure matters more */ }
+          throw new Error(e.message + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
+        }
+      }
+      let raised = false;
+      if (live && recipe.pay && (recipe.pay.steps || []).length) { try { await cardUp(recipe.signedIn ? 25000 : 8000, /lightning payment/); raised = true; } catch (_) { /* ask directly below */ } }
+      if (!raised) {
+        // A recipe that signs the client in and walks to a real payment must end in the client's own request. If the card
+        // never came, saying so beats drawing a payment the client did not ask for.
+        if (live && recipe.pay && recipe.signedIn && (recipe.pay.steps || []).length) {
+          try { await clientShot('client-error'); } catch (_) { /* the failure matters more */ }
+          let waiting = 'no card is waiting in the panel';
+          try {
+            const card = await x.evaluate(`(() => { const v = document.getElementById('view-approval'); return v && !v.classList.contains('hidden') ? document.getElementById('approval-host').textContent + ' ' + document.getElementById('approval-ask').textContent + ' [' + [...v.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean).join(' | ') + ']' : null; })()`);
+            if (card) waiting = 'the panel is showing: ' + card;
+            await x.screenshot(path.join(outDir, 'panel-error.png'), PANEL);
+          } catch (_) { /* the failure matters more */ }
+          throw new Error('The client never asked Sidecar to pay, so there is no real payment card; ' + waiting + ' (the page is saved as ' + path.join(outDir, 'client-error.png') + ')');
+        }
+        await ask(); await cardUp(20000, /lightning payment/);
+      }
+      await x.sleep(900);
+      await shot('approve-pay');
+      if (live) await clientShot('client-pay');
+      await answerNo();
+      await clientPage.close();
     }
-    await x.sleep(900);
-    await shot('approve-pay');
-    if (live) await clientShot('client-pay');
-    await answerNo();
-    await clientPage.close();
     if (x.errors.length) log('panel errors: ' + JSON.stringify(x.errors));
   } finally {
     x.close();
@@ -342,4 +364,4 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
   return { shots, usedVault: personas.gatsby.fromVault, fromVault: Object.values(personas).filter((p) => p.fromVault).map((p) => p.name), fixtureKeys: Object.values(personas).filter((p) => !p.fromVault).map((p) => p.name), mismatched: Object.values(personas).filter((p) => !p.keyMatches).map((p) => p.name) };
 }
 
-module.exports = { capturePanels, openVault, loadGlobals, PANEL, PIN };
+module.exports = { capturePanels, openVault, loadGlobals, PANEL, PIN, FADE_VERSION };

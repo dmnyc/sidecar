@@ -32,6 +32,28 @@ stays local until you upload it. Look at every image before you do.
 A release set refuses test keys, a vault key that is not the person's, and a set with an image
 missing.
 
+### Only what changed
+
+Most releases leave the two client-page images (4 and 5) alone, and those are the slow, fragile part: they
+open the live client over the network and walk its login and a zap. Leave them out:
+
+```sh
+node scripts/store-screenshots/run.js --release 1.17.2 --changed
+```
+
+`--changed` makes the images that need no client page (1 to 3, in about a minute), compares each with the
+newest earlier set in `store/` (`--previous X.Y.Z` picks another), and fills the rest of the new set from that
+one, so it is still complete. The summary says which images are **new** (upload these), which were made again
+and came out **the same** (nothing to upload), and which were **carried** over. The comparison is of pixels, not
+files, because the lock screen's glow moves a little between two photographs of the same screen; a few levels of
+drift does not count and a changed line of text does. `capture-info.json` records the status of every file.
+
+`--only 1,3` (numbers, or names such as `wallets`) makes just those; `--only 4,5 --client-url ... --recipe ...`
+takes the client images again. The panel scenes the other images need are skipped, and the live client is not
+opened unless 4 or 5 is named. Images 4 and 5 are never judged unchanged by a run that skips them: whether the
+approval cards or the payment card changed is for you to say (`needed.js` and the diff will tell you), and if it
+did, name them.
+
 ## What is real and what is not
 
 - **Real:** the extension, its panel, its default relays, its pages, and the approval cards. The cards
@@ -39,6 +61,9 @@ missing.
 - **Pretend:** the wallet (a NIP-47 service on the local relay that answers the balance and history in
   `personas.js`), the people's profile events, and the invoice when the client does not make one.
   Nothing is ever paid: the payment card is always answered with Reject.
+- **No build string:** the first-run and lock screens print the version at the foot and fade it out after
+  four seconds. Before each photograph the capture puts that chip in its faded state, so the gallery never
+  names a version and its first image does not go out of date with every release.
 - **Signed in or not:** by default every card is answered with Reject, so no key leaves the machine and
   the client receives nothing. A recipe with `"signedIn": true` approves the login card with Allow once,
   so the client sees the demo account's public key and shows its signed-in view. Its steps may then
