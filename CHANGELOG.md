@@ -16,6 +16,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Fixed
 - **Your library reads in your language.** The library added in 1.17.1 (its tabs, rows, list menu and messages) showed in English in every language but English. All 21 catalogs now carry its text, and the coverage check passes again.
+- **The composer tab names the person you are replying to, and the people you mention.** It asked only your configured relays and purplepag.es, so someone whose profile lives on their own relays showed as an npub. It now asks their relays too, takes the first name that comes back, and no longer waits on a relay that never answers.
 
 ## [1.17.1] — 2026-11-12
 
