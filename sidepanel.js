@@ -19140,8 +19140,67 @@
     return { remaining };
   }
 
+  // Restore also reads the sibling d tags other NWC apps write under the same shape:
+  // kind 30078, content encrypted to the account's own key, a `nostr+walletconnect://`
+  // string inside (#538). Sidecar keeps WRITING only its own tag — per-app namespacing
+  // is what stops one app's save from clobbering another's — but a wallet backed up in
+  // Wisp or zap.cooking restores here, so the backup follows the person, not the app.
+  const NWC_BACKUP_SIBLINGS = [
+    { dtag: 'nwc-wallet-backup', app: 'Wisp' },
+    { dtag: 'zapcooking-nwc-backup', app: 'zap.cooking' },
+  ];
+
+  // The newest usable record under each sibling d tag, all siblings newest first.
+  // Best effort by design: an app that never wrote a backup, or a relay still answering
+  // late, is not an error of its own — but a read where NOBODY answered reports itself
+  // as "couldn't check", the same honesty fetchBackupEvent gives the own-tag read.
+  async function fetchSiblingBackups() {
+    const relays = await backupReadRelays();
+    const author = state.activePubkey;
+    const { events, answered, complete } = await poolQueryAnswered(relays,
+      { kinds: [30078], authors: [author], '#d': NWC_BACKUP_SIBLINGS.map((s) => s.dtag) },
+      { capMs: BACKUP_READ_CAP_MS });
+    const found = NWC_BACKUP_SIBLINGS
+      .map(({ dtag, app }) => {
+        // Replaceable per d tag, so each app's newest copy is that app's backup. Each
+        // app's tombstone counts for that app alone: an empty content, or a `deleted`
+        // tag (Wisp's shape), means that app's backup was deleted there.
+        const ev = events.filter((e) => e && e.pubkey === author
+            && (e.tags.find((x) => x[0] === 'd') || [])[1] === dtag
+            && e.content
+            && !e.tags.find((x) => x[0] === 'deleted'))
+          .sort((x, y) => y.created_at - x.created_at)[0] || null;
+        return ev ? { ev, app } : null;
+      })
+      .filter(Boolean)
+      .sort((x, y) => y.ev.created_at - x.ev.created_at);
+    if (!found.length && (!answered || !complete)) {
+      throw new Error(t('Could not reach your relays to check for a backup.'));
+    }
+    return found;
+  }
+
   async function restoreNwcFromRelays() {
-    const ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+    let ev = await fetchBackupEvent(NWC_BACKUP_DTAG);
+    if (!ev) {
+      // Sidecar's own tag came up empty. The siblings hold the same encrypted string
+      // under another app's name, so walk them newest first and take the first one
+      // that decrypts to a connection string. A record that decrypts to nothing usable
+      // — a payload shape from some other app — is skipped, not fatal.
+      const siblings = await fetchSiblingBackups();
+      for (const { ev: cand } of siblings) {
+        const scheme = (cand.tags.find((x) => x[0] === 'encryption') || [])[1];
+        const nip = scheme === 'nip04' ? 4 : 44;
+        let connection = '';
+        try {
+          connection = await call({ type: 'SIDECAR_OWNER_DECRYPT', ciphertext: cand.content, nip });
+        } catch (_) {}
+        if (connection && connection.startsWith('nostr+walletconnect://')) {
+          ev = cand;
+          break;
+        }
+      }
+    }
     if (!ev) throw new Error(t('No wallet backup found on your relays'));
     const scheme = (ev.tags.find((x) => x[0] === 'encryption') || [])[1];
     const nip = scheme === 'nip04' ? 4 : 44;
