@@ -253,7 +253,9 @@ test('a note set aside comes back through the note slot, in both composers', () 
   const panel = liftBraces(read('sidepanel.js'), 'async function switchToSavedDraft(');
   assert.match(panel, /if \(entry\.shelved\)[\s\S]{0,200}unshelveNoteDraft\(all, pubkey, entry\.key, Date\.now\(\)\)/);
   const page = read('compose.js');
-  assert.match(page, /onPick: \(entry\) => \(entry\.shelved \? unshelve\(entry\.key\) : switchToDraft\(entry\.replyId\)\)/);
+  // A site draft opens its own site slot first; a shelved note comes back through the
+  // note slot; a reply opens where it answers.
+  assert.match(page, /onPick: \(entry\) => entry\.kind === 'site' \? switchToDraft\(null, entry\.siteId\) : \(entry\.shelved \? unshelve\(entry\.key\) : switchToDraft\(entry\.replyId\)\)/);
   assert.match(liftBraces(page, 'async function unshelve('), /SC\.unshelveNoteDraft\(all, state\.activePubkey, key, Date\.now\(\)\)/);
 });
 
