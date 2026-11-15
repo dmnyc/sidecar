@@ -14,6 +14,9 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Changed
 - **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
 
+### Fixed
+- **A stream's chat can be read before you add an account.** The chat button only appeared once Sidecar had an account, so a new install could watch a stream and never see its chat. It now opens read-only: replying, reacting, zapping and opening a profile wait for an account, the message box gives way to an “Add an account to chat” link that opens the Accounts tab, and a locked panel still hides the chat.
+
 ## [1.17.1] — 2026-11-12
 
 ### Added

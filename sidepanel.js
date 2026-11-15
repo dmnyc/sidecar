@@ -2541,8 +2541,13 @@
 
   // Chat keeps no signing keys; every send pins the account reviewed in its composer.
   window.SidecarStreamChatAccount = {
+    // Reading chat needs no account, only a panel that is showing its own content: not locked,
+    // and not asking for an approval. Posting, reacting and zapping need identity() as well.
+    readable() { return $('view-lock').classList.contains('hidden') && $('view-approval').classList.contains('hidden'); },
+    // "Add an account" in the chat: the Accounts tab, which is where an account is added.
+    showAccounts() { document.querySelector('.tab[data-tab="accounts"]')?.click(); },
     identity() {
-      if (!state?.activePubkey || !$('view-lock').classList.contains('hidden') || !$('view-approval').classList.contains('hidden')) return null;
+      if (!state?.activePubkey || !window.SidecarStreamChatAccount.readable()) return null;
       const account = state.accounts.find(a => a.pubkey === state.activePubkey);
       return { pubkey: state.activePubkey, name: cachedProfile(state.activePubkey)?.name || account?.name || window.SidecarStreams.cocktailName(state.activePubkey) };
     },
@@ -2554,9 +2559,9 @@
     createMentionEditor(options) { return createMentionEditor(options); },
     cachedProfiles(pubkeys) { return new Map(pubkeys.map(key=>[key,cachedProfile(key)]).filter(([,p])=>p)); },
     profiles: async function(pubkeys,onProfile,signal) {
-      if(!this.identity() || signal?.aborted)return new Map();
+      if(!this.readable() || signal?.aborted)return new Map();
       const sources=[...new Set(['wss://purplepag.es',...await relayUrls(false).catch(()=>[])])];
-      if(!this.identity() || signal?.aborted)return new Map();
+      if(!this.readable() || signal?.aborted)return new Map();
       return window.SidecarStreams.profileBatch({pool:getPool(),sources,keys:pubkeys,signal,verify:NT.verifyEvent,onProfile:(key,p)=>{
         if(signal?.aborted)return;cacheProfile(key,p.content);onProfile?.(key,p);
       }});
