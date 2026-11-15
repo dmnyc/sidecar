@@ -39,6 +39,9 @@ missing.
 - **Pretend:** the wallet (a NIP-47 service on the local relay that answers the balance and history in
   `personas.js`), the people's profile events, and the invoice when the client does not make one.
   Nothing is ever paid: the payment card is always answered with Reject.
+- **No build string:** the first-run and lock screens print the version at the foot and fade it out after
+  four seconds. Before each photograph the capture puts that chip in its faded state, so the gallery never
+  names a version and its first image does not go out of date with every release.
 - **Signed in or not:** by default every card is answered with Reject, so no key leaves the machine and
   the client receives nothing. A recipe with `"signedIn": true` approves the login card with Allow once,
   so the client sees the demo account's public key and shows its signed-in view. Its steps may then

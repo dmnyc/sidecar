@@ -123,6 +123,15 @@ async function fillOnboarding(x, pin) {
   })()`);
 }
 
+// The build string on the first-run and lock screens ("Version 1.17.2 (abc1234)") is a footnote that
+// fades out four seconds after the screen loads (styles.css, .pre-version-row), so a person soon
+// sees the screen without it. A photograph is taken sooner than that, and it put a version number in
+// the gallery that was out of date with every release. This puts the chip in the same faded state
+// before each photograph, so the gallery never carries a build string. The chip stays in the page,
+// faded, exactly as the product leaves it. The fade is a 700ms transition, so callers wait it out.
+const FADE_VERSION = `(() => { for (const c of document.querySelectorAll('.pre-version-row .version-chip')) c.classList.add('faded'); })()`;
+const FADE_VERSION_MS = 900;
+
 // One of the extension's own pages, shown in the panel's tab at the size it has in the image, then
 // the panel again. It is the same Chrome, the same profile and the same hostnames.
 async function pageShot(x, file, relPath) {
@@ -164,7 +173,7 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     chromeArgsFor: (relay) => ['--ignore-certificate-errors', '--host-resolver-rules=' + hosts.map((h) => `MAP ${h} 127.0.0.1:${relay.port}`).join(', ')],
   });
   const hideBalloon = () => x.evaluate(`(() => { const b = document.getElementById('first-post-balloon'); if (b) b.classList.add('hidden'); })()`);
-  const shot = async (name, { balloon = false } = {}) => { if (!balloon) await hideBalloon(); const f = path.join(outDir, name + '.png'); await x.screenshot(f, PANEL); shots[name] = f; log('captured ' + name); };
+  const shot = async (name, { balloon = false } = {}) => { if (!balloon) await hideBalloon(); await x.evaluate(FADE_VERSION); await x.sleep(FADE_VERSION_MS); const f = path.join(outDir, name + '.png'); await x.screenshot(f, PANEL); shots[name] = f; log('captured ' + name); };
   try {
     // 1. First run: a PIN typed into both fields. Reloaded first, so the settings written
     // before the keystore existed (no dev badge) are the ones the screen was drawn with.
@@ -342,4 +351,4 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
   return { shots, usedVault: personas.gatsby.fromVault, fromVault: Object.values(personas).filter((p) => p.fromVault).map((p) => p.name), fixtureKeys: Object.values(personas).filter((p) => !p.fromVault).map((p) => p.name), mismatched: Object.values(personas).filter((p) => !p.keyMatches).map((p) => p.name) };
 }
 
-module.exports = { capturePanels, openVault, loadGlobals, PANEL, PIN };
+module.exports = { capturePanels, openVault, loadGlobals, PANEL, PIN, FADE_VERSION };
