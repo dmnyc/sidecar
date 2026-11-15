@@ -32,8 +32,11 @@
   // list a stored value is validated against are the same list.
   const { NOTE_COUNTDOWN_PRESETS, NOTE_COUNTDOWN_DEFAULT } = window.SidecarCore;
   // Where a note can be read. Shared because the panel's post banner and the expanded
-  // composer's confirmation are the same question asked twice.
-  const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT } = window.SidecarCore;
+  // composer's confirmation are the same question asked twice. The custom pair rides
+  // along: the settings sheet reads the pasted links with the same parser it saves
+  // through and rebuilds them with the builder resolution uses, so what is confirmed
+  // is what opens.
+  const { VIEW_CLIENTS, DEFAULT_CLIENT, IMG_EXT, VID_EXT, customClient, parseClientLink } = window.SidecarCore;
   // The imeta write side: describing an attached image so the client that renders the
   // note can say it. Same tag zap.cooking writes; see composer-core.js for the format.
   const { ALT_MAX, normalizeAltBreaks, capAltText, imetaTagsForMedia, readVideoMeta, buildAltEditorRow } = window.SidecarCore;
@@ -10478,6 +10481,7 @@
   $('add-generate').addEventListener('click', () => generateAccount());
   $('add-import').addEventListener('click', () => importAccountModal());
   $('add-account-link').addEventListener('click', () => addAccountModal());
+  $('add-client-btn').addEventListener('click', () => customClientModal('', null));
   $('explore-apps-link').addEventListener('click', (e) => {
     e.preventDefault();
     openExtensionPage('welcome.html');
@@ -12171,10 +12175,24 @@
     // the row is not a mystery when nothing is selected.
     const clientBy = settings.defaultClientBy || {};
     const own = state.activePubkey ? clientBy[state.activePubkey] : '';
-    $('client-select').value = own || '';
-    const globalLabel = (VIEW_CLIENTS[settings.defaultClient || DEFAULT_CLIENT] || {}).label || '';
+    // The user's own clients join the picker after the built-ins, rebuilt on every
+    // render so an edit never leaves a stale label or a removed client behind. The
+    // options exist BEFORE the value is set: an account whose choice is a custom one
+    // would otherwise read back as "use the default" the moment this drew.
+    const clientSel = $('client-select');
+    for (const old of [...clientSel.options]) if (old.dataset.custom) old.remove();
+    const customs = settings.customClients || {};
+    for (const key of Object.keys(customs)) {
+      const o = h('option', { value: key, textContent: customs[key].label || key });
+      o.dataset.custom = '1';
+      clientSel.append(o);
+    }
+    clientSel.value = own || '';
+    const globalKey = settings.defaultClient || DEFAULT_CLIENT;
+    const globalLabel = (VIEW_CLIENTS[globalKey] || {}).label || (customs[globalKey] || {}).label || '';
     const defaultOpt = $('client-select').querySelector('option[value=""]');
     if (defaultOpt) defaultOpt.textContent = globalLabel ? t('Use the default ({{client}})', { client: globalLabel }) : t('Use the default');
+    renderCustomClients(customs);
     $('reuse-tab-toggle').checked = settings.reuseClientTab !== false; // default on
     $('paybutton-toggle').checked = settings.showPayButton !== false; // default on
     $('paypill-anywhere-toggle').checked = settings.payPillAnywhere === true; // default off
@@ -12297,6 +12315,195 @@
     // reason: warn, don't reject — local and Tor relays are legitimate ws:// users.
     // Toggled here rather than in the Add handler so removals clear it too.
     $('relay-ws-warn').classList.toggle('hidden', !Object.keys(relays).some((url) => url.startsWith('ws://')));
+  }
+
+  // The saved list under "Your added clients". Empty draws nothing: the hint above and
+  // the Add button below already say what this is, unlike the budgets list, whose rows
+  // are the only place that explains how one is made.
+  function renderCustomClients(customs) {
+    const list = $('custom-clients');
+    list.innerHTML = '';
+    const keys = Object.keys(customs).sort((a, b) => (customs[a].label || a).localeCompare(customs[b].label || b));
+    for (const key of keys) list.append(customClientRow(key, customs[key]));
+  }
+
+  function customClientRow(key, c) {
+    const row = h('div', { className: 'item' });
+    const label = h('div', { className: 'item-label', textContent: c.label || key });
+    // The host is what the key is made of and the only line that says where these
+    // links point.
+    let host = '';
+    try { host = new URL(c.url).host; } catch (_) {}
+    const sub = h('div', { className: 'item-sub', textContent: host });
+    const main = h('div', { className: 'item-main' }, [label, sub]);
+
+    // Removal only drops Sidecar's memory of the client — the client's own site is
+    // untouched — but it also erases two links someone typed, so the first tap arms
+    // the row (the .item-pending grammar: the two lines rewrite, gold) and the second
+    // removes. Any other tap on the row lets go, same as the account rows.
+    function resetRow() {
+      row.classList.remove('item-pending');
+      label.textContent = c.label || key;
+      sub.textContent = host;
+    }
+    row._resetRow = resetRow;
+    const edit = iconButton(t('Edit {{name}}', { name: c.label || key }), 'edit', () => {
+      if (row.classList.contains('item-pending')) return resetRow();
+      customClientModal(key, c);
+    });
+    const rm = iconButton(t('Remove {{name}}', { name: c.label || key }), 'trash', () => {
+      if (row.classList.contains('item-pending')) {
+        call({ type: 'SIDECAR_REMOVE_CUSTOM_CLIENT', key }).then(() => renderSettings());
+        return;
+      }
+      row.classList.add('item-pending');
+      label.textContent = t('Remove {{name}}?', { name: c.label || key });
+      sub.textContent = t('Tap again to confirm');
+    });
+    row.addEventListener('click', (e) => {
+      if (row.classList.contains('item-pending') && !e.target.closest('.icon-btn')) resetRow();
+    });
+    row.append(main, h('div', { className: 'item-actions' }, [edit, rm]));
+    return row;
+  }
+
+  // Add or edit one of the user's own clients. The user pastes one note link and one
+  // profile link that work in the client; Sidecar finds the address in each, works out
+  // how the client writes it, and says so in a line under the field. Save stays shut
+  // until the name is filled and both links read cleanly — and reading cleanly includes
+  // rebuilding the pasted link from what was found and getting it back unchanged.
+  function customClientModal(key, existing) {
+    openModal((modal) => {
+      // Bech32 of all zeros: a valid address whose only job is to give an edit's fields
+      // the shape of the stored link. The stored entry is a template and a form, not the
+      // link it came from, so the link shown is that template filled with a stand-in.
+      const ZERO = '0'.repeat(64);
+      const { nip19 } = NT;
+      const standIn = {
+        note: { hex: ZERO, note: nip19.noteEncode(ZERO), 'nevent-short': nip19.neventEncode({ id: ZERO }), nevent: nip19.neventEncode({ id: ZERO, author: ZERO }) },
+        profile: { hex: ZERO, npub: nip19.npubEncode(ZERO), nprofile: nip19.nprofileEncode({ pubkey: ZERO }) },
+      };
+      const shown = (template, mark, kind, form) => template && standIn[kind][form] ? template.replace(mark, () => standIn[kind][form]) : (template || '');
+
+      const FORM_SAYS = {
+        note: {
+          hex: t('Notes are sent as a hex ID.'),
+          note: t('Notes are sent as a note1 address.'),
+          'nevent-short': t('Notes are sent as a short nevent.'),
+          nevent: t('Notes are sent as a full nevent.'),
+        },
+        profile: {
+          hex: t('Profiles are sent as a hex key.'),
+          npub: t('Profiles are sent as an npub.'),
+          nprofile: t('Profiles are sent as an nprofile.'),
+        },
+      };
+      const PROBLEM = {
+        parse: t('Paste a full link that starts with https://'),
+        none: { note: t('No note address found in that link.'), profile: t('No profile address found in that link.') },
+        many: t('That link has more than one address in it.'),
+        kind: { note: t('That is a link to something else. Paste a link to a note.'), profile: t('That is a link to something else. Paste a link to a profile.') },
+        mismatch: t('Sidecar could not rebuild that link from its parts.'),
+      };
+
+      const err = h('div', { className: 'error' });
+      const name = h('input', { type: 'text', value: existing ? existing.label : '', placeholder: t('My client'), maxLength: 40, autocomplete: 'off', spellcheck: false });
+      // What an edit opens with is the entry's shape filled with a stand-in address, not
+      // a link anyone pasted, so trying it would open a note that does not exist. The
+      // test button waits for a link that was pasted this time.
+      const notePrefill = existing ? shown(existing.url, '{ne}', 'note', existing.urlForm || 'nevent') : '';
+      const profilePrefill = existing ? shown(existing.profile, '{np}', 'profile', existing.profileForm || 'npub') : '';
+      const noteIn = h('input', { type: 'url', value: notePrefill, placeholder: 'https://', autocomplete: 'off', spellcheck: false });
+      const profileIn = h('input', { type: 'url', value: profilePrefill, placeholder: 'https://', autocomplete: 'off', spellcheck: false });
+      const noteSays = h('div', { className: 'custom-client-preview' });
+      const profileSays = h('div', { className: 'custom-client-preview' });
+      const noteWarn = h('div', { className: 'custom-client-warn' });
+      const profileWarn = h('div', { className: 'custom-client-warn' });
+      // Opens the pasted link, the way a saved client will open (same tab reuse), so a
+      // link the user never actually tried is tried before it is kept. Shut until the
+      // field reads cleanly: only a link that passed the https check is ever opened.
+      const tryLabel = t('Try this link');
+      const tryButton = (input) => {
+        const b = iconButton(tryLabel, 'external', () => { if (!b.disabled) openInClient(input.value.trim()); });
+        b.type = 'button';
+        b.setAttribute('aria-label', tryLabel);
+        b.disabled = true;
+        return b;
+      };
+      const noteTry = tryButton(noteIn);
+      const profileTry = tryButton(profileIn);
+      const save = h('button', { className: 'primary', textContent: existing ? t('Save changes') : t('Add client'), disabled: true });
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
+      cancel.addEventListener('click', closeModal);
+
+      // One field's reading, drawn under it. An empty field says nothing: no scolding
+      // before there has been a chance to paste.
+      function read(input, says, warn, kind) {
+        const value = input.value.trim();
+        says.classList.remove('error');
+        warn.textContent = '';
+        if (!value) { says.textContent = ''; return null; }
+        const got = parseClientLink(value, kind);
+        if (got.error) {
+          const p = PROBLEM[got.error];
+          says.textContent = typeof p === 'string' ? p : p[kind];
+          says.classList.add('error');
+          return null;
+        }
+        says.textContent = FORM_SAYS[kind][got.form];
+        // A note, never a block: some clients need a parameter, and the user chose the link.
+        if (got.extra) warn.textContent = t('Sidecar will keep {{params}} from this link on every link it opens.', { params: got.extra.join(', ') });
+        return got;
+      }
+
+      let note = null;
+      let profile = null;
+      function update() {
+        note = read(noteIn, noteSays, noteWarn, 'note');
+        profile = read(profileIn, profileSays, profileWarn, 'profile');
+        noteTry.disabled = !note || noteIn.value === notePrefill;
+        profileTry.disabled = !profile || profileIn.value === profilePrefill;
+        save.disabled = !name.value.trim() || !note || !profile;
+      }
+      for (const input of [name, noteIn, profileIn]) input.addEventListener('input', update);
+      update();
+
+      save.addEventListener('click', async () => {
+        const label = name.value.trim();
+        if (!label || !note || !profile) return;
+        try {
+          await call({
+            type: 'SIDECAR_SET_CUSTOM_CLIENT', label,
+            url: note.template, urlForm: note.form,
+            profile: profile.template, profileForm: profile.form,
+            replaceKey: key || '',
+          });
+          closeModal();
+          await renderSettings();
+          toast(t('{{name}} saved', { name: label }), 'success');
+        } catch (e) {
+          err.textContent = e.message;
+        }
+      });
+
+      modal.append(
+        h('h3', { textContent: existing ? t('Edit {{name}}', { name: existing.label || key }) : t('Add a client') }),
+        h('p', { className: 'hint', textContent: t('Paste any note link and any profile link from the Nostr client you want to add.') }),
+        h('label', { textContent: t('Name') }),
+        name,
+        h('label', { textContent: t('Note link') }),
+        h('div', { className: 'row-actions' }, [noteIn, noteTry]),
+        noteSays,
+        noteWarn,
+        h('label', { textContent: t('Profile link') }),
+        h('div', { className: 'row-actions' }, [profileIn, profileTry]),
+        profileSays,
+        profileWarn,
+        err,
+        h('div', { className: 'actions' }, [save, cancel])
+      );
+      setTimeout(() => name.focus(), 50);
+    });
   }
 
   // Currencies offered for the fiat leg of the balance display. One list feeds BOTH
