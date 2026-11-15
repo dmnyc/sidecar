@@ -14,6 +14,9 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Changed
 - **The wallet directory's filter lists Spark before Ecash.** The order of the wallets themselves is unchanged.
 
+### Fixed
+- **Your library reads in your language.** The library added in 1.17.1 (its tabs, rows, list menu and messages) showed in English in every language but English. All 21 catalogs now carry its text, and the coverage check passes again.
+
 ## [1.17.1] — 2026-11-12
 
 ### Added
