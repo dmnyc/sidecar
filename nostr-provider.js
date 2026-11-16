@@ -147,7 +147,44 @@
       encrypt: (pubkey, plaintext) => call('nostr', 'nip44.encrypt', { pubkey, plaintext }),
       decrypt: (pubkey, ciphertext) => call('nostr', 'nip44.decrypt', { pubkey, ciphertext }),
     },
+    // NIP-44 v3 (draft), in the shape its NIP-07 extension gives it: the payload is bound
+    // to an event kind and a scope, and plaintexts are binary. The ArrayBuffer travels to
+    // the extension as base64, since extension messaging carries JSON and an ArrayBuffer
+    // would arrive as {}; the decrypted bytes come back the same way.
+    nip44v3: {
+      encrypt: (pubkey, kind, scope, plaintext) => {
+        let plaintextBase64;
+        try { plaintextBase64 = bytesToBase64(asBytes(plaintext)); } catch (e) { return Promise.reject(e); }
+        return call('nostr', 'nip44v3.encrypt', { pubkey, kind, scope, plaintextBase64 });
+      },
+      decrypt: (pubkey, kind, scope, ciphertext) =>
+        call('nostr', 'nip44v3.decrypt', { pubkey, kind, scope, ciphertext }).then(base64ToArrayBuffer),
+    },
   };
+
+  // The bytes behind an ArrayBuffer or any view of one (a Uint8Array, a DataView), and
+  // nothing else: a string is refused rather than guessed at, so a caller who meant
+  // binary never gets text semantics by accident. Checked by brand rather than
+  // instanceof, so a buffer made in an iframe counts too.
+  function asBytes(data) {
+    if (Object.prototype.toString.call(data) === '[object ArrayBuffer]') return new Uint8Array(data);
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    throw new TypeError('nip44v3.encrypt: plaintext must be an ArrayBuffer or a typed array');
+  }
+  // Chunked, because String.fromCharCode.apply over a large array overflows the stack.
+  function bytesToBase64(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+  }
+  function base64ToArrayBuffer(b64) {
+    const bin = atob(String(b64));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out.buffer;
+  }
 
   // Define window.nostr as an ordinary property: writable and configurable, as most
   // NIP-07 extensions leave it. Login libraries put a wrapper in front of the extension

@@ -2175,5 +2175,9 @@
   "Show {{count}} reply_one": "Mostrar {{count}} resposta",
   "Show {{count}} reply_many": "Mostrar {{count}} de respostas",
   "Show {{count}} reply_other": "Mostrar {{count}} respostas",
-  "Add an account to chat →": "Adicionar conta para conversar →"
+  "Add an account to chat →": "Adicionar conta para conversar →",
+  "wants to encrypt a message (NIP-44 v3)": "quer criptografar uma mensagem (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "quer descriptografar uma mensagem (NIP-44 v3)",
+  "Scope": "Escopo",
+  "Binary data": "Dados binários"
 }

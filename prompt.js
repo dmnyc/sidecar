@@ -113,6 +113,8 @@
       'nip04.decrypt': tSec('wants to decrypt a message (NIP-04)'),
       'nip44.encrypt': tSec('wants to encrypt a message (NIP-44)'),
       'nip44.decrypt': tSec('wants to decrypt a message (NIP-44)'),
+      'nip44v3.encrypt': tSec('wants to encrypt a message (NIP-44 v3)'),
+      'nip44v3.decrypt': tSec('wants to decrypt a message (NIP-44 v3)'),
       'webln.getInfo': tSec('wants to see your wallet info'),
       'webln.getBalance': tSec('wants to see your wallet balance'),
       'webln.makeInvoice': tSec('wants to create a Lightning invoice'),
@@ -520,7 +522,64 @@
         row(tSec('To'), peerLabel()) +
         (plain ? row(tSec('Sealing'), clampText(plain, 220), 'prose sealed') : '');
       els.preview.classList.remove('hidden');
+    } else if (isNip44v3(data.method)) {
+      els.preview.replaceChildren(...nip44v3Rows());
+      els.preview.classList.remove('hidden');
     }
+  }
+
+  // NIP-44 v3 (draft). The payload is bound to an event kind and a scope, and those two are
+  // what the person is consenting to, so the card names them every time: a v3 request
+  // always asks (see NIP44V3_METHODS in background.js). Built as nodes with textContent,
+  // since the kind, the scope and the plaintext are all the page's to write. Twin of
+  // nip44v3Preview in sidepanel.js.
+  function isNip44v3(method) {
+    return method === 'nip44v3.encrypt' || method === 'nip44v3.decrypt';
+  }
+  function rowEl(k, v, cls) {
+    const div = document.createElement('div');
+    div.className = 'row' + (cls ? ' ' + cls : '');
+    const key = document.createElement('span');
+    key.textContent = k;
+    const val = document.createElement('span');
+    val.textContent = v;
+    div.append(key, val);
+    return div;
+  }
+  function nip44v3Rows() {
+    const p = data.params || {};
+    const encrypting = data.method === 'nip44v3.encrypt';
+    // The kind as the number it is: the draft asks signers to show kinds "as is", and
+    // one above 65535 has no name to show anyway.
+    const rows = [
+      rowEl(encrypting ? tSec('To') : tSec('From'), peerLabel()),
+      rowEl(tSec('Kind'), String(p.kind)),
+      rowEl(tSec('Scope'), p.scope ? clampScope(p.scope) : tSec('None')),
+    ];
+    if (encrypting) {
+      const text = bytesAsText(p.plaintextBase64);
+      if (text === null) rows.push(rowEl(tSec('Sealing'), tSec('Binary data'), 'prose sealed'));
+      else if (text) rows.push(rowEl(tSec('Sealing'), clampText(text, 220), 'prose sealed'));
+    }
+    return rows;
+  }
+  // A scope is compared byte for byte, so it is shown as written: no whitespace folded,
+  // only a length cap so a long one cannot push the buttons off the card.
+  function clampScope(s) {
+    const str = String(s);
+    return str.length > 300 ? str.slice(0, 299) + '…' : str;
+  }
+  // The plaintext as text when it is UTF-8, '' when empty, null when it is binary.
+  function bytesAsText(b64) {
+    let bytes;
+    try {
+      const bin = atob(String(b64 || ''));
+      bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    } catch (_) {
+      return null;
+    }
+    if (!bytes.length) return '';
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (_) { return null; }
   }
 
   // The encrypt/decrypt counterparty as a recognizable npub (translated by the
@@ -655,6 +714,9 @@
     // card used to offer to "Sign". The scope row, a payment, a WebLN read and a pure
     // unlock relabel it further down.
     els.allow.textContent = data.method === 'signEvent' ? t('Sign') : t('Allow once');
+    // A v3 card never offers Trust: v3 asks every time whatever the tier, so trusting the
+    // site here would widen everything else while this question kept coming back.
+    if (isNip44v3(data.method)) els.trust.classList.add('hidden');
 
     // Same honesty for WebLN reads: one Allow covers this site's balance/info/
     // invoice reads for the rest of the session (until Sidecar locks), not just

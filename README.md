@@ -234,7 +234,7 @@ Plain JavaScript with no build step. A service worker holds the keystore and rou
 | Standalone pages | `welcome.html`/`welcome.js` (Nostr app directory, first-run), `wallets.html`/`wallets.js`/`wallets.css` (NWC wallet suggestions), `help.html`/`help.js`/`help.css` (help & guides) |
 | Lightning (NWC / NIP-47) | `nwc-client.js`, `wallet-budgets.js` |
 | Workers (off the panel's thread) | `nip49-worker.js` (scrypt for encrypted key export), `pow-worker.js` (NIP-13 mining) |
-| Vendored | `nostr-tools.js`, `nip49.js` (encrypted key export), `qrcode-generator.js` (receive QR), `jsqr.js` (scan QR to pay), `emoji-data.js` (reaction picker), `fonts/` (sixteen faces, mostly SIL OFL, three under their own licenses, credited under Acknowledgments). Provenance and hashes for every bundle are in [`VENDOR.md`](VENDOR.md) |
+| Vendored | `nostr-tools.js`, `nip49.js` (encrypted key export), `nip44v3-primitives.js` (NIP-44 v3 building blocks), `qrcode-generator.js` (receive QR), `jsqr.js` (scan QR to pay), `emoji-data.js` (reaction picker), `fonts/` (sixteen faces, mostly SIL OFL, three under their own licenses, credited under Acknowledgments). Provenance and hashes for every bundle are in [`VENDOR.md`](VENDOR.md) |
 | Generated | `version.js` (build stamp), `scripts/stamp-version.sh` |
 
 Decrypted private keys live only in the service worker's in-memory map. If the worker
@@ -268,7 +268,7 @@ Sidecar signs whatever event a connected site asks for via NIP-07, so in princip
 | [27](https://nips.nostr.com/27) | Text Note References | Inline `nostr:` mention rendering |
 | [38](https://nips.nostr.com/38) | User Statuses | Setting, showing and clearing your own kind:30315 status |
 | [42](https://nips.nostr.com/42) | Authentication of clients to relays | Relay AUTH challenges answered for the account's own relays, for reads as well as writes |
-| [44](https://nips.nostr.com/44) | Encrypted Payloads (Versioned) | `nip44.encrypt`/`.decrypt` NIP-07 methods; preferred encryption for the wallet backup and private lists |
+| [44](https://nips.nostr.com/44) | Encrypted Payloads (Versioned) | `nip44.encrypt`/`.decrypt` NIP-07 methods; preferred encryption for the wallet backup and private lists. The [v3 draft](https://github.com/nostr-land/nip44v3) as `nip44v3.encrypt`/`.decrypt`, bound to a kind and scope and asked about every time |
 | [47](https://nips.nostr.com/47) | Nostr Wallet Connect | The built-in Lightning wallet |
 | [49](https://nips.nostr.com/49) | Private Key Encryption (`ncryptsec`) | Password-encrypted key import/export |
 | [51](https://nips.nostr.com/51) | Lists | Mute list handling, muting a person, note or thread from a notification into the private part of kind:10000; bookmarking a note to your kind:10003 list; recovering wiped lists |

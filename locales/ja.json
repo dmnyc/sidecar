@@ -2031,5 +2031,9 @@
   "Open Sidecar and unlock it, then open this comment again.": "Sidecarを開いてロックを解除し、もう一度このコメントを開いてください。",
   "Sidecar could not open this comment.": "Sidecarがこのコメントを開けませんでした。",
   "Show {{count}} reply_other": "{{count}}件の返信を表示",
-  "Add an account to chat →": "アカウントを追加してチャット →"
+  "Add an account to chat →": "アカウントを追加してチャット →",
+  "wants to encrypt a message (NIP-44 v3)": "メッセージの暗号化（NIP-44 v3）を求めています",
+  "wants to decrypt a message (NIP-44 v3)": "メッセージの復号（NIP-44 v3）を求めています",
+  "Scope": "スコープ",
+  "Binary data": "バイナリデータ"
 }

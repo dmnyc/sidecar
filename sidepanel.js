@@ -12636,6 +12636,8 @@
     'nip04.decrypt': { icon: 'unlock', label: () => t('Decrypted a message') },
     'nip44.encrypt': { icon: 'lock', label: () => t('Encrypted a message') },
     'nip44.decrypt': { icon: 'unlock', label: () => t('Decrypted a message') },
+    'nip44v3.encrypt': { icon: 'lock', label: () => t('Encrypted a message') },
+    'nip44v3.decrypt': { icon: 'unlock', label: () => t('Decrypted a message') },
     // Without these the activity list falls through to the default and prints the raw
     // method string under a quill — 'webln.keysend' four times over for one boost.
     'webln.sendPayment': { icon: 'zap', label: () => t('Paid a Lightning invoice') },
@@ -26550,6 +26552,8 @@
       'nip04.decrypt': tSec('wants to decrypt a message (NIP-04)'),
       'nip44.encrypt': tSec('wants to encrypt a message (NIP-44)'),
       'nip44.decrypt': tSec('wants to decrypt a message (NIP-44)'),
+      'nip44v3.encrypt': tSec('wants to encrypt a message (NIP-44 v3)'),
+      'nip44v3.decrypt': tSec('wants to decrypt a message (NIP-44 v3)'),
       'webln.getInfo': tSec('wants to see your wallet info'),
       'webln.getBalance': tSec('wants to see your wallet balance'),
       'webln.makeInvoice': tSec('wants to create a Lightning invoice'),
@@ -26916,11 +26920,56 @@
           h('span', { textContent: clampApprovalText(plain, 220) }),
         ]));
       }
+    } else if (isNip44v3Approval(data)) {
+      const p = data.params || {};
+      const encrypting = data.method === 'nip44v3.encrypt';
+      box.append(peerRow(encrypting ? tSec('To') : tSec('From'), p.pubkey));
+      box.append(...nip44v3Preview(data));
     } else {
       hide(box);
       return;
     }
     show(box);
+  }
+
+  // NIP-44 v3 (draft). The payload is bound to an event kind and a scope, and those two are
+  // what the person is consenting to, so the card names them every time: a v3 request
+  // always asks (see NIP44V3_METHODS in background.js). Twin of nip44v3Rows in prompt.js;
+  // keep the two in step.
+  const isNip44v3Approval = (data) =>
+    data.method === 'nip44v3.encrypt' || data.method === 'nip44v3.decrypt';
+  function nip44v3Preview(data) {
+    const p = data.params || {};
+    const row = (k, v, cls) => h('div', { className: 'row' + (cls ? ' ' + cls : '') }, [
+      h('span', { textContent: k }),
+      h('span', { textContent: v }),
+    ]);
+    // The kind as the number it is: the draft asks signers to show kinds "as is", and one
+    // above 65535 has no name to show anyway. The scope is compared byte for byte, so it
+    // is shown as written, with only a length cap.
+    const scope = String(p.scope || '');
+    const rows = [
+      row(tSec('Kind'), String(p.kind)),
+      row(tSec('Scope'), scope ? (scope.length > 300 ? scope.slice(0, 299) + '…' : scope) : tSec('None')),
+    ];
+    if (data.method === 'nip44v3.encrypt') {
+      const text = nip44v3Text(p.plaintextBase64);
+      if (text === null) rows.push(row(tSec('Sealing'), tSec('Binary data'), 'prose sealed'));
+      else if (text) rows.push(row(tSec('Sealing'), clampApprovalText(text, 220), 'prose sealed'));
+    }
+    return rows;
+  }
+  // The plaintext as text when it is UTF-8, '' when empty, null when it is binary.
+  function nip44v3Text(b64) {
+    let bytes;
+    try {
+      const bin = atob(String(b64 || ''));
+      bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    } catch (_) {
+      return null;
+    }
+    if (!bytes.length) return '';
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (_) { return null; }
   }
 
   // All accounts selectable in this prompt: the one it opened with, plus (only
@@ -27321,6 +27370,9 @@
     // rather than over-promise (must run after the payment/unlock branches
     // above, which otherwise re-show it).
     if (data.sharedIdentity) hide(trust);
+    // Nor on a NIP-44 v3 card, which asks every time whatever the tier: trusting the site
+    // here would widen everything else while this question kept coming back.
+    if (isNip44v3Approval(data)) hide(trust);
 
     // Batch: a burst of same-site/same-account/same-kind content signs (e.g.
     // Primal's app-data sync) collapses into one "Allow all (N)" so the user

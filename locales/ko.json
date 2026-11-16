@@ -2031,5 +2031,9 @@
   "Open Sidecar and unlock it, then open this comment again.": "Sidecar를 열어 잠금을 해제한 뒤 이 댓글을 다시 여세요.",
   "Sidecar could not open this comment.": "Sidecar에서 이 댓글을 열지 못했어요.",
   "Show {{count}} reply_other": "답글 {{count}}개 보기",
-  "Add an account to chat →": "채팅하려면 계정 추가 →"
+  "Add an account to chat →": "채팅하려면 계정 추가 →",
+  "wants to encrypt a message (NIP-44 v3)": "메시지를 암호화하려고 해요 (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "메시지를 복호화하려고 해요 (NIP-44 v3)",
+  "Scope": "범위",
+  "Binary data": "바이너리 데이터"
 }

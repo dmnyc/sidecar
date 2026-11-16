@@ -2103,5 +2103,9 @@
   "Sidecar could not open this comment.": "A Sidecar nem tudta megnyitni ezt a hozzászólást.",
   "Show {{count}} reply_one": "{{count}} válasz megjelenítése",
   "Show {{count}} reply_other": "{{count}} válasz megjelenítése",
-  "Add an account to chat →": "Fiók hozzáadása a csevegéshez →"
+  "Add an account to chat →": "Fiók hozzáadása a csevegéshez →",
+  "wants to encrypt a message (NIP-44 v3)": "üzenetet szeretne titkosítani (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "üzenetet szeretne visszafejteni (NIP-44 v3)",
+  "Scope": "Hatókör",
+  "Binary data": "Bináris adat"
 }

@@ -2247,5 +2247,9 @@
   "Show {{count}} reply_few": "Показать {{count}} ответа",
   "Show {{count}} reply_many": "Показать {{count}} ответов",
   "Show {{count}} reply_other": "Показать {{count}} ответа",
-  "Add an account to chat →": "Добавить аккаунт, чтобы писать в чат →"
+  "Add an account to chat →": "Добавить аккаунт, чтобы писать в чат →",
+  "wants to encrypt a message (NIP-44 v3)": "хочет зашифровать сообщение (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "хочет расшифровать сообщение (NIP-44 v3)",
+  "Scope": "Область",
+  "Binary data": "Двоичные данные"
 }

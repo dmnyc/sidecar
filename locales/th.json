@@ -2031,5 +2031,9 @@
   "Sidecar could not open this comment.": "Sidecar เปิดความคิดเห็นนี้ไม่ได้",
   "{{count}} saved item couldn’t be found on your relays._other": "ไม่พบรายการที่บันทึกไว้ {{count}} รายการในรีเลย์ของคุณ",
   "Show {{count}} reply_other": "แสดงการตอบกลับ {{count}} รายการ",
-  "Add an account to chat →": "เพิ่มบัญชีเพื่อแชต →"
+  "Add an account to chat →": "เพิ่มบัญชีเพื่อแชต →",
+  "wants to encrypt a message (NIP-44 v3)": "ต้องการเข้ารหัสข้อความ (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "ต้องการถอดรหัสข้อความ (NIP-44 v3)",
+  "Scope": "ขอบเขต",
+  "Binary data": "ข้อมูลไบนารี"
 }

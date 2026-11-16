@@ -2031,5 +2031,9 @@
   "Open Sidecar and unlock it, then open this comment again.": "請開啟 Sidecar 並解鎖，然後重新開啟此留言。",
   "Sidecar could not open this comment.": "Sidecar 無法開啟此留言。",
   "Show {{count}} reply_other": "顯示 {{count}} 則回覆",
-  "Add an account to chat →": "新增帳號以聊天 →"
+  "Add an account to chat →": "新增帳號以聊天 →",
+  "wants to encrypt a message (NIP-44 v3)": "想要加密訊息（NIP-44 v3）",
+  "wants to decrypt a message (NIP-44 v3)": "想要解密訊息（NIP-44 v3）",
+  "Scope": "範圍",
+  "Binary data": "二進位資料"
 }

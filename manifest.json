@@ -28,6 +28,8 @@
       "bitcoin.js",
       "keystore.js",
       "permissions.js",
+      "nip44v3-primitives.js",
+      "nip44v3.js",
       "signer.js",
       "wallet-budgets.js",
       "nwc-client.js",

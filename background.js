@@ -15,7 +15,7 @@
 // survive-restart machinery below applies equally to both.
 
 if (typeof importScripts === 'function') {
-  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'bitcoin.js', 'keystore.js', 'permissions.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
+  importScripts('i18n.js', 'private-host.js', 'nostr-tools.js', 'ws-guard.js', 'crypto.js', 'bitcoin.js', 'keystore.js', 'permissions.js', 'nip44v3-primitives.js', 'nip44v3.js', 'signer.js', 'wallet-budgets.js', 'nwc-client.js', 'relax-grants.js', 'kind-grants.js', 'replaceable-baseline.js', 'zap-requests.js', 'relay-policy.js', 'seasons.js');
 }
 
 const KS = self.SidecarKeystore;
@@ -1428,6 +1428,14 @@ function describeSignEventShape(params) {
 //     falls back to showing ciphertext, which is exactly today's behavior;
 //   - capped, size-limited, and swept by the minute even while the worker stays warm.
 const SEAL_METHODS = new Set(['nip04.encrypt', 'nip44.encrypt']);
+
+// NIP-44 v3 (draft; nip44v3.js). Every v3 request is put in front of the person, naming the
+// kind and the scope it is bound to, whatever the site's tier: no Trust, no timed window, no
+// decrypt burst, no batch. The draft exists so a signer can gate encryption by kind and
+// scope, and Sidecar has no grant that speaks in those terms yet (kind-grants.js covers
+// signing only, by construction), so the honest default is to ask each time. Not in
+// SEAL_METHODS either: the sealed-text memory holds strings, and a v3 plaintext is bytes.
+const NIP44V3_METHODS = new Set(['nip44v3.encrypt', 'nip44v3.decrypt']);
 const SEAL_TTL_MS = 120000;
 const SEAL_MAX = 20;
 // Page-written text, so without a cap a hostile page could park megabytes here under
@@ -1500,6 +1508,12 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       signEvent = params.event;
       signKind = signEvent.kind; // guaranteed an integer from here down
     }
+
+    // A v3 request is checked whole before it can reach the queue, the card or the key:
+    // a malformed one is refused, never shown on a card that cannot describe it. The
+    // normalized copy is what the card and the signer both see.
+    const v3Request = NIP44V3_METHODS.has(method);
+    if (v3Request) params = self.SidecarNip44v3.checkRequest(method, params);
 
     // The identity this request signs as. getPublicKey is a login: it
     // establishes identity, so it follows the globally-active account (and, on
@@ -1738,7 +1752,8 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       (await KINDS.has(host, activePubkey, signKind, signDTag));
     if (kindGrantActive) sharedIdentity = false;
 
-    const needApproval = destructive
+    // A v3 request always asks (see NIP44V3_METHODS); a block has already thrown above.
+    const needApproval = destructive || v3Request
       ? true
       : (coalesced || appDataAutoAllow || decryptCoalesced || pubkeyCoalesced || relaxActive || zapAutoSign || kindGrantActive
           ? false
@@ -1861,7 +1876,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // And only on a card that offers Trust at all. A shared-identity confirm hides the
         // button (trusting the site cannot stop a question asked on every sign), and so does
         // a pure unlock (nothing to approve), so a nudge there points at nothing.
-        nudgeTrust: !destructive && !sharedIdentity && needApproval && (await shouldNudgeTrust(host, activePubkey)),
+        nudgeTrust: !destructive && !sharedIdentity && !v3Request && needApproval && (await shouldNudgeTrust(host, activePubkey)),
         // The "wrong account" escape: offer the account list on any content sign where
         // the user holds more than one account and no switcher is already on screen.
         //
@@ -1969,6 +1984,10 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         await PERMS.setLevel(activePubkey, host, 'blocked');
         throw new Error('This site is now blocked');
       }
+      // A v3 card offers neither Trust nor a timed window, and a decision claiming one
+      // is answered as Allow once: trusting the site would silently allow every other
+      // method while v3 kept asking, which is not what anyone pressing it on a v3 card meant.
+      if (v3Request && (decision.action === 'trust' || decision.action === 'relax')) decision.action = 'once';
       if (decision.action === 'trust') {
         await clearApproveCount(host, activePubkey);
         await PERMS.setLevel(activePubkey, host, 'trusted');

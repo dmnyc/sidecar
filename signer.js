@@ -23,6 +23,11 @@
     return k;
   }
 
+  function nip44v3() {
+    if (!root.SidecarNip44v3) throw new Error('NIP-44 v3 is not loaded');
+    return root.SidecarNip44v3;
+  }
+
   function clearCache() {
     convKeyCache.clear();
   }
@@ -53,6 +58,23 @@
 
       case 'nip44.decrypt':
         return NT.nip44.decrypt(params.ciphertext, convKey(privBytes, selfPubkey, params.pubkey));
+
+      // NIP-44 v3 (draft), nip44v3.js. No conversation-key cache: v3 has no conversation
+      // key, and derives fresh keys for every message from the ECDH secret and its nonce.
+      // Bytes cross the extension's messaging as base64, in both directions: the page's
+      // ArrayBuffer arrives as plaintextBase64, and the decrypted bytes go back the same
+      // way for nostr-provider.js to turn into an ArrayBuffer again.
+      case 'nip44v3.encrypt': {
+        const V3 = nip44v3();
+        const p = V3.checkRequest(type, params);
+        return V3.encrypt(privBytes, p.pubkey, p.kind, p.scope, V3.base64Decode(p.plaintextBase64));
+      }
+
+      case 'nip44v3.decrypt': {
+        const V3 = nip44v3();
+        const p = V3.checkRequest(type, params);
+        return V3.base64Encode(V3.decrypt(privBytes, p.pubkey, p.kind, p.scope, p.ciphertext));
+      }
 
       default:
         throw new Error(`Unsupported method: ${type}`);

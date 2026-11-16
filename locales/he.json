@@ -2175,5 +2175,9 @@
   "Show {{count}} reply_one": "הצגת תשובה אחת ({{count}})",
   "Show {{count}} reply_two": "הצגת שתי תשובות ({{count}})",
   "Show {{count}} reply_other": "הצגת {{count}} תשובות",
-  "Add an account to chat →": "הוספת חשבון כדי לשוחח ←"
+  "Add an account to chat →": "הוספת חשבון כדי לשוחח ←",
+  "wants to encrypt a message (NIP-44 v3)": "מבקש להצפין הודעה (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "מבקש לפענח הודעה (NIP-44 v3)",
+  "Scope": "היקף",
+  "Binary data": "נתונים בינאריים"
 }

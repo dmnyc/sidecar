@@ -2103,5 +2103,9 @@
   "Sidecar could not open this comment.": "Το Sidecar δεν μπόρεσε να ανοίξει αυτό το σχόλιο.",
   "Show {{count}} reply_one": "Εμφάνιση {{count}} απάντησης",
   "Show {{count}} reply_other": "Εμφάνιση {{count}} απαντήσεων",
-  "Add an account to chat →": "Προσθήκη λογαριασμού για συνομιλία →"
+  "Add an account to chat →": "Προσθήκη λογαριασμού για συνομιλία →",
+  "wants to encrypt a message (NIP-44 v3)": "θέλει να κρυπτογραφήσει ένα μήνυμα (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "θέλει να αποκρυπτογραφήσει ένα μήνυμα (NIP-44 v3)",
+  "Scope": "Εμβέλεια",
+  "Binary data": "Δυαδικά δεδομένα"
 }

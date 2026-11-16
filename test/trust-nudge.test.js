@@ -188,10 +188,10 @@ test('the nudge is suppressed while a destructive warning is showing', async () 
 });
 
 test('THE NUDGE NEVER POINTS AT A TRUST BUTTON THE CARD DOES NOT SHOW', () => {
-  // A shared-identity confirm and a pure unlock both hide Trust, on both surfaces, so the
-  // background does not raise the nudge for either. The panel also batches, which hides
-  // Trust too, so it checks the button itself before showing the line.
-  assert.match(source, /nudgeTrust: !destructive && !sharedIdentity && needApproval && \(await shouldNudgeTrust\(/);
+  // A shared-identity confirm, a pure unlock and a NIP-44 v3 request all hide Trust, on
+  // both surfaces, so the background does not raise the nudge for any of them. The panel
+  // also batches, which hides Trust too, so it checks the button itself before showing the line.
+  assert.match(source, /nudgeTrust: !destructive && !sharedIdentity && !v3Request && needApproval && \(await shouldNudgeTrust\(/);
   const panelSrc = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
   assert.match(panelSrc, /if \(data\.nudgeTrust && !payment && !trust\.classList\.contains\('hidden'\)\)/);
 });

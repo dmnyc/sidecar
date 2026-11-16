@@ -2103,5 +2103,9 @@
   "Sidecar could not open this comment.": "Sidecar यह कमेंट नहीं खोल सका।",
   "Show {{count}} reply_one": "{{count}} जवाब दिखाएँ",
   "Show {{count}} reply_other": "{{count}} जवाब दिखाएँ",
-  "Add an account to chat →": "चैट करने के लिए अकाउंट जोड़ें →"
+  "Add an account to chat →": "चैट करने के लिए अकाउंट जोड़ें →",
+  "wants to encrypt a message (NIP-44 v3)": "एक संदेश एन्क्रिप्ट करना चाहता है (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "एक संदेश डिक्रिप्ट करना चाहता है (NIP-44 v3)",
+  "Scope": "दायरा",
+  "Binary data": "बाइनरी डेटा"
 }

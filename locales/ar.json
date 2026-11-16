@@ -2391,5 +2391,9 @@
   "Show {{count}} reply_few": "عرض {{count}} ردود",
   "Show {{count}} reply_many": "عرض {{count}} ردًا",
   "Show {{count}} reply_other": "عرض {{count}} رد",
-  "Add an account to chat →": "إضافة حساب للدردشة ←"
+  "Add an account to chat →": "إضافة حساب للدردشة ←",
+  "wants to encrypt a message (NIP-44 v3)": "يريد تشفير رسالة (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "يريد فك تشفير رسالة (NIP-44 v3)",
+  "Scope": "النطاق",
+  "Binary data": "بيانات ثنائية"
 }

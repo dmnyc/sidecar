@@ -2103,5 +2103,9 @@
   "Sidecar could not open this comment.": "Sidecar نتوانست این نظر را باز کند.",
   "Show {{count}} reply_one": "نمایش {{count}} پاسخ",
   "Show {{count}} reply_other": "نمایش {{count}} پاسخ",
-  "Add an account to chat →": "افزودن حساب برای گفتگو ←"
+  "Add an account to chat →": "افزودن حساب برای گفتگو ←",
+  "wants to encrypt a message (NIP-44 v3)": "می‌خواهد پیامی را رمزگذاری کند (NIP-44 v3)",
+  "wants to decrypt a message (NIP-44 v3)": "می‌خواهد پیامی را رمزگشایی کند (NIP-44 v3)",
+  "Scope": "دامنه",
+  "Binary data": "داده‌های دودویی"
 }
