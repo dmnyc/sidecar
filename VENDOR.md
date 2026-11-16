@@ -1,7 +1,7 @@
 # Vendored code provenance
 
 Sidecar has no build step: what ships is what's committed. Third-party code is
-vendored as six bundled files, each traceable to official artifacts published
+vendored as seven bundled files, each traceable to official artifacts published
 on registry.npmjs.org. This file records exactly where each bundle comes from so
 that anyone can re-derive and verify them — no trust in this repo required.
 
@@ -14,8 +14,8 @@ sha256sum -c scripts/vendor-hashes.sha256
 
 To verify provenance from scratch (or refresh the bundles), run
 `scripts/update-vendor.sh`: it downloads the pinned versions below from
-registry.npmjs.org, copies the official files into place, rebuilds `nip49.js`,
-and rewrites the hash file. After running it against a clean checkout,
+registry.npmjs.org, copies the official files into place, rebuilds `nip49.js` and
+`nip44v3-primitives.js`, and rewrites the hash file. After running it against a clean checkout,
 `git diff` should be empty.
 
 ## The bundles
@@ -24,6 +24,7 @@ and rewrites the hash file. After running it against a clean checkout,
 |---|---|---|---|---|
 | `nostr-tools.js` | [`nostr-tools@2.23.11`](https://www.npmjs.com/package/nostr-tools/v/2.23.11) | `lib/nostr.bundle.js` (byte-exact) | Unlicense | `ad5733e6a9bef26e60f61d712a073ff79263b678d7dcf0c562e26dc389a89562` |
 | `nip49.js` | built from `nostr-tools@2.23.11` (see below) | — (reproducible local build) | Unlicense (+ MIT deps) | `bf2f461cfc78120933e1a745697f7a5cc735d535353b38fbba2dbeb96231fd6a` |
+| `nip44v3-primitives.js` | built from [`@noble/ciphers@2.1.1`](https://www.npmjs.com/package/@noble/ciphers/v/2.1.1), [`@noble/hashes@2.0.1`](https://www.npmjs.com/package/@noble/hashes/v/2.0.1), [`@noble/curves@2.0.1`](https://www.npmjs.com/package/@noble/curves/v/2.0.1) (see below) | — (reproducible local build) | MIT | `72586d43190472f3e7f57647f13c25b8c13f27ee0703ef736932bd600c6e4c50` |
 | `jsqr.js` | [`jsqr@1.4.0`](https://www.npmjs.com/package/jsqr/v/1.4.0) | `dist/jsQR.js` (byte-exact) | Apache-2.0 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` |
 | `qrcode-generator.js` | [`qrcode-generator@2.0.4`](https://www.npmjs.com/package/qrcode-generator/v/2.0.4) | `dist/qrcode.js` (byte-exact) | MIT | `79ec86f82856005b1c887905cfccfcfbec3821ca61c7fd5a952faa5f778f791c` |
 | `emoji-data.js` | [`unicode-emoji-json@0.9.0`](https://www.npmjs.com/package/unicode-emoji-json/v/0.9.0) + [`emojibase-data@17.0.0`](https://www.npmjs.com/package/emojibase-data/v/17.0.0) | `data-by-group.json` + `en/compact.json` (reduced and joined, see below) | MIT | `b031347618b2b5cb9e1ac505b4ebacb4ed067e33a4a11b700755786ebeff11c5` |
@@ -48,6 +49,29 @@ nostr-tools' prebuilt browser bundle doesn't export the NIP-49 module, so
 Rebuilding with the same pins yields the same SHA-256 as the table above.
 The build is verified against the NIP-49 spec test vector
 (`ncryptsec1qgg99…` + password `nostr` → `35014541…378683`).
+
+## How `nip44v3-primitives.js` is built
+
+NIP-44 v3 (draft) runs the same primitives as v2 in a new arrangement, and nostr-tools'
+bundle uses them internally without exporting any of them. ChaCha20 is not in WebCrypto
+at all. So the primitives are bundled on their own, and the scheme that composes them
+(key schedule, padding, payload layout, MAC check) is Sidecar's own code in `nip44v3.js`,
+which is not vendored and not generated.
+
+- Entry: `chacha20` from `@noble/ciphers/chacha.js`; HKDF `extract`/`expand` from
+  `@noble/hashes/hkdf.js`; `hmac` from `@noble/hashes/hmac.js`; `sha256` from
+  `@noble/hashes/sha2.js`; `secp256k1` from `@noble/curves/secp256k1.js` (for the ECDH
+  shared secret).
+- Bundler: `esbuild@0.28.1`, `--bundle --format=iife --global-name=SidecarNip44v3Primitives`,
+  under a six-line header comment naming the sources and saying the file is generated.
+- Input: the three noble packages at the exact versions `nostr-tools@2.23.11` pins for
+  itself, so the extension carries one copy of each release rather than two. They pin
+  each other exactly too (`@noble/curves@2.0.1` depends on `@noble/hashes@2.0.1`), so the
+  input set is deterministic and the output byte-reproducible.
+- npm is invoked with `--ignore-scripts`; nothing from the registry executes during the
+  build.
+
+The output is checked against the draft's own test vectors by `test/nip44v3.test.js`.
 
 ## How `emoji-data.js` is built
 

@@ -11,7 +11,7 @@ scripts/vendor-hashes.sha256), so this file is the attribution notice.
 Apache-2.0: http://www.apache.org/licenses/LICENSE-2.0
 
 The other vendored bundles and their licenses are listed in VENDOR.md
-(nostr-tools and nip49: Unlicense; qrcode-generator: MIT).
+(nostr-tools and nip49: Unlicense; qrcode-generator and nip44v3-primitives: MIT).
 
 Most bundled fonts are SIL OFL 1.1 and carry their own OFL-*.txt beside them in
 fonts/, so they need no entry here. Two are not OFL and each carries a

@@ -85,7 +85,7 @@ byte-identical to the same file in this repository at the tag, except
 
 ## 4. Vendored third-party code
 
-Six files in the package are third-party or generated rather than hand-written
+Seven files in the package are third-party or generated rather than hand-written
 source. They are the reason this source submission exists.
 
 | File | Origin | Modified? |
@@ -94,25 +94,34 @@ source. They are the reason this source submission exists.
 | `jsqr.js` | `jsqr@1.4.0`, `dist/jsQR.js` from npm | No — byte-exact copy |
 | `qrcode-generator.js` | `qrcode-generator@2.0.4`, `dist/qrcode.js` from npm | No — byte-exact copy |
 | `nip49.js` | built here with `esbuild@0.28.1` from `nostr-tools@2.23.11` | Generated, see below |
+| `nip44v3-primitives.js` | built here with `esbuild@0.28.1` from `@noble/ciphers@2.1.1`, `@noble/hashes@2.0.1`, `@noble/curves@2.0.1` | Generated, see below |
 | `hls.js` | `hls.js@1.7.3`, `dist/hls.js` | Byte-exact, unminified official full build (Apache-2.0) |
 | `emoji-data.js` | reduced from `unicode-emoji-json@0.9.0` and `emojibase-data@17.0.0` | Generated, see below |
 
-None of the six are minified or obfuscated. They are readable bundler output,
+None of the seven are minified or obfuscated. They are readable bundler output,
 shipped as published upstream.
 
-**`nip49.js` is the only file we generate ourselves.** nostr-tools' prebuilt
-browser bundle does not export its NIP-49 module, so it is bundled separately
-from the same pinned package:
+**`nip49.js` and `nip44v3-primitives.js` are the code files we generate
+ourselves.** nostr-tools' prebuilt browser bundle does not export its NIP-49
+module, so it is bundled separately from the same pinned package:
 
 - entry point: `export * from "nostr-tools/nip49";`
 - command: `esbuild entry.js --bundle --format=iife --global-name=SidecarNip49`
+
+`nip44v3-primitives.js` holds only the cryptographic primitives NIP-44 v3 needs
+(ChaCha20, HKDF, HMAC, SHA-256, secp256k1), from the noble packages at the exact
+versions nostr-tools pins for itself. The scheme built on them is first-party
+source in `nip44v3.js`.
+
+- entry point: five named re-exports, written out in `scripts/update-vendor.sh`
+- command: `esbuild entry.js --bundle --format=iife --global-name=SidecarNip44v3Primitives`
 
 **`emoji-data.js` is DATA, not code, and is the other file we generate.** It is the
 table behind the reaction picker: the characters, names and groups come from
 `unicode-emoji-json@0.9.0` (`data-by-group.json`), and the search keywords are the
 CLDR 48 annotations from `emojibase-data@17.0.0` (`en/compact.json`). Both are
 reduced and joined by `scripts/update-vendor.sh`, and the result is hash-pinned in
-`scripts/vendor-hashes.sha256` like the other five.
+`scripts/vendor-hashes.sha256` like the other six.
 
 It is worth calling out because of its shape rather than its origin: the table is a
 single line of roughly 102,000 characters. That is one nested array literal of emoji
@@ -120,7 +129,7 @@ and strings, not minified JavaScript. The file's own header comment names both
 sources and says it is generated. Re-derive it with `scripts/update-vendor.sh` and
 compare against the pinned hash.
 
-### Re-deriving and verifying all six
+### Re-deriving and verifying all seven
 
 ```sh
 scripts/update-vendor.sh
@@ -130,7 +139,8 @@ git diff          # expected to be empty
 `scripts/update-vendor.sh` downloads each pinned package from
 `registry.npmjs.org`, verifies each tarball's SHA-512 against the registry's own
 `dist.integrity` value *before extracting it*, copies the three byte-exact files
-into place, rebuilds `nip49.js` with the pinned esbuild, and compares the results
+into place, rebuilds `nip49.js` and `nip44v3-primitives.js` with the pinned
+esbuild, and compares the results
 against the committed hashes. An unexpected change aborts with the tree
 untouched.
 

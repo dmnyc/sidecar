@@ -2,11 +2,11 @@
 # Builds the source-code archive that accompanies an AMO submission.
 #
 # AMO requires a source submission for any add-on containing machine-generated
-# code. Sidecar has no build step for its own code, but it ships four vendored
-# third-party bundles — three copied byte-exact from npm, and nip49.js which is
-# built here with esbuild. That is enough to require this, and Mozilla has asked
-# for it directly, so it is uploaded with every AMO submission unconditionally
-# rather than argued about per release.
+# code. Sidecar has no build step for its own code, but it ships vendored
+# third-party bundles — most copied byte-exact from npm, and nip49.js and
+# nip44v3-primitives.js, which are built here with esbuild. That is enough to
+# require this, and Mozilla has asked for it directly, so it is uploaded with
+# every AMO submission unconditionally rather than argued about per release.
 #
 # The archive is the repository at the tag: all first-party source, the vendoring
 # and packaging scripts, the tests, and REVIEWERS.md (the build and verification
