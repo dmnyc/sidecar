@@ -198,6 +198,37 @@
     return Object.keys(map || {}).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
+  // ---- drafts on relays (NIP-37), this page's end ----
+  //
+  // The rules are composer-core's; this hands it the tab's own pool. The private relay
+  // list is read from every relay this account names and published where its posts go,
+  // and a relay asking for AUTH on the account's own drafts is answered as the owner, the
+  // way a post's relays are.
+  const relayDrafts = SC.installRelayDrafts({
+    call, NT,
+    query: (relays, filter) => SC.queryAnswered(pool(), relays, filter, { capMs: 8000, onauth: signAuth }),
+    publish: async (relays, signed) => {
+      const report = await SC.publishToRelays({
+        pool: pool(), relays, signed, params: { onauth: signAuth }, normalize: (u) => NT.utils.normalizeURL(u),
+      });
+      if (!report.accepted.length) throw new Error(t('No relay accepted it.'));
+      return report.accepted.length;
+    },
+    readRelays: async () => [...new Set([...(await targetRelays()), ...(await relayUrls(false).catch(() => []))])],
+    writeRelays: () => targetRelays(),
+    // The note a reply answers, for its reply block: capped, since a miss only means the
+    // block shows the draft's own tags and no text.
+    fetchEvent: async (id) => {
+      const relays = await relayUrls(false).catch(() => []);
+      if (!relays.length) return null;
+      return Promise.race([
+        pool().get(relays, { ids: [id] }).catch(() => null),
+        new Promise((res) => setTimeout(() => res(null), 6000)),
+      ]);
+    },
+    warn: (message) => toast(message, 'info'),
+  });
+
   // ---- what the shared editor needs from whichever page it is drawing into ----
   const profileCache = new Map();
   // Your own accounts are known without asking anyone, as the panel knows them.
@@ -889,45 +920,91 @@
 
   // The folder, its count, and the list if it is the one showing. Called whenever the set
   // of drafts could have changed: a switch, an account change, a post, coming back.
+  //
+  // THE FOLDER IS UP WITH NO DRAFTS TOO, its count left off: Saved drafts is also where
+  // drafts kept on relays are read back and this one is saved to them (NIP-37).
   async function paintSavedDrafts() {
     const btn = $('compose-drafts-btn');
     if (!btn || !state || !state.activePubkey) return;
+    const pane = $('compose-drafts-pane');
+    const listing = !pane.classList.contains('hidden');
+    // The draft on screen is listed too, so it goes to the store first.
+    if (listing) await flushDraft();
     const inPanel = await draftOpenInPanel();
     // Notes set aside come back through the note slot, so while the panel is writing it
     // they are the panel's to bring back, the same as the note itself.
     const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
       .filter((e) => e.key !== inPanel && !(e.shelved && inPanel === state.activePubkey));
-    const pane = $('compose-drafts-pane');
-    const listing = !pane.classList.contains('hidden');
     // Not while the list is up: the list is what it opens, and "Back to your draft" is
     // the way out of it, as in the panel.
-    btn.classList.toggle('hidden', !others.length || listing);
-    $('compose-drafts-count').textContent = I18N.fmtNum(others.length);
+    btn.classList.toggle('hidden', listing || receiptShown);
+    $('compose-drafts-count').textContent = others.length ? I18N.fmtNum(others.length) : '';
+    $('compose-drafts-count').classList.toggle('hidden', !others.length);
     // Said in words, because the count is the button's only text and would otherwise be
     // its whole name to a screen reader: "2".
     btn.setAttribute('aria-label', tn('{{count}} saved draft', '{{count}} saved drafts', others.length));
     if (!listing) return;
-    if (!others.length) { showTab('write'); return; }
+    const pubkey = state.activePubkey;
+    const all = await readAllDrafts();
+    const entries = others.slice();
+    // THE DRAFT ON SCREEN FIRST, as "Open now", for Save to relays; a tap goes back to it.
+    if (all[dkey] && draftHasContent(all[dkey])) {
+      entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId });
+    }
     pane.innerHTML = '';
     const back = h('button', { className: 'ghost compose-drafts-back', type: 'button', textContent: t('Back to your draft') });
     back.addEventListener('click', () => showTab('write'));
+    const nameFor = (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null);
+    const relayPane = SC.buildRelayDraftsPane({
+      relays: relayDrafts, pubkey, localDrafts: all, nameFor,
+      setupRelays: () => targetRelays(),
+      notify: toast,
+      onChanged: () => paintSavedDrafts(),
+      // Not into the slot the panel is writing: its next autosave would put its own back.
+      canOpen: (item) => {
+        const want = item.draft.replyTo ? pubkey + '|r:' + item.draft.replyTo.id : pubkey;
+        return inPanel === want ? t('That draft is open in the side panel.') : null;
+      },
+      onOpen: (res) => openAdopted(res),
+    });
     pane.append(h('h3', { className: 'compose-drafts-title', textContent: t('Saved drafts') }));
-    pane.append(SC.buildSavedDraftList({
-      entries: others,
-      nameFor: (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null),
+    pane.append(entries.length ? SC.buildSavedDraftList({
+      entries,
+      nameFor,
       onPick: (entry) => (entry.shelved ? unshelve(entry.key) : switchToDraft(entry.replyId)),
+      onCurrent: () => showTab('write'),
+      onSave: (entry) => relayPane.saveEntry(entry),
       onDelete: async (entry) => {
         // A pending save writes the whole store back, so it lands first rather than
         // putting the deleted draft back a moment later.
         await flushDraft();
-        const all = await readAllDrafts();
-        delete all[entry.key];
-        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        const now = await readAllDrafts();
+        const removed = now[entry.key];
+        delete now[entry.key];
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: now });
+        relayDrafts.forget(pubkey, removed);
         toast(t('Draft deleted.'), 'success');
         paintSavedDrafts();
       },
-    }));
+    }) : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') }));
+    pane.append(relayPane.el);
     pane.append(back);
+  }
+
+  // A draft read back from the relays, now in the store (relayDrafts.adopt): this tab
+  // moves to its slot the way a pick does. What was on screen was flushed before the list
+  // was drawn, and adopt set a note in the note slot aside rather than writing over it.
+  async function openAdopted(res) {
+    if (busy()) return;
+    const leavingReply = !!replyTo && draftHasContent(draft);
+    replyId = res.replyTo ? res.replyTo.id : null;
+    try {
+      history.replaceState(null, '', location.pathname + (replyId ? '?reply=' + replyId : ''));
+    } catch (_) {}
+    await reopenDraft();
+    showTab('write');
+    if (res.shelved) toast(t('Your draft is in Saved drafts.'), 'success');
+    else if (leavingReply) toast(t('Your reply is saved.'), 'info');
   }
 
   // A QUOTE TAPPED IN THE PANEL while this tab holds the note. The note being written may
@@ -1306,6 +1383,9 @@
       const what = signed.kind === SC.POLL_KIND ? 'poll' : replyTo ? 'reply' : 'note';
       // Remembered before the draft forgets it, so the same words cannot go out twice.
       SC.postFingerprint(state.activePubkey, draft, replyTo).then(rememberPosted).catch(() => {});
+      // The slot as it stood, for its copy on the relays (NIP-37), which goes once the
+      // slot has: relayDrafts.forget blanks it, best effort and quietly.
+      const postedSlot = (await readAllDrafts())[dkey];
       // ALL of it goes, the poll and the target included, so the save below deletes the
       // slot. Clearing only the text left a posted poll's options behind, saved as a
       // draft one tap from going out twice, and a reply's slot kept its target.
@@ -1314,6 +1394,7 @@
       draft.poll = null;
       replyTo = null;
       await persistDraft();
+      relayDrafts.forget(state.activePubkey, postedSlot);
       editorSetText('');
       renderThumbs();
       status.textContent = '';

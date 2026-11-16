@@ -332,9 +332,10 @@ test('SAVED DRAFTS IS THE FOLDER IN THE CORNER, AS IN THE PANEL', () => {
   // saved-drafts.test.js. Here, only that the tab uses it.
   assert.match(page, /SC\.otherDraftEntries\(await readAllDrafts\(\), state\.activePubkey, dkey\)/);
   assert.match(page, /SC\.buildSavedDraftList\(\{/);
-  // The folder hides when there is nothing else, while the list is up, and while a
-  // post is going out.
-  assert.match(page, /btn\.classList\.toggle\('hidden', !others\.length \|\| listing\)/);
+  // The folder stays up with nothing else saved, since Saved drafts is also where drafts
+  // on relays are read back (NIP-37); it hides while the list is up, on the receipt, and
+  // while a post is going out.
+  assert.match(page, /btn\.classList\.toggle\('hidden', listing \|\| receiptShown\)/);
   assert.match(page, /posting = true;\s*paintCount\(\);\s*\$\('compose-drafts-btn'\)\.classList\.add\('hidden'\);/);
   assert.match(page, /function busy\(\) \{ return posting \|\| mining \|\| !!countdown; \}/);
   // A reply is a reply: nothing in the list starts a new note.

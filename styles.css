@@ -3765,6 +3765,25 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .saved-draft.confirming { border-color: var(--red); }
 .saved-draft.confirming .saved-draft-label,
 .saved-draft.confirming .saved-draft-x { color: var(--red); }
+/* The cloud beside the trash: Save to relays (NIP-37). The second of the slot's two
+   icons, so it keeps square corners and the trash keeps the rounded end. On the draft
+   that is open now it is the only icon, and takes the rounded end itself. */
+.saved-draft-cloud { border-radius: 0; }
+.saved-draft-current .saved-draft-cloud:last-child { border-radius: 0 10px 10px 0; }
+.saved-draft-cloud:disabled { opacity: 0.5; cursor: default; }
+/* The mark on a row with a copy on relays, at the time's size, beside it. */
+.saved-draft-mark { flex-shrink: 0; display: inline-flex; color: var(--muted); align-self: center; }
+.saved-draft-mark svg { width: 13px; height: 13px; }
+.saved-draft-top .saved-draft-mark { margin-inline-start: auto; }
+.saved-draft-top .saved-draft-mark + .saved-draft-when { margin-inline-start: 0; }
+.saved-draft-current { border-style: dashed; }
+/* Drafts on relays: their own block under the local list, words and buttons stacked
+   full width (AGENTS.md row grammar), never beside the rows. */
+.relay-drafts { display: flex; flex-direction: column; margin-top: 16px; }
+.relay-drafts-title { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.relay-drafts-body { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.relay-drafts-hint { margin: 0; }
+.relay-drafts-btn { width: 100%; }
 /* Bottom left, at the status line's size: a preference about next time, so it sits with
    the quiet things in the row and not with the two ways out of this one. */
 .compose-default { font-size: 12px; font-weight: 400; color: var(--muted); margin-bottom: 0; }
