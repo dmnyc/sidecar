@@ -610,11 +610,20 @@
     // registered in all three, so each copy names the others.
     const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'phantom-bouquet'];
     const isLight = LIGHT_THEMES.includes(theme);
-    if (isLight) {
-      const mark = document.querySelector('.brand img');
-      // Phantom Bouquet wears its own cut, drawn in its dyes (logoSrcFor in composer-core.js).
-      if (mark) mark.src = theme === 'phantom-bouquet' ? 'icons/sidecar-logo-phantom-bouquet.svg' : 'icons/sidecar-logo-deco.svg';
-    }
+    // The themes that wear a cut of their own, dark or light (logoSrcFor in composer-core.js holds
+    // the same table; test/theme-logos.test.js holds the copies to each other). A themed cut beats
+    // the light-theme wordmark, and a dark theme without one keeps the stock logo the page ships.
+    const THEME_LOGOS = {
+      'phantom-bouquet': 'icons/sidecar-logo-phantom-bouquet.svg',
+      'film-noir': 'icons/sidecar-logo-film-noir.svg',
+      'brownstone': 'icons/sidecar-logo-brownstone.svg',
+      'cast-iron': 'icons/sidecar-logo-cast-iron.svg',
+      'par-avion': 'icons/sidecar-logo-par-avion.svg',
+      'industria': 'icons/sidecar-logo-industria.svg',
+    };
+    const mark = document.querySelector('.brand img');
+    if (mark && Object.prototype.hasOwnProperty.call(THEME_LOGOS, theme)) mark.src = THEME_LOGOS[theme];
+    else if (mark && isLight) mark.src = 'icons/sidecar-logo-deco.svg';
     // Keyed off the VALIDATED theme rather than data.theme, so an unrecognised value
     // falls back with everything else instead of picking a cut of its own.
     avatarPh = isLight ? 'icons/avatar-default-dark.svg' : 'icons/avatar-default.svg';

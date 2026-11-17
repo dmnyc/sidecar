@@ -37,6 +37,22 @@ function loadPayCardLogo() {
   return new Function(src.slice(start, end) + '\nreturn { LOGO_SVG, logoSvgFor };')();
 }
 
+// prompt.js picks the window's logo inline, in the middle of a long setup function. Lift just that
+// block and run it against a stand-in for the page's mark.
+function approvalWindowPick() {
+  const src = read('prompt.js');
+  const start = src.indexOf('    const THEME_LOGOS = {');
+  const endMarker = "else if (mark && isLight) mark.src = 'icons/sidecar-logo-deco.svg';";
+  const end = src.indexOf(endMarker, start);
+  assert.ok(start > 0 && end > start, 'could not find the approval window logo swap');
+  const body = src.slice(start, end + endMarker.length).replace("document.querySelector('.brand img')", 'MARK');
+  return (theme, isLight) => {
+    const mark = { src: 'icons/sidecar-logo.svg' };
+    new Function('MARK', 'theme', 'isLight', body)(mark, theme, isLight);
+    return mark.src;
+  };
+}
+
 test('the Phantom Bouquet logo file is the stock logo with only its colors changed', () => {
   const stock = read('icons/sidecar-logo.svg');
   const pb = read('icons/sidecar-logo-phantom-bouquet.svg');
@@ -48,7 +64,7 @@ test('the panel, the composer and the highlight page pick the dyed cut for Phant
   const core = loadCore();
   assert.equal(core.logoSrcFor('phantom-bouquet'), 'icons/sidecar-logo-phantom-bouquet.svg');
   // Nothing else moves: other light themes keep the dark wordmark, dark themes the stock logo.
-  assert.equal(core.logoSrcFor('industria'), 'icons/sidecar-logo-deco.svg');
+  assert.equal(core.logoSrcFor('werkstatte'), 'icons/sidecar-logo-deco.svg');
   assert.equal(core.logoSrcFor('mycelium'), 'icons/sidecar-logo-deco.svg');
   assert.equal(core.logoSrcFor('speakeasy'), 'icons/sidecar-logo.svg');
   assert.equal(core.logoSrcFor(undefined), 'icons/sidecar-logo.svg');
@@ -60,15 +76,13 @@ test('the pay card draws the same dyed cut for Phantom Bouquet, and leaves other
   assert.deepEqual(fills(pb), fills(read('icons/sidecar-logo-phantom-bouquet.svg')), 'the pay card and the panel must show the same logo');
   assert.deepEqual(shapes(pb), shapes(LOGO_SVG));
   assert.ok(!/#BDA1FF|#5a4a8a|#EA772F|#FFA01B/i.test(pb), 'no stock color may survive on the dyed cut');
-  assert.deepEqual(new Set(fills(logoSvgFor('industria'))), new Set(['#FFF', '#D0D1D3', '#EA772F', '#FFA01B', '#5A4A8A']));
+  assert.deepEqual(new Set(fills(logoSvgFor('mycelium'))), new Set(['#FFF', '#D0D1D3', '#EA772F', '#FFA01B', '#5A4A8A']));
   assert.equal(logoSvgFor('speakeasy'), LOGO_SVG);
 });
 
 test('the approval window picks the dyed cut for Phantom Bouquet and the dark wordmark for other light themes', () => {
-  const src = read('prompt.js');
-  const line = src.split('\n').find((l) => l.includes("mark.src ="));
-  assert.ok(line, 'could not find the approval window logo swap');
-  const pick = new Function('theme', 'const mark = {}; ' + line.trim().replace(/^if \(mark\) /, '') + ' return mark.src;');
-  assert.equal(pick('phantom-bouquet'), 'icons/sidecar-logo-phantom-bouquet.svg');
-  assert.equal(pick('industria'), 'icons/sidecar-logo-deco.svg');
+  const pick = approvalWindowPick();
+  assert.equal(pick('phantom-bouquet', true), 'icons/sidecar-logo-phantom-bouquet.svg');
+  assert.equal(pick('mycelium', true), 'icons/sidecar-logo-deco.svg');
+  assert.equal(pick('speakeasy', false), 'icons/sidecar-logo.svg', 'a dark theme without a cut keeps the logo the page ships');
 });

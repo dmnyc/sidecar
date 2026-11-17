@@ -359,10 +359,22 @@ window.SidecarCore = (function () {
   // black plate while its panel bars are white, and Turnstile's name tablet is on both.
   const COMPOSE_DARK_BAR_THEMES = new Set(['ben-day', 'turnstile']);
   const PANEL_DARK_BAR_THEMES = new Set(['turnstile']);
-  // A theme that wears its own cut of the logo. Phantom Bouquet's is drawn in its dyes:
-  // the glass in madder, the wordmark in the balance's plum. Its siblings are in
-  // content.js (the pay card recolors its inline copy) and prompt.js (the approval window).
-  const THEME_LOGOS = { 'phantom-bouquet': 'icons/sidecar-logo-phantom-bouquet.svg' };
+  // A theme that wears its own cut of the logo, drawn in the theme's own inks: Phantom Bouquet
+  // in its dyes (the glass in madder, the wordmark in the balance's plum), Film Noir in silver,
+  // Brownstone in bronze and gold, Cast Iron in warm greys, Par Avion in airmail blue and red,
+  // Industria in ink brown and brass. A cut is the stock logo with only its colors changed
+  // (scripts/gen-theme-logos.py makes all but Phantom Bouquet's). The same table lives in
+  // content.js (the pay card recolors its inline copy) and prompt.js (the approval window), and
+  // test/theme-logos.test.js fails if the three, or the files, disagree. A cut for a theme
+  // beats LIGHT_THEMES below: that list only decides between the stock logo and the dark wordmark.
+  const THEME_LOGOS = {
+    'phantom-bouquet': 'icons/sidecar-logo-phantom-bouquet.svg',
+    'film-noir': 'icons/sidecar-logo-film-noir.svg',
+    'brownstone': 'icons/sidecar-logo-brownstone.svg',
+    'cast-iron': 'icons/sidecar-logo-cast-iron.svg',
+    'par-avion': 'icons/sidecar-logo-par-avion.svg',
+    'industria': 'icons/sidecar-logo-industria.svg',
+  };
   function logoSrcFor(themeName) {
     if (Object.prototype.hasOwnProperty.call(THEME_LOGOS, themeName)) return THEME_LOGOS[themeName];
     // EVERY light theme needs the dark-wordmark variant; the default is baked
