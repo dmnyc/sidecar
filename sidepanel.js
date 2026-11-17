@@ -13379,6 +13379,11 @@
   // Set by Settings → Relays → Edit relay list; consumed by the next renderProfile.
   let scrollToNip65OnRender = false;
 
+  // One image upload at a time on the Profile screen. Each one is fetch, merge, sign and publish
+  // of the whole profile, so two running together could each merge from a profile that lacks
+  // the other's image and the second publish would erase the first.
+  let profileImageBusy = false;
+
   async function renderProfile() {
     // Taken at the start, not the end: a render that fails before reaching the relay
     // block would otherwise leave the flag set, and the next ordinary visit to Profile
@@ -13397,6 +13402,54 @@
     view.innerHTML = '';
 
     const header = h('div', { className: 'profile-header' });
+
+    // A MISSING IMAGE CAN BE ADDED RIGHT HERE. With no banner or no picture the profile showed a
+    // gradient and a default face, and the way to set either was Edit profile, a sheet of fields
+    // and a PIN away. Now the empty banner and the default avatar are the upload buttons, and a
+    // picked file is uploaded and saved on the spot, each on its own. Once an image is set
+    // these go away and changing it is the edit sheet's job, as before.
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    let job = null; // { kind, field, el, label } for the file the picker is about to hand over
+    const pickImage = (kind, field, el, label) => {
+      if (profileImageBusy) return;
+      job = { kind, field, el, label };
+      fileInput.click();
+    };
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      const mine = job;
+      job = null;
+      if (!file || !mine || profileImageBusy) { fileInput.value = ''; return; }
+      profileImageBusy = true;
+      header.classList.add('uploading-media');
+      mine.el.classList.add('uploading');
+      const labelBefore = mine.label ? mine.label.textContent : '';
+      if (mine.label) mine.label.textContent = t('Uploading…');
+      const owner = active.pubkey;
+      try {
+        const url = await uploadImage(file, mine.kind, owner);
+        // The upload can take a while. If the active account changed meanwhile, this is no
+        // longer the profile it was picked for, so nothing is published.
+        if (state.activePubkey !== owner) throw new Error(t('The active account changed, so nothing was saved.'));
+        await publishProfile({ [mine.field]: url }, null);
+        toast(t('Profile published'), 'success');
+        renderProfile();
+        renderMain();
+      } catch (e) {
+        toast(e.message, 'error');
+        if (mine.label) mine.label.textContent = labelBefore;
+      } finally {
+        profileImageBusy = false;
+        header.classList.remove('uploading-media');
+        mine.el.classList.remove('uploading');
+        fileInput.value = '';
+      }
+    });
+    header.append(fileInput);
+
     if (content.banner) {
       const banner = document.createElement('img');
       banner.className = 'profile-banner';
@@ -13406,7 +13459,11 @@
       banner.onerror = () => banner.classList.add('profile-banner-ph');
       header.append(banner);
     } else {
-      header.append(h('div', { className: 'profile-banner profile-banner-ph' }));
+      const uploadLabel = h('span', { className: 'profile-upload-label', textContent: t('Upload banner') });
+      const ph = h('button', { className: 'profile-banner profile-banner-ph profile-upload-ph', type: 'button' }, [icon('camera'), uploadLabel]);
+      ph.setAttribute('aria-label', t('Upload banner'));
+      ph.addEventListener('click', () => pickImage('files', 'banner', ph, uploadLabel));
+      header.append(ph);
     }
     // The status rides ON the banner rather than taking a row of its own. It is a
     // remark, not a field, and giving it a labelled section made the profile read
@@ -13417,7 +13474,19 @@
     balloon.append(balloonText);
     balloon.addEventListener('click', () => openStatusEditor(active, paintStatus));
     header.append(balloon);
-    header.append(avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar'));
+    const profileAvatar = avatarEl({ picture: content.picture || active.picture, npub: active.npub }, 'profile-avatar');
+    if (!(content.picture || active.picture)) {
+      profileAvatar.classList.add('profile-avatar-empty');
+      profileAvatar.setAttribute('role', 'button');
+      profileAvatar.setAttribute('tabindex', '0');
+      profileAvatar.setAttribute('aria-label', t('Upload avatar'));
+      profileAvatar.append(h('span', { className: 'profile-avatar-upload' }, [icon('camera')]));
+      profileAvatar.addEventListener('click', () => pickImage('profile', 'picture', profileAvatar, null));
+      profileAvatar.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickImage('profile', 'picture', profileAvatar, null); }
+      });
+    }
+    header.append(profileAvatar);
     view.append(header);
 
     // centered identity + bio
@@ -16909,6 +16978,10 @@
 
   // Fetch-merge-sign-publish: preserve unknown fields, overlay edits, sign (step-up PIN), publish.
   async function publishProfile(fields, pin) {
+    // The account this edit is for, taken before anything slow. The sign names it, so a
+    // switch of the active account while the profile is being fetched fails closed instead
+    // of publishing one account's profile under another's key.
+    const owner = state.activePubkey;
     const { content } = await fetchActiveProfile();
     const merged = { ...content };
     Object.keys(fields).forEach((k) => {
@@ -16917,14 +16990,14 @@
       else delete merged[k];
     });
     const event = { kind: 0, created_at: Math.floor(Date.now() / 1000), tags: [], content: JSON.stringify(merged) };
-    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin });
+    const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event, pin, expectedPubkey: owner });
     await publishSigned(signed);
     // Refresh the shared profile cache with what we just published so the profile
     // view / previews reflect the edit immediately instead of a stale cached copy.
-    cacheProfile(state.activePubkey, merged);
+    cacheProfile(owner, merged);
     await call({
       type: 'SIDECAR_SET_PROFILE',
-      pubkey: state.activePubkey,
+      pubkey: owner,
       name: merged.display_name || merged.name || '',
       picture: merged.picture || '',
     });
