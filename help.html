@@ -55,6 +55,7 @@
         <a href="#erasing">Erasing data</a>
         <a href="#notifications">Notifications</a>
         <a href="#library">Your library</a>
+        <a href="#finding-people">Finding people</a>
         <a href="#relays">Your relays</a>
         <a href="#status">Your status</a>
         <a href="#nip05">NIP-05</a>
@@ -596,6 +597,32 @@
       them and the next open reads your relays again. Highlights, comments and reactions show
       thirty at a time; <strong>Show more</strong> reaches the end of what was read and then asks
       your relays for older ones, so nothing you saved is out of reach.</p>
+    </section>
+
+    <!-- ===== Finding people ===== -->
+    <section class="guide-section" id="finding-people">
+      <h2>Finding people</h2>
+      <p>The magnifier in the top bar, and the <strong>@</strong> in the composer, look
+      through the people you follow first. That part is instant and never leaves your
+      device. To open anyone directly, paste their npub or NIP-05 name into the search
+      box.</p>
+
+      <h3>Names beyond your follows</h3>
+      <p>Your relays only know the names they have seen, so a name search that stops there
+      misses most of Nostr. The first time you search for a name, Sidecar asks whether to
+      also use a <strong>name search relay</strong>. Say yes, and the text you type is sent
+      to that relay (search.brainstorm.world), which answers with signed profiles. Sidecar
+      checks each signature before it shows one. Nothing else goes with it: not your key,
+      and not who you follow. Say no, and searches stay on your follows.</p>
+
+      <p>Change your answer any time with the icon beside the search box (people for your
+      follows only, a globe for names beyond them), or under <strong>Settings &rarr; Apps
+      &amp; browsing &rarr; Global name search</strong>.</p>
+
+      <p class="fine-note">The relay ranks people through a web of trust, so it finds
+      accounts others have scored. A brand-new account may not show up until it has
+      followers. If the relay does not answer, Sidecar asks the search relays you have
+      published instead, when you have any, and otherwise sticks to your follows.</p>
     </section>
 
     <!-- ===== Relays ===== -->

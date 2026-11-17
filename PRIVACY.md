@@ -120,13 +120,16 @@ Sidecar only talks to services **you choose**:
   make one, is encrypted to your own key before it is published to your relays.
 - **@-mention search** — when you type `@` in the composer to mention someone,
   Sidecar searches your follows locally. The first time you search a name, it
-  offers to also query the **Nostr Archives** name index so you can find any
-  Nostr user by name; nothing is sent there until you agree, and you can change
-  or revoke that answer later from the search bar's scope icon (the globe) or in
-  Settings ("Use the Nostr Archives name index"). While it is on, Sidecar sends
-  the index the mention-search text and the public keys of people you follow
-  (to resolve names your relays didn't return) — so that service sees both what
-  you type and who you follow. Only that text and those public keys are sent.
+  offers to also ask a **name search relay** (search.brainstorm.world) so you can
+  find people beyond your follows; nothing is sent there until you agree, and you
+  can change or revoke that answer later from the search bar's scope icon (the
+  globe) or in Settings ("Use the name search relay"). While it is on, Sidecar
+  sends that relay the text you are typing, and nothing else: no public key goes
+  with it. The relay answers with signed profiles, which Sidecar checks before
+  showing them. If it does not answer, Sidecar asks the search relays on your own
+  published search relay list instead, when you have one. Names your relays did not
+  return for people you follow are asked of purplepag.es, the profile aggregator
+  Sidecar reads from everywhere else.
 
 - **Bitcoin price** — to show your balance in a local currency, and the price
   chart, Sidecar asks **mempool.space** or **Coinbase** for the price, whichever

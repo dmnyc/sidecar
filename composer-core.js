@@ -688,7 +688,7 @@ window.SidecarCore = (function () {
 
     // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
     // and keeps the dropdown open even when there are no local matches yet.
-    // `askEl` is the one-time Nostr Archives ask standing in for that footer
+    // `askEl` is the one-time name-search ask standing in for that footer
     // while the setting is unset (see the NA block).
     function renderAcResults(items, ctx, loading, askEl) {
       acResults = items;
@@ -744,7 +744,7 @@ window.SidecarCore = (function () {
       let followMatches = matchFollows([]);
       let globals = [];
       let globalPending = false;
-      let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
+      let askEl = null; // the one-time name-search ask, while the setting is unset
       const paint = () => {
         if (seq !== acSeq) return;
         const seen = new Set(followMatches.map((c) => c.pubkey));
@@ -770,7 +770,7 @@ window.SidecarCore = (function () {
 
       // Global search across all of Nostr so you can tag people you don't
       // follow. Debounced; best-effort — a failure/rate-limit just clears the
-      // spinner and leaves the follow matches. With the Nostr Archives setting
+      // spinner and leaves the follow matches. With the name search setting
       // still unset, the spinner's slot carries the one-time ask instead;
       // answering it re-enters here with the decision written.
       if (!willSearchGlobal) return;

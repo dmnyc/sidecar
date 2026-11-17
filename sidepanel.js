@@ -2279,7 +2279,7 @@
   }
 
   // Scope chip next to the search input: shows whether a name search runs
-  // locally (your follows, users icon) or globally (Nostr Archives index,
+  // locally (your follows, users icon) or globally (the search relay,
   // globe icon), and is the always-available way to flip it. Unset counts as
   // local — nothing is sent while it's unset, so that's the honest display.
   // Clicking toward global shows the same one-time ask the dropdown shows,
@@ -2294,8 +2294,8 @@
       // which on first paint is none at all. Same test as the icon on the line above, so
       // an undecided setting reads as follows-only in both.
       const title = on === true
-        ? 'Searching every Nostr name (Nostr Archives index) — click to search only your follows'
-        : 'Searching only your follows — click to also search every Nostr name';
+        ? t('Searching names beyond your follows. Click to search only your follows.')
+        : t('Searching only your follows. Click to also search beyond them.');
       btn.title = title;
       btn.setAttribute('aria-label', title);
     });
@@ -2401,7 +2401,7 @@
 
   // ---- name autocomplete in the search bar ----
   // Same two sources the composer's @-mention dropdown uses: your follow list
-  // (local, instant once cached) and the Nostr Archives suggest endpoint for
+  // (local, instant once cached) and the name search relay for
   // everyone else. Follows are listed first and the global results are appended
   // as they land, so the box is useful before — and if — the network answers.
   let searchAcSeq = 0, searchAcTimer = null, searchResults = [], searchIndex = -1;
@@ -3547,7 +3547,7 @@
     let follows = [];
     let globals = [];
     let globalPending = false;
-    let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
+    let askEl = null; // the one-time name-search ask, while the setting is unset
     const paint = () => {
       if (seq !== searchAcSeq) return;
       const followed = new Set(follows.map((c) => c.pubkey));
@@ -12228,7 +12228,7 @@
       sharedHeadsUp = { dismissed: false, optedOut: false };
       toast(t('The multi-account note will show again'), 'success');
     });
-    $('na-toggle').checked = settings.nostrArchives === true; // tri-state: unset and false both render off (privacy: follow-list disclosure)
+    $('na-toggle').checked = NS.decision(settings) === true; // tri-state: unset and false both render off (privacy: what you type leaves your relays)
     $('livevideo-toggle').checked = settings.liveVideoEnabled !== false;
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     $('btc-sweep-toggle').checked = settings.btcSweep === true; // default off — nothing is looked up until it is on
@@ -13832,23 +13832,21 @@
     }
   }
 
-  // ---- Nostr Archives profile API ----
-  // Global username search + bulk metadata, used to (A) find people to @mention
-  // who aren't in your follow list and (B) resolve follow-list names the relays
-  // didn't return. Best-effort: any error or rate-limit falls back to relay data.
-  // Approved endpoints only.
+  // ---- Global name search ----
+  // Finds people to @mention who aren't in your follow list, through a NIP-50 search relay
+  // (name-search.js has the search itself). Best-effort: when no relay answers, the
+  // dropdown keeps the relay data it already has.
   //
-  // OPT-IN, asked ONCE on first use (#194). Both endpoints disclose something the
-  // relays never see together: suggest sends what you're typing in the composer,
-  // metadata sends your follow list in 500-pubkey chunks — a new centralized
-  // observer that can correlate sessions by IP. That trade is the user's call, so
-  // the first time a name search would fire, the dropdown carries a one-time ask
-  // (see naAskEl) instead of the spinner; either answer is remembered, and the
-  // Settings toggle ("Use the Nostr Archives name index") is the only way back.
+  // OPT-IN, asked ONCE on first use (#194). The search sends what you are typing to a
+  // relay that is not one of yours, which is a trade the user makes, so the first time a
+  // name search would fire the dropdown carries a one-time ask (see naAskEl) instead of
+  // the spinner; either answer is remembered, and the Settings toggle ("Use the name
+  // search relay") is the only way back. The `na` prefix on the names below is
+  // historical: they name this gate and its ask.
   // Tri-state: undefined = never asked, true/false = decided. The first read
   // hits storage directly rather than via call() so autocomplete keystrokes
   // can't wake the SW; after that it's memoized (see below).
-  const NA_BASE = 'https://api.nostrarchives.com';
+  const NS = self.SidecarNameSearch;
   // Tri-state memo. Reading storage on every keystroke left a gap where the
   // ask blinked out of the dropdown — and with no follow matches the box
   // closed outright for the duration of the read. With the memo the ask paints
@@ -13862,7 +13860,7 @@
     return new Promise((resolve) =>
       chrome.storage.local.get('sidecar_settings', (r) => {
         naSettingLoaded = true;
-        naSettingMemo = ((r && r.sidecar_settings) || {}).nostrArchives;
+        naSettingMemo = NS.decision((r && r.sidecar_settings) || {});
         resolve(naSettingMemo);
       }));
   }
@@ -13874,7 +13872,7 @@
   // "Just my follows" would be worse than re-asking next session.
   async function naDecide(on) {
     naSetSettingMemo(on);
-    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: on } }); } catch (_) {}
+    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: on } }); } catch (_) {}
   }
   // The ask itself, rendered where the search spinner would sit in whichever
   // surface fired first — the composer's @-mention dropdown or the topbar search
@@ -13889,7 +13887,7 @@
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
-      textContent: t('Also search every Nostr name? This uses a third-party index ({{host}}) that sees what you type and who you follow.', { host: 'api.nostrarchives.com' }),
+      textContent: t('Also search names beyond your follows? This uses a search relay ({{host}}) that sees what you type.', { host: NS.HOST }),
     }));
     const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: t('Search everyone') });
     const no = h('button', { className: 'na-ask-no', type: 'button', textContent: t('Just my follows') });
@@ -13908,66 +13906,48 @@
   }
   const naName = (p) => p.display_name || p.preferred_name || p.name || null;
 
-  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure.
+  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure, and
+  // after one backs off for a short while rather than waiting out a timeout per keystroke.
   async function naSuggest(query) {
     if (!query || query.length < 2 || !naAvailable()) return [];
     if (!(await naEnabled())) return [];
     try {
-      const resp = await fetch(NA_BASE + '/v1/search/suggest?q=' + encodeURIComponent(query) + '&limit=8', {
-        signal: AbortSignal.timeout(5000),
+      const pubkey = state.activePubkey;
+      const { results, failed } = await NS.search(query, {
+        pool: getPool(), verify: NT.verifyEvent, pubkey, readRelays: () => readRelayUrls(pubkey),
       });
-      if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); return []; }
-      if (!resp.ok) return [];
-      const data = await resp.json();
-      return (data.suggestions || [])
-        .filter((s) => s && isHex64(s.pubkey))
-        .map((s) => {
-          const pk = s.pubkey.toLowerCase();
-          let name = naName(s);
-          if (!name) { try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; } }
-          return { pubkey: pk, name, picture: s.picture || null };
-        });
+      if (failed) naBackoff(30);
+      return results.map((r) => {
+        let name = r.name;
+        if (!name) { try { name = shortNpub(NT.nip19.npubEncode(r.pubkey)); } catch (_) { name = r.pubkey.slice(0, 10) + '…'; } }
+        return { pubkey: r.pubkey, name, picture: r.picture };
+      });
     } catch (_) { return []; }
-  }
-
-  // Bulk profile metadata for a set of pubkeys → Map(pubkey → {name, picture}).
-  // Chunks to the API's 500-pubkey limit; stops early on a rate-limit.
-  async function naMetadata(pubkeys) {
-    const out = new Map();
-    const ids = [...new Set((pubkeys || []).filter(isHex64).map((p) => p.toLowerCase()))];
-    if (!ids.length || !naAvailable()) return out;
-    if (!(await naEnabled())) return out;
-    for (let i = 0; i < ids.length; i += 500) {
-      const chunk = ids.slice(i, i + 500);
-      try {
-        const resp = await fetch(NA_BASE + '/v1/profiles/metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pubkeys: chunk }),
-          signal: AbortSignal.timeout(8000),
-        });
-        if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); break; }
-        if (!resp.ok) continue;
-        const data = await resp.json();
-        (data.profiles || []).forEach((p) => {
-          if (p && isHex64(p.pubkey)) out.set(p.pubkey.toLowerCase(), { name: naName(p), picture: p.picture || null });
-        });
-      } catch (_) { /* keep whatever resolved so far */ }
-    }
-    return out;
   }
 
   // Fire-and-forget: fill in names/pictures the relays didn't return, mutating the
   // cached follow-list objects in place so those follows become searchable by name
-  // on the next keystroke. Never blocks the initial dropdown.
+  // on the next keystroke. Asks the kind 0 aggregator, which every profile lookup here
+  // already asks, and no one else. Never blocks the initial dropdown.
   async function enrichFollowNames(list, missingPubkeys) {
-    if (!missingPubkeys.length) return;
-    const meta = await naMetadata(missingPubkeys);
-    if (!meta.size) return;
+    const ids = [...new Set((missingPubkeys || []).filter(isHex64).map((p) => p.toLowerCase()))].slice(0, 500);
+    if (!ids.length) return;
+    let events = [];
+    try { events = (await poolQuerySync(['wss://purplepag.es'], { kinds: [0], authors: ids }, { maxWait: 8000 })) || []; } catch (_) { return; }
+    const newest = new Map();
+    for (const ev of events) {
+      if (!ev || ev.kind !== 0 || !isHex64(ev.pubkey)) continue;
+      const had = newest.get(ev.pubkey);
+      if (!had || ev.created_at > had.created_at) newest.set(ev.pubkey, ev);
+    }
     const byPk = new Map(list.map((c) => [c.pubkey, c]));
-    meta.forEach((m, pk) => {
+    newest.forEach((ev, pk) => {
       const c = byPk.get(pk);
-      if (c && m.name) { c.name = m.name; if (!c.picture && m.picture) c.picture = m.picture; }
+      if (!c) return;
+      let prof = null;
+      try { prof = JSON.parse(ev.content); } catch (_) { return; }
+      const name = prof && (prof.display_name || prof.name);
+      if (typeof name === 'string' && name) { c.name = name; if (!c.picture && typeof prof.picture === 'string') c.picture = prof.picture; }
     });
   }
 
@@ -14021,7 +14001,7 @@
       });
       followListPubkey = state.activePubkey;
       followListCache = list;
-      // Background: fill names the relays didn't return via Nostr Archives, so
+      // Background: fill names the relays didn't return from the aggregator, so
       // those follows become searchable by name. Mutates the cached objects in
       // place; not awaited, so the first dropdown render stays instant.
       enrichFollowNames(list, pubkeys.filter((pk) => !byPk[pk]));
@@ -26037,7 +26017,7 @@
   $('na-toggle').addEventListener('change', async (e) => {
     naSetSettingMemo(e.target.checked); // keep this document's ask/gate in sync with the write
     paintSearchModeIcon(); // the scope chip shows the same answer
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: e.target.checked } });
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: e.target.checked } });
   });
 
   $('hidebalance-toggle').addEventListener('change', async (e) => {
