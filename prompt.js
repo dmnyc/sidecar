@@ -217,11 +217,33 @@
   function kindLabel(kind) {
     if (kind == null) return '—';
     const label = kindLabels()[kind];
-    return label ? kind + ' · ' + label : tSec('{{kind}} (unrecognized kind)', { kind });
+    if (label) return kind + ' · ' + label;
+    // Not in the table, but the range still says something: ephemeral, replaceable or
+    // addressable (event-summary.js). The number stays, as it does for every kind.
+    const range = self.SidecarEventSummary.kindRange(kind);
+    if (range === 'ephemeral') return tSec('{{kind}} (ephemeral event)', { kind });
+    if (range === 'replaceable') return tSec('{{kind}} (replaceable event)', { kind });
+    if (range === 'addressable') return tSec('{{kind}} (addressable event)', { kind });
+    return tSec('{{kind}} (unrecognized kind)', { kind });
+  }
+  // An ephemeral event is not a caution: it is only passed on, and nothing of the
+  // account's is replaced. The card says so in a calm note, not the amber box that
+  // means "review before approving" (kind-warn without kind-note).
+  function kindIsNote(kind) {
+    return kind != null && !kindWarnings()[kind] && !kindLabels()[kind]
+      && self.SidecarEventSummary.kindRange(kind) === 'ephemeral';
   }
   function kindWarning(kind) {
     if (kind == null) return null;
-    return kindWarnings()[kind] || (!kindLabels()[kind] ? tSec('Unrecognized event kind. Review carefully before approving.') : null);
+    if (kindWarnings()[kind]) return kindWarnings()[kind];
+    if (kindLabels()[kind]) return null;
+    // Said by what the range does to the account's events, not as a bare "unrecognized".
+    // An ephemeral event is passed on and not kept; the other two replace an earlier one.
+    const range = self.SidecarEventSummary.kindRange(kind);
+    if (range === 'ephemeral') return tSec('Ephemeral: relays pass it on without keeping it. It’s still signed by your key.');
+    if (range === 'replaceable') return tSec('Replaces your last event of this kind. Review carefully before approving.');
+    if (range === 'addressable') return tSec('Replaces your earlier event with the same identifier. Review carefully before approving.');
+    return tSec('Unrecognized event kind. Review carefully before approving.');
   }
   // A kind 10040 says which web-of-trust services compute your scores. It is replaceable,
   // so the new list replaces every row of the old one: the card says what the new one
@@ -322,26 +344,57 @@
     flush(text.slice(last));
   }
 
+  // The Tags row: how many, and which. "3 (p ×2, e)" tells a reader more than "3".
+  function tagsText(tags) {
+    if (!tags.length) return I18N.fmtNum(0);
+    return tSec('{{count}} ({{names}})', { count: I18N.fmtNum(tags.length), names: self.SidecarEventSummary.tagNames(tags) });
+  }
+  // A JSON object in the content, drawn as rows: key on the left, value on the right.
+  // The page wrote both, so they go in as text. Same as in sidepanel.js.
+  function renderFields(container, f) {
+    f.rows.forEach(([k, v]) => {
+      const r = document.createElement('div');
+      r.className = 'ev-field';
+      const key = document.createElement('span');
+      key.className = 'ev-key';
+      key.textContent = k;
+      const val = document.createElement('span');
+      val.className = 'ev-val';
+      val.textContent = v;
+      r.append(key, val);
+      container.appendChild(r);
+    });
+    if (f.more > 0) {
+      const more = document.createElement('div');
+      more.className = 'ev-more';
+      more.textContent = tn('+{{count}} more field', '+{{count}} more fields', f.more);
+      container.appendChild(more);
+    }
+  }
+  function noteLikeKind(kind) { return kind === 1 || kind === 6 || kind === 16; }
   // Event-content preview: short by default (keeps the "Signing as" account card in
   // view), expandable, with a Formatted/Raw toggle for note-like kinds (1, and 6/16
   // reposts). "Formatted" is the lightweight render above; "Raw" is the exact signed
   // content. Other kinds show Raw only.
   function appendEventContent(container, ev) {
     const raw = String(ev.content == null ? '' : ev.content);
-    const noteLike = ev.kind === 1 || ev.kind === 6 || ev.kind === 16;
+    const noteLike = noteLikeKind(ev.kind);
+    // Other kinds that carry a JSON object open on its fields, not on the braces; Raw and
+    // JSON are one tap away and show exactly what is signed.
+    const parsed = noteLike ? null : self.SidecarEventSummary.fields(raw);
     // Views: Formatted (lightweight render, note-like only), Raw (the content string),
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
-    const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const modes = noteLike || parsed ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
     const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '');
       view.innerHTML = '';
-      if (mode === 'formatted') renderLightNote(view, noteTextForEvent(ev));
+      if (mode === 'formatted') { if (parsed) renderFields(view, parsed); else renderLightNote(view, noteTextForEvent(ev)); }
       else if (mode === 'json') view.textContent = eventJson();
       else view.textContent = raw;
     };
@@ -422,7 +475,9 @@
       const unreadable = kindUnreadable(ev);
       const rows = [];
       rows.push(row(tSec('Kind'), unreadable ? tSec('Unreadable') : kindLabel(ev.kind)));
-      if (Array.isArray(ev.tags)) rows.push(row(tSec('Tags'), I18N.fmtNum(ev.tags.length)));
+      if (Array.isArray(ev.tags)) rows.push(row(tSec('Tags'), tagsText(ev.tags)));
+      const rpc = !unreadable && !noteLikeKind(ev.kind) ? self.SidecarEventSummary.jsonRpc(ev.content) : null;
+      if (rpc) rows.push(row(tSec('Method'), clampText(rpc.method, 60)));
       if (!unreadable && ev.kind === 10040) {
         trustProviderRows(ev).forEach(([k, v]) => rows.push(row(k, v)));
       }
@@ -430,7 +485,7 @@
       const warning = unreadable ? unreadableWarning() : ((!data.destructive && trustEmptyWarning(ev)) || kindWarning(ev.kind));
       if (warning) {
         const warn = document.createElement('div');
-        warn.className = 'kind-warn';
+        warn.className = !unreadable && kindIsNote(ev.kind) ? 'kind-warn kind-note' : 'kind-warn';
         warn.textContent = warning;
         els.preview.appendChild(warn);
       }
