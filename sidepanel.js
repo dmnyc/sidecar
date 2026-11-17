@@ -3532,10 +3532,12 @@
     if (askEl) box.prepend(askEl);
   }
 
+  let searchReAskDismissed = false; // "Just my follows" answered on the returning ask
   async function updateSearchAc() {
     const raw = $('search-input').value.trim();
     // An identifier resolves on Enter; there is nothing to suggest for it. Same
     // for a complete NIP-05 — that's a lookup, not a search.
+    if (!raw) searchReAskDismissed = false;
     if (!raw || extractEntity(raw) || NIP05_RE.test(raw) || raw.length < 2) {
       clearSearchResults();
       return;
@@ -3548,23 +3550,29 @@
     let globals = [];
     let globalPending = false;
     let askEl = null; // the one-time name-search ask, while the setting is unset
+    // After a "no", the ask comes back only when the follows have nothing to offer: an empty
+    // result hides that a wider search exists. Held back until the follows have been read.
+    let reAsk = null;
+    let followsReady = false;
     const paint = () => {
       if (seq !== searchAcSeq) return;
       const followed = new Set(follows.map((c) => c.pubkey));
       const merged = follows.slice();
       for (const g of globals) { if (!followed.has(g.pubkey)) { followed.add(g.pubkey); merged.push(g); } }
-      renderSearchResults(rankByTrust(merged, follows).slice(0, 8), globalPending, askEl);
+      const ask = askEl || (reAsk && followsReady && !merged.length && !searchReAskDismissed ? reAsk : null);
+      renderSearchResults(rankByTrust(merged, follows).slice(0, 8), globalPending, ask);
     };
 
     const cached = (followListCache && followListPubkey === state.activePubkey) ? followListCache : null;
-    if (cached) follows = matchFollows(cached);
+    if (cached) { follows = matchFollows(cached); followsReady = true; }
     paint();
     if (!cached) {
       getFollowList().then((list) => {
         if (seq !== searchAcSeq) return;
         follows = matchFollows(list);
+        followsReady = true;
         paint();
-      }).catch(() => {});
+      }).catch(() => { if (seq === searchAcSeq) { followsReady = true; paint(); } });
     }
 
     // The global slot is tri-state too (see the NA block): decided-on searches,
@@ -3586,6 +3594,12 @@
       }, 250);
     } else if (na !== false) {
       askEl = naAskEl((on) => { naDecide(on).then(updateSearchAc); });
+      paint();
+    } else {
+      reAsk = naAskEl((on) => {
+        if (!on) { searchReAskDismissed = true; updateSearchAc(); return; }
+        naDecide(true).then(updateSearchAc);
+      });
       paint();
     }
   }
