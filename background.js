@@ -1188,6 +1188,18 @@ async function clearApproveCount(host, pubkey, kind) {
   }
   await ssetSession({ [APPROVE_COUNT_KEY]: m });
 }
+// Forgetting a site erases what it earned, and the tally is part of that: left behind, the
+// first card after a Forget would carry the earned row (and on a one-account host, Always
+// sign) for a site the user had just wiped. Every account's tally for the host, every kind.
+async function clearApproveCountsForHost(host) {
+  const m = await approveCountMap();
+  const prefix = host + '|';
+  for (const k of Object.keys(m)) if (k.startsWith(prefix)) delete m[k];
+  await ssetSession({ [APPROVE_COUNT_KEY]: m });
+}
+async function clearAllApproveCounts() {
+  await ssetSession({ [APPROVE_COUNT_KEY]: {} });
+}
 // What the graduated row offers on this card, or null. `eligible` is graduatedCapable
 // (and an approval actually being asked); the row appears once this kind has collected
 // APPROVE_NUDGE_AFTER one-time approvals from this host for this account, never before.
@@ -4679,6 +4691,7 @@ async function handleControl(message, sender, sendResponse) {
         await clearAuthorizedForHost(message.host); // and the shared-identity history
         await clearAlwaysActiveHost(message.host); // and any standing instruction to skip the check
         forgetStandingApprovals(message.host); // and the short in-memory approve windows
+        await clearApproveCountsForHost(message.host); // and the tally that earns the graduated row
         await RELAX.revokeForHost(message.host); // and a timed Auto-sign window, which outlived the forget
         syncRelaxBadge();
         break;
@@ -4732,6 +4745,7 @@ async function handleControl(message, sender, sendResponse) {
         contentGrants.clear();
         decryptGrants.clear();
         pubkeyGrants.clear();
+        await clearAllApproveCounts(); // and every tally that earns the graduated row
         await RELAX.revokeAll();
         syncRelaxBadge();
         result = true;
