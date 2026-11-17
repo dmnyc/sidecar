@@ -199,7 +199,7 @@ test('AND THE PANEL REACHES FOR NOTHING IT DOES NOT HAVE EITHER', () => {
   // The scripts sidepanel.html loads beside it, each of which sets one global.
   ['NostrTools', 'SidecarCore', 'SidecarWsGuard', 'SidecarNWC', 'SidecarRelayHealth',
    'SidecarWot', 'SidecarEmoji', 'SidecarVersion', 'SidecarQR', 'SidecarPdfBackup',
-   'SidecarCrypto', 'SidecarNip49', 'jsQR', 'qrcode', 'SIDECAR_ON_THIS_DAY',
+   'SidecarCrypto', 'SidecarNip49', 'SidecarSealedSummary', 'jsQR', 'qrcode', 'SIDECAR_ON_THIS_DAY',
    // Firefox's own namespace, used for the sidebarAction fallback the Chrome build never
    // reaches. Absent in Chrome, which is why every use of it is guarded.
    'browser'].forEach((g) => own.add(g));
@@ -221,7 +221,7 @@ test('AND THE POPUP CARD REACHES FOR NOTHING IT DOES NOT HAVE', () => {
   const own = declaredIn(src);
   // The scripts prompt.html loads beside it, and what they set.
   ['I18N', 't', 'tn', 'tSec', 'SidecarBaseline', 'SidecarNip85', 'SidecarSky', 'SidecarSeasons',
-   'NostrTools', 'browser'].forEach((g) => own.add(g));
+   'NostrTools', 'SidecarSealedSummary', 'browser'].forEach((g) => own.add(g));
   const body = src.replace(/\.\s*([A-Za-z_$][\w$]*)/g, ' ').replace(/([A-Za-z_$][\w$]*)\s*:/g, ' ');
   const free = new Set();
   for (const m of body.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)) {

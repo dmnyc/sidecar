@@ -1240,7 +1240,6 @@
   "Enter a budget in sats, or uncheck the box.": "ใส่งบเป็น sats หรือยกเลิกการติ๊กช่อง",
   "that account": "บัญชีนั้น",
   "unreadable content": "เนื้อหาที่อ่านไม่ได้",
-  "to {{peer}}": "ถึง {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "แตะครั้งเดียวลงนามทุกอีเวนต์ที่แสดง ชุดจะไม่ผสม kind ของอีเวนต์",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "การปฏิเสธปลอดภัยเสมอ จึงไม่มี “อนุมัติทั้งหมด” — จะเสนอเป็นชุดเฉพาะเมื่อทุกคำขอเป็น kind เดียวกันจากไซต์เดียวกัน ตามที่แสดงด้านบน",
   "Use Sidecar": "ใช้ Sidecar",

@@ -355,7 +355,11 @@
       r.className = 'ev-field';
       const key = document.createElement('span');
       key.className = 'ev-key';
-      key.textContent = k;
+      // A dotted path may break after a dot, never inside a word (textContent is unchanged).
+      String(k).split('.').forEach((part, i) => {
+        if (i) { key.appendChild(document.createTextNode('.')); key.appendChild(document.createElement('wbr')); }
+        key.appendChild(document.createTextNode(part));
+      });
       const val = document.createElement('span');
       val.className = 'ev-val';
       val.textContent = v;
@@ -380,19 +384,21 @@
     // Other kinds that carry a JSON object open on its fields, not on the braces; Raw and
     // JSON are one tap away and show exactly what is signed.
     const parsed = noteLike ? null : self.SidecarEventSummary.fields(raw);
+    // Ciphertext, an encoded blob, a wallet connection: said in a sentence, the string one tap away.
+    const said = noteLike || parsed ? '' : sealedDescription(raw);
     // Views: Formatted (lightweight render, note-like only), Raw (the content string),
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
-    const modes = noteLike || parsed ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const modes = noteLike || parsed || said ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
     const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '') + (mode === 'formatted' && said ? ' ev-summary' : '');
       view.innerHTML = '';
-      if (mode === 'formatted') { if (parsed) renderFields(view, parsed); else renderLightNote(view, noteTextForEvent(ev)); }
+      if (mode === 'formatted') { if (parsed) renderFields(view, parsed); else if (said) view.textContent = said; else renderLightNote(view, noteTextForEvent(ev)); }
       else if (mode === 'json') view.textContent = eventJson();
       else view.textContent = raw;
     };
@@ -555,7 +561,9 @@
       // The event preview below still shows exactly what is being signed; this row is the
       // only place the plaintext appears, marked the same way the encrypt card marks it.
       if (data.sealed) {
-        els.preview.innerHTML += row(tSec('Sealed content'), clampText(data.sealed, 220), 'prose sealed');
+        els.preview.appendChild(sealedDescription(data.sealed)
+          ? sealedBlockEl(tSec('Sealed content'), data.sealed)
+          : sealedRowEl(tSec('Sealed content'), data.sealed, 220));
       }
       if (ev.content || unreadable) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
@@ -569,9 +577,16 @@
       // because params is handed over whole; it was simply never drawn. Nothing new is
       // exposed by showing it: the page wrote this text and is asking us to seal it.
       const plain = String((data.params && data.params.plaintext) || '');
-      els.preview.innerHTML =
-        row(tSec('To'), peerLabel()) +
-        (plain ? row(tSec('Sealing'), clampText(plain, 220), 'prose sealed') : '');
+      const self = !!(data.params && data.params.pubkey) && data.params.pubkey === data.activePubkey;
+      if (plain && sealedDescription(plain)) {
+        // Not prose: a centered block that says what it is. Sealing to yourself needs no
+        // "To" row, since the heading says so; sealing to anyone else keeps it.
+        els.preview.innerHTML = self ? '' : row(tSec('To'), peerLabel());
+        els.preview.appendChild(sealedBlockEl(self ? tSec('Seal to {{peer}}', { peer: tSec('yourself') }) : tSec('Sealing'), plain));
+      } else {
+        els.preview.innerHTML = row(tSec('To'), peerLabel());
+        if (plain) els.preview.appendChild(sealedRowEl(tSec('Sealing'), plain, 220));
+      }
       els.preview.classList.remove('hidden');
     }
   }
@@ -586,6 +601,79 @@
   // locale file is something a pull request can change.
   function row(k, v, cls) {
     return `<div class="row${cls ? ' ' + cls : ''}"><span>${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`;
+  }
+
+  // What text an app wants sealed is, in a sentence. Twin of sealedDescription in sidepanel.js.
+  // The text itself is behind a link: a wallet connection or a block of JSON is not something
+  // a person approves by reading it, and a connection's secret has no business on the screen
+  // by default. Plain prose has no description and is shown as written (sealed-summary.js).
+  function sealedDescription(text) {
+    const d = SidecarSealedSummary.describe(text);
+    if (!d) return '';
+    const hosts = (d.hosts || []).join(', ');
+    switch (d.kind) {
+      case 'wallet': return hosts ? tSec('A wallet connection through {{hosts}}', { hosts }) : tSec('A wallet connection');
+      case 'signer': return hosts ? tSec('A remote signer connection through {{hosts}}', { hosts }) : tSec('A remote signer connection');
+      case 'private-key': return tSec('A private key');
+      case 'sealed': return tSec('A sealed message');
+      case 'link': return tSec('A link to {{host}}', { host: d.host });
+      case 'list': return tn('A list of {{count}} item', 'A list of {{count}} items', d.count);
+      case 'encoded': return tSec('Encoded data, {{count}} characters', { count: I18N.fmtNum(d.length) });
+      case 'object': {
+        const names = d.names.join(', ') + (d.more ? ', …' : '');
+        return tn('Data with {{count}} field: {{names}}', 'Data with {{count}} fields: {{names}}', d.count, { names });
+      }
+      default: return '';
+    }
+  }
+
+  // A "Sealing" or "Sealed content" row. Readable text is the text; anything else is its
+  // description with "Show details" beside it, which opens the text itself. textContent
+  // throughout: the text is page-supplied.
+  function sealedRowEl(label, text, max) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'row prose sealed';
+    const k = document.createElement('span');
+    k.textContent = label;
+    const v = document.createElement('span');
+    rowEl.append(k, v);
+    if (!sealedDescription(text)) { v.textContent = clampText(text, max); return rowEl; }
+    v.className = 'sealed-val';
+    sealedParts(text).forEach((n) => v.appendChild(n));
+    return rowEl;
+  }
+  // The description, the "Show details" link and the hidden text, as three nodes.
+  function sealedParts(text) {
+    const line = document.createElement('span');
+    line.textContent = sealedDescription(text);
+    const raw = document.createElement('span');
+    raw.className = 'sealed-raw hidden';
+    raw.textContent = clampText(text, 1200);
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'details-link';
+    link.textContent = tSec('Show details');
+    link.setAttribute('aria-expanded', 'false');
+    link.addEventListener('click', () => {
+      const open = raw.classList.toggle('hidden') === false;
+      link.textContent = open ? tSec('Hide details') : tSec('Show details');
+      link.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    return [line, link, raw];
+  }
+  // A "Sealing" or "Sealed content" entry whose text is not prose: its heading, what it is,
+  // and the text behind a link, centered like the lines of a batch in the panel.
+  function sealedBlockEl(label, text) {
+    const block = document.createElement('div');
+    block.className = 'sealed-block';
+    const what = document.createElement('div');
+    what.className = 'sealed-what';
+    what.textContent = label;
+    const v = document.createElement('div');
+    v.className = 'sealed-val';
+    sealedParts(text).forEach((n) => v.appendChild(n));
+    block.append(what, v);
+    return block;
   }
 
   // Middle-elide an identifier so it stays one line.

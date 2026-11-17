@@ -1246,7 +1246,6 @@
   "Enter a budget in sats, or uncheck the box.": "Введите бюджет в sats или снимите отметку.",
   "that account": "этот аккаунт",
   "unreadable content": "нечитаемое содержимое",
-  "to {{peer}}": "для {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "Одно нажатие подписывает все перечисленные события. Пакет никогда не смешивает типы событий.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "Отклонять всегда безопасно, поэтому кнопки «Одобрить все» нет — пакеты предлагаются, только если все запросы одного типа и с одного сайта, перечисленных выше.",
   "Use Sidecar": "Использовать Sidecar",

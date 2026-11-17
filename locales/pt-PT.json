@@ -1244,7 +1244,6 @@
   "Enter a budget in sats, or uncheck the box.": "Introduz um orçamento em sats ou desmarca a caixa.",
   "that account": "essa conta",
   "unreadable content": "conteúdo ilegível",
-  "to {{peer}}": "para {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "Um toque assina todos os eventos listados. Um lote nunca mistura tipos de evento.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "Rejeitar é sempre seguro, por isso não há Aprovar tudo — os lotes só são oferecidos quando todos os pedidos são do mesmo tipo e do mesmo site, listados acima.",
   "Use Sidecar": "Usar o Sidecar",

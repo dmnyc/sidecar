@@ -1198,7 +1198,6 @@
   "that account": "essa conta",
   "kind {{kind}}": "tipo {{kind}}",
   "unreadable content": "conteúdo ilegível",
-  "to {{peer}}": "para {{peer}}",
   "Automatic (browser language)": "Automático (idioma do navegador)",
   "{{count}} attempt left before this device erases_one": "Resta {{count}} tentativa antes de os dados deste dispositivo serem apagados",
   "{{count}} attempt left before this device erases_other": "Restam {{count}} tentativas antes de os dados deste dispositivo serem apagados",

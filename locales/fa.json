@@ -1242,7 +1242,6 @@
   "Enter a budget in sats, or uncheck the box.": "بودجه‌ای به sats وارد کنید یا علامت کادر را بردارید.",
   "that account": "آن حساب",
   "unreadable content": "محتوای ناخوانا",
-  "to {{peer}}": "به {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "با یک ضربه، همهٔ رویدادهای فهرست‌شده امضا می‌شوند. یک دسته هرگز انواع رویداد را با هم ترکیب نمی‌کند.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "رد کردن همیشه ایمن است، بنابراین «تأیید همه»ای وجود ندارد — دسته‌ها فقط وقتی ارائه می‌شوند که همهٔ درخواست‌ها از یک نوع و از یک سایت باشند، که در بالا فهرست شده‌اند.",
   "Use Sidecar": "استفاده از Sidecar",

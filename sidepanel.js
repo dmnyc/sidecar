@@ -27025,7 +27025,11 @@
       r.className = 'ev-field';
       const key = document.createElement('span');
       key.className = 'ev-key';
-      key.textContent = k;
+      // A dotted path may break after a dot, never inside a word (textContent is unchanged).
+      String(k).split('.').forEach((part, i) => {
+        if (i) { key.appendChild(document.createTextNode('.')); key.appendChild(document.createElement('wbr')); }
+        key.appendChild(document.createTextNode(part));
+      });
       const val = document.createElement('span');
       val.className = 'ev-val';
       val.textContent = v;
@@ -27051,19 +27055,21 @@
     // Other kinds that carry a JSON object open on its fields, not on the braces; Raw and
     // JSON are one tap away and show exactly what is signed.
     const parsed = noteLike ? null : self.SidecarEventSummary.fields(raw);
+    // Ciphertext, an encoded blob, a wallet connection: said in a sentence, the string one tap away.
+    const said = noteLike || parsed ? '' : sealedDescription(raw);
     // Views: Formatted (composer render, note-like only), Raw (the content string),
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
-    const modes = noteLike || parsed ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const modes = noteLike || parsed || said ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
     const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '') + (mode === 'formatted' && said ? ' ev-summary' : '');
       view.innerHTML = '';
-      if (mode === 'formatted') { if (parsed) renderApprovalFields(view, parsed); else renderNotePreview(view, noteTextForEvent(ev)); }
+      if (mode === 'formatted') { if (parsed) renderApprovalFields(view, parsed); else if (said) view.textContent = said; else renderNotePreview(view, noteTextForEvent(ev)); }
       else if (mode === 'json') view.textContent = eventJson();
       else view.textContent = raw;
     };
@@ -27106,6 +27112,58 @@
     });
     controls.appendChild(more);
     container.appendChild(controls);
+  }
+
+  // What text an app wants sealed is, in a sentence, for the cards that list it. The text
+  // itself is behind a link: a wallet connection or a block of JSON is not something a person
+  // approves by reading it, and a connection's secret has no business on the screen by
+  // default. Plain prose has no description and is shown as written (sealed-summary.js).
+  function sealedDescription(text) {
+    const d = SidecarSealedSummary.describe(text);
+    if (!d) return '';
+    const hosts = (d.hosts || []).join(', ');
+    switch (d.kind) {
+      case 'wallet': return hosts ? tSec('A wallet connection through {{hosts}}', { hosts }) : tSec('A wallet connection');
+      case 'signer': return hosts ? tSec('A remote signer connection through {{hosts}}', { hosts }) : tSec('A remote signer connection');
+      case 'private-key': return tSec('A private key');
+      case 'sealed': return tSec('A sealed message');
+      case 'link': return tSec('A link to {{host}}', { host: d.host });
+      case 'list': return tn('A list of {{count}} item', 'A list of {{count}} items', d.count);
+      case 'encoded': return tSec('Encoded data, {{count}} characters', { count: I18N.fmtNum(d.length) });
+      case 'object': {
+        const names = d.names.join(', ') + (d.more ? ', …' : '');
+        return tn('Data with {{count}} field: {{names}}', 'Data with {{count}} fields: {{names}}', d.count, { names });
+      }
+      default: return '';
+    }
+  }
+
+  // The value of a "Sealing" or "Sealed content" row. Readable text is the text; anything else
+  // is its description with "Show details" under it, which opens the text itself. textContent
+  // throughout: the text is page-supplied.
+  function sealedValue(text, max) {
+    const said = sealedDescription(text);
+    if (!said) return h('span', { textContent: clampApprovalText(text, max) });
+    const raw = h('span', { className: 'sealed-raw hidden', textContent: clampApprovalText(text, 1200) });
+    const link = h('button', { type: 'button', className: 'details-link', textContent: tSec('Show details') });
+    link.addEventListener('click', () => {
+      const open = raw.classList.toggle('hidden') === false;
+      link.textContent = open ? tSec('Hide details') : tSec('Show details');
+      link.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    link.setAttribute('aria-expanded', 'false');
+    return h('span', { className: 'sealed-val' }, [
+      h('span', { textContent: said }), link, raw,
+    ]);
+  }
+
+  // A "Sealing" or "Sealed content" entry whose text is not prose: its heading, what it is,
+  // and the text behind a link, all centered like the lines of a batch (renderBatchList).
+  function sealedBlock(label, text) {
+    return h('div', { className: 'sealed-block' }, [
+      h('div', { className: 'sealed-what', textContent: label }),
+      sealedValue(text, 220),
+    ]);
   }
 
   function renderApprovalPreview(data) {
@@ -27240,24 +27298,36 @@
       // What the ciphertext says, when we sealed it moments ago (#305). Twin of the row
       // in prompt.js; the event preview below is still the literal thing being signed.
       if (data.sealed) {
-        box.append(h('div', { className: 'row prose sealed' }, [
-          h('span', { textContent: tSec('Sealed content') }),
-          h('span', { textContent: clampApprovalText(data.sealed, 220) }),
-        ]));
+        box.append(sealedDescription(data.sealed)
+          ? sealedBlock(tSec('Sealed content'), data.sealed)
+          : h('div', { className: 'row prose sealed' }, [
+            h('span', { textContent: tSec('Sealed content') }),
+            sealedValue(data.sealed, 220),
+          ]));
       }
       if (ev.content || unreadable) appendEventContent(box, ev);
     } else if (data.method === 'nip04.decrypt' || data.method === 'nip44.decrypt') {
       box.append(peerRow(tSec('From'), data.params && data.params.pubkey));
     } else if (data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt') {
-      box.append(peerRow(tSec('To'), data.params && data.params.pubkey));
       // WHAT, not just to whom. See the twin of this in prompt.js: the plaintext rides
       // along in params already, and an approval nobody can read is one taken blind (#305).
       const plain = String((data.params && data.params.plaintext) || '');
-      if (plain) {
-        box.append(h('div', { className: 'row prose sealed' }, [
-          h('span', { textContent: tSec('Sealing') }),
-          h('span', { textContent: clampApprovalText(plain, 220) }),
-        ]));
+      const peer = data.params && data.params.pubkey;
+      const mine = pendingApproval && (pendingApproval.chosenPubkey || data.activePubkey);
+      if (plain && sealedDescription(plain)) {
+        // Not prose: a centered block that says what it is. Sealing to yourself needs no
+        // "To" row, since the heading says so; sealing to anyone else keeps it.
+        const self = !!peer && peer === mine;
+        if (!self) box.append(peerRow(tSec('To'), peer));
+        box.append(sealedBlock(self ? tSec('Seal to {{peer}}', { peer: tSec('yourself') }) : tSec('Sealing'), plain));
+      } else {
+        box.append(peerRow(tSec('To'), peer));
+        if (plain) {
+          box.append(h('div', { className: 'row prose sealed' }, [
+            h('span', { textContent: tSec('Sealing') }),
+            sealedValue(plain, 220),
+          ]));
+        }
       }
     } else {
       hide(box);
@@ -28057,19 +28127,33 @@
     if (!list) return;
     list.innerHTML = '';
     if (!members || members.length < 2) { hide(list); if (note) hide(note); return; }
+    // Who "yourself" is: the account that will sign, which the card's menu can change.
+    const me = pendingApproval && (pendingApproval.chosenPubkey || (pendingApproval.data && pendingApproval.data.activePubkey));
+    const peerName = (hex) => {
+      if (hex && hex === me) return t('yourself');
+      let npub = '';
+      try { npub = hex ? NT.nip19.npubEncode(hex) : ''; } catch (_) {}
+      return npub ? shortNpub(npub) : '—';
+    };
     for (const m of members) {
-      const what = [];
+      let what;
       if (m.method === 'signEvent') {
-        what.push(t('kind {{kind}}', { kind: m.kind }));
+        what = [t('kind {{kind}}', { kind: m.kind })];
         if (m.unreadable) what.push(t('unreadable content'));
+        what = what.join(' · ');
       } else {
-        what.push(m.method);
-        if (m.peer) what.push(t('to {{peer}}', { peer: m.peer.slice(0, 8) + '…' + m.peer.slice(-4) }));
+        // Words, not the method's code: "Seal to yourself", not "nip44.encrypt · to ee6ea13a…".
+        const encrypt = /\.encrypt$/.test(m.method || '');
+        const decrypt = /\.decrypt$/.test(m.method || '');
+        what = encrypt ? t('Seal to {{peer}}', { peer: peerName(m.peer) })
+          : decrypt ? t('Unseal from {{peer}}', { peer: peerName(m.peer) })
+          : m.method;
       }
-      const body = m.method === 'signEvent' ? String(m.content || '') : String(m.plaintext || '');
+      // What the member carries, in words when it is not prose (sealedValue).
+      const text = String(m.method === 'signEvent' ? m.content || '' : m.plaintext || '');
       list.append(h('div', { className: 'batch-member' }, [
-        h('div', { className: 'batch-member-what', textContent: what.join(' · ') }),
-        h('div', { className: 'batch-member-text', textContent: clampApprovalText(body, 160) }),
+        h('div', { className: 'batch-member-what', textContent: what }),
+        h('div', { className: 'batch-member-text' }, [sealedValue(text, 160)]),
       ]));
     }
     show(list);

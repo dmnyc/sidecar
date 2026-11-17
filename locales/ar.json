@@ -1250,7 +1250,6 @@
   "Enter a budget in sats, or uncheck the box.": "أدخل ميزانية بوحدة sats، أو ألغِ تحديد المربع.",
   "that account": "ذلك الحساب",
   "unreadable content": "محتوى غير قابل للقراءة",
-  "to {{peer}}": "إلى {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "نقرة واحدة توقّع كل حدث مدرج. لا تخلط الدفعة أبدًا بين أنواع الأحداث.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "الرفض آمن دائمًا، لذلك لا يوجد خيار «الموافقة على الكل» — لا تُعرض الدفعات إلا عندما تكون كل الطلبات من النوع نفسه ومن الموقع نفسه، كما هو مدرج أعلاه.",
   "Use Sidecar": "استخدام Sidecar",

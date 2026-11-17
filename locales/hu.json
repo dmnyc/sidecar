@@ -1242,7 +1242,6 @@
   "Enter a budget in sats, or uncheck the box.": "Adjon meg keretet satban, vagy törölje a jelölőnégyzetet.",
   "that account": "az a fiók",
   "unreadable content": "olvashatatlan tartalom",
-  "to {{peer}}": "címzett: {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "Egy koppintás aláírja az összes felsorolt eseményt. A köteg sosem keveri az eseménytípusokat.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "Az elutasítás mindig biztonságos, ezért nincs „Mind jóváhagyása” – kötegek csak akkor jelennek meg, ha minden kérés ugyanolyan típusú, ugyanattól a webhelytől, a fent felsoroltak szerint.",
   "Use Sidecar": "Sidecar használata",

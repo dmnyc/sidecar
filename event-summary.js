@@ -55,6 +55,7 @@
   function leafText(v) {
     let s;
     if (typeof v === 'string') s = v;
+    else if (Array.isArray(v) && v.length && v.every((x) => ['string', 'number', 'boolean'].includes(typeof x))) s = v.join(', ');
     else { try { s = JSON.stringify(v); } catch (_) { s = String(v); } }
     return s.length > VALUE_CAP ? s.slice(0, VALUE_CAP) + '…' : s;
   }

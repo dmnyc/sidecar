@@ -1,0 +1,205 @@
+<!--
+  Approval gallery: every kind of approval card that can put page-supplied JSON, code or an
+  encoded string in front of a person, on demand. Built to judge one thing: does the card say
+  what this IS in words, and keep the raw text one tap away, instead of printing it?
+
+      python3 -m http.server 8021        (from the repo root)
+      open http://localhost:8021/test/manual/approval-gallery.html
+
+  Load Sidecar unpacked with a TEST account, open the side panel (cards appear in it) or close
+  the panel (cards appear as popup windows), and press Connect once. The site must be at Ask,
+  not Trusted, or nothing prompts.
+
+  Safe by construction. Every signing case only asks for a signature and throws it away: nothing
+  here touches a relay. Reject is always the right answer to a card you only want to look at, and
+  the page treats it as a normal outcome. The Lightning cases carry made-up invoices that no
+  wallet can settle, and a keysend to a made-up node; with no wallet connected they cannot spend
+  anything either way. Read the card BEFORE pressing Allow on a Lightning case.
+
+  Each case is one request. "Walk this group" sends a group's cases one after another and waits
+  for you to answer each card before the next.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar approval gallery</title>
+<style>
+  body { margin: 0; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 32px 24px 140px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 38px 0 4px; padding-top: 14px; border-top: 1px solid #2c2740; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  h2 button { font-size: 12.5px; padding: 4px 10px; }
+  .sub, .muted { color: #9a93b0; }
+  .sub { margin: 0 0 18px; }
+  .bar { position: sticky; top: 0; z-index: 2; background: #12101aee; backdrop-filter: blur(6px); border-bottom: 1px solid #2c2740;
+         padding: 10px 0; margin: 0 0 18px; display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+  .pill { border: 1px solid #3a3352; border-radius: 99px; padding: 2px 10px; }
+  .pill.ok { border-color: #3f7a55; color: #9be0b4; }
+  button { font: inherit; font-size: 13.5px; cursor: pointer; border-radius: 8px; padding: 6px 12px; border: 1px solid #4a4068; background: #1d1830; color: #e7e3f0; }
+  button:hover { border-color: #8b7bd0; }
+  button:disabled { opacity: .5; cursor: default; }
+  .case { border: 1px solid #2c2740; border-radius: 12px; padding: 12px 16px; margin: 0 0 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: start; }
+  .case.now { border-color: #8b7bd0; background: #171426; }
+  .case h3 { font-size: 15px; margin: 0; }
+  .case .look { grid-column: 1; color: #c9c2dd; font-size: 13.5px; margin: 0; }
+  .case .look::before { content: '✓  '; color: #6b5bb0; }
+  .case .go { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .case .out { grid-column: 1 / -1; font: 12px ui-monospace, monospace; color: #7fb8a0; word-break: break-all; min-height: 1em; }
+  .case .out.err { color: #c9a0a8; }
+  .why { color: #9a93b0; font-size: 13.5px; margin: 2px 0 12px; }
+  code { font: 12.5px ui-monospace, monospace; color: #b7aee0; }
+  .known { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: #2a1d10; border: 1px solid #6b4a1e; color: #e8c79a; font-size: 13.5px; }
+</style>
+<div class="wrap">
+  <h1>Approval gallery</h1>
+  <p class="sub">Every approval card that can show JSON, code or an encoded string, one button each. Look at the card,
+  not this page. <b>Reject</b> anything you only want to look at.</p>
+  <div class="bar">
+    <button id="connect">Connect with Nostr</button>
+    <span id="nostr" class="pill">window.nostr…</span>
+    <span id="webln" class="pill">window.webln…</span>
+    <span class="muted" id="pk">not connected</span>
+  </div>
+  <div class="known">Two cards depend on your test account’s state: the follow-list and profile
+  <b>overwrite warning</b> only appears when the account already has a follow list or profile on file for
+  Sidecar to compare against, and the Lightning cards need a wallet connected to go past the card.</div>
+
+  <div id="groups"></div>
+</div>
+
+<script>
+  const $ = (s, r = document) => r.querySelector(s);
+  const now = () => Math.floor(Date.now() / 1000);
+  const PEER = '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'; // a valid key that is not yours
+  let SELF = '';
+  const hex = (n) => Array.from({ length: n }, (_, i) => '0123456789abcdef'[(i * 7 + 3) % 16]).join('');
+  const ev = (kind, content, tags = []) => ({ kind, content, tags, created_at: now() });
+  const sign = (e) => async () => { const r = await window.nostr.signEvent(e); return 'signed, id ' + r.id.slice(0, 12) + '… (discarded)'; };
+  const enc44 = (text, to) => async () => { await window.nostr.nip44.encrypt(to || SELF, text); return 'sealed (discarded)'; };
+  const enc04 = (text) => async () => { await window.nostr.nip04.encrypt(SELF, text); return 'sealed (discarded)'; };
+
+  // The wallet connection an app stores for itself (a made-up one: no real wallet or key).
+  const WALLET = 'nostr+walletconnect://' + hex(64) + '?relay=wss%3A%2F%2Frelay.example.com&relay=wss://relay2.example.com&secret=' + hex(64);
+  const SETTINGS_JSON = JSON.stringify({ theme: 'dark', relays: ['wss://relay.example.com'], zapDefault: 21, lang: 'en', hideBalances: false, pinned: ['note1', 'note2'] });
+  const BLOB = btoa(String.fromCharCode(...Array.from({ length: 150 }, (_, i) => (i * 37 + 11) % 256))).replace(/=+$/, '');
+  const NIP04_CT = btoa('a sealed message of some length, long enough to look right') + '?iv=' + btoa('0123456789abcdef');
+
+  // A BOLT11-shaped invoice that passes Sidecar's own checks and that no wallet can settle.
+  const CS = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const enc = (n) => { let s = ''; for (let i = 6; i >= 0; i--) s += CS[(n >> (5 * i)) & 31]; return s; };
+  const words = (text) => { const w = []; let acc = 0, bits = 0; for (const b of new TextEncoder().encode(text)) { acc = (acc << 8) | b; bits += 8; while (bits >= 5) { bits -= 5; w.push((acc >> bits) & 31); } } if (bits) w.push((acc << (5 - bits)) & 31); return w; };
+  const invoice = (amount, memo) => { const w = words(memo || ''); const tag = memo ? CS[13] + CS[(w.length >> 5) & 31] + CS[w.length & 31] + w.map((x) => CS[x]).join('') : ''; return 'lnbc' + amount + '1' + enc(now()) + tag + 'q'.repeat(110); };
+
+  const LONG = 'A note that keeps going. '.repeat(90);
+  const GROUPS = [
+    { id: 'access', title: 'Access', why: 'The first things a site asks. No JSON here; the baseline the rest are measured against.', cases: [
+      { t: 'Log in (public key)', look: 'Says it wants to see your public key; no code.', run: async () => 'npub ' + (await window.nostr.getPublicKey()).slice(0, 12) + '…' },
+      { t: 'Read your relay list', look: 'Says it wants to read your relay list.', run: async () => JSON.stringify(Object.keys((await window.nostr.getRelays()) || {})) },
+    ] },
+    { id: 'notes', title: 'Notes and readable text', why: 'Plain text should simply be shown. Nothing here should need a “Show details”.', cases: [
+      { t: 'A short note', look: 'The note, as a note.', run: sign(ev(1, 'good morning, nostr')) },
+      { t: 'A reply', look: 'The note; the reply tags are not a wall of hex.', run: sign(ev(1, 'agreed, and well said', [['e', hex(64), '', 'reply'], ['p', PEER]])) },
+      { t: 'A 2,000 character note', look: 'Clamped with Show more; the buttons stay on screen.', run: sign(ev(1, LONG)) },
+      { t: 'A note that contains JSON', look: 'A note is still a note: its braces stay text.', run: sign(ev(1, 'my config is {"jsonrpc":"2.0","method":"x"} if you were wondering')) },
+      { t: 'Right-to-left and markup', look: 'Drawn as text, never as markup; direction handled.', run: sign(ev(1, 'مرحبا بالعالم <img src=x onerror=alert(1)> <b>bold</b>')) },
+      { t: 'No content field at all', look: 'Says the content is unreadable and still shows what is signed.', run: async () => { const e = { kind: 1, tags: [], created_at: now() }; const r = await window.nostr.signEvent(e); return 'signed (discarded)'; } },
+    ] },
+    { id: 'json', title: 'Signing: JSON content', why: 'The page put a JSON object in the event. The card should open on its fields, with Raw and JSON one tap away.', cases: [
+      { t: 'App data (kind 30078), JSON settings', look: 'Fields (theme, relays, …), not braces.', run: sign(ev(30078, SETTINGS_JSON, [['d', 'lab/settings']])) },
+      { t: 'MCP over Nostr message (kind 25910)', look: 'Says ephemeral, names the method, opens on fields.', run: sign(ev(25910, '{"jsonrpc":"2.0","id":"9eb9894f","method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"lab","version":"1.0"}}}', [['p', PEER]])) },
+      { t: 'A profile (kind 0)', look: 'Name, about and picture as fields. May show the overwrite warning if the account already has a profile.', run: sign(ev(0, JSON.stringify({ name: 'lab', about: 'a test profile', picture: 'https://example.com/a.png' }))) },
+      { t: 'A report (kind 1984)', look: 'The report with its tags named, not listed raw.', run: sign(ev(1984, 'spam', [['p', PEER, 'spam'], ['e', hex(64), 'spam']])) },
+    ] },
+    { id: 'encoded', title: 'Signing: encoded and sealed content', why: 'Ciphertext, base64 and wrapped events. Nobody reads these, so this is where a raw string is most out of place.', cases: [
+      { t: 'App data (kind 30078), sealed blob', look: 'Says what it is (encoded data), raw behind a link.', run: sign(ev(30078, BLOB, [['d', 'lab/sealed']])) },
+      { t: 'Legacy DM (kind 4)', look: 'A direct message to a person, content hidden as sealed.', run: sign(ev(4, NIP04_CT, [['p', PEER]])) },
+      { t: 'Seal (kind 13)', look: 'Says what a seal is; the wrapped content is not printed.', run: sign(ev(13, BLOB)) },
+      { t: 'Gift wrap (kind 1059)', look: 'An unrecognized or wrapped kind: described, content behind a link.', run: sign(ev(1059, BLOB, [['p', PEER]])) },
+      { t: 'Wallet request (kind 23194)', look: 'The unusual-for-a-site warning; encrypted content not printed.', run: sign(ev(23194, NIP04_CT, [['p', PEER]])) },
+      { t: 'Seal, then sign (the two-prompt app-settings flow)', look: 'Card 1 seals the settings; card 2 signs the event carrying them and shows “Sealed content” in words.', run: async () => { const ct = await window.nostr.nip44.encrypt(SELF, SETTINGS_JSON); await window.nostr.signEvent(ev(30078, ct, [['d', 'lab/settings']])); return 'both signed (discarded)'; } },
+    ] },
+    { id: 'tags', title: 'Signing: authorizations and requests', why: 'Events whose point is in the tags: URLs, hosts, challenges, amounts.', cases: [
+      { t: 'HTTP auth (kind 27235)', look: 'The URL and method as rows.', run: sign(ev(27235, '', [['u', 'https://example.com/api/upload'], ['method', 'POST']])) },
+      { t: 'Blossom upload authorization (kind 24242)', look: 'The action and file hash in words.', run: sign(ev(24242, 'Upload lab.png', [['t', 'upload'], ['x', hex(64)], ['expiration', String(now() + 600)]])) },
+      { t: 'Relay auth (kind 22242) with an extra tag', look: 'A genuine AUTH event (only relay and challenge tags) is signed silently, so this one carries a third tag to get a card. Names the relay; the challenge is not a wall of characters.', run: sign(ev(22242, '', [['relay', 'wss://relay.example.com'], ['challenge', hex(32)], ['p', PEER]])) },
+      { t: 'Zap request (kind 9734)', look: 'Who is being zapped and how much, not the tag soup.', run: sign(ev(9734, 'great post', [['p', PEER], ['amount', '21000'], ['relays', 'wss://relay.example.com'], ['lnurl', 'lnurl1dp68gurn8ghj7mrww4exctnxd9shg6npvchxxmmd9akxuarnv3ex7mt5']])) },
+      { t: 'Long-form article (kind 30023)', look: 'The title and a short preview, not the whole markdown.', run: sign(ev(30023, '# Heading\n\n' + LONG, [['d', 'lab-article'], ['title', 'A lab article'], ['published_at', String(now())]])) },
+      { t: 'Relay list (kind 10002)', look: 'The relays as a list.', run: sign(ev(10002, '', [['r', 'wss://relay.example.com'], ['r', 'wss://relay2.example.com', 'write']])) },
+      { t: 'An unrecognized kind (4999)', look: 'Says so, plainly, and still opens on rows or text.', run: sign(ev(4999, 'just words')) },
+    ] },
+    { id: 'warn', title: 'Signing: cards with a warning', why: 'The warning is the point; the code under it should not compete.', cases: [
+      { t: 'Delete request (kind 5)', look: 'Says it deletes other events.', run: sign(ev(5, 'lab', [['e', hex(64)]])) },
+      { t: 'Request to vanish (kind 62)', look: 'Says it asks relays to delete everything.', run: sign(ev(62, 'lab', [['relay', 'ALL_RELAYS']])) },
+      { t: 'Remote signing handshake (kind 24133)', look: 'The strong warning about handing over the account.', run: sign(ev(24133, NIP04_CT, [['p', PEER]])) },
+      { t: 'An empty follow list (kind 3)', look: 'The overwrite guard, if the account follows anyone.', run: sign(ev(3, '', [])) },
+      { t: 'An empty mute list (kind 10000)', look: 'The overwrite guard, if the account has mutes.', run: sign(ev(10000, '', [])) },
+    ] },
+    { id: 'seal', title: 'Encrypt and decrypt', why: 'The plaintext an app wants sealed, in every shape it turns up in.', cases: [
+      { t: 'Encrypt a sentence to yourself', look: 'The sentence, as written, with a padlock.', run: enc44('Dinner at seven. Bring wine.') },
+      { t: 'Encrypt a wallet connection to yourself', look: 'A wallet connection through its relays, string behind Show details, secret never shown.', run: enc44(WALLET) },
+      { t: 'Encrypt a JSON settings blob', look: 'Data with N fields, named; raw behind a link.', run: enc44(SETTINGS_JSON) },
+      { t: 'Encrypt a list', look: 'A list of N items.', run: enc44(JSON.stringify(['a', 'b', 'c'])) },
+      { t: 'Encrypt a long encoded string', look: 'Encoded data, N characters.', run: enc44(BLOB) },
+      { t: 'Encrypt a private key', look: 'A private key, named and never read out.', run: enc44('nsec1' + 'q'.repeat(58)) },
+      { t: 'Encrypt a lone link', look: 'A link to its host.', run: enc44('https://example.com/some/long/path?with=params&and=more') },
+      { t: 'Encrypt a sentence to someone else', look: 'A To row naming the recipient, as well as the text.', run: enc44('hello, you', PEER) },
+      { t: 'Encrypt a wallet connection to someone else', look: 'A To row AND the description (never the string).', run: enc44(WALLET, PEER) },
+      { t: 'Encrypt with NIP-04', look: 'The same card, the older cipher named.', run: enc04(WALLET) },
+      { t: 'Encrypt 2,000 characters', look: 'Clamped; Allow stays on screen.', run: enc44(LONG) },
+      { t: 'Decrypt (NIP-44), after sealing to yourself', look: 'Card 1 seals; card 2 asks to read it back, naming who from.', run: async () => { const ct = await window.nostr.nip44.encrypt(SELF, 'a secret note'); const pt = await window.nostr.nip44.decrypt(SELF, ct); return 'read back: ' + pt; } },
+      { t: 'Decrypt (NIP-04) a message from someone else', look: 'Says who it is from; no code.', run: async () => { await window.nostr.nip04.decrypt(PEER, NIP04_CT); return 'decrypted'; } },
+    ] },
+    { id: 'batch', title: 'Batches and a backlog', why: 'Several requests at once. One tap settles the lot, so each must be described in words.', cases: [
+      { t: 'Three notes at once', look: 'Allow all (3); each note listed.', run: async () => { const r = await Promise.allSettled([1, 2, 3].map((i) => window.nostr.signEvent(ev(1, 'burst note ' + i)))); return r.map((x) => x.status).join(', '); } },
+      { t: 'Two wallet connections to seal at once', look: 'Allow all (2); “Seal to yourself”, each a wallet connection with Show details.', run: async () => { const r = await Promise.allSettled([0, 1].map((i) => window.nostr.nip44.encrypt(SELF, WALLET + '&n=' + i))); return r.map((x) => x.status).join(', '); } },
+      { t: 'Three JSON settings events at once', look: 'Allow all (3); each listed by kind with its content described.', run: async () => { const r = await Promise.allSettled([1, 2, 3].map((i) => window.nostr.signEvent(ev(30078, JSON.stringify({ n: i, theme: 'dark' }), [['d', 'lab/b' + i]])))); return r.map((x) => x.status).join(', '); } },
+      { t: 'Mixed kinds at once', look: 'No “Allow all”: one card, and a strip saying more are waiting.', run: async () => { const r = await Promise.allSettled([window.nostr.signEvent(ev(1, 'a note')), window.nostr.signEvent(ev(7, '+', [['e', hex(64)]])), window.nostr.nip44.encrypt(SELF, 'text')]); return r.map((x) => x.status).join(', '); } },
+    ] },
+    { id: 'ln', title: 'Lightning (WebLN)', why: 'Payment cards carry invoices, node keys and a boostagram: the longest strings in the app. Read the card before Allow; nothing here can settle.', cases: [
+      { t: 'Wallet info', look: 'Says it wants to see your wallet info.', run: async () => JSON.stringify(await window.webln.getInfo()) },
+      { t: 'Wallet balance', look: 'Says it wants to see your balance.', run: async () => JSON.stringify(await window.webln.getBalance()) },
+      { t: 'Make an invoice (21 sats, with a memo)', look: 'The amount and the memo, no code.', run: async () => (await window.webln.makeInvoice({ amount: 21, defaultMemo: 'Coffee at the Blue Door' })).paymentRequest.slice(0, 24) + '…' },
+      { t: 'Pay an invoice (21 sats)', look: 'Pay 21 sats, the memo; the invoice itself behind a link, not printed.', run: async () => JSON.stringify(await window.webln.sendPayment(invoice('210n', 'Coffee at the Blue Door'))) },
+      { t: 'Pay a large invoice (10,000 sats)', look: 'The two-press “Confirm amount above” gate.', run: async () => JSON.stringify(await window.webln.sendPayment(invoice('100u', 'A large one'))) },
+      { t: 'Pay an invoice with no amount', look: 'Says the invoice sets no amount.', run: async () => JSON.stringify(await window.webln.sendPayment(invoice('', ''))) },
+      { t: 'Keysend with a boostagram', look: 'The podcast and message in words; the node key shortened; the record JSON not printed.', run: async () => JSON.stringify(await window.webln.keysend({ destination: '02' + hex(64), amount: 21, customRecords: { 7629169: JSON.stringify({ action: 'boost', podcast: 'The Lab Show', episode: 'Episode 1', message: 'Great episode', value_msat_total: 21000 }) } })) },
+    ] },
+  ];
+
+  const groupsEl = $('#groups');
+  const running = { n: 0 };
+  async function runCase(c, el) {
+    const out = $('.out', el);
+    if (!SELF && window.nostr) { try { SELF = await window.nostr.getPublicKey(); } catch (_) {} }
+    el.classList.add('now'); out.className = 'out'; out.textContent = 'waiting for you to answer the card…';
+    const t0 = performance.now();
+    try { const r = await c.run(); out.textContent = Math.round(performance.now() - t0) + ' ms · ' + r; }
+    catch (e) { out.className = 'out err'; out.textContent = Math.round(performance.now() - t0) + ' ms · ' + (e && e.message ? e.message : e); }
+    el.classList.remove('now');
+  }
+  for (const g of GROUPS) {
+    const h = document.createElement('h2'); h.id = g.id; h.textContent = g.title;
+    const walk = document.createElement('button'); walk.textContent = 'Walk this group'; h.appendChild(walk);
+    groupsEl.appendChild(h);
+    const why = document.createElement('p'); why.className = 'why'; why.textContent = g.why; groupsEl.appendChild(why);
+    const els = [];
+    for (const c of g.cases) {
+      const el = document.createElement('div'); el.className = 'case';
+      el.innerHTML = '<h3></h3><button class="go">Show card</button><p class="look"></p><div class="out"></div>';
+      $('h3', el).textContent = c.t; $('.look', el).textContent = c.look;
+      $('.go', el).addEventListener('click', () => runCase(c, el));
+      groupsEl.appendChild(el); els.push([c, el]);
+    }
+    walk.addEventListener('click', async () => { walk.disabled = true; for (const [c, el] of els) { el.scrollIntoView({ block: 'center' }); await runCase(c, el); } walk.disabled = false; });
+  }
+
+  function paint() {
+    const n = !!window.nostr, w = !!window.webln;
+    $('#nostr').textContent = 'window.nostr: ' + (n ? 'yes' : 'no'); $('#nostr').classList.toggle('ok', n);
+    $('#webln').textContent = 'window.webln: ' + (w ? 'yes' : 'no'); $('#webln').classList.toggle('ok', w);
+  }
+  paint(); setInterval(paint, 800);
+  $('#connect').addEventListener('click', async () => {
+    try { SELF = await window.nostr.getPublicKey(); $('#pk').textContent = 'npub key ' + SELF.slice(0, 12) + '… connected'; }
+    catch (e) { $('#pk').textContent = 'refused: ' + (e && e.message ? e.message : e); }
+  });
+</script>
