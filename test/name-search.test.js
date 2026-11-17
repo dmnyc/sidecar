@@ -60,13 +60,75 @@ const deps = (pool, extra) => Object.assign({ pool, verify: NT.verifyEvent, pubk
 beforeEach(() => { NS.reset(); clock += 10 * 60 * 1000; });
 
 test('the setting: its own key, an old "no" carried over, an old "yes" not', () => {
-  assert.equal(NS.decision({}), undefined);
-  assert.equal(NS.decision(null), undefined);
-  assert.equal(NS.decision({ nameSearch: true }), true);
-  assert.equal(NS.decision({ nameSearch: false }), false);
-  assert.equal(NS.decision({ nostrArchives: true }), undefined, 'a yes given to another service is not a yes to this one');
-  assert.equal(NS.decision({ nostrArchives: false }), false, 'a no is kept');
-  assert.equal(NS.decision({ nameSearch: true, nostrArchives: false }), true, 'the new answer wins');
+  assert.equal(NS.choice({}), undefined);
+  assert.equal(NS.choice(null), undefined);
+  for (const v of ['follows', 'account', 'default', 'custom']) assert.equal(NS.choice({ nameSearch: v }), v);
+  assert.equal(NS.choice({ nameSearch: true }), 'default', 'a yes written by an earlier build of this setting');
+  assert.equal(NS.choice({ nameSearch: false }), 'follows');
+  assert.equal(NS.choice({ nameSearch: 'anything else' }), undefined, 'an unknown value is not a choice');
+  assert.equal(NS.choice({ nostrArchives: true }), undefined, 'a yes given to another service is not a yes to this one');
+  assert.equal(NS.choice({ nostrArchives: false }), 'follows', 'a no is kept');
+  assert.equal(NS.choice({ nameSearch: 'default', nostrArchives: false }), 'default', 'the new answer wins');
+});
+
+test('the plan: what a setting means for an account, and what a yes would turn on', () => {
+  const mine = ['wss://mine.example', 'wss://theirs.example'];
+  // Nothing chosen: an account with search relays of its own is already using them.
+  assert.deepEqual(plain(NS.plan({}, mine)), { mode: 'on', source: 'account', relays: mine, account: mine, offer: { source: 'account', hosts: ['mine.example', 'theirs.example'] } });
+  // Nothing chosen and none: ask, and the offer is the default.
+  const ask = NS.plan({}, []);
+  assert.equal(ask.mode, 'ask');
+  assert.deepEqual(plain(ask.offer), { source: 'default', hosts: ['search.brainstorm.world'] });
+  // Follows only stays follows only, however many relays the account has; a yes offers its own.
+  const off = NS.plan({ nameSearch: 'follows' }, mine);
+  assert.equal(off.mode, 'off');
+  assert.equal(off.offer.source, 'account');
+  assert.equal(NS.plan({ nameSearch: 'follows' }, []).offer.source, 'default');
+  // The default, and one typed in.
+  assert.deepEqual(plain(NS.plan({ nameSearch: 'default' }, null).relays), ['wss://search.brainstorm.world']);
+  assert.deepEqual(plain(NS.plan({ nameSearch: 'custom', nameSearchRelay: 'wss://typed.example' }, null).relays), ['wss://typed.example']);
+  assert.equal(NS.plan({ nameSearch: 'custom', nameSearchRelay: 'ws://typed.example' }, null).mode, 'off', 'plain ws is not used');
+  // "My search relays" with none published is not a search.
+  assert.equal(NS.plan({ nameSearch: 'account' }, []).mode, 'off');
+});
+
+test('a relay address someone typed: wss only, no credentials, no spaces', () => {
+  assert.equal(NS.cleanRelay('  wss://search.example/path  '), 'wss://search.example/path');
+  for (const bad of ['ws://x.example', 'https://x.example', 'wss://u:p@x.example', 'wss://x .example', 'x.example', '', null, undefined, 'wss://' + 'a'.repeat(250)]) {
+    assert.equal(NS.cleanRelay(bad), null, String(bad));
+  }
+});
+
+test('resolve reads the account’s relays only for the sources that use them', async () => {
+  const asked = [];
+  const pool = { subscribeMany(relays, filter, params) { asked.push(filter.kinds[0]); setTimeout(() => params.oneose(), 0); return { close() {} }; } };
+  const d = { pool: () => pool, pubkey: ME, readRelays: async () => ['wss://mine.example'] };
+  await NS.resolve({ nameSearch: 'default' }, d);
+  await NS.resolve({ nameSearch: 'custom', nameSearchRelay: 'wss://typed.example' }, d);
+  assert.deepEqual(asked, [], 'the default and a typed relay never read the account’s list');
+  await NS.resolve({}, d);
+  assert.deepEqual(asked, [10007]);
+});
+
+test('silence is not "no search relays": a list that was not answered is read again soon, not in ten minutes', async () => {
+  let answer = false;
+  let reads = 0;
+  const pool = { subscribeMany(relays, filter, params) {
+    reads++;
+    setTimeout(() => { if (answer) params.oneose(); else params.onclose([]); }, 0);
+    return { close() {} };
+  } };
+  const d = { pool: () => pool, pubkey: ME, readRelays: async () => ['wss://mine.example'] };
+  await NS.resolve({}, d);
+  await NS.resolve({}, d);
+  assert.equal(reads, 1, 'asked once, and not again on the next keystroke');
+  clock += 31 * 1000;
+  answer = true;
+  await NS.resolve({}, d);
+  assert.equal(reads, 2, 'after half a minute the silent read is retried');
+  clock += 60 * 1000;
+  await NS.resolve({}, d);
+  assert.equal(reads, 2, 'an answer is kept');
 });
 
 test('typed text is cleaned: instructions to the relay, control characters and exclusions are dropped', () => {

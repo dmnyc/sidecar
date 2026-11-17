@@ -388,7 +388,7 @@
   // service whose trade (it sees what you type) the user is asked about exactly once.
   const NS = window.SidecarNameSearch;
   const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
-  // Tri-state memo: undefined = never asked, true/false = decided. Read straight
+  // Memo of the settings: the source chosen (or none yet) and a relay typed in. Read straight
   // from storage rather than through call(), so autocomplete keystrokes cannot wake
   // the service worker; after that it is memoized, and storage.onChanged keeps this
   // document current — the one thing the panel's memo cannot do for itself, because
@@ -396,27 +396,42 @@
   // from the one writing this note.
   let naSettingMemo;
   let naSettingLoaded = false;
-  function naSetting() {
+  let naOffer = { source: 'default', hosts: [NS.HOST] }; // what a yes would turn on, from the last plan
+  function naSettings() {
     if (naSettingLoaded) return Promise.resolve(naSettingMemo);
     return new Promise((resolve) =>
       chrome.storage.local.get('sidecar_settings', (r) => {
         naSettingLoaded = true;
-        naSettingMemo = NS.decision((r && r.sidecar_settings) || {});
+        naSettingMemo = (r && r.sidecar_settings) || {};
         resolve(naSettingMemo);
       }));
   }
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes.sidecar_settings) return;
     naSettingLoaded = true;
-    naSettingMemo = NS.decision(changes.sidecar_settings.newValue || {});
+    naSettingMemo = changes.sidecar_settings.newValue || {};
   });
+  async function naPlan() {
+    const pubkey = state && state.activePubkey;
+    const plan = await NS.resolve(await naSettings(), {
+      pool: () => pool(), pubkey, readRelays: () => relayUrls(false),
+    });
+    naOffer = plan.offer;
+    return plan;
+  }
+  // true: a search runs. false: the follows only. undefined: nothing chosen yet, so ask.
+  async function naSetting() {
+    const plan = await naPlan();
+    return plan.mode === 'on' ? true : plan.mode === 'off' ? false : undefined;
+  }
   // Either button on the ask writes the decision. The memo is set first,
   // optimistically: if the write somehow fails, showing the ask again right after
   // a deliberate "Just my follows" would be worse than re-asking next session.
   async function naDecide(on) {
+    const source = on ? naOffer.source : 'follows';
     naSettingLoaded = true;
-    naSettingMemo = on;
-    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: on } }); } catch (_) {}
+    naSettingMemo = Object.assign({}, naSettingMemo || {}, { [NS.KEY]: source });
+    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: source } }); } catch (_) {}
   }
   // The ask itself, rendered where the search spinner would sit in the dropdown.
   // mousedown + preventDefault like the result rows: a plain click would blur the
@@ -426,7 +441,9 @@
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
-      textContent: t('Also search names beyond your follows? This uses a search relay ({{host}}) that sees what you type.', { host: NS.HOST }),
+      textContent: naOffer.source === 'account'
+        ? t('Find people beyond your follows? Search will use your search relays ({{hosts}}). Change this in Settings.', { hosts: naOffer.hosts.join(', ') })
+        : t('Find people beyond your follows? Search defaults to {{name}}’s relay. Change this in Settings.', { name: NS.NAME }),
     }));
     const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: t('Search everyone') });
     const no = h('button', { className: 'na-ask-no', type: 'button', textContent: t('Just my follows') });
@@ -448,11 +465,12 @@
   // after one backs off for a short while rather than waiting out a timeout per keystroke.
   async function naSuggest(query) {
     if (!query || query.length < 2 || !naAvailable()) return [];
-    if ((await naSetting()) !== true) return [];
+    const plan = await naPlan();
+    if (plan.mode !== 'on') return [];
     try {
       const pubkey = state && state.activePubkey;
       const { results, failed } = await NS.search(query, {
-        pool: pool(), verify: NT.verifyEvent, pubkey, readRelays: () => relayUrls(false),
+        plan, pool: pool(), verify: NT.verifyEvent, pubkey, readRelays: () => relayUrls(false),
       });
       if (failed) naBackoff(30);
       return results.map((r) => {
@@ -2009,6 +2027,7 @@
       document.documentElement.classList.remove('compose-booting');
       return;
     }
+    naPlan().catch(() => {}); // reads the account's search relays now, so the first @ does not wait for them
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
     applyTheme(settings, state.activePubkey);
     reduceMotion = !!(settings && settings.reduceBalanceMotion);

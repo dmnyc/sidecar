@@ -6,13 +6,20 @@
 // signature has to verify, and the key it names is the key it belongs to. Nothing is taken
 // on the relay's word.
 //
-// WHAT IT SENDS. The text typed, to one relay, and nothing about the account: the relay ranks
-// by a web-of-trust viewpoint of its own (the "house" observer below), so no pubkey goes with
-// the query. It is opt-in, asked once, and the page owns the ask.
+// WHO ANSWERS IS THE USER'S CHOICE. Four sources: only the follows (nothing is sent), the
+// account's own search relays (the public part of its kind 10007 list), the default
+// relay below, or a relay the user types in. An account that has published search relays
+// is already using them, with no question asked: it named them for exactly this. Only the
+// default is ours, and it is the only one that is asked about, once.
 //
-// WHEN THE RELAY IS DOWN. It is not the only way: after a failure the account's own search
-// relays (the public part of its kind 10007 list) are asked instead, and for the next minute
-// the search goes straight to them rather than making every keystroke wait out a timeout.
+// WHAT IT SENDS. The text typed, to the chosen relays, and nothing about the account. The
+// default relay ranks by a web-of-trust viewpoint of its own (the "house" observer below), so
+// no pubkey goes with the query. The page owns the ask.
+//
+// WHEN THE DEFAULT IS DOWN. After a failure the account's own search relays are asked
+// instead, and for the next minute the search goes straight to them rather than making every
+// keystroke wait out a timeout. A relay the user chose is never swapped for another: if it
+// does not answer, the answer is that it did not.
 //
 // Isolated so it can be run on its own — see test/name-search.test.js.
 
@@ -26,17 +33,24 @@
   const SEARCH_RELAY = 'wss://search.brainstorm.world';
   const HOUSE_OBSERVER = 'be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a';
   const HOST = 'search.brainstorm.world';
+  const NAME = 'Brainstorm'; // what the default is called to a person
 
-  // The setting, tri-state: undefined = never asked, true / false = decided. It is its own
-  // key and not the one the previous index used: that answer was about a different service,
-  // and a new service is asked about afresh. A "no" is carried over, though. Someone who
-  // said no to a name index has not asked to be asked again.
+  // The setting: where names beyond the follows are looked up. 'follows' | 'account' |
+  // 'default' | 'custom', or undefined while nothing has been chosen. It is its own key and
+  // not the one the previous index used: that answer was about a different service. A "no"
+  // is carried over, though: someone who said no to a name index has not asked to be asked
+  // again. (A true or false written by an earlier build of this setting reads as the default
+  // and as follows-only.) A custom relay is kept beside it under CUSTOM_KEY.
   const KEY = 'nameSearch';
+  const CUSTOM_KEY = 'nameSearchRelay';
   const LEGACY_KEY = 'nostrArchives';
-  function decision(settings) {
+  const SOURCES = ['follows', 'account', 'default', 'custom'];
+  function choice(settings) {
     const s = settings || {};
-    if (s[KEY] === true || s[KEY] === false) return s[KEY];
-    return s[LEGACY_KEY] === false ? false : undefined;
+    if (SOURCES.includes(s[KEY])) return s[KEY];
+    if (s[KEY] === true) return 'default';
+    if (s[KEY] === false) return 'follows';
+    return s[LEGACY_KEY] === false ? 'follows' : undefined;
   }
 
   const HEX64 = /^[0-9a-f]{64}$/i;
@@ -45,6 +59,8 @@
   const ASK_MS = 4000;
   const DOWN_MS = 60 * 1000;
   const LIST_TTL_MS = 10 * 60 * 1000;
+  const RETRY_MS = 30 * 1000;
+  const LIST_ASK_MS = 1500; // a healthy relay answers well inside this; a dead one must not hold the dropdown
 
   // What was typed, made safe to put in a NIP-50 search string. The relay reads `key:value`
   // words and a leading minus as instructions (a different viewpoint, no spam floor, an
@@ -58,7 +74,15 @@
     return words.join(' ').slice(0, MAX_QUERY).trim();
   }
 
-  const wsUrl = (u) => typeof u === 'string' && /^wss:\/\/[^\s/]+(\/[^\s]*)?$/i.test(u);
+  const wsUrl = (u) => typeof u === 'string' && /^wss:\/\/[^\s/@]+(\/[^\s]*)?$/i.test(u);
+  const sameRelay = (a, b) => String(a).replace(/\/+$/, '').toLowerCase() === String(b).replace(/\/+$/, '').toLowerCase();
+  // A relay address someone typed: wss only, no credentials, no spaces, a sane length. Anything
+  // else is not used, rather than repaired into something they did not write.
+  function cleanRelay(v) {
+    const u = typeof v === 'string' ? v.trim() : '';
+    return u.length <= 200 && wsUrl(u) ? u : null;
+  }
+  function hostOf(u) { try { return new URL(u).host; } catch (_) { return String(u); } }
 
   // One question to some relays, with a clock. { events, answered }: answered means at least
   // one relay said it was done (EOSE), so an empty list is a real "no match" and not a
@@ -121,30 +145,87 @@
   // reads it. Private entries, which are encrypted, are not read: this is a fallback and
   // not a reason to decrypt anything.
   const lists = new Map();
-  async function accountSearchRelays(pool, pubkey, readRelays) {
+  async function accountSearchRelays(poolOrGetter, pubkey, readRelays) {
     if (!HEX64.test(pubkey || '')) return [];
     const hit = lists.get(pubkey);
     if (hit && Date.now() - hit.at < LIST_TTL_MS) return hit.relays;
+    // One read at a time per account: every key typed before the first answer would otherwise
+    // start its own.
+    if (!reading.has(pubkey)) {
+      const p = readAccountList(poolOrGetter, pubkey, readRelays);
+      reading.set(pubkey, p);
+      p.then(() => reading.delete(pubkey), () => reading.delete(pubkey));
+    }
+    return reading.get(pubkey);
+  }
+  const reading = new Map();
+  async function readAccountList(poolOrGetter, pubkey, readRelays) {
     let urls = [];
+    let answered = false;
     try {
       const from = (await readRelays()) || [];
       if (from.length) {
-        const { events } = await ask(pool, from, { kinds: [10007], authors: [pubkey], limit: 1 }, ASK_MS);
+        const pool = typeof poolOrGetter === 'function' ? poolOrGetter() : poolOrGetter;
+        const got = await ask(pool, from, { kinds: [10007], authors: [pubkey], limit: 1 }, LIST_ASK_MS);
+        answered = got.answered;
+        const events = got.events;
         const own = (events || []).filter((e) => e && e.kind === 10007 && e.pubkey === pubkey)
           .sort((a, b) => (b.created_at - a.created_at) || (a.id < b.id ? 1 : -1))[0];
         urls = own ? (own.tags || []).filter((t) => Array.isArray(t) && t[0] === 'relay' && wsUrl(t[1])).map((t) => t[1]) : [];
       }
     } catch (_) { urls = []; }
-    const relays = [...new Set(urls)].filter((u) => u.replace(/\/+$/, '') !== SEARCH_RELAY).slice(0, 3);
-    lists.set(pubkey, { at: Date.now(), relays });
+    const relays = [...new Set(urls)].slice(0, 3);
+    // An answer is kept for a while; silence is kept only briefly, so a relay that was slow to
+    // connect is not read as "this account has no search relays" for ten minutes.
+    lists.set(pubkey, { at: Date.now() - (answered ? 0 : LIST_TTL_MS - RETRY_MS), relays });
     return relays;
   }
 
-  // When the main relay last failed. For a minute after, a search goes straight to the
+  // What the setting means for this account right now. `account` is the account's own search
+  // relays (null when they have not been read, which is only ever the case for a source that
+  // does not use them). { mode, source, relays, account, offer }:
+  //   mode   'on' a search runs, 'off' the follows only, 'ask' nothing chosen yet
+  //   offer  what saying yes would turn on: the account's relays if it has any, else the default
+  function plan(settings, account) {
+    const c = choice(settings);
+    const own = Array.isArray(account) ? account : null;
+    const dflt = { source: 'default', hosts: [HOST] };
+    const offer = own && own.length ? { source: 'account', hosts: own.map(hostOf) } : dflt;
+    const on = (source, relays) => ({ mode: 'on', source, relays, account: own || [], offer: { source, hosts: relays.map(hostOf) } });
+    if (c === 'default') return on('default', [SEARCH_RELAY]);
+    if (c === 'custom') {
+      const r = cleanRelay((settings || {})[CUSTOM_KEY]);
+      return r ? on('custom', [r]) : { mode: 'off', source: 'follows', relays: [], account: own || [], offer: dflt };
+    }
+    if (c === 'account') return own && own.length ? on('account', own) : { mode: 'off', source: 'follows', relays: [], account: [], offer: dflt };
+    if (c === undefined) return own && own.length ? on('account', own) : { mode: 'ask', source: undefined, relays: [], account: [], offer: dflt };
+    return { mode: 'off', source: 'follows', relays: [], account: own || [], offer };
+  }
+  // The account's relays are read only for the sources that use them, and then once in a while.
+  const usesAccount = (c) => c !== 'default' && c !== 'custom';
+  async function resolve(settings, deps) {
+    const own = usesAccount(choice(settings)) ? await accountSearchRelays(deps.pool, deps.pubkey, deps.readRelays || (async () => [])) : null;
+    return plan(settings, own);
+  }
+
+  // One question to the chosen relays. The default relay is asked the way it wants (a viewpoint
+  // named, which it requires); any other relay is asked the text alone. { events, answered }.
+  async function askChosen(pool, relays, q) {
+    const main = relays.filter((r) => sameRelay(r, SEARCH_RELAY));
+    const rest = relays.filter((r) => !sameRelay(r, SEARCH_RELAY));
+    const asks = [];
+    if (main.length) asks.push(ask(pool, main, { kinds: [0], search: q + ' observer:' + HOUSE_OBSERVER, limit: LIMIT }, ASK_MS));
+    if (rest.length) asks.push(ask(pool, rest, { kinds: [0], search: q, limit: LIMIT }, ASK_MS));
+    const got = await Promise.all(asks);
+    return { events: got.flatMap((g) => g.events), answered: got.some((g) => g.answered) };
+  }
+
+  // When the default relay last failed. For a minute after, a search goes straight to the
   // account's own search relays; a relay that is down is not asked on every keystroke.
   let downUntil = 0;
 
   // The whole search. deps:
+  //   plan       from plan()/resolve(); without one the default relay is used
   //   pool       a SimplePool (subscribeMany)
   //   verify     the signature check (nostr-tools' verifyEvent)
   //   pubkey     the active account, for its search relay list
@@ -155,21 +236,28 @@
     const q = cleanQuery(text);
     if (q.length < 2) return { results: [], failed: false };
     const { pool, verify } = deps;
+    const p = deps.plan || plan({ [KEY]: 'default' }, null);
+    if (p.mode !== 'on') return { results: [], failed: false };
+    if (p.source !== 'default') {
+      // The user's own choice: those relays, and no others.
+      const r = await askChosen(pool, p.relays.slice(0, 3), q);
+      return { results: profiles(r.events, verify), failed: !r.answered };
+    }
     if (Date.now() >= downUntil) {
       const r = await ask(pool, [SEARCH_RELAY], { kinds: [0], search: q + ' observer:' + HOUSE_OBSERVER, limit: LIMIT }, ASK_MS);
       if (r.answered) return { results: profiles(r.events, verify), failed: false };
       downUntil = Date.now() + DOWN_MS;
     }
-    const own = await accountSearchRelays(pool, deps.pubkey, deps.readRelays || (async () => []));
+    const own = (await accountSearchRelays(pool, deps.pubkey, deps.readRelays || (async () => []))).filter((u) => !sameRelay(u, SEARCH_RELAY));
     if (!own.length) return { results: [], failed: true };
     const r = await ask(pool, own, { kinds: [0], search: q, limit: LIMIT }, ASK_MS);
     return { results: profiles(r.events, verify), failed: !r.answered };
   }
 
   // For tests: forget what a run remembered.
-  function reset() { downUntil = 0; lists.clear(); }
+  function reset() { downUntil = 0; lists.clear(); reading.clear(); }
 
-  const api = { SEARCH_RELAY, HOUSE_OBSERVER, HOST, KEY, LEGACY_KEY, decision, cleanQuery, profiles, search, reset };
+  const api = { SEARCH_RELAY, HOUSE_OBSERVER, HOST, NAME, KEY, CUSTOM_KEY, LEGACY_KEY, SOURCES, choice, cleanRelay, hostOf, plan, resolve, cleanQuery, profiles, search, reset };
   if (typeof self !== 'undefined') self.SidecarNameSearch = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarNameSearch = api;
 })();

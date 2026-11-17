@@ -2275,6 +2275,7 @@
     $('search-btn').setAttribute('aria-expanded', 'true');
     setSearchStatus('');
     paintSearchModeIcon();
+    naPlan().catch(() => {}); // reads the account's search relays now, so the first key does not wait for them
     $('search-input').focus();
   }
 
@@ -12242,7 +12243,7 @@
       sharedHeadsUp = { dismissed: false, optedOut: false };
       toast(t('The multi-account note will show again'), 'success');
     });
-    $('na-toggle').checked = NS.decision(settings) === true; // tri-state: unset and false both render off (privacy: what you type leaves your relays)
+    paintNameSearchSetting(settings);
     $('livevideo-toggle').checked = settings.liveVideoEnabled !== false;
     $('pinbalance-toggle').checked = settings.pinBalanceBar === true; // default off
     $('btc-sweep-toggle').checked = settings.btcSweep === true; // default off — nothing is looked up until it is on
@@ -13867,26 +13868,45 @@
   // in the same frame as the follow matches. Every writer updates the memo too
   // (naDecide, the Settings toggle listener), and both live in this document,
   // so it cannot drift from what's stored.
+  // The memo is the whole settings object now (the source, and a relay typed in), and the
+  // answer is worked out from it: a search runs, only the follows, or nothing chosen yet
+  // (name-search.js plan). The account's own search relays are read only for the sources
+  // that use them, and are cached there.
   let naSettingMemo;
   let naSettingLoaded = false;
-  function naSetting() {
+  let naOffer = { source: 'default', hosts: [NS.HOST] }; // what a yes would turn on, from the last plan
+  function naSettings() {
     if (naSettingLoaded) return Promise.resolve(naSettingMemo);
     return new Promise((resolve) =>
       chrome.storage.local.get('sidecar_settings', (r) => {
         naSettingLoaded = true;
-        naSettingMemo = NS.decision((r && r.sidecar_settings) || {});
+        naSettingMemo = (r && r.sidecar_settings) || {};
         resolve(naSettingMemo);
       }));
   }
-  function naSetSettingMemo(on) { naSettingLoaded = true; naSettingMemo = on; }
+  function naSetSettingMemo(patch) { naSettingLoaded = true; naSettingMemo = Object.assign({}, naSettingMemo || {}, patch); }
+  async function naPlan() {
+    const pubkey = state && state.activePubkey;
+    const plan = await NS.resolve(await naSettings(), {
+      pool: () => getPool(), pubkey, readRelays: () => readRelayUrls(pubkey),
+    });
+    naOffer = plan.offer;
+    return plan;
+  }
+  // true: a search runs. false: the follows only. undefined: nothing chosen yet, so ask.
+  async function naSetting() {
+    const plan = await naPlan();
+    return plan.mode === 'on' ? true : plan.mode === 'off' ? false : undefined;
+  }
   async function naEnabled() { return (await naSetting()) === true; }
   // Either button on the ask writes the decision — a click may wake the service
   // worker, unlike the read above. The memo is set first, optimistically: if
   // the write somehow fails, showing the ask again right after a deliberate
   // "Just my follows" would be worse than re-asking next session.
   async function naDecide(on) {
-    naSetSettingMemo(on);
-    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: on } }); } catch (_) {}
+    const source = on ? naOffer.source : 'follows';
+    naSetSettingMemo({ [NS.KEY]: source });
+    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: source } }); } catch (_) {}
   }
   // The ask itself, rendered where the search spinner would sit in whichever
   // surface fired first — the composer's @-mention dropdown or the topbar search
@@ -13901,7 +13921,9 @@
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
-      textContent: t('Also search names beyond your follows? This uses a search relay ({{host}}) that sees what you type.', { host: NS.HOST }),
+      textContent: naOffer.source === 'account'
+        ? t('Find people beyond your follows? Search will use your search relays ({{hosts}}). Change this in Settings.', { hosts: naOffer.hosts.join(', ') })
+        : t('Find people beyond your follows? Search defaults to {{name}}’s relay. Change this in Settings.', { name: NS.NAME }),
     }));
     const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: t('Search everyone') });
     const no = h('button', { className: 'na-ask-no', type: 'button', textContent: t('Just my follows') });
@@ -13924,11 +13946,12 @@
   // after one backs off for a short while rather than waiting out a timeout per keystroke.
   async function naSuggest(query) {
     if (!query || query.length < 2 || !naAvailable()) return [];
-    if (!(await naEnabled())) return [];
+    const plan = await naPlan();
+    if (plan.mode !== 'on') return [];
     try {
       const pubkey = state.activePubkey;
       const { results, failed } = await NS.search(query, {
-        pool: getPool(), verify: NT.verifyEvent, pubkey, readRelays: () => readRelayUrls(pubkey),
+        plan, pool: getPool(), verify: NT.verifyEvent, pubkey, readRelays: () => readRelayUrls(pubkey),
       });
       if (failed) naBackoff(30);
       return results.map((r) => {
@@ -26028,10 +26051,47 @@
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { relaxPerAccount: e.target.checked } });
   });
 
-  $('na-toggle').addEventListener('change', async (e) => {
-    naSetSettingMemo(e.target.checked); // keep this document's ask/gate in sync with the write
+  // Global name search: whose relay answers a name that is not among your follows. Their own
+  // search relays are selected on their own, for an account that has published some: it named
+  // them for this. Nothing chosen and none published reads as follows only, which is true.
+  async function paintNameSearchSetting(settings) {
+    const sel = $('na-source');
+    const custom = $('na-custom');
+    const pubkey = state && state.activePubkey;
+    const { account } = await NS.resolve({}, { pool: () => getPool(), pubkey, readRelays: () => readRelayUrls(pubkey) });
+    const c = NS.choice(settings);
+    const value = c || (account.length ? 'account' : 'follows');
+    sel.value = value;
+    custom.value = settings[NS.CUSTOM_KEY] || '';
+    custom.classList.toggle('hidden', value !== 'custom');
+    $('na-hint').textContent = value === 'account'
+      ? (account.length
+        ? t('Searches your search relays: {{hosts}}.', { hosts: account.map(NS.hostOf).join(', ') })
+        : t('You have no search relay list yet, so only your follows are searched.'))
+      : value === 'default' ? t('Searches Brainstorm’s relay, which sees what you type.')
+        : value === 'custom' ? t('Searches the relay you enter. It sees what you type.')
+          : t('Names come from your follows only. Nothing is sent.');
+  }
+  async function saveNameSearch(patch) {
+    naSetSettingMemo(patch); // keep this document's ask/gate in sync with the write
+    await call({ type: 'SIDECAR_SET_SETTINGS', settings: patch });
     paintSearchModeIcon(); // the scope chip shows the same answer
-    await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: e.target.checked } });
+    paintNameSearchSetting(await naSettings());
+  }
+  $('na-source').addEventListener('change', async (e) => {
+    const value = e.target.value;
+    if (value !== 'custom') { await saveNameSearch({ [NS.KEY]: value }); return; }
+    // A relay of one's own is used once there is a valid address for it.
+    const saved = NS.cleanRelay((await naSettings())[NS.CUSTOM_KEY]);
+    $('na-custom').classList.remove('hidden');
+    if (saved) { await saveNameSearch({ [NS.KEY]: 'custom' }); return; }
+    $('na-hint').textContent = t('Enter a wss:// address.');
+    $('na-custom').focus();
+  });
+  $('na-custom').addEventListener('change', async (e) => {
+    const relay = NS.cleanRelay(e.target.value);
+    if (!relay) { $('na-hint').textContent = t('Enter a wss:// address.'); return; }
+    await saveNameSearch({ [NS.KEY]: 'custom', [NS.CUSTOM_KEY]: relay });
   });
 
   $('hidebalance-toggle').addEventListener('change', async (e) => {

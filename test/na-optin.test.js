@@ -20,13 +20,16 @@ const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 // A pool that records every subscription and answers each with one profile and EOSE.
-function fakePool() {
+function fakePool({ list } = {}) {
   const asked = [];
   return {
     asked,
     subscribeMany(relays, filter, params) {
       asked.push({ relays, filter });
       setTimeout(() => {
+        if (list && filter.kinds && filter.kinds[0] === 10007) {
+          params.onevent({ kind: 10007, id: 'd'.repeat(64), pubkey: 'c'.repeat(64), created_at: 9, sig: 's', tags: list.map((u) => ['relay', u]), content: '' });
+        }
         if (filter.kinds && filter.kinds[0] === 0) {
           params.onevent({ kind: 0, id: 'e'.repeat(64), pubkey: 'a'.repeat(64), created_at: 5, sig: 's', tags: [], content: JSON.stringify({ name: 'Alice' }) });
         }
@@ -37,7 +40,7 @@ function fakePool() {
   };
 }
 
-function build(file, { enabled, legacy, pool }) {
+function build(file, { enabled, legacy, pool, custom, list }) {
   const source = read(file);
   const lift = (pattern, label) => {
     const m = source.match(pattern);
@@ -47,6 +50,7 @@ function build(file, { enabled, legacy, pool }) {
   const settings = {};
   if (enabled !== undefined) settings.nameSearch = enabled;
   if (legacy !== undefined) settings.nostrArchives = legacy;
+  if (custom !== undefined) settings.nameSearchRelay = custom;
   const listeners = [];
   const ctx = {
     console, Date, setTimeout, clearTimeout,
@@ -56,8 +60,8 @@ function build(file, { enabled, legacy, pool }) {
     call: async () => {},
     getPool: () => pool,
     pool: () => pool,
-    readRelayUrls: async () => [],
-    relayUrls: async () => [],
+    readRelayUrls: async () => (list ? ['wss://mine.example'] : []),
+    relayUrls: async () => (list ? ['wss://mine.example'] : []),
     chrome: {
       storage: {
         local: { get: (key, cb) => cb({ sidecar_settings: settings }) },
@@ -74,9 +78,7 @@ function build(file, { enabled, legacy, pool }) {
     lift(/const isHex64 = \(s\) =>[^\n]*\n/, 'isHex64'),
     lift(/let naCooldownUntil = 0;[\s\S]*?const naAvailable[^\n]*\n/, 'cooldown helpers'),
     lift(/function naBackoff\(retryAfter\) \{[\s\S]*?\n  \}/, 'naBackoff'),
-    lift(/let naSettingMemo;[\s\S]*?let naSettingLoaded = false;\n/, 'memo state'),
-    lift(/function naSetting\(\) \{[\s\S]*?\n  \}/, 'naSetting'),
-    panel ? lift(/function naSetSettingMemo\(on\) \{[^\n]*\n/, 'naSetSettingMemo') : '',
+    lift(/let naSettingMemo;[\s\S]*?async function naSetting\(\) \{[\s\S]*?\n  \}/, 'settings memo and plan'),
     panel ? lift(/async function naEnabled\(\) \{[^\n]*\n/, 'naEnabled') : '',
     lift(/async function naDecide\(on\) \{[\s\S]*?\n  \}/, 'naDecide'),
     lift(/async function naSuggest\(query\) \{[\s\S]*?\n  \}/, 'naSuggest'),
@@ -86,53 +88,109 @@ function build(file, { enabled, legacy, pool }) {
   return { ctx, pool, listeners };
 }
 
+const plain = (x) => JSON.parse(JSON.stringify(x));
+
 for (const [label, file] of [['side panel', 'sidepanel.js'], ['expanded composer', 'compose.js']]) {
-  test(label + ', setting unset (never asked): nothing leaves — the ask is the only enabler', async () => {
+  test(label + ', nothing chosen and no search relays of the account’s own: nothing leaves, and the ask is due', async () => {
     const { ctx, pool } = build(file, { enabled: undefined, pool: fakePool() });
+    assert.equal(await ctx.naSetting(), undefined, 'undefined means ask');
     assert.equal((await ctx.naSuggest('alice')).length, 0);
     assert.equal(pool.asked.length, 0, 'no request may leave before the one-time ask is answered');
   });
 
-  test(label + ', setting off: nothing leaves and the answer is empty', async () => {
-    const { ctx, pool } = build(file, { enabled: false, pool: fakePool() });
-    assert.equal((await ctx.naSuggest('alice')).length, 0);
-    assert.equal(pool.asked.length, 0, 'no request may leave with the search off');
+  test(label + ', follows only: nothing leaves and the answer is empty', async () => {
+    for (const enabled of ['follows', false]) {
+      const { ctx, pool } = build(file, { enabled, pool: fakePool() });
+      assert.equal(await ctx.naSetting(), false);
+      assert.equal((await ctx.naSuggest('alice')).length, 0);
+      assert.equal(pool.asked.length, 0, 'no request may leave with the search off');
+    }
   });
 
-  test(label + ', setting on: the search relay is asked, and a profile comes back as a name', async () => {
-    const { ctx, pool } = build(file, { enabled: true, pool: fakePool() });
+  test(label + ', the default: the search relay is asked, and a profile comes back as a name', async () => {
+    for (const enabled of ['default', true]) { // true is what an earlier build of the setting wrote
+      const { ctx, pool } = build(file, { enabled, pool: fakePool() });
+      const out = await ctx.naSuggest('alice');
+      assert.equal(pool.asked.length, 1);
+      assert.deepEqual(plain(pool.asked[0].relays), ['wss://search.brainstorm.world']);
+      assert.match(pool.asked[0].filter.search, / observer:[0-9a-f]{64}$/, 'the default relay is asked with a viewpoint');
+      assert.equal(out.length, 1);
+      assert.equal(out[0].name, 'Alice');
+      assert.equal(out[0].pubkey, 'a'.repeat(64));
+    }
+  });
+
+  test(label + ', an account that has published search relays uses them with no question asked, and no viewpoint is sent', async () => {
+    const { ctx, pool } = build(file, { enabled: undefined, list: ['wss://mine.example', 'wss://theirs.example'], pool: fakePool({ list: ['wss://mine.example', 'wss://theirs.example'] }) });
+    assert.equal(await ctx.naSetting(), true, 'nothing to ask: they named these relays for this');
     const out = await ctx.naSuggest('alice');
-    assert.equal(pool.asked.length, 1);
-    assert.deepEqual(JSON.parse(JSON.stringify(pool.asked[0].relays)), ['wss://search.brainstorm.world']);
+    const searches = pool.asked.filter((a) => a.filter.kinds[0] === 0);
+    assert.equal(searches.length, 1);
+    assert.deepEqual(plain(searches[0].relays), ['wss://mine.example', 'wss://theirs.example']);
+    assert.equal(searches[0].filter.search, 'alice', 'a relay that is not the default is sent the text and nothing else');
     assert.equal(out.length, 1);
-    assert.equal(out[0].name, 'Alice');
-    assert.equal(out[0].pubkey, 'a'.repeat(64));
+    assert.ok(!pool.asked.some((a) => a.relays.includes('wss://search.brainstorm.world')), 'the default is never contacted');
   });
 
-  test(label + ', answering the ask yes is the enabler end to end: decide(true), then the search asks', async () => {
-    // Storage still reports unset (the write goes through the worker, absent here); the memo
-    // naDecide sets is what lets the search proceed. This pins the wiring from the ask's
-    // button to the gate without a DOM.
-    const { ctx, pool } = build(file, { enabled: undefined, pool: fakePool() });
-    assert.equal(pool.asked.length, 0);
-    await ctx.naDecide(true);
+  test(label + ', their own relay list that includes the default is asked the way the default wants', async () => {
+    const list = ['wss://mine.example', 'wss://search.brainstorm.world'];
+    const { ctx, pool } = build(file, { enabled: 'account', list, pool: fakePool({ list }) });
     await ctx.naSuggest('alice');
-    assert.equal(pool.asked.length, 1, 'after deciding yes, the search must fire without a reload');
+    const searches = pool.asked.filter((a) => a.filter.kinds[0] === 0);
+    const main = searches.find((a) => a.relays.includes('wss://search.brainstorm.world'));
+    const rest = searches.find((a) => a.relays.includes('wss://mine.example'));
+    assert.match(main.filter.search, / observer:[0-9a-f]{64}$/);
+    assert.equal(rest.filter.search, 'alice');
+  });
+
+  test(label + ', a relay typed in is the only one asked, and a bad address is not used', async () => {
+    const good = build(file, { enabled: 'custom', custom: 'wss://typed.example', pool: fakePool() });
+    assert.equal(await good.ctx.naSetting(), true);
+    await good.ctx.naSuggest('alice');
+    assert.deepEqual(plain(good.pool.asked.map((a) => a.relays)), [['wss://typed.example']]);
+    for (const custom of ['http://typed.example', 'wss://user:pw@typed.example', 'typed.example', '', 'wss://a b.example']) {
+      const bad = build(file, { enabled: 'custom', custom, pool: fakePool() });
+      assert.equal(await bad.ctx.naSetting(), false, JSON.stringify(custom));
+      assert.equal((await bad.ctx.naSuggest('alice')).length, 0);
+      assert.equal(bad.pool.asked.length, 0, 'an address that is not wss:// is never used');
+    }
+  });
+
+  test(label + ', a relay they chose that does not answer is not swapped for another', async () => {
+    const silent = { asked: [], subscribeMany(relays, filter, params) { this.asked.push({ relays, filter }); setTimeout(() => params.onclose([]), 0); return { close() {} }; } };
+    const { ctx } = build(file, { enabled: 'custom', custom: 'wss://typed.example', pool: silent });
+    assert.equal((await ctx.naSuggest('alice')).length, 0);
+    assert.ok(silent.asked.every((a) => !a.relays.includes('wss://search.brainstorm.world')), 'their typing must not go to the default');
+    assert.equal(ctx.naAvailable(), false, 'and the search pauses instead of waiting on every key');
+  });
+
+  test(label + ', answering the ask yes turns on what it offered: the default, or their own relays when they have some', async () => {
+    const none = build(file, { enabled: undefined, pool: fakePool() });
+    const sent = [];
+    none.ctx.call = async (m) => { sent.push(m); };
+    await none.ctx.naSetting(); // the page plans first, which is what the ask is built from
+    await none.ctx.naDecide(true);
+    assert.deepEqual(plain(sent[0].settings), { nameSearch: 'default' });
+    await none.ctx.naSuggest('alice');
+    assert.equal(none.pool.asked.length, 1, 'after deciding yes, the search must fire without a reload');
+
+    const own = build(file, { enabled: 'follows', list: ['wss://mine.example'], pool: fakePool({ list: ['wss://mine.example'] }) });
+    const sent2 = [];
+    own.ctx.call = async (m) => { sent2.push(m); };
+    assert.equal(await own.ctx.naSetting(), false, 'they said follows only, and that holds');
+    await own.ctx.naDecide(true);
+    assert.deepEqual(plain(sent2[0].settings), { nameSearch: 'account' }, 'a yes offered their own relays');
   });
 
   test(label + ', answering the ask no keeps the gate closed without storage being consulted again', async () => {
     const { ctx, pool } = build(file, { enabled: undefined, pool: fakePool() });
-    await ctx.naDecide(false);
-    assert.equal((await ctx.naSuggest('alice')).length, 0);
-    assert.equal(pool.asked.length, 0, 'deciding no must seal the gate via the memo, not just storage');
-  });
-
-  test(label + ': the decision is written under its own key, not the old index’s', async () => {
-    const { ctx } = build(file, { enabled: undefined, pool: fakePool() });
     const sent = [];
     ctx.call = async (m) => { sent.push(m); };
-    await ctx.naDecide(true);
-    assert.deepEqual(JSON.parse(JSON.stringify(sent[0].settings)), { nameSearch: true });
+    await ctx.naSetting();
+    await ctx.naDecide(false);
+    assert.deepEqual(plain(sent[0].settings), { nameSearch: 'follows' });
+    assert.equal((await ctx.naSuggest('alice')).length, 0);
+    assert.equal(pool.asked.length, 0, 'deciding no must seal the gate via the memo, not just storage');
   });
 
   test(label + ': an answer given to the previous index does not switch this one on, but a no is kept', async () => {
@@ -147,7 +205,7 @@ for (const [label, file] of [['side panel', 'sidepanel.js'], ['expanded composer
   });
 
   test(label + ': the memo serves later reads without going back to storage', async () => {
-    const { ctx } = build(file, { enabled: true, pool: fakePool() });
+    const { ctx } = build(file, { enabled: 'default', pool: fakePool() });
     let reads = 0;
     const orig = ctx.chrome.storage.local.get;
     ctx.chrome.storage.local.get = (k, cb) => { reads++; return orig(k, cb); };
@@ -157,9 +215,9 @@ for (const [label, file] of [['side panel', 'sidepanel.js'], ['expanded composer
     assert.equal(reads, 1, 'storage is read once; every keystroke after that is synchronous');
   });
 
-  test(label + ': when no relay answers, the search backs off instead of waiting on every key', async () => {
+  test(label + ', the default not answering: the search backs off instead of waiting on every key', async () => {
     const silent = { asked: [], subscribeMany(relays, filter, params) { this.asked.push(filter); setTimeout(() => params.onclose([]), 0); return { close() {} }; } };
-    const { ctx } = build(file, { enabled: true, pool: silent });
+    const { ctx } = build(file, { enabled: 'default', pool: silent });
     assert.equal((await ctx.naSuggest('alice')).length, 0);
     assert.equal(ctx.naAvailable(), false, 'a failed search must pause the next ones');
   });
@@ -171,13 +229,14 @@ test('the tab hears a decision made in the panel', () => {
   // first read forever. The registration sits at module scope, outside the lifted functions.
   const page = read('compose.js');
   assert.match(page, /chrome\.storage\.onChanged\.addListener/);
-  assert.match(page, /NS\.decision\(changes\.sidecar_settings\.newValue \|\| \{\}\)/);
+  assert.match(page, /naSettingMemo = changes\.sidecar_settings\.newValue \|\| \{\}/);
 });
 
 test('the ask names the relay and says what it sees: what you type, and nothing about who you follow', () => {
   for (const f of ['sidepanel.js', 'compose.js']) {
     const src = read(f);
-    assert.match(src, /Also search names beyond your follows\? This uses a search relay \(\{\{host\}\}\) that sees what you type\./, f);
+    assert.match(src, /Find people beyond your follows\? Search defaults to \{\{name\}\}’s relay\. Change this in Settings\./, f);
+    assert.match(src, /Find people beyond your follows\? Search will use your search relays \(\{\{hosts\}\}\)\. Change this in Settings\./, f);
     assert.match(src, /Search everyone/, f);
     assert.match(src, /Just my follows/, f);
     assert.doesNotMatch(src, /who you follow\./, f + ' still says the search sees who you follow');

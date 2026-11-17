@@ -23,7 +23,7 @@ test('with the name search off, a search that finds nothing offers the ask again
   let x;
   try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
   try {
-    await x.message({ type: 'SIDECAR_SET_SETTINGS', settings: { nameSearch: false } });
+    await x.message({ type: 'SIDECAR_SET_SETTINGS', settings: { nameSearch: 'follows' } });
     await x.reload();
     const type = (text) => x.evaluate(`(() => { const i = document.getElementById('search-input'); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
     const ask = () => x.evaluate(`(() => { const a = document.querySelector('#search-results .na-ask'); return a ? a.textContent : null; })()`);
@@ -33,7 +33,8 @@ test('with the name search off, a search that finds nothing offers the ask again
     await x.evaluate(`document.getElementById('search-btn').click()`);
     await type('zzqxnomatch');
     const text = await until(ask);
-    assert.match(text, /search names beyond your follows/i, 'the ask is the same one');
+    assert.match(text, /^Find people beyond your follows\? Search defaults to Brainstorm’s relay\. Change this in Settings\./, 'the ask names the relay, in plain words');
+    assert.ok(!text.includes('search.brainstorm.world'), 'and no hostname');
 
     // "Just my follows" again: gone, and it stays gone while the box is used...
     assert.ok(await press('na-ask-no'));
@@ -41,16 +42,17 @@ test('with the name search off, a search that finds nothing offers the ask again
     await type('zzqxnomatch2');
     await new Promise((r) => setTimeout(r, 600));
     assert.equal(await ask(), null, 'asked again after a no, within the same search');
-    assert.equal(await stored(), false, 'the answer is still no');
+    assert.equal(await stored(), 'follows', 'the answer is still no');
 
     // ...and comes back with the next search.
     await type('');
     await type('zzqxother');
     await until(ask);
 
-    // "Search everyone" turns it on.
+    // "Search everyone" turns on what was offered: the default, for an account with no search
+    // relays of its own.
     assert.ok(await press('na-ask-yes'));
-    await until(async () => (await stored()) === true);
+    await until(async () => (await stored()) === 'default');
     assert.deepEqual(x.errors, []);
   } finally { x.close(); }
 });

@@ -609,20 +609,30 @@
 
       <h3>Names beyond your follows</h3>
       <p>Your relays only know the names they have seen, so a name search that stops there
-      misses most of Nostr. The first time you search for a name, Sidecar asks whether to
-      also use a <strong>name search relay</strong>. Say yes, and the text you type is sent
-      to that relay (search.brainstorm.world), which answers with signed profiles. Sidecar
-      checks each signature before it shows one. Nothing else goes with it: not your key,
-      and not who you follow. Say no, and searches stay on your follows.</p>
+      misses most of Nostr. Beyond your follows, Sidecar asks a <strong>search relay</strong>,
+      and which one is yours to choose under <strong>Settings &rarr; Apps &amp; browsing
+      &rarr; Global name search</strong>:</p>
+      <ul>
+        <li><strong>My search relays</strong>, the list you have published for search. If you
+        have one, Sidecar uses it without asking, since you named those relays for this.</li>
+        <li><strong>Brainstorm</strong>, the default for people who have none. Sidecar asks
+        once before it sends anything to it.</li>
+        <li><strong>A relay I choose</strong>, any <code>wss://</code> address you paste in.</li>
+        <li><strong>Only my follows</strong>, and nothing is sent anywhere.</li>
+      </ul>
+      <p>Whichever relay answers, it is sent the text you type and nothing else: not your key,
+      and not who you follow. It answers with signed profiles, and Sidecar checks each
+      signature before it shows one.</p>
 
-      <p>Change your answer any time with the icon beside the search box (people for your
-      follows only, a globe for names beyond them), or under <strong>Settings &rarr; Apps
-      &amp; browsing &rarr; Global name search</strong>.</p>
+      <p>The icon beside the search box switches between your follows only (people) and names
+      beyond them (globe). If you chose follows only and a search finds nothing, the question
+      comes back in the results so you can change your mind there.</p>
 
-      <p class="fine-note">The relay ranks people through a web of trust, so it finds
-      accounts others have scored. A brand-new account may not show up until it has
-      followers. If the relay does not answer, Sidecar asks the search relays you have
-      published instead, when you have any, and otherwise sticks to your follows.</p>
+      <p class="fine-note">Brainstorm ranks people through a web of trust, so it finds accounts
+      others have scored. A brand-new account may not show up until it has followers. If it
+      does not answer, Sidecar asks the search relays you have published instead, when you have
+      any. A relay you chose is never swapped for another: if it does not answer, you get no
+      names from it.</p>
     </section>
 
     <!-- ===== Relays ===== -->

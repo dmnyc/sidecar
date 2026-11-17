@@ -119,15 +119,18 @@ Sidecar only talks to services **you choose**:
   your account and published. Saved streams stay on your device. A backup, if you
   make one, is encrypted to your own key before it is published to your relays.
 - **@-mention search** — when you type `@` in the composer to mention someone,
-  Sidecar searches your follows locally. The first time you search a name, it
-  offers to also ask a **name search relay** (search.brainstorm.world) so you can
-  find people beyond your follows; nothing is sent there until you agree, and you
-  can change or revoke that answer later from the search bar's scope icon (the
-  globe) or in Settings ("Use the name search relay"). While it is on, Sidecar
-  sends that relay the text you are typing, and nothing else: no public key goes
-  with it. The relay answers with signed profiles, which Sidecar checks before
-  showing them. If it does not answer, Sidecar asks the search relays on your own
-  published search relay list instead, when you have one. Names your relays did not
+  Sidecar searches your follows locally. To find people beyond your follows it asks a
+  search relay, and which one is your choice in Settings ("Global name search"): the
+  search relays on your own published search relay list, the default (Brainstorm,
+  search.brainstorm.world), a relay you type in, or none. An account that has published
+  search relays uses them without being asked, since it named them for this. The default
+  is offered once, the first time you search a name, and nothing is sent to it until you
+  agree. You can change the answer later from the search bar's scope icon or in
+  Settings. Whichever relay answers, Sidecar sends it the text you are typing, and
+  nothing else: no public key goes with it. It answers with signed profiles, which
+  Sidecar checks before showing them. If the default does not answer, Sidecar asks the
+  search relays on your own list instead, when you have one; a relay you chose is never
+  replaced by another. Names your relays did not
   return for people you follow are asked of purplepag.es, the profile aggregator
   Sidecar reads from everywhere else.
 
