@@ -34,7 +34,7 @@ Nothing stored changes shape. The branch does not touch the permission, kind-gra
 
 ## Not covered
 
-The lab times requests and checks signers, but cannot read a card, so the content checks are judged by hand. The en-XA pseudo-locale and the light theme were not run against the new cards.
+The lab times requests and checks signers, but cannot read a card, so the content checks are judged by hand. The en-XA pseudo-locale and the light theme were not run against the new cards or the Manage sheet.
 
 ## The lab report
 
@@ -93,4 +93,26 @@ Wrong-signer hits: 0
 5.1 A pick on a login card sticks: PASS
     10:11:24 PM  log in (pick B): ok in 4.55 s (card answered) · pubkey B (f373a78f)   ✓ as expected
     10:11:47 PM  log in (restore A): ok in 1.47 s (card answered) · pubkey A (01f4345e)   ✓ as expected
+```
+
+## Per-account permission levels in Connected sites
+
+**The gap.** A permission level belongs to one account on one site. The Connected sites row edits only the active account’s level, and only when the site is bound to that account; bound to another account, the row offers just “Use {name}”. On a shared site that meant the other account’s level could be reached only by switching accounts first, and the sheet behind a row’s Manage button showed no levels at all.
+
+**What was added.** The sheet now lists each signed-in account with its own level on a full-width line under its name, so the remove icon keeps its slot and the select, which has words, gets a row of its own (the narrow-panel row-controls rule). `SIDECAR_SET_LEVEL` takes an optional account and refuses one Sidecar does not hold, so a level is never written for a key nobody has. `SIDECAR_GET_SITE_LEVELS` reads every signed-in account’s level for the host. Setting a level never changes the active account.
+
+**Why not on the approval card.** A level control on a sign card is the Trust button back as a dropdown, and this branch removed that deliberately: the card asks one question, and a standing answer is earned. On a shared card trust cannot skip the who’s-posting confirm, so the control would change a setting without changing what happens next. A level is a standing setting for an account, so beside a one-shot pick it would raise permanently an account the user only picked once. Raising trust is also the risky direction for a control that appears when a page chooses. Standing permissions stay in Connected sites.
+
+**Block is not on any card.** The background handles a `block` decision, but nothing in the panel or the popup sends it, before or after this branch; Blocked is reachable only through the tier dropdown. Block and Forget are different tools: Forget erases and the site may ask again at once, while Blocked refuses every request with no card. Adding Block to a card was considered and left as a separate design question.
+
+**Left open.**
+- A level does not change the who’s-posting confirm on a shared site: a Trusted account still asks on a post. The sheet’s existing hint says Sidecar asks who is posting each time, and no line was added to say a level does not alter that.
+- A single-account site bound to a non-active account still offers only “Use {name}”, so its level needs the account switched first.
+
+**Result.** Case 6.1, run on the same host, passed: with Sidecar on A, B’s level set to Blocked from the sheet left A’s note asking and signing as A, and B’s note was refused at once with “This site is blocked in Sidecar” and no card. The browser test drives the same path through the real panel (Activity, Manage, set Bea’s level with Tester still active) and fails without the named-account handling.
+
+```
+6.1 Set B’s permission without switching to B: PASS
+    10:12:14 PM  note (A, B blocked): ok in 3.02 s (card answered) · signed as A (01f4345e)   ✓ as expected
+    10:12:20 PM  note (B blocked): rejected in 0.00 s · This site is blocked in Sidecar   ✓ as expected
 ```
