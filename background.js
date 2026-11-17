@@ -1578,6 +1578,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     let authorSwitched = false;
     let authorNamed = false;
     let relaxJustGrantedFor = null; // the account a 'relax' decision on this request opened a window for
+    let pickedSwitch = false; // the user picked another account on this request's card (one-shot, see below)
     if (method === 'getPublicKey') {
       activePubkey = await KS.getActivePubkey();
     } else {
@@ -2014,7 +2015,13 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         const switchedStatus = await PERMS.getPermissionStatus(decision.switchToPubkey, host, method);
         if (switchedStatus === 'reject') throw new Error('This site is blocked in Sidecar for that account');
         activePubkey = decision.switchToPubkey;
-        await KS.setActive(activePubkey);
+        pickedSwitch = true;
+        // A pick on a shared-identity confirm is one-shot: it names the signer for THIS
+        // event and nothing more. "Confirm who's posting each time" is a promise, and
+        // depositing the user on the picked account after one signature breaks it — the
+        // globally active account stays where the user left it. Login cards are the
+        // exception: there the pick sets the client's identity up, and sticky is the point.
+        if (method === 'getPublicKey') await KS.setActive(activePubkey);
       }
 
       // "Wrong account" escape: detach this host from the account it's pinned to, make
@@ -2153,9 +2160,11 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // the old account back over the new one. Following an honored author keeps
     // the site's implicit requests (nip04/nip44) on the identity the client
     // last exercised.
-    // sharedIdentity is also an explicit choice (the user just confirmed who's
-    // posting in the prompt), so it may move the binding too.
-    if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
+    // A confirmed default (no pick) may move the binding too. A picked account may
+    // not: the pick is one-shot, and the binding stays with the identity the user
+    // came in with.
+    if (method === 'getPublicKey' || authorSwitched || (sharedIdentity && !pickedSwitch) ||
+        !(await getSiteAccount(host))) {
       // A re-login or a post as another account moves the binding, and ends the
       // site's 30-minute windows unless Settings keeps a timer for each account (see
       // SIDECAR_SET_ACTIVE). Not the window this very request just opened for the

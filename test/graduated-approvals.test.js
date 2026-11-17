@@ -389,7 +389,8 @@ function panelCard() {
     decideApproval: (action, opts) => decided.push([action, opts]),
     pendingApproval: { id: 'p1' },
   }, i18nFakes));
-  vm.runInContext(liftFrom(panelSrc, 'function renderGraduated(') + '\nthis.render = renderGraduated;', ctx);
+  vm.runInContext([liftFrom(panelSrc, 'function pickedAnotherAccount('), liftFrom(panelSrc, 'function renderGraduated('),
+    liftFrom(panelSrc, 'function renderRelaxHint(')].join('\n') + '\nthis.render = renderGraduated; this.renderHint = renderRelaxHint;', ctx);
   return ctx;
 }
 
@@ -460,10 +461,12 @@ function popupCard(data) {
     graduated: fakeEl(), graduatedMsg: fakeEl(), graduatedCap: fakeEl(), graduatedYes: fakeEl(), graduatedNo: fakeEl(),
   };
   const ctx = vm.createContext(Object.assign({
-    els, data, isPayment: false, graduatedDeclined: false,
+    els, data, isPayment: false, graduatedDeclined: false, chosenPubkey: null,
     kindLabels: () => ({ 7: 'Reaction' }),
   }, i18nFakes));
-  vm.runInContext(liftFrom(promptSrc, 'function renderGraduated(') + '\nthis.render = renderGraduated;', ctx);
+  els.relaxHint = fakeEl();
+  vm.runInContext([liftFrom(promptSrc, 'function pickedAnotherAccount('), liftFrom(promptSrc, 'function renderGraduated('),
+    liftFrom(promptSrc, 'function renderRelaxHint(')].join('\n') + '\nthis.render = renderGraduated; this.renderHint = renderRelaxHint;', ctx);
   return ctx;
 }
 
@@ -493,6 +496,68 @@ test('popup: the row’s buttons answer from the offer, and Not now rides on the
   assert.match(code, /if \(data\.canKindGrant && action === 'once' && opts && opts\.alwaysKind === true\)/);
   assert.match(code, /if \(graduatedDeclined\) extra = Object\.assign\(\{\}, extra, \{ declineGraduated: true \}\);/);
   assert.match(code, /els\.allow\.addEventListener\('click', \(\) => decide\('once'\)\);/, 'the Sign button is one answer');
+});
+
+// A PICK IS ONE-SHOT, so the standing offers do not follow it. The row and the hint count
+// the account the card OPENED as; once the card shows another account, offering a 30-minute
+// window "as" them would open one the picked account never earned. Picking back restores both.
+test('panel: a pick hides the row and the hint, and picking back brings them back', () => {
+  const row = panelCard();
+  const shared = signCard({ canKindGrant: false, graduatedOffer: { mode: 'relax', count: 3 }, activePubkey: 'A', accountName: 'Alpha' });
+  const rowHidden = () => row.els['approval-graduated'].classList.contains('hidden');
+  row.pendingApproval.chosenPubkey = 'A';
+  row.render(shared, false, 1);
+  assert.equal(rowHidden(), false, 'the row on the account the card opened as');
+  row.pendingApproval.chosenPubkey = 'B';
+  row.render(shared, false, 1);
+  assert.equal(rowHidden(), true, 'the row survived a pick');
+  row.pendingApproval.chosenPubkey = 'A';
+  row.render(shared, false, 1);
+  assert.equal(rowHidden(), false, 'picking the first account back did not restore the row');
+  assert.equal(row.els['approval-graduated-cap'].textContent, 'Keep signing as Alpha for 30 minutes.');
+
+  const hint = panelCard();
+  const asked = signCard({ method: 'signEvent', relaxHint: true, graduatedOffer: null, activePubkey: 'A', accountName: 'Alpha' });
+  const hintHidden = () => hint.els['approval-relax-hint'].classList.contains('hidden');
+  hint.pendingApproval.chosenPubkey = 'A';
+  hint.renderHint(asked, false, 1);
+  assert.equal(hintHidden(), false);
+  assert.equal(hint.els['approval-relax-hint'].textContent, 'Keep signing as Alpha?\nOpen a 30-minute window.');
+  hint.pendingApproval.chosenPubkey = 'B';
+  hint.renderHint(asked, false, 1);
+  assert.equal(hintHidden(), true, 'the hint survived a pick and would offer a window for the wrong account');
+  hint.pendingApproval.chosenPubkey = 'A';
+  hint.renderHint(asked, false, 1);
+  assert.equal(hintHidden(), false, 'picking back did not restore the hint');
+});
+
+test('popup: a pick hides the row and the hint, and picking back brings them back', () => {
+  const shared = signCard({ canKindGrant: false, graduatedOffer: { mode: 'relax', count: 3 }, activePubkey: 'A', accountName: 'Alpha' });
+  const row = popupCard(shared);
+  row.render();
+  assert.equal(row.els.graduated.classList.contains('hidden'), false);
+  row.chosenPubkey = 'B'; // the popup keeps null for "no pick"; any other account is a pick
+  row.render();
+  assert.equal(row.els.graduated.classList.contains('hidden'), true, 'the row survived a pick');
+  row.chosenPubkey = null;
+  row.render();
+  assert.equal(row.els.graduated.classList.contains('hidden'), false, 'picking back did not restore the row');
+
+  const hint = popupCard(signCard({ relaxHint: true, graduatedOffer: null, activePubkey: 'A', accountName: 'Alpha' }));
+  hint.renderHint();
+  assert.equal(hint.els.relaxHint.classList.contains('hidden'), false);
+  hint.chosenPubkey = 'B';
+  hint.renderHint();
+  assert.equal(hint.els.relaxHint.classList.contains('hidden'), true,
+    'the popup kept saying “Keep signing as A?” on a card that would sign as B');
+  hint.chosenPubkey = null;
+  hint.renderHint();
+  assert.equal(hint.els.relaxHint.classList.contains('hidden'), false);
+});
+
+test('both surfaces redraw the row and the hint when the pick changes', () => {
+  assert.match(noComments(promptSrc), /buildAccountCapsule\(\);\s*renderGraduated\(\);\s*renderRelaxHint\(\);/);
+  assert.match(noComments(panelSrc), /renderApprovalAccountCapsule\(data\);\s*renderGraduated\(data, isPaymentApproval\(data\), \(pendingApproval\.groupIds \|\| \[\]\)\.length\);\s*renderRelaxHint\(/);
 });
 
 test('SIGN CARDS CARRY NO SCOPE ROW AND NO TRUST, on both surfaces', () => {

@@ -27153,9 +27153,6 @@
           $('approval-bind-payer-box').checked = false;
         } else {
           pendingApproval.chosenPubkey = a.pubkey;
-          // The row and the hint name the account this card signs as; a switch must
-          // not leave another identity's name in either.
-          if (a.name) data.accountName = a.name;
         }
         hide(menu);
         renderApprovalAccountCapsule(data);
@@ -27202,6 +27199,15 @@
   // Sidecar can't see the client's UI, so it can't tell a correct prompt from a wrong one;
   // only the user can.
 
+  // A pick on this card names the signer for ONE signature. The row and the hint both
+  // offer a standing answer (a 30-minute window) that the picked account has not earned:
+  // the count behind them is the account the card opened as, and a one-off pick is not
+  // the moment to open a window for someone else. So a card showing another account than
+  // the one it opened as carries neither, and picking back brings them back.
+  function pickedAnotherAccount(data) {
+    return !!pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey;
+  }
+
   // THE GRADUATED ROW. Shown on a sign card once this site has asked this account for the
   // same kind APPROVE_NUDGE_AFTER times this session (the background decides, and sends
   // data.graduatedOffer): "Always sign" saves the standing kind grant (#482) with this
@@ -27217,7 +27223,7 @@
     const offer = data.graduatedOffer;
     const offered = !!offer && !payment && groupN === 1 && data.method === 'signEvent' &&
       data.needApproval && (offer.mode === 'relax' || (offer.mode === 'always' && data.canKindGrant)) &&
-      !pendingApproval.graduatedDeclined;
+      !pendingApproval.graduatedDeclined && !pickedAnotherAccount(data);
     if (!offered) {
       hide(row);
       return;
@@ -27258,7 +27264,8 @@
   // decides; this only renders.
   function renderRelaxHint(data, payment, groupN) {
     const hint = $('approval-relax-hint');
-    const shown = !!data.relaxHint && !payment && groupN === 1 && !data.graduatedOffer;
+    const shown = !!data.relaxHint && !payment && groupN === 1 && !data.graduatedOffer &&
+      !pickedAnotherAccount(data);
     hint.classList.toggle('hidden', !shown);
     if (!shown) return;
     hint.textContent = tSec('Keep signing as {{name}}?\nOpen a 30-minute window.',

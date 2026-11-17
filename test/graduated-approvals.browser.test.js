@@ -182,3 +182,125 @@ test('Not now hides the row and the count starts over', opts, async (t) => {
     }
   });
 });
+
+// ---- a host where two of your accounts are signed in ----
+
+// Who the card names: the capsule, the account menu's rows (opened by the test), the quiet hint's
+// words and the shared-identity note. Every name is read beside the npub it sits on, so a name
+// wandering onto another identity's npub shows as a mismatched pair.
+const who = `(() => {
+  const cap = document.querySelector('#approval-account .approval-capsule');
+  const menu = document.getElementById('approval-switch-menu');
+  const hint = document.getElementById('approval-relax-hint');
+  return {
+    cap: cap && { name: cap.querySelector('.aa-label').textContent, npub: cap.querySelector('.aa-npub').textContent },
+    menuOpen: !menu.classList.contains('hidden'),
+    rows: [...menu.querySelectorAll('.acct-row')].map((b) => ({
+      name: b.querySelector('.acct-row-name').textContent,
+      npub: b.querySelector('.acct-row-npub').textContent,
+      chosen: b.classList.contains('active'),
+    })),
+    hint: hint.classList.contains('hidden') ? null : hint.textContent,
+    shared: !!document.getElementById('approval-shared-note'),
+  };
+})()`;
+
+// Two accounts, both signed in on the client: `second` logs in first, then `first`, so the site
+// ends bound to `first` with `first` active. Returns the npubs by name.
+async function twoAccountsSignedIn({ x, call, result, cardUp, press, nextId }, { first, second }) {
+  const add = await x.message({ type: 'SIDECAR_ADD_ACCOUNT', secret: '06'.repeat(32), name: 'Bea' });
+  assert.ok(add && add.ok, 'adding Bea: ' + JSON.stringify(add));
+  const st = (await x.message({ type: 'SIDECAR_GET_STATE' })).result;
+  const pk = { Tester: x.me, Bea: x.bea };
+  const npub = Object.fromEntries(st.accounts.map((a) => [a.name, a.npub]));
+  for (const name of [second, first]) {
+    await x.message({ type: 'SIDECAR_SET_ACTIVE', pubkey: pk[name] });
+    const id = nextId();
+    await call('window.nostr.getPublicKey()');
+    await cardUp();
+    await press('approval-allow');
+    const r = await result(id);
+    assert.equal(r.state, 'ok', 'login as ' + name);
+    assert.equal(r.v, pk[name], 'logged in as the wrong account');
+  }
+  return { pk, npub, short: (name) => npub[name].slice(0, 14) };
+}
+
+const site = async (x) => {
+  const b = await x.message({ type: 'SIDECAR_GET_SITE_BINDINGS' });
+  return Object.entries(b.result || {}).find(([h]) => /^127\.0\.0\.1/.test(h));
+};
+
+test('picking an account on a shared card names it, and renames no one else', opts, async (t) => {
+  await withClient(t, async (c) => {
+    const { x, call, result, cardUp, press, note, nextId } = c;
+    const { pk, short } = await twoAccountsSignedIn(c, { first: 'Tester', second: 'Bea' });
+    const bound = await site(x);
+    assert.equal(bound && bound[1], pk.Tester, 'the site is bound to Tester');
+
+    // Each row's name must sit on its own npub: Tester on Tester's, Bea on Bea's.
+    const named = (rows) => Object.fromEntries(rows.map((r) => [r.npub.slice(0, 14), r.name]));
+    const openMenu = async () => {
+      await x.evaluate(`document.getElementById('approval-switch-toggle').click()`);
+      return x.waitFor(`(() => { const w = ${who}; return w.menuOpen && w.rows.length ? w : null; })()`, 5000);
+    };
+
+    // One note first, so the card under test is the kind's second ask and carries the quiet hint.
+    let id = nextId();
+    await call(note('first'));
+    await cardUp();
+    await press('approval-allow');
+    const r1 = await result(id);
+    assert.equal(r1.state, 'ok', 'first note: ' + (r1.e || ''));
+
+    id = nextId();
+    await call(note('picked'));
+    await cardUp();
+    let w = await x.evaluate(who);
+    assert.equal(w.shared, true, 'not a shared-identity card');
+    assert.deepEqual(w.cap, { name: 'Tester', npub: w.cap.npub }, 'the card opened as someone else');
+    assert.equal(w.cap.npub.slice(0, 14), short('Tester'));
+    assert.match(w.hint || '', /Keep signing as Tester\?/, 'the hint names the account the card opened as');
+
+    w = await openMenu();
+    assert.deepEqual(named(w.rows), { [short('Tester')]: 'Tester', [short('Bea')]: 'Bea' }, 'menu rows before the pick');
+
+    // Pick Bea.
+    await x.evaluate(`[...document.querySelectorAll('#approval-switch-menu .acct-row')].find((b) => b.querySelector('.acct-row-name').textContent === 'Bea').click()`);
+    w = await x.evaluate(who);
+    assert.equal(w.menuOpen, false, 'the menu stayed open after the pick');
+    assert.equal(w.cap.name, 'Bea', 'the capsule does not show the picked account');
+    assert.equal(w.cap.npub.slice(0, 14), short('Bea'), 'the capsule shows the picked name on another npub');
+    assert.equal(w.hint, null, 'the hint is up for a pick: it offers a window the picked account never earned');
+
+    // Reopened: every row still wears its own name (the bug: Tester's npub read "Bea").
+    w = await openMenu();
+    assert.deepEqual(named(w.rows), { [short('Tester')]: 'Tester', [short('Bea')]: 'Bea' }, 'a pick renamed another identity in the menu');
+    assert.equal(w.rows.find((r) => r.chosen).name, 'Bea', 'the check is not on the picked row');
+    // Close it again by the toggle, and sign.
+    await x.evaluate(`document.getElementById('approval-switch-toggle').click()`);
+    await press('approval-allow');
+    const signed = await result(id);
+    assert.equal(signed.state, 'ok', 'the picked sign: ' + (signed.e || ''));
+    assert.equal(signed.v.pubkey, pk.Bea, 'signed as someone other than the pick');
+
+    // A follow-up card from the same client: both names still on their own npubs.
+    id = nextId();
+    await call(note('after'));
+    await cardUp();
+    w = await x.evaluate(who);
+    assert.equal(w.shared, true);
+    // One-shot: the pick named the signer for that event only. The next card opens as the
+    // account the user came in with, not the one they picked.
+    assert.equal(w.cap.npub.slice(0, 14), short('Tester'), 'the pick stuck: the follow-up opened as Bea');
+    const capName ={ [short('Tester')]: 'Tester', [short('Bea')]: 'Bea' }[w.cap.npub.slice(0, 14)];
+    assert.equal(w.cap.name, capName, 'the follow-up capsule wears another identity\'s name');
+    if (w.hint) assert.match(w.hint, new RegExp('Keep signing as ' + capName + '\\?'), 'the follow-up hint names someone else');
+    w = await openMenu();
+    assert.deepEqual(named(w.rows), { [short('Tester')]: 'Tester', [short('Bea')]: 'Bea' }, 'the follow-up menu cross-names the accounts');
+    await x.evaluate(`document.getElementById('approval-switch-toggle').click()`);
+    await press('approval-reject');
+    assert.equal((await result(id)).state, 'err');
+    assert.deepEqual(x.errors, [], 'the panel threw');
+  });
+});

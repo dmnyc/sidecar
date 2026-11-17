@@ -757,10 +757,17 @@
   // standing kind grant (#482) with this signature, or on a shared-identity card "Sign for
   // 30 min" opens the timed window. "Not now" hides it and starts the count over. Twin of
   // renderGraduated in sidepanel.js. textContent only: `host` is the page's.
+  // A pick names the signer for one signature, and the row and the hint offer a standing
+  // answer the picked account has not earned, so a card showing another account than the
+  // one it opened as carries neither. Twin of pickedAnotherAccount in sidepanel.js.
+  function pickedAnotherAccount() {
+    return !!chosenPubkey && chosenPubkey !== data.activePubkey;
+  }
   function renderGraduated() {
     const offer = data.graduatedOffer;
     const offered = !!offer && !isPayment && data.method === 'signEvent' && data.needApproval &&
-      (offer.mode === 'relax' || (offer.mode === 'always' && data.canKindGrant)) && !graduatedDeclined;
+      (offer.mode === 'relax' || (offer.mode === 'always' && data.canKindGrant)) && !graduatedDeclined &&
+      !pickedAnotherAccount();
     els.graduated.classList.toggle('hidden', !offered);
     if (!offered) return;
     els.graduatedMsg.textContent = tn(
@@ -785,7 +792,7 @@
   // The quiet shortcut (the panel's renderRelaxHint): the row's relax path, offered
   // earlier and quieter. The background decides; this only renders.
   function renderRelaxHint() {
-    const shown = !!(data && data.relaxHint && !data.graduatedOffer);
+    const shown = !!(data && data.relaxHint && !data.graduatedOffer && !pickedAnotherAccount());
     els.relaxHint.classList.toggle('hidden', !shown);
     if (!shown) return;
     els.relaxHint.textContent = tSec('Keep signing as {{name}}?\nOpen a 30-minute window.',
@@ -976,6 +983,8 @@
         chosenPubkey = a.pubkey === data.activePubkey ? null : a.pubkey;
         els.switchMenu.classList.add('hidden');
         buildAccountCapsule();
+        renderGraduated();
+        renderRelaxHint();
       }, tSec('Signed in here')));
     }
     // Group 2 — the detach escape. Choosing cancels the request and makes that

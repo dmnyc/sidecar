@@ -102,7 +102,7 @@ test('naming the account we already meant to use is still naming it', () => {
   // exists to prevent.
   assert.match(bgBare, /const isRelayAuth = method === 'signEvent' && !authorSwitched && isNip42AuthEvent\(signEvent\);/);
   // Nor the re-pin, which may only be moved by an identity choice that actually differs.
-  assert.match(bgBare, /if \(method === 'getPublicKey' \|\| authorSwitched \|\| sharedIdentity \|\| !\(await getSiteAccount\(host\)\)\)/);
+  assert.match(bgBare, /if \(method === 'getPublicKey' \|\| authorSwitched \|\| \(sharedIdentity && !pickedSwitch\) \|\|\n\s*!\(await getSiteAccount\(host\)\)\) \{/);
 });
 
 test('forgetting a site forgets the opt-out with it', () => {
