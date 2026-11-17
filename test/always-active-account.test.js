@@ -73,7 +73,11 @@ test('THE OPT-IN OUTRANKS A CLIENT THAT NAMES ITS AUTHOR', () => {
   // when the author was named. Read once, and only for a content sign, so a DM decrypt
   // does not pay for a storage read it has no use for.
   assert.match(bgBare, /const alwaysActive = isContentSign \? await isAlwaysActiveHost\(host\) : false;/);
-  assert.match(bgBare, /if \(\(isContentSign \|\| appDataExempt\) && \(alwaysActive \|\| !authorNamed\)\) \{/);
+  // The host lookup moved above the author gate (the graduated row keys on it), and the
+  // gate itself now also carries sharedHost: on a two-account host the confirm is what
+  // the earned row must never bypass, whichever identity the client names.
+  assert.match(bgBare, /if \(isContentSign \|\| appDataExempt\) \{/);
+  assert.match(bgBare, /\(alwaysActive \|\| !authorNamed\) && sharedHost && isContentSign && !appDataExempt/);
   assert.equal((bgBare.match(/await isAlwaysActiveHost\(/g) || []).length, 1,
     'one read per request, not two that could disagree with each other');
 });

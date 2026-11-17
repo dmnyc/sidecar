@@ -53,6 +53,7 @@ function harness(decide, wallet) {
       hasNwc: async (pk) => wallets.has(pk),
     },
     openPrompt: async (data) => { calls.prompts.push(data); return decide(data); },
+    renderGraduated() {}, renderRelaxHint() {},
     getSwNwc: async (pk) => {
       if (!wallets.has(pk)) return null;
       calls.wallets.push(pk); calls.order.push('wallet');
@@ -200,6 +201,7 @@ function panelCard(data) {
     t: (s, v) => (v ? s.replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]) : s), tSec: (s) => s,
     shortNpub: (n) => String(n).slice(0, 8), show: (e) => e.classList.remove('hidden'), hide: (e) => e.classList.add('hidden'),
     document: { createElement: () => fakeEl() },
+    renderGraduated() {}, renderRelaxHint() {},
   });
   vm.runInContext([
     'const isPaymentApproval = ' + panelSrc.match(/const isPaymentApproval = (\(data\) =>\s*[^;]*);/)[1] + ';',

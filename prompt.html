@@ -49,22 +49,18 @@
       --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.05);
       --pattern-opacity: 1;
     }
-    /* THE SCOPE ROW: segmented radios, one decision. Labels never wrap and never
-       shrink; a locale that outgrows the row stacks it instead (set by JS). */
-    .scope { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; width: 100%; }
-    .scope legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-    .seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(var(--well-rgb), 0.7); border: 1px solid var(--border); }
-    .seg label { flex: 1 1 0; min-width: max-content; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; font: 600 13px/1.2 system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
-    .seg label:hover { color: var(--text); }
-    .seg input { position: absolute; opacity: 0; pointer-events: none; }
-    .seg label:has(input:checked) { background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); border-color: var(--gold-soft); color: var(--gold); box-shadow: var(--sheen); }
-    .seg label:has(input:focus-visible) { outline: 2px solid var(--gold-soft); outline-offset: 1px; }
-    .seg.stacked { flex-direction: column; }
-    .seg.stacked label { justify-content: flex-start; }
-    .scope-caps { display: grid; margin: 0 0 7px; text-align: center; }
-    .scope-cap { grid-area: 1 / 1; visibility: hidden; font-size: 12px; line-height: 1.4; color: var(--muted); }
-    .scope-cap.on { visibility: visible; }
-    .scope-cap.always { color: var(--text); }
+    /* THE GRADUATED ROW: "should it stop asking?", only after the same site has asked for
+       the same kind a few times. Words on top, the two buttons beneath, wrapping to one per
+       line rather than shrinking. Same rules as styles.css. */
+    .graduated { margin: 0 0 12px; padding: 10px 12px 12px; text-align: center; border: 1px solid var(--border); border-radius: 12px; background: rgba(var(--well-rgb), 0.7); }
+    .graduated-msg { margin: 0 0 2px; font-size: 12.5px; line-height: 1.45; color: var(--text); text-wrap: pretty; }
+    .graduated-cap { margin: 0 0 10px; font-size: 12px; line-height: 1.4; color: var(--muted); text-wrap: pretty; }
+    .graduated-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .graduated-actions button { flex: 1 1 auto; width: auto; white-space: nowrap; }
+    .relax-hint { display: block; width: 100%; margin: 10px 0 0; padding: 0; border: 0; background: none;
+      font: inherit; font-size: 12px; color: var(--muted); text-align: center; text-wrap: pretty;
+      white-space: pre-line; cursor: pointer; }
+    .relax-hint:hover { color: var(--text); }
     /* The account menu's two groups: who signs here, and the detach escape. */
     .acct-menu-group + .acct-menu-group { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
     .acct-menu-head { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding: 4px 8px; }
@@ -444,8 +440,8 @@
        tie it to "Trust this site" right below. */
     .trust-nudge { font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; margin: 0 0 12px; }
     .trust-nudge strong { color: var(--lav); font-weight: 600; }
-    /* !important, like the panel's: a class rule such as `.seg label { display: flex }`
-       outranks a bare .hidden, and a segment the card did not offer showed anyway. */
+    /* !important, like the panel's: a class rule that sets display outranks a bare
+       .hidden, and a control the card did not offer showed anyway. */
     .hidden { display: none !important; }
   </style>
 </head>
@@ -497,25 +493,18 @@
     </div>
     <!-- The payment's checkboxes, one group so that when more than one shows they share a
          left edge. Each row centered on its own width put the boxes at different points. -->
-    <!-- THE SCOPE ROW: Once is the default on every card; 30 min opens the timed
-         window; Always writes the standing per-kind grant (#482), offered only where
-         the identity check isn't running. One line above the row says what the chosen
-         segment does; the three share one cell, so the row never moves. Outside the
-         check group, which sizes to its content: the row spans the card like the
-         button under it. Same structure as sidepanel.html. -->
-    <fieldset class="scope hidden" id="scope">
-      <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
-      <div class="scope-caps" aria-live="polite">
-        <div class="scope-cap on" id="scope-cap-once"></div>
-        <div class="scope-cap" id="scope-cap-relax"></div>
-        <div class="scope-cap" id="scope-cap-always"></div>
+    <!-- THE GRADUATED ROW: a sign card asks only "may this happen?". Once this site has
+         asked this account for the same kind a few times this session, the next card
+         grows this row offering to stop asking: Always sign (the standing kind grant), or
+         Sign for 30 min on a shared-identity card. Same structure as sidepanel.html. -->
+    <div id="graduated" class="graduated hidden" role="group" aria-labelledby="graduated-msg">
+      <p class="graduated-msg" id="graduated-msg"></p>
+      <p class="graduated-cap" id="graduated-cap"></p>
+      <div class="graduated-actions">
+        <button type="button" class="lav-btn" id="graduated-yes"></button>
+        <button type="button" class="ghost" id="graduated-no" data-i18n="Not now">Not now</button>
       </div>
-      <div class="seg" role="radiogroup">
-        <label><input type="radio" name="scope" value="once" checked><span data-i18n="Once" data-i18n-review>Once</span></label>
-        <label class="hidden" id="scope-relax"><input type="radio" name="scope" value="relax"><span data-i18n="30 min" data-i18n-review>30 min</span></label>
-        <label class="hidden" id="scope-always"><input type="radio" name="scope" value="always"><span data-i18n="Always" data-i18n-review>Always</span></label>
-      </div>
-    </fieldset>
+    </div>
 
     <div class="check-group">
     <!-- Offered by the payment card; confirmed here because a page must not be able
@@ -559,6 +548,7 @@
       <button class="primary" id="allow" data-i18n="Sign" data-i18n-review>Sign</button>
       <button class="lav-btn" id="trust" data-i18n="Trust this site" data-i18n-review>Trust this site</button>
       <button class="ghost" id="reject" data-i18n="Reject" data-i18n-review>Reject</button>
+      <button type="button" id="relax-hint" class="relax-hint hidden"></button>
     </div>
   </div>
 

@@ -100,12 +100,15 @@ test('opening a window ends other accounts’ windows by default, and not with a
     const ctx = {
       relaxPerAccount: async () => perAccount, syncRelaxBadge() {}, host: 'site.example', activePubkey: 'B',
       decision: { action: 'relax', relaxMs: 1800000 }, relaxJustGrantedFor: null,
+      KS: { getState: async () => ({ accounts: [{ pubkey: 'B', name: 'Bee' }] }) },
+      chrome: { runtime: { sendMessage: (m) => { calls.push('announce:' + m.event + ' ' + m.host + ' ' + m.name); return Promise.resolve(); } } },
       RELAX: { DEFAULT_MS: 1800000, revokeOtherAccounts: async (pk) => calls.push('revokeOtherAccounts:' + pk),
         grant: async (h, pk) => calls.push('grant:' + h + '|' + pk) },
     };
     vm.createContext(ctx);
     await vm.runInContext('(async () => { ' + block + ' })()', ctx);
-    assert.deepEqual(calls, perAccount ? ['grant:site.example|B'] : ['revokeOtherAccounts:B', 'grant:site.example|B'], 'per account ' + perAccount);
+    assert.deepEqual(calls, perAccount ? ['grant:site.example|B', 'announce:relaxStarted site.example Bee']
+      : ['revokeOtherAccounts:B', 'grant:site.example|B', 'announce:relaxStarted site.example Bee'], 'per account ' + perAccount);
   }
 });
 

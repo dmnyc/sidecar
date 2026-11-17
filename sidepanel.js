@@ -1129,6 +1129,14 @@
       beginPaymentFlight(line, msg.host || '');
       return;
     }
+    // A 30-MINUTE WINDOW JUST OPENED (the earned row, the quiet hint, or a shared-host
+    // card). The bar and the badge are the standing state; this is the moment it began,
+    // said out loud the same way a payment in flight is.
+    if (msg.event === 'relaxStarted') {
+      toast(tSec('Signing for {{host}} as {{name}} without asking for 30 minutes.',
+        { host: msg.host || '', name: msg.name || t('your account') }), 'success');
+      return;
+    }
     if (msg.event === 'paymentSettled') {
       settleWebsitePayment(
         msg.ok === true,
@@ -26965,7 +26973,7 @@
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
     // Two lines, no buttons: the fact, then the ask, which carries the weight. The
-    // 30-minute window sits in the scope row on the same card, so this does not point at it.
+    // 30-minute window is the graduated row's offer on this card, so this does not point at it.
     const note = h('p', { id: 'approval-shared-note', className: 'shared-caption' }, [
       h('span', { textContent: tSec('Multiple accounts are signed in here.') }),
       h('strong', { textContent: tSec('Confirm who’s posting each time.') }),
@@ -27145,9 +27153,14 @@
           $('approval-bind-payer-box').checked = false;
         } else {
           pendingApproval.chosenPubkey = a.pubkey;
+          // The row and the hint name the account this card signs as; a switch must
+          // not leave another identity's name in either.
+          if (a.name) data.accountName = a.name;
         }
         hide(menu);
         renderApprovalAccountCapsule(data);
+        renderGraduated(data, isPaymentApproval(data), (pendingApproval.groupIds || []).length);
+        renderRelaxHint(data, isPaymentApproval(data), (pendingApproval.groupIds || []).length);
       });
       return b;
     };
@@ -27189,7 +27202,71 @@
   // Sidecar can't see the client's UI, so it can't tell a correct prompt from a wrong one;
   // only the user can.
 
-  let scopeCardId = null; // the card the scope row's selection belongs to
+  // THE GRADUATED ROW. Shown on a sign card once this site has asked this account for the
+  // same kind APPROVE_NUDGE_AFTER times this session (the background decides, and sends
+  // data.graduatedOffer): "Always sign" saves the standing kind grant (#482) with this
+  // signature, or on a shared-identity card "Sign for 30 min" opens the timed window,
+  // the one escape a host with several accounts signed in has. "Not now" hides the row
+  // for this card and starts the count over. Never on a batch: "Allow all" settles N
+  // events, and a standing answer belongs to one kind on one card.
+  //
+  // A full-width row of its own under the preview, its two buttons beneath the words
+  // (AGENTS.md, row controls rule 2). Text through textContent: `host` is the page's.
+  function renderGraduated(data, payment, groupN) {
+    const row = $('approval-graduated');
+    const offer = data.graduatedOffer;
+    const offered = !!offer && !payment && groupN === 1 && data.method === 'signEvent' &&
+      data.needApproval && (offer.mode === 'relax' || (offer.mode === 'always' && data.canKindGrant)) &&
+      !pendingApproval.graduatedDeclined;
+    if (!offered) {
+      hide(row);
+      return;
+    }
+    $('approval-graduated-msg').textContent = tn(
+      "You've signed {{host}} {{count}} times in a row.",
+      "You've signed {{host}} {{count}} times in a row.",
+      offer.count, { host: data.host });
+    const yes = $('approval-graduated-yes');
+    if (offer.mode === 'relax') {
+      $('approval-graduated-cap').textContent = tSec('Keep signing as {{name}} for 30 minutes.',
+        { name: data.accountName || t('your account') });
+      yes.textContent = t('Sign for 30 min');
+      yes.onclick = () => decideApproval('relax', { relaxMs: 30 * 60000 });
+    } else {
+      const kindEv = data.params && (data.params.event || data.params);
+      const kind = kindEv ? kindEv.kind : null;
+      const kindName = approvalKindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      $('approval-graduated-cap').textContent = data.kindDTag != null
+        ? tSec('Keep signing future versions of “{{d}}” without asking.', { d: data.kindDTag })
+        : tSec('Keep signing future {{kind}} events without asking.', { kind: kindName });
+      yes.textContent = t('Always sign');
+      yes.onclick = () => decideApproval('once', { alwaysKind: true });
+    }
+    // Assigned, not added: the buttons are static and this runs on every card.
+    $('approval-graduated-no').onclick = () => {
+      pendingApproval.graduatedDeclined = true;
+      hide(row);
+    };
+    show(row);
+  }
+
+  // THE QUIET SHORTCUT, asks 2 and 3 of a kind: the row's relax path offered earlier and
+  // quieter — one muted line under the buttons, click it and the window opens while this
+  // card signs. Never on the first ask of a kind (first contact stays pristine: one
+  // button, one exit), never once the earned row is up (that is the loud version of the
+  // same question), and never on a batch (a batch is settled whole). The background
+  // decides; this only renders.
+  function renderRelaxHint(data, payment, groupN) {
+    const hint = $('approval-relax-hint');
+    const shown = !!data.relaxHint && !payment && groupN === 1 && !data.graduatedOffer;
+    hint.classList.toggle('hidden', !shown);
+    if (!shown) return;
+    hint.textContent = tSec('Keep signing as {{name}}?\nOpen a 30-minute window.',
+      { name: data.accountName || t('your account') });
+    // Assigned, not added: the button is static and this runs on every card.
+    hint.onclick = () => decideApproval('relax', { relaxMs: 30 * 60000 });
+  }
+
   function showApproval() {
     if (!pendingApproval) return;
     // Tell the worker this is actually on screen. It hands an approval to the panel and
@@ -27312,7 +27389,13 @@
           data.method === 'webln.getBalance' || data.method === 'webln.getInfo' || data.method === 'webln.makeInvoice'
             ? tSec('Allow this session')
             : data.method === 'signEvent' ? t('Sign') : tSec('Allow once');
-        show(trust);
+        // A sign card asks one question, "may this happen?": Sign or Reject, and the
+        // button always says Sign. Whether it should stop asking is the graduated row's
+        // to offer, once this site has asked for the same kind a few times. Trust stays
+        // on the cards where it is the right answer: a login, a decrypt, an encrypt, a
+        // wallet read. (Settings → Sites still sets any site's tier.)
+        if (data.method === 'signEvent') hide(trust);
+        else show(trust);
       }
     }
     // Shared-identity confirms happen on EVERY content sign to this host, not
@@ -27336,93 +27419,11 @@
     // before any decision; a scroll keeps a large burst from hiding the buttons.
     renderBatchList(pendingApproval.members);
 
-    // Offer a timed auto-sign window on single content-sign approvals — the
-    // shared-host escape hatch, and a middle rung between Allow once and Trust.
-    // Hidden for payments, decrypts, relay-auth, pure unlocks, and batched bursts
-    // (those already collapse into "Allow all").
-    //
-    // Also hidden on a destructive overwrite. Offering "auto-sign for 30 min" directly
-    // beneath "this erases data" invites the one tap that does real harm: approving the
-    // wipe ALSO makes the wiped list the new baseline, so within that window a second
-    // overwrite has nothing left to lose and won't warn. A client that just tried to
-    // clear your follow list is precisely the one that shouldn't get a free window.
-    //
-    // `relaxEligible` comes from the background (RELAX.neverRelaxes) and is the
-    // authority on which KINDS a window may ever cover — account/wallet-control, and
-    // the replaceable 0/3/10000 whose next write inside the window would go through
-    // unwarned. Honoring the flag rather than re-deriving the rule is the point: this
-    // gate, prompt.js's, and the background's were three separate copies, and a
-    // profile edit that wasn't itself destructive slipped past all but the background.
-    const offerRelax =
-      !payment && groupN === 1 && data.needApproval && !data.destructive &&
-      data.relaxEligible !== false &&
-      (data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt');
-    const scopeFs = $('approval-scope');
-    const signCard = data.method === 'signEvent' && !isPaymentApproval(data);
-    // The Always segment shares the relax row's single-card rule, and adds the
-    // background's grantability verdict for this kind (canKindGrant already
-    // excludes the kinds RELAX.neverRelaxes names).
-    const offerAlwaysKind =
-      !payment && groupN === 1 && data.needApproval &&
-      data.canKindGrant && signCard;
-    // Every card starts at Once — per card, not per render: the panel re-shows a
-    // pending card on incidental refreshes, and that must not undo a pick, while a
-    // pick made on the last card (even one with no scope row) must not carry over.
-    if (scopeCardId !== pendingApproval.id) {
-      scopeCardId = pendingApproval.id;
-      $('approval-scope-once').checked = true;
-    }
-    if (offerRelax || offerAlwaysKind) {
-      // THE SCOPE ROW: Once is the default on every card; the 30-minute window
-      // and Always appear only when this render offers them, and the caption
-      // under the row says what the chosen segment does. The primary button's
-      // label follows the segment on sign cards (Sign · Sign for 30 min ·
-      // Always sign); every other method keeps "Allow once".
-      show(scopeFs);
-      $('approval-scope-relax-opt').classList.toggle('hidden', !offerRelax);
-      $('approval-scope-always-opt').classList.toggle('hidden', !offerAlwaysKind);
-      const kindEv = data.params && (data.params.event || data.params);
-      const kind = kindEv ? kindEv.kind : null;
-      const kindName = approvalKindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
-      // A one-line header over the row, one sentence per segment, the same as
-      // prompt.js. All three share one cell (styles.css), so the row never moves.
-      $('approval-scope-cap-once').textContent = tSec('Asks again next time.');
-      $('approval-scope-cap-relax').textContent = signCard
-        ? tSec('Signs here without asking for 30 minutes.')
-        : tSec('Approves this kind here without asking for 30 minutes.');
-      $('approval-scope-cap-always').textContent = data.kindDTag != null
-        ? tSec('Signs future versions of “{{d}}” here without asking.', { d: data.kindDTag })
-        : tSec('Signs future {{kind}} events here without asking.', { kind: kindName });
-      const radios = [$('approval-scope-once'), $('approval-scope-relax'), $('approval-scope-always')];
-      const applyScope = () => {
-        // The button says what pressing it does for THIS segment — on every card,
-        // not just sign cards: a 30-minute window under an "Allow once" label is
-        // the same lie that started this redesign.
-        if (!signCard && $('approval-scope-relax').checked) { $('approval-allow').textContent = t('Allow for 30 min'); return; }
-        if (!signCard) { $('approval-allow').textContent = t('Allow once'); return; }
-        if ($('approval-scope-always').checked) $('approval-allow').textContent = t('Always sign');
-        else if ($('approval-scope-relax').checked) $('approval-allow').textContent = t('Sign for 30 min');
-        else $('approval-allow').textContent = t('Sign');
-      };
-      // The caption under the row follows the selection too — without this the
-      // Once caption stayed visible over a 30-minute selection.
-      const setCap = () => {
-        $('approval-scope-cap-once').classList.toggle('on', $('approval-scope-once').checked);
-        $('approval-scope-cap-relax').classList.toggle('on', offerRelax && $('approval-scope-relax').checked);
-        $('approval-scope-cap-always').classList.toggle('on', offerAlwaysKind && $('approval-scope-always').checked);
-      };
-      // Assigned, not added: the radios are static and this runs on every card, so
-      // addEventListener would stack one handler per card, each holding that card's
-      // signCard/offerRelax.
-      radios.forEach((r) => { r.onchange = () => { applyScope(); setCap(); }; });
-      applyScope();
-      setCap();
-    } else {
-      hide(scopeFs);
-    }
-
-    // The standing-grant checkbox (#482) is gone: its offer is the scope row's
-    // Always segment above, and offerAlwaysKind is computed there.
+    // The graduated row: "should it stop asking?", earned by repetition (see
+    // graduatedCapable in background.js). Replaces the scope row that put Once, 30 min
+    // and Always on every sign card next to a Trust button that could swallow the choice.
+    renderGraduated(data, payment, groupN);
+    renderRelaxHint(data, payment, groupN);
 
     // Point at Trust once this site has been approved one-time several times over.
     // textContent, never innerHTML — `host` is attacker-controlled.
@@ -27525,13 +27526,18 @@
         $('approval-payanywhere-offer-box').checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
-    // #482: carry the standing per-kind grant with the approval. Only 'once' —
-    // picking Trust chooses the broader tier instead, and the background
-    // re-validates eligibility before writing anything. The box is hidden on
-    // batch cards, so an "Allow all" can never attach a grant.
+    // #482: carry the standing per-kind grant with the approval — only from the
+    // graduated row's "Always sign", and only as 'once'. The background re-validates
+    // eligibility before writing anything. The row is hidden on batch cards, so an
+    // "Allow all" can never attach a grant.
     if (pendingApproval && pendingApproval.data && pendingApproval.data.canKindGrant &&
-        action === 'once' && $('approval-scope-always') && $('approval-scope-always').checked) {
+        action === 'once' && opts && opts.alwaysKind === true) {
       extra = Object.assign({}, extra, { alwaysKind: true });
+    }
+    // "Not now" on the graduated row: the background starts this kind's count over,
+    // whichever answer the card then gets.
+    if (pendingApproval && pendingApproval.graduatedDeclined) {
+      extra = Object.assign({}, extra, { declineGraduated: true });
     }
     // Picked a different account in the switcher (fresh-login prompts only).
     if (pendingApproval.chosenPubkey && pendingApproval.chosenPubkey !== data.activePubkey) {
@@ -27572,19 +27578,9 @@
     if (action === 'relax') setTimeout(syncRelax, 500);
   }
 
-  // Only a segment the card is showing counts, as in prompt.js: a batch card hides the
-  // row, and a hidden radio left checked must not turn "Allow all" into a window.
-  const scopeRelaxChecked = () =>
-    $('approval-scope-relax').checked &&
-    !$('approval-scope').classList.contains('hidden') &&
-    !$('approval-scope-relax-opt').classList.contains('hidden');
-  $('approval-allow').addEventListener('click', () => {
-    if (scopeRelaxChecked()) {
-      decideApproval('relax', { relaxMs: 30 * 60000 });
-      return;
-    }
-    decideApproval('once');
-  });
+  // The primary button is one answer on every card: Sign (or Allow once) this one. The
+  // standing answers live on the graduated row's own button.
+  $('approval-allow').addEventListener('click', () => decideApproval('once'));
   $('approval-trust').addEventListener('click', () => decideApproval('trust'));
   $('approval-reject').addEventListener('click', () => decideApproval('reject'));
   // Escape hatch: reject the whole backlog at once (this request + all waiting).
@@ -27629,13 +27625,7 @@
     // Respect the destructive lock: Enter here calls decideApproval directly, so
     // without this check it would approve a wipe that the disabled Allow button is
     // supposed to be holding back.
-    if (e.key === 'Enter' && !$('approval-allow').disabled) {
-      if (scopeRelaxChecked()) {
-        decideApproval('relax', { relaxMs: 30 * 60000 });
-        return;
-      }
-      decideApproval('once');
-    }
+    if (e.key === 'Enter' && !$('approval-allow').disabled) decideApproval('once');
   });
   // Numeric-only, capped budget input (static element, so not built via satsInput).
   $('approval-budget-amount').addEventListener('input', (e) => {

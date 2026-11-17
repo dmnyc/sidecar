@@ -288,7 +288,7 @@ test('a ticked box on a decided card reaches the worker as a grant request', () 
   assert.equal(ctx.kindGrantWanted(null), false);
   // And the worker asks the helper, not a property that does not exist.
   const handler = bgSrc.slice(bgSrc.indexOf('async function handleNostrRpc'));
-  assert.match(handler, /if \(kindGrantWanted\(decision\) && kindGrantEligible && !destructive\)/);
+  assert.match(handler, /if \(kindGrantWanted\(decision\) && kindGrantEligible && !destructive && !sharedHost\)/);
   const code = bgSrc.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.doesNotMatch(code, /decision\.extra/, 'decision.extra does not exist; the flags are on the decision');
 });
