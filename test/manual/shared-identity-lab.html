@@ -89,7 +89,7 @@
       no row, since a 30-minute window is something an account earns, and a one-off pick has earned none. Logging in is the
       one exception, where a pick is how the site learns who you are.</li>
     <li><b>Sections.</b> 0: sign in with both. 1: the pick in the side panel. 2: the same in the popup window. 3: the row
-      and the hint. 4: Forget site. 5: the login exception.</li>
+      and the hint. 4: Forget site. 5: the login exception. 6: each account’s permission level.</li>
     <li><b>Reading a card.</b> The <b>quiet hint</b> is two lines under the buttons: “Keep signing as …?” then “Open a
       30-minute window.” It shows on the second and third ask of a kind. The <b>row</b> sits under the preview, “You've signed
       … 3 times in a row.”, with Sign for 30 min and Not now. It replaces the hint from the fourth ask. This page’s host
@@ -119,6 +119,9 @@
   <!-- ===================================================================== -->
   <h2>5 · Logging in is the exception</h2>
   <div id="sec-login"></div>
+  <!-- ===================================================================== -->
+  <h2>6 · Each account’s permission, from one sheet</h2>
+  <div id="sec-levels"></div>
 
   <h2 id="report">Report</h2>
   <p class="muted">Every case on this host, its verdict, and its request log, for pasting into a note or an issue.</p>
@@ -475,6 +478,24 @@ kase(LG, { id: '5.1', title: 'A pick on a login card sticks',
     'The restore logs pubkey A, and Sidecar is on A again.'],
   buttons: [{ label: 'Log in (pick B on the card)', go: (id) => run(id, 'log in (pick B)', REQ.login, 'ask', isB, 'B') },
             { label: 'Log in (restore A)', go: (id) => run(id, 'log in (restore A)', REQ.login, 'ask', isA, 'A') }] });
+
+// ---- 6 · each account's level --------------------------------------------------------------------------
+const LV = 'sec-levels';
+kase(LV, { id: '6.1', title: 'Set B’s permission without switching to B',
+  why: 'A permission level belongs to one account on one site. The site’s row edits only the active account’s, so B’s used to be reachable only by making B the active account first.',
+  steps: ['State: both accounts signed in here (5.1’s restore), Sidecar on A.',
+    'Open Activity → Connected sites, find this host, and press Manage. The sheet lists A and B, each with a level beneath its name.',
+    'Set B to Blocked. Leave Sidecar on A.',
+    'Press Sign a note as A, and press Sign.',
+    'Switch Sidecar to B, and press Sign a note as B. No card should appear.',
+    'Clean up: in the sheet, set B back to Ask every time, and switch Sidecar to A.'],
+  expect: ['Each account’s level sits on its own full-width line under its name and remove icon, both readable in the narrow panel.',
+    'Setting B’s level changes nothing about Sidecar’s active account: the header still shows A.',
+    'A’s note asks and signs as A: B’s block does not touch A.',
+    'B’s note is refused at once, with “This site is blocked in Sidecar”, and no card.',
+    'After the clean-up B asks again, and the row on the page shows A’s level as before.'],
+  buttons: [{ label: 'Sign a note as A', go: (id) => run(id, 'note (A, B blocked)', REQ.note, 'ask', isA, 'A') },
+            { label: 'Sign a note as B (blocked)', go: (id) => run(id, 'note (B blocked)', REQ.note, 'reject') }] });
 
 // ---- report -----------------------------------------------------------------------------------------------------
 document.getElementById('make-report').addEventListener('click', () => {

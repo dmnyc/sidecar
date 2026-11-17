@@ -12799,6 +12799,10 @@
     const alwaysActive = await call({ type: 'SIDECAR_GET_ALWAYS_ACTIVE' })
       .then((m) => !!(m && m[host]))
       .catch(() => false);
+    // Each account's own tier here. A tier belongs to an (account, host) pair, and the row
+    // behind this sheet can only edit the active account's, so without this the other
+    // account's could be reached only by switching accounts first.
+    const levels = await call({ type: 'SIDECAR_GET_SITE_LEVELS', host }).catch(() => ({}));
     openModal((modal) => {
       modal.append(
         h('h3', { textContent: host }),
@@ -12808,6 +12812,9 @@
       authorizedPks.forEach((pk) => {
         const a = state.accounts.find((x) => x.pubkey === pk);
         if (!a) return; // deleted account — pruned from the set server-side already
+        // The name and the remove icon share a line; the tier, which has words, takes
+        // the full-width line beneath (CLAUDE.md, row controls rule 2).
+        const block = h('div', { className: 'shared-acct' });
         const row = h('div', { className: 'shared-acct-row' });
         row.append(avatarEl(a, 'site-bound-av'));
         row.append(h('span', { className: 'shared-acct-name', textContent: displayName(a) }));
@@ -12818,7 +12825,33 @@
           toast(t('{{name}} removed from {{host}}', { name: displayName(a), host }), 'success');
         });
         row.append(rm);
-        list.append(row);
+        block.append(row);
+
+        const sel = document.createElement('select');
+        sel.className = 'level-select';
+        sel.setAttribute('aria-label', t('Permission for {{name}}', { name: displayName(a) }));
+        const current = levels[pk] || 'ask';
+        LEVELS().forEach(([v, l]) => {
+          const o = h('option', { value: v, textContent: l });
+          if (v === current) o.selected = true;
+          sel.append(o);
+        });
+        let saved = current;
+        sel.addEventListener('change', async () => {
+          const next = sel.value;
+          sel.disabled = true;
+          try {
+            await call({ type: 'SIDECAR_SET_LEVEL', host, pubkey: pk, level: next });
+            saved = next;
+          } catch (e) {
+            sel.value = saved; // put the select back where the stored tier actually is
+            toast(e.message, 'error');
+          } finally {
+            sel.disabled = false;
+          }
+        });
+        block.append(sel);
+        list.append(block);
       });
       modal.append(list);
 

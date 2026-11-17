@@ -2851,6 +2851,11 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
 }
 .shared-acct-row:last-child { border-bottom: none; }
 .shared-acct-name { flex: 1; font-size: 13px; color: var(--text); }
+/* One account in the shared-site sheet: its name line, then its tier full width beneath. */
+.shared-acct { padding: 8px 2px 10px; border-bottom: 1px solid var(--border); }
+.shared-acct:last-child { border-bottom: none; }
+.shared-acct .shared-acct-row { padding: 0 0 8px; border-bottom: none; }
+.shared-acct .level-select { display: block; width: 100%; }
 
 /* signing activity rows */
 .activity-item { gap: 11px; }

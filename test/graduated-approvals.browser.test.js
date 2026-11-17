@@ -304,3 +304,56 @@ test('picking an account on a shared card names it, and renames no one else', op
     assert.deepEqual(x.errors, [], 'the panel threw');
   });
 });
+
+// PER-ACCOUNT TIERS in the shared-site sheet (Activity → Connected sites → Manage). The row
+// itself edits only the active account's tier, so before the sheet carried one per account the
+// other account's tier could be reached only by switching accounts first. Run through the real
+// panel: open the sheet, change Bea's tier with Tester still active, and see it stored for Bea
+// alone and enforced when Bea is the one signing.
+test('the shared-site sheet sets each account’s tier without switching accounts', opts, async (t) => {
+  await withClient(t, async (c) => {
+    const { x, call, result, cardUp, press, note, nextId } = c;
+    const { pk } = await twoAccountsSignedIn(c, { first: 'Tester', second: 'Bea' });
+    const host = (await site(x))[0];
+    const levels = async () => (await x.message({ type: 'SIDECAR_GET_SITE_LEVELS', host })).result;
+    assert.deepEqual(await levels(), { [pk.Tester]: 'ask', [pk.Bea]: 'ask' }, 'both start on the default tier');
+
+    await x.evaluate(`document.querySelector('.tab[data-tab="activity"]').click()`);
+    await x.waitFor(`!!document.querySelector('.site-shared-manage')`, 10000);
+    await x.evaluate(`document.querySelector('.site-shared-manage').click()`);
+    const sheet = await x.waitFor(`(() => {
+      const blocks = [...document.querySelectorAll('.shared-acct')];
+      return blocks.length === 2 ? blocks.map((b) => ({
+        name: b.querySelector('.shared-acct-name').textContent,
+        level: b.querySelector('select.level-select').value,
+        options: [...b.querySelectorAll('option')].map((o) => o.value),
+      })) : null;
+    })()`, 5000);
+    assert.deepEqual(sheet.map((s) => s.name).sort(), ['Bea', 'Tester'], 'one block per signed-in account');
+    for (const s of sheet) {
+      assert.equal(s.level, 'ask');
+      assert.deepEqual(s.options, ['ask', 'readonly', 'trusted', 'blocked']);
+    }
+
+    // Block Bea from the sheet, with Tester still the active account.
+    await x.evaluate(`(() => {
+      const b = [...document.querySelectorAll('.shared-acct')].find((e) => e.querySelector('.shared-acct-name').textContent === 'Bea');
+      const sel = b.querySelector('select.level-select');
+      sel.value = 'blocked';
+      sel.dispatchEvent(new Event('change'));
+    })()`);
+    const end = Date.now() + 5000;
+    while (Date.now() < end && (await levels())[pk.Bea] !== 'blocked') await x.sleep(100);
+    assert.deepEqual(await levels(), { [pk.Tester]: 'ask', [pk.Bea]: 'blocked' }, 'the sheet set Bea’s tier, and only Bea’s');
+    const st = (await x.message({ type: 'SIDECAR_GET_STATE' })).result;
+    assert.equal(st.activePubkey, pk.Tester, 'setting a tier switched the active account');
+
+    // And it is enforced: with Bea the account signing, the site is refused without a card.
+    await x.message({ type: 'SIDECAR_SET_ACTIVE', pubkey: pk.Bea });
+    const id = nextId();
+    await call(note('as a blocked account'));
+    const r = await result(id);
+    assert.equal(r.state, 'err');
+    assert.match(r.e, /blocked/i, 'a blocked account signed: ' + JSON.stringify(r));
+  });
+});

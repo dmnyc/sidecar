@@ -4681,9 +4681,27 @@ async function handleControl(message, sender, sendResponse) {
         await KINDS.revoke(message.host, await KS.getActivePubkey(), message.kind, message.d);
         result = true;
         break;
-      case 'SIDECAR_SET_LEVEL':
-        result = await PERMS.setLevel(await KS.getActivePubkey(), message.host, message.level);
+      case 'SIDECAR_SET_LEVEL': {
+        // The active account's tier, unless the caller names another: a tier belongs to an
+        // (account, host) pair, and the shared-site sheet sets one per signed-in account
+        // without making the user switch accounts first. A named account must exist: a
+        // tier written for a key Sidecar does not hold would sit in storage unreachable.
+        let target = await KS.getActivePubkey();
+        if (message.pubkey != null) {
+          if (!(await KS.hasAccount(message.pubkey))) throw new Error('Unknown account');
+          target = message.pubkey;
+        }
+        result = await PERMS.setLevel(target, message.host, message.level);
         break;
+      }
+      case 'SIDECAR_GET_SITE_LEVELS': {
+        // pubkey -> tier, for each account signed in on this host (a deleted account is
+        // already left out), so the shared-site sheet can show every account's tier.
+        const levels = {};
+        for (const pk of await getAuthorizedAccounts(message.host)) levels[pk] = await PERMS.getLevel(pk, message.host);
+        result = levels;
+        break;
+      }
       case 'SIDECAR_REMOVE_HOST':
         result = await PERMS.removeHost(await KS.getActivePubkey(), message.host);
         await KINDS.revokeForHost(await KS.getActivePubkey(), message.host); // and its per-kind grants
