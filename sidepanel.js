@@ -16713,14 +16713,15 @@
     }));
     body.append(adv);
 
-    body.append(h('label', { className: 'field-label', textContent: tSec('PIN (required to publish)') }));
-    const pin = h('input', { type: 'password', maxLength: 32 });
-    body.append(pin, err);
+    // No PIN field. The key is already unlocked to be on this screen, and the panel drops to
+    // the lock screen the moment it locks, so asking again protected nothing the lock does
+    // not: the setup wizard and the Lightning address save already publish this way. The
+    // overwrite check on the profile still runs in the background and still refuses a wipe.
+    body.append(err);
 
     const publish = h('button', { className: 'primary', textContent: t('Publish profile') });
     publish.addEventListener('click', async () => {
       err.textContent = '';
-      if (!pin.value) return (err.textContent = tSec('Enter your PIN to publish.'));
       publish.disabled = true;
       publish.textContent = t('Publishing…');
       try {
@@ -16746,7 +16747,7 @@
         // the day one of them is edited elsewhere.
         fields.offer = '';
         fields.clink_offer = '';
-        await publishProfile(fields, pin.value);
+        await publishProfile(fields, null);
         hide($('view-profile-edit'));
         show($('view-main'));
         renderProfile();
@@ -16948,7 +16949,8 @@
     );
   }
 
-  // Fetch-merge-sign-publish: preserve unknown fields, overlay edits, sign (step-up PIN), publish.
+  // Fetch-merge-sign-publish: preserve unknown fields, overlay edits, sign with the unlocked key, publish.
+  // `pin` is for a caller that has one to hand (it unlocks if auto-lock raced); none of today's callers do.
   async function publishProfile(fields, pin) {
     const { content } = await fetchActiveProfile();
     const merged = { ...content };
