@@ -1001,7 +1001,7 @@ test('the sealed VALUE takes no color of its own', () => {
     assert.equal(rule, null, name + ' colors the sealed text directly again');
     assert.match(
       sheet,
-      /\.card \.row\.sealed span:last-child::before \{[^}]*color: var\(--success\)/,
+      /\.card \.row\.sealed \.sealed-val > span:first-child::before \{[^}]*color: var\(--success\)/,
       name + ' lost the padlock color'
     );
   }

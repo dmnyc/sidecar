@@ -1240,7 +1240,6 @@
   "Enter a budget in sats, or uncheck the box.": "예산을 sats로 입력하거나 체크박스를 해제하세요.",
   "that account": "그 계정",
   "unreadable content": "읽을 수 없는 내용",
-  "to {{peer}}": "{{peer}}에게",
   "One tap signs every event listed. A batch never mixes event kinds.": "한 번 탭하면 나열된 모든 이벤트에 서명해요. 일괄 처리에는 서로 다른 이벤트 kind가 섞이지 않아요.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "거부는 언제나 안전하기 때문에 ‘모두 승인’은 없어요. 일괄 처리는 위에 나열된 것처럼 모든 요청이 같은 사이트의 같은 kind일 때만 제공돼요.",
   "Use Sidecar": "Sidecar 사용",

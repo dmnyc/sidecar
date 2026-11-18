@@ -1240,7 +1240,6 @@
   "Enter a budget in sats, or uncheck the box.": "予算をsatsで入力するか、チェックを外してください。",
   "that account": "そのアカウント",
   "unreadable content": "読み取れない内容",
-  "to {{peer}}": "{{peer}}宛て",
   "One tap signs every event listed. A batch never mixes event kinds.": "1回のタップで、一覧のすべてのイベントに署名します。まとめて署名できるのは、同じkindのイベントだけです。",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "拒否は常に安全なため、「すべて承認」はありません。まとめての承認は、上に一覧表示された、同じサイトからの同じkindのリクエストだけの場合に表示されます。",
   "Use Sidecar": "Sidecarを使う",

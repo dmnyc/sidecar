@@ -1240,7 +1240,6 @@
   "Enter a budget in sats, or uncheck the box.": "請輸入以 sats 為單位的額度，或取消勾選。",
   "that account": "該帳號",
   "unreadable content": "無法讀取的內容",
-  "to {{peer}}": "給 {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "點一下即可簽署列出的所有事件。批次不會混合不同的事件 kind。",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "拒絕永遠是安全的，因此沒有「全部核准」。只有當所有請求都是來自同一網站的相同 kind（列於上方）時，才會提供批次。",
   "Use Sidecar": "使用 Sidecar",

@@ -1242,7 +1242,6 @@
   "Enter a budget in sats, or uncheck the box.": "Sat cinsinden bir bütçe girin veya kutunun işaretini kaldırın.",
   "that account": "bu hesap",
   "unreadable content": "okunamayan içerik",
-  "to {{peer}}": "alıcı: {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "Tek dokunuş, listelenen her olayı imzalar. Bir toplu işlem asla farklı olay türlerini karıştırmaz.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "Reddetmek her zaman güvenlidir, bu yüzden Tümünü onayla yoktur — toplu işlemler yalnızca tüm istekler aynı siteden gelen aynı türdeyse sunulur ve yukarıda listelenir.",
   "Use Sidecar": "Sidecar’ı kullan",

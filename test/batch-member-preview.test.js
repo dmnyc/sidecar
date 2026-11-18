@@ -169,7 +169,9 @@ test('the panel renders the member list before the batch button is offered', () 
   const fn = stripComments(lift(panel, 'function renderBatchList('));
   assert.match(fn, /approval-batch-list/, 'renderBatchList lost its element');
   assert.match(fn, /members\.length < 2/, 'single approvals now render a redundant list');
-  assert.match(fn, /clampApprovalText\(/, 'member text is unclamped page-written text');
+  // Through sealedValue, which clamps what it prints (checked here) and describes what is not prose.
+  assert.match(fn, /sealedValue\(/, 'member text is unclamped page-written text');
+  assert.match(stripComments(lift(panel, 'function sealedValue(')), /clampApprovalText\(/, 'sealedValue stopped clamping');
   assert.ok(!/innerHTML\s*=/.test(fn.replace('list.innerHTML', '')) &&
     /textContent/.test(fn), 'member rows are not textContent-assigned');
 });

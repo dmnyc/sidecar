@@ -76,7 +76,7 @@ test('profile-like content is rows too, and anything that is not an object stays
   // An empty nested object is a value, not nothing: the row says it is there.
   assert.deepEqual(plain(S.fields('{"a":{}}').rows), [['a', '{}']]);
   // Arrays are values, shown compactly.
-  assert.deepEqual(plain(S.fields('{"list":[1,2]}').rows), [['list', '[1,2]']]);
+  assert.deepEqual(plain(S.fields('{"list":[1,2]}').rows), [['list', '1, 2']]);
 });
 
 test('rows are capped and the rest is counted, a long value is cut, a huge content is not parsed', () => {
@@ -181,4 +181,14 @@ test('both approval pages load the module before the script that uses it', () =>
     assert.ok(mod > -1, html + ' does not load event-summary.js');
     assert.ok(mod < use, html + ' loads event-summary.js after ' + js);
   }
+});
+
+test('a list of plain values reads as a list, and a list of objects stays JSON', () => {
+  const f = S.fields('{"relays":["wss://relay.example.com","wss://relay2.example.com"],"n":[1,2],"mixed":[{"a":1}],"empty":[]}');
+  assert.deepEqual(plain(f.rows), [
+    ['relays', 'wss://relay.example.com, wss://relay2.example.com'],
+    ['n', '1, 2'],
+    ['mixed', '[{"a":1}]'],
+    ['empty', '[]'],
+  ]);
 });

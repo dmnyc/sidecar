@@ -1244,7 +1244,6 @@
   "Enter a budget in sats, or uncheck the box.": "הזינו תקציב ב-sats, או בטלו את הסימון בתיבה.",
   "that account": "החשבון הזה",
   "unreadable content": "תוכן לא קריא",
-  "to {{peer}}": "אל {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "הקשה אחת חותמת על כל האירועים שברשימה. אצווה אינה מערבבת סוגי אירועים.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "דחייה תמיד בטוחה, ולכן אין “אישור הכול” — אצוות מוצעות רק כשכל הבקשות הן מאותו סוג ומאותו אתר, כפי שמופיע למעלה.",
   "Use Sidecar": "שימוש ב-Sidecar",

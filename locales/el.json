@@ -1242,7 +1242,6 @@
   "Enter a budget in sats, or uncheck the box.": "Εισαγάγετε έναν προϋπολογισμό σε sats ή καταργήστε την επιλογή του πλαισίου.",
   "that account": "αυτός ο λογαριασμός",
   "unreadable content": "μη αναγνώσιμο περιεχόμενο",
-  "to {{peer}}": "προς {{peer}}",
   "One tap signs every event listed. A batch never mixes event kinds.": "Ένα πάτημα υπογράφει όλα τα συμβάντα της λίστας. Μια ομάδα δεν αναμειγνύει ποτέ διαφορετικά είδη συμβάντων.",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "Η απόρριψη είναι πάντα ασφαλής, γι’ αυτό δεν υπάρχει «Έγκριση όλων» — οι ομάδες προσφέρονται μόνο όταν κάθε αίτημα είναι του ίδιου είδους από τον ίδιο ιστότοπο, όπως φαίνονται παραπάνω.",
   "Use Sidecar": "Χρήση του Sidecar",

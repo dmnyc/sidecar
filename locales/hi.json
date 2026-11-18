@@ -1242,7 +1242,6 @@
   "Enter a budget in sats, or uncheck the box.": "sats में बजट दर्ज करें, या बॉक्स का निशान हटाएँ।",
   "that account": "वह अकाउंट",
   "unreadable content": "न पढ़ी जा सकने वाली सामग्री",
-  "to {{peer}}": "{{peer}} को",
   "One tap signs every event listed. A batch never mixes event kinds.": "एक टैप से सूची के हर इवेंट पर साइन होता है। एक बैच में अलग-अलग प्रकार के इवेंट कभी नहीं मिलते।",
   "Rejecting is always safe, so there is no Approve all — batches are offered only when every request is the same kind from the same site, listed above.": "अस्वीकार करना हमेशा सुरक्षित है, इसलिए “सभी मंज़ूर करें” नहीं है — बैच तभी दिए जाते हैं जब हर अनुरोध एक ही साइट से और एक ही प्रकार का हो, जैसा ऊपर सूचीबद्ध है।",
   "Use Sidecar": "Sidecar इस्तेमाल करें",
