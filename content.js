@@ -628,12 +628,25 @@
   // prompt.js (the approval window's wordmark). A new light theme has to be registered
   // in all three.
   const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'phantom-bouquet']);
+  // The themes that wear a cut of their own: [garnish, garnish shade, glass lit, glass shade,
+  // wordmark], the stock logo's five colors in the theme's inks. The same table is THEME_LOGOS in
+  // composer-core.js (as files) and in prompt.js, and test/theme-logos.test.js holds them to each
+  // other. A themed cut beats the light-theme wordmark below.
+  const CARD_LOGO_DYES = {
+    'phantom-bouquet': ['#FBF8F0', '#E4DCCA', '#A3443A', '#8F3A31', '#6B3B5A'],
+    'film-noir': ['#F2F2F2', '#BDBDBD', '#C8C8C8', '#8E8E8E', '#E0E0E0'],
+    'brownstone': ['#F2E7DD', '#CDB9A7', '#D2AD70', '#A9843F', '#D69A6A'],
+    'cast-iron': ['#D9D3C5', '#A39D8E', '#B9B19F', '#6E6858', '#948C79'],
+    'par-avion': ['#FFFFFF', '#E8E8EA', '#C0272D', '#A02C2E', '#1B4C8C'],
+    'industria': ['#FFFFFF', '#E8E8EA', '#A67C1E', '#7A5A18', '#6B4E1C'],
+  };
   function logoSvgFor(cardTheme) {
-    if (cardTheme === 'phantom-bouquet') {
+    const dyes = Object.prototype.hasOwnProperty.call(CARD_LOGO_DYES, cardTheme) ? CARD_LOGO_DYES[cardTheme] : null;
+    if (dyes) {
       return LOGO_SVG
-        .replace('fill="#fff"', 'fill="#FBF8F0"').replace('fill="#d0d1d3"', 'fill="#E4DCCA"')
-        .replace('fill="#EA772F"', 'fill="#8F3A31"').replace('fill="#FFA01B"', 'fill="#A3443A"')
-        .replace(/#BDA1FF/g, '#6B3B5A');
+        .replace('fill="#fff"', 'fill="' + dyes[0] + '"').replace('fill="#d0d1d3"', 'fill="' + dyes[1] + '"')
+        .replace('fill="#FFA01B"', 'fill="' + dyes[2] + '"').replace('fill="#EA772F"', 'fill="' + dyes[3] + '"')
+        .replace(/#BDA1FF/g, dyes[4]);
     }
     return LIGHT_CARD_THEMES.has(cardTheme) ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
   }
