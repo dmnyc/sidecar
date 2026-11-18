@@ -86,7 +86,7 @@ test('A REPLY SENT TO THE TAB STILL GIVES THE BELL BACK', () => {
 test('ONE HANDOFF, SHARED WITH EXPAND', () => {
   // Two copies of this drifted once already, and a reply arriving with no target was the
   // result. The setting and the button call the same function.
-  assert.match(bare, /async function handOffToTab\(dkey, replyTo\)/);
+  assert.match(bare, /async function handOffToTab\(dkey, replyTo(, handOff)?\)/);
   assert.match(composer, /await handOffToTab\(dk,/);
   const expand = bare.slice(bare.indexOf("expand.addEventListener('click'"));
   assert.match(expand.slice(0, 900), /await handOffToTab\(dkey, replyTo\)/);

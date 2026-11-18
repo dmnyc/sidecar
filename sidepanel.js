@@ -1911,6 +1911,29 @@
     toast(t('Locked'), 'success');
   });
 
+  // "Open saved drafts" on the compose menu, only when this account has some: the same list the
+  // folder in the composer's corner opens, without opening a note to get to it. Worked out as
+  // the menu opens, from this device's drafts (what is on the relays needs the network, and the
+  // list asks for that itself once it is open).
+  async function refreshSavedDraftsItem() {
+    const btn = $('saved-drafts-btn');
+    if (!btn) return;
+    btn.hidden = true;
+    const pk = state && state.activePubkey;
+    if (!pk) return;
+    try {
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+      const key = draftKey(pk, null);
+      const core = window.SidecarCore;
+      btn.hidden = !(core.otherDraftEntries(all, pk, key).length || (all[key] && core.draftHasContent(all[key])));
+    } catch (_) { /* no list, no item: the folder in the composer is still there */ }
+  }
+  $('compose-fab').addEventListener('click', refreshSavedDraftsItem);
+  $('saved-drafts-btn').addEventListener('click', () => {
+    if ($('compose-fab').disabled) return;
+    openComposer('', { showDrafts: true });
+  });
+
   $('compose-note-btn').addEventListener('click', () => {
     if ($('compose-fab').disabled) return;
     const balloon = $('first-post-balloon');
@@ -5563,6 +5586,35 @@
   const { buildGifPicker, buildEmojiPicker, composeToolBtn, buildPowButton } = window.SidecarCore;
   // Saved drafts, listed the same way the expanded composer lists them.
   const { otherDraftEntries, buildSavedDraftList } = window.SidecarCore;
+  const { buildRelayDraftsPane } = window.SidecarCore;
+
+  // ---- drafts on relays (NIP-37), this panel's end ----
+  //
+  // composer-core holds the rules; this hands it the panel's pool and relay sets. The
+  // private relay list (10013) is read where backups are read and published where posts
+  // go; the drafts themselves go to the relays that list names, which are let answer an
+  // AUTH challenge from here (they are the account's own, by its own signed list, and
+  // NIP-37 asks them to require it).
+  const relayDrafts = window.SidecarCore.installRelayDrafts({
+    call, NT,
+    query: (relays, filter) => poolQueryAnswered(relays, filter, { capMs: 8000 }),
+    publish: (relays, signed) => publishToRelays(relays, signed),
+    readRelays: () => backupReadRelays(),
+    writeRelays: () => postRelays(),
+    // A list the panel already holds for the account, even a stale one, is a list that exists.
+    knownRelayList: async (pubkey) => (await getNip65Info(pubkey)).list || null,
+    relayListChanged: (pubkey) => { nip65Cache.delete(pubkey); refreshAuthRelays(pubkey).catch(() => {}); },
+    trust: (urls) => urls.forEach((u) => authRelays.add(normalizeRelay(u))),
+    fetchEvent: (id) => fetchNoteById(id),
+    warn: (message) => toast(message, 'info'),
+  });
+  // What set-up offers as private relays: the write relays the account itself declares
+  // (its kind 10002), or, with none declared, the relays its posts go to.
+  async function relayDraftSetupRelays() {
+    let declared = [];
+    try { declared = ((await getNip65Info(state.activePubkey)).list || {}).write || []; } catch (_) {}
+    return declared.length ? declared : postRelays();
+  }
   // The same note posted twice: see postFingerprint in composer-core.js.
   const { postFingerprint, freshRecentPosts, RECENT_POSTS_KEY } = window.SidecarCore;
   const SC_freshRecentPosts = freshRecentPosts;
@@ -14673,6 +14725,7 @@
     );
     return (async () => {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+      const prevRelay = all[key] && all[key].relay;
       // replyTo TRAVELS WITH THE DRAFT.
       //
       // Without it a saved reply came back as a plain note: same text, no target, and
@@ -14696,6 +14749,11 @@
           const r = draft.replyTo;
           all[key].replyTo = { id: r.id, pubkey: r.pubkey, kind: r.kind, tags: r.tags, content: r.content };
         }
+        // WHERE ITS RELAY COPY IS, if it has one (Save to relays, NIP-37). The slot is
+        // rebuilt from the editor on every save, and the editor never held the pointer, so
+        // it is carried over from the slot being replaced: without it, posting the draft
+        // could not blank the copy on the relays.
+        if (prevRelay) all[key].relay = prevRelay;
         pruneReplyDrafts(all);
       }
       else delete all[key];
@@ -14719,12 +14777,16 @@
       .forEach((k) => delete all[k]);
   }
 
+  // Posted, or thrown away with Start fresh: the draft is gone, and so is its copy on the
+  // relays if it had one (relayDrafts.forget, best effort and quiet).
   async function clearComposeDraft(key) {
     try {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
       if (!(key in all)) return;
+      const removed = all[key];
       delete all[key];
       await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+      relayDrafts.forget(String(key).split('|')[0], removed);
     } catch (_) {}
   }
 
@@ -14951,7 +15013,8 @@
   // The SLOT IS CREATED IF ABSENT, which it is whenever nothing has been typed yet:
   // saveComposeDraft writes nothing for an empty draft and deletes the slot outright, so
   // a fresh reply would otherwise hand the tab an empty key and no target.
-  async function handOffToTab(dkey, replyTo) {
+  async function handOffToTab(dkey, replyTo, handOff) {
+    const showDrafts = !!(handOff && handOff.showDrafts);
     let relays = null;
     try { relays = await postRelays(); } catch (_) {}
     const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
@@ -14975,7 +15038,9 @@
         // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the "tabs"
         // permission, which this extension does not ask for, and chrome.tabs.update
         // fails silently without it.
-        if (composeTabNeedsSwitch(open, wantId)) {
+        if (showDrafts) {
+          chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId, showDrafts: true }).catch(() => {});
+        } else if (composeTabNeedsSwitch(open, wantId)) {
           chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId }).catch(() => {});
         }
         await chrome.tabs.update(open.tabId, { active: true });
@@ -14987,7 +15052,8 @@
     // the path. getURL takes a path, and what it does with a "?" in one is not something
     // to find out from a bug report.
     const url = chrome.runtime.getURL('compose.html')
-      + (wantId ? '?reply=' + encodeURIComponent(wantId) : '');
+      + (wantId ? '?reply=' + encodeURIComponent(wantId) : '')
+      + (showDrafts ? '#drafts' : '');
     chrome.tabs.create({ url });
   }
 
@@ -15038,11 +15104,14 @@
         // "already open"; the tab says what it did.
         const quote = quoteFrom(initialText);
         if (quote) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_QUOTE', ref: quote.quote }).catch(() => {});
+        // The Saved drafts shortcut: the tab shows its list, so it is a different thing to say.
+        const wantList = !!(opts && opts.showDrafts);
+        if (wantList) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId, showDrafts: true }).catch(() => {});
         try {
           await chrome.tabs.update(open.tabId, { active: true });
           await chrome.windows.update(open.windowId, { focused: true });
         } catch (_) { /* the tab went away between the query and the focus */ }
-        if (!quote) toast(t('Your draft is already open in a tab'), 'info');
+        if (!quote && !wantList) toast(t('Your draft is already open in a tab'), 'info');
         return;
       }
     }
@@ -15054,6 +15123,8 @@
       catch (_) {} // A settings read that fails leaves the panel composer, which always works.
       if (inTab) {
         const dk = draftKey(state.activePubkey, (opts && opts.replyTo) || null);
+        // The Saved drafts shortcut goes to the tab's own list, with nothing seeded or set aside.
+        if (opts && opts.showDrafts) { await handOffToTab(dk, null, { showDrafts: true }); return; }
         const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
         const slot = all[dk];
         // A poll draft used to be held back here, because the tab had no poll editor and
@@ -15284,10 +15355,14 @@
       btn.append(icon('folder'), count);
       btn.addEventListener('click', () => { showSavedDrafts(); });
       modal.append(btn);
+      // SHOWN WITH NO DRAFTS TOO, the count left off: Saved drafts is also where drafts
+      // kept on relays are read back and this one is saved to them (NIP-37), and a folder
+      // that appeared only once something was saved locally hid both.
       draftsToList().then((entries) => {
         const n = entries.length;
-        if (!n || !btn.isConnected) return;
-        count.textContent = I18N.fmtNum(n);
+        if (!btn.isConnected) return;
+        count.textContent = n ? I18N.fmtNum(n) : '';
+        count.classList.toggle('hidden', !n);
         // In words for a screen reader, which would otherwise read the count alone.
         btn.setAttribute('aria-label', tn('{{count}} saved draft', '{{count}} saved drafts', n));
         btn.classList.remove('hidden');
@@ -15297,32 +15372,67 @@
 
     // The list, in place of the editor, with a way back to it. The draft on screen is
     // saved before it goes, because the list is built from the store.
+    // THE DRAFT ON SCREEN IS LISTED FIRST, as "Open now": it is the one most often meant
+    // by Save to relays, and its row is where that button is. Tapping it goes back to it.
     async function showSavedDrafts() {
       await flushDraftNow();
       const entries = await draftsToList();
-      if (!entries.length) { showEditor(); return; }
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
+      if (all[dkey] && window.SidecarCore.draftHasContent(all[dkey])) {
+        entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId: replyTo ? replyTo.id : null });
+      }
       stopCountdown();
       modal.innerHTML = '';
       modal.classList.remove('has-drafts-btn');
       addCorner(false);
       const back = h('button', { className: 'ghost', textContent: t('Back to your draft') });
       back.addEventListener('click', () => showEditor());
+      const pane = buildRelayDraftsPane({
+        relays: relayDrafts, pubkey, localDrafts: all,
+        nameFor: (pk) => Promise.resolve(notifAuthorName(pk)),
+        setupRelays: relayDraftSetupRelays,
+        notify: toast,
+        onChanged: () => showSavedDrafts(),
+        canOpen: async (item) => {
+          const open = await liveComposeTab();
+          const want = item.draft.replyTo ? { id: item.draft.replyTo.id } : null;
+          return open && !open.done && draftKey(pubkey, open.replyId ? { id: open.replyId } : null) === draftKey(pubkey, want)
+            ? t('Your draft is already open in a tab') : null;
+        },
+        onOpen: (res) => openAdoptedRelayDraft(res),
+      });
       modal.append(
         h('h3', { textContent: t('Saved drafts') }),
-        buildSavedDraftList({
+        entries.length ? buildSavedDraftList({
           entries,
           nameFor: (pk) => Promise.resolve(notifAuthorName(pk)),
           onPick: (entry) => switchToSavedDraft(entry),
+          onCurrent: () => showEditor(),
+          onSave: (entry) => pane.saveEntry(entry),
           onDelete: async (entry) => {
             const now = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+            const removed = now[entry.key];
             delete now[entry.key];
             await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: now });
+            relayDrafts.forget(pubkey, removed);
             toast(t('Draft deleted.'), 'success');
             showSavedDrafts();
           },
-        }),
+        }) : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') }),
+        pane.el,
         h('div', { className: 'actions' }, [back]),
       );
+    }
+
+    // A draft read back from the relays, now in the store (relayDrafts.adopt), opened the
+    // way a picked draft is: this composer closes without saving over it and the one for
+    // that slot opens on it. Not while the tab is writing that slot, whose next autosave
+    // would put its own text straight back.
+    async function openAdoptedRelayDraft(res) {
+      switchingDraft = true;
+      closeModal();
+      if (res.shelved) toast(t('Your draft is in Saved drafts.'), 'success');
+      openComposer('', { replyTo: res.replyTo || null, resumeSaved: true });
     }
 
     // Another draft, in this composer. The slot is fixed for a composer's whole session
@@ -16596,7 +16706,16 @@
         _modalDismissGuard = () => (postingNow ? t('Posting. This closes as soon as the relays answer.')
           : !!(draft.text.trim() || (draft.media || []).length));
         // Chosen from Saved drafts a moment ago, so it opens rather than asking again.
-        if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
+        // THE SAVED DRAFTS SHORTCUT (the compose menu's "Open saved drafts"). The draft in
+        // progress is brought into the editor first, then the list drawn over it: the list
+        // saves what is on screen before it opens (showSavedDrafts), and what is on screen
+        // must be the saved draft by then, not the blank one this composer started with,
+        // or opening the list would overwrite the draft it is meant to list.
+        if (opts && opts.showDrafts) {
+          if (hasSaved) resumeFrom(saved); else showEditor();
+          showSavedDrafts();
+        }
+        else if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
         else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
         else showEditor();
         if (setAside) toast(t('Your draft is in Saved drafts.'), 'success');

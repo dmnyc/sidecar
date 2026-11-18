@@ -69,6 +69,12 @@ window.SidecarCore = (function () {
     // A single clockwise arrow: the profile screen's refresh mark (sidepanel.js). The
     // two-arrow `refresh` above reads as "sync"; this one reads as "try again".
     reload: '<path d="M20 12a8 8 0 1 1-2.34-5.66"></path><polyline points="20 4.5 20 9 15.5 9"></polyline>',
+    // Feather's cloud and upload-cloud, for drafts kept on relays (NIP-37): the mark on a
+    // row that has a copy there, and the button that puts one there.
+    cloud: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>',
+    // Feather's download-cloud, for reading drafts back from relays (the pair of upload-cloud).
+    'download-cloud': '<polyline points="8 17 12 21 16 17"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>',
+    'upload-cloud': '<polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>',
     'rotate-ccw': '<polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>',
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>',
     'eye-off': '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>',
@@ -2814,25 +2820,65 @@ window.SidecarCore = (function () {
   }
 
   // The list itself. d: { entries, nameFor(pubkey) -> Promise<name|null>, onPick(entry),
-  // onDelete(entry) -> Promise }.
+  // onDelete(entry) -> Promise, onSave(entry) -> Promise and onCurrent(entry) (optional) }.
   //
   // THE TRASH CONFIRMS BY REWRITING ITS OWN ROW, the account switcher's two taps: the
   // first turns the row into the question, the second, anywhere on it, deletes. A draft
   // lives only in this browser, so there is nothing to recover it from, and the toast
   // has no Undo to offer instead. The question goes back on its own after a few seconds.
+  //
+  // DRAFTS ON RELAYS (NIP-37) use the same row. Three kinds of entry, all optional:
+  //   entry.current    the draft on screen, listed so it can be saved to relays; no trash,
+  //                    since deleting what you are writing is what clearing it is for
+  //   entry.relayItem  a draft read back from the account's private relays; its trash
+  //                    blanks the relay copy, so its question says where it is deleting
+  //   d.onSave         a second icon, the cloud, on rows that can go to relays (not a
+  //                    poll: NIP-37 drafts here are kinds 1 and 1111 only)
+  // Two icons at most in the inline slot, never a word: AGENTS.md's row grammar.
   function buildSavedDraftList(d) {
     const list = h('div', { className: 'saved-drafts' });
     d.entries.forEach((entry) => {
       const label = h('span', { className: 'saved-draft-label', textContent: draftKindLabel(entry, null) });
-      const when = h('span', { className: 'saved-draft-when',
-        textContent: entry.draft.savedAt ? relTime(entry.draft.savedAt) : '' });
+      const whenText = () => (entry.current ? t('Open now')
+        : entry.draft.savedAt ? relTime(entry.draft.savedAt) : '');
+      const when = h('span', { className: 'saved-draft-when', textContent: whenText() });
+      // The time and, when there is one, the mark beside it are ONE unit at the end of the
+      // line, on the same baseline: separate flex items drifted apart and sat at different
+      // heights from the title and each other.
+      const meta = h('span', { className: 'saved-draft-meta' });
+      const top = h('span', { className: 'saved-draft-top' }, [label, meta]);
+      // The mark: this one has a copy on the account's private relays.
+      if (entry.relayItem || (entry.draft.relay && entry.draft.relay.d)) {
+        const mark = h('span', { className: 'saved-draft-mark',
+          title: entry.relayItem ? t('On your relays') : t('Saved to your relays') });
+        mark.setAttribute('aria-label', mark.title);
+        mark.append(icon('cloud'));
+        meta.append(mark);
+      }
+      meta.append(when);
       const snip = h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: draftSnippet(entry.draft) });
-      const open = h('button', { className: 'saved-draft-open', type: 'button' }, [
-        h('span', { className: 'saved-draft-top' }, [label, when]), snip,
-      ]);
-      const trash = h('button', { className: 'saved-draft-x', type: 'button', title: t('Delete draft') });
-      trash.append(icon('trash'));
-      const row = h('div', { className: 'saved-draft' }, [open, trash]);
+      const open = h('button', { className: 'saved-draft-open', type: 'button' }, [top, snip]);
+      const kids = [open];
+      if (d.onSave && !entry.relayItem && !entry.draft.poll) {
+        const save = h('button', { className: 'saved-draft-x saved-draft-cloud', type: 'button', title: t('Save to relays') });
+        save.setAttribute('aria-label', save.title);
+        save.append(icon('upload-cloud'));
+        save.addEventListener('click', async () => {
+          if (save.disabled) return;
+          save.disabled = true;
+          try { await d.onSave(entry); } catch (_) { /* the caller says what went wrong */ }
+          save.disabled = false;
+        });
+        kids.push(save);
+      }
+      let trash = null;
+      if (!entry.current) {
+        trash = h('button', { className: 'saved-draft-x', type: 'button',
+          title: entry.relayItem ? t('Delete from your relays') : t('Delete draft') });
+        trash.append(icon('trash'));
+        kids.push(trash);
+      }
+      const row = h('div', { className: 'saved-draft' + (entry.current ? ' saved-draft-current' : '') }, kids);
 
       let name = null;
       if (entry.reply && entry.draft.replyTo && entry.draft.replyTo.pubkey && d.nameFor) {
@@ -2848,13 +2894,13 @@ window.SidecarCore = (function () {
         clearTimeout(timer);
         row.classList.remove('confirming');
         label.textContent = draftKindLabel(entry, name);
-        when.classList.remove('hidden');
+        meta.classList.remove('hidden');
         snip.textContent = draftSnippet(entry.draft);
       };
       const confirmDelete = () => {
         row.classList.add('confirming');
-        label.textContent = t('Delete this draft?');
-        when.classList.add('hidden');
+        label.textContent = entry.relayItem ? t('Delete it from your relays?') : t('Delete this draft?');
+        meta.classList.add('hidden');
         snip.textContent = t('Tap again to delete');
         timer = setTimeout(settle, 4000);
       };
@@ -2863,11 +2909,801 @@ window.SidecarCore = (function () {
         trash.disabled = true; open.disabled = true;
         try { await d.onDelete(entry); } catch (_) { settle(); trash.disabled = false; open.disabled = false; }
       };
-      trash.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else confirmDelete(); });
-      open.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else d.onPick(entry); });
+      if (trash) trash.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else confirmDelete(); });
+      open.addEventListener('click', () => {
+        if (row.classList.contains('confirming')) remove();
+        else if (entry.current) (d.onCurrent || d.onPick)(entry);
+        else d.onPick(entry);
+      });
       list.append(row);
     });
     return list;
+  }
+
+  // ---- drafts on relays (NIP-37) ----
+  //
+  // Saved drafts live in this browser, encrypted in the worker's store. NIP-37 is how a
+  // draft is kept on relays instead, where another client (or this one on another
+  // machine) can pick it up: a kind 31234 whose content is the UNSIGNED event Post would
+  // build, NIP-44 encrypted to the account's own key, sent to the private relays the
+  // account lists in its kind 10013.
+  //
+  // EXPLICIT, NEVER AUTOMATIC. Autosave stays local: a signature and a relay write per
+  // keystroke pause would be slow, and it would tell a relay when and how often you draft
+  // even with the text encrypted. A draft goes to relays when Save to relays is tapped,
+  // and that is all that ever sends one.
+  //
+  // KINDS 1 AND 1111 ONLY, the two this composer writes: a note (or a reply to one) and
+  // a NIP-22 comment answering a comment. Long-form (30023) and polls (1068) are left
+  // out by RELAY_DRAFT_KINDS, and a draft of another kind found on the relays is counted
+  // rather than shown, so adding a kind later is a builder and this list.
+  const RELAY_DRAFT_KIND = 31234;
+  const PRIVATE_RELAYS_KIND = 10013;
+  const RELAY_DRAFT_KINDS = [1, WEB_COMMENT_KIND];
+  // NIP-40 expiration, which NIP-37 recommends: a draft nobody came back to for three
+  // months is let go by any relay that honors it.
+  const RELAY_DRAFT_TTL_SECS = 90 * 86400;
+  // NIP-44 v2 encrypts at most 65535 bytes of plaintext.
+  const NIP44_MAX_PLAINTEXT = 65535;
+  const HEX64_RE = /^[0-9a-f]{64}$/;
+
+  const tagValue = (tags, name) => {
+    const tg = (tags || []).find((x) => Array.isArray(x) && x[0] === name);
+    return tg ? tg[1] : undefined;
+  };
+
+  // The event Post would build from this draft, unsigned: the threading the composers
+  // build (replyTags), the client tag unless Settings turned it off, the p and q tags the
+  // text earns (noteBodyTags), and one imeta per described attachment, in the order both
+  // composers write them. What has no NIP-37 home stays local: proof of work (mined at
+  // Post, against the signing key), the tab's relay set, and the dev-build overrides.
+  // Null for a draft that is not a note or a comment (a poll) or has nothing in it.
+  // o: { selfPubkey, NT, clientTag (default on), videoImeta, now (unix seconds) }
+  function draftToEvent(draft, o) {
+    if (!draft || draft.poll) return null;
+    const text = linkBareRefs(String(draft.text || '').trim(), o.NT);
+    const media = Array.isArray(draft.media) ? draft.media.filter(Boolean) : [];
+    if (!text && !media.length) return null;
+    const reply = draft.replyTo && draft.replyTo.id ? replyTags(draft.replyTo, o.selfPubkey) : null;
+    const body = noteBodyTags(proseWithQuotes(text, media), o.NT, reply ? reply.tags : []);
+    return {
+      kind: reply ? reply.kind : 1,
+      created_at: o.now,
+      tags: [
+        ...(reply ? reply.tags : []),
+        ...(o.clientTag === false ? [] : [['client', 'Sidecar']]),
+        ...body.p,
+        ...body.q,
+        ...imetaTagsForMedia(media, { videoImeta: o.videoImeta }),
+      ],
+      content: composeNoteContent(text, media),
+    };
+  }
+
+  // An imeta tag's slots, keyed: ["imeta", "url …", "alt …"] → { url, alt }.
+  function imetaFields(tag) {
+    const out = {};
+    for (const slot of tag.slice(1)) {
+      if (typeof slot !== 'string') continue;
+      const at = slot.indexOf(' ');
+      if (at > 0 && !(slot.slice(0, at) in out)) out[slot.slice(0, at)] = slot.slice(at + 1);
+    }
+    return out;
+  }
+
+  // The content back into the editor's two halves: the words, and the strip (pictures and
+  // one quoted note) that composeNoteContent appended after them. Read from the end, a
+  // paragraph at a time, and only paragraphs that are wholly attachment lines: a URL the
+  // imeta tags describe or that names an image or video, or a lone nostr: quote. CHECKED
+  // BY REBUILDING: unless composeNoteContent gives back exactly the content it was handed,
+  // the whole content stays text, which is what any other client's draft would show.
+  function splitDraftContent(content, tags) {
+    const whole = String(content || '');
+    const metas = new Map();
+    for (const tg of tags || []) {
+      if (Array.isArray(tg) && tg[0] === 'imeta') {
+        const f = imetaFields(tg);
+        if (f.url) metas.set(f.url, f);
+      }
+    }
+    const urlLine = (l) => /^https?:\/\/\S+$/.test(l) && (metas.has(l) || IMG_EXT.test(l) || VID_EXT.test(l));
+    const quoteLine = (l) => /^nostr:(?:nevent|note|naddr)1[023456789acdefghjklmnpqrstuvwxyz]+$/.test(l);
+    const entryFor = (url) => {
+      const f = metas.get(url) || {};
+      const video = urlIsVideo(url) || /^video\//i.test(f.m || '');
+      const m = { url, isVideo: video };
+      if (f.alt) m.alt = f.alt;
+      if (video && f.m) m.mime = f.m;
+      if (video && f.dim) m.dim = f.dim;
+      return m;
+    };
+    const paras = whole.split('\n\n');
+    const media = [];
+    let at = paras.length;
+    let prev = '';
+    while (at > 0) {
+      const lines = paras[at - 1].split('\n');
+      const kind = lines.every(urlLine) ? 'url' : lines.every(quoteLine) ? 'quote' : '';
+      if (!kind || kind === prev) break;
+      if (kind === 'quote' && (lines.length !== 1 || media.some((m) => m.quote))) break; // the strip holds one quote
+      media.unshift(...lines.map((l) => (kind === 'url' ? entryFor(l) : { quote: l })));
+      prev = kind;
+      at--;
+    }
+    const text = paras.slice(0, at).join('\n\n');
+    if (composeNoteContent(text, media) !== whole) return { text: whole, media: [] };
+    return { text, media };
+  }
+
+  // What a kind 1 reply answers, as the composer's replyTo: the e tag marked reply (or
+  // root, when it answers the root), with the deprecated positional form read as NIP-10
+  // says. The author is the e tag's fifth slot or the first p tag, which is where both
+  // composers put it; without one the draft cannot be continued here.
+  function noteTargetFrom(tags) {
+    const es = tags.filter((tg) => tg[0] === 'e' && HEX64_RE.test(tg[1] || '') && tg[3] !== 'mention');
+    if (!es.length) return { none: true };
+    const rootM = es.find((tg) => tg[3] === 'root');
+    const replyM = es.find((tg) => tg[3] === 'reply');
+    const root = rootM || replyM || es[0];
+    const parent = replyM || rootM || es[es.length - 1];
+    const people = tags.filter((tg) => tg[0] === 'p' && HEX64_RE.test(tg[1] || '')).map((tg) => ['p', tg[1]]);
+    const author = (HEX64_RE.test(parent[4] || '') && parent[4]) || (people[0] && people[0][1]) || '';
+    if (!author) return null;
+    const out = { id: parent[1], pubkey: author, kind: 1, tags: people.filter((p) => p[1] !== author), content: '' };
+    if (root[1] !== parent[1]) out.tags.unshift(['e', root[1], '', 'root']);
+    return out;
+  }
+
+  // What a kind 1111 comment answers. The composer continues a comment only where it
+  // answers another comment (an `e` parent of kind 1111): that is the one shape replyTags
+  // turns back into a 1111. The root scope (I, K, E, A, P) is carried VERBATIM, since
+  // NIP-22 reads it positionally and it is the thread the comment belongs to.
+  function commentTargetFrom(tags) {
+    const parent = tags.find((tg) => tg[0] === 'e' && HEX64_RE.test(tg[1] || ''));
+    const k = tagValue(tags, 'k');
+    if (!parent || Number(k) !== WEB_COMMENT_KIND) return null;
+    const scope = tags.filter((tg) => ['I', 'K', 'E', 'A', 'P'].includes(tg[0])).map((tg) => tg.slice());
+    const people = tags.filter((tg) => tg[0] === 'p' && HEX64_RE.test(tg[1] || '')).map((tg) => ['p', tg[1]]);
+    const author = (HEX64_RE.test(parent[3] || '') && parent[3]) || (people[0] && people[0][1]) || '';
+    if (!author) return null;
+    return {
+      id: parent[1], pubkey: author, kind: WEB_COMMENT_KIND,
+      tags: [...scope, ...people.filter((p) => p[1] !== author)], content: '',
+    };
+  }
+
+  // The inner draft event back into the composer's draft shape: { text, media, replyTo? }.
+  // Null when this composer cannot continue it faithfully. The test of faithful is that
+  // the target built here, handed to replyTags, publishes the same kind the draft was:
+  // a comment Sidecar would turn into a kind 1 reply is not opened as one.
+  function draftFromEvent(ev, selfPubkey) {
+    if (!ev || typeof ev !== 'object' || typeof ev.content !== 'string' || !Array.isArray(ev.tags)) return null;
+    const kind = Number(ev.kind);
+    if (!RELAY_DRAFT_KINDS.includes(kind)) return null;
+    const tags = ev.tags.filter((tg) => Array.isArray(tg) && tg.length && tg.every((x) => typeof x === 'string'));
+    let replyTo = null;
+    if (kind === WEB_COMMENT_KIND) {
+      replyTo = commentTargetFrom(tags);
+      if (!replyTo) return null;
+    } else {
+      const found = noteTargetFrom(tags);
+      if (!found) return null;
+      if (!found.none) replyTo = found;
+    }
+    if (replyTo && replyTags(replyTo, selfPubkey).kind !== kind) return null;
+    const { text, media } = splitDraftContent(ev.content, tags);
+    const out = { text, media };
+    if (replyTo) out.replyTo = replyTo;
+    return out;
+  }
+
+  // The wrap, and the wrap that deletes: the same d with nothing in it, newer.
+  function relayDraftWrap({ d, k, ciphertext, now }) {
+    return {
+      kind: RELAY_DRAFT_KIND, created_at: now, content: ciphertext,
+      tags: [['d', d], ['k', String(k)], ['expiration', String(now + RELAY_DRAFT_TTL_SECS)]],
+    };
+  }
+  function relayDraftBlank({ d, k, now }) {
+    return {
+      kind: RELAY_DRAFT_KIND, created_at: now, content: '',
+      tags: [['d', d], ['k', String(k)], ['expiration', String(now + RELAY_DRAFT_TTL_SECS)]],
+    };
+  }
+  // A fresh identifier. Other clients' d values are theirs and are accepted as they are.
+  function newRelayDraftId(now) {
+    let tail = '';
+    try {
+      const b = new Uint8Array(3);
+      crypto.getRandomValues(b);
+      tail = '-' + Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    } catch (_) {}
+    return 'sidecar-' + now + tail;
+  }
+
+  // What was last saved to relays, as a short sum, so a local copy can tell whether it
+  // has been edited since: the save time alone cannot, because autosave rewrites it on
+  // every flush whether anything changed or not.
+  function draftSum(draft) {
+    const d = draft || {};
+    const src = JSON.stringify([
+      String(d.text || '').trim(),
+      (d.media || []).map((m) => (m && (m.url || m.quote || '')) + '|' + ((m && m.alt) || '')),
+      (d.replyTo && d.replyTo.id) || '',
+    ]);
+    let hsh = 0x811c9dc5;
+    for (let i = 0; i < src.length; i++) {
+      hsh ^= src.charCodeAt(i);
+      hsh = Math.imul(hsh, 0x01000193) >>> 0;
+    }
+    return hsh.toString(16);
+  }
+
+  // The kind 31234s that came back, down to the drafts that are live: the newest copy of
+  // each d (the event is addressable, and relays keep different copies), then dropping
+  // the blanked ones (deleted) and the expired ones (NIP-40). Newest FIRST, and the blank
+  // or the expiry judged on that newest copy, so an older copy on a slower relay cannot
+  // bring a deleted draft back. A kind outside RELAY_DRAFT_KINDS is counted, not listed.
+  function liveRelayDrafts(events, selfPubkey, now) {
+    const byD = new Map();
+    for (const ev of events || []) {
+      if (!ev || ev.kind !== RELAY_DRAFT_KIND || ev.pubkey !== selfPubkey || !Array.isArray(ev.tags)) continue;
+      const d = tagValue(ev.tags, 'd');
+      if (typeof d !== 'string') continue;
+      const cur = byD.get(d);
+      if (!cur || ev.created_at > cur.created_at || (ev.created_at === cur.created_at && ev.id > cur.id)) byD.set(d, ev);
+    }
+    const live = [];
+    let otherKinds = 0;
+    const otherKindCounts = {}; // kind -> how many, so a count can say which kinds
+    for (const ev of byD.values()) {
+      if (!ev.content) continue;
+      const exp = Number(tagValue(ev.tags, 'expiration'));
+      if (exp && exp <= now) continue;
+      const k = Number(tagValue(ev.tags, 'k'));
+      if (!RELAY_DRAFT_KINDS.includes(k)) { otherKinds++; const key = Number.isFinite(k) && k >= 0 ? String(k) : '?'; otherKindCounts[key] = (otherKindCounts[key] || 0) + 1; continue; }
+      live.push(ev);
+    }
+    live.sort((a, b) => b.created_at - a.created_at);
+    return { live, otherKinds, otherKindCounts };
+  }
+
+  // Each live wrap opened: decrypted to self, parsed, and mapped into the composer's
+  // shape. One that will not decrypt, does not parse, says a different kind inside than
+  // its k tag, or is a shape this composer cannot continue is counted as unopenable.
+  async function openRelayDrafts(live, decrypt, selfPubkey) {
+    const opened = await Promise.all(live.map(async (ev) => {
+      const d = tagValue(ev.tags, 'd');
+      const k = Number(tagValue(ev.tags, 'k'));
+      let inner = null;
+      try { inner = JSON.parse(await decrypt(ev.content)); } catch (_) { inner = null; }
+      const draft = inner && Number(inner.kind) === k ? draftFromEvent(inner, selfPubkey) : null;
+      return draft ? { d, k, at: ev.created_at, draft: { ...draft, savedAt: ev.created_at * 1000 } } : null;
+    }));
+    const items = opened.filter(Boolean);
+    return { items, unopenable: opened.length - items.length };
+  }
+
+  // The private relay list's content: a JSON array of tags, ["relay", "wss://…"] the
+  // ones that count. FAILS CLOSED: content that is not JSON, or not an array, throws,
+  // and a caller reads that as "could not read", never as "none" (which would offer to
+  // write a new list over one another client keeps).
+  function parsePrivateRelayList(plaintext) {
+    const list = JSON.parse(plaintext);
+    if (!Array.isArray(list)) throw new Error('not a tag list');
+    const out = [];
+    for (const tg of list) {
+      if (!Array.isArray(tg) || tg[0] !== 'relay' || typeof tg[1] !== 'string') continue;
+      const url = tg[1].trim();
+      if (!/^wss?:\/\/[^\s]+$/i.test(url)) continue;
+      try { new URL(url); } catch (_) { continue; }
+      if (!out.includes(url)) out.push(url);
+    }
+    return out;
+  }
+
+  // A relay draft taken into the local store, the way a note set aside comes back
+  // (unshelveNoteDraft): whatever the note slot holds is set aside first, never written
+  // over. A reply goes to its own slot, and that slot is not taken over if it holds a
+  // different reply in progress. Another local copy pointing at the same relay draft is
+  // an older version of it: dropped when it has not been edited since it was saved there,
+  // kept without the pointer when it has, so one local draft speaks for each d.
+  // Mutates `all`. Returns { key, replyTo, shelved } or { refused: true }.
+  function adoptRelayDraft(all, pubkey, item, now) {
+    const replyTo = item.draft.replyTo || null;
+    const key = replyTo ? pubkey + '|r:' + replyTo.id : pubkey;
+    const unedited = (x) => !!(x && x.relay && x.relay.sum && draftSum(x) === x.relay.sum);
+    if (replyTo && draftHasWork(all[key]) && !(all[key].relay && all[key].relay.d === item.d && unedited(all[key]))) {
+      return { refused: true };
+    }
+    for (const k of Object.keys(all)) {
+      if (!(k === pubkey || k.startsWith(pubkey + '|'))) continue;
+      const cur = all[k];
+      if (!cur || !cur.relay || cur.relay.d !== item.d) continue;
+      if (unedited(cur)) delete all[k];
+      else { const { relay: _gone, ...rest } = cur; all[k] = rest; }
+    }
+    const shelved = replyTo ? null : shelveNoteDraft(all, pubkey, now);
+    all[key] = {
+      ...item.draft, savedAt: now,
+      relay: { d: item.d, k: item.k, at: item.at, sum: draftSum(item.draft) },
+    };
+    return { key, replyTo, shelved };
+  }
+
+  // A relay draft already here: a local copy points at the same d and is as new.
+  function relayDraftIsLocal(all, pubkey, item) {
+    return Object.keys(all || {}).some((k) => (k === pubkey || k.startsWith(pubkey + '|'))
+      && all[k] && all[k].relay && all[k].relay.d === item.d && (all[k].relay.at || 0) >= item.at);
+  }
+
+  // A read that can say NOBODY ANSWERED, for a page with a bare SimplePool (the tab).
+  // The panel has its own, poolQueryAnswered, with the same rule: an event or a real EOSE
+  // is an answer, and an EOSE the pool made up after its timeout is not.
+  function queryAnswered(pool, relays, filter, params) {
+    const urls = [...new Set(relays || [])];
+    if (!urls.length) return Promise.resolve({ events: [], answered: false, complete: true });
+    const sub = Object.assign({}, params);
+    const capMs = sub.capMs || 8000;
+    delete sub.capMs;
+    const realBefore = sub.maxWait || 4400;
+    return new Promise((resolve) => {
+      const events = [];
+      const seen = new Set();
+      const subs = [];
+      const t0 = Date.now();
+      let answered = false;
+      let left = urls.length;
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve({ events, answered, complete: left === 0 });
+        for (const s of subs) { try { s.close(); } catch (_) {} }
+      };
+      const timer = setTimeout(finish, capMs);
+      for (const url of urls) {
+        subs.push(pool.subscribeEose([url], filter, Object.assign({}, sub, {
+          onevent: (ev) => {
+            answered = true;
+            if (ev && !seen.has(ev.id)) { seen.add(ev.id); events.push(ev); }
+          },
+          onclose: (reasons) => {
+            if ((reasons || [])[0] === 'closed automatically on eose' && Date.now() - t0 < realBefore) answered = true;
+            if (--left === 0) finish();
+          },
+        })));
+      }
+    });
+  }
+
+  // ---- the relay side, for whichever page installs it ----
+  //
+  // io: {
+  //   call             the page's worker messenger
+  //   NT               nostr-tools
+  //   query(relays, filter) -> { events, answered, complete }
+  //   publish(relays, signed) -> resolves when at least one relay took it, else throws
+  //   readRelays()     where the account's 10013 is looked for
+  //   writeRelays()    where a new 10013 is published: the account's write relays
+  //   setupRelays()    the relays offered as private ones when there are none
+  //   knownRelayList(pubkey)  optional: the NIP-65 list the page already holds for the
+  //                    account (even a stale one), or null. Counts as a list that exists.
+  //   relayListChanged(pubkey)  optional: a NIP-65 list was just published, drop what the
+  //                    page cached about it
+  //   trust(urls)      optional: let the page's pool answer these relays' AUTH
+  //   fetchEvent(id)   optional: the note a reply answers, to fill in what it says
+  //   warn(message)    a quiet word, for a relay copy that could not be blanked
+  // }
+  // Signing and encryption go through the worker as the owner: SIDECAR_OWNER_SIGN raises
+  // no approval card for the account's own draft, and SIDECAR_OWNER_ENCRYPT/DECRYPT keep
+  // the key there. Every call names the account it was started for (expectedPubkey), so
+  // a switch in the middle fails closed rather than saving under somebody else.
+  const RELAY_STATUS_TEXT = {
+    none: () => t('No private relays for drafts yet.'),
+    unreachable: () => t('Couldn’t reach your relays.'),
+    unreadable: () => t('Your private relay list could not be read.'),
+  };
+  function installRelayDrafts(io) {
+    const known = new Map();    // pubkey -> private relays, once read
+    const listed = new Map();   // pubkey -> the last list read back
+    const nowSecs = () => Math.floor(Date.now() / 1000);
+    const encrypt = (pubkey, plaintext) => io.call({ type: 'SIDECAR_OWNER_ENCRYPT', nip: 44, peer: pubkey, expectedPubkey: pubkey, plaintext });
+    const decrypt = (pubkey, ciphertext) => io.call({ type: 'SIDECAR_OWNER_DECRYPT', nip: 44, peer: pubkey, expectedPubkey: pubkey, ciphertext });
+    const sign = (event, pubkey) => io.call({ type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: pubkey });
+    const trust = (urls) => { try { if (io.trust) io.trust(urls); } catch (_) {} };
+    const statusError = (status) => {
+      const e = new Error((RELAY_STATUS_TEXT[status] || RELAY_STATUS_TEXT.unreachable)());
+      e.relayStatus = status;
+      return e;
+    };
+
+    // The account's private relays: { status: 'ok', relays } or none / unreachable /
+    // unreadable. "None" only when every relay asked has answered and none holds a list:
+    // set-up offers to publish one, and publishing over a list a slow relay was holding
+    // would replace somebody's private relays.
+    async function privateRelays(pubkey, fresh) {
+      if (!fresh && known.has(pubkey)) { trust(known.get(pubkey)); return { status: 'ok', relays: known.get(pubkey) }; }
+      let read;
+      try { read = await io.readRelays(); } catch (_) { return { status: 'unreachable' }; }
+      const { events, answered, complete } = await io.query(read, { kinds: [PRIVATE_RELAYS_KIND], authors: [pubkey] });
+      const ev = (events || []).filter((e) => e && e.pubkey === pubkey && e.kind === PRIVATE_RELAYS_KIND)
+        .sort((a, b) => (b.created_at - a.created_at) || (a.id < b.id ? 1 : -1))[0];
+      if (!ev) return answered && complete !== false ? { status: 'none' } : { status: 'unreachable' };
+      let relays;
+      try { relays = parsePrivateRelayList(await decrypt(pubkey, ev.content)); }
+      catch (_) { return { status: 'unreadable' }; }
+      if (!relays.length) return { status: 'none' };
+      known.set(pubkey, relays);
+      trust(relays);
+      return { status: 'ok', relays };
+    }
+
+    // Publish a 10013 listing `relays`, to the account's write relays (NIP-37 says there).
+    async function setUp(pubkey, relays) {
+      const list = [...new Set((relays || []).filter((u) => /^wss?:\/\//i.test(u)))];
+      if (!list.length) throw new Error(t('No relays configured (add some in Settings)'));
+      const content = await encrypt(pubkey, JSON.stringify(list.map((u) => ['relay', u])));
+      const signed = await sign({ kind: PRIVATE_RELAYS_KIND, created_at: nowSecs(), tags: [], content }, pubkey);
+      await io.publish(await io.writeRelays(), signed);
+      known.set(pubkey, list);
+      trust(list);
+      return list;
+    }
+
+    // THE ACCOUNT'S OWN NIP-65 LIST (kind 10002), asked before anything is offered and again
+    // before anything is published. It is a replaceable event, so publishing one over a list
+    // that only failed to answer in time would erase somebody's relays. "none" therefore means
+    // every relay asked answered and none holds one, and a list the page already remembers
+    // counts as one that exists.
+    async function relayListStatus(pubkey) {
+      if (io.knownRelayList) {
+        let known = null;
+        try { known = await io.knownRelayList(pubkey); } catch (_) { known = null; }
+        if (known) return { status: 'ok' };
+      }
+      let read;
+      try { read = await io.readRelays(); } catch (_) { return { status: 'unreachable' }; }
+      const { events, answered, complete } = await io.query(read, { kinds: [10002], authors: [pubkey] });
+      const got = events || [];
+      if (got.some((e) => e && e.pubkey === pubkey && e.kind === 10002)) return { status: 'ok' };
+      // A reply made only of other people's lists says nothing about this account.
+      if (got.length) return { status: 'unreachable' };
+      return answered && complete !== false ? { status: 'none' } : { status: 'unreachable' };
+    }
+
+    // What a first list would name: the relays the extension reads this account by when it has
+    // no list, which is the bootstrap set (and nothing for an account that turned it off).
+    async function relayListOffer(pubkey) {
+      let map = {};
+      try { map = (await io.call({ type: 'SIDECAR_GET_ACCOUNT_RELAYS', pubkey })) || {}; } catch (_) { map = {}; }
+      return Object.keys(map)
+        .filter((u) => /^wss?:\/\//i.test(u) && map[u] && (map[u].read !== false || map[u].write !== false))
+        .map((url) => ({ url, read: map[url].read !== false, write: map[url].write !== false }));
+    }
+
+    // Publish that first list. It looks for an existing one again right now rather than
+    // trusting the card that asked, and refuses when one is there or cannot be ruled out.
+    async function publishRelayList(pubkey) {
+      const st = await relayListStatus(pubkey);
+      if (st.status === 'ok') {
+        const e = new Error(t('You already have a relay list.'));
+        e.relayStatus = 'exists';
+        throw e;
+      }
+      if (st.status !== 'none') throw statusError(st.status);
+      const list = await relayListOffer(pubkey);
+      if (!list.some((r) => r.write)) throw new Error(t('No relays configured (add some in Settings)'));
+      const tags = list.map((r) => (r.read && r.write ? ['r', r.url] : ['r', r.url, r.write ? 'write' : 'read']));
+      const signed = await sign({ kind: 10002, created_at: nowSecs(), tags, content: '' }, pubkey);
+      await io.publish(list.map((r) => r.url), signed);
+      try { if (io.relayListChanged) io.relayListChanged(pubkey); } catch (_) {}
+      return { write: list.filter((r) => r.write).map((r) => r.url) };
+    }
+
+    // One draft to relays. `prior` is the pointer the local copy already carries, so a
+    // second save replaces the first (same d, newer) rather than adding another.
+    async function save(pubkey, draft, prior) {
+      const pr = await privateRelays(pubkey);
+      if (pr.status !== 'ok') throw statusError(pr.status);
+      let settings = {};
+      try { settings = (await io.call({ type: 'SIDECAR_GET_SETTINGS' })) || {}; } catch (_) {}
+      const at = Math.max(nowSecs(), prior && prior.at ? prior.at + 1 : 0);
+      const inner = draftToEvent(draft, {
+        selfPubkey: pubkey, NT: io.NT, now: at,
+        clientTag: settings.showClientTag !== false, videoImeta: settings.videoImeta,
+      });
+      if (!inner) throw new Error(t('Only notes and replies can be saved to relays.'));
+      const plaintext = JSON.stringify(inner);
+      if (new TextEncoder().encode(plaintext).length > NIP44_MAX_PLAINTEXT) {
+        throw new Error(t('This draft is too long to save to relays.'));
+      }
+      const d = (prior && prior.d) || newRelayDraftId(at);
+      const signed = await sign(relayDraftWrap({ d, k: inner.kind, ciphertext: await encrypt(pubkey, plaintext), now: at }), pubkey);
+      await io.publish(pr.relays, signed);
+      return { d, k: inner.kind, at, sum: draftSum(draft) };
+    }
+
+    // The relay copy blanked: the same d, newer, with nothing in it.
+    async function blank(pubkey, ptr) {
+      if (!ptr || !ptr.d) return false;
+      const pr = await privateRelays(pubkey);
+      if (pr.status !== 'ok') throw statusError(pr.status);
+      const at = Math.max(nowSecs(), (ptr.at || 0) + 1);
+      await io.publish(pr.relays, await sign(relayDraftBlank({ d: ptr.d, k: ptr.k || 1, now: at }), pubkey));
+      const last = listed.get(pubkey);
+      if (last && last.items) last.items = last.items.filter((x) => x.d !== ptr.d);
+      return true;
+    }
+
+    // A local draft is gone, posted or deleted: its relay copy goes too. Best effort, and
+    // never in the way: a draft that was never saved there costs nothing, and one that
+    // cannot be blanked is a quiet word, not an error on top of a post that went out.
+    function forget(pubkey, removed) {
+      if (!removed || !removed.relay || !removed.relay.d) return Promise.resolve(false);
+      return blank(pubkey, removed.relay).catch(() => {
+        try { if (io.warn) io.warn(t('The copy on your relays could not be removed.')); } catch (_) {}
+        return false;
+      });
+    }
+
+    // The drafts on the account's private relays, read on request. A list read fresh
+    // each time it is asked for, since that is the whole point of asking.
+    async function list(pubkey) {
+      const pr = await privateRelays(pubkey, true);
+      if (pr.status !== 'ok') return { status: pr.status };
+      const { events, answered } = await io.query(pr.relays, { kinds: [RELAY_DRAFT_KIND], authors: [pubkey], limit: 200 });
+      if (!answered) return { status: 'unreachable', relays: pr.relays };
+      const { live, otherKinds, otherKindCounts } = liveRelayDrafts(events, pubkey, nowSecs());
+      const { items, unopenable } = await openRelayDrafts(live, (c) => decrypt(pubkey, c), pubkey);
+      const out = { status: 'ok', relays: pr.relays, items, otherKinds, otherKindCounts, unopenable };
+      listed.set(pubkey, out);
+      return out;
+    }
+
+    async function readStore() { return (await io.call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {}; }
+    const writeStore = (all) => io.call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+
+    // Save a listed draft and remember where it went, on the slot it came from.
+    async function saveEntry(pubkey, entry) {
+      const ptr = await save(pubkey, entry.draft, entry.draft.relay);
+      const all = await readStore();
+      if (all[entry.key]) {
+        all[entry.key] = { ...all[entry.key], relay: ptr };
+        await writeStore(all);
+      }
+      return ptr;
+    }
+
+    // A relay draft into the store. The note it answers is looked up first, so the reply
+    // block shows what it says; when it cannot be found, or it would thread differently
+    // than the draft does, the target stays the one read from the draft's own tags.
+    async function adopt(pubkey, item) {
+      const target = item.draft.replyTo;
+      if (target && io.fetchEvent) {
+        try {
+          const ev = await io.fetchEvent(target.id);
+          if (ev && ev.id === target.id && replyTags(ev, pubkey).kind === item.k
+            && (!target.pubkey || ev.pubkey === target.pubkey)) {
+            item = { ...item, draft: { ...item.draft, replyTo: { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content } } };
+          }
+        } catch (_) { /* the draft's own tags still thread it */ }
+      }
+      const all = await readStore();
+      const res = adoptRelayDraft(all, pubkey, item, Date.now());
+      if (res.refused) throw new Error(t('You already have a reply to this note in Saved drafts. Post or delete it first.'));
+      await writeStore(all);
+      return res;
+    }
+
+    return {
+      privateRelays, setUp, relayListStatus, relayListOffer, publishRelayList, save, saveEntry, blank, forget, list, adopt,
+      lastList: (pubkey) => listed.get(pubkey) || null,
+    };
+  }
+
+  // The "On your relays" part of Saved drafts, for both composers.
+  // d: {
+  //   relays       an installRelayDrafts instance
+  //   pubkey       the account the list is for
+  //   localDrafts  the store's drafts, so a relay draft already here is not listed twice
+  //   nameFor      as buildSavedDraftList
+  //   canOpen(item) optional: a reason not to open it now, or null
+  //   onOpen(res)  a relay draft was taken into the store ({ key, replyTo }); open it
+  //   onChanged()  the local list changed (a save marked a row); repaint it
+  //   setupRelays() the relays to offer when there are no private ones
+  //   notify(message, kind)  the page's toast
+  // }
+  // Returns { el, saveEntry }, saveEntry being what the local list's cloud calls.
+  //
+  // NOTHING IS READ UNTIL ASKED. Opening Saved drafts makes no relay request: the button
+  // does. The set-up offer is its own full-width block with its words and its button
+  // stacked (AGENTS.md: a confirm with words takes its own row).
+  function buildRelayDraftsPane(d) {
+    const el = h('div', { className: 'relay-drafts' });
+    const head = h('h4', { className: 'relay-drafts-title', textContent: t('On your relays') });
+    const body = h('div', { className: 'relay-drafts-body' });
+    el.append(head, body);
+    const hint = (text) => h('p', { className: 'hint relay-drafts-hint', textContent: text });
+    // An icon goes in front of the word when one is given: a bare word on a bare button read as plain.
+    const wide = (text, cls, iconName) => {
+      const b = h('button', { className: (cls || 'ghost') + ' relay-drafts-btn', type: 'button' });
+      if (iconName) b.append(icon(iconName));
+      b.append(document.createTextNode(text));
+      return b;
+    };
+    // How many drafts the list shows at a time. A long-lived account holds dozens, and a list
+    // that long buries the buttons under it. Reset by each check; kept while drafts are deleted.
+    const PAGE = 10;
+    let shown = PAGE;
+
+    function paintIdle() {
+      const go = wide(t('Check your relays'), null, 'download-cloud');
+      go.addEventListener('click', () => check());
+      body.replaceChildren(hint(t('Encrypted drafts from any client that keeps them on relays.')), go);
+    }
+    function paintStatus(status, retry) {
+      if (status === 'none') { offerSetup(retry); return; }
+      const parts = [hint((RELAY_STATUS_TEXT[status] || RELAY_STATUS_TEXT.unreachable)())];
+      if (status !== 'unreadable') {
+        const again = wide(t('Try again'));
+        again.addEventListener('click', () => (retry || check)());
+        parts.push(again);
+      }
+      body.replaceChildren(...parts);
+    }
+    function paintList(res) {
+      const all = d.localDrafts || {};
+      const items = res.items.filter((it) => !relayDraftIsLocal(all, d.pubkey, it));
+      const parts = [];
+      if (!items.length) parts.push(hint(res.items.length ? t('All of them are already here.') : t('No drafts on your private relays.')));
+      else {
+        parts.push(buildSavedDraftList({
+          entries: items.slice(0, shown).map((it) => ({
+            key: 'relay:' + it.d, draft: it.draft, relayItem: it,
+            reply: !!it.draft.replyTo, replyId: it.draft.replyTo ? it.draft.replyTo.id : null,
+          })),
+          nameFor: d.nameFor,
+          onPick: (entry) => open(entry.relayItem),
+          onDelete: async (entry) => {
+            await d.relays.blank(d.pubkey, entry.relayItem);
+            d.notify(t('Draft deleted.'), 'success');
+            const last = d.relays.lastList(d.pubkey);
+            if (last) paintList(last);
+          },
+        }));
+      }
+      if (items.length > shown) {
+        const rest = items.length - shown;
+        const more = wide(t('Show {{count}} more', { count: Math.min(PAGE, rest) }), null);
+        more.addEventListener('click', () => { shown += PAGE; paintList(res); });
+        parts.push(more);
+      }
+      if (res.otherKinds) {
+        const note = hint(tn('{{count}} draft of a kind Sidecar does not draft yet.',
+          '{{count}} drafts of kinds Sidecar does not draft yet.', res.otherKinds));
+        // Which kinds, for anyone who hovers: numbers and counts only, most first.
+        const counts = res.otherKindCounts || {};
+        const list = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).map((k) => k + ' ×' + counts[k]).join(', ');
+        if (list) note.title = t('Kinds: {{list}}', { list });
+        parts.push(note);
+      }
+      if (res.unopenable) {
+        parts.push(hint(tn('{{count}} draft Sidecar cannot open yet.', '{{count}} drafts Sidecar cannot open yet.', res.unopenable)));
+      }
+      const again = wide(t('Check again'), null, 'download-cloud');
+      again.addEventListener('click', () => check());
+      parts.push(again);
+      body.replaceChildren(...parts);
+    }
+
+    async function check() {
+      shown = PAGE;
+      body.replaceChildren(hint(t('Checking your relays…')));
+      let res;
+      try { res = await d.relays.list(d.pubkey); }
+      catch (e) {
+        body.replaceChildren(hint((e && e.message) || RELAY_STATUS_TEXT.unreachable()));
+        return;
+      }
+      if (res.status !== 'ok') paintStatus(res.status);
+      else paintList(res);
+    }
+
+    async function open(item) {
+      // The page may refuse first: the other composer is writing that slot.
+      if (d.canOpen) {
+        const why = await Promise.resolve(d.canOpen(item)).catch(() => null);
+        if (why) { d.notify(why, 'info'); return; }
+      }
+      try { d.onOpen(await d.relays.adopt(d.pubkey, item)); }
+      catch (e) { d.notify((e && e.message) || t('Could not open this draft.'), 'error'); }
+    }
+
+    // NO PRIVATE RELAYS. Said, and an offer to list the account's write relays as its
+    // private ones, NAMED: which relays, and that they are not private relays in the
+    // NIP's sense (they serve anyone who asks for the encrypted event).
+    //
+    // An account with no NIP-65 list is offered one first. Without it nothing says where
+    // its relays are, so no other client could find the private relay list either. The
+    // list is only offered when every relay answered and none holds one.
+    async function offerSetup(then) {
+      body.replaceChildren(hint(t('Checking your relays…')));
+      const found = await d.relays.relayListStatus(d.pubkey).catch(() => ({ status: 'unreachable' }));
+      if (found.status === 'unreachable') { paintStatus('unreachable', () => offerSetup(then)); return; }
+      if (found.status === 'none') {
+        const offer = await d.relays.relayListOffer(d.pubkey).catch(() => []);
+        if (offer.some((r) => r.write)) { offerRelayList(offer, then); return; }
+      }
+      let urls = [];
+      try { urls = (await d.setupRelays()) || []; } catch (_) { urls = []; }
+      offerPrivate(urls, then);
+    }
+
+    function offerRelayList(offer, then) {
+      const hosts = offer.map((r) => r.url.replace(/^wss?:\/\//i, '').replace(/\/$/, ''));
+      const publish = wide(t('Publish relay list'), 'primary');
+      publish.addEventListener('click', async () => {
+        publish.disabled = true;
+        try {
+          const res = await d.relays.publishRelayList(d.pubkey);
+          d.notify(t('Relay list published'), 'success');
+          offerPrivate(res.write, then);
+        } catch (e) {
+          if (e && e.relayStatus === 'exists') { d.notify(e.message, 'info'); offerSetup(then); return; }
+          publish.disabled = false;
+          d.notify((e && e.message) || t('Could not publish your relay list.'), 'error');
+        }
+      });
+      body.replaceChildren(
+        hint(t('You have no relay list yet, so other clients can’t tell where your drafts are.')),
+        hint(tn('Publish one with your relay: {{hosts}}.', 'Publish one with your {{count}} relays: {{hosts}}.', hosts.length,
+          { hosts: hosts.join(', ') })),
+        publish,
+      );
+      if (el.scrollIntoView) { try { el.scrollIntoView({ block: 'nearest' }); } catch (_) {} }
+    }
+
+    function offerPrivate(urls, then) {
+      const hosts = urls.map((u) => u.replace(/^wss?:\/\//i, '').replace(/\/$/, ''));
+      if (!hosts.length) { body.replaceChildren(hint(RELAY_STATUS_TEXT.none())); return; }
+      const use = wide(t('Use these relays'), 'primary');
+      use.addEventListener('click', async () => {
+        use.disabled = true;
+        try {
+          await d.relays.setUp(d.pubkey, urls);
+          d.notify(t('Private relays set up.'), 'success');
+          await (then || check)();
+        } catch (e) {
+          use.disabled = false;
+          d.notify((e && e.message) || t('Could not set up private relays.'), 'error');
+        }
+      });
+      body.replaceChildren(
+        hint(RELAY_STATUS_TEXT.none()),
+        hint(tn('Use your write relay for them: {{hosts}}. Drafts stay encrypted.',
+          'Use your {{count}} write relays for them: {{hosts}}. Drafts stay encrypted.', hosts.length,
+          { hosts: hosts.join(', ') })),
+        use,
+      );
+      if (el.scrollIntoView) { try { el.scrollIntoView({ block: 'nearest' }); } catch (_) {} }
+    }
+
+    async function saveEntry(entry) {
+      try {
+        await d.relays.saveEntry(d.pubkey, entry);
+        d.notify(t('Saved to your relays.'), 'success');
+        d.onChanged();
+      } catch (e) {
+        if (e && e.relayStatus === 'none') { offerSetup(() => saveEntry(entry)); return; }
+        d.notify((e && e.message) || t('Could not save to your relays.'), 'error');
+      }
+    }
+
+    const last = d.relays.lastList(d.pubkey);
+    if (last) paintList(last); else paintIdle();
+    return { el, saveEntry, check };
   }
 
   // THE TOOLBAR'S BUTTONS ARE GLYPHS, NOT WORDS. Media, GIF, Emoji, Poll and proof of work
@@ -4859,6 +5695,10 @@ window.SidecarCore = (function () {
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
     draftHasWork, shelveNoteDraft, unshelveNoteDraft, SHELVED_NOTE_MAX,
+    RELAY_DRAFT_KIND, PRIVATE_RELAYS_KIND, RELAY_DRAFT_KINDS, RELAY_DRAFT_TTL_SECS,
+    draftToEvent, draftFromEvent, splitDraftContent, relayDraftWrap, relayDraftBlank, newRelayDraftId,
+    draftSum, liveRelayDrafts, openRelayDrafts, parsePrivateRelayList, adoptRelayDraft, relayDraftIsLocal,
+    queryAnswered, installRelayDrafts, buildRelayDraftsPane,
     publishFailed, publishRefusal, publishToRelays, groupRefusals, PUBLISH_CAP_MS,
     refusalLines, acceptedLine, relayReportNode,
   };
