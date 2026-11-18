@@ -64,7 +64,7 @@ test('switching accounts ends every window by default, and keeps them with a tim
 test('posting on a site as another account ends its windows by default, and keeps them with a timer per account', async () => {
   for (const perAccount of [false, true]) {
     for (const [method, sharedIdentity, authorSwitched] of [
-      ['signEvent', true, false],      // picked the other account on the card
+      ['signEvent', true, false],      // confirmed on a shared card, no pick
       ['signEvent', false, true],      // the client posted as the other author
       ['getPublicKey', false, false],  // re-login as the other account
     ]) {
@@ -74,10 +74,11 @@ test('posting on a site as another account ends its windows by default, and keep
         RELAX, syncRelaxBadge() {}, relaxJustGrantedFor: null, relaxPerAccount: async () => perAccount,
         method, sharedIdentity, authorSwitched, host: 'shared.example', activePubkey: 'B',
         getSiteAccount: async () => 'A',
+        pickedSwitch: false,
         setSiteAccount: async (h, pk) => { binds.push(h + '|' + pk); },
       };
       vm.createContext(ctx);
-      const block = liftBlock("if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {");
+      const block = liftBlock("if (method === 'getPublicKey' || authorSwitched || (sharedIdentity && !pickedSwitch) ||\n        !(await getSiteAccount(host))) {");
       await vm.runInContext('(async () => { ' + block + ' })()', ctx);
       assert.deepEqual(binds, ['shared.example|B'], method + ': the site was not rebound');
       assert.deepEqual(calls, perAccount ? [] : ['revokeForHost:shared.example'], method + ', per account ' + perAccount);
@@ -92,6 +93,25 @@ test('posting on a site as another account ends its windows by default, and keep
   }
 });
 
+test('a pick on a shared card is one-shot: it does not move the binding or end any window', async () => {
+  for (const perAccount of [false, true]) {
+    const { calls, RELAX } = relaxSpy();
+    const binds = [];
+    const ctx = {
+      RELAX, syncRelaxBadge() {}, relaxJustGrantedFor: null, relaxPerAccount: async () => perAccount,
+      method: 'signEvent', sharedIdentity: true, authorSwitched: false, pickedSwitch: true,
+      host: 'shared.example', activePubkey: 'B',
+      getSiteAccount: async () => 'A',
+      setSiteAccount: async (h, pk) => { binds.push(h + '|' + pk); },
+    };
+    vm.createContext(ctx);
+    const block = liftBlock("if (method === 'getPublicKey' || authorSwitched || (sharedIdentity && !pickedSwitch) ||\n        !(await getSiteAccount(host))) {");
+    await vm.runInContext('(async () => { ' + block + ' })()', ctx);
+    assert.deepEqual(binds, [], 'a one-shot pick rebound the site');
+    assert.deepEqual(calls, [], 'a one-shot pick ended a window');
+  }
+});
+
 test('opening a window ends other accounts’ windows by default, and not with a timer per account', async () => {
   const at = src.indexOf("if (decision.action === 'relax') {");
   const block = liftBlock(src.slice(at), "if (decision.action === 'relax') {");
@@ -100,12 +120,15 @@ test('opening a window ends other accounts’ windows by default, and not with a
     const ctx = {
       relaxPerAccount: async () => perAccount, syncRelaxBadge() {}, host: 'site.example', activePubkey: 'B',
       decision: { action: 'relax', relaxMs: 1800000 }, relaxJustGrantedFor: null,
+      KS: { getState: async () => ({ accounts: [{ pubkey: 'B', name: 'Bee' }] }) },
+      chrome: { runtime: { sendMessage: (m) => { calls.push('announce:' + m.event + ' ' + m.host + ' ' + m.name); return Promise.resolve(); } } },
       RELAX: { DEFAULT_MS: 1800000, revokeOtherAccounts: async (pk) => calls.push('revokeOtherAccounts:' + pk),
         grant: async (h, pk) => calls.push('grant:' + h + '|' + pk) },
     };
     vm.createContext(ctx);
     await vm.runInContext('(async () => { ' + block + ' })()', ctx);
-    assert.deepEqual(calls, perAccount ? ['grant:site.example|B'] : ['revokeOtherAccounts:B', 'grant:site.example|B'], 'per account ' + perAccount);
+    assert.deepEqual(calls, perAccount ? ['grant:site.example|B', 'announce:relaxStarted site.example Bee']
+      : ['revokeOtherAccounts:B', 'grant:site.example|B', 'announce:relaxStarted site.example Bee'], 'per account ' + perAccount);
   }
 });
 

@@ -606,6 +606,7 @@ function runPanelMenu({ payment = false } = {}) {
     hide() {}, isPaymentApproval: () => payment,
     decideApproval: (action, opts) => calls.decide.push({ action, opts }),
     renderApprovalAccountCapsule: () => { calls.rerender++; },
+    renderGraduated() {}, renderRelaxHint() {},
     pendingApproval: { chosenPubkey: 'aa' },
   };
   vm.createContext(ctx);

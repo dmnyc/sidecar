@@ -2,7 +2,7 @@
 
 // Every literal $('id') a page script looks up must exist in that page's HTML (or be
 // created by the script with that id). A missing id is null at runtime, and the
-// approval card is where that hurt: the panel's scope row read
+// approval card is where that hurt: the panel's old scope row read
 // $('approval-scope-relax').checked from inputs that had no ids, so the render threw
 // partway through and the 30-minute and Always choices silently signed once. Nothing
 // else flagged it: the free-identifier test checks names, not elements.
@@ -33,10 +33,15 @@ for (const page of PAGES) {
   });
 }
 
-test('the panel scope row ids are on the radios themselves', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
-  for (const v of ['once', 'relax', 'always']) {
-    assert.match(html, new RegExp(`<input type="radio" name="approval-scope" value="${v}" id="approval-scope-${v}"`),
-      `the ${v} radio carries id approval-scope-${v}`);
+test('the graduated row has its ids on both surfaces', () => {
+  // The row's buttons are wired by id; a missing one throws partway through the render
+  // and the card shows without its offer (or its answer goes nowhere).
+  const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
+  const popup = fs.readFileSync(path.join(ROOT, 'prompt.html'), 'utf8');
+  for (const id of ['graduated', 'graduated-msg', 'graduated-cap', 'graduated-yes', 'graduated-no']) {
+    assert.match(panel, new RegExp(`id="approval-${id}"`), `sidepanel.html carries approval-${id}`);
+    assert.match(popup, new RegExp(`id="${id}"`), `prompt.html carries ${id}`);
   }
+  assert.doesNotMatch(panel, /name="approval-scope"/, 'the scope row is gone from the panel');
+  assert.doesNotMatch(popup, /name="scope"/, 'the scope row is gone from the popup');
 });

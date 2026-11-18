@@ -1,0 +1,174 @@
+<!--
+  Identity lab: the wrong-key tripwire. A multi-account client stamps which identity it
+  means on every template it hands the signer; this page does the same, then checks the
+  signature that came back. If Sidecar signed with any key other than the intended one,
+  the page shouts.
+      python3 -m http.server 8021        (from the repo root)
+      open http://shared.localhost:8021/test/manual/identity-lab.html
+  Log in once per account (first login is A, second is B), pick the identity you intend,
+  and sign. A green line means the signature came from the account you meant. A red
+  banner and a browser alert mean the opposite, which is the mix-up this page exists to
+  catch. Nothing publishes; these events go nowhere.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar identity lab</title>
+<style>
+  body { margin: 0; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 700px; margin: 0 auto; padding: 40px 24px 120px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: #9a93b0; margin: 0 0 18px; }
+  .pill { border: 1px solid #3a3352; border-radius: 99px; padding: 2px 10px; }
+  .pill.ok { border-color: #3f7a55; color: #9be0b4; }
+  .pill.bad { border-color: #8a3a46; color: #f0a0ab; }
+  .intent { display: flex; gap: 8px; align-items: center; margin: 14px 0; }
+  .intent button { font: inherit; cursor: pointer; border-radius: 10px; padding: 8px 16px;
+                   border: 1px solid #4a4068; background: #1d1830; color: #e7e3f0; }
+  .intent button.on { border-color: #8b7bd0; background: #2a2344; color: #fff; }
+  .banner { display: none; border-radius: 12px; padding: 16px 18px; margin: 14px 0; font-size: 15px; }
+  .banner.ok { display: block; background: #12271a; border: 1px solid #3f7a55; color: #9be0b4; }
+  .banner.wrong { display: block; background: #33131a; border: 2px solid #b0404e; color: #f4b8c0;
+                  font-weight: 600; }
+  button.act { font: inherit; cursor: pointer; border-radius: 10px; padding: 8px 16px;
+               border: 1px solid #4a4068; background: #1d1830; color: #e7e3f0; margin: 4px 8px 4px 0; }
+  button.act:hover { border-color: #8b7bd0; }
+  button.act:disabled { opacity: 0.4; cursor: default; }
+  .log { font: 12.5px/1.6 ui-monospace, monospace; background: #0c0a12; border: 1px solid #221d33; border-radius: 8px;
+         padding: 8px 10px; margin: 12px 0 0; white-space: pre-wrap; min-height: 1.5em; color: #b9b2cc; }
+  .log .ok { color: #9be0b4; } .log .wrong { color: #f0a0ab; font-weight: 700; } .log .dim { color: #6f6886; }
+</style>
+<div class="wrap">
+  <h1>Identity lab</h1>
+  <p class="sub">The wrong-key tripwire. Log in each account once, pick the identity you <b>intend</b> to sign as,
+  and press sign. The page stamps that identity on the note the way a multi-account client does, then checks the
+  signature that came back: green means it came from the account you meant, red means Sidecar signed with a
+  different key and you should stop and look. Nothing publishes; these notes go nowhere.</p>
+  <div class="bar">
+    <span id="nostr-state" class="pill">window.nostr…</span>
+    <span>Accounts seen here: <span id="accts" class="muted">none yet</span></span>
+  </div>
+  <div class="intent">
+    <span>Intend to sign as:</span>
+    <button id="pick-a">A</button>
+    <button id="pick-b">B</button>
+  </div>
+  <div>
+    <button class="act" id="login">Log in</button>
+    <button class="act" id="sign">Sign a note as the intended identity</button>
+    <button class="act" id="sign-unknown">Sign naming an unknown key</button>
+  </div>
+  <div id="banner" class="banner"></div>
+  <div id="log" class="log"><span class="dim">nothing signed yet</span></div>
+</div>
+<script>
+'use strict';
+const AUTO_MS = 1000; // faster than this, nobody tapped a card
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem('identity-lab:' + k)) ?? d; } catch (_) { return d; } },
+  set(k, v) { localStorage.setItem('identity-lab:' + k, JSON.stringify(v)); },
+};
+let accounts = store.get('accounts', []);
+let intended = store.get('intended', null);
+
+function label(pk) {
+  const i = accounts.indexOf(pk);
+  return i >= 0 ? String.fromCharCode(65 + i) + ' (' + pk.slice(0, 8) + ')' : 'unknown ' + pk.slice(0, 8);
+}
+function paintAccounts() {
+  document.getElementById('accts').textContent = accounts.length ? accounts.map(label).join(' · ') : 'none yet';
+  document.getElementById('pick-a').textContent = 'A' + (accounts[0] ? ' · ' + accounts[0].slice(0, 8) : '');
+  document.getElementById('pick-b').textContent = 'B' + (accounts[1] ? ' · ' + accounts[1].slice(0, 8) : '');
+  document.getElementById('pick-b').disabled = !accounts[1];
+  document.getElementById('sign').disabled = !intended || !accounts.includes(intended);
+  for (const id of ['pick-a', 'pick-b']) {
+    const pk = accounts[id === 'pick-a' ? 0 : 1];
+    document.getElementById(id).classList.toggle('on', pk != null && intended === pk);
+  }
+}
+function nostrReady() {
+  return new Promise((resolve) => {
+    let n = 0;
+    const t = setInterval(() => {
+      if (window.nostr || ++n > 40) { clearInterval(t); resolve(!!window.nostr); }
+    }, 50);
+  });
+}
+nostrReady().then((ok) => {
+  const el = document.getElementById('nostr-state');
+  el.textContent = ok ? 'window.nostr found' : 'window.nostr missing';
+  el.className = 'pill ' + (ok ? 'ok' : 'bad');
+  paintAccounts();
+});
+
+const now = () => Math.floor(Date.now() / 1000);
+const log = (line, cls) => {
+  const el = document.getElementById('log');
+  const s = document.createElement('div');
+  s.className = cls || '';
+  s.textContent = new Date().toLocaleTimeString() + '  ' + line;
+  el.prepend(s);
+};
+const showBanner = (wrong, text) => {
+  const el = document.getElementById('banner');
+  el.className = 'banner ' + (wrong ? 'wrong' : 'ok');
+  el.textContent = text;
+  if (wrong) alert(text);
+};
+
+document.getElementById('login').addEventListener('click', async () => {
+  try {
+    const pk = await window.nostr.getPublicKey();
+    if (!accounts.includes(pk)) { accounts.push(pk); store.set('accounts', accounts); }
+    if (!intended) { intended = accounts[0]; store.set('intended', intended); }
+    paintAccounts();
+    log('logged in · ' + label(pk), 'ok');
+  } catch (e) { log('login rejected · ' + (e && e.message || e), 'wrong'); }
+});
+document.getElementById('pick-a').addEventListener('click', () => {
+  if (!accounts[0]) return;
+  intended = accounts[0]; store.set('intended', intended); paintAccounts();
+});
+document.getElementById('pick-b').addEventListener('click', () => {
+  if (!accounts[1]) return;
+  intended = accounts[1]; store.set('intended', intended); paintAccounts();
+});
+document.getElementById('sign').addEventListener('click', async () => {
+  if (!intended) return;
+  const t0 = performance.now();
+  try {
+    const r = await window.nostr.signEvent({
+      kind: 1, created_at: now(), tags: [],
+      content: 'Identity lab note · intended ' + label(intended) + ' · ' + new Date().toLocaleTimeString(),
+      pubkey: intended,
+    });
+    const ms = Math.round(performance.now() - t0);
+    const how = ms < AUTO_MS ? 'no card' : 'card answered';
+    if (r.pubkey === intended) {
+      showBanner(false, 'Signed as ' + label(intended) + ', as intended (' + how + ').');
+      log('note: signed as ' + label(r.pubkey) + ' — matches the intended identity (' + how + ')', 'ok');
+    } else {
+      const msg = 'WRONG IDENTITY: you intended ' + label(intended) + ' but the signature is from ' + label(r.pubkey) + '.';
+      showBanner(true, msg);
+      log('note: ' + msg + ' (' + how + ')', 'wrong');
+    }
+  } catch (e) {
+    log('note: rejected · ' + (e && e.message || e), 'dim');
+    showBanner(false, 'The request was rejected, so nothing was signed under any identity.');
+  }
+});
+document.getElementById('sign-unknown').addEventListener('click', async () => {
+  const stranger = 'ff'.repeat(32);
+  try {
+    const r = await window.nostr.signEvent({
+      kind: 1, created_at: now(), tags: [],
+      content: 'Identity lab note naming a stranger · ' + new Date().toLocaleTimeString(),
+      pubkey: stranger,
+    });
+    log('stranger note: signed as ' + label(r.pubkey) + ' — Sidecar answered a note naming a key that never logged in. Look at what it did.', 'wrong');
+    showBanner(true, 'A note naming an unknown key came back signed as ' + label(r.pubkey) + '. Decide whether that is the behavior you want.');
+  } catch (e) {
+    log('stranger note: rejected · ' + (e && e.message || e), 'ok');
+    showBanner(false, 'Rejected, as it should be: the named key is not one of your accounts here.');
+  }
+});
+</script>

@@ -1,18 +1,15 @@
 <!--
-  Approval lab: the scope row (Once · 30 min · Always), the 30-minute window, standing
-  Always grants, and the multi-account confirm, case by case, on both approval surfaces.
-
+  Approval lab: the graduated approval card — plain Sign / Reject cards, the earned
+  Always offer, the multi-account confirm, and the 30-minute window, case by case, on
+  both approval surfaces.
       python3 -m http.server 8021        (from the repo root)
       open http://single.localhost:8021/test/manual/approval-lab.html
       open http://shared.localhost:8021/test/manual/approval-lab.html
-
   Two hosts on purpose: Sidecar keeps windows, grants and signed-in accounts per host, so
   the one-account cases and the two-account cases each get a host of their own. Chrome
   resolves every *.localhost name to this machine; nothing else is needed.
-
   Signs only. Nothing here publishes, and no kind 0, 3, 10000 or 10040 is ever signed, so
   the overwrite guard's baselines are never touched.
-
   Every request is timed. An answer in under a second cannot have been a person tapping a
   card, so the page can score "signed without asking" and "asked" by itself. The rest of
   each case is what to look at on the card, ticked by hand.
@@ -41,6 +38,7 @@
   .case h3 .id { color: #7a7392; font: 12.5px ui-monospace, monospace; }
   ol, ul { margin: 6px 0 10px; padding-inline-start: 22px; }
   li { margin: 2px 0; }
+  .why { color: #9a93b0; font-size: 13.5px; margin: 4px 0 2px; }
   .expect { color: #c9c2dd; }
   .expect li::marker { content: '✓  '; color: #6b5bb0; }
   .known { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: #2a1d10; border: 1px solid #6b4a1e; color: #e8c79a; font-size: 13.5px; }
@@ -61,14 +59,13 @@
   body:not([data-host="single"]) .wronghost.w-single, body:not([data-host="shared"]) .wronghost.w-shared { display: block; }
   textarea { width: 100%; box-sizing: border-box; height: 160px; background: #0c0a12; color: #b9b2cc; border: 1px solid #221d33; border-radius: 8px; font: 12px ui-monospace, monospace; }
 </style>
-
 <div class="wrap">
   <h1>Approval lab</h1>
   <p class="sub">Load Sidecar unpacked with <b>two test accounts</b> (not your main ones), open the side panel, and
-  work down the page. Each button sends a real request; the line under it says what came back, how long it took,
-  and which account signed. <b>Under a second means Sidecar signed without asking</b>; longer means a card was
-  answered. Tick Pass or Fail on each case. Results are kept per host in this browser.</p>
-
+  work down the page in order: each case starts from the state the one before it left. Each button sends a real
+  request and logs what came back. <b>“no card”</b> means Sidecar answered in under a second, so it signed without
+  asking; <b>“card answered”</b> means you answered a card. The ✓ or ✗ after a line checks only timing and signer; the rest you
+  judge, then tick Pass or Fail.</p>
   <div class="bar">
     <span>Host: <b id="host-name"></b></span>
     <span id="nostr-state" class="pill">window.nostr…</span>
@@ -76,26 +73,34 @@
     <span id="tally" class="muted"></span>
     <a href="#report">Report</a>
   </div>
-
-  <p class="muted" style="font-size:13.5px">Open the lab on its two hosts:
-    <a id="go-single" href="#">single.localhost</a> (one account, sections 1–3) ·
-    <a id="go-shared" href="#">shared.localhost</a> (two accounts, section 4).
-    To start a host over: Activity → Connected sites → Forget site on its row.</p>
-
+  <ul class="muted" style="font-size:13.5px">
+    <li><b>Sections.</b> 1: one account, cards in the side panel. 2: the same cards as a popup window. Both run on
+      <a id="go-single" href="#">single.localhost</a>. 3: two accounts and the 30-minute window, on
+      <a id="go-shared" href="#">shared.localhost</a>.</li>
+    <li><b>Cards.</b> A plain sign card has only Sign and Reject. A row card adds a row under the preview, “… has asked
+      for this N times this session.”, with Always sign (Sign for 30 min on the shared host) and Not now. The row comes
+      after three plain Signs of one kind, by one account, on one site, this session.
+      From the <b>second</b> ask of a kind, a quiet line under the buttons — “Keep signing
+      as …? Open a 30-minute window.” — opens that window early. Ignore it unless a case
+      says to press it.</li>
+    <li><b>The count carries from case to case</b>, so a row can show a card early. Press a row button only where a
+      case says to; anywhere else press plain Sign.</li>
+    <li><b>Resets.</b> A kind’s count: Not now on its row, or a browser restart. A grant: its ✕ under “Signs without
+      asking:” on the site’s row in Activity → Connected sites. A window: the ✕ on the status bar. Trust pressed by
+      mistake: set that same row to “Ask every time”. Everything but the count: Forget site, then log in again (1.1 or 3.1).</li>
+    <li><b>Your ticks.</b> Pass/Fail and logs survive a refresh. Clear this host’s results wipes them and the A/B
+      labels, and nothing in Sidecar.</li>
+  </ul>
   <!-- ===================================================================== -->
-  <h2>1 · One account: Once and the 30-minute window</h2>
+  <h2>1 · One account: plain cards and the earned offer</h2>
   <div class="wronghost w-single">Run this section on <b>single.localhost</b>.</div>
   <div class="hostonly for-single" id="sec-single"></div>
-
-  <h2>2 · One account: Always</h2>
-  <div class="wronghost w-single">Run this section on <b>single.localhost</b>.</div>
-  <div class="hostonly for-single" id="sec-always"></div>
-
-  <h2>3 · The popup card</h2>
+  <!-- ===================================================================== -->
+  <h2>2 · The popup</h2>
   <div class="wronghost w-single">Run this section on <b>single.localhost</b>.</div>
   <div class="hostonly for-single" id="sec-popup"></div>
-
-  <h2>4 · Two accounts on one site</h2>
+  <!-- ===================================================================== -->
+  <h2>3 · Two accounts: the shared host, and the 30-minute window</h2>
   <div class="wronghost w-shared">Run this section on <b>shared.localhost</b>.</div>
   <div class="hostonly for-shared" id="sec-shared"></div>
 
@@ -226,6 +231,7 @@ function kase(section, c) {
   const idEl = document.createElement('span'); idEl.className = 'id'; idEl.textContent = c.id;
   h.append(idEl, document.createTextNode(c.title));
   box.append(h);
+  if (c.why) { const p = document.createElement('p'); p.className = 'why'; p.textContent = 'Why: ' + c.why; box.append(p); }
   if (c.steps) { const ol = document.createElement('ol'); c.steps.forEach((s) => { const li = document.createElement('li'); li.textContent = s; ol.append(li); }); box.append(ol); }
   if (c.expect) { const ul = document.createElement('ul'); ul.className = 'expect'; c.expect.forEach((s) => { const li = document.createElement('li'); li.textContent = s; ul.append(li); }); box.append(ul); }
   if (c.known) { const k = document.createElement('div'); k.className = 'known'; k.textContent = c.known; box.append(k); }
@@ -271,162 +277,252 @@ const isB = (pk) => pk === accounts[1];
 // ---- 1 · one account -----------------------------------------------------------
 const S = 'sec-single';
 kase(S, { id: '1.1', host: 'single', title: 'Log in',
-  steps: ['Make sure Sidecar’s active account is the one you want as A.', 'Press Log in and approve the card.'],
-  expect: ['The card’s button reads “Allow once”: a login is not a signature.', 'The pubkey line names it A.'],
+    why: 'A login only shares your public key and signs nothing, so its card is simpler than a sign card.',
+  steps: ['Switch Sidecar to the account you want as A.', 'Press Log in.', 'Press “Allow once” on the card (not Trust this site).'],
+  expect: ['The main button reads “Allow once”, not “Sign”: a login is not a signature.', 'The log line ends “pubkey A (…)”, and the bar at the top lists A.'],
   buttons: [{ label: 'Log in', go: (id) => run(id, 'log in', REQ.login, null) }] });
 
-kase(S, { id: '1.2', host: 'single', title: 'Once signs one note, and asks again',
-  steps: ['Press Sign a note.', 'Look at the card, leave it on Once, and press Sign.', 'Press Sign a note again.'],
-  expect: ['The row shows Once · 30 min · Always, with Once selected, spanning the card like the Sign button.', 'One line above the row reads “Asks again next time.”',
-    'The big button reads “Sign”; “Trust this site” is offered below it.', 'No text sits side by side anywhere on the card.',
-    'Both notes show “card answered”.'],
+kase(S, { id: '1.2', host: 'single', title: 'A sign card is plain, and every signature asks',
+    why: 'The old card showed a duration choice on every signature. Now a signature is just yes or no, and the choice to stop being asked arrives only after repetition (case 1.3).',
+  steps: ['Press Sign a note and read the card.', 'Press Sign.', 'Press Sign a note again, and press Sign.'],
+  expect: ['Only Sign and Reject: no scope row, no “Trust this site”, no row.',
+    'The second note gets its own card: with no grant, every signature asks.',
+    'The second card also carries the quiet hint under the buttons (“Keep signing as …?
+    Open a 30-minute window.”). Ignore it: this case is about the plain card.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask') }] });
 
-kase(S, { id: '1.3', host: 'single', title: '30 min opens the window',
-  steps: ['Press Sign a note.', 'Choose 30 min. Read the caption and the button.', 'Press the button.', 'Press Sign 3 more.'],
-  expect: ['Choosing 30 min changes the line above the row to “Signs here without asking for 30 minutes.” Nothing moves.',
-    'The button changes to “Sign for 30 min”.', 'The status bar appears at the foot of the panel with about 30:00 and this account’s name.',
-    'The toolbar badge reads 30 (or 29).', 'All three extra notes show “no card”.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick 30 min)', REQ.note, 'ask') },
-            { label: 'Sign 3 more', go: times(3, (id, i) => run(id, 'note ' + i, () => REQ.note(i), 'auto')) }] });
+kase(S, { id: '1.3', host: 'single', title: 'The earned offer arrives on the fourth ask',
+    why: 'The offer to stop asking should come only once a pattern is real, three approvals of the same kind, never on first contact with a site.',
+  steps: ['State: no reaction signed on this site since the browser started. Otherwise the row comes early.',
+    'Press Sign 3 reactions, and press Sign on each card.', 'Press Sign a 4th reaction (the row shows) and read the card.',
+    'Press Sign (not Always sign: 1.4 and 1.5 use the row).'],
+  expect: ['Cards 1 to 3 show only Sign and Reject.',
+    'Card 4 shows the row: “You've signed single.localhost 3 times in a row.”, then “Keep signing future Reaction events without asking.”, then Always sign · Not now.',
+    'The big button still reads “Sign”.'],
+  buttons: [{ label: 'Sign 3 reactions', go: times(3, (id, i) => run(id, 'reaction ' + i, REQ.reaction, 'ask')) },
+            { label: 'Sign a 4th reaction (the row shows)', go: (id) => run(id, 'reaction 4 (the row)', REQ.reaction, 'ask') }] });
 
-kase(S, { id: '1.4', host: 'single', title: 'The window does not cover a never-relax kind',
-  steps: ['With the window from 1.3 still running, press Sign a wallet-control event (kind 23194).', 'Reject the card.'],
-  expect: ['A card appears even though the window is open.', 'The card has no 30 min and no Always, and its button still reads “Sign”.', 'The log shows a rejection.'],
-  buttons: [{ label: 'Sign a wallet-control event', go: (id) => run(id, 'kind 23194', REQ.control, 'reject') }] });
+kase(S, { id: '1.4', host: 'single', title: 'Not now resets the count',
+    why: '“Not now” means “not yet”, so the count starts over: the offer has to be earned again.',
+  steps: ['State: 1.3 done, its fourth card answered with Sign, so the row shows on the next reaction.',
+    'Press Not now, then sign. The card shows the row.', 'Press the row’s Not now, then press Sign.',
+    'Press Sign 2 reactions, and press Sign on each card.',
+    'Press Sign a reaction (the row is back), and press Sign. This card is still plain: it is only the third since Not now.',
+    'Press Sign a reaction (the row is back) once more. Now the row is back. Press Sign.'],
+  expect: ['Not now hides the row, and Sign still signs.', 'The next three reaction cards are plain.',
+    'The one after them shows the row again, reading “3 times”: Not now started the count over.'],
+  buttons: [{ label: 'Not now, then sign', go: (id) => run(id, 'reaction (Not now)', REQ.reaction, 'ask') },
+            { label: 'Sign 2 reactions', go: times(2, (id, i) => run(id, 'reaction ' + i, REQ.reaction, 'ask')) },
+            { label: 'Sign a reaction (the row is back)', go: (id) => run(id, 'reaction (the row is back)', REQ.reaction, 'ask') }] });
 
-kase(S, { id: '1.5', host: 'single', title: 'The window covers an encrypt',
-  steps: ['With the window still running, press Encrypt to self.'],
-  expect: ['No card: the encrypt shows “no card”.'],
-  buttons: [{ label: 'Encrypt to self', go: (id) => run(id, 'nip44.encrypt', REQ.encrypt, 'auto') }] });
-
-kase(S, { id: '1.6', host: 'single', title: 'Restart and End',
-  steps: ['Wait until the bar shows under 29:00, then press Restart on the bar.', 'Press End on the bar.', 'Press Sign a note.'],
-  expect: ['Restart puts the bar back to about 30:00.', 'End removes the bar and clears the badge.', 'The note after End shows “card answered”.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note after End', REQ.note, 'ask') }] });
-
-kase(S, { id: '1.7', host: 'single', title: 'An encrypt card’s wording',
-  steps: ['With no window running, press Encrypt to self.', 'Look at the card, choose 30 min, then Reject.'],
-  expect: ['The row shows Once · 30 min, and no Always.', 'The button reads “Allow once”, then “Allow for 30 min” when 30 min is chosen.',
-    'The line above the row reads “Approves this kind here without asking for 30 minutes.”', 'The log shows a rejection.'],
-  buttons: [{ label: 'Encrypt to self', go: (id) => run(id, 'nip44.encrypt', REQ.encrypt, 'reject') }] });
-
-kase(S, { id: '1.8', host: 'single', title: 'A choice never carries over to the next card',
-  steps: ['Press Sign a note, choose 30 min, and press Reject.', 'Press Sign a note again and look at the card before answering. Answer Once.'],
-  expect: ['The second card starts on Once, and its button reads “Sign”.', 'No status bar appears.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, null) }] });
-
-kase(S, { id: '1.9', host: 'single', title: 'A burst: one card for three requests',
-  steps: ['Press End on the bar if one is showing.', 'Press Send 3 at once.', 'Look at the one card that appears, then press Allow all (3).'],
-  expect: ['One card: “wants to sign 3 events with your key”, listing all three.', 'No Once · 30 min row: a batch is settled whole.',
-    'The button reads “Allow all (3)”.', 'All three notes come back signed from that one tap, and no second card appears.'],
-  buttons: [{ label: 'Send 3 at once', go: (id) => Promise.all([1, 2, 3].map((i) => run(id, 'burst note ' + i, () => REQ.note(i), null))) }] });
-
-kase(S, { id: '1.10', host: 'single', title: 'Locking ends the window',
-  steps: ['Press Sign a note, choose 30 min, and sign.', 'Lock Sidecar from the panel.', 'Unlock, then press Sign a note.'],
-  expect: ['The bar is gone after unlocking.', 'The last note shows “card answered”.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, null) }] });
-
-kase(S, { id: '1.11', host: 'single', title: 'The account capsule opens the menu',
-  steps: ['Press Sign a note.', 'Tap the account capsule (the chevron on its right), look at the menu, tap it again to close, and Reject.'],
-  expect: ['The capsule carries a chevron; there is no separate “Use a different account” link.',
-    'The menu opens under it with this account under “Signed in here”, and your other account under “Other accounts” with its one-line explanation.',
-    'Tapping the capsule again closes it; the chevron turns back.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'reject') }] });
-
-// ---- 2 · Always ------------------------------------------------------------------
-const AL = 'sec-always';
-kase(AL, { id: '2.1', host: 'single', title: 'Always covers one kind, and only that kind',
-  steps: ['Press End on the bar if one is showing.', 'Press Sign a reaction. Choose Always, read the caption and the button, and press it.',
-    'Press Sign 2 reactions.', 'Press Sign a note, and answer Once.'],
-  expect: ['The line above the row reads “Signs future Reaction events here without asking.”', 'The button reads “Always sign”.',
-    'Both extra reactions show “no card”.', 'The note still shows “card answered”: Always covers reactions only.'],
-  buttons: [{ label: 'Sign a reaction', go: (id) => run(id, 'reaction (pick Always)', REQ.reaction, 'ask') },
+kase(S, { id: '1.5', host: 'single', title: 'Always sign grants, and only that kind',
+    why: 'This is the point of the whole design: after granting, the same action stops prompting, while a different action (a note) keeps asking, because the grant covers one action type only.',
+  steps: ['State: 1.4 done, so the row shows on the next reaction.',
+    'Press Always sign (the row shows). On the card, press the row’s Always sign.', 'Press Sign 2 reactions.',
+    'Press Sign a note, and press Sign.'],
+  expect: ['Always sign also signs the reaction on that card.', 'Both extra reactions log “no card”.',
+    'The note gets a plain card and logs “card answered”: the grant covers reactions only.'],
+  buttons: [{ label: 'Always sign (the row shows)', go: (id) => run(id, 'reaction (Always sign)', REQ.reaction, 'ask') },
             { label: 'Sign 2 reactions', go: times(2, (id, i) => run(id, 'reaction ' + i, REQ.reaction, 'auto')) },
             { label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask') }] });
 
-kase(AL, { id: '2.2', host: 'single', title: 'Removing the grant in Activity',
-  steps: ['Open Activity → Connected sites and remove the Always grant for reactions on this host’s row.', 'Press Sign a reaction, then Reject.'],
-  expect: ['A card appears again.'],
-  buttons: [{ label: 'Sign a reaction', go: (id) => run(id, 'reaction', REQ.reaction, 'reject') }] });
+kase(S, { id: '1.6', host: 'single', title: 'Removing the grant in Activity',
+    why: 'Every automatic signature must be undoable. Removing the grant returns you to plain cards.',
+  steps: ['Open Activity → Connected sites. On single.localhost’s row, under “Signs without asking:”, press the ✕ beside the reaction line.',
+    'Press Sign a reaction, and press Sign.'],
+  expect: ['The reaction line leaves the row.', 'The reaction gets a card again, plain Sign / Reject — plus the quiet hint, since this kind has asked before.'],
+  buttons: [{ label: 'Sign a reaction', go: (id) => run(id, 'reaction', REQ.reaction, 'ask') }] });
 
-kase(AL, { id: '2.3', host: 'single', title: 'Always on a named record covers that record only',
-  steps: ['Press Sign draft “lab-a”. Choose Always, read the caption, and sign.', 'Press Sign draft “lab-a” again.', 'Press Sign draft “lab-b”, then Reject.',
-    'Remove the grant in Activity afterwards.'],
-  expect: ['The line above the row reads “Signs future versions of “lab-a” here without asking.”', 'The second lab-a shows “no card”.', 'lab-b gets a card.'],
-  buttons: [{ label: 'Sign draft “lab-a”', go: (id) => run(id, 'article lab-a', () => REQ.article('lab-a'), null) },
-            { label: 'Sign draft “lab-b”', go: (id) => run(id, 'article lab-b', () => REQ.article('lab-b'), 'reject') }] });
+kase(S, { id: '1.7', host: 'single', title: 'Always sign on one article covers that article only',
+    why: 'A long-form article carries a d tag naming which article it is, and every edit of it reuses that d, so “lab-a” and “lab-b” are two different articles. Always sign on such an event covers that one article, never every article.',
+  steps: ['State: no article grant on this site. If one is left from an earlier run, press its ✕ in Activity → Connected sites.',
+    'Press Sign draft “lab-a” 3 times, and press Sign on each card.',
+    'Press Sign draft “lab-a” (the row shows). On the card, press the row’s Always sign.',
+    'Press Sign draft “lab-a” again.', 'Press Sign draft “lab-b”, and press Sign.',
+    'Clean up: in Activity → Connected sites, press the ✕ beside article · “lab-a”.'],
+  expect: ['The fourth lab-a card’s row reads “Keep signing future versions of “lab-a” without asking.”',
+    'The lab-a after the grant logs “no card”: the grant covers lab-a.',
+    'lab-b gets a plain card, with no row: same kind, different article, so the grant does not reach it. This contrast is the case.'],
+  buttons: [{ label: 'Sign draft “lab-a” 3 times', go: times(3, (id, i) => run(id, 'article lab-a ' + i, () => REQ.article('lab-a'), 'ask')) },
+            { label: 'Sign draft “lab-a” (the row shows)', go: (id) => run(id, 'article lab-a (the row)', () => REQ.article('lab-a'), 'ask') },
+            { label: 'Sign draft “lab-a” again', go: (id) => run(id, 'article lab-a (granted)', () => REQ.article('lab-a'), 'auto') },
+            { label: 'Sign draft “lab-b”', go: (id) => run(id, 'article lab-b', () => REQ.article('lab-b'), 'ask') }] });
 
-// ---- 3 · popup -------------------------------------------------------------------
+kase(S, { id: '1.8', host: 'single', title: 'A burst gets one card and counts once',
+    why: 'A burst is several requests a client fires at the same moment, like a sync. Sidecar gathers them into one card that one tap answers, and that tap counts as one approval toward the row, not three.',
+  steps: ['State: notes have three plain Signs so far (two in 1.2, one in 1.5), so a lone note card would now show the row.',
+    'Press Send 3 at once.', 'Read the one card that appears, then press “Allow all (3)”.'],
+  expect: ['One card reads “wants to sign 3 events with your key” and lists all three notes.',
+    'No row on it, even though notes have earned one: a batch never carries the row.',
+    'All three log “card answered” from that one tap, and no second card appears.',
+    'Settled whole: the batch adds one to the note count, so 1.11’s note card says “4 times”, not 6.'],
+  buttons: [{ label: 'Send 3 at once', go: (id) => Promise.all([1, 2, 3].map((i) => run(id, 'burst note ' + i, () => REQ.note(i), null))) }] });
+
+kase(S, { id: '1.9', host: 'single', title: 'An encrypt card keeps Trust, and never the row',
+    why: 'Encryption is private reading and writing, not publishing, so its permanent answer is Trust, and the earned offer never applies.',
+  steps: ['Press Encrypt to self and read the card.', 'Press Reject.'],
+  expect: ['The card reads “wants to encrypt a message (NIP-44)”, with Allow once · Trust this site · Reject.',
+    'No scope row and no row.', 'The log shows a rejection, marked ✓.'],
+  buttons: [{ label: 'Encrypt to self', go: (id) => run(id, 'nip44.encrypt', REQ.encrypt, 'reject') }] });
+
+kase(S, { id: '1.10', host: 'single', title: 'A never-grantable kind never earns the row',
+    why: 'Wallet-control kinds can move money or replace state. No amount of repetition should ever make them automatic.',
+  steps: ['Press Sign a wallet-control event 3 times (kind 23194), and press Reject on each card.',
+    'Press Sign a wallet-control event (still plain), read the card, and press Reject.'],
+  expect: ['Every card is plain Sign / Reject.', 'No row on the fourth card.', 'All four log a rejection, marked ✓.'],
+  buttons: [{ label: 'Sign a wallet-control event 3 times', go: times(3, (id, i) => run(id, 'kind 23194 ' + i, REQ.control, 'reject')) },
+            { label: 'Sign a wallet-control event (still plain)', go: (id) => run(id, 'kind 23194 (the 4th)', REQ.control, 'reject') }] });
+
+kase(S, { id: '1.11', host: 'single', title: 'The account capsule opens the menu',
+    why: 'With several identities, who signs is part of the decision, so the account picker stays on the card.',
+  steps: ['Press Sign a note. The card shows the row.', 'Press the row’s Not now. This also zeroes the note count, which 2.1 needs.',
+    'Tap the account capsule (the account name with a chevron) and read the menu. Don’t pick under “Other accounts”: that detaches the site (redo 1.1 if it happens).',
+    'Tap the capsule again to close the menu.', 'Press Reject.'],
+  expect: ['The row read “You've signed single.localhost 4 times in a row.”: three plain notes, plus 1.8’s batch counted once.',
+    'The capsule carries a chevron, and there is no separate “Use a different account” link.',
+    'The menu opens under it: this account under “Signed in here”, your other account under “Other accounts” with its one-line explanation.',
+    'The second tap closes it, and the chevron turns back.'],
+  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'reject') }] });
+
+// ---- 2 · popup -------------------------------------------------------------------
 const PO = 'sec-popup';
-kase(PO, { id: '3.1', host: 'single', title: 'The popup matches the panel',
-  steps: ['Close the side panel.', 'Press Sign a note. The card opens as a popup window.', 'Check the card, choose 30 min, and sign.', 'Open the panel.'],
-  expect: ['Same as the panel: Once · 30 min · Always under “Asks again next time.”', 'Choosing 30 min shows the same line, and the button reads “Sign for 30 min”.',
-    'The panel shows the status bar.'],
+kase(PO, { id: '2.1', host: 'single', title: 'The popup card is plain',
+    why: 'The popup is the same decision in a different window, so it must match the panel exactly.',
+  steps: ['State: the note count is zero (1.11’s Not now did that). If the popup shows a row anyway, press Not now, then Sign, and repeat.',
+    'Close the side panel.', 'Press Sign a note. The card opens as a popup window.', 'Read it, then press Sign.'],
+  expect: ['Only Sign and Reject: no scope row, no Trust, no row. The quiet 30-minute hint may sit under the buttons: this kind has asked before.',
+    'It matches the panel’s plain card from 1.2.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (popup)', REQ.note, 'ask') }] });
 
-kase(PO, { id: '3.2', host: 'single', title: 'The popup hides what it does not offer',
-  steps: ['Press End on the bar, then close the panel.', 'Press Sign a wallet-control event and look at the popup. Reject it.'],
-  expect: ['No scope row at all: no Once, no 30 min, no Always.', 'The button reads “Sign”, as in the panel.'],
-  buttons: [{ label: 'Sign a wallet-control event', go: (id) => run(id, 'kind 23194 (popup)', REQ.control, 'reject') }] });
+kase(PO, { id: '2.2', host: 'single', title: 'The earned offer in the popup',
+    why: 'The count is per site, account and kind, and shared across surfaces: earning the offer in the panel carries to the popup.',
+  steps: ['State: panel closed, no reaction grant (1.6 removed it), and one reaction already counted, signed in 1.6’s panel card.',
+    'Press Sign 3 reactions, and press Sign on each popup. The third already shows the row: press plain Sign on it.',
+    'Press Sign a 4th reaction (the row shows). In the popup, press the row’s Always sign.', 'Press Sign a 5th reaction.'],
+  expect: ['The row comes on the third popup, reading “3 times”: 1.6’s reaction in the panel counted.',
+    'The popup’s row matches the panel’s: same words, Always sign · Not now.',
+    'The 4th reaction signs from the row card, and the 5th logs “no card”.'],
+  buttons: [{ label: 'Sign 3 reactions', go: times(3, (id, i) => run(id, 'popup reaction ' + i, REQ.reaction, 'ask')) },
+            { label: 'Sign a 4th reaction (the row shows)', go: (id) => run(id, 'popup reaction 4 (the row)', REQ.reaction, 'ask') },
+            { label: 'Sign a 5th reaction', go: (id) => run(id, 'popup reaction 5', REQ.reaction, 'auto') }] });
 
-kase(PO, { id: '3.3', host: 'single', title: 'The popup’s account menu opens',
-  steps: ['With the panel closed, press Sign a note.', 'In the popup, tap the account capsule. Then Reject.'],
+kase(PO, { id: '2.3', host: 'single', title: 'The popup’s account menu opens',
+    why: 'Account choice works on both surfaces.',
+  steps: ['With the panel closed, press Sign a note.', 'In the popup, tap the account capsule and read the menu. Don’t pick under “Other accounts”.',
+    'Press Reject.'],
   expect: ['The menu opens with “Signed in here” and “Other accounts”.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (popup)', REQ.note, 'reject') }] });
 
-// ---- 4 · two accounts ---------------------------------------------------------------
+// ---- 3 · two accounts ---------------------------------------------------------------
 const SH = 'sec-shared';
-kase(SH, { id: '4.1', host: 'shared', title: 'Sign in with both accounts',
-  steps: ['Make A Sidecar’s active account. Press Log in and approve.', 'Switch Sidecar to B. Press Log in and approve as B.'],
+kase(SH, { id: '3.1', host: 'shared', title: 'Sign in with both accounts',
+    why: 'Per-account permissions need both accounts known to this host before the shared cases mean anything.',
+  steps: ['State: to start this host over, Forget site on its row in Activity → Connected sites, and Clear this host’s results below.',
+    'Switch Sidecar to A.', 'Press Log in, and press “Allow once”.', 'Switch Sidecar to B.', 'Press Log in again, and press “Allow once”.'],
   expect: ['The bar at the top lists A and B.'],
   buttons: [{ label: 'Log in', go: (id) => run(id, 'log in', REQ.login, null) }] });
 
-kase(SH, { id: '4.2', host: 'shared', title: 'The multi-account card',
-  steps: ['With Sidecar on B, press Sign a note and look at the card.', 'Tap the account capsule to open the menu, tap it again to close, and answer Once.'],
+kase(SH, { id: '3.2', host: 'shared', title: 'The multi-account card',
+    why: 'When a client holds two of your accounts, the dangerous mistake is signing with the wrong one, so the card confirms who is posting every time.',
+  steps: ['State: Sidecar on B.', 'Press Sign a note and read the card.', 'Tap the account capsule, read the menu, and tap it again to close it.',
+    'Press Sign.'],
   expect: ['Two lines above “Signing as”: “Multiple accounts are signed in here.”, then “Confirm who’s posting each time.” in bold.',
-    'The row shows Once · 30 min, and no Always.', 'No “Trust this site”.', 'The menu lists A and B under “Signed in here”.', 'Signed as B.'],
+    'Only Sign and Reject: no Trust, and no row yet.', 'The menu lists A and B under “Signed in here”.', 'The log says signed as B.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask', isB) }] });
 
-kase(SH, { id: '4.3', host: 'shared', title: 'A 30-minute window for B',
-  steps: ['Press Sign a note, choose 30 min, and sign.', 'Press Sign 3 more.'],
-  expect: ['The bar shows B.', 'All three show “no card”, signed as B.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick 30 min)', REQ.note, 'ask', isB) },
+kase(SH, { id: '3.3', host: 'shared', title: 'The earned offer offers 30 minutes on a shared site',
+    why: 'On a shared site an Always grant would sign for whichever account the client picks, so the earned offer is a 30-minute window instead: strong enough to help, bounded enough to be safe.',
+  steps: ['State: Sidecar on B, no window running. B already has one note counted (3.2), so the row comes a card early.',
+    'Press Sign a note 3 times, and press Sign on each card. The third shows the row: press plain Sign.',
+    'Press Sign a 4th note (the row shows). Read the row, then press plain Sign.',
+    'Press Sign for 30 min (the lab button). On its card, press the row’s Sign for 30 min.', 'Press Sign 3 more.'],
+  expect: ['The row reads “Keep signing as B for 30 minutes.”, with Sign for 30 min · Not now. No Always sign: on a shared site a grant would sign for whichever account the client picks.',
+    'The status bar appears at the foot of the panel with B’s name.', 'All three extra notes log “no card”.'],
+  buttons: [{ label: 'Sign a note 3 times', go: times(3, (id, i) => run(id, 'note ' + i, () => REQ.note(i), 'ask', isB)) },
+            { label: 'Sign a 4th note (the row shows)', go: (id) => run(id, 'note (the row)', REQ.note, 'ask', isB) },
+            { label: 'Sign for 30 min', go: (id) => run(id, 'note (30 min)', REQ.note, 'ask', isB) },
             { label: 'Sign 3 more', go: times(3, (id, i) => run(id, 'note ' + i, () => REQ.note(i), 'auto', isB)) }] });
 
-kase(SH, { id: '4.4', host: 'shared', title: 'Signing as A from the card',
-  steps: ['Press End on the bar.', 'Press Sign a note. In the card, tap the account capsule and pick A.', 'Answer Once.'],
-  expect: ['The capsule changes to A, and the card stays open.', 'Signed as A.', 'Sidecar’s active account is now A as well.'],
+kase(SH, { id: '3.4', host: 'shared', title: 'The window covers an encrypt',
+    why: 'The window is a blanket “stop asking for 30 minutes”, and private reads and writes are part of that.',
+  steps: ['State: B’s window from 3.3 still running (the status bar shows).', 'Press Encrypt to self.'],
+  expect: ['No card: the encrypt logs “no card”.'],
+  buttons: [{ label: 'Encrypt to self', go: (id) => run(id, 'nip44.encrypt', REQ.encrypt, 'auto') }] });
+
+kase(SH, { id: '3.5', host: 'shared', title: 'The window does not cover a never-relax kind',
+    why: 'Wallet-control kinds are excluded from windows as well as grants: some requests always ask.',
+  steps: ['State: B’s window still running.', 'Press Sign a wallet-control event (kind 23194).', 'Press Reject.'],
+  expect: ['A card appears although the window is running.', 'The card is plain Sign / Reject.', 'The log shows a rejection, marked ✓.'],
+  buttons: [{ label: 'Sign a wallet-control event', go: (id) => run(id, 'kind 23194', REQ.control, 'reject') }] });
+
+kase(SH, { id: '3.6', host: 'shared', title: 'Signing as A from the card',
+    why: 'Switching the signing identity mid-card must work, and Sidecar must follow the choice.',
+  steps: ['State: Sidecar on B.', 'Press the ✕ (End) on the status bar.', 'Press Sign a note.',
+    'Tap the account capsule, and pick A under “Signed in here”.', 'Press Sign.',
+    'Look at the side panel’s header.'],
+  expect: ['The capsule changes to A, and the card stays open.', 'The log says signed as A.',
+    'Sidecar’s active account is still B: a pick on a sign card names the signer for that one signature and moves nothing else. (shared-identity-lab.html tests this case by case.)'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick A in the card)', REQ.note, 'ask', isA) }] });
 
-kase(SH, { id: '4.5', host: 'shared', title: 'Two windows at once, with a timer for each account',
-  steps: ['Turn on Settings → Auto-sign with multiple accounts → Keep a 30-minute timer for each account.',
-    'Switch Sidecar back to B (4.4 made A active). Press Sign a note, choose 30 min, and sign.', 'Switch Sidecar to A.', 'Press Sign a note (as A), choose 30 min, and sign.',
-    'Press Sign as A, no card expected.', 'Switch Sidecar back to B, then press Sign as B, no card expected.'],
-  expect: ['After step 4 two windows are running: the bar shows the active account’s (A’s) with a +1, and the badge counts down the same one. +1 lists B’s.',
-    'Step 5 signs as A with no card; step 6 signs as B with no card, and the bar now shows B’s.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick 30 min)', REQ.note, 'ask') },
-            { label: 'Sign as A, no card expected', go: (id) => run(id, 'note as A', REQ.note, 'auto', isA) },
-            { label: 'Sign as B, no card expected', go: (id) => run(id, 'note as B', REQ.note, 'auto', isB) }] });
+kase(SH, { id: '3.7', host: 'shared', title: 'Two windows at once, with a timer for each account',
+    why: 'With the per-account setting, each identity earns and runs its own window, so one account’s “stop asking” never covers the other.',
+  steps: ['State: no window running.', 'Switch Sidecar to A.',
+    'Turn on Settings → Auto-sign with multiple accounts → Keep a 30-minute timer for each account.', 'Switch Sidecar to B.',
+    'Press Reach the row as B. It sends five notes, one card at a time: press Sign on cards 1 to 4, and the row’s Sign for 30 min on card 5.',
+    'Switch Sidecar to A.', 'Press Reach the row as A, and answer the same way: Sign on cards 1 to 4, Sign for 30 min on card 5.',
+    'Press Sign as A, no card expected.', 'Switch Sidecar to B.', 'Press Sign as B, no card expected.'],
+  expect: ['With both windows running and A active, the bar shows A’s window with a +1, and the toolbar badge counts down A’s. Tapping +1 lists B’s.',
+    'Sign as A logs “no card”, signed as A.', 'After the switch, the bar shows B’s window, and Sign as B logs “no card”, signed as B.'],
+  buttons: [{ label: 'Reach the row as B, press Sign for 30 min', go: async (id) => {
+      for (let i = 1; i <= 3; i++) await run(id, 'note as B ' + i, () => REQ.note(i), 'ask', isB);
+      await run(id, 'note as B (the row)', REQ.note, 'ask', isB);
+      await run(id, 'note as B (30 min)', REQ.note, 'ask', isB); } },
+    { label: 'Reach the row as A, press Sign for 30 min', go: async (id) => {
+      for (let i = 1; i <= 3; i++) await run(id, 'note as A ' + i, () => REQ.note(i), 'ask', isA);
+      await run(id, 'note as A (the row)', REQ.note, 'ask', isA);
+      await run(id, 'note as A (30 min)', REQ.note, 'ask', isA); } },
+    { label: 'Sign as A, no card expected', go: (id) => run(id, 'note as A', REQ.note, 'auto', isA) },
+    { label: 'Sign as B, no card expected', go: (id) => run(id, 'note as B', REQ.note, 'auto', isB) }] });
 
-kase(SH, { id: '4.6', host: 'shared', title: 'Restart and End with two windows',
-  steps: ['With two windows running (4.5), press Restart on the bar.', 'Press End.'],
-  expect: ['Restart resets the window the bar shows.',
-    'End removes the bar and clears the badge; the next note from either account gets a card.'],
+kase(SH, { id: '3.8', host: 'shared', title: 'Restart and End with two windows',
+    why: 'A window you can see must be a window you can control.',
+  steps: ['State: both windows from 3.7 running, Sidecar on B.', 'Press Restart (the circular arrow) on the status bar.',
+    'Press End (the ✕).', 'Press Sign a note, and press Sign.'],
+  expect: ['Restart winds the window the bar shows back to the full 30 minutes.',
+    'End removes the bar and clears the badge: it ends both windows.', 'The note gets a card.'],
   buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note after End', REQ.note, 'ask') }] });
 
-kase(SH, { id: '4.7', host: 'shared', title: 'One account at a time (the default): switching ends the window',
-  steps: ['Turn Settings → Auto-sign with multiple accounts → Keep a 30-minute timer for each account back off.',
-    'With Sidecar on B, press Sign a note, choose 30 min, and sign.', 'Switch Sidecar to A.', 'Press Sign a note.'],
-  expect: ['After step 3 the bar is gone.', 'Step 4 gets a card.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask') }] });
+kase(SH, { id: '3.9', host: 'shared', title: 'One account at a time (the default): switching ends the window',
+    why: 'By default a window belongs to one account: switching identities must not inherit it.',
+  steps: ['State: Sidecar on B, no window running (3.8 ended both).',
+    'Turn Settings → Auto-sign with multiple accounts → Keep a 30-minute timer for each account back off.',
+    'Press Reach the row as B. It sends four notes: press Sign on cards 1 to 3, and the row’s Sign for 30 min on card 4.',
+    'Switch Sidecar to A.', 'Press Sign a note, and press Sign.'],
+  expect: ['After Sign for 30 min, the status bar shows B’s window.', 'A’s note gets a card: B’s window does not cover it.'],
+  buttons: [{ label: 'Reach the row as B, press Sign for 30 min', go: async (id) => {
+      for (let i = 1; i <= 3; i++) await run(id, 'note as B ' + i, () => REQ.note(i), 'ask', isB);
+      await run(id, 'note as B (30 min)', REQ.note, 'ask', isB); } },
+    { label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask') }] });
 
-kase(SH, { id: '4.8', host: 'shared', title: 'One account at a time: a window for A ends B’s',
-  steps: ['With Sidecar on B, press Sign a note, choose 30 min, and sign.',
-    'Press Sign as A (the site names A as the author, as a multi-account client does). A card asks; choose 30 min, and sign.'],
-  expect: ['B’s window did not sign A’s note: it asked.', 'After step 2 the bar shows A, with no +1: B’s window ended when A’s opened.'],
-  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note (pick 30 min)', REQ.note, 'ask') },
-            { label: 'Sign as A', go: (id) => run(id, 'note naming A (pick 30 min)', () => REQ.noteAs(accounts[0]), 'ask', isA) }] });
+kase(SH, { id: '3.10', host: 'shared', title: 'One account at a time: a window for A ends B’s',
+    why: 'The same rule from the other side: opening one account’s window ends the other’s.',
+  steps: ['State: per-account timers off (3.9). Switch Sidecar to B (3.9 left it on A).',
+    'Press Reach the row as B: three plain cards, then the row offers Sign for 30 min. Press it. B’s window starts, and the bar shows B.',
+    'Press Sign as A three times: plain cards, each signed as A. B’s window does not cover the other identity.',
+    'Press Sign a 4th note as A: the row shows again, offering Sign for 30 min (never Always sign, even though the note names its author: the client chose the key). Press Sign for 30 min. A’s window opens and ends B’s.',
+    'Press Sign as B: it gets a card again, which is the proof that B’s window ended. Answer it however you like.'],
+  expect: ['The row on the shared host offers Sign for 30 min, never Always sign, even for a note naming its author: the client chose the key.',
+    'A’s three plain cards asked: B’s window did not cover the other identity.',
+    'A’s window opened on the row card, and the next A note shows “no card”.',
+    'The note as B after that gets a card: A’s window ended B’s.'],
+  buttons: [
+    { label: 'Reach the row as B, press Sign for 30 min', go: async (id) => {
+      for (let i = 1; i <= 3; i++) await run(id, 'note as B ' + i, () => REQ.note(i), 'ask', isB);
+      await run(id, 'note as B (30 min)', REQ.note, 'ask', isB); } },
+    { label: 'Sign as A three times', go: times(3, (id, i) => run(id, 'note naming A ' + i, () => REQ.noteAs(accounts[0]), 'ask', isA)) },
+    { label: 'Sign a 4th note as A (the row shows): press Sign for 30 min', go: (id) => run(id, 'note naming A (30 min)', () => REQ.noteAs(accounts[0]), 'ask', isA) },
+    { label: 'Sign as A, no card expected', go: (id) => run(id, 'note naming A (covered)', () => REQ.noteAs(accounts[0]), 'auto', isA) },
+    { label: 'Sign as B, a card expected (A’s window ended B’s)', go: (id) => run(id, 'note as B (after A’s window)', () => REQ.noteAs(accounts[1]), 'ask', isB) }] });
 
 // ---- report --------------------------------------------------------------------------
 document.getElementById('make-report').addEventListener('click', () => {

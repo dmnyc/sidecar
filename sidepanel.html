@@ -1182,25 +1182,19 @@
           <div class="error" id="approval-pin-error"></div>
         </div>
 
-        <!-- THE SCOPE ROW: Once is the default on every card; 30 min opens the timed
-             window; Always writes the standing per-kind grant (#482), never on a
-             shared-identity card. One line above the row says what the chosen segment
-             does; the three lines share one cell, so the row never moves. Outside the
-             check group, which sizes to its content: the row spans the card like the
-             button under it. -->
-        <fieldset class="scope hidden" id="approval-scope">
-          <legend data-i18n="How often to sign without asking">How often to sign without asking</legend>
-          <div class="scope-caps" aria-live="polite">
-            <div class="scope-cap on" id="approval-scope-cap-once"></div>
-            <div class="scope-cap" id="approval-scope-cap-relax"></div>
-            <div class="scope-cap" id="approval-scope-cap-always"></div>
+        <!-- THE GRADUATED ROW: a sign card asks only "may this happen?". Once this site
+             has asked this account for the same kind a few times this session, the next
+             card grows this row offering to stop asking: Always sign (the standing kind
+             grant), or Sign for 30 min on a shared-identity card. A full-width row with
+             its buttons beneath the words. Filled by renderGraduated in sidepanel.js. -->
+        <div id="approval-graduated" class="graduated hidden" role="group" aria-labelledby="approval-graduated-msg">
+          <p class="graduated-msg" id="approval-graduated-msg"></p>
+          <p class="graduated-cap" id="approval-graduated-cap"></p>
+          <div class="graduated-actions">
+            <button type="button" class="lav-btn" id="approval-graduated-yes"></button>
+            <button type="button" class="ghost" id="approval-graduated-no" data-i18n="Not now">Not now</button>
           </div>
-          <div class="seg" role="radiogroup">
-            <label><input type="radio" name="approval-scope" value="once" id="approval-scope-once" checked><span data-i18n="Once" data-i18n-review>Once</span></label>
-            <label class="hidden" id="approval-scope-relax-opt"><input type="radio" name="approval-scope" value="relax" id="approval-scope-relax"><span data-i18n="30 min" data-i18n-review>30 min</span></label>
-            <label class="hidden" id="approval-scope-always-opt"><input type="radio" name="approval-scope" value="always" id="approval-scope-always"><span data-i18n="Always" data-i18n-review>Always</span></label>
-          </div>
-        </fieldset>
+        </div>
 
         <!-- One group, so stacked checkboxes share a left edge — see prompt.html. -->
         <div class="check-group">
@@ -1236,6 +1230,7 @@
           <button class="primary" id="approval-allow" data-i18n="Allow once" data-i18n-review>Allow once</button>
           <button class="lav-btn" id="approval-trust" data-i18n="Trust this site" data-i18n-review>Trust this site</button>
           <button class="ghost" id="approval-reject" data-i18n="Reject" data-i18n-review>Reject</button>
+          <button type="button" id="approval-relax-hint" class="relax-hint hidden"></button>
         </div>
 
         <!-- Stacked-request backlog: always-visible count + one-tap escape hatch. -->

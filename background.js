@@ -988,7 +988,7 @@ async function driveOnce() {
   // up front. Never short-circuits a still-needed unlock.
   if (head.data.needApproval && !head.data.needUnlock && head.data.relaxEligible &&
       (await RELAX.has(head.host, head.data.activePubkey))) {
-    settlePrompt(head.id, 'once');
+    settlePrompt(head.id, 'once', { uncounted: true }); // never shown, so never an approval to count
     driveAgain = true;
     return;
   }
@@ -1029,7 +1029,7 @@ chrome.windows.onRemoved.addListener((windowId) => {
 
 // ---- T3: resolve a request by explicit decision ----
 
-// Whether the card's "Always allow this event type" box came back ticked. settlePrompt
+// Whether the card's "Always sign" (the graduated row) came back pressed. settlePrompt
 // resolves with Object.assign({ action }, extra), so the card's flags sit ON the decision
 // (decision.enableAutoZap, decision.budgetSats and the rest). The first cut of this read
 // decision.extra.alwaysKind, which never exists, so a ticked box was ignored on every
@@ -1128,11 +1128,15 @@ const COALESCE_KINDS = new Set([30078]);
 const COALESCE_WINDOW_MS = 60000;
 const contentGrants = new Map(); // `host|pubkey|kind` -> expiry ms
 
-// ---- "you keep approving this" nudge ----
-// How many times the user has picked Allow once for a (host, account). Nothing in
-// the prompt says WHICH button ends the asking, so someone on a single account can
-// approve the same site forever without ever noticing Trust is the answer. After a
-// few, the prompt adds one line pointing at it.
+// ---- "you keep approving this": the Trust nudge and the graduated offer ----
+// A tally of one-time approvals, used two ways. A sign card asks one question, "may this
+// happen?", and only earns the second, "should it stop asking?", once the same site has
+// asked the same account for the same KIND a few times: then the next card for that kind
+// grows one row offering to stop (the standing kind grant, or on a shared-identity host
+// the 30-minute window). Every other card that offers Trust (a login, a decrypt, an
+// encrypt) keeps the older line pointing at Trust after a few approvals of any of those.
+// So a sign tally is keyed host|pubkey|kind and everything else host|pubkey; the two
+// never feed each other, because Trust is not on a sign card to point at.
 //
 // chrome.storage.session, NOT a Map — same reasoning as relax-grants.js spells out.
 // The MV3 service worker is evicted after ~30s idle, and the gap between two
@@ -1152,25 +1156,84 @@ function sgetSession(keys) {
 function ssetSession(obj) {
   return new Promise((resolve) => chrome.storage.session.set(obj, resolve));
 }
-function approveCountKey(host, pubkey) { return host + '|' + pubkey; }
+// `kind` absent: the Trust nudge's tally for the pair. Present: one sign kind's tally.
+function approveCountKey(host, pubkey, kind) {
+  return host + '|' + pubkey + (kind == null ? '' : '|' + kind);
+}
 async function approveCountMap() {
   return (await sgetSession(APPROVE_COUNT_KEY))[APPROVE_COUNT_KEY] || {};
 }
-async function bumpApproveCount(host, pubkey) {
+async function approveCount(host, pubkey, kind) {
+  return (await approveCountMap())[approveCountKey(host, pubkey, kind)] || 0;
+}
+async function bumpApproveCount(host, pubkey, kind) {
   const m = await approveCountMap();
-  const k = approveCountKey(host, pubkey);
+  const k = approveCountKey(host, pubkey, kind);
   m[k] = (m[k] || 0) + 1;
   await ssetSession({ [APPROVE_COUNT_KEY]: m });
 }
 async function shouldNudgeTrust(host, pubkey) {
-  const m = await approveCountMap();
-  return (m[approveCountKey(host, pubkey)] || 0) >= APPROVE_NUDGE_AFTER;
+  return (await approveCount(host, pubkey)) >= APPROVE_NUDGE_AFTER;
 }
-// Trusting (or blocking) settles the question, so the tally stops being useful.
-async function clearApproveCount(host, pubkey) {
+// Taking the offer (or turning it down) settles one kind's question, so its tally starts
+// over. Trusting or blocking settles every question for the pair, so `kind` absent clears
+// the pair's own tally and every kind tally under it.
+async function clearApproveCount(host, pubkey, kind) {
   const m = await approveCountMap();
-  delete m[approveCountKey(host, pubkey)];
+  if (kind != null) {
+    delete m[approveCountKey(host, pubkey, kind)];
+  } else {
+    const pair = approveCountKey(host, pubkey);
+    for (const k of Object.keys(m)) if (k === pair || k.startsWith(pair + '|')) delete m[k];
+  }
   await ssetSession({ [APPROVE_COUNT_KEY]: m });
+}
+// Forgetting a site erases what it earned, and the tally is part of that: left behind, the
+// first card after a Forget would carry the earned row (and on a one-account host, Always
+// sign) for a site the user had just wiped. Every account's tally for the host, every kind.
+async function clearApproveCountsForHost(host) {
+  const m = await approveCountMap();
+  const prefix = host + '|';
+  for (const k of Object.keys(m)) if (k.startsWith(prefix)) delete m[k];
+  await ssetSession({ [APPROVE_COUNT_KEY]: m });
+}
+async function clearAllApproveCounts() {
+  await ssetSession({ [APPROVE_COUNT_KEY]: {} });
+}
+// What the graduated row offers on this card, or null. `eligible` is graduatedCapable
+// (and an approval actually being asked); the row appears once this kind has collected
+// APPROVE_NUDGE_AFTER one-time approvals from this host for this account, never before.
+async function graduatedOfferFor(eligible, host, pubkey, kind, sharedIdentity) {
+  if (!eligible) return null;
+  const count = await approveCount(host, pubkey, kind);
+  if (count < APPROVE_NUDGE_AFTER) return null;
+  return { mode: sharedIdentity ? 'relax' : 'always', count };
+}
+// Count one decided card toward the tallies above. `graduated` is whether this sign card
+// could carry the graduated row (graduatedCapable, with an approval actually asked).
+//
+// `uncounted` marks a settle that is not its own approval: a sibling swept by a fresh
+// grant, a member of a batch after its first (one batch card is one approval), or a
+// request re-collapsed into a relax window that opened while it waited.
+//
+// Sign cards count per kind, and only the kinds the graduated row can serve. Taking the
+// offer (the grant or the window) or turning it down ("Not now") settles the question, so
+// that kind's count starts over; a plain Sign adds one; a rejection counts for nothing.
+// Everything else feeds the Trust nudge as before: only 'once', since 'relax' or 'trust'
+// IS acting on that advice, and a getPublicKey settled by the login-burst flush is the
+// same one approval, not another.
+async function recordApprovalTally(method, decision, host, pubkey, kind, graduated) {
+  if (!decision || decision.uncounted === true) return;
+  if (method === 'signEvent') {
+    if (!graduated) return;
+    const settled = decision.declineGraduated === true || kindGrantWanted(decision) ||
+      (decision.action !== 'once' && decision.action !== 'reject');
+    if (settled) await clearApproveCount(host, pubkey, kind);
+    else if (decision.action === 'once') await bumpApproveCount(host, pubkey, kind);
+    return;
+  }
+  if (method === 'getPublicKey' && decision.coalesced === true) return;
+  if (decision.action === 'once') await bumpApproveCount(host, pubkey);
 }
 function grantKey(host, pubkey, kind) { return host + '|' + pubkey + '|' + kind; }
 function hasContentGrant(host, pubkey, kind) {
@@ -1527,6 +1590,7 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     let authorSwitched = false;
     let authorNamed = false;
     let relaxJustGrantedFor = null; // the account a 'relax' decision on this request opened a window for
+    let pickedSwitch = false; // the user picked another account on this request's card (one-shot, see below)
     if (method === 'getPublicKey') {
       activePubkey = await KS.getActivePubkey();
     } else {
@@ -1605,18 +1669,20 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // client). Drives both the shared-identity confirm and the app-data
     // auto-allow, so we resolve it once for either content sign or exempt sync.
     let sharedHost = false;
-    // Read once, up here, because it now settles two questions rather than one: whether
-    // to ask, and whether a client naming an author outranks the user's own standing
-    // choice for this host. It does not. The switch says "Don't ask which account" over
-    // a note reading "Posts may not match the client", and a client stamping the author
-    // is precisely the case that note is about, so honoring the stamp there would answer
-    // the opposite of what was turned on. Content signs only, so nothing else pays for
-    // the storage read.
+    // Read once, up here, because it settles whether this host is a multi-login client
+    // for EVERY content sign — the graduated row keys on that fact, and a client naming
+    // the author must not hide it: a named-author sign skips the who's-posting confirm,
+    // so keying the row on the confirm would let a shared client earn a standing grant
+    // past the very check the host's shape exists to keep. The switch says "Don't ask
+    // which account" over a note reading "Posts may not match the client", and a client
+    // stamping the author is precisely the case that note is about, so honoring the
+    // stamp there would answer the opposite of what was turned on. The read is
+    // content-signs-only, so nothing else pays for it.
     const alwaysActive = isContentSign ? await isAlwaysActiveHost(host) : false;
-    if ((isContentSign || appDataExempt) && (alwaysActive || !authorNamed)) {
+    if (isContentSign || appDataExempt) {
       const authorized = await getAuthorizedAccounts(host);
       sharedHost = authorized.length >= 2;
-      if (sharedHost && isContentSign && !appDataExempt) {
+      if ((alwaysActive || !authorNamed) && sharedHost && isContentSign && !appDataExempt) {
         // The opt-out suppresses the CONFIRM and nothing else. It must not touch
         // sharedHost, which also drives appDataAutoAllow below: clearing that would make
         // app-data signs start asking, which is more prompts rather than fewer and the
@@ -1681,8 +1747,8 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     const relaxActive = relaxEligible && (await RELAX.has(host, activePubkey));
     if (relaxActive) sharedIdentity = false;
 
-    // Persistent per-kind auto-approve ("Always allow this event type for this
-    // site", #482): a standing grant saved from the card's checkbox. Sign-event
+    // Persistent per-kind auto-approve (#482): a standing grant saved from the
+    // graduated row's "Always sign". Sign-event
     // kinds only, and only kinds a grant may ever cover (isGrantableKind —
     // never the account/wallet-control kinds, the overwrite guard's replaceable
     // kinds, zap requests, or relay auth). The grant is scoped to the account
@@ -1743,6 +1809,26 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
       : (coalesced || appDataAutoAllow || decryptCoalesced || pubkeyCoalesced || relaxActive || zapAutoSign || kindGrantActive
           ? false
           : ((status === 'ask' && !isRelayAuth) || sharedIdentity));
+
+    // THE GRADUATED OFFER. A sign card asks only "may this happen?"; "should it stop
+    // asking?" is earned by repetition, per (host, account, kind). Only kinds that can carry
+    // a standing grant ever take part, by the same eligibility the grant handler enforces
+    // (KINDS.isGrantableKind: never profiles, follow/mute and other replaceable lists,
+    // deletions, zap requests, relay auth or wallet control), and never on a destructive
+    // overwrite. A kind that can never be granted never shows the row and never counts.
+    //
+    // What the row offers follows the HOST, not the card. On a host where two or more
+    // accounts are signed in, the row never offers a standing grant: a grant would sign
+    // past the who's-posting check, and a client naming the author skips that very check
+    // (sharedIdentity is false for it), so an Always offer there would let a shared
+    // client earn a permanent sign-as-one-identity grant. The row offers the 30-minute
+    // window instead — every grantable kind can also relax (RELAX.neverRelaxes names a
+    // subset of what isGrantableKind refuses), so the window is always available where
+    // the grant was. On a one-account host the row offers the grant, as before.
+    // Sign events only: encrypt and decrypt cards never carry the row or the hint,
+    // whatever their count against the pair.
+    const graduatedCapable = method === 'signEvent' &&
+      (sharedHost ? relaxEligible : kindGrantEligible) && !destructive;
 
     // Every getPublicKey is a login, and a login is the safe moment to pick an
     // identity: whatever pubkey we return is the identity the site adopts from
@@ -1838,16 +1924,15 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         needApproval,
         sharedIdentity,
         relaxEligible,
-        // May THIS card offer the standing "Always allow this event type"
-        // checkbox (#482)? Computed by the same eligibility the grant handler
-        // enforces, so the offer and the write cannot drift — the checkbox is
-        // offered only where checking it would actually save a grant. The `d`
-        // tag rides along so both surfaces can say what future requests the
-        // grant would cover (one record, when the event carries a `d`).
-        // The row's "Always" segment is never offered on a shared-identity card:
-        // there the per-sign confirm is the guard, and a grant would sign past the
-        // very check the card exists for. kindGrantEligible still governs the kind.
-        canKindGrant: kindGrantEligible && !destructive && !sharedIdentity,
+        // May THIS card save the standing per-kind grant (#482)? Computed by the
+        // same eligibility the grant handler enforces, so the offer and the write
+        // cannot drift. The cards act on it only through the graduated row's
+        // "Always sign" (graduatedOffer, mode 'always'). The `d` tag rides along
+        // so both surfaces can say what future requests the grant would cover
+        // (one record, when the event carries a `d`). Never on a shared-identity
+        // card: there the per-sign confirm is the guard, and a grant would sign
+        // past the very check the card exists for.
+        canKindGrant: kindGrantEligible && !destructive && !sharedIdentity && !sharedHost,
         kindDTag: signDTag,
         // The shared caption's count: how many accounts have signed in to this
         // host (0 when the host isn't shared, or the ask is a pure unlock).
@@ -1858,10 +1943,23 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // what's about to be lost, and "trust this site to stop asking" is the last
         // advice it should be carrying.
         //
-        // And only on a card that offers Trust at all. A shared-identity confirm hides the
-        // button (trusting the site cannot stop a question asked on every sign), and so does
-        // a pure unlock (nothing to approve), so a nudge there points at nothing.
-        nudgeTrust: !destructive && !sharedIdentity && needApproval && (await shouldNudgeTrust(host, activePubkey)),
+        // And only on a card that offers Trust at all. A sign card never does (its own
+        // offer is graduatedOffer below), a shared-identity confirm hides the button
+        // (trusting the site cannot stop a question asked on every sign), and so does a
+        // pure unlock (nothing to approve), so a nudge there points at nothing.
+        nudgeTrust: method !== 'signEvent' && !destructive && !sharedIdentity && needApproval && (await shouldNudgeTrust(host, activePubkey)),
+        // The graduated row (see graduatedCapable): null, or what to offer and how many
+        // one-time approvals of this kind earned it. Never on a pure unlock.
+        graduatedOffer: await graduatedOfferFor(graduatedCapable && needApproval, host, activePubkey, signKind, sharedHost),
+        // The quiet shortcut, asks 2 and 3 of a kind: the row's relax path offered
+        // earlier and quieter, for anyone already in a run of same-kind signs. Never on
+        // the first ask of a kind (first contact stays pristine: one button, one exit),
+        // never once the earned row is up (that is the loud version of the same
+        // question), and the UIs hide it on batch cards (a batch is settled whole).
+        // Clicking it is a 'relax' decision like any other: the window opens, this card
+        // signs, and the kind's count starts over.
+        relaxHint: !!(graduatedCapable && needApproval &&
+          (await approveCount(host, activePubkey, signKind)) >= 1),
         // The "wrong account" escape: offer the account list on any content sign where
         // the user holds more than one account and no switcher is already on screen.
         //
@@ -1910,7 +2008,12 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         level: await PERMS.getLevel(activePubkey, host),
         otherAccounts: otherAccounts && otherAccounts.length ? otherAccounts : null,
       }, originWindowId);
-      if (decision.action === 'reject') throw rejectionError(decision);
+      if (decision.action === 'reject') {
+        // A rejection counts for nothing, but "Not now" then Reject still turned the
+        // offer down, so recordApprovalTally starts that kind's count over.
+        await recordApprovalTally(method, decision, host, activePubkey, signKind, graduatedCapable && needApproval);
+        throw rejectionError(decision);
+      }
 
       // Resolve a chosen switch-to account BEFORE block/trust, so those apply to
       // the account actually signing, not the one the prompt originally opened with.
@@ -1924,7 +2027,13 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         const switchedStatus = await PERMS.getPermissionStatus(decision.switchToPubkey, host, method);
         if (switchedStatus === 'reject') throw new Error('This site is blocked in Sidecar for that account');
         activePubkey = decision.switchToPubkey;
-        await KS.setActive(activePubkey);
+        pickedSwitch = true;
+        // A pick on a shared-identity confirm is one-shot: it names the signer for THIS
+        // event and nothing more. "Confirm who's posting each time" is a promise, and
+        // depositing the user on the picked account after one signature breaks it — the
+        // globally active account stays where the user left it. Login cards are the
+        // exception: there the pick sets the client's identity up, and sticky is the point.
+        if (method === 'getPublicKey') await KS.setActive(activePubkey);
       }
 
       // "Wrong account" escape: detach this host from the account it's pinned to, make
@@ -1973,14 +2082,14 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         await clearApproveCount(host, activePubkey);
         await PERMS.setLevel(activePubkey, host, 'trusted');
       }
-      // "Always allow this event type" (#482): the checkbox turned this one
-      // approval into a standing grant for (host, account, kind[, d]). Validated
-      // against the same eligibility the checkbox was offered under — a decision
+      // The standing per-kind grant (#482): the graduated row's "Always sign"
+      // turned this one approval into a grant for (host, account, kind[, d]).
+      // Validated against the same eligibility the row was offered under — a decision
       // surface cannot mint a grant for a kind no card may offer it on (and
       // 'trust' supersedes it: a broader tier was chosen, so the flag is only
       // honored on 'once'). Granted for the account that actually signs, which
       // is why this sits after the switcher resolution above.
-      if (kindGrantWanted(decision) && kindGrantEligible && !destructive) {
+      if (kindGrantWanted(decision) && kindGrantEligible && !destructive && !sharedHost) {
         await KINDS.grant(host, activePubkey, signKind, signDTag);
         // The burst queued behind this card is the exact nuisance the grant
         // exists for: settle the matching entries now instead of walking the
@@ -1990,16 +2099,13 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         // settled guard makes an already-decided entry a no-op. The queue was
         // just emptied from under a possibly-visible card, so re-drive the
         // surface (next head, or close a stale popup) and ping the panel.
+        // `uncounted`: a swept sibling is this one approval, not another toward the tally.
         const swept = KINDS.matchTargets(queue, host, activePubkey, signKind, signDTag);
-        for (const id of swept) settlePrompt(id, 'once');
+        for (const id of swept) settlePrompt(id, 'once', { uncounted: true });
         if (swept.length) { driveDisplay(); broadcastQueue(); }
       }
-      // Tally the one-time approvals so the prompt can eventually point at Trust.
-      // Only 'once' — picking 'relax' or 'trust' IS acting on that advice.
-      // A getPublicKey settled by the login-burst flush is the same one approval, not another.
-      if (!(method === 'getPublicKey' && decision.coalesced === true)) {
-        if (decision.action === 'once') await bumpApproveCount(host, activePubkey);
-      }
+      // Tally the one-time approvals so the card can eventually offer to stop asking.
+      await recordApprovalTally(method, decision, host, activePubkey, signKind, graduatedCapable && needApproval);
       // 'relax' → open a timed auto-approve window for this (host, account), then
       // proceed like 'once'. The risk acceptance happened in the prompt UI.
       if (decision.action === 'relax') {
@@ -2009,6 +2115,13 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
         await RELAX.grant(host, activePubkey, decision.relaxMs || RELAX.DEFAULT_MS);
         relaxJustGrantedFor = activePubkey;
         syncRelaxBadge();
+        // The moment-cue: the bar and the badge carry the state, but a window that
+        // starts while the eyes are on the client is easy to miss. Say it out loud,
+        // the same way a payment in flight announces itself.
+        const accts = ((await KS.getState()) || {}).accounts || [];
+        const who = accts.find((x) => x.pubkey === activePubkey);
+        chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'relaxStarted',
+          host, name: (who && who.name) || '' }).catch(() => {});
       }
       // 'once' | 'trust' | 'relax' → proceed (after a successful unlock, if one was needed)
     }
@@ -2059,9 +2172,11 @@ async function handleNostrRpc(method, params, host, sendResponse, originWindowId
     // the old account back over the new one. Following an honored author keeps
     // the site's implicit requests (nip04/nip44) on the identity the client
     // last exercised.
-    // sharedIdentity is also an explicit choice (the user just confirmed who's
-    // posting in the prompt), so it may move the binding too.
-    if (method === 'getPublicKey' || authorSwitched || sharedIdentity || !(await getSiteAccount(host))) {
+    // A confirmed default (no pick) may move the binding too. A picked account may
+    // not: the pick is one-shot, and the binding stays with the identity the user
+    // came in with.
+    if (method === 'getPublicKey' || authorSwitched || (sharedIdentity && !pickedSwitch) ||
+        !(await getSiteAccount(host))) {
       // A re-login or a post as another account moves the binding, and ends the
       // site's 30-minute windows unless Settings keeps a timer for each account (see
       // SIDECAR_SET_ACTIVE). Not the window this very request just opened for the
@@ -4576,6 +4691,7 @@ async function handleControl(message, sender, sendResponse) {
         await clearAuthorizedForHost(message.host); // and the shared-identity history
         await clearAlwaysActiveHost(message.host); // and any standing instruction to skip the check
         forgetStandingApprovals(message.host); // and the short in-memory approve windows
+        await clearApproveCountsForHost(message.host); // and the tally that earns the graduated row
         await RELAX.revokeForHost(message.host); // and a timed Auto-sign window, which outlived the forget
         syncRelaxBadge();
         break;
@@ -4629,6 +4745,7 @@ async function handleControl(message, sender, sendResponse) {
         contentGrants.clear();
         decryptGrants.clear();
         pubkeyGrants.clear();
+        await clearAllApproveCounts(); // and every tally that earns the graduated row
         await RELAX.revokeAll();
         syncRelaxBadge();
         result = true;
@@ -5209,7 +5326,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Batch decision: apply the same action (+ account choice) to a group of
   // same-site/same-account/same-kind content signs the user approved together.
   if (message.type === 'SIDECAR_PROMPT_RESULT_BATCH') {
-    for (const id of message.ids || []) settlePrompt(id, message.action, message.extra);
+    // One card, one decision: only the first member counts toward the approval tally.
+    (message.ids || []).forEach((id, i) => {
+      settlePrompt(id, message.action, i === 0 ? message.extra : Object.assign({}, message.extra, { uncounted: true }));
+    });
     sendResponse({ ok: true });
     return false;
   }

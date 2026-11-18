@@ -110,7 +110,7 @@
         <div class="shot-frame">
           <img src="screenshots/approval-prompt.webp" width="720" height="886" alt="Sidecar's approval prompt: notes.example wants to sign a note, signing as Amelia, in an account card with a chevron for picking another, above the note's kind, tags and text">
         </div>
-        <figcaption>A site asking for a signature. You decide, every time, unless you choose to trust the site.</figcaption>
+        <figcaption>A site asking for a signature. You decide, every time, until you tell it to stop asking.</figcaption>
       </figure>
     </section>
 
@@ -328,18 +328,16 @@
     <!-- ===== The 30-minute window (timed auto-sign) ===== -->
     <section class="guide-section" id="relax">
       <h2>When every action asks: 30 minutes at a time</h2>
-      <p>Every approval card that signs a post, a reaction or a message asks one question,
-      in one row above the Sign button: <em>Once</em>, <em>30 min</em> or <em>Always</em>.
-      A line above the row says what the choice does, and the button follows it.
-      <em>Once</em> signs this one and asks again next time. On a site where two of your
-      accounts have signed in, Sidecar asks about <em>every</em> post, reaction, and DM, for
-      the reason in the last section: only you can see which account the client is actually
-      showing. That's the right default, but during a busy session it means a lot of
-      tapping.</p>
+      <p>An approval card that signs a post, a reaction or a message asks one question:
+      <em>Sign</em> or <em>Reject</em>. On a site where two of your accounts have signed in,
+      Sidecar asks about <em>every</em> post, reaction, and DM, for the reason in the last
+      section: only you can see which account the client is actually showing. That's the
+      right default, but during a busy session it means a lot of tapping.</p>
 
-      <p><strong>30 min is the escape hatch.</strong> Choose it and press <em>Sign for
-      30 min</em>, and Sidecar signs that site's requests for that account without asking
-      again until the half hour is up.</p>
+      <p><strong>30 minutes is the escape hatch.</strong> Once that site has signed the
+      same kind of event three times in a session, the next card offers <em>Sign for
+      30 min</em>. Press it, and Sidecar signs that site's requests for that account without
+      asking again until the half hour is up.</p>
 
       <!-- screenshot: the scope row on an approval prompt, 30 min chosen -->
       <figure class="shot">
@@ -409,10 +407,12 @@
     <!-- ===== Always (a standing grant for one event type) ===== -->
     <section class="guide-section" id="always-kind">
       <h2>Always sign an event type</h2>
-      <p>Some requests come back from the same site forever, such as an app saving its
-      settings every time you open it. On those approval cards the row offers
-      <em>Always</em>: choose it and press <em>Always sign</em>, and Sidecar signs that kind
-      of event from that site without asking again.</p>
+      <p>Some requests come back from the same site forever, such as reactions, or an app
+      saving its settings every time you open it. A card asks only whether to sign this one,
+      until the site has signed the same kind of event three times in a session: then the
+      next card offers <em>Always sign</em>. Press it, and Sidecar signs this one and that
+      kind of event from that site without asking again. <em>Not now</em> puts the offer away
+      until three more.</p>
 
       <p>The grant is narrow on purpose. It covers one event kind (and when the event
       carries a <code>d</code> tag, that one record rather than everything of that kind)
@@ -422,7 +422,8 @@
       Some kinds never offer <em>Always</em> at all: anything that replaces your profile
       or follow lists, anything that moves money, and the account-control kinds. Neither
       does a site where several of your accounts are signed in, where the question of who
-      is posting is the reason the card is there.</p>
+      is posting is the reason the card is there; there the offer is the 30-minute window
+      instead.</p>
 
       <p>To see what you've granted, open the <strong>Activity</strong> tab: each site's
       row lists what it signs without asking, with an ✕ to revoke. Revoking puts the site
@@ -454,8 +455,8 @@
         <figcaption>The prompt names what would be lost, and won't let you approve it by reflex.</figcaption>
       </figure>
 
-      <p><strong>Approving takes a deliberate second step.</strong> <em>Sign</em> and
-      <em>Trust this site</em> start greyed out, and <em>Don't allow</em> sits right in the
+      <p><strong>Approving takes a deliberate second step.</strong> <em>Sign</em>
+      starts grayed out, and <em>Don't allow</em> sits right in the
       warning where your thumb already is. If the change really was intentional — you did
       just prune your follows — press <em>I understand</em> and the usual buttons come
       back. The point isn't to stop you; it's that erasing a list shouldn't be something

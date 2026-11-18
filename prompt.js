@@ -35,15 +35,12 @@
     remember: $('remember'),
     rememberBudget: $('remember-budget'),
     budgetAmount: $('budget-amount'),
-    scopeFieldset: $('scope'),
-    scopeOnce: document.querySelector('#scope input[value="once"]'),
-    scopeRelax: document.querySelector('#scope input[value="relax"]'),
-    scopeAlways: document.querySelector('#scope input[value="always"]'),
-    scopeRelaxOpt: $('scope-relax'),
-    scopeAlwaysOpt: $('scope-always'),
-    scopeCapOnce: $('scope-cap-once'),
-    scopeCapRelax: $('scope-cap-relax'),
-    scopeCapAlways: $('scope-cap-always'),
+    graduated: $('graduated'),
+    graduatedMsg: $('graduated-msg'),
+    graduatedCap: $('graduated-cap'),
+    graduatedYes: $('graduated-yes'),
+    graduatedNo: $('graduated-no'),
+    relaxHint: $('relax-hint'),
     trustNudge: $('trust-nudge'),
     autozapOffer: $('autozap-offer'),
     autozapOfferBox: $('autozap-offer-box'),
@@ -152,6 +149,7 @@
     els.allow.classList.toggle('primary', !ask);
     els.allow.classList.toggle('secondary', ask);
   }
+  let graduatedDeclined = false; // "Not now" pressed on the graduated row of this card
   let chosenPubkey = null; // login (getPublicKey) prompts only — see canOfferAccountSwitch in background.js
   let payFrom = null;      // payment prompts only: another account picked to pay from, or null for the card's own
   // Which cut of the placeholder garnish this window is drawing — set once the theme
@@ -652,8 +650,8 @@
 
     // The button names the act, as in the panel: Sign on a sign card, Allow once on
     // anything else (a login, a decrypt). The markup's own label is Sign, so a login
-    // card used to offer to "Sign". The scope row, a payment, a WebLN read and a pure
-    // unlock relabel it further down.
+    // card used to offer to "Sign". A payment, a WebLN read and a pure unlock relabel it
+    // further down; nothing else does, so a sign card's button always says Sign.
     els.allow.textContent = data.method === 'signEvent' ? t('Sign') : t('Allow once');
 
     // Same honesty for WebLN reads: one Allow covers this site's balance/info/
@@ -689,59 +687,15 @@
     // own switcher can flip identities with zero signal to Sidecar, so "Trust
     // this site" can't skip it here (the same signature that's fine now could be
     // wrong next time), and showing it anyway would over-promise.
-    // THE SCOPE ROW. 30 minutes when the kind can relax; Always when the kind can
-    // carry a standing grant and the host isn't a shared-identity check — there the
-    // confirm is the guard, and a grant would sign past the very check the card
-    // exists for, so the caption points at the 30-minute window instead. Never on
-    // payments, decrypts, relay-auth, pure unlocks, or a destructive overwrite (a
-    // window granted here would let the next overwrite through unwarned).
-    const isContentSign =
-      data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt';
-    const canRelax =
-      data.needApproval && isContentSign && !isPayment && !data.destructive && data.relaxEligible !== false;
-    const canAlways = data.canKindGrant && data.needApproval && !data.sharedIdentity;
     renderSharedNote(data);
 
-    // The row's wiring: reset to Once on every card (the old checkbox's own rule),
-    // the caption under the row follows the selection, and the primary button's
-    // words follow it too — Sign, Sign for 30 min, Always sign.
-    els.scopeFieldset.classList.toggle('hidden', !canRelax && !canAlways);
-    els.scopeRelaxOpt.classList.toggle('hidden', !canRelax);
-    els.scopeAlwaysOpt.classList.toggle('hidden', !canAlways);
-    if (canRelax || canAlways) {
-      const ev = data.params && (data.params.event || data.params);
-      const kind = ev ? ev.kind : null;
-      const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
-      // A one-line header over the row, one sentence per segment, the same as the
-      // panel (sidepanel.js). All three share one cell, so the row never moves.
-      els.scopeCapOnce.textContent = tSec('Asks again next time.');
-      els.scopeCapRelax.textContent = data.method === 'signEvent'
-        ? tSec('Signs here without asking for 30 minutes.')
-        : tSec('Approves this kind here without asking for 30 minutes.');
-      els.scopeCapAlways.textContent = data.kindDTag != null
-        ? tSec('Signs future versions of “{{d}}” here without asking.', { d: data.kindDTag })
-        : tSec('Signs future {{kind}} events here without asking.', { kind: kindName });
-      els.scopeOnce.checked = true;
-      els.scopeRelax.checked = false;
-      els.scopeAlways.checked = false;
-      const setScopeUi = () => {
-        els.scopeCapOnce.classList.toggle('on', els.scopeOnce.checked);
-        els.scopeCapRelax.classList.toggle('on', canRelax && els.scopeRelax.checked);
-        els.scopeCapAlways.classList.toggle('on', canAlways && els.scopeAlways.checked);
-        // The button says what pressing it does, on every card (as in the panel).
-        if (data.method === 'signEvent' && !isPayment) {
-          els.allow.textContent = els.scopeAlways.checked ? t('Always sign')
-            : els.scopeRelax.checked ? t('Sign for 30 min')
-            : t('Sign');
-        } else {
-          els.allow.textContent = els.scopeRelax.checked ? t('Allow for 30 min') : t('Allow once');
-        }
-      };
-      els.scopeOnce.addEventListener('change', setScopeUi);
-      els.scopeRelax.addEventListener('change', setScopeUi);
-      els.scopeAlways.addEventListener('change', setScopeUi);
-      setScopeUi();
-    }
+    // A sign card asks one question, "may this happen?": Sign or Reject. Trust stays on
+    // the cards where it is the right answer (a login, a decrypt, an encrypt, a wallet
+    // read); whether a sign should stop asking is the graduated row's to offer. Same as
+    // the panel.
+    if (data.method === 'signEvent') els.trust.classList.add('hidden');
+    renderGraduated();
+    renderRelaxHint();
 
     // Point at Trust once someone has approved this site several times over. Built with
     // textContent, not innerHTML — `host` is attacker-controlled, and this string is
@@ -797,6 +751,54 @@
     }
   }
 
+  // THE GRADUATED ROW: "should it stop asking?", earned by repetition. Shown on a sign
+  // card once this site has asked this account for the same kind a few times this session
+  // (the background decides; see graduatedCapable there): "Always sign" saves the
+  // standing kind grant (#482) with this signature, or on a shared-identity card "Sign for
+  // 30 min" opens the timed window. "Not now" hides it and starts the count over. Twin of
+  // renderGraduated in sidepanel.js. textContent only: `host` is the page's.
+  // A pick names the signer for one signature, and the row and the hint offer a standing
+  // answer the picked account has not earned, so a card showing another account than the
+  // one it opened as carries neither. Twin of pickedAnotherAccount in sidepanel.js.
+  function pickedAnotherAccount() {
+    return !!chosenPubkey && chosenPubkey !== data.activePubkey;
+  }
+  function renderGraduated() {
+    const offer = data.graduatedOffer;
+    const offered = !!offer && !isPayment && data.method === 'signEvent' && data.needApproval &&
+      (offer.mode === 'relax' || (offer.mode === 'always' && data.canKindGrant)) && !graduatedDeclined &&
+      !pickedAnotherAccount();
+    els.graduated.classList.toggle('hidden', !offered);
+    if (!offered) return;
+    els.graduatedMsg.textContent = tn(
+      "You've signed {{host}} {{count}} times in a row.",
+      "You've signed {{host}} {{count}} times in a row.",
+      offer.count, { host: data.host });
+    if (offer.mode === 'relax') {
+      els.graduatedCap.textContent = tSec('Keep signing as {{name}} for 30 minutes.',
+        { name: data.accountName || t('your account') });
+      els.graduatedYes.textContent = t('Sign for 30 min');
+    } else {
+      const ev = data.params && (data.params.event || data.params);
+      const kind = ev ? ev.kind : null;
+      const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      els.graduatedCap.textContent = data.kindDTag != null
+        ? tSec('Keep signing future versions of “{{d}}” without asking.', { d: data.kindDTag })
+        : tSec('Keep signing future {{kind}} events without asking.', { kind: kindName });
+      els.graduatedYes.textContent = t('Always sign');
+    }
+  }
+
+  // The quiet shortcut (the panel's renderRelaxHint): the row's relax path, offered
+  // earlier and quieter. The background decides; this only renders.
+  function renderRelaxHint() {
+    const shown = !!(data && data.relaxHint && !data.graduatedOffer && !pickedAnotherAccount());
+    els.relaxHint.classList.toggle('hidden', !shown);
+    if (!shown) return;
+    els.relaxHint.textContent = tSec('Keep signing as {{name}}?\nOpen a 30-minute window.',
+      { name: data.accountName || t('your account') });
+  }
+
   // Shared-identity confirm: this host is signed in with more than one of your
   // accounts, so make the "who's posting" choice explicit and relabel the switcher
   // for the signing (not login) context. "Trust this site" is hidden — this
@@ -815,7 +817,7 @@
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
     // Two lines, no buttons: the fact, then the ask, which carries the weight. Same as
-    // the panel. The 30-minute window sits in the scope row on the same card.
+    // the panel. The 30-minute window is the graduated row's offer on this card.
     const note = document.createElement('p');
     note.id = 'shared-note-box';
     note.className = 'shared-caption';
@@ -974,13 +976,15 @@
       });
       return g;
     };
-    // Group 1 — who signs this event. Choosing re-renders the capsule and the
-    // scope caption's {{name}}; the card stays open.
+    // Group 1 — who signs this event. Choosing re-renders the capsule; the card
+    // stays open.
     if (list.length && detachTargets !== 'ALL') {
       els.switchMenu.append(rows(list, chosenPk, (a) => {
         chosenPubkey = a.pubkey === data.activePubkey ? null : a.pubkey;
         els.switchMenu.classList.add('hidden');
         buildAccountCapsule();
+        renderGraduated();
+        renderRelaxHint();
       }, tSec('Signed in here')));
     }
     // Group 2 — the detach escape. Choosing cancels the request and makes that
@@ -1101,19 +1105,21 @@
     if (data.offerPayAnywhere === true && els.payAnywhereOfferBox.checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
-    // #482: carry the standing per-kind grant with the approval — the row's
-    // "Always" segment. The background re-validates eligibility (and never
-    // offered it on a shared-host identity check) before writing anything.
-    if (data.canKindGrant && action === 'once' && els.scopeAlways.checked) {
+    // #482: carry the standing per-kind grant with the approval — only from the
+    // graduated row's "Always sign". The background re-validates eligibility (and
+    // never offers it on a shared-host identity check) before writing anything.
+    if (data.canKindGrant && action === 'once' && opts && opts.alwaysKind === true) {
       extra = Object.assign({}, extra, { alwaysKind: true });
     }
+    // "Not now" on the graduated row: the background starts this kind's count over,
+    // whichever answer the card then gets.
+    if (graduatedDeclined) extra = Object.assign({}, extra, { declineGraduated: true });
     // "Wrong account" escape: carry the account to make active. The background detaches
     // and then throws, so this never signs.
     if (action === 'detach') {
       extra = Object.assign({}, extra, { detachPubkey: (opts && opts.detachPubkey) || '' });
     }
-    // Timed auto-sign window chosen via the row's 30-min segment. The Sign
-    // button routes here itself when that segment is selected.
+    // Timed auto-sign window, from the graduated row on a shared-identity card.
     if (action === 'relax') {
       extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 30 * 60000 });
     }
@@ -1130,7 +1136,8 @@
       els.allow.disabled = v;
       els.trust.disabled = v;
       els.reject.disabled = v;
-      [els.scopeOnce, els.scopeRelax, els.scopeAlways].forEach((r) => (r.disabled = v));
+      els.graduatedYes.disabled = v;
+      els.graduatedNo.disabled = v;
     };
     setDisabled(true);
     try {
@@ -1147,15 +1154,24 @@
     // Background either navigates this window to the next queued request or closes it.
   }
 
-      // The primary button applies the chosen scope: a relax selection routes to
-    // the window, everything else signs — carrying Always when that's picked.
-    els.allow.addEventListener('click', () => {
-      if (els.scopeRelax.checked && !els.scopeRelaxOpt.classList.contains('hidden')) {
-        decide('relax', { relaxMs: 30 * 60000 });
-        return;
-      }
-      decide('once');
-    });
+  // The primary button is one answer: Sign (or Allow once) this one. The standing
+  // answers live on the graduated row's own button.
+  els.allow.addEventListener('click', () => decide('once'));
+  // The graduated row (renderGraduated). Its words and its offer are set per card; the
+  // answer is read off data.graduatedOffer, never off the label.
+  els.graduatedYes.addEventListener('click', () => {
+    const offer = data && data.graduatedOffer;
+    if (!offer) return;
+    if (offer.mode === 'relax') decide('relax', { relaxMs: 30 * 60000 });
+    else decide('once', { alwaysKind: true });
+  });
+  els.graduatedNo.addEventListener('click', () => {
+    graduatedDeclined = true;
+    els.graduated.classList.add('hidden');
+  });
+  // The quiet shortcut: opens the same window the row's "Sign for 30 min" opens, one
+  // card earlier.
+  els.relaxHint.addEventListener('click', () => decide('relax', { relaxMs: 30 * 60000 }));
   els.trust.addEventListener('click', () => decide('trust'));
   els.reject.addEventListener('click', () => decide('reject'));
   // The keystore can lock while this card sits unanswered (idle auto-lock). A card
