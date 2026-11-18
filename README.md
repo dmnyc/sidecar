@@ -90,8 +90,9 @@ Sidecar is a signer, a Lightning wallet, a composer and a livestream player in o
 - **Key backup** — back up a single account's key as an `nsec` or a password-encrypted NIP-49 `ncryptsec`, each revealed behind your PIN with an auto-hiding QR.
 - **Vault backup** — export every account *and* its wallet connection into one password-encrypted file, and restore it on another device (separate from a single account's key backup).
 - **Data recovery** — if a buggy client wipes or shrinks your follows, mutes, bookmarks, profile, or relay lists, scan your relay history for the older versions and restore the one you pick, on your click, with your signer. Powered by [Lazarus](https://github.com/dmnyc/lazarus).
-- **Note composer** — post kind:1 notes directly from the panel with a send countdown you can review (the full note renders) and cancel. Drafts autosave per account, so you can close the composer and resume — or start fresh — later. Features include:
-  - **@mention autocomplete** — type `@` to search your follows *and* all of Nostr (global search through a web-of-trust search relay), so you can tag anyone; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
+- **Find people beyond your follows** — the search box and the composer's `@` look through your follows first, on your device. Names beyond them are asked of a search relay you pick in Settings: the one on your own published search relay list, [Brainstorm](https://brainstorm.world)'s relay (the default, offered once, with nothing sent until you say yes), a relay you type in, or none. The relay is sent the text you type and nothing else, never your key or who you follow, and every profile it returns is dropped unless its signature verifies.
+- **Note composer** — post kind:1 notes directly from the panel with a send countdown you can review (the full note renders) and cancel. Drafts autosave per account, so you can close the composer and resume — or start fresh — later, and a saved draft can be kept on your own private relays, encrypted to your key, where other NIP-37 clients can open it too. Features include:
+  - **@mention autocomplete** — type `@` to search your follows *and* all of Nostr (global search through a search relay you choose, [Brainstorm](https://brainstorm.world)'s web-of-trust relay by default), so you can tag anyone; selecting inserts an atomic pill that serializes to `nostr:npub1…` and adds a `p` tag automatically.
   - **Nostr event embeds** — paste a `note1`, `nevent1`, or `naddr1` entity and the preview renders a fetched embed card (author, timestamp, content excerpt).
   - **Link previews** — plain URLs show an OG meta card (title, description, thumbnail) fetched through the extension with no third-party service.
   - **Media upload** — attach images and video; uploads go to your own Blossom servers (from your kind:10063 list) when available, falling back to nostr.build.
@@ -244,7 +245,7 @@ is killed (MV3 idles after ~30s), that map is cleared and the keystore re-locks.
 
 ## Nostr protocol support
 
-Sidecar signs whatever event a connected site asks for via NIP-07, so in principle it can sign any kind. Beyond that it has dedicated, named support for 30 NIPs and one Blossom convention. Between them they cover signing and identity, relays and relay lists, notes, replies, comments and reactions, polls, statuses and lists, live streams, zaps and the Lightning wallet, encrypted private lists and backups, and media uploads. The table says what each one is used for.
+Sidecar signs whatever event a connected site asks for via NIP-07, so in principle it can sign any kind. Beyond that it has dedicated, named support for 32 NIPs and one Blossom convention. Between them they cover signing and identity, relays and relay lists, notes, replies, comments and reactions, polls, statuses and lists, live streams, zaps and the Lightning wallet, encrypted private lists and backups, and media uploads. The table says what each one is used for.
 
 <details>
 <summary><strong>Every NIP, and what it is used for</strong></summary>
@@ -266,11 +267,13 @@ Sidecar signs whatever event a connected site asks for via NIP-07, so in princip
 | [22](https://nips.nostr.com/22) | Comment | Commenting on any web page, and replying to those comments from notifications |
 | [25](https://nips.nostr.com/25) | Reactions | Reaction notifications |
 | [27](https://nips.nostr.com/27) | Text Note References | Inline `nostr:` mention rendering |
+| [37](https://nips.nostr.com/37) | Draft Events | Saving a draft to your private relays as an encrypted kind:31234 event, and opening drafts other clients left there |
 | [38](https://nips.nostr.com/38) | User Statuses | Setting, showing and clearing your own kind:30315 status |
 | [42](https://nips.nostr.com/42) | Authentication of clients to relays | Relay AUTH challenges answered for the account's own relays, for reads as well as writes |
 | [44](https://nips.nostr.com/44) | Encrypted Payloads (Versioned) | `nip44.encrypt`/`.decrypt` NIP-07 methods; preferred encryption for the wallet backup and private lists |
 | [47](https://nips.nostr.com/47) | Nostr Wallet Connect | The built-in Lightning wallet |
 | [49](https://nips.nostr.com/49) | Private Key Encryption (`ncryptsec`) | Password-encrypted key import/export |
+| [50](https://nips.nostr.com/50) | Search Capability | Name search beyond your follows, asked of a search relay you choose (Brainstorm by default) |
 | [51](https://nips.nostr.com/51) | Lists | Mute list handling, muting a person, note or thread from a notification into the private part of kind:10000; bookmarking a note to your kind:10003 list; recovering wiped lists |
 | [53](https://nips.nostr.com/53) | Live Activities | Browsing live, upcoming and past streams (kind:30311) and stream chat (kind:1311) |
 | [57](https://nips.nostr.com/57) | Lightning Zaps | Zap notifications, automatic zaps, zapping a stream or a comment, verified stream zap totals |
@@ -289,7 +292,7 @@ Sidecar signs whatever event a connected site asks for via NIP-07, so in princip
 
 - Inspired by [Nostr Build Shack](https://apps.apple.com/us/app/nostr-build-shack/id6752591477) by [Fishcake](https://github.com/fishcakeday) and [Clave](https://github.com/DocNR/clave) by [Doc](https://github.com/DocNR)
 - Standing on the shoulders of [nos2x](https://github.com/fiatjaf/nos2x) by [fiatjaf](https://github.com/fiatjaf), [Alby](https://github.com/getAlby/lightning-browser-extension) extension, and [Amber](https://github.com/greenart7c3/Amber) by [greenart7c3](https://github.com/greenart7c3) — the OG reliable signers most of Nostr grew up with
-- Global @-mention search runs on [vespa-relay](https://github.com/NosFabrica/vespa-relay), the web-of-trust search relay built by [NosFabrica](https://github.com/NosFabrica)
+- Global name search runs by default on [Brainstorm](https://brainstorm.world)'s search relay, which ranks people by trust scores built from your own connections
 
 <details>
 <summary><strong>The themes, and what each is a tribute to</strong></summary>

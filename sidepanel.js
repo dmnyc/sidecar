@@ -313,6 +313,11 @@
     // list did not already have.
     { text: 'Whatever our souls are made of, his and mine are the same.', who: 'Emily Brontë, 1847' },
     { text: 'It is difficult for a woman to define her feelings in language which is chiefly made by men to express theirs.', who: 'Thomas Hardy, 1874' },
+    // 1.18.0. Checked against the Standard Ebooks texts (Project Gutenberg was down): Three Men
+    // in a Boat (1889), chapter 15; and The Call of the Wild (1903), chapter 3. Both are writers
+    // the list did not already have.
+    { text: 'I like work: it fascinates me. I can sit and look at it for hours.', who: 'Jerome K. Jerome, 1889' },
+    { text: 'There is an ecstasy that marks the summit of life, and beyond which life cannot rise.', who: 'Jack London, 1903' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

@@ -1112,9 +1112,15 @@ window.SIDECAR_ON_THIS_DAY = {
   '11-21': [
     { year: 1783, text: "Two men rose over Paris in a hot air balloon, the first people to leave the ground." },
     { year: 1877, text: "Thomas Edison announced a machine that could record sound and play it back." },
+    // 1.18.0. Wikipedia's November 21 page ("Rebecca Latimer Felton of Georgia takes the oath of office, becoming the first female United States Senator"; "Ole Rømer presents the first quantitative measurements of the speed of light").
+    { year: 1922, text: "Rebecca Latimer Felton of Georgia took the oath of office as the first woman in the United States Senate." }, // Wikipedia, November 21
+    { year: 1676, text: "Ole Rømer presented the first quantitative measurements of the speed of light." }, // Wikipedia, November 21
   ],
   '11-22': [
     { year: 1718, text: "The pirate Blackbeard was cornered and killed in battle off the coast of North Carolina." }, // Ocracoke Inlet
+    // 1.18.0. Wikipedia's November 22 page ("In Dumbarton, Scotland, the clipper Cutty Sark is launched"; "The China Clipper inaugurates the first commercial transpacific air service, connecting Alameda, California with Manila").
+    { year: 1869, text: "The clipper Cutty Sark was launched at Dumbarton, Scotland." }, // Wikipedia, November 22
+    { year: 1935, text: "The China Clipper opened the first commercial air service across the Pacific, from Alameda, California, to Manila." }, // Wikipedia, November 22
   ],
   '11-23': [
     { year: 1889, text: "The first jukebox was installed in a saloon in San Francisco." }, // Palais Royale Saloon
@@ -1130,6 +1136,9 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-26': [
     { year: 1922, text: "Howard Carter and Lord Carnarvon stood before the sealed door of Tutankhamun's tomb." }, // Valley of the Kings
+    // 1.18.0. Wikipedia's November 26 page ("A national Thanksgiving Day is observed in the United States as proclaimed by President George Washington at the request of Congress"; "The National Hockey League is formed, with the Montreal Canadiens, Montreal Wanderers, Ottawa Senators, Quebec Bulldogs, and Toronto Arenas as its first teams").
+    { year: 1789, text: "A national Thanksgiving Day was observed in the United States, proclaimed by President Washington at the request of Congress." }, // Wikipedia, November 26
+    { year: 1917, text: "The National Hockey League was formed, with five teams." }, // Wikipedia, November 26
   ],
   '11-27': [
     { year: 1895, text: "Alfred Nobel signed his final will, setting aside his fortune to establish the Nobel Prizes." }, // Swedish-Norwegian Club
