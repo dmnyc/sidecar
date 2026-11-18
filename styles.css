@@ -3742,14 +3742,16 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .saved-draft:hover { border-color: var(--gold-soft); }
 .saved-draft-open {
   flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; text-align: start;
-  padding-block: 10px 10px; padding-inline: 12px 4px; background: none; border: none; cursor: pointer; color: var(--text);
+  padding-block: 10px 10px; padding-inline: 12px 12px; background: none; border: none; cursor: pointer; color: var(--text);
 }
-.saved-draft-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.saved-draft-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .saved-draft-label {
   min-width: 0; font-size: 13px; font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.saved-draft-when { margin-inline-start: auto; flex-shrink: 0; font-size: 12px; color: var(--muted); }
+/* The time and the cloud beside it: one unit at the end of the line, on one baseline. */
+.saved-draft-meta { margin-inline-start: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.saved-draft-when { font-size: 12px; color: var(--muted); }
 .saved-draft-snip {
   font-size: 13px; color: var(--text-2); line-height: 1.45;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -3759,6 +3761,10 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
   background: none; border: none; border-radius: 0 10px 10px 0; color: var(--muted); cursor: pointer;
 }
 .saved-draft-x:hover { color: var(--text); }
+/* The actions sit behind a hairline, so where the draft's text ends and its icons begin is plain. */
+.saved-draft-open + .saved-draft-x { border-inline-start: 1px solid var(--border); border-radius: 0; margin-block: 8px; }
+.saved-draft-x:last-child { border-radius: 0 10px 10px 0; }
+.saved-draft-x + .saved-draft-x { border-inline-start: 0; }
 .saved-draft-x svg { width: 16px; height: 16px; }
 /* The question, in the row's own two lines. Warn-colored, because the second tap cannot
    be taken back. */
@@ -3771,11 +3777,9 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .saved-draft-cloud { border-radius: 0; }
 .saved-draft-current .saved-draft-cloud:last-child { border-radius: 0 10px 10px 0; }
 .saved-draft-cloud:disabled { opacity: 0.5; cursor: default; }
-/* The mark on a row with a copy on relays, at the time's size, beside it. */
-.saved-draft-mark { flex-shrink: 0; display: inline-flex; color: var(--muted); align-self: center; }
-.saved-draft-mark svg { width: 13px; height: 13px; }
-.saved-draft-top .saved-draft-mark { margin-inline-start: auto; }
-.saved-draft-top .saved-draft-mark + .saved-draft-when { margin-inline-start: 0; }
+/* The mark on a row with a copy on relays, at the time's size, touching it. */
+.saved-draft-mark { flex-shrink: 0; display: inline-flex; color: var(--muted); }
+.saved-draft-mark svg { width: 12px; height: 12px; }
 .saved-draft-current { border-style: dashed; }
 /* Drafts on relays: their own block under the local list, words and buttons stacked
    full width (AGENTS.md row grammar), never beside the rows. */
@@ -3783,7 +3787,8 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .relay-drafts-title { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--text-2); }
 .relay-drafts-body { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 .relay-drafts-hint { margin: 0; }
-.relay-drafts-btn { width: 100%; }
+.relay-drafts-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.relay-drafts-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 /* Bottom left, at the status line's size: a preference about next time, so it sits with
    the quiet things in the row and not with the two ways out of this one. */
 .compose-default { font-size: 12px; font-weight: 400; color: var(--muted); margin-bottom: 0; }

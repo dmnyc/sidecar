@@ -1,0 +1,166 @@
+<!--
+  Relay drafts lab (#602, NIP-37): saved drafts that live on a private relay, against a relay that
+  demands NIP-42 before it says a word. The page watches the relay and ticks what it can see by
+  itself; the rest is yours to judge.
+
+      node test/manual/nip42-relay.js            (the private relay, ws://127.0.0.1:7447)
+      python3 -m http.server 8021                (from the repo root)
+      open http://localhost:8021/test/manual/relay-drafts-lab.html
+
+  Use a THROWAWAY account with NO published relay list (a new one): an account that already has one is
+  offered the relays it names, not this one. Step 6 posts a note, and an account's relays hear about it.
+  The relay keeps everything in memory and listens on 127.0.0.1 only. Nothing leaves your machine
+  except what step 6 posts, and "Reset the relay" forgets the rest.
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar relay drafts lab</title>
+<style>
+  body { margin: 0; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 32px 24px 140px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 30px 0 6px; padding-top: 12px; border-top: 1px solid #2c2740; }
+  .sub, .muted { color: #9a93b0; }
+  .sub { margin: 0 0 16px; }
+  code { font: 12.5px ui-monospace, monospace; color: #b7aee0; }
+  .bar { position: sticky; top: 0; z-index: 2; background: #12101aee; backdrop-filter: blur(6px); border-bottom: 1px solid #2c2740;
+         padding: 10px 0; margin: 0 0 14px; display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+  .pill { border: 1px solid #3a3352; border-radius: 99px; padding: 2px 10px; }
+  .pill.ok { border-color: #3f7a55; color: #9be0b4; }
+  .pill.bad { border-color: #8a3a46; color: #f0a0ab; }
+  button { font: inherit; font-size: 13.5px; cursor: pointer; border-radius: 8px; padding: 6px 12px; border: 1px solid #4a4068; background: #1d1830; color: #e7e3f0; }
+  button:hover { border-color: #8b7bd0; }
+  input[type=text] { font: 13px ui-monospace, monospace; background: #0c0a12; color: #e7e3f0; border: 1px solid #3a3352; border-radius: 8px; padding: 5px 9px; width: 230px; }
+  ol { margin: 4px 0 10px; padding-inline-start: 22px; }
+  li { margin: 3px 0; }
+  .check { display: flex; gap: 10px; align-items: baseline; margin: 5px 0; font-size: 14px; }
+  .check .mark { width: 1.3em; text-align: center; color: #6f6886; flex: none; }
+  .check.ok .mark { color: #9be0b4; }
+  .check.bad .mark { color: #f0a0ab; }
+  .check.manual .mark { cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; font: 12.5px ui-monospace, monospace; }
+  td, th { text-align: left; padding: 3px 8px; border-bottom: 1px solid #221d33; color: #b9b2cc; }
+  th { color: #7a7392; font-weight: 500; }
+  .log { font: 12px/1.5 ui-monospace, monospace; background: #0c0a12; border: 1px solid #221d33; border-radius: 8px; padding: 8px 10px; max-height: 240px; overflow: auto; white-space: pre-wrap; color: #b9b2cc; }
+  .log .denied { color: #e8c79a; } .log .auth { color: #9be0b4; } .log .event { color: #b7aee0; } .log .dim { color: #6f6886; }
+  .note { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: #2a1d10; border: 1px solid #6b4a1e; color: #e8c79a; font-size: 13.5px; }
+  .out { font: 12px ui-monospace, monospace; color: #7fb8a0; margin-top: 6px; word-break: break-all; }
+</style>
+<div class="wrap">
+  <h1>Relay drafts lab</h1>
+  <p class="sub">NIP-37 drafts on a private relay that requires NIP-42. Do the steps in order, in the side panel. The ticks under
+  “The relay saw” come from the relay itself; the ones under “You judge” are yours to click.</p>
+
+  <div class="bar">
+    Relay: <input type="text" id="url" value="ws://127.0.0.1:7447">
+    <span id="state" class="pill">looking…</span>
+    <span class="muted" id="who"></span>
+    <button id="reset">Reset the relay</button>
+  </div>
+  <div class="note" id="norelay" style="display:none">The relay is not running. Start it from the repo root:
+    <code>node test/manual/nip42-relay.js</code></div>
+
+  <h2>Steps</h2>
+  <ol>
+    <li><b>Make the relay the account’s only one.</b> In Sidecar, the gear → Settings → Relays (not the Profile tab’s list): remove every relay, then add the address above (a warning about <code>ws://</code> is expected; it is your own machine). Then reload the panel.</li>
+    <li><b>Start a draft.</b> Open the composer, type a note that starts with <code>LAB-</code> (so the page can tell if its words ever reach the relay as plaintext), and don’t post it.</li>
+    <li><b>Save it to relays.</b> Saved drafts → the cloud button on “Open now”. With no relay list it should say so and offer to publish one naming the relay: press it, then set up private relays, and the draft is saved.</li>
+    <li><b>A draft from another client.</b> <button id="other">Leave one from here</button> (two cards: Allow both). Then in Saved drafts press <i>Check your relays</i>: the draft should be listed. Open it: the note in progress should be set aside first, not overwritten.
+      <div class="out" id="other-out"></div></li>
+    <li><b>Delete it from your relays</b> (trash on that relay draft, tap twice). The relay’s copy should be blanked.</li>
+    <li><b>Post the first draft</b> (it publishes a real note to this account’s relays: use the throwaway). Its relay copy should be blanked too.</li>
+  </ol>
+
+  <h2>The relay saw</h2>
+  <div id="auto"></div>
+
+  <h2>You judge</h2>
+  <div id="manual"></div>
+
+  <h2>On the relay now</h2>
+  <table id="events"><tr><th>kind</th><th>d</th><th>k</th><th>content</th><th>when</th></tr></table>
+  <h2>What it was asked</h2>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const httpOf = () => $('#url').value.replace(/^ws/, 'http');
+  const AUTO = [
+    ['The relay challenged, and the extension answered the AUTH (no card needed)', (s) => s.log.some((l) => l.kind === 'auth' && /accepted/.test(l.text))],
+    ['A request made before AUTH was refused with auth-required (so the round trip really happened)', (s) => s.log.some((l) => l.kind === 'denied')],
+    ['A relay list (kind 10002) is on the relay', (s) => s.events.some((e) => e.kind === 10002)],
+    ['The private relay list (kind 10013) is on the relay', (s) => s.events.some((e) => e.kind === 10013)],
+    ['Your draft is on the relay as a kind 31234 with a k tag', (s) => s.events.some((e) => e.kind === 31234 && e.k === '1' && !e.blank && !/^lab-/.test(e.d || ''))],
+    ['Nothing private reads as plaintext on the relay (no “LAB-”, no JSON)', (s) => s.events.some((e) => e.kind === 31234) && s.leaks.length === 0],
+    ['The draft from another client was left on the relay', (s) => s.events.some((e) => e.kind === 31234 && /^lab-/.test(e.d || ''))],
+    ['The other client’s draft was blanked (step 5)', (s) => s.events.some((e) => e.kind === 31234 && /^lab-/.test(e.d || '') && e.blank)],
+    ['Your own draft was blanked after posting (step 6)', (s) => s.events.some((e) => e.kind === 31234 && !/^lab-/.test(e.d || '') && e.blank)],
+  ];
+  const MANUAL = [
+    'No approval card appeared when the relay asked Sidecar to authenticate.',
+    'With no relay list, Saved drafts said so and offered to publish one, naming the relay.',
+    'Nothing was published until I pressed the button.',
+    'The draft from another client was listed under “On your relays”, and opening it set my note in progress aside.',
+    'Deleting it from the relay asked twice, and the card said what it was deleting.',
+    'The cloud button, the “On your relays” section and the confirm read well at the panel’s width.',
+  ];
+  const ticked = JSON.parse(localStorage.getItem('relay-drafts-lab') || '{}');
+  const manualEl = $('#manual');
+  MANUAL.forEach((text, i) => {
+    const d = document.createElement('div'); d.className = 'check manual' + (ticked[i] ? ' ok' : '');
+    d.innerHTML = '<span class="mark"></span><span></span>'; d.lastChild.textContent = text; d.firstChild.textContent = ticked[i] ? '✓' : '○';
+    d.addEventListener('click', () => { ticked[i] = !ticked[i]; localStorage.setItem('relay-drafts-lab', JSON.stringify(ticked)); d.classList.toggle('ok', !!ticked[i]); d.firstChild.textContent = ticked[i] ? '✓' : '○'; });
+    manualEl.appendChild(d);
+  });
+  const autoEl = $('#auto');
+  AUTO.forEach(([text]) => { const d = document.createElement('div'); d.className = 'check'; d.innerHTML = '<span class="mark">–</span><span></span>'; d.lastChild.textContent = text; autoEl.appendChild(d); });
+
+  async function poll() {
+    try {
+      const s = await (await fetch(httpOf() + '/state', { cache: 'no-store' })).json();
+      $('#norelay').style.display = 'none';
+      $('#state').textContent = s.connections + ' connected · ' + (s.authed.length ? s.authed.length + ' identified' : 'nobody identified yet'); $('#state').className = 'pill ok';
+      $('#who').textContent = s.authed.length ? 'as ' + s.authed[0].slice(0, 12) + '…' : '';
+      [...autoEl.children].forEach((d, i) => { const ok = AUTO[i][1](s); d.className = 'check' + (ok ? ' ok' : ''); d.firstChild.textContent = ok ? '✓' : '–'; });
+      const rows = s.events.slice().sort((a, b) => b.created_at - a.created_at).map((e) => '<tr><td>' + e.kind + '</td><td>' + (e.d || '') + '</td><td>' + (e.k || '') + '</td><td>' + (e.blank ? 'blank (deleted)' : 'sealed, ' + e.contentLength + ' chars') + '</td><td>' + new Date(e.created_at * 1000).toLocaleTimeString() + '</td></tr>').join('');
+      $('#events').innerHTML = '<tr><th>kind</th><th>d</th><th>k</th><th>content</th><th>when</th></tr>' + rows;
+      const logEl = $('#log'); const atEnd = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 8;
+      logEl.innerHTML = s.log.map((l) => '<div class="' + l.kind + '"><span class="dim">' + new Date(l.at).toLocaleTimeString() + '</span> ' + l.text.replace(/</g, '&lt;') + '</div>').join('');
+      if (atEnd) logEl.scrollTop = logEl.scrollHeight;
+    } catch (e) {
+      $('#norelay').style.display = 'block'; $('#state').textContent = 'not running'; $('#state').className = 'pill bad';
+    }
+  }
+  poll(); setInterval(poll, 1000);
+  $('#reset').addEventListener('click', async () => { try { await fetch(httpOf() + '/reset', { method: 'POST' }); } catch (_) {} poll(); });
+
+  // Step 4: the draft another client would leave. Encrypted to the account itself and signed through the
+  // extension (two cards), then published to the relay over its own NIP-42 handshake.
+  $('#other').addEventListener('click', async () => {
+    const out = $('#other-out'); out.textContent = 'working…';
+    try {
+      const url = $('#url').value;
+      const pk = await window.nostr.getPublicKey();
+      const now = Math.floor(Date.now() / 1000);
+      const inner = { kind: 1, created_at: now, tags: [], content: 'Written from the lab, as another client would' };
+      const content = await window.nostr.nip44.encrypt(pk, JSON.stringify(inner));
+      const wrap = await window.nostr.signEvent({ kind: 31234, created_at: now, tags: [['d', 'lab-' + now], ['k', '1'], ['expiration', String(now + 3600)]], content });
+      await new Promise((resolve, reject) => {
+        const ws = new WebSocket(url); let sent = false;
+        const t = setTimeout(() => { ws.close(); reject(new Error('the relay did not answer')); }, 15000);
+        ws.onmessage = async (m) => {
+          const msg = JSON.parse(m.data);
+          if (msg[0] === 'AUTH') {
+            const auth = await window.nostr.signEvent({ kind: 22242, created_at: Math.floor(Date.now() / 1000), tags: [['relay', url], ['challenge', msg[1]]], content: '' });
+            ws.send(JSON.stringify(['AUTH', auth]));
+          } else if (msg[0] === 'OK' && !sent && msg[2]) { sent = true; ws.send(JSON.stringify(['EVENT', wrap])); }
+          else if (msg[0] === 'OK' && sent) { clearTimeout(t); ws.close(); msg[2] ? resolve() : reject(new Error(msg[3])); }
+          else if (msg[0] === 'OK' && !msg[2]) { clearTimeout(t); ws.close(); reject(new Error(msg[3])); }
+        };
+        ws.onerror = () => { clearTimeout(t); reject(new Error('could not reach the relay')); };
+      });
+      out.textContent = 'left a draft on the relay (d = lab-' + now + ')';
+    } catch (e) { out.textContent = 'failed: ' + (e && e.message ? e.message : e); }
+  });
+</script>

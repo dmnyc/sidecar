@@ -1903,6 +1903,29 @@
     toast(t('Locked'), 'success');
   });
 
+  // "Open saved drafts" on the compose menu, only when this account has some: the same list the
+  // folder in the composer's corner opens, without opening a note to get to it. Worked out as
+  // the menu opens, from this device's drafts (what is on the relays needs the network, and the
+  // list asks for that itself once it is open).
+  async function refreshSavedDraftsItem() {
+    const btn = $('saved-drafts-btn');
+    if (!btn) return;
+    btn.hidden = true;
+    const pk = state && state.activePubkey;
+    if (!pk) return;
+    try {
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+      const key = draftKey(pk, null);
+      const core = window.SidecarCore;
+      btn.hidden = !(core.otherDraftEntries(all, pk, key).length || (all[key] && core.draftHasContent(all[key])));
+    } catch (_) { /* no list, no item: the folder in the composer is still there */ }
+  }
+  $('compose-fab').addEventListener('click', refreshSavedDraftsItem);
+  $('saved-drafts-btn').addEventListener('click', () => {
+    if ($('compose-fab').disabled) return;
+    openComposer('', { showDrafts: true });
+  });
+
   $('compose-note-btn').addEventListener('click', () => {
     if ($('compose-fab').disabled) return;
     const balloon = $('first-post-balloon');
@@ -5555,6 +5578,9 @@
     publish: (relays, signed) => publishToRelays(relays, signed),
     readRelays: () => backupReadRelays(),
     writeRelays: () => postRelays(),
+    // A list the panel already holds for the account, even a stale one, is a list that exists.
+    knownRelayList: async (pubkey) => (await getNip65Info(pubkey)).list || null,
+    relayListChanged: (pubkey) => { nip65Cache.delete(pubkey); refreshAuthRelays(pubkey).catch(() => {}); },
     trust: (urls) => urls.forEach((u) => authRelays.add(normalizeRelay(u))),
     fetchEvent: (id) => fetchNoteById(id),
     warn: (message) => toast(message, 'info'),
@@ -14860,7 +14886,8 @@
   // The SLOT IS CREATED IF ABSENT, which it is whenever nothing has been typed yet:
   // saveComposeDraft writes nothing for an empty draft and deletes the slot outright, so
   // a fresh reply would otherwise hand the tab an empty key and no target.
-  async function handOffToTab(dkey, replyTo) {
+  async function handOffToTab(dkey, replyTo, handOff) {
+    const showDrafts = !!(handOff && handOff.showDrafts);
     let relays = null;
     try { relays = await postRelays(); } catch (_) {}
     const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
@@ -14884,7 +14911,9 @@
         // TOLD, NOT NAVIGATED. Pointing an open tab at another URL needs the "tabs"
         // permission, which this extension does not ask for, and chrome.tabs.update
         // fails silently without it.
-        if (composeTabNeedsSwitch(open, wantId)) {
+        if (showDrafts) {
+          chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId, showDrafts: true }).catch(() => {});
+        } else if (composeTabNeedsSwitch(open, wantId)) {
           chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId }).catch(() => {});
         }
         await chrome.tabs.update(open.tabId, { active: true });
@@ -14896,7 +14925,8 @@
     // the path. getURL takes a path, and what it does with a "?" in one is not something
     // to find out from a bug report.
     const url = chrome.runtime.getURL('compose.html')
-      + (wantId ? '?reply=' + encodeURIComponent(wantId) : '');
+      + (wantId ? '?reply=' + encodeURIComponent(wantId) : '')
+      + (showDrafts ? '#drafts' : '');
     chrome.tabs.create({ url });
   }
 
@@ -14947,11 +14977,14 @@
         // "already open"; the tab says what it did.
         const quote = quoteFrom(initialText);
         if (quote) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_QUOTE', ref: quote.quote }).catch(() => {});
+        // The Saved drafts shortcut: the tab shows its list, so it is a different thing to say.
+        const wantList = !!(opts && opts.showDrafts);
+        if (wantList) chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_OPEN', replyId: wantId, showDrafts: true }).catch(() => {});
         try {
           await chrome.tabs.update(open.tabId, { active: true });
           await chrome.windows.update(open.windowId, { focused: true });
         } catch (_) { /* the tab went away between the query and the focus */ }
-        if (!quote) toast(t('Your draft is already open in a tab'), 'info');
+        if (!quote && !wantList) toast(t('Your draft is already open in a tab'), 'info');
         return;
       }
     }
@@ -14963,6 +14996,8 @@
       catch (_) {} // A settings read that fails leaves the panel composer, which always works.
       if (inTab) {
         const dk = draftKey(state.activePubkey, (opts && opts.replyTo) || null);
+        // The Saved drafts shortcut goes to the tab's own list, with nothing seeded or set aside.
+        if (opts && opts.showDrafts) { await handOffToTab(dk, null, { showDrafts: true }); return; }
         const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
         const slot = all[dk];
         // A poll draft used to be held back here, because the tab had no poll editor and
@@ -16544,7 +16579,16 @@
         _modalDismissGuard = () => (postingNow ? t('Posting. This closes as soon as the relays answer.')
           : !!(draft.text.trim() || (draft.media || []).length));
         // Chosen from Saved drafts a moment ago, so it opens rather than asking again.
-        if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
+        // THE SAVED DRAFTS SHORTCUT (the compose menu's "Open saved drafts"). The draft in
+        // progress is brought into the editor first, then the list drawn over it: the list
+        // saves what is on screen before it opens (showSavedDrafts), and what is on screen
+        // must be the saved draft by then, not the blank one this composer started with,
+        // or opening the list would overwrite the draft it is meant to list.
+        if (opts && opts.showDrafts) {
+          if (hasSaved) resumeFrom(saved); else showEditor();
+          showSavedDrafts();
+        }
+        else if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
         else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
         else showEditor();
         if (setAside) toast(t('Your draft is in Saved drafts.'), 'success');

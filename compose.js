@@ -1061,6 +1061,13 @@
   // switch, so it starts over on the requested draft, the same way "Write another" does;
   // switching would repaint an editor that is gone and fail without a word.
   function handleComposeOpen(msg) {
+    // THE SAVED DRAFTS SHORTCUT from the panel's compose menu: this tab's own list, over
+    // whatever it is showing. No switching, since the list is every draft's, and none of
+    // the editor's business while it is posting.
+    if (msg.showDrafts === true && !receiptShown) {
+      if (!busy()) showTab('drafts');
+      return;
+    }
     const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
       ? msg.replyId.toLowerCase() : null;
     if (receiptShown) {
@@ -2214,6 +2221,13 @@
     powForThisPost = await seedPow(saved);
     repaintPow();
     buildTabs();
+    // OPENED FROM THE PANEL'S "Open saved drafts" with this tab as the default composer: the
+    // list is the first thing on screen. The marker is dropped from the address so a reload
+    // returns to the draft instead of the list.
+    if (location.hash === '#drafts') {
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+      showTab('drafts');
+    }
     renderThumbs();
     paintCount();
     editorApi.focus();

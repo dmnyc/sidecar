@@ -417,6 +417,7 @@ html[data-theme="turnstile"] #view-lock .lock-sign-down { bottom:calc(25cqh + 15
 #stream-directory[hidden] { display:none; }
 
 #compose-menu button { display:flex; align-items:center; gap:12px; }
+#compose-menu button[hidden] { display:none; }
 #compose-menu button svg { width:20px; height:20px; flex:0 0 20px; color:var(--gold); }
 
 

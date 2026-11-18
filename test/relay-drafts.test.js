@@ -49,7 +49,7 @@ const ROOT_ID = '2'.repeat(64);
 const COMMENT = '3'.repeat(64);
 
 // The worker's three owner messages, done the way the worker does them, plus the store.
-function fakeWorld({ settings = {}, store = {} } = {}) {
+function fakeWorld({ settings = {}, store = {}, accountRelays, known = null } = {}) {
   const relay = [];     // every event published, in order
   const published = []; // { relays, event }
   const calls = [];
@@ -68,6 +68,13 @@ function fakeWorld({ settings = {}, store = {} } = {}) {
         assert.equal(msg.expectedPubkey, PK);
         return sign(msg.event);
       case 'SIDECAR_GET_SETTINGS': return settings;
+      case 'SIDECAR_GET_ACCOUNT_RELAYS':
+        assert.equal(msg.pubkey, PK);
+        return accountRelays || {
+          'wss://write.example': { read: true, write: true },
+          'wss://two.example': { read: true, write: true },
+          'wss://read.example': { read: true, write: false },
+        };
       case 'SIDECAR_SECRET_GET': return JSON.parse(JSON.stringify(store));
       case 'SIDECAR_SECRET_SET': store = JSON.parse(JSON.stringify(msg.value)); return true;
       default: throw new Error('unexpected ' + msg.type);
@@ -84,6 +91,8 @@ function fakeWorld({ settings = {}, store = {} } = {}) {
     readRelays: async () => ['wss://write.example'],
     writeRelays: async () => ['wss://write.example'],
     warn: (m) => calls.push('warn:' + m),
+    knownRelayList: async () => known,
+    relayListChanged: (pk) => calls.push('changed:' + pk),
   };
   return {
     io, relay, published, calls,
@@ -265,6 +274,88 @@ test('saving with no private relays says so, and set-up publishes a 10013 to the
   assert.deepEqual(plain(list.relays), ['wss://write.example'], 'NIP-37: the write relays');
   const ck = NT.nip44.v2.utils.getConversationKey(SK, PK);
   assert.deepEqual(JSON.parse(NT.nip44.v2.decrypt(list.event.content, ck)), [['relay', 'wss://write.example'], ['relay', 'wss://two.example']]);
+});
+
+// ---- a first relay list (NIP-65) ----
+
+const relayList = (author, tags) => ({ ...sign({ kind: 10002, created_at: 5, tags, content: '' }), pubkey: author });
+const publishedLists = (w) => w.published.filter((p) => p.event.kind === 10002);
+
+test('the account\'s relay list: none only when every relay answered and none holds one', async () => {
+  const w = fakeWorld();
+  assert.equal((await w.controller.relayListStatus(PK)).status, 'none');
+  w.setAnswers({ answered: false, complete: true });
+  assert.equal((await w.controller.relayListStatus(PK)).status, 'unreachable');
+  w.setAnswers({ answered: true, complete: false });
+  assert.equal((await w.controller.relayListStatus(PK)).status, 'unreachable', 'a relay still out might hold it');
+  w.setAnswers({ answered: true, complete: true });
+  // A relay is not obliged to honor the author filter.
+  w.io.query = async () => ({ events: [relayList(ALICE, [['r', 'wss://hers.example']])], answered: true, complete: true });
+  assert.equal((await w.controller.relayListStatus(PK)).status, 'unreachable', 'somebody else\'s list says nothing about this account');
+  w.io.query = async (relays, filter) => ({ events: w.relay.filter((ev) => filter.kinds.includes(ev.kind) && ev.pubkey === PK), answered: true, complete: true });
+  w.relay.push(sign({ kind: 10002, created_at: 6, tags: [['r', 'wss://mine.example']], content: '' }));
+  assert.equal((await w.controller.relayListStatus(PK)).status, 'ok');
+});
+
+test('a list the page already remembers counts as one, without asking a relay', async () => {
+  const w = fakeWorld({ known: { read: ['wss://old.example'], write: ['wss://old.example'] } });
+  w.io.query = async () => { throw new Error('no relay should be asked'); };
+  assert.equal((await w.controller.relayListStatus(PK)).status, 'ok');
+});
+
+test('a first list names the bootstrap relays with their read and write marks, and is signed by the owner', async () => {
+  const w = fakeWorld();
+  const res = await w.controller.publishRelayList(PK);
+  const [one] = publishedLists(w);
+  assert.ok(one, 'a kind 10002 went out');
+  assert.deepEqual(plain(one.event.tags), [['r', 'wss://write.example'], ['r', 'wss://two.example'], ['r', 'wss://read.example', 'read']]);
+  assert.equal(one.event.content, '');
+  assert.deepEqual(plain(one.relays), ['wss://write.example', 'wss://two.example', 'wss://read.example']);
+  assert.deepEqual(plain(res.write), ['wss://write.example', 'wss://two.example']);
+  assert.ok(w.calls.includes('changed:' + PK), 'the page is told to drop what it cached');
+  assert.ok(w.calls.includes('SIDECAR_OWNER_SIGN'));
+});
+
+test('a first list is never published over one that exists', async () => {
+  const w = fakeWorld();
+  w.relay.push(sign({ kind: 10002, created_at: 6, tags: [['r', 'wss://mine.example']], content: '' }));
+  const e = await w.controller.publishRelayList(PK).catch((x) => x);
+  assert.equal(e.relayStatus, 'exists');
+  assert.equal(e.message, 'You already have a relay list.');
+  assert.ok(!publishedLists(w).length, 'nothing was published');
+});
+
+test('the check is made again at publish time: a list that turned up after the card was drawn stops it', async () => {
+  const w = fakeWorld();
+  assert.equal((await w.controller.relayListStatus(PK)).status, 'none');
+  w.relay.push(sign({ kind: 10002, created_at: 6, tags: [['r', 'wss://mine.example']], content: '' }));
+  const e = await w.controller.publishRelayList(PK).catch((x) => x);
+  assert.equal(e.relayStatus, 'exists');
+  assert.ok(!publishedLists(w).length);
+});
+
+test('with no answer, or a relay still out, or a remembered list, nothing is published', async () => {
+  for (const [label, setup] of [
+    ['nobody answered', (w) => w.setAnswers({ answered: false, complete: true })],
+    ['a relay is still out', (w) => w.setAnswers({ answered: true, complete: false })],
+  ]) {
+    const w = fakeWorld();
+    setup(w);
+    const e = await w.controller.publishRelayList(PK).catch((x) => x);
+    assert.equal(e.relayStatus, 'unreachable', label);
+    assert.ok(!publishedLists(w).length, label);
+  }
+  const w = fakeWorld({ known: { read: [], write: ['wss://old.example'] } });
+  assert.equal((await w.controller.publishRelayList(PK).catch((x) => x)).relayStatus, 'exists');
+  assert.ok(!publishedLists(w).length);
+});
+
+test('an account that turned the bootstrap relays off is offered nothing to publish', async () => {
+  for (const accountRelays of [{}, { 'wss://read.example': { read: true, write: false } }]) {
+    const w = fakeWorld({ accountRelays });
+    assert.equal(await w.controller.publishRelayList(PK).catch(() => 'refused'), 'refused');
+    assert.ok(!publishedLists(w).length);
+  }
 });
 
 // ---- the whole trip ----

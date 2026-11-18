@@ -61,11 +61,22 @@ test('save to relays sets up private relays, and a draft from another client ope
       'Saved drafts asked the relays before anyone tapped anything');
     await shot('1-saved-drafts');
 
-    // Save to relays with no private relays: said, and an offer naming the relays it would use.
+    // Save to relays with no relay list at all: a relay list is offered first, naming the relays.
     assert.ok(await x.evaluate(click('#modal .saved-draft-current .saved-draft-cloud')));
     await x.waitFor(`!!document.querySelector('#modal .relay-drafts .primary')`);
+    const first = await x.evaluate(`document.querySelector('#modal .relay-drafts').innerText`);
+    assert.match(first, /You have no relay list yet/);
+    assert.match(first, new RegExp('127\\.0\\.0\\.1:' + x.relay.port));
+    assert.ok(!x.relay.events.some((e) => e.kind === 10002), 'the relay list was published before anyone tapped');
+    await shot('2a-relay-list-offer');
+
+    assert.ok(await x.evaluate(clickText('#modal .relay-drafts .primary', 'Publish relay list')));
+    const nip65 = await until(() => x.relay.events.find((e) => e.kind === 10002));
+    assert.deepEqual(nip65.tags, [['r', x.relay.url]]);
+
+    // Then the private relays, from the list just published.
+    await x.waitFor(`/No private relays for drafts yet\\./.test(document.querySelector('#modal .relay-drafts').innerText)`);
     const offer = await x.evaluate(`document.querySelector('#modal .relay-drafts').innerText`);
-    assert.match(offer, /No private relays for drafts yet\./);
     assert.match(offer, new RegExp('127\\.0\\.0\\.1:' + x.relay.port));
     await shot('2-set-up-offer');
 
@@ -101,6 +112,81 @@ test('save to relays sets up private relays, and a draft from another client ope
     const aside = Object.keys(after).find((k) => k.startsWith(x.me + '|n:'));
     assert.ok(aside, 'the note in progress was not set aside');
     assert.equal(after[aside].text, 'Started in the panel');
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});
+
+test('an account that already has a relay list is never offered one, and its list is left alone', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    x.put({ kind: 10002, created_at: Math.floor(Date.now() / 1000) - 100, tags: [['r', x.relay.url], ['r', 'wss://elsewhere.example']], content: '' }, 'me');
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'Started in the panel', media: [], savedAt: Date.now() } } });
+
+    await x.evaluate(click('#compose-note-btn'));
+    await x.waitFor(clickText('#modal button', 'Resume draft'));
+    await x.waitFor(`!!document.querySelector('#modal .compose-drafts-btn:not(.hidden)')`);
+    assert.ok(await x.evaluate(click('#modal .compose-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .saved-draft-current .saved-draft-cloud')`);
+    assert.ok(await x.evaluate(click('#modal .saved-draft-current .saved-draft-cloud')));
+
+    // Straight to the private relays: no word of a relay list, no button to publish one.
+    await x.waitFor(`/No private relays for drafts yet\\./.test((document.querySelector('#modal .relay-drafts') || {}).innerText || '')`);
+    const text = await x.evaluate(`document.querySelector('#modal .relay-drafts').innerText`);
+    assert.doesNotMatch(text, /no relay list yet/);
+    assert.equal(await x.evaluate(`[...document.querySelectorAll('#modal .relay-drafts button')].some((b) => b.textContent.trim() === 'Publish relay list')`), false);
+    assert.equal(x.relay.events.filter((e) => e.kind === 10002).length, 1, 'a second relay list was published');
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});
+
+test('a long list of drafts on the relays shows ten at a time, and says how many other kinds there are', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    const { enc } = selfCipher();
+    const now = Math.floor(Date.now() / 1000);
+    x.put({ kind: 10002, created_at: now - 500, tags: [['r', x.relay.url]], content: '' }, 'me');
+    x.put({ kind: 10013, created_at: now - 400, tags: [], content: enc(JSON.stringify([['relay', x.relay.url]])) }, 'me');
+    for (let i = 0; i < 23; i++) {
+      x.put({ kind: 31234, created_at: now - 300 + i, tags: [['d', 'bulk-' + i], ['k', '1'], ['expiration', String(now + 3600)]],
+        content: enc(JSON.stringify({ kind: 1, created_at: now, tags: [], content: 'Draft number ' + i })) }, 'me');
+    }
+    // Long-form drafts: counted, not listed.
+    for (let i = 0; i < 2; i++) {
+      x.put({ kind: 31234, created_at: now - 100 + i, tags: [['d', 'article-' + i], ['k', '30023'], ['expiration', String(now + 3600)]],
+        content: enc(JSON.stringify({ kind: 30023, created_at: now, tags: [['d', 'a' + i]], content: '# An article' })) }, 'me');
+    }
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'Started in the panel', media: [], savedAt: Date.now() } } });
+    await x.evaluate(click('#compose-note-btn'));
+    await x.waitFor(clickText('#modal button', 'Resume draft'));
+    await x.waitFor(`!!document.querySelector('#modal .compose-drafts-btn:not(.hidden)')`);
+    assert.ok(await x.evaluate(click('#modal .compose-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .relay-drafts-btn')`);
+    // The button has an icon in front of its word.
+    assert.equal(await x.evaluate(`!!document.querySelector('#modal .relay-drafts-btn svg')`), true);
+    assert.ok(await x.evaluate(clickText('#modal .relay-drafts-btn', 'Check your relays')));
+    const rows = () => x.evaluate(`document.querySelectorAll('#modal .relay-drafts .saved-draft').length`);
+    await x.waitFor(`document.querySelectorAll('#modal .relay-drafts .saved-draft').length > 0`);
+    assert.equal(await rows(), 10, 'ten to begin with');
+    assert.match(await x.evaluate(`document.querySelector('#modal .relay-drafts').innerText`), /2 drafts of kinds Sidecar does not draft yet/);
+    assert.equal(await x.evaluate(`[...document.querySelectorAll('#modal .relay-drafts .relay-drafts-hint')].find((e) => /kinds Sidecar/.test(e.textContent)).title`), 'Kinds: 30023 ×2', 'hovering says which kinds');
+    // Newest first.
+    assert.match(await x.evaluate(`document.querySelector('#modal .relay-drafts .saved-draft-snip').textContent`), /Draft number 22/);
+
+    assert.ok(await x.evaluate(clickText('#modal .relay-drafts-btn', 'Show 10 more')));
+    assert.equal(await rows(), 20);
+    assert.ok(await x.evaluate(clickText('#modal .relay-drafts-btn', 'Show 3 more')));
+    assert.equal(await rows(), 23);
+    assert.equal(await x.evaluate(`[...document.querySelectorAll('#modal .relay-drafts-btn')].some((b) => /Show .* more/.test(b.textContent))`), false, 'nothing left to show');
+
+    // Deleting one keeps the page the list was on.
+    assert.ok(await x.evaluate(`(() => { const b = document.querySelector('#modal .relay-drafts .saved-draft .saved-draft-x'); b.click(); return true; })()`));
+    await sleep(300);
+    assert.ok(await x.evaluate(`(() => { const b = document.querySelector('#modal .relay-drafts .saved-draft .saved-draft-x'); b.click(); return true; })()`));
+    await x.waitFor(`document.querySelectorAll('#modal .relay-drafts .saved-draft').length === 22`);
     assert.deepEqual(x.errors, []);
   } finally { x.close(); }
 });
