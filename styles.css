@@ -431,6 +431,24 @@ input:focus, select:focus, textarea:focus {
   background: linear-gradient(180deg, var(--av-from), var(--av-to)); box-shadow: 0 0 0 1px var(--gold-soft);
 }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A missing banner or avatar is the button that uploads it (renderProfile). */
+.profile-upload-ph {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0;
+  font: inherit; font-size: 13px; color: var(--text); cursor: pointer; appearance: none;
+}
+.profile-upload-ph svg { width: 18px; height: 18px; flex-shrink: 0; }
+.profile-upload-ph:hover { border-color: var(--gold-soft); }
+.profile-avatar-empty { cursor: pointer; }
+.profile-avatar-upload {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(0, 0, 0, 0.38); color: #fff;
+}
+.profile-avatar-upload svg { width: 22px; height: 22px; }
+.profile-avatar-empty:hover .profile-avatar-upload { background: rgba(0, 0, 0, 0.52); }
+/* While one image is uploading and saving the other waits: both end in a whole-profile publish. */
+.profile-header.uploading-media .profile-upload-ph,
+.profile-header.uploading-media .profile-avatar-empty { pointer-events: none; }
+.profile-upload-ph.uploading, .profile-avatar-empty.uploading { opacity: 0.6; }
 /* profile ↔ wallet lightning-address sync prompt */
 .lud16-sync {
   text-align: start; margin: 6px 0 14px; padding: 14px;
