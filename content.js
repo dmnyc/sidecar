@@ -684,6 +684,7 @@
     'cast-iron': ['#D9D3C5', '#A39D8E', '#B9B19F', '#6E6858', '#948C79'],
     'par-avion': ['#FFFFFF', '#E8E8EA', '#C0272D', '#A02C2E', '#1B4C8C'],
     'industria': ['#FFFFFF', '#E8E8EA', '#A67C1E', '#7A5A18', '#6B4E1C'],
+    'werkstatte': ['#FFFFFF', '#E8E8EA', '#A08018', '#7C6212', '#15171C'],
   };
   function logoSvgFor(cardTheme) {
     const dyes = Object.prototype.hasOwnProperty.call(CARD_LOGO_DYES, cardTheme) ? CARD_LOGO_DYES[cardTheme] : null;

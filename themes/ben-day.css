@@ -335,7 +335,8 @@
    no button changes height beside another (the note above .lav-btn in styles.css). */
 [data-theme="ben-day"] .primary,
 [data-theme="ben-day"] .secondary,
-[data-theme="ben-day"] .lav-btn {
+[data-theme="ben-day"] .lav-btn,
+[data-theme="ben-day"] .reload-banner-btn {
   border: none;
   box-shadow: inset 0 0 0 2px #111111;
 }
@@ -586,7 +587,8 @@
 [data-theme="ben-day"] .secondary,
 [data-theme="ben-day"] .lav-btn,
 [data-theme="ben-day"] .ghost,
-[data-theme="ben-day"] .danger {
+[data-theme="ben-day"] .danger,
+[data-theme="ben-day"] .reload-banner-btn {
   font-family: var(--font-display);
   font-weight: 400;
   font-size: 18px;

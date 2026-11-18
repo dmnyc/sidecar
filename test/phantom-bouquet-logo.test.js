@@ -64,7 +64,6 @@ test('the panel, the composer and the highlight page pick the dyed cut for Phant
   const core = loadCore();
   assert.equal(core.logoSrcFor('phantom-bouquet'), 'icons/sidecar-logo-phantom-bouquet.svg');
   // Nothing else moves: other light themes keep the dark wordmark, dark themes the stock logo.
-  assert.equal(core.logoSrcFor('werkstatte'), 'icons/sidecar-logo-deco.svg');
   assert.equal(core.logoSrcFor('mycelium'), 'icons/sidecar-logo-deco.svg');
   assert.equal(core.logoSrcFor('speakeasy'), 'icons/sidecar-logo.svg');
   assert.equal(core.logoSrcFor(undefined), 'icons/sidecar-logo.svg');

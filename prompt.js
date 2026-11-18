@@ -761,6 +761,7 @@
       'cast-iron': 'icons/sidecar-logo-cast-iron.svg',
       'par-avion': 'icons/sidecar-logo-par-avion.svg',
       'industria': 'icons/sidecar-logo-industria.svg',
+      'werkstatte': 'icons/sidecar-logo-werkstatte.svg',
     };
     const mark = document.querySelector('.brand img');
     if (mark && Object.prototype.hasOwnProperty.call(THEME_LOGOS, theme)) mark.src = THEME_LOGOS[theme];

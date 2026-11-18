@@ -60,7 +60,7 @@ const pick = approvalWindowPick(lights);
 const cut = themes.filter((t) => ![STOCK, DECO].includes(core.logoSrcFor(t)));
 
 test('exactly the intended themes wear a cut of their own', () => {
-  assert.deepEqual(cut.sort(), ['brownstone', 'cast-iron', 'film-noir', 'industria', 'par-avion', 'phantom-bouquet']);
+  assert.deepEqual(cut.sort(), ['brownstone', 'cast-iron', 'film-noir', 'industria', 'par-avion', 'phantom-bouquet', 'werkstatte']);
 });
 
 test('the three tables agree for every theme in the repo', () => {
