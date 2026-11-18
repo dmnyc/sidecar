@@ -589,6 +589,7 @@ window.SidecarCore = (function () {
 
     let acDropdown = null, acResults = [], acIndex = 0;
     let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
+    let reAskDismissed = false; // "Just my follows" answered on the ask that returns when nothing matches
 
     function syncEmptyClass() {
       const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
@@ -688,7 +689,7 @@ window.SidecarCore = (function () {
 
     // `loading` shows a "Searching Nostr…" footer while the global lookup runs,
     // and keeps the dropdown open even when there are no local matches yet.
-    // `askEl` is the one-time Nostr Archives ask standing in for that footer
+    // `askEl` is the one-time name-search ask standing in for that footer
     // while the setting is unset (see the NA block).
     function renderAcResults(items, ctx, loading, askEl) {
       acResults = items;
@@ -735,7 +736,7 @@ window.SidecarCore = (function () {
     // source resolves. `paint()` renders the deduped union + loading state.
     async function updateAcDropdown() {
       const ctx = getCaretContext();
-      if (!ctx || ctx.query.length === 0) { closeAcDropdown(); return; }
+      if (!ctx || ctx.query.length === 0) { reAskDismissed = false; closeAcDropdown(); return; }
       const seq = ++acSeq;
       const q = ctx.query.toLowerCase();
       const willSearchGlobal = ctx.query.length >= 2 && deps.naAvailable();
@@ -744,13 +745,19 @@ window.SidecarCore = (function () {
       let followMatches = matchFollows([]);
       let globals = [];
       let globalPending = false;
-      let askEl = null; // the one-time Nostr Archives ask, while the setting is unset
+      let askEl = null; // the one-time name-search ask, while the setting is unset
+      // After a "no", the ask comes back only when the follows have nothing to offer: the
+      // dropdown would be empty, and an empty one hides that a wider search exists. Held
+      // back until the follows have been read, so it does not flash up before they land.
+      let reAsk = null;
+      let followsReady = false;
       const paint = () => {
         if (seq !== acSeq) return;
         const seen = new Set(followMatches.map((c) => c.pubkey));
         const merged = followMatches.slice();
         for (const g of globals) { if (!seen.has(g.pubkey)) { seen.add(g.pubkey); merged.push(g); } }
-        renderAcResults(merged.slice(0, 8), ctx, globalPending, askEl);
+        const ask = askEl || (reAsk && followsReady && !merged.length && !reAskDismissed ? reAsk : null);
+        renderAcResults(merged.slice(0, 8), ctx, globalPending, ask);
       };
 
       // Follows: use the cache synchronously if present; otherwise load in the
@@ -762,15 +769,15 @@ window.SidecarCore = (function () {
       // names are not in scope here at all, so it would have thrown on the first @ typed in
       // the expanded composer.
       const cached = deps.cachedFollowList();
-      if (cached) followMatches = matchFollows(cached);
+      if (cached) { followMatches = matchFollows(cached); followsReady = true; }
       paint(); // instant feedback: local matches (maybe none)
       if (!cached) {
-        deps.getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); paint(); } });
+        deps.getFollowList().then((list) => { if (seq === acSeq) { followMatches = matchFollows(list); followsReady = true; paint(); } }).catch(() => { if (seq === acSeq) { followsReady = true; paint(); } });
       }
 
       // Global search across all of Nostr so you can tag people you don't
       // follow. Debounced; best-effort — a failure/rate-limit just clears the
-      // spinner and leaves the follow matches. With the Nostr Archives setting
+      // spinner and leaves the follow matches. With the name search setting
       // still unset, the spinner's slot carries the one-time ask instead;
       // answering it re-enters here with the decision written.
       if (!willSearchGlobal) return;
@@ -789,6 +796,12 @@ window.SidecarCore = (function () {
         }, 250);
       } else if (na !== false) {
         askEl = deps.naAskEl((on) => { deps.naDecide(on).then(updateAcDropdown); });
+        paint();
+      } else {
+        reAsk = deps.naAskEl((on) => {
+          if (!on) { reAskDismissed = true; updateAcDropdown(); return; }
+          deps.naDecide(true).then(updateAcDropdown);
+        });
         paint();
       }
     }

@@ -384,12 +384,11 @@
   // keystroke did not exist in the tab unless the account followed it. The ask is
   // not panel UI; it belongs to the decision, and the decision is stored
   // browser-wide, so this page renders the same one-time ask, writes the same
-  // setting, and searches the same index — api.nostrarchives.com, the one
-  // centralized service whose trade (it sees what you type and who you follow,
-  // which the relays never see together) the user is asked about exactly once.
-  const NA_BASE = 'https://api.nostrarchives.com';
+  // setting, and searches through the same relay (name-search.js): the one outside
+  // service whose trade (it sees what you type) the user is asked about exactly once.
+  const NS = window.SidecarNameSearch;
   const isHex64 = (s) => typeof s === 'string' && /^[0-9a-f]{64}$/i.test(s);
-  // Tri-state memo: undefined = never asked, true/false = decided. Read straight
+  // Memo of the settings: the source chosen (or none yet) and a relay typed in. Read straight
   // from storage rather than through call(), so autocomplete keystrokes cannot wake
   // the service worker; after that it is memoized, and storage.onChanged keeps this
   // document current — the one thing the panel's memo cannot do for itself, because
@@ -397,27 +396,42 @@
   // from the one writing this note.
   let naSettingMemo;
   let naSettingLoaded = false;
-  function naSetting() {
+  let naOffer = { source: 'default', hosts: [NS.HOST] }; // what a yes would turn on, from the last plan
+  function naSettings() {
     if (naSettingLoaded) return Promise.resolve(naSettingMemo);
     return new Promise((resolve) =>
       chrome.storage.local.get('sidecar_settings', (r) => {
         naSettingLoaded = true;
-        naSettingMemo = ((r && r.sidecar_settings) || {}).nostrArchives;
+        naSettingMemo = (r && r.sidecar_settings) || {};
         resolve(naSettingMemo);
       }));
   }
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !changes.sidecar_settings) return;
     naSettingLoaded = true;
-    naSettingMemo = (changes.sidecar_settings.newValue || {}).nostrArchives;
+    naSettingMemo = changes.sidecar_settings.newValue || {};
   });
+  async function naPlan() {
+    const pubkey = state && state.activePubkey;
+    const plan = await NS.resolve(await naSettings(), {
+      pool: () => pool(), pubkey, readRelays: () => relayUrls(false),
+    });
+    naOffer = plan.offer;
+    return plan;
+  }
+  // true: a search runs. false: the follows only. undefined: nothing chosen yet, so ask.
+  async function naSetting() {
+    const plan = await naPlan();
+    return plan.mode === 'on' ? true : plan.mode === 'off' ? false : undefined;
+  }
   // Either button on the ask writes the decision. The memo is set first,
   // optimistically: if the write somehow fails, showing the ask again right after
   // a deliberate "Just my follows" would be worse than re-asking next session.
   async function naDecide(on) {
+    const source = on ? naOffer.source : 'follows';
     naSettingLoaded = true;
-    naSettingMemo = on;
-    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { nostrArchives: on } }); } catch (_) {}
+    naSettingMemo = Object.assign({}, naSettingMemo || {}, { [NS.KEY]: source });
+    try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { [NS.KEY]: source } }); } catch (_) {}
   }
   // The ask itself, rendered where the search spinner would sit in the dropdown.
   // mousedown + preventDefault like the result rows: a plain click would blur the
@@ -427,7 +441,9 @@
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.append(h('p', {
       className: 'na-ask-text',
-      textContent: t('Also search every Nostr name? This uses a third-party index (api.nostrarchives.com) that sees what you type and who you follow.'),
+      textContent: naOffer.source === 'account'
+        ? t('Find people beyond your follows? Search will use your search relays ({{hosts}}). Change this in Settings.', { hosts: naOffer.hosts.join(', ') })
+        : t('Find people beyond your follows? Search defaults to {{name}}’s relay. Change this in Settings.', { name: NS.NAME }),
     }));
     const yes = h('button', { className: 'na-ask-yes', type: 'button', textContent: t('Search everyone') });
     const no = h('button', { className: 'na-ask-no', type: 'button', textContent: t('Just my follows') });
@@ -445,25 +461,23 @@
   }
   const naName = (p) => p.display_name || p.preferred_name || p.name || null;
 
-  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure.
+  // Global username search → [{pubkey, name, picture}]. Returns [] on any failure, and
+  // after one backs off for a short while rather than waiting out a timeout per keystroke.
   async function naSuggest(query) {
     if (!query || query.length < 2 || !naAvailable()) return [];
-    if ((await naSetting()) !== true) return [];
+    const plan = await naPlan();
+    if (plan.mode !== 'on') return [];
     try {
-      const resp = await fetch(NA_BASE + '/v1/search/suggest?q=' + encodeURIComponent(query) + '&limit=8', {
-        signal: AbortSignal.timeout(5000),
+      const pubkey = state && state.activePubkey;
+      const { results, failed } = await NS.search(query, {
+        plan, pool: pool(), verify: NT.verifyEvent, pubkey, readRelays: () => relayUrls(false),
       });
-      if (resp.status === 429) { naBackoff(resp.headers.get('retry-after')); return []; }
-      if (!resp.ok) return [];
-      const data = await resp.json();
-      return (data.suggestions || [])
-        .filter((s) => s && isHex64(s.pubkey))
-        .map((s) => {
-          const pk = s.pubkey.toLowerCase();
-          let name = naName(s);
-          if (!name) { try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; } }
-          return { pubkey: pk, name, picture: s.picture || null };
-        });
+      if (failed) naBackoff(30);
+      return results.map((r) => {
+        let name = r.name;
+        if (!name) { try { name = shortNpub(NT.nip19.npubEncode(r.pubkey)); } catch (_) { name = r.pubkey.slice(0, 10) + '…'; } }
+        return { pubkey: r.pubkey, name, picture: r.picture };
+      });
     } catch (_) { return []; }
   }
 
@@ -2013,6 +2027,7 @@
       document.documentElement.classList.remove('compose-booting');
       return;
     }
+    naPlan().catch(() => {}); // reads the account's search relays now, so the first @ does not wait for them
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
     applyTheme(settings, state.activePubkey);
     reduceMotion = !!(settings && settings.reduceBalanceMotion);

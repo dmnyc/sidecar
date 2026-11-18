@@ -218,7 +218,7 @@
         <input id="search-input" type="text" spellcheck="false" autocomplete="off"
                placeholder="npub, note, nevent, naddr, or username" data-i18n-placeholder="npub, note, nevent, naddr, or username" />
         <!-- Scope chip: name search is either your follows (users) or every Nostr
-             name via the Nostr Archives index (globe). Painted by
+             name via the search relay (globe). Painted by
              paintSearchModeIcon; click toggles, with the one-time ask when
              turning global on. -->
         <button id="search-mode" class="icon-btn search-mode" title="" aria-label="Name search scope" data-i18n-aria-label="Name search scope"></button>
@@ -781,14 +781,22 @@
             <h3 data-i18n="Global name search">Global name search</h3>
             <!-- The long version, which does not belong on the panel: your relays only
                  know the names they have seen, so a name search misses most of Nostr
-                 without an index that covers everyone. Asking api.nostrarchives.com means
-                 sending it what you type AND the people you follow, so it can fill in the
-                 names your relays missed — and nothing else Sidecar does reveals those two
-                 things together. That is why it is a switch and why it is offered once,
-                 the first time you search a name, rather than assumed. @mentions resolved
-                 from your own relays work either way. -->
-            <p class="hint" data-i18n="Searches an index that covers everyone. It sees what you type and who you follow." data-i18n-review>Searches an index that covers everyone. It sees what you type and who you follow.</p>
-            <label class="toggle-row"><input type="checkbox" id="na-toggle" /> <span data-i18n="Use the Nostr Archives name index">Use the Nostr Archives name index</span></label>
+                 without a relay that indexes names across all of it. Asking one means
+                 sending it what you type, which no relay of yours would otherwise see
+                 from this box. So whose relay it is is the user's to say: their own
+                 search relays (the list they published for this), the default, one they
+                 type in, or none. A relay they chose needs no warning; the default is
+                 ours, which is why it is offered once. @mentions resolved from your own
+                 relays work either way. The hint line below is written by the page, for
+                 whichever is selected. -->
+            <select id="na-source" aria-label="Global name search" data-i18n-aria-label="Global name search">
+              <option value="follows" data-i18n="Only my follows">Only my follows</option>
+              <option value="account" data-i18n="My search relays">My search relays</option>
+              <option value="default" data-i18n="Brainstorm’s relay">Brainstorm’s relay</option>
+              <option value="custom" data-i18n="A relay I choose">A relay I choose</option>
+            </select>
+            <input type="text" id="na-custom" class="filter-input hidden" spellcheck="false" autocomplete="off" placeholder="wss://" aria-label="Search relay address" data-i18n-aria-label="Search relay address" />
+            <p class="hint" id="na-hint"></p>
           </div>
 
           <div class="setting">
@@ -1261,6 +1269,7 @@
   <script src="replaceable-baseline.js"></script>
   <script src="nip85.js"></script>
   <script src="event-summary.js"></script>
+  <script src="name-search.js"></script>
   <script src="nostr-tools.js"></script>
   <script src="ws-guard.js"></script>
   <script src="nip49.js"></script>
