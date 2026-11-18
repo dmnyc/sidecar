@@ -23438,6 +23438,39 @@
       nudge.classList.remove('hidden');
     }).catch(() => {});
 
+    // PAY ON ANY WEBSITE, offered where a wallet has just been connected. The setting it turns on
+    // ("Show on unconnected sites") was found only by tapping a lightning: link on a site you had not
+    // signed in to, or in Settings, so most people never learned Sidecar does it. One line under the
+    // wallet's buttons, like the backup nudge: Turn on enables it, the x says no for good. Both are
+    // answered here, in the panel, never on a page. An earlier answer (the setting on, or the first
+    // offer answered elsewhere) means it never shows.
+    const anywhereNudge = h('p', { className: 'hint wallet-notice wallet-anywhere-nudge hidden' });
+    const anywhereOn = h('button', { className: 'explore-link', textContent: t('Turn on') });
+    anywhereOn.addEventListener('click', async () => {
+      anywhereOn.disabled = true;
+      try {
+        await call({ type: 'SIDECAR_PAY_ANYWHERE_ANSWER', use: true });
+        const tgl = $('paypill-anywhere-toggle'); if (tgl) tgl.checked = true;
+        toast(t('Paying on any website is on'), 'success');
+        hide(anywhereNudge);
+      } catch (e) {
+        toast(e.message, 'error');
+        anywhereOn.disabled = false;
+      }
+    });
+    const anywhereX = h('button', { className: 'wallet-nudge-x', textContent: '×', title: t('Dismiss') });
+    anywhereX.addEventListener('click', async () => {
+      hide(anywhereNudge);
+      try { await call({ type: 'SIDECAR_SET_SETTINGS', settings: { payAnywhereNudgeDismissed: true } }); } catch (_) {}
+    });
+    anywhereNudge.append(h('span', { textContent: t('Offer to pay invoices on any website?') }), ' ', anywhereOn, anywhereX);
+    view.append(anywhereNudge);
+    call({ type: 'SIDECAR_GET_SETTINGS' }).then((s) => {
+      // payOfferDismissed is "Don't ask again" on the tap offer: an answer, so no asking here either.
+      if (!s || s.payPillAnywhere === true || s.payFirstOfferDone === true || s.payOfferDismissed === true || s.payAnywhereNudgeDismissed === true) return;
+      anywhereNudge.classList.remove('hidden');
+    }).catch(() => {});
+
     // Lightning address card (only if one is available). Shows the copyable
     // address with a QR icon that toggles a scannable QR inline.
     const addrCard = h('div', { className: 'setting address-card hidden' });

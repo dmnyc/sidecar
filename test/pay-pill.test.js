@@ -55,7 +55,18 @@ test('the detector says which invoices were asked for', () => {
   assert.match(fn, /if \(!invoiceExpired\(inv\)\) return \{ invoice: inv, asked: true \}/, 'an invoice beside a QR no longer counts as asked');
   // And the two quiet ones. These are the shapes the bug report was made of.
   assert.match(fn, /if \(passive\) return \{ invoice: passive, asked: false \}/, 'a bare lightning: link is treated as a request');
-  assert.match(fn, /return \{ invoice: copiedInvoice, asked: false \}/, 'a clipboard copy is treated as a request');
+  assert.match(fn, /return \{ invoice: copiedInvoice, asked: qrInOpenDialog\(\) \}/, 'a clipboard copy is quiet unless a QR is up in a dialog');
+});
+
+test('a copy counts as asked only when a QR sits in something the person opened', () => {
+  // The shortened-invoice shape (#620): a pay modal that shows `lnbc50…` beside its QR
+  // never puts the full invoice in the DOM, so the beside-the-QR branch cannot claim
+  // the copy, and the copy is how the invoice leaves the modal. A QR loose on the page
+  // — or none at all — keeps the copy quiet.
+  const fn = stripComments(lift(content, 'function qrInOpenDialog('));
+  assert.match(fn, /querySelectorAll\(QR_SEL\)/, 'the check looks at QR elements');
+  assert.match(fn, /hasDialogIntent\(q\)/, 'a QR loose on the page is not a payment UI');
+  assert.match(fn, /el\.shadowRoot/, 'the QR can sit in a web-component modal');
 });
 
 test('the pill is not a dialog and does not cover the page', () => {
@@ -389,7 +400,11 @@ test('pay intent is not evidence found anywhere on the page', () => {
   const fn = stripComments(lift(content, 'function hasPayIntent('));
   assert.match(fn, /!PAGE_LEVEL\.has\(tag\) && isPanelSized\(node\)/, 'the QR scan can reach the page again');
   assert.match(fn, /hops <= 4 &&/, 'the QR scan searches too far up the tree');
-  assert.match(fn, /isOverlay\(node\)/, 'a modal that sets neither a role nor a recognizable QR is missed');
+  // The dialog signals (wallet tags, dialog roles, overlays) live in hasDialogIntent,
+  // shared with the clipboard branch's QR check.
+  assert.match(fn, /hasDialogIntent\(el\)/, 'pay intent lost the dialog signals');
+  const intent = stripComments(lift(content, 'function hasDialogIntent('));
+  assert.match(intent, /isOverlay\(node\)/, 'a modal that sets neither a role nor a recognizable QR is missed');
   const page = stripComments(content.slice(content.indexOf('const PAGE_LEVEL'), content.indexOf('function isOverlay')));
   for (const tag of ['body', 'html', 'main', 'article', 'section']) {
     assert.ok(page.includes("'" + tag + "'"), tag + ' is no longer treated as page-level');

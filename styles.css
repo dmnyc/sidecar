@@ -741,6 +741,13 @@ input:focus, select:focus, textarea:focus {
   background: none; border: 0; color: var(--faint); font-size: 15px; cursor: pointer;
 }
 .wallet-nudge-x:hover { color: var(--text); }
+/* The pay-anywhere offer: the backup nudge's one line, in the notice's gold, not the warning's. */
+.wallet-anywhere-nudge { position: relative; margin: 2px 0 16px; padding-inline-end: 18px; }
+.wallet-anywhere-nudge .explore-link {
+  display: inline; color: inherit; text-decoration: underline; text-align: start;
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+}
+.wallet-anywhere-nudge .explore-link:hover { color: var(--text); }
 .wallet-notice .explore-link { display: inline; color: inherit; text-decoration: underline; }
 .unlock-forgot { align-self: center; margin-top: 16px; font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; }
 .unlock-forgot:hover { color: var(--lav); text-decoration: underline; }
