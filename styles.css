@@ -5266,6 +5266,11 @@ html:has(#view-approval:not(.hidden)) .toasts {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
 }
 .evpreview:not(.clamped) { max-height: 320px; overflow-y: auto; }
+.evpreview.ev-fields { white-space: normal; }
+.evpreview .ev-field { display: flex; gap: 8px; padding: 1px 0; }
+.evpreview .ev-key { flex: 0 0 auto; max-width: 45%; color: var(--muted); }
+.evpreview .ev-val { flex: 1 1 auto; min-width: 0; text-align: end; font-family: var(--font-mono); font-size: 12px; }
+.evpreview .ev-more { padding-top: 3px; color: var(--muted); }
 /* Labels never break inside themselves; when a language runs long, the row wraps and
    Show more drops to its own line, still on the right. Same rules in prompt.html. */
 .evpreview-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-top: 7px; }
@@ -5285,6 +5290,11 @@ html:has(#view-approval:not(.hidden)) .toasts {
   margin-top: 8px; padding: 8px 10px; border-radius: 8px;
   background: rgba(var(--warn-rgb), 0.1); border: 1px solid rgba(var(--warn-rgb), 0.3);
   color: var(--warn); font-size: 12px; text-align: start;
+}
+/* Information, not caution: an ephemeral event replaces nothing. Quiet, no amber. */
+.kind-warn.kind-note {
+  background: rgba(var(--border-rgb), 0.08); border-color: var(--border);
+  color: var(--muted);
 }
 /* Destructive replaceable overwrite (follow list / mute list / profile fields about to
    be erased). Louder than .kind-warn — that one says "unusual kind", this says "you are

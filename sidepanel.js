@@ -26657,11 +26657,32 @@
   function approvalKindLabel(kind) {
     if (kind == null) return '—';
     const label = approvalKindLabels()[kind];
-    return label ? kind + ' · ' + label : tSec('{{kind}} (unrecognized kind)', { kind });
+    if (label) return kind + ' · ' + label;
+    // Not in the table, but the range still says something: ephemeral, replaceable or
+    // addressable (event-summary.js). The number stays, as it does for every kind.
+    const range = self.SidecarEventSummary.kindRange(kind);
+    if (range === 'ephemeral') return tSec('{{kind}} (ephemeral event)', { kind });
+    if (range === 'replaceable') return tSec('{{kind}} (replaceable event)', { kind });
+    if (range === 'addressable') return tSec('{{kind}} (addressable event)', { kind });
+    return tSec('{{kind}} (unrecognized kind)', { kind });
+  }
+  // Information, not caution: an ephemeral event replaces nothing, so the card says so in
+  // a calm note and not the amber box that means "review before approving".
+  function approvalKindIsNote(kind) {
+    return kind != null && !approvalKindWarnings()[kind] && !approvalKindLabels()[kind]
+      && self.SidecarEventSummary.kindRange(kind) === 'ephemeral';
   }
   function approvalKindWarning(kind) {
     if (kind == null) return null;
-    return approvalKindWarnings()[kind] || (!approvalKindLabels()[kind] ? tSec('Unrecognized event kind. Review carefully before approving.') : null);
+    if (approvalKindWarnings()[kind]) return approvalKindWarnings()[kind];
+    if (approvalKindLabels()[kind]) return null;
+    // Said by what the range does to the account's events, not as a bare "unrecognized".
+    // An ephemeral event is passed on and not kept; the other two replace an earlier one.
+    const range = self.SidecarEventSummary.kindRange(kind);
+    if (range === 'ephemeral') return tSec('Ephemeral: relays pass it on without keeping it. It’s still signed by your key.');
+    if (range === 'replaceable') return tSec('Replaces your last event of this kind. Review carefully before approving.');
+    if (range === 'addressable') return tSec('Replaces your earlier event with the same identifier. Review carefully before approving.');
+    return tSec('Unrecognized event kind. Review carefully before approving.');
   }
   // Kind 10040 rows and the empty-list warning. Duplicated verbatim from prompt.js —
   // same rows on both approval surfaces; see the note there and nip85.js.
@@ -26710,6 +26731,34 @@
     return String(ev.content == null ? '' : ev.content);
   }
 
+  // The Tags row: how many, and which. "3 (p ×2, e)" tells a reader more than "3".
+  function approvalTagsText(tags) {
+    if (!tags.length) return I18N.fmtNum(0);
+    return tSec('{{count}} ({{names}})', { count: I18N.fmtNum(tags.length), names: self.SidecarEventSummary.tagNames(tags) });
+  }
+  // A JSON object in the content, drawn as rows: key on the left, value on the right.
+  // The page wrote both, so they go in as text. Same as in prompt.js.
+  function renderApprovalFields(container, f) {
+    f.rows.forEach(([k, v]) => {
+      const r = document.createElement('div');
+      r.className = 'ev-field';
+      const key = document.createElement('span');
+      key.className = 'ev-key';
+      key.textContent = k;
+      const val = document.createElement('span');
+      val.className = 'ev-val';
+      val.textContent = v;
+      r.append(key, val);
+      container.appendChild(r);
+    });
+    if (f.more > 0) {
+      const more = document.createElement('div');
+      more.className = 'ev-more';
+      more.textContent = tn('+{{count}} more field', '+{{count}} more fields', f.more);
+      container.appendChild(more);
+    }
+  }
+  function approvalNoteLikeKind(kind) { return kind === 1 || kind === 6 || kind === 16; }
   // Event-content preview: short by default (keeps the "Signing as" account card in
   // view), expandable, with a Formatted/Raw toggle for note-like kinds (1, and 6/16
   // reposts). "Formatted" reuses the composer's renderNotePreview so @mentions, media,
@@ -26717,20 +26766,23 @@
   // exact signed content. Other kinds show Raw only.
   function appendEventContent(container, ev) {
     const raw = String(ev.content == null ? '' : ev.content);
-    const noteLike = ev.kind === 1 || ev.kind === 6 || ev.kind === 16;
+    const noteLike = approvalNoteLikeKind(ev.kind);
+    // Other kinds that carry a JSON object open on its fields, not on the braces; Raw and
+    // JSON are one tap away and show exactly what is signed.
+    const parsed = noteLike ? null : self.SidecarEventSummary.fields(raw);
     // Views: Formatted (composer render, note-like only), Raw (the content string),
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
-    const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const modes = noteLike || parsed ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
     const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '');
       view.innerHTML = '';
-      if (mode === 'formatted') renderNotePreview(view, noteTextForEvent(ev));
+      if (mode === 'formatted') { if (parsed) renderApprovalFields(view, parsed); else renderNotePreview(view, noteTextForEvent(ev)); }
       else if (mode === 'json') view.textContent = eventJson();
       else view.textContent = raw;
     };
@@ -26846,14 +26898,16 @@
       const ev = (data.params && (data.params.event || data.params)) || {};
       const unreadable = approvalKindUnreadable(ev);
       box.append(row(tSec('Kind'), unreadable ? tSec('Unreadable') : approvalKindLabel(ev.kind)));
-      if (Array.isArray(ev.tags)) box.append(row(tSec('Tags'), I18N.fmtNum(ev.tags.length)));
+      if (Array.isArray(ev.tags)) box.append(row(tSec('Tags'), approvalTagsText(ev.tags)));
+      const rpc = !unreadable && !approvalNoteLikeKind(ev.kind) ? self.SidecarEventSummary.jsonRpc(ev.content) : null;
+      if (rpc) box.append(row(tSec('Method'), clampApprovalText(rpc.method, 60)));
       if (!unreadable && ev.kind === 10040) {
         approvalTrustProviderRows(ev).forEach(([k, v]) => box.append(row(k, v)));
       }
       const warning = unreadable
         ? approvalUnreadableWarning()
         : ((!data.destructive && approvalTrustEmptyWarning(ev)) || approvalKindWarning(ev.kind));
-      if (warning) box.append(h('div', { className: 'kind-warn', textContent: warning }));
+      if (warning) box.append(h('div', { className: !unreadable && approvalKindIsNote(ev.kind) ? 'kind-warn kind-note' : 'kind-warn', textContent: warning }));
       // Destructive replaceable overwrite (see replaceable-baseline.js) — louder than
       // the kind warning above, because this one is about losing data you already have.
       if (data.destructive && data.destructive.message) {
