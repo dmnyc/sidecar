@@ -446,7 +446,8 @@
 [data-theme="turnstile"] .secondary,
 [data-theme="turnstile"] .lav-btn,
 [data-theme="turnstile"] .danger,
-[data-theme="turnstile"] .relax-chip {
+[data-theme="turnstile"] .relax-chip,
+[data-theme="turnstile"] .reload-banner-btn {
   --enamel: #1F4A3B;
   --enamel-ink: #EFE8D2;
   border: none;

@@ -380,6 +380,7 @@ window.SidecarCore = (function () {
     'cast-iron': 'icons/sidecar-logo-cast-iron.svg',
     'par-avion': 'icons/sidecar-logo-par-avion.svg',
     'industria': 'icons/sidecar-logo-industria.svg',
+    'werkstatte': 'icons/sidecar-logo-werkstatte.svg',
   };
   function logoSrcFor(themeName) {
     if (Object.prototype.hasOwnProperty.call(THEME_LOGOS, themeName)) return THEME_LOGOS[themeName];

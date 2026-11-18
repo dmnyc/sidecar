@@ -28,6 +28,8 @@ DYES = {
     'par-avion':  ('#FFFFFF', '#E8E8EA', '#C0272D', '#A02C2E', '#1B4C8C'),
     # Ink brown wordmark over a brass glass.
     'industria':  ('#FFFFFF', '#E8E8EA', '#A67C1E', '#7A5A18', '#6B4E1C'),
+    # Black, white and one metal: an ink wordmark over a leaf-gold glass, as the theme is drawn.
+    'werkstatte': ('#FFFFFF', '#E8E8EA', '#A08018', '#7C6212', '#15171C'),
 }
 
 # What the stock logo paints each part with.

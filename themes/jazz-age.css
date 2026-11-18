@@ -259,7 +259,8 @@
 [data-theme="jazz-age"] .primary,
 [data-theme="jazz-age"] .secondary,
 [data-theme="jazz-age"] .lav-btn,
-[data-theme="jazz-age"] .danger {
+[data-theme="jazz-age"] .danger,
+[data-theme="jazz-age"] .reload-banner-btn {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 0.04em;
