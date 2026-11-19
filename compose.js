@@ -1953,7 +1953,7 @@
         paintCount();
         renderThumbs();
       } catch (e) {
-        err.textContent = e.message;
+        err.replaceChildren(...SC.uploadErrorParts(e));
         toast(e.message, 'error');
       }
       addBtn.disabled = false;

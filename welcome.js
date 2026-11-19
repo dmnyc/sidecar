@@ -375,6 +375,9 @@ function apps() {
     domain: 'nostr.build',
     cat: 'media',
     desc: t('Privacy-focused media hosting: upload images and video, with metadata stripped automatically.'),
+    // A second link on the card, to the plans through a referral link that credits Sidecar's creator, and labeled so.
+    // The same address as NB_PLANS_URL in composer-core.js and the link in help.html.
+    extra: { url: 'https://getnb.me/4851-DF1E-A47B', label: t('Plans (referral link)') },
   },
   {
     name: 'Ghostr',
@@ -570,11 +573,16 @@ function faviconUrl(domain) {
 }
 
 function renderCard(app, labels) {
-  const a = document.createElement('a');
-  a.className = 'card';
-  a.href = app.url;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
+  // A card is one link, unless it carries a second one: a link cannot hold another link, so
+  // that card is a box whose Open link is stretched over the whole of it (welcome.css), with
+  // the second link raised above that.
+  const a = document.createElement(app.extra ? 'div' : 'a');
+  a.className = app.extra ? 'card has-extra' : 'card';
+  if (!app.extra) {
+    a.href = app.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  }
   a.dataset.cat = app.cat;
   // What a typed word is looked for in: the name, the address, the description and the category.
   a.dataset.search = [app.name, app.domain, app.desc, labels[app.cat]].join(' ').toLowerCase();
@@ -632,7 +640,23 @@ function renderCard(app, labels) {
 
   const cta = document.createElement('div');
   cta.className = 'card-cta';
-  cta.textContent = t('Open →');
+  if (app.extra) {
+    const open = document.createElement('a');
+    open.className = 'card-open';
+    open.href = app.url;
+    open.target = '_blank';
+    open.rel = 'noopener noreferrer';
+    open.textContent = t('Open →');
+    const extra = document.createElement('a');
+    extra.className = 'card-extra';
+    extra.href = app.extra.url;
+    extra.target = '_blank';
+    extra.rel = 'noopener noreferrer';
+    extra.textContent = app.extra.label;
+    cta.append(open, extra);
+  } else {
+    cta.textContent = t('Open →');
+  }
 
   a.appendChild(top);
   a.appendChild(badge);
