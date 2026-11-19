@@ -605,15 +605,29 @@
     else delete all[dkey];
     await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
   }
+  // SAVED, SAID. The draft is written about 0.4s after typing stops, and nothing on screen used
+  // to say so. "Saved" appears after a write lands and stays while typing goes on (the next
+  // write is a moment away), so it never flickers; a write that fails says so instead, which
+  // is the case that matters: the text then exists only in this window.
+  let savedState = '';
+  // Paints the outcome of a save and swallows its failure, as the callers always did.
+  function noteSaved(p) {
+    return p.then(() => paintSaved(SC.draftHasContent(draft) ? 'saved' : ''), () => paintSaved('failed'));
+  }
+  function paintSaved(next) {
+    if (next === savedState) return;
+    savedState = next;
+    SC.paintSavedState($('compose-saved'), next, !!(state && state.locked));
+  }
   function scheduleSave() {
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { persistDraft().catch(() => {}); }, 400);
+    saveTimer = setTimeout(() => { noteSaved(persistDraft()); }, 400);
   }
   // Write now rather than at the end of the debounce, and drop the pending one so the two
   // cannot race to put different text in the same slot.
   function flushDraft() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    return persistDraft().catch(() => {});
+    return noteSaved(persistDraft());
   }
 
   // ---- the store is locked, and this page can do nothing about it ----

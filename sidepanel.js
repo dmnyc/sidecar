@@ -15312,10 +15312,22 @@
     }
     let enteredEditor = false;
 
+    // Saved, said: the same indicator as the full-size composer's, at the far end of the
+    // Write / Preview row (the slot the expand icon left). It is rebuilt with the editor.
+    let savedEl = null;
+    let savedState = '';
+    function paintSaved(next) {
+      if (next === savedState || !savedEl) return;
+      savedState = next;
+      window.SidecarCore.paintSavedState(savedEl, next, false);
+    }
     function persistDraft() { return saveComposeDraft(dkey, draft); }
     function scheduleSave() {
       if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(persistDraft, 400);
+      saveTimer = setTimeout(() => {
+        const has = window.SidecarCore.draftHasContent(draft);
+        persistDraft().then(() => paintSaved(has ? 'saved' : ''), () => paintSaved('failed'));
+      }, 400);
     }
     // Write now, and drop the pending one so the two cannot race to the same slot.
     function flushDraftNow() {
@@ -15820,6 +15832,17 @@
       const tabWrite = h('button', { className: 'compose-tab active', textContent: t('Write') });
       const tabPreview = h('button', { className: 'compose-tab', textContent: t('Preview') });
       const tabBar = h('div', { className: 'compose-tabs' }, [tabWrite, tabPreview]);
+      // The character count, as in the full-size composer: a quiet line of its own just above
+      // Post, because 300px has no room for it beside the button. Empty until there is text.
+      const countEl = h('div', { className: 'compose-count compose-count-line' });
+      const paintCount = () => {
+        const n = (draft.text || '').trim().length;
+        countEl.textContent = n ? tn('{{count}} character', '{{count}} characters', n) : '';
+      };
+      savedEl = h('span', { className: 'compose-saved', role: 'status' });
+      savedEl.setAttribute('aria-live', 'polite');
+      savedState = '';
+      tabBar.append(savedEl);
 
       // Rich text box with @mention autocomplete, shared with the page-comment
       // modal. Edits flow back through onChange into the draft + Post button.
@@ -15829,6 +15852,7 @@
         placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
         onChange: (text) => {
           draft.text = text;
+          paintCount();
           // The quote offer appears only while the post ends on a quoted note.
           syncDrawer();
           // An edit makes it a different note, so the repeat question no longer applies.
@@ -16492,10 +16516,12 @@
         gifPicker.wrap,
         emojiPicker.wrap,
         pollWrap,
+        countEl,
         err,
         h('div', { className: 'actions' }, [post, cancel])
       );
       paintPoll();
+      paintCount();
       updatePostState();
       editor.focus();
     }

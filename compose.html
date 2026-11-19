@@ -83,6 +83,9 @@
       <div class="compose-tabs" id="compose-tabs">
         <button type="button" class="compose-tab active" id="tab-write" data-i18n="Write">Write</button>
         <button type="button" class="compose-tab" id="tab-preview" data-i18n="Preview">Preview</button>
+        <!-- Whether the draft is safely written on this device, at the row's far end as in the
+             panel. Announced only when it changes. -->
+        <span class="compose-saved" id="compose-saved" role="status" aria-live="polite"></span>
       </div>
 
       <div id="compose-slot"></div>

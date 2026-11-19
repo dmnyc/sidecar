@@ -3709,6 +3709,17 @@ html.compose-booting .compose-brand { visibility: hidden; }
      something in. */
   margin-inline-end: auto;
 }
+/* Saved / Not saved, with a check or a warning, at the far end of the Write / Preview row in
+   both composers (the slot the expand icon left in the panel). */
+.compose-saved {
+  display: inline-flex; align-items: center; gap: 5px; align-self: center;
+  margin-inline: auto 2px; font-size: 12px; color: var(--muted); white-space: nowrap;
+}
+.compose-saved svg { width: 13px; height: 13px; flex-shrink: 0; }
+.compose-saved.is-failed { color: var(--warn); }
+/* The panel's count, on a line of its own above Post. */
+.compose-count-line { margin: 4px 0 0; text-align: start; }
+.compose-count-line:empty { display: none; }
 /* THE POINT OF THE PAGE. 17px over the panel's 14, with the line height to match: the
    panel's type is sized for a 360px column and reads as cramped the moment it is not in
    one. Nothing else about the editor changes. */

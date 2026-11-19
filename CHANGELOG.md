@@ -13,6 +13,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Added
 - **nostr.build plans, through a referral link that credits Sidecar’s creator.** The help guide gains a “Photos and video” section, the nostr.build card in the app directory links its plans, and an upload nostr.build turns away for being over its free limit says so and links the plans. Each link is labeled as a referral link.
+- **The composer says when your draft is saved.** A check and “Saved” appear at the end of the Write and Preview row in the panel and the full-size composer once the draft is written on this device. A write that fails shows a warning and “Not saved” instead, so text that exists only in the window is never mistaken for saved. The panel composer also shows a character count above Post, as the full-size composer does.
 
 ### Fixed
 - **The “Find people beyond your follows?” question sits inside the full-size composer’s field.** It ran along the field’s edges; it now lines up with your text.
