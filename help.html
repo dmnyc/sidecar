@@ -55,6 +55,7 @@
         <a href="#erasing">Erasing data</a>
         <a href="#notifications">Notifications</a>
         <a href="#library">Your library</a>
+        <a href="#drafts">Drafts</a>
         <a href="#finding-people">Finding people</a>
         <a href="#relays">Your relays</a>
         <a href="#status">Your status</a>
@@ -109,9 +110,25 @@
       <!-- screenshot: the approval prompt, a site asking to sign an event -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/approval-prompt.webp" width="720" height="886" alt="Sidecar's approval prompt: notes.example wants to sign a note, signing as Amelia, in an account card with a chevron for picking another, above the note's kind, tags and text">
+          <img src="screenshots/approval-prompt.webp" width="692" height="1240" alt="Sidecar's approval prompt: notes.example wants to sign a note, signing as Amelia, in an account card with a chevron for picking another, above the note's kind, tags and text, with Sign and Reject beneath">
         </div>
         <figcaption>A site asking for a signature. You decide, every time, until you tell it to stop asking.</figcaption>
+      </figure>
+
+      <h3>Text Sidecar names instead of shows</h3>
+      <p>Some content is a secret, or was never made to be read: a wallet connection, a remote
+      signer link, a private key, ciphertext. A card says what it is in a sentence, and the
+      text itself stays behind <em>Show details</em>, so a connection&rsquo;s secret is never
+      printed on a card. Readable text is shown as it was written. A kind with no name of its
+      own says what its range means (ephemeral, replaceable or addressable), and JSON content
+      opens as readable fields.</p>
+
+      <!-- screenshot: an approval card that names sealed text in a sentence -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/sealed-card.webp" width="704" height="1238" alt="An approval card for an encrypt request from notes.example, signing as Amelia: a Seal to yourself block says a wallet connection through relay.example.com, with a Show details link, above Allow once, Trust this site and Reject">
+        </div>
+        <figcaption>A wallet connection named in a sentence, with its text one tap away.</figcaption>
       </figure>
     </section>
 
@@ -133,6 +150,12 @@
         </div>
         <figcaption>Your accounts on the Accounts tab. The checkmark marks the active one; click another to switch, or add more.</figcaption>
       </figure>
+
+      <p>An account with no profile picture or banner can add one from the Profile tab: the
+      empty banner and the default avatar are the upload buttons. A picked file uploads and
+      the profile is published on the spot, each image merged into what you already have.
+      Publishing a profile edit does not ask for your PIN again, since the key is already
+      unlocked to be on that screen.</p>
     </section>
 
     <!-- ===== Backing up your keys ===== -->
@@ -270,7 +293,7 @@
           <!-- screenshot: Sidecar's Reload client window offer after switching, for a single-user client -->
           <figure class="shot shot-sm">
             <div class="shot-frame">
-              <img src="screenshots/single-user-switch.webp" width="716" height="320" alt="The top of the Sidecar panel right after switching to Gatsby: under the tabs, a Reload client window button to re-pair the open single-user client, with an × to dismiss it">
+              <img src="screenshots/single-user-switch.webp" width="720" height="320" alt="The top of the Sidecar panel right after switching to Gatsby: under the tabs, a Reload client window button to re-pair the open single-user client, with an × to dismiss it">
             </div>
             <figcaption>Switch in Sidecar, then click <strong>Reload client window</strong> to re-pair the open app.</figcaption>
           </figure>
@@ -289,6 +312,16 @@
           Sidecar first, then use the client's "add account" option and choose the
           browser extension method. Once each account is added and approved, you can
           hop between them using the client's own switcher.</p>
+          <p>On a site where two of your accounts are signed in, the sheet behind
+          <em>Manage</em> in Connected sites lists each account with its own permission level.
+          Changing one never changes Sidecar&rsquo;s active account.</p>
+          <!-- screenshot: the shared-site sheet, one block per account -->
+          <figure class="shot shot-sm">
+            <div class="shot-frame">
+              <img src="screenshots/shared-site-sheet.webp" width="672" height="962" alt="The shared-site sheet for social.example: Amelia and Gatsby, each with a trash can and a permission level set to Ask every time, then a Don't ask which account switch and Close">
+            </div>
+            <figcaption>The sheet behind <em>Manage</em>: one level for each account.</figcaption>
+          </figure>
           <p><strong>A safety net.</strong> Because these clients can show one account
           while signing as another, Sidecar watches for the mismatch: once a site has
           signed in with more than one of your accounts, every post asks you to confirm
@@ -340,12 +373,12 @@
       30 min</em>. Press it, and Sidecar signs that site's requests for that account without
       asking again until the half hour is up.</p>
 
-      <!-- screenshot: the scope row on an approval prompt, 30 min chosen -->
+      <!-- screenshot: the 30-minute offer on an approval card -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/relax-chips.webp" width="720" height="518" alt="The foot of an approval prompt: the line 'Signs here without asking for 30 minutes.' above a row of Once, 30 min and Always with 30 min chosen, then Sign for 30 min, Trust this site, and Reject">
+          <img src="screenshots/relax-offer.webp" width="692" height="596" alt="The foot of an approval card on a site where two accounts are signed in: a line saying social.example has been signed 3 times in a row and offering to keep signing as Gatsby for 30 minutes, Sign for 30 min and Not now buttons, then Sign and Reject">
         </div>
-        <figcaption>Choosing half an hour instead of approving one event at a time.</figcaption>
+        <figcaption>The offer to stop asking for half an hour, after the third of a kind.</figcaption>
       </figure>
 
       <p>While a window is open, a status bar sits at the bottom of the panel with the
@@ -426,6 +459,14 @@
       is posting is the reason the card is there; there the offer is the 30-minute window
       instead.</p>
 
+      <!-- screenshot: the Always sign offer on an approval card -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/always-offer.webp" width="692" height="614" alt="The foot of an approval card for a reaction: a line saying notes.example has been signed 3 times in a row, Always sign and Not now buttons, then Sign and Reject">
+        </div>
+        <figcaption>After a third reaction from the same site, the card offers to remember.</figcaption>
+      </figure>
+
       <p>To see what you've granted, open the <strong>Activity</strong> tab: each site's
       row lists what it signs without asking, with an ✕ to revoke. Revoking puts the site
       straight back to asking.</p>
@@ -451,7 +492,7 @@
       <!-- screenshot: the destructive-overwrite warning on an approval prompt -->
       <figure class="shot">
         <div class="shot-frame">
-          <img src="screenshots/destructive-warning.webp" width="720" height="1034" alt="A Sidecar approval prompt: client.example wants to sign a kind 3 follow list with 0 tags as Gatsby. A red-ruled warning reads 'This action erases data: Removes all 40 accounts Gatsby follows', followed by a prominent DON'T ALLOW button and a quieter I understand button">
+          <img src="screenshots/destructive-warning.webp" width="704" height="1432" alt="A Sidecar approval prompt: client.example wants to sign a kind 3 follow list with 0 tags as Gatsby. A red-ruled warning reads 'This action erases data: Removes all 40 accounts Gatsby follows', followed by a prominent DON'T ALLOW button and a quieter I understand button">
         </div>
         <figcaption>The prompt names what would be lost, and won't let you approve it by reflex.</figcaption>
       </figure>
@@ -599,6 +640,39 @@
       your relays for older ones, so nothing you saved is out of reach.</p>
     </section>
 
+    <!-- ===== Drafts ===== -->
+    <section class="guide-section" id="drafts">
+      <h2>Drafts</h2>
+      <p>What you are writing is saved on this device as you go, for each account. Close the
+      composer and Sidecar offers the note back the next time you open it. <strong>Saved
+      drafts</strong> in the composer lists every one, and when the account has any, the
+      compose menu gains <em>Open saved drafts</em>, which goes straight to the list, in the
+      panel or in the full-size composer tab. Opening a draft sets your note in progress
+      aside in that list instead of writing over it.</p>
+
+      <h3>Keeping a draft on your relays</h3>
+      <p>The cloud on a draft saves it to your private relays as an encrypted draft (NIP-37),
+      sealed to your own key. A relay holds ciphertext and nothing readable, and any client
+      that follows NIP-37 can open it. If you have no private relay list yet, Sidecar says so
+      and offers to build one from your write relays. Nothing is sent until you tap, and
+      autosave stays on this device. Deleting a draft that has a relay copy, or posting it,
+      blanks the relay copy, which is how NIP-37 marks a draft as deleted.</p>
+
+      <h3>Drafts other clients left</h3>
+      <p><strong>Check your relays</strong> lists the drafts other clients saved there, newest
+      first and ten at a time. Notes, replies and web-comment replies are listed; drafts of
+      other kinds are counted, and hovering the count names the kinds. A relay that asks you
+      to sign in is answered with your account&rsquo;s key.</p>
+
+      <!-- screenshot: Saved drafts with a draft on this device and one from the relays -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/saved-drafts.webp" width="720" height="1160" alt="Saved drafts: a note open now and a second note on this device, each with a cloud and a trash can, and an On your relays list with two drafts another client left, above Check again and Back to your draft">
+        </div>
+        <figcaption>Drafts on this device, and the ones your relays are holding.</figcaption>
+      </figure>
+    </section>
+
     <!-- ===== Finding people ===== -->
     <section class="guide-section" id="finding-people">
       <h2>Finding people</h2>
@@ -627,6 +701,14 @@
       <p>The icon beside the search box switches between your follows only (people) and names
       beyond them (globe). If you chose follows only and a search finds nothing, the question
       comes back in the results so you can change your mind there.</p>
+
+      <!-- screenshot: Settings, Global name search with Brainstorm chosen -->
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/name-search.webp" width="720" height="265" alt="Settings, Global name search: a dropdown set to Brainstorm’s relay, with the line Searches Brainstorm’s relay, which sees what you type">
+        </div>
+        <figcaption>Choosing where names beyond your follows are looked up.</figcaption>
+      </figure>
 
       <p class="fine-note">Brainstorm ranks people through a web of trust, so it finds accounts
       others have scored. A brand-new account may not show up until it has followers. If it
@@ -760,7 +842,9 @@
       <strong>Connected Sites</strong>. When a page shows a Lightning invoice, Sidecar
       can put a <em>Pay with Sidecar</em> button over it: Settings → <em>Pay button on web
       pages</em> turns it on for Nostr sites and, separately, for sites you haven't
-      connected.</p>
+      connected. When a wallet is first connected, the wallet screen also asks in one line
+      whether to offer to pay invoices on any website: <em>Turn on</em> enables the second
+      setting, and the &times; says no for good.</p>
       <p class="fine-note">Additional features: a <em>Withdraw</em> tab on Receive cashes
       LNURL-withdraw links, and you can pay users who include a CLINK offer in their
       profile. These are recorded as profile zaps.</p>
@@ -918,6 +1002,17 @@
          linked below. -->
     <section class="guide-section" id="whats-new">
       <h2>What's new</h2>
+      <p class="whatsnew-version">Version 1.18.0</p>
+      <ul class="whatsnew-list">
+        <li><strong>Drafts on your relays.</strong> Save a draft to your private relays, encrypted to your own key, and open drafts other clients left there. Saved drafts has a new “On your relays” section, and the compose menu gains “Open saved drafts.”</li>
+        <li><strong>Find people beyond your follows on a search relay you choose.</strong> Pick the source under Settings, or keep Brainstorm’s relay as the default.</li>
+        <li><strong>The approval card asks one question.</strong> Sign cards are Sign and Reject. After three of the same kind from the same site, the card offers Always sign, and a shared site offers a 30-minute window instead.</li>
+        <li><strong>A reaction’s emoji is drawn large on the approval card,</strong> so you can see what you are about to react with.</li>
+        <li><strong>Cards say what sealed text is.</strong> A wallet connection or a private key is named in a sentence, and the text stays behind Show details.</li>
+        <li><strong>Add a profile picture or banner from the Profile screen,</strong> and publishing a profile edit no longer asks for the PIN again.</li>
+        <li><strong>Pay on any website, one tap from the wallet screen.</strong> The Request to pay card also now appears for a modal that shows only a shortened invoice beside its QR.</li>
+        <li><strong>Six themes wear their own logo,</strong> the reload offer is drawn in each theme’s own buttons, and each account’s permission level can be set from the shared-site sheet.</li>
+      </ul>
       <p class="whatsnew-version">Version 1.17.2</p>
       <ul class="whatsnew-list">
         <li><strong>Add a client of your own.</strong> Paste a note link and a profile link from any Nostr client under Settings → Apps &amp; browsing, and Sidecar works out how that client builds its links.</li>

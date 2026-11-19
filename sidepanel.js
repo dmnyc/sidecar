@@ -313,6 +313,11 @@
     // list did not already have.
     { text: 'Whatever our souls are made of, his and mine are the same.', who: 'Emily Brontë, 1847' },
     { text: 'It is difficult for a woman to define her feelings in language which is chiefly made by men to express theirs.', who: 'Thomas Hardy, 1874' },
+    // 1.18.0. Checked against the Standard Ebooks texts (Project Gutenberg was down): Three Men
+    // in a Boat (1889), chapter 15; and The Call of the Wild (1903), chapter 3. Both are writers
+    // the list did not already have.
+    { text: 'I like work: it fascinates me. I can sit and look at it for hours.', who: 'Jerome K. Jerome, 1889' },
+    { text: 'There is an ecstasy that marks the summit of life, and beyond which life cannot rise.', who: 'Jack London, 1903' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
@@ -27082,6 +27087,20 @@
   // reposts). "Formatted" reuses the composer's renderNotePreview so @mentions, media,
   // and note/nevent/naddr embeds render as a client would show them; "Raw" is the
   // exact signed content. Other kinds show Raw only.
+  // The emoji of a reaction, large and centered. The glyph is the page's own text, so it goes in
+  // with textContent; only the note under a like or a dislike is ours, and it is translated.
+  function renderReaction(view, r) {
+    const g = document.createElement('div');
+    g.className = 'ev-reaction-glyph' + (r.big ? '' : ' is-text');
+    g.textContent = r.glyph;
+    view.appendChild(g);
+    if (r.note) {
+      const n = document.createElement('div');
+      n.className = 'ev-reaction-note';
+      n.textContent = r.note === 'like' ? t('Like') : t('Dislike');
+      view.appendChild(n);
+    }
+  }
   function appendEventContent(container, ev) {
     const raw = String(ev.content == null ? '' : ev.content);
     const noteLike = approvalNoteLikeKind(ev.kind);
@@ -27090,19 +27109,21 @@
     const parsed = noteLike ? null : self.SidecarEventSummary.fields(raw);
     // Ciphertext, an encoded blob, a wallet connection: said in a sentence, the string one tap away.
     const said = noteLike || parsed ? '' : sealedDescription(raw);
+    // A reaction is its emoji: drawn large, with Raw and JSON one tap away.
+    const react = noteLike || parsed || said ? null : self.SidecarEventSummary.reaction(ev);
     // Views: Formatted (composer render, note-like only), Raw (the content string),
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
-    const modes = noteLike || parsed || said ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const modes = noteLike || parsed || said || react ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
     const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '') + (mode === 'formatted' && said ? ' ev-summary' : '');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '') + (mode === 'formatted' && said ? ' ev-summary' : '') + (mode === 'formatted' && react ? ' ev-reaction' : '');
       view.innerHTML = '';
-      if (mode === 'formatted') { if (parsed) renderApprovalFields(view, parsed); else if (said) view.textContent = said; else renderNotePreview(view, noteTextForEvent(ev)); }
+      if (mode === 'formatted') { if (parsed) renderApprovalFields(view, parsed); else if (said) view.textContent = said; else if (react) renderReaction(view, react); else renderNotePreview(view, noteTextForEvent(ev)); }
       else if (mode === 'json') view.textContent = eventJson();
       else view.textContent = raw;
     };

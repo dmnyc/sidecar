@@ -9,6 +9,36 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [1.18.0] — 2026-11-18
+
+### Added
+- **Drafts can live on your relays, and a draft another client left there can be opened.** The cloud on a draft in Saved drafts saves it to your private relays as an encrypted NIP-37 draft (kind 31234, sealed to your own key), so a relay holds ciphertext and nothing readable. If you have no private relay list, Sidecar says so and offers one built from your write relays, publishing a relay list first if you have none. “Check your relays” lists what other clients saved there, newest first and ten at a time. Opening one sets your note in progress aside in Saved drafts instead of writing over it, and deleting a draft, or posting one that has a relay copy, blanks the relay copy. Nothing is read or sent until you tap, and a relay that asks you to sign in is answered with your account’s key. Notes, replies and web-comment replies are listed; drafts of other kinds are counted, and hovering the count names the kinds.
+- **“Open saved drafts” on the compose menu,** shown when the account has drafts. It goes straight to the list, in the panel or, when the full-size composer is your default, in its tab.
+- **Name search beyond your follows runs on a search relay you choose.** A selector under Settings picks the source: only your follows, your own search relays, Brainstorm’s relay, or one you enter. An account that has published search relays (kind 10007) uses them without asking; otherwise Sidecar asks once and offers Brainstorm’s relay, ranked by trust, as the default. A relay you chose is never swapped for another, a search carries only the text typed, and every result is a signed profile that is dropped unless its signature verifies. Brainstorm only returns accounts it has scored, so a brand-new account may not appear until it has followers. If your follows have no match and the setting is off, the ask comes back in the results. A saved “no” carries over.
+- **A missing profile picture or banner can be added from the Profile screen.** With none set, the empty banner and the default avatar are the upload buttons: a picked file uploads and the profile is republished on the spot, each image merged into what you already have. Once an image is set, changing it stays in the edit sheet. Only one upload runs at a time, and switching accounts while one is uploading publishes nothing.
+- **Each account’s permission level in the shared-site sheet.** On a site where two of your accounts are signed in, the sheet behind Manage lists each account with its own level under its name. Changing a level never changes Sidecar’s active account.
+- **The wallet screen offers to pay invoices on any website.** One line under Send and Receive turns on Show on unconnected sites, or its × says no for good. It stays away once the setting is on or the question was answered anywhere else, including “Don’t ask again” on a tapped link.
+
+### Changed
+- **The approval card asks one question.** Sign cards show the preview with Sign and Reject, and the Trust this site button is gone from them. After a site has asked the same account for the same kind three times in a session, the next card offers Always sign or Not now. From the second ask a quiet line offers a 30-minute window early. On a site where two of your accounts are signed in the offer is Sign for 30 min and never Always sign, and picking an account on that card names the signer for that one signature without moving the active account or the site’s pin. Forget site and Forget all sites now clear the count.
+- **A reaction’s emoji is drawn large on the approval card,** in the panel and the popup, so it is easy to see what you are about to react with. A plain like (+) shows a heart and a dislike (-) a thumbs-down, each with a small label, and a reaction to a web page is drawn the same way. Other text, and a custom emoji shortcode such as :shakingeyes:, stays small and is shown as written, and no image is fetched for it. Raw still shows the exact content that is signed.
+- **Cards say what sealed and encoded text is.** A wallet connection, a remote signer link, a private key, a link, JSON, a list, ciphertext or an encoded blob is named in a sentence, and the text itself stays behind “Show details”, so a connection’s secret is never printed on a card. This covers the Sealing and Sealed content lines, the rows of a batch and the content of a sign card, in both the panel and the popup. Readable text is still shown as written.
+- **An unrecognized event kind says what its range means, and its content opens as fields.** A kind with no name of its own is labeled ephemeral, replaceable or addressable, with a calm note for ephemeral since it replaces nothing. Tags are named, a JSON-RPC message shows its method on its own row, and JSON content opens on readable rows, with Raw and JSON one tap away.
+- **Publishing a profile edit no longer asks for the PIN again.** The key is already unlocked to be on that screen. The overwrite check still refuses a wipe, and the PIN stays for revealing a key, exporting accounts and the wallet connection string.
+- **Film Noir, Brownstone, Cast Iron, Par Avion, Industria and Werkstätte wear the logo in their own inks,** as Phantom Bouquet did in 1.17, in the panel, the pay card and the approval window.
+- **The “Reload client window” offer is drawn in each theme’s own buttons.** In Departures it takes Send’s flap corners, lettering and drop, and so do its × and the Grant button on the connected-site banner. Ben Day, Turnstile and Jazz Age give it the lettering their Send buttons wear, and Turnstile its enamel sign.
+
+### Fixed
+- **The “Request to pay” card now appears for a modal that shows only a shortened invoice beside its QR.** The full invoice lives in the QR and behind a Copy button, so nothing on the page read as one. A copy made while a QR is open inside a dialog now counts as asked for. A copy with no such QR on screen stays a pill.
+
+### Removed
+- **Nostr Archives is no longer offered in the app directory.** Name search no longer depends on it.
+
+### Documentation
+- **The invoice lab gives each case a new invoice, shows one case at a time, and covers the shortened-invoice modal.**
+- **Help gains a “Finding people” section** for name search.
+- **Help gains a “Drafts” section, and its screenshots are brought up to date.** The approval card, the 30-minute offer, the erase warning and the reload offer are retaken for 1.18, and new ones cover the Always sign offer, sealed text, Saved drafts with drafts on your relays, the shared-site sheet and the name-search setting. The README names Brainstorm and lists NIP-37 and NIP-50.
+
 ## [1.17.2] — 2026-11-15
 
 ### Added

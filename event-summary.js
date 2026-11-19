@@ -10,6 +10,8 @@
 //   fields(content)    a JSON object in the content as rows, so the card opens on rows
 //                      and not on a block of braces
 //   tagNames(tags)     the tag names, counted: "p ×2, e"
+//   reaction(ev)       what a reaction (kind 7, or 17 for a web page) says, so the card can show
+//                      the emoji where it can be seen and not as a character in small type
 //
 // Nothing here is translated and nothing is drawn. Keys and values come from the page, so
 // a surface draws them with textContent and passes them to a template as parameters.
@@ -100,7 +102,22 @@
     return parts.length > 6 ? parts.slice(0, 6).join(', ') + ', …' : parts.join(', ');
   }
 
-  const api = { kindRange, jsonRpc, fields, tagNames, MAX_ROWS };
+  // A reaction's content is its emoji (NIP-25). '+' (or nothing) is the old like and '-' the old
+  // dislike, drawn the way Sidecar draws them in notifications, with `note` saying so, since the
+  // heart is not what is signed. Anything else is the page's own text and is passed through as it
+  // is, cut to 64 characters: a custom emoji's :shortcode: stays a shortcode, because the picture
+  // would have to be fetched from an address the page chose, and the card is no place for that.
+  // `big` says the content is a short run of emoji, which is the only thing worth drawing large.
+  function reaction(ev) {
+    if (!ev || (ev.kind !== 7 && ev.kind !== 17)) return null;
+    const c = String(ev.content == null ? '' : ev.content).trim();
+    if (c === '' || c === '+') return { glyph: '\u2764\uFE0F', note: 'like', big: true };
+    if (c === '-') return { glyph: '\uD83D\uDC4E', note: 'dislike', big: true };
+    const glyph = c.slice(0, 64);
+    return { glyph, note: '', big: /\p{Extended_Pictographic}/u.test(glyph) && Array.from(glyph).length <= 8 };
+  }
+
+  const api = { kindRange, jsonRpc, fields, tagNames, reaction, MAX_ROWS };
   if (typeof self !== 'undefined') self.SidecarEventSummary = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarEventSummary = api;
 })();
