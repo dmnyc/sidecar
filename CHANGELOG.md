@@ -14,6 +14,9 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Added
 - **nostr.build plans, through a referral link that credits Sidecar’s creator.** The help guide gains a “Photos and video” section, the nostr.build card in the app directory links its plans, and an upload nostr.build turns away for being over its free limit says so and links the plans. Each link is labeled as a referral link.
 
+### Fixed
+- **The “Find people beyond your follows?” question sits inside the full-size composer’s field.** It ran along the field’s edges; it now lines up with your text.
+
 ## [1.18.0] — 2026-11-19
 
 ### Added

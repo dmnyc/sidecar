@@ -3721,6 +3721,10 @@ html.compose-booting .compose-brand { visibility: hidden; }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-editor-lg:focus { border-color: var(--gold-soft); }
+/* The mention dropdown, and the name-search ask inside it, sit in from the field's border by
+   its padding, so they line up with the text instead of running along the field's edges.
+   The panel's field has no border of its own, so there the full width is right. */
+.compose-editor-lg ~ .ac-dropdown { inset-inline: 18px; }
 /* A box that cannot be typed into should not invite it. Mining holds the editor for as
    long as a minute at 22 bits, and a caret blinking in a field whose contents are already
    spent is the worst kind of lie a composer can tell. */
