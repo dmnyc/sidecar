@@ -378,6 +378,20 @@
   // view), expandable, with a Formatted/Raw toggle for note-like kinds (1, and 6/16
   // reposts). "Formatted" is the lightweight render above; "Raw" is the exact signed
   // content. Other kinds show Raw only.
+  // The emoji of a reaction, large and centered. The glyph is the page's own text, so it goes in
+  // with textContent; only the note under a like or a dislike is ours, and it is translated.
+  function renderReaction(view, r) {
+    const g = document.createElement('div');
+    g.className = 'ev-reaction-glyph' + (r.big ? '' : ' is-text');
+    g.textContent = r.glyph;
+    view.appendChild(g);
+    if (r.note) {
+      const n = document.createElement('div');
+      n.className = 'ev-reaction-note';
+      n.textContent = r.note === 'like' ? t('Like') : t('Dislike');
+      view.appendChild(n);
+    }
+  }
   function appendEventContent(container, ev) {
     const raw = String(ev.content == null ? '' : ev.content);
     const noteLike = noteLikeKind(ev.kind);
@@ -386,19 +400,21 @@
     const parsed = noteLike ? null : self.SidecarEventSummary.fields(raw);
     // Ciphertext, an encoded blob, a wallet connection: said in a sentence, the string one tap away.
     const said = noteLike || parsed ? '' : sealedDescription(raw);
+    // A reaction is its emoji: drawn large, with Raw and JSON one tap away.
+    const react = noteLike || parsed || said ? null : self.SidecarEventSummary.reaction(ev);
     // Views: Formatted (lightweight render, note-like only), Raw (the content string),
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
-    const modes = noteLike || parsed || said ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const modes = noteLike || parsed || said || react ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
     const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '') + (mode === 'formatted' && said ? ' ev-summary' : '');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '') + (mode === 'formatted' && said ? ' ev-summary' : '') + (mode === 'formatted' && react ? ' ev-reaction' : '');
       view.innerHTML = '';
-      if (mode === 'formatted') { if (parsed) renderFields(view, parsed); else if (said) view.textContent = said; else renderLightNote(view, noteTextForEvent(ev)); }
+      if (mode === 'formatted') { if (parsed) renderFields(view, parsed); else if (said) view.textContent = said; else if (react) renderReaction(view, react); else renderLightNote(view, noteTextForEvent(ev)); }
       else if (mode === 'json') view.textContent = eventJson();
       else view.textContent = raw;
     };

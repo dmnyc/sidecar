@@ -192,3 +192,22 @@ test('a list of plain values reads as a list, and a list of objects stays JSON',
     ['empty', '[]'],
   ]);
 });
+
+test('a reaction says its emoji, a like or dislike says so, and anything else is passed through', () => {
+  const r = (kind, content) => plain(S.reaction({ kind, content }));
+  assert.deepEqual(r(7, '🤙'), { glyph: '🤙', note: '', big: true });
+  assert.deepEqual(r(17, '🔥🔥'), { glyph: '🔥🔥', note: '', big: true });
+  assert.deepEqual(r(7, '+'), { glyph: '❤️', note: 'like', big: true });
+  assert.deepEqual(r(7, ''), { glyph: '❤️', note: 'like', big: true });
+  assert.deepEqual(r(7, '-'), { glyph: '👎', note: 'dislike', big: true });
+  // A custom emoji stays a shortcode (its picture would come from an address the page chose),
+  // and a word is shown as the word, not as a heart: no guess about what the page meant.
+  assert.deepEqual(r(7, ':shakingeyes:'), { glyph: ':shakingeyes:', note: '', big: false });
+  assert.deepEqual(r(7, 'lol'), { glyph: 'lol', note: '', big: false });
+  // Long text is cut, and a long run of emoji is not drawn large.
+  assert.equal(S.reaction({ kind: 7, content: 'x'.repeat(200) }).glyph.length, 64);
+  assert.equal(S.reaction({ kind: 7, content: '😀'.repeat(20) }).big, false);
+  // Not a reaction.
+  assert.equal(S.reaction({ kind: 1, content: '🤙' }), null);
+  assert.equal(S.reaction(null), null);
+});
