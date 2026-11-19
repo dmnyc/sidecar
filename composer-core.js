@@ -2935,7 +2935,8 @@ window.SidecarCore = (function () {
       let timer = null;
       const settle = () => {
         clearTimeout(timer);
-        row.classList.remove('confirming');
+        row.classList.remove('confirming', 'deleting');
+        row.removeAttribute('aria-busy');
         label.textContent = draftKindLabel(entry, name);
         meta.classList.remove('hidden');
         snip.textContent = snipText();
@@ -2947,10 +2948,20 @@ window.SidecarCore = (function () {
         snip.textContent = t('Tap again to delete');
         timer = setTimeout(settle, 4000);
       };
+      // The row says so the moment the second tap lands: deleting from relays is a round
+      // trip, and a row that sits unchanged reads as a tap that did nothing. Its buttons are
+      // off meanwhile, so a third tap cannot send a second delete. A failure puts it back.
       const remove = async () => {
         clearTimeout(timer);
-        trash.disabled = true; open.disabled = true;
-        try { await d.onDelete(entry); } catch (_) { settle(); trash.disabled = false; open.disabled = false; }
+        const buttons = row.querySelectorAll('button');
+        buttons.forEach((b) => { b.disabled = true; });
+        row.classList.remove('confirming');
+        row.classList.add('deleting');
+        row.setAttribute('aria-busy', 'true');
+        label.textContent = t('Deleting…');
+        meta.classList.add('hidden');
+        snip.textContent = snipText();
+        try { await d.onDelete(entry); } catch (_) { settle(); buttons.forEach((b) => { b.disabled = false; }); }
       };
       if (trash) trash.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else confirmDelete(); });
       open.addEventListener('click', () => {
@@ -3219,25 +3230,40 @@ window.SidecarCore = (function () {
       const d = tagValue(ev.tags, 'd');
       const k = Number(tagValue(ev.tags, 'k'));
       let inner = null;
-      try { inner = JSON.parse(await decrypt(ev.content)); } catch (_) { inner = null; }
+      let plain = null;
+      try { plain = await decrypt(ev.content); } catch (_) { plain = null; }
+      // Another client blanks a draft by encrypting nothing, which opens to an empty string:
+      // a deleted draft, not one that cannot be opened.
+      if (typeof plain === 'string' && !plain.trim()) return { blank: true };
+      try { inner = JSON.parse(plain); } catch (_) { inner = null; }
       const draft = inner && Number(inner.kind) === k ? draftFromEvent(inner, selfPubkey) : null;
+      // Another client deletes by writing a wrap that still decrypts but holds an empty
+      // note: nothing to continue, and nothing the person would want listed.
+      if (draft && !draftHasContent(draft)) return { blank: true };
       return draft ? { d, k, at: ev.created_at, draft: { ...draft, savedAt: ev.created_at * 1000 } } : null;
     }));
-    const items = opened.filter(Boolean);
-    return { items, unopenable: opened.length - items.length };
+    const items = opened.filter((o) => o && !o.blank);
+    return { items, unopenable: opened.filter((o) => !o).length };
   }
 
   // The private relay list's content: a JSON array of tags, ["relay", "wss://…"] the
   // ones that count. FAILS CLOSED: content that is not JSON, or not an array, throws,
   // and a caller reads that as "could not read", never as "none" (which would offer to
   // write a new list over one another client keeps).
+  //
+  // READ LENIENTLY, WRITTEN BY THE SPEC. The NIP's list is [["relay", url], …], and that is
+  // what this writes. Another client writes {"relays": [url, …]} and reads a plain array of
+  // urls, so a list it made is read here too instead of being called unreadable.
   function parsePrivateRelayList(plaintext) {
-    const list = JSON.parse(plaintext);
+    let list = JSON.parse(plaintext);
+    if (list && !Array.isArray(list) && Array.isArray(list.relays)) list = list.relays;
     if (!Array.isArray(list)) throw new Error('not a tag list');
     const out = [];
     for (const tg of list) {
-      if (!Array.isArray(tg) || tg[0] !== 'relay' || typeof tg[1] !== 'string') continue;
-      const url = tg[1].trim();
+      const raw = typeof tg === 'string' ? tg
+        : (Array.isArray(tg) && tg[0] === 'relay' && typeof tg[1] === 'string' ? tg[1] : null);
+      if (raw === null) continue;
+      const url = raw.trim();
       if (!/^wss?:\/\/[^\s]+$/i.test(url)) continue;
       try { new URL(url); } catch (_) { continue; }
       if (!out.includes(url)) out.push(url);
@@ -3269,7 +3295,7 @@ window.SidecarCore = (function () {
     const shelved = replyTo ? null : shelveNoteDraft(all, pubkey, now);
     all[key] = {
       ...item.draft, savedAt: now,
-      relay: { d: item.d, k: item.k, at: item.at, sum: draftSum(item.draft) },
+      relay: { d: item.d, k: item.k, at: item.at, sum: draftSum(item.draft), ...(item.wide ? { wide: true } : {}) },
     };
     return { key, replyTo, shelved };
   }
@@ -3383,6 +3409,27 @@ window.SidecarCore = (function () {
       return { status: 'ok', relays };
     }
 
+    // WHERE DRAFTS ARE READ: the private relays the account lists AND its write relays. NIP-37
+    // sends drafts to the private relays, but other clients keep them on the write relays
+    // (and, with no private list, only there), so a read that stopped at the list never saw
+    // them. Reading is all this widens: a new draft still goes to the private relays only.
+    // Returns the private-list status as well, for a caller that needs to say it.
+    async function draftRelays(pubkey, fresh) {
+      const pr = await privateRelays(pubkey, fresh);
+      let writes = [];
+      try { writes = (await io.writeRelays()) || []; } catch (_) { writes = []; }
+      const seen = new Set();
+      const relays = [];
+      for (const u of [...(pr.status === 'ok' ? pr.relays : []), ...writes]) {
+        if (typeof u !== 'string' || !/^wss?:\/\//i.test(u)) continue;
+        const key = u.replace(/\/+$/, '').toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        relays.push(u);
+      }
+      return { pr, relays };
+    }
+
     // Publish a 10013 listing `relays`, to the account's write relays (NIP-37 says there).
     async function setUp(pubkey, relays) {
       const list = [...new Set((relays || []).filter((u) => /^wss?:\/\//i.test(u)))];
@@ -3469,12 +3516,24 @@ window.SidecarCore = (function () {
     }
 
     // The relay copy blanked: the same d, newer, with nothing in it.
+    //
+    // A draft that was READ from the account's relays (ptr.wide) is blanked on the same wider
+    // set it was read from, since another client may be holding it on a write relay; one this
+    // composer saved goes back only to the private relays it was sent to.
     async function blank(pubkey, ptr) {
       if (!ptr || !ptr.d) return false;
-      const pr = await privateRelays(pubkey);
-      if (pr.status !== 'ok') throw statusError(pr.status);
+      let targets;
+      if (ptr.wide) {
+        const w = await draftRelays(pubkey);
+        if (!w.relays.length) throw statusError(w.pr.status === 'ok' ? 'unreachable' : w.pr.status);
+        targets = w.relays;
+      } else {
+        const pr = await privateRelays(pubkey);
+        if (pr.status !== 'ok') throw statusError(pr.status);
+        targets = pr.relays;
+      }
       const at = Math.max(nowSecs(), (ptr.at || 0) + 1);
-      await io.publish(pr.relays, await sign(relayDraftBlank({ d: ptr.d, k: ptr.k || 1, now: at }), pubkey));
+      await io.publish(targets, await sign(relayDraftBlank({ d: ptr.d, k: ptr.k || 1, now: at }), pubkey));
       const last = listed.get(pubkey);
       if (last && last.items) last.items = last.items.filter((x) => x.d !== ptr.d);
       return true;
@@ -3491,16 +3550,60 @@ window.SidecarCore = (function () {
       });
     }
 
+    // Every kind 31234 of the account's on each relay, a page at a time, newest first.
+    //
+    // ONE PAGE IS NOT ENOUGH. A relay answers a limit with its newest events, and a deleted
+    // draft stays behind as an empty copy: an account that has been drafting for months holds
+    // hundreds. Cut the list short and the blanks that supersede older copies can fall off the
+    // end, so a draft that was deleted comes back as live. So each relay is asked on its own,
+    // and asked again for what came before the oldest event it sent, until a page comes back
+    // short or the ceiling is reached. A relay that has not answered is skipped, as before.
+    async function queryDraftWraps(relays, pubkey) {
+      const PAGE = 200;
+      const FULL = 50; // a page this size means there may be more; a relay's own cap can be under PAGE
+      const MAX_PAGES = 8;
+      const seen = new Set();
+      const events = [];
+      let answered = false;
+      await Promise.all(relays.map(async (url) => {
+        let until = null;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const filter = { kinds: [RELAY_DRAFT_KIND], authors: [pubkey], limit: PAGE };
+          if (until !== null) filter.until = until;
+          let res;
+          try { res = await io.query([url], filter); } catch (_) { break; }
+          if (!res || !res.answered) break;
+          answered = true;
+          const got = res.events || [];
+          let fresh = 0;
+          for (const ev of got) {
+            if (!ev || seen.has(ev.id)) continue;
+            seen.add(ev.id);
+            events.push(ev);
+            fresh++;
+          }
+          // Short, or nothing new (a boundary second held by more events than a page): done.
+          if (got.length < FULL || !fresh) break;
+          until = Math.min(...got.map((ev) => ev.created_at));
+        }
+      }));
+      return { events, answered };
+    }
+
     // The drafts on the account's private relays, read on request. A list read fresh
     // each time it is asked for, since that is the whole point of asking.
     async function list(pubkey) {
-      const pr = await privateRelays(pubkey, true);
-      if (pr.status !== 'ok') return { status: pr.status };
-      const { events, answered } = await io.query(pr.relays, { kinds: [RELAY_DRAFT_KIND], authors: [pubkey], limit: 200 });
-      if (!answered) return { status: 'unreachable', relays: pr.relays };
+      const { pr, relays } = await draftRelays(pubkey, true);
+      // Nothing to read from: no private list and no write relays, or none that answered.
+      if (!relays.length) return { status: pr.status === 'ok' ? 'unreachable' : pr.status };
+      const { events, answered } = await queryDraftWraps(relays, pubkey);
+      if (!answered) return { status: 'unreachable', relays };
       const { live, otherKinds, otherKindCounts } = liveRelayDrafts(events, pubkey, nowSecs());
-      const { items, unopenable } = await openRelayDrafts(live, (c) => decrypt(pubkey, c), pubkey);
-      const out = { status: 'ok', relays: pr.relays, items, otherKinds, otherKindCounts, unopenable };
+      const opened = await openRelayDrafts(live, (c) => decrypt(pubkey, c), pubkey);
+      // Marked as read from the account's relays, so it is blanked there too (see blank).
+      const items = opened.items.map((it) => ({ ...it, wide: true }));
+      const unopenable = opened.unopenable;
+      const out = { status: 'ok', relays, items, otherKinds, otherKindCounts, unopenable };
       listed.set(pubkey, out);
       return out;
     }
@@ -3541,7 +3644,7 @@ window.SidecarCore = (function () {
     }
 
     return {
-      privateRelays, setUp, relayListStatus, relayListOffer, publishRelayList, save, saveEntry, blank, forget, list, adopt,
+      privateRelays, draftRelays, setUp, relayListStatus, relayListOffer, publishRelayList, save, saveEntry, blank, forget, list, adopt,
       lastList: (pubkey) => listed.get(pubkey) || null,
     };
   }
@@ -3600,7 +3703,7 @@ window.SidecarCore = (function () {
       const all = d.localDrafts || {};
       const items = res.items.filter((it) => !relayDraftIsLocal(all, d.pubkey, it));
       const parts = [];
-      if (!items.length) parts.push(hint(res.items.length ? t('All of them are already here.') : t('No drafts on your private relays.')));
+      if (!items.length) parts.push(hint(res.items.length ? t('All of them are already here.') : t('No drafts found on your relays.')));
       else {
         parts.push(buildSavedDraftList({
           entries: items.slice(0, shown).map((it) => ({

@@ -82,9 +82,12 @@ function fakeWorld({ settings = {}, store = {}, accountRelays, known = null } = 
   };
   const io = {
     call, NT,
+    // As a relay answers: newest first, nothing after `until`, no more than `limit`.
     query: async (relays, filter) => ({
       events: answers.answered ? relay.filter((ev) => filter.kinds.includes(ev.kind)
-        && (!filter.authors || filter.authors.includes(ev.pubkey))) : [],
+        && (!filter.authors || filter.authors.includes(ev.pubkey))
+        && (filter.until === undefined || ev.created_at <= filter.until))
+        .sort((a, b) => b.created_at - a.created_at).slice(0, filter.limit || 1000) : [],
       ...answers,
     }),
     publish: async (relays, event) => { published.push({ relays, event }); relay.push(event); return relays.length; },
@@ -513,6 +516,7 @@ function fakeEl(tag) {
     classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c), toggle() {} },
     append(...kids) { el.children.push(...kids); },
     setAttribute() {},
+    removeAttribute() {},
     addEventListener(type, fn) { el.listeners[type] = fn; },
     click() { return el.listeners.click && el.listeners.click(); },
   };
@@ -611,4 +615,122 @@ test('the owner signs its own drafts: no approval card, and every call names the
   assert.match(install, /type: 'SIDECAR_OWNER_SIGN', event, expectedPubkey: pubkey/);
   assert.match(install, /type: 'SIDECAR_OWNER_ENCRYPT', nip: 44, peer: pubkey, expectedPubkey: pubkey/);
   assert.match(install, /type: 'SIDECAR_OWNER_DECRYPT', nip: 44, peer: pubkey, expectedPubkey: pubkey/);
+});
+
+// ---- drafts another client keeps, read from the account's write relays ----
+
+// A draft the way Wisp writes it: on the write relays, no private list, a d and a k and nothing else,
+// the inner event with a pubkey and no id or signature.
+const wispDraft = (d, text, at = 60) => sign({
+  kind: 31234, created_at: at, tags: [['d', d], ['k', '1']],
+  content: NT.nip44.v2.encrypt(JSON.stringify({ kind: 1, pubkey: PK, created_at: at, tags: [], content: text }), NT.nip44.v2.utils.getConversationKey(SK, PK)),
+});
+
+test('drafts are read from the write relays as well as the private ones, each asked once', async () => {
+  const w = fakeWorld();
+  w.relay.push(privateList(['wss://private.example']));
+  w.io.writeRelays = async () => ['wss://write.example', 'wss://PRIVATE.example/'];
+  const asked = [];
+  const real = w.io.query;
+  w.io.query = async (relays, filter) => { if (filter.kinds[0] === 31234) asked.push(plain(relays)); return real(relays, filter); };
+  const res = await w.controller.list(PK);
+  assert.equal(res.status, 'ok');
+  assert.deepEqual(asked, [['wss://private.example'], ['wss://write.example']], 'each relay asked on its own, the private ones first, a second spelling of one already named left out');
+});
+
+test('with no private relay list at all, the write relays are still read and another client\'s drafts open', async () => {
+  const w = fakeWorld();
+  w.relay.push(wispDraft('uuid-1', 'Written in the other app'));
+  const res = await w.controller.list(PK);
+  assert.equal(res.status, 'ok', 'no list is not a reason to read nothing');
+  assert.deepEqual(plain(res.items.map((it) => it.draft.text)), ['Written in the other app']);
+  assert.equal(res.unopenable, 0);
+  assert.equal(res.items[0].wide, true);
+  // Saving is another matter: it still wants a private list.
+  await assert.rejects(() => w.controller.save(PK, { text: 'x', media: [] }), (e) => e.relayStatus === 'none');
+});
+
+test('nothing to read from, not even a write relay, says there are no private relays', async () => {
+  const w = fakeWorld();
+  w.io.writeRelays = async () => [];
+  assert.equal((await w.controller.list(PK)).status, 'none');
+});
+
+test('a private relay list another client wrote, as {"relays": […]} or as urls, is read', () => {
+  assert.deepEqual(plain(SC.parsePrivateRelayList('{"relays":["wss://a.example","wss://b.example"]}')), ['wss://a.example', 'wss://b.example']);
+  assert.deepEqual(plain(SC.parsePrivateRelayList('["wss://a.example"]')), ['wss://a.example']);
+  assert.deepEqual(plain(SC.parsePrivateRelayList('[["relay","wss://a.example"]]')), ['wss://a.example']);
+  assert.throws(() => SC.parsePrivateRelayList('not json'));
+  assert.throws(() => SC.parsePrivateRelayList('{"relays":"wss://a.example"}'));
+  assert.throws(() => SC.parsePrivateRelayList('42'));
+});
+
+test('a draft another client blanked, which opens to an empty string, is deleted, not unopenable', async () => {
+  const w = fakeWorld();
+  w.relay.push(wispDraft('gone', 'x'));
+  w.relay.push(wispDraft('kept', 'Still here', 61));
+  const real = w.io.call;
+  const blankCt = w.relay.find((e) => e.tags[0][1] === 'gone').content;
+  w.io.call = async (msg) => (msg.type === 'SIDECAR_OWNER_DECRYPT' && msg.ciphertext === blankCt ? '' : real(msg));
+  const res = await w.controller.list(PK);
+  assert.deepEqual(plain(res.items.map((it) => it.draft.text)), ['Still here']);
+  assert.equal(res.unopenable, 0);
+});
+
+test('deleting a draft read from the write relays blanks it there, and one saved here only where it was sent', async () => {
+  const w = fakeWorld();
+  w.relay.push(privateList(['wss://private.example']));
+  w.relay.push(wispDraft('uuid-2', 'Other app'));
+  const res = await w.controller.list(PK);
+  const item = res.items[0];
+  await w.controller.blank(PK, item);
+  const wide = w.published[w.published.length - 1];
+  assert.deepEqual(plain(wide.relays), ['wss://private.example', 'wss://write.example'], 'where it was read');
+  assert.equal(wide.event.tags.find((tg) => tg[0] === 'd')[1], 'uuid-2');
+  await w.controller.forget(PK, { text: 'mine', relay: { d: 'sidecar-9', k: 1, at: 4000000000 } });
+  assert.deepEqual(plain(w.published[w.published.length - 1].relays), ['wss://private.example'], 'a draft saved here is blanked where it was sent');
+  // Opened here, it keeps the mark, so posting it later blanks the other app's copy too.
+  const opened = await w.controller.adopt(PK, item);
+  assert.equal(w.store[opened.key].relay.wide, true);
+});
+
+// A relay that holds hundreds of drafts answers a limit with the newest, and a deleted draft's
+// empty copy is one of them. Cut at one page, the empty copy of an old draft falls off the
+// end while a relay that never heard of the delete still holds the live one.
+test('every page of a relay is read, so a delete far back still wins over a stale copy elsewhere', async () => {
+  const w = fakeWorld();
+  const stale = wispDraft('stale', 'Deleted, but this relay never heard', 400);
+  const blank = sign({ kind: 31234, created_at: 500, content: '', tags: [['d', 'stale'], ['k', '1']] });
+  // 260 newer empty copies in front of the blank: more than one page of 200.
+  const crowd = [];
+  for (let i = 0; i < 260; i++) crowd.push(sign({ kind: 31234, created_at: 1000 + i, content: '', tags: [['d', 'old-' + i], ['k', '1']] }));
+  const byRelay = {
+    'wss://full.example': [blank, ...crowd],
+    'wss://stale.example': [stale],
+  };
+  w.io.writeRelays = async () => Object.keys(byRelay);
+  const asked = [];
+  w.io.query = async (relays, filter) => {
+    if (filter.kinds[0] !== 31234) return { events: [], answered: true, complete: true };
+    asked.push({ url: relays[0], until: filter.until });
+    const evs = (byRelay[relays[0]] || [])
+      .filter((ev) => filter.until === undefined || ev.created_at <= filter.until)
+      .sort((a, b) => b.created_at - a.created_at).slice(0, Math.min(filter.limit, 200));
+    return { events: evs, answered: true, complete: true };
+  };
+  const res = await w.controller.list(PK);
+  assert.equal(res.status, 'ok');
+  assert.deepEqual(plain(res.items.map((it) => it.draft.text)), [], 'the draft that was deleted is not listed');
+  assert.ok(asked.filter((a) => a.url === 'wss://full.example').length >= 2, 'the busy relay was asked for a second page');
+  assert.ok(asked.some((a) => a.until !== undefined), 'asked from before the oldest event it had sent');
+  assert.equal(asked.filter((a) => a.url === 'wss://stale.example').length, 1, 'a short answer ends it: the quiet relay is asked once');
+});
+
+test('a wrap that opens to an empty note is a deleted draft, not an empty row or an unopenable one', async () => {
+  const w = fakeWorld();
+  w.relay.push(wispDraft('gone', '', 70));
+  w.relay.push(wispDraft('kept', 'Still here', 60));
+  const res = await w.controller.list(PK);
+  assert.deepEqual(plain(res.items.map((it) => it.draft.text)), ['Still here']);
+  assert.equal(res.unopenable, 0);
 });

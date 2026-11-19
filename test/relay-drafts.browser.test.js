@@ -190,3 +190,31 @@ test('a long list of drafts on the relays shows ten at a time, and says how many
     assert.deepEqual(x.errors, []);
   } finally { x.close(); }
 });
+
+test('a draft another client keeps on the write relays is listed and opens, with no private relay list', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    const { enc } = selfCipher();
+    const now = Math.floor(Date.now() / 1000);
+    // As Wisp writes one: a d and a k, no expiration, the inner event with a pubkey and no id or signature,
+    // on a write relay, and no kind 10013 anywhere.
+    x.put({ kind: 31234, created_at: now - 600, tags: [['d', 'other-app-1'], ['k', '1']],
+      content: enc(JSON.stringify({ kind: 1, pubkey: x.me, created_at: now - 600, tags: [], content: 'Started in another app' })) }, 'me');
+
+    // Reached from the compose menu with nothing saved here at all.
+    await x.evaluate(click('#compose-fab'));
+    await x.waitFor(`(() => { const b = document.getElementById('saved-drafts-btn'); return !!b && !b.hidden; })()`);
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .relay-drafts-btn')`);
+    assert.ok(await x.evaluate(clickText('#modal .relay-drafts-btn', 'Check your relays')));
+    await x.waitFor(`[...document.querySelectorAll('#modal .relay-drafts .saved-draft-snip')].some((e) => e.textContent === 'Started in another app')`);
+    assert.ok(!/could not be read|No private relays/.test(await x.evaluate(`document.querySelector('#modal .relay-drafts').innerText`)), 'no word of a missing private list');
+    assert.ok(!x.relay.events.some((e) => e.kind === 10013 || e.kind === 10002), 'reading published nothing');
+
+    assert.ok(await x.evaluate(`(() => { const s = [...document.querySelectorAll('#modal .relay-drafts .saved-draft-snip')].find((e) => e.textContent === 'Started in another app'); s.closest('button').click(); return true; })()`));
+    await x.waitFor(`(document.querySelector('#modal .compose-editor') || {}).innerText === 'Started in another app'`);
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});

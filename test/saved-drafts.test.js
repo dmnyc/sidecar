@@ -28,11 +28,19 @@ function fakeEl(tag) {
   const el = {
     tag, children: [], listeners: {}, isConnected: true, disabled: false, textContent: '',
     classList: {
-      add: (c) => classes.add(c), remove: (c) => classes.delete(c),
+      add: (c) => classes.add(c), remove: (...cs) => cs.forEach((c) => classes.delete(c)),
       contains: (c) => classes.has(c),
     },
     append(...kids) { el.children.push(...kids); },
     addEventListener(type, fn) { el.listeners[type] = fn; },
+    attrs: {},
+    setAttribute(k, v) { el.attrs[k] = v; },
+    removeAttribute(k) { delete el.attrs[k]; },
+    querySelectorAll(sel) {
+      const out = [];
+      (function walk(n) { for (const k of n.children || []) { if (k.tag === sel) out.push(k); walk(k); } })(el);
+      return out;
+    },
     click() { return el.listeners.click && el.listeners.click(); },
   };
   Object.defineProperty(el, 'className', {
@@ -138,6 +146,36 @@ test('a row opens its draft; the trash asks first, and the second tap deletes', 
   await open.click();
   assert.deepEqual(deleted, [PK]);
   assert.deepEqual(picked, [PK], 'the confirming tap did not also open the draft');
+});
+
+test('a delete shows as pending while the relays answer, and the row comes back if it fails', async () => {
+  const { otherDraftEntries, buildSavedDraftList } = load();
+  const entries = otherDraftEntries({ [PK]: { text: 'my note', savedAt: 1 } }, PK, 'none');
+  let finish;
+  const list = buildSavedDraftList({
+    entries,
+    onPick() {},
+    onDelete: () => new Promise((_, reject) => { finish = reject; }),
+  });
+  const row = find(list, 'saved-draft');
+  const open = find(row, 'saved-draft-open');
+  const trash = find(row, 'saved-draft-x');
+  const label = find(row, 'saved-draft-label');
+
+  trash.click();
+  open.click(); // the second tap
+  assert.equal(row.classList.contains('deleting'), true, 'the row is marked as soon as the tap lands');
+  assert.equal(row.classList.contains('confirming'), false);
+  assert.equal(label.textContent, 'Deleting…');
+  assert.equal(row.attrs['aria-busy'], 'true');
+  assert.equal(trash.disabled && open.disabled, true, 'no third tap can send a second delete');
+
+  finish(new Error('relay refused'));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(row.classList.contains('deleting'), false, 'a failure puts the row back');
+  assert.equal(label.textContent, 'Your note');
+  assert.equal(trash.disabled || open.disabled, false);
+  assert.equal(row.attrs['aria-busy'], undefined);
 });
 
 test('the panel lists them behind the folder, beside the close box', () => {

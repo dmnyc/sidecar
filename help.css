@@ -100,6 +100,7 @@ html { scroll-behavior: smooth; }
 .shot-frame img {
   display: block;
   width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 520px;
   margin: 0 auto;

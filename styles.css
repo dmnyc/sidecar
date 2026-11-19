@@ -2834,6 +2834,9 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
    line and the answers stretch beneath it, the same shape .site-item +
    .site-controls use; it never sits beside the input, which is too narrow to share. */
 .relay-add-confirm { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin: 8px 0 4px; }
+/* display: flex above beats the browser's rule for [hidden], so without this the row sat open
+   under the input with no question in it, and its Add anyway / Cancel buttons showing. */
+.relay-add-confirm[hidden] { display: none; }
 .relay-add-confirm .confirm-msg { flex: none; }
 .relay-add-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 /* Each answer keeps its label whole. When the two do not fit side by side the second takes
@@ -3614,17 +3617,11 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
    The panel's own corner button for it, and then the page it opens. The page reuses the
    panel's stylesheet and themes wholesale: it is the same product at a different size, so
    everything it draws should already know what a button looks like here. */
-/* Sits at the far end of the Write / Preview row, on the right margin. Same metrics as a
-   tab so the baseline lines up, and no bottom border so it never reads as a third tab that
-   could be selected. */
-.compose-expand {
-  margin-inline-start: auto;
-  background: none; border: none; cursor: pointer;
-  color: var(--muted); padding-block: 6px 6px; padding-inline: 10px 2px;
-  display: inline-flex; align-items: center;
-}
-.compose-expand svg { width: 16px; height: 16px; }
-.compose-expand:hover:not(:disabled) { color: var(--lav); }
+/* In the corner, in the slot the Saved drafts sheet keeps it in (48px from the edge), so the
+   control sits in one place on both. The folder moves one slot (36px) further in. */
+.compose-expand { inset-inline-end: 48px; }
+.modal:has(> .compose-expand) > .compose-drafts-btn { inset-inline-end: 84px; }
+.compose-expand svg { width: 17px; height: 17px; display: block; }
 /* 12px padding, a 22px wordmark, 12px padding, 1px rule. Written once because the
    centered card below has to subtract it, and two literals would drift.
 
@@ -3661,14 +3658,6 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 }
 .compose-brand { display: flex; align-items: center; flex-shrink: 0; }
 .compose-brand img { height: 22px; width: auto; }
-/* THE WAY OUT, AT THE BAR'S FAR END: Settings' own close box (.icon-btn.settings-close),
-   so it is the same size and the same glyph, and every theme that dresses that box dresses
-   this one. It is 33px (35px where a theme thickens its border) in a bar built around a
-   22px wordmark, so it overhangs the bar's padding rather than growing it: the bar keeps
-   the guide's height, which the card below subtracts. The margins are equal, so the box
-   stays centered on the wordmark's line, and larger than any overhang, so no theme's
-   border can push the bar taller. */
-.compose-topbar .compose-x { margin-block: -12px -12px; margin-inline: auto 0; flex-shrink: 0; }
 .compose-body {
   display: flex; justify-content: center;
   min-height: calc(calc(100vh / var(--panel-zoom, 1)) - var(--compose-topbar-h));
@@ -3701,13 +3690,11 @@ html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
 .compose-x { top: 14px; inset-inline-end: 14px; }
 /* Held back until boot has a theme and a draft to show (compose-boot.js): the card would
    otherwise paint empty, and the wordmark in the wrong cut, for as long as the worker
-   takes to answer. The close box in the bar goes with them: it is painted in the theme's
-   colors too, and it is not wired until boot is done. Visibility, not display, so the
-   page's layout is already settled. */
+   takes to answer. The close box is in the card, so it goes with it. Visibility, not
+   display, so the page's layout is already settled. */
 html.compose-booting .compose-sheet,
-html.compose-booting .compose-brand,
-html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
-.compose-head { display: flex; align-items: center; gap: 12px; padding-inline-end: 34px; }
+html.compose-booting .compose-brand { visibility: hidden; }
+.compose-head { display: flex; align-items: center; gap: 12px; padding-inline-end: 70px; }
 .compose-who { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
 .compose-av { width: 40px; height: 40px; flex-shrink: 0; }
 .compose-who-text { display: flex; flex-direction: column; min-width: 0; }
@@ -3786,18 +3773,23 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .compose-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
 .compose-status { font-size: 12px; color: var(--muted); }
 /* SAVED DRAFTS in the expanded composer: the folder in the card's corner, the slot the
-   panel's sheets keep for their close box. The close box is on the page's bar here, so
-   the corner is the folder's alone, and the head's 34px reserve already clears it. It
-   stays reserved while the folder is hidden, so a draft arriving does not move the
-   name's ellipsis. */
+   panel's sheets keep for their close box. The close box is in the card too, in the very
+   corner, with the folder one slot in beside it, as in the panel; the head's 70px reserve
+   clears both. It stays reserved while the folder is hidden, so a draft arriving does not
+   move the name's ellipsis. */
 /* Match the card's 24px content inset, including the count badge's 2px overhang. */
-.compose-sheet .compose-drafts-btn { top: 24px; inset-inline-end: 26px; }
+/* The close box takes the corner and the folder the slot beside it, 36px in. */
+.compose-sheet #compose-x { top: 24px; inset-inline-end: 26px; }
+.compose-sheet .compose-drafts-btn { top: 24px; inset-inline-end: 62px; }
 .compose-drafts-title { margin: 0 0 12px; }
 .compose-drafts-back { margin-top: 12px; }
 /* The way out of Saved drafts: a real button with the composer's feather, full width like the
    relay buttons above it (AGENTS.md row grammar), so it is not mistaken for a hint. */
 .drafts-back { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .drafts-back svg { width: 16px; height: 16px; flex-shrink: 0; }
+/* The way into the tab takes the folder's place in the corner, left of the close box: the
+   folder is how you got here, so it is the slot that is free. The title keeps clear of both. */
+.drafts-title { padding-inline-end: 72px; }
 /* The open draft's own parts, put away while the list of other drafts is up (showTab). */
 .drafts-away { display: none !important; }
 .compose-drafts-pane {
@@ -3843,6 +3835,8 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 .saved-draft.confirming { border-color: var(--red); }
 .saved-draft.confirming .saved-draft-label,
 .saved-draft.confirming .saved-draft-x { color: var(--red); }
+/* Waiting on the relays: the row dims and stops answering taps until it is gone or put back. */
+.saved-draft.deleting { opacity: 0.55; pointer-events: none; }
 /* The cloud beside the trash: Save to relays (NIP-37). The second of the slot's two
    icons, so it keeps square corners and the trash keeps the rounded end. On the draft
    that is open now it is the only icon, and takes the rounded end itself. */
@@ -3898,7 +3892,7 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
    caret untouched. The close box is on the page's bar, outside the card, so it stays:
    leaving is always allowed, and it takes the worker with the page. */
 .compose-sheet.is-mining { align-items: center; text-align: center; gap: 10px; padding: 48px 24px; }
-.compose-sheet.is-mining > :not(.compose-mining) { display: none; }
+.compose-sheet.is-mining > :not(.compose-mining):not(.compose-x) { display: none; }
 /* The panel's own .mining-body sits inside this, bringing its glyph, its line, its pulse
    and its copy, so the two screens are one design rather than two that resemble each
    other. All this adds is the card's column; the padding comes off because .mining-body
@@ -6174,6 +6168,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
   color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold));
 }
 .modal.has-drafts-btn .compose-author { padding-inline-end: 72px; }
+.modal.has-drafts-btn:has(.compose-expand) .compose-author { padding-inline-end: 108px; }
 .notif-refresh svg { width: 17px; height: 17px; display: block; }
 /* Spins while the fetch is in flight, so a slow relay looks busy rather than dead —
    the same treatment .profile-backup-jump uses. */

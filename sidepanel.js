@@ -15391,6 +15391,24 @@
       addCorner(false);
       const back = h('button', { className: 'secondary drafts-back', type: 'button' }, [icon('feather'), h('span', { textContent: t('Back to composer') })]);
       back.addEventListener('click', () => showEditor());
+      // THE SAME HAND-OFF AS EXPAND, to the tab's own list of these drafts. The slot goes to
+      // the tab, so this composer must not save over it on the way out (handedToTab), and
+      // the draft on screen was already saved when this list was built.
+      const inTab = h('button', { className: 'modal-x compose-drafts-btn drafts-in-tab', type: 'button', title: t('Open in a tab') });
+      inTab.setAttribute('aria-label', t('Open in a tab'));
+      inTab.append(icon('maximize'));
+      inTab.addEventListener('click', async () => {
+        inTab.disabled = true;
+        try {
+          handedToTab = true;
+          await handOffToTab(dkey, replyTo, { showDrafts: true });
+          closeModal();
+        } catch (e) {
+          inTab.disabled = false;
+          handedToTab = false;
+          toast(e.message || t('Could not open a tab'), 'error');
+        }
+      });
       const pane = buildRelayDraftsPane({
         relays: relayDrafts, pubkey, localDrafts: all,
         nameFor: draftPersonName,
@@ -15406,7 +15424,8 @@
         onOpen: (res) => openAdoptedRelayDraft(res),
       });
       modal.append(
-        h('h3', { textContent: t('Saved drafts') }),
+        inTab,
+        h('h3', { className: 'drafts-title', textContent: t('Saved drafts') }),
         entries.length ? buildSavedDraftList({
           entries,
           nameFor: draftPersonName,
@@ -16416,18 +16435,18 @@
       // arrived there would quietly publish as one, which is the exact failure the draft
       // store learned to carry replyTo to avoid.
       //
-      // ON THE TAB BAR, not in the corner. The corner already belongs to the close box, so
-      // a second button there sat on top of it. And corner BRACKETS, not an arrow: the
-      // outward arrow that reads as "expand" in most apps reads here as leaving the
-      // browser entirely. Write / Preview / Expand is a row of three things you can do
-      // with what you are writing; the third is the frame growing, named by its title and
-      // its accessible name.
+      // IN THE CORNER, beside the folder: the same place the Saved drafts sheet keeps it, so the
+      // control that grows the frame is in one spot wherever you are. It used to sit on the
+      // Write / Preview row, back when the corner held only the close box and a second button
+      // there landed on top of it; the folder's slot made room. And corner BRACKETS, not an
+      // arrow: the outward arrow that reads as "expand" in most apps reads here as leaving the
+      // browser entirely. Named by its title and its accessible name.
       // REPLIES EXPAND NOW TOO. This was null for a reply because the tab could not
       // build threading tags and would have published a top-level note detached from the
       // thread. compose.js takes replyTags from composer-core and reads the target off
       // the draft, so the two produce identical tags from identical input.
       const expand = h('button', {
-        className: 'compose-expand', type: 'button',
+        className: 'modal-x compose-expand', type: 'button',
         title: replyTo ? t('Reply in a tab, with room to read the thread')
                        : t('Write in a tab, with room to read it back'),
       });
@@ -16454,7 +16473,7 @@
         });
       }
 
-      if (expand) tabBar.append(expand);
+      if (expand) modal.append(expand);
 
       modal.append(
         h('h3', { textContent: replyTo ? t('Reply') : t('New note') }),
