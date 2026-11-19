@@ -16,6 +16,19 @@ window.SidecarCore = (function () {
   const { t, tn } = I18N;
   const show = (el) => el.classList.remove('hidden');
   const hide = (el) => el.classList.add('hidden');
+  // nostr.build's plans page, through a referral link: subscribing through it credits
+  // Sidecar's creator, and everywhere it appears it is labeled as a referral link. The same address is
+  // in help.html and welcome.js (a test keeps the three in step).
+  const NB_PLANS_URL = 'https://getnb.me/4851-DF1E-A47B';
+  // What an upload error says, as nodes for the composer's error line: the message, and for a
+  // file over nostr.build's free limit, a link to its plans, labeled as the referral link it is.
+  function uploadErrorParts(e) {
+    const msg = (e && e.message) || t('Upload failed');
+    if (!e || !e.nbPlans) return [msg];
+    const link = h('a', { href: NB_PLANS_URL, target: '_blank', rel: 'noopener noreferrer', textContent: t('nostr.build plans (referral link)') });
+    return [msg + ' ', link];
+  }
+
 
   // ---- flat (line) icons — inherit currentColor ----
   const ICONS = {
@@ -1662,7 +1675,19 @@ window.SidecarCore = (function () {
     const form = new FormData();
     form.append('file', file);
     const resp = await fetch(url, { method: 'POST', headers: { Authorization: token }, body: form });
-    if (!resp.ok) throw new Error(t('Upload failed ({{status}})', { status: resp.status }));
+    if (!resp.ok) {
+      // OVER THE FREE LIMIT: 413, or a refusal that says the file is too big. Not a 429, which
+      // is a rate limit and has nothing to do with the file. Said as such, with the plans link
+      // (uploadErrorParts), because a plan is the answer to it and to nothing else here.
+      let body = '';
+      try { body = await resp.text(); } catch (_) {}
+      if (resp.status !== 429 && (resp.status === 413 || /too (large|big)|file size|max(imum)? (file )?size|size limit/i.test(body))) {
+        const e = new Error(t('This file is over nostr.build’s free upload limit.'));
+        e.nbPlans = true;
+        throw e;
+      }
+      throw new Error(t('Upload failed ({{status}})', { status: resp.status }));
+    }
     const json = await resp.json().catch(() => null);
     const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
     if (!u) throw new Error(t('Upload returned no URL'));
@@ -5811,6 +5836,7 @@ window.SidecarCore = (function () {
 
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,
+    NB_PLANS_URL, uploadErrorParts,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls,
     LIGHT_THEMES, COMPOSE_DARK_BAR_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc,

@@ -16205,7 +16205,7 @@
           renderThumbs();
           paintEitherOr();
         } catch (e) {
-          err.textContent = e.message;
+          err.replaceChildren(...window.SidecarCore.uploadErrorParts(e));
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
@@ -16273,7 +16273,7 @@
           renderThumbs();
           paintEitherOr();
         } catch (e) {
-          err.textContent = e.message;
+          err.replaceChildren(...window.SidecarCore.uploadErrorParts(e));
           toast(e.message, 'error');
         }
         addBtn.disabled = false;
