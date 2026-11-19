@@ -135,3 +135,26 @@ test('with the composer tab already open, the panel item turns it to its list', 
     assert.deepEqual(x.errors, []);
   } finally { x.close(); }
 });
+
+test('"Open in a tab" on the panel\'s Saved drafts hands over to the tab\'s list and keeps the draft', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'A note in progress', media: [], savedAt: Date.now() } } });
+    await x.recordTabs();
+    await openMenu(x);
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .saved-draft-current')`);
+    const tabButton = `(() => { const b = document.querySelector('#modal .drafts-in-tab'); if (!b || b.getAttribute('aria-label') !== 'Open in a tab') return false; b.click(); return true; })()`;
+    assert.ok(await x.evaluate(tabButton), 'the icon is beside the title');
+    await x.waitFor(`(window.__calls || []).some((c) => c.call === 'create')`);
+    const made = (await x.calls()).filter((c) => c.call === 'create');
+    assert.equal(made.length, 1);
+    assert.ok(/\/compose\.html#drafts$/.test(made[0].args[0].url), 'the tab opens on its list: ' + made[0].args[0].url);
+    await x.waitFor(`!document.querySelector('#modal .saved-drafts')`);
+    // The panel's composer went without saving over the slot: the tab owns it now, intact.
+    assert.equal((await stored(x))[x.me].text, 'A note in progress');
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});
