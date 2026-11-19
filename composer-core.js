@@ -200,6 +200,17 @@ window.SidecarCore = (function () {
     svg.setAttribute('data-icon', name);
     return svg;
   }
+  // The composers' saved indicator: a check and "Saved" once a write lands, a warning and
+  // "Not saved" when one fails, nothing before the first write. One painter, so the panel and
+  // the full-size composer cannot drift apart.
+  function paintSavedState(el, state, locked) {
+    if (!el) return;
+    el.replaceChildren();
+    el.classList.toggle('is-failed', state === 'failed');
+    if (state === 'saved') el.append(icon('check'), h('span', { textContent: t('Saved') }));
+    else if (state === 'failed') el.append(icon('alert'), h('span', { textContent: locked ? t('Not saved: Sidecar is locked') : t('Not saved') }));
+  }
+
 
 
   function h(tag, props, children) {
@@ -5837,6 +5848,7 @@ window.SidecarCore = (function () {
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,
     NB_PLANS_URL, uploadErrorParts,
+    paintSavedState,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls,
     LIGHT_THEMES, COMPOSE_DARK_BAR_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc,
