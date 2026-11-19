@@ -1916,22 +1916,13 @@
     toast(t('Locked'), 'success');
   });
 
-  // "Open saved drafts" on the compose menu, only when this account has some: the same list the
-  // folder in the composer's corner opens, without opening a note to get to it. Worked out as
-  // the menu opens, from this device's drafts (what is on the relays needs the network, and the
-  // list asks for that itself once it is open).
-  async function refreshSavedDraftsItem() {
+  // "Open saved drafts" on the compose menu, for any account: the same list the folder in the
+  // composer's corner opens, without opening a note to get to it. It is not tied to drafts on
+  // this device, because the list is also where drafts kept on relays are read back, and
+  // a person whose only drafts are on relays has none here to be told about.
+  function refreshSavedDraftsItem() {
     const btn = $('saved-drafts-btn');
-    if (!btn) return;
-    btn.hidden = true;
-    const pk = state && state.activePubkey;
-    if (!pk) return;
-    try {
-      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-      const key = draftKey(pk, null);
-      const core = window.SidecarCore;
-      btn.hidden = !(core.otherDraftEntries(all, pk, key).length || (all[key] && core.draftHasContent(all[key])));
-    } catch (_) { /* no list, no item: the folder in the composer is still there */ }
+    if (btn) btn.hidden = !(state && state.activePubkey);
   }
   $('compose-fab').addEventListener('click', refreshSavedDraftsItem);
   $('saved-drafts-btn').addEventListener('click', () => {
@@ -6766,6 +6757,14 @@
     const cached = notifProfileName(pubkey);
     if (typeof cached === 'string' && cached) return cached;
     try { return shortNpub(NT.nip19.npubEncode(pubkey)); } catch (_) { return '—'; }
+  }
+
+  // A person's name for a row in Saved drafts: the one already known, else looked up (a draft
+  // can name someone this panel has never shown), else the short npub as before.
+  function draftPersonName(pubkey) {
+    const cached = notifProfileName(pubkey);
+    if (typeof cached === 'string' && cached) return Promise.resolve(cached);
+    return getProfile(pubkey).then((p) => (p && p.name) || notifAuthorName(pubkey), () => notifAuthorName(pubkey));
   }
 
   // A FAILED LOOKUP IS NOT A RESULT. The in-flight marker below doubles as the cache
@@ -15390,11 +15389,11 @@
       modal.innerHTML = '';
       modal.classList.remove('has-drafts-btn');
       addCorner(false);
-      const back = h('button', { className: 'ghost', textContent: t('Back to your draft') });
+      const back = h('button', { className: 'secondary drafts-back', type: 'button' }, [icon('feather'), h('span', { textContent: t('Back to composer') })]);
       back.addEventListener('click', () => showEditor());
       const pane = buildRelayDraftsPane({
         relays: relayDrafts, pubkey, localDrafts: all,
-        nameFor: (pk) => Promise.resolve(notifAuthorName(pk)),
+        nameFor: draftPersonName,
         setupRelays: relayDraftSetupRelays,
         notify: toast,
         onChanged: () => showSavedDrafts(),
@@ -15410,7 +15409,7 @@
         h('h3', { textContent: t('Saved drafts') }),
         entries.length ? buildSavedDraftList({
           entries,
-          nameFor: (pk) => Promise.resolve(notifAuthorName(pk)),
+          nameFor: draftPersonName,
           onPick: (entry) => switchToSavedDraft(entry),
           onCurrent: () => showEditor(),
           onSave: (entry) => pane.saveEntry(entry),

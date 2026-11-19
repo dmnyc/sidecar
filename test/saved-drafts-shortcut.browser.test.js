@@ -1,7 +1,8 @@
 'use strict';
 
-// "Open saved drafts" on the compose menu, against the REAL extension. The item appears only
-// when the account has drafts, opens the same list the composer's folder opens, and does it
+// "Open saved drafts" on the compose menu, against the REAL extension. The item is always there
+// (the list is also where drafts kept on relays are read back, so it cannot wait for a draft on
+// this device), opens the same list the composer's folder opens, and does it
 // without writing over the draft it is there to list: opened with a note in progress, that note
 // is the "Open now" row and Back returns to it with every word still there.
 
@@ -22,7 +23,7 @@ async function openMenu(x) {
 }
 const stored = async (x) => ((await x.message({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {}).result || {};
 
-test('the item is there only when there are drafts, and the list opens without overwriting the draft', opts, async (t) => {
+test('the item is there with no drafts at all, and the list opens without overwriting the draft', opts, async (t) => {
   let x;
   try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
   try {
@@ -30,11 +31,18 @@ test('the item is there only when there are drafts, and the list opens without o
 
     await openMenu(x);
     assert.equal(await x.evaluate(visible('#compose-note-btn')), true, 'the menu is open');
-    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), false, 'no drafts, no item');
+    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), true, 'no drafts on this device, and the item is still there');
+    // With nothing saved here the list still opens, and it is where the relays are checked.
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .relay-drafts-btn')`);
+    assert.match(await x.evaluate(`document.querySelector('#modal h3').textContent`), /Saved drafts/);
+    assert.equal(await x.evaluate(`!!document.querySelector('#modal .saved-draft')`), false, 'no rows, nothing to list');
+    await x.evaluate(`document.querySelector('#modal .modal-x').click()`);
+    await x.waitFor(`!document.querySelector('#modal') || document.querySelector('#modal').classList.contains('hidden') || !document.querySelector('#modal h3')`).catch(() => {});
 
     await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'A note in progress', media: [], savedAt: Date.now() } } });
     await openMenu(x);
-    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), true, 'a draft in progress shows the item');
+    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), true, 'a draft in progress keeps the item');
 
     assert.ok(await x.evaluate(click('#saved-drafts-btn')));
     await x.waitFor(`!!document.querySelector('#modal .saved-draft-current')`);
@@ -46,7 +54,7 @@ test('the item is there only when there are drafts, and the list opens without o
     assert.equal((await stored(x))[x.me].text, 'A note in progress');
 
     // And back to it, in the editor, with the text in the box.
-    assert.ok(await x.evaluate(`(() => { const b = [...document.querySelectorAll('#modal button')].find((e) => e.textContent.trim() === 'Back to your draft'); if (!b) return false; b.click(); return true; })()`));
+    assert.ok(await x.evaluate(`(() => { const b = [...document.querySelectorAll('#modal button')].find((e) => e.textContent.trim() === 'Back to composer'); if (!b) return false; b.click(); return true; })()`));
     await x.waitFor(`!!document.querySelector('#modal [contenteditable]')`);
     assert.equal(await x.evaluate(`document.querySelector('#modal [contenteditable]').innerText.trim()`), 'A note in progress');
     assert.deepEqual(x.errors, []);

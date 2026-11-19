@@ -515,7 +515,6 @@
   "Mining proof of work": "กำลังขุด Proof of Work",
   "Found it. Posting… {{secs}}s": "พบแล้ว กำลังโพสต์… {{secs}} วิ",
   "Saved drafts": "ฉบับร่างที่บันทึกไว้",
-  "Back to your draft": "กลับไปที่ฉบับร่าง",
   "Draft deleted.": "ลบฉบับร่างแล้ว",
   "The note this reply answers could not be loaded.": "โหลดโน้ตที่การตอบกลับนี้ตอบถึงไม่ได้",
   "Your reply is saved.": "บันทึกการตอบกลับของคุณแล้ว",

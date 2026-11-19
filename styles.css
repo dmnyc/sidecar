@@ -3793,7 +3793,11 @@ html.compose-booting .compose-topbar .compose-x { visibility: hidden; }
 /* Match the card's 24px content inset, including the count badge's 2px overhang. */
 .compose-sheet .compose-drafts-btn { top: 24px; inset-inline-end: 26px; }
 .compose-drafts-title { margin: 0 0 12px; }
-.compose-drafts-back { align-self: center; margin-top: 12px; }
+.compose-drafts-back { margin-top: 12px; }
+/* The way out of Saved drafts: a real button with the composer's feather, full width like the
+   relay buttons above it (AGENTS.md row grammar), so it is not mistaken for a hint. */
+.drafts-back { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.drafts-back svg { width: 16px; height: 16px; flex-shrink: 0; }
 /* The open draft's own parts, put away while the list of other drafts is up (showTab). */
 .drafts-away { display: none !important; }
 .compose-drafts-pane {
