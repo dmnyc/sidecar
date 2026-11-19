@@ -949,7 +949,7 @@
     // they are the panel's to bring back, the same as the note itself.
     const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
       .filter((e) => e.key !== inPanel && !(e.shelved && inPanel === state.activePubkey));
-    // Not while the list is up: the list is what it opens, and "Back to your draft" is
+    // Not while the list is up: the list is what it opens, and "Back to composer" is
     // the way out of it, as in the panel.
     btn.classList.toggle('hidden', listing || receiptShown);
     $('compose-drafts-count').textContent = others.length ? I18N.fmtNum(others.length) : '';
@@ -966,7 +966,7 @@
       entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId });
     }
     pane.innerHTML = '';
-    const back = h('button', { className: 'ghost compose-drafts-back', type: 'button', textContent: t('Back to your draft') });
+    const back = h('button', { className: 'secondary drafts-back compose-drafts-back', type: 'button' }, [icon('feather'), h('span', { textContent: t('Back to composer') })]);
     back.addEventListener('click', () => showTab('write'));
     const nameFor = (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null);
     const relayPane = SC.buildRelayDraftsPane({
@@ -2077,7 +2077,7 @@
       $('compose-count').style.visibility = which === 'drafts' ? 'hidden' : '';
       if (which === 'drafts') { paintSavedDrafts(); return; }
       // THE FOLDER COMES BACK WITH THE EDITOR. It stands down while the list is up, and
-      // repainting it is what brings it back: Back to your draft, and a pick (whose own
+      // repainting it is what brings it back: Back to composer, and a pick (whose own
       // repaint ran while the list was still showing), left it hidden with drafts saved.
       if (wasListing) paintSavedDrafts();
       paintPreview();

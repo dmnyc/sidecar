@@ -538,7 +538,7 @@ function listCtx() {
     pictureCount: () => 0,
   });
   vm.createContext(ctx);
-  vm.runInContext(['draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') + '\nthis.build = buildSavedDraftList;', ctx);
+  vm.runInContext(['draftRefsAsText', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') + '\nthis.build = buildSavedDraftList;', ctx);
   return ctx;
 }
 

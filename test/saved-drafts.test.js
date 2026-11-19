@@ -46,8 +46,9 @@ function find(el, cls) {
   return null;
 }
 
-function load() {
+function load(extra) {
   const ctx = withI18n({
+    ...(extra || {}),
     console,
     Date,
     h: (tag, props, kids) => {
@@ -63,9 +64,9 @@ function load() {
   });
   vm.createContext(ctx);
   vm.runInContext(
-    ['draftHasContent', 'otherDraftEntries', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') +
+    ['draftHasContent', 'otherDraftEntries', 'draftRefsAsText', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') +
       '\nthis.draftHasContent = draftHasContent; this.otherDraftEntries = otherDraftEntries;' +
-      ' this.buildSavedDraftList = buildSavedDraftList;',
+      ' this.buildSavedDraftList = buildSavedDraftList; this.draftSnippet = draftSnippet;',
     ctx
   );
   return ctx;
@@ -200,4 +201,53 @@ test('a reply saved without its target is looked up before it opens', () => {
   // Opened as it stood, the slot would be chosen without a target: the note draft.
   assert.match(panel, /if \(entry\.reply && !\(target && target\.id\)\) \{\s*const ev = await fetchNoteById\(entry\.replyId\);/);
   assert.match(panel, /if \(!ev\) \{ toast\(t\('The note this reply answers could not be loaded\.'\), 'error'\); return; \}/);
+});
+
+
+// ---- a mention or a quoted note in a draft reads as a person would read it, not as bech32 ----
+
+function realNostrTools() {
+  const ntCtx = vm.createContext({ crypto: globalThis.crypto, TextEncoder, TextDecoder, setTimeout, clearTimeout, console, URL, queueMicrotask });
+  ntCtx.self = ntCtx; ntCtx.window = ntCtx; ntCtx.globalThis = ntCtx;
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'nostr-tools.js'), 'utf8'), ntCtx);
+  return ntCtx.NostrTools;
+}
+
+test('a nostr: reference in the one-line view is a short form, never the whole bech32', () => {
+  const NT = realNostrTools();
+  const { draftSnippet } = load();
+  const npub = NT.nip19.npubEncode(PK);
+  const nevent = NT.nip19.neventEncode({ id: N1 });
+  const nprofile = NT.nip19.nprofileEncode({ pubkey: OTHER, relays: ['wss://relay.example/'] });
+  const text = 'thanks nostr:' + npub + ' and nostr:' + nprofile + ', see nostr:' + nevent;
+  const out = draftSnippet({ text });
+  assert.ok(!out.includes(npub) && !out.includes(nprofile) && !out.includes(nevent), 'no full reference is left: ' + out);
+  assert.ok(!out.includes('nostr:'), 'the scheme goes with it: ' + out);
+  assert.ok(out.startsWith('thanks @' + npub.slice(0, 10) + '\u2026' + npub.slice(-4)), out);
+  assert.ok(out.endsWith(nevent.slice(0, 10) + '\u2026' + nevent.slice(-4)), 'an event is its first and last characters: ' + out);
+  // A name, once known, replaces the short form for that person only.
+  const named = draftSnippet({ text }, { [npub]: 'Amelia' });
+  assert.ok(named.startsWith('thanks @Amelia and @'), named);
+  // Text with no reference is untouched, and a malformed one is left as written.
+  assert.equal(draftSnippet({ text: 'plain   words ' }), 'plain words');
+  assert.equal(draftSnippet({ text: 'nostr:npub1short' }), '@npub1short');
+});
+
+test('a row shows a short npub at once and the person\'s name when it arrives, and keeps the draft whole', async () => {
+  const NT = realNostrTools();
+  const npub = NT.nip19.npubEncode(PK);
+  const { buildSavedDraftList } = load({ window: { NostrTools: NT } });
+  let resolve;
+  const asked = [];
+  const list = buildSavedDraftList({
+    entries: [{ key: 'k', draft: { text: 'hello nostr:' + npub + ' there', savedAt: 1 } }],
+    nameFor: (pk) => { asked.push(pk); return new Promise((r) => { resolve = r; }); },
+    onPick() {}, onDelete: async () => {},
+  });
+  const snip = find(list, 'saved-draft-snip');
+  assert.equal(snip.textContent, 'hello @' + npub.slice(0, 10) + '\u2026' + npub.slice(-4) + ' there');
+  assert.deepEqual(asked, [PK]);
+  resolve('Amelia');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(snip.textContent, 'hello @Amelia there');
 });

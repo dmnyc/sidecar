@@ -2804,8 +2804,22 @@ window.SidecarCore = (function () {
     all[pubkey] = { ...picked, savedAt: now };
     return true;
   }
-  function draftSnippet(d) {
-    const text = stripDraftMediaUrls(d.text || '', d.media).replace(/\s+/g, ' ').trim();
+  // THE ONE-LINE VIEW OF A DRAFT READS NOSTR REFERENCES AS A PERSON WOULD. A mention is
+  // stored as nostr:npub1… or nostr:nprofile1…, 63 characters or more of bech32 that filled
+  // the row and said nothing. A person is "@name", or a short npub until the name is known
+  // (`names` maps the bech32 to it), and a note, event or address is its first and last
+  // characters. Only the display changes: the draft keeps the full reference.
+  function draftRefsAsText(text, names) {
+    return String(text || '').replace(/nostr:((?:npub|nprofile|note|nevent|naddr)1[02-9ac-hj-np-z]+)/g, (whole, code) => {
+      const person = code.startsWith('npub1') || code.startsWith('nprofile1');
+      const known = names && names[code];
+      if (person && known) return '@' + known;
+      const short = code.length > 20 ? code.slice(0, 10) + '\u2026' + code.slice(-4) : code;
+      return person ? '@' + short : short;
+    });
+  }
+  function draftSnippet(d, names) {
+    const text = draftRefsAsText(stripDraftMediaUrls(d.text || '', d.media), names).replace(/\s+/g, ' ').trim();
     if (text) return text;
     // A poll with its options typed and no question yet still says what it is.
     const opts = (d.poll && d.poll.options || []).map((o) => (o || '').trim()).filter(Boolean);
@@ -2857,7 +2871,25 @@ window.SidecarCore = (function () {
         meta.append(mark);
       }
       meta.append(when);
-      const snip = h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: draftSnippet(entry.draft) });
+      // The people named in the text: a short npub at once, their name when it arrives.
+      const names = {};
+      const NT = (typeof window !== 'undefined' && window.NostrTools) || null;
+      const people = new Map();
+      if (NT) {
+        for (const m of String(entry.draft.text || '').matchAll(/nostr:((?:npub|nprofile)1[02-9ac-hj-np-z]+)/g)) {
+          try {
+            const dec = NT.nip19.decode(m[1]);
+            const pk = dec.type === 'npub' ? dec.data : dec.data && dec.data.pubkey;
+            if (!pk) continue;
+            const npub = NT.nip19.npubEncode(pk);
+            names[m[1]] = npub.slice(0, 10) + '\u2026' + npub.slice(-4);
+            if (!people.has(pk)) people.set(pk, []);
+            people.get(pk).push(m[1]);
+          } catch (_) { /* a reference that does not decode stays as its short form */ }
+        }
+      }
+      const snipText = () => draftSnippet(entry.draft, names);
+      const snip = h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: snipText() });
       const open = h('button', { className: 'saved-draft-open', type: 'button' }, [top, snip]);
       const kids = [open];
       if (d.onSave && !entry.relayItem && !entry.draft.poll) {
@@ -2890,13 +2922,23 @@ window.SidecarCore = (function () {
         }).catch(() => {});
       }
 
+      if (d.nameFor) {
+        people.forEach((codes, pk) => {
+          Promise.resolve(d.nameFor(pk)).then((n) => {
+            if (!n || !snip.isConnected) return;
+            codes.forEach((c) => { names[c] = n; });
+            if (!row.classList.contains('confirming')) snip.textContent = snipText();
+          }).catch(() => {});
+        });
+      }
+
       let timer = null;
       const settle = () => {
         clearTimeout(timer);
         row.classList.remove('confirming');
         label.textContent = draftKindLabel(entry, name);
         meta.classList.remove('hidden');
-        snip.textContent = draftSnippet(entry.draft);
+        snip.textContent = snipText();
       };
       const confirmDelete = () => {
         row.classList.add('confirming');
