@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "echo 'Load this folder as an unpacked extension at chrome://extensions'",
     "test": "node --test test/*.test.js",
+    "check-directory": "node scripts/check-directory.js",
     "update-vendor": "scripts/update-vendor.sh",
     "verify-vendor": "sha256sum -c scripts/vendor-hashes.sha256"
   },
