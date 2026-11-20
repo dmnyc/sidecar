@@ -2085,5 +2085,6 @@
   "Sidecar could not open this comment.": "Sidecar konnte diesen Kommentar nicht öffnen.",
   "Show {{count}} reply_one": "{{count}} Antwort anzeigen",
   "Show {{count}} reply_other": "{{count}} Antworten anzeigen",
-  "Add an account to chat →": "Konto hinzufügen, um zu chatten →"
+  "Add an account to chat →": "Konto hinzufügen, um zu chatten →",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Eine Videoseite im Stil von YouTube auf Nostr: Videos und Shorts ansehen und hochladen, mit Playlists und Abonnements."
 }

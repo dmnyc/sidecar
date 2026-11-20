@@ -9,7 +9,7 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
-## [Unreleased]
+## [1.18.1] — 2026-11-20
 
 ### Added
 - **nostr.build plans, through a referral link that credits Sidecar’s creator.** The help guide gains a “Photos and video” section, the nostr.build card in the app directory links its plans, and an upload nostr.build turns away for being over its free limit says so and links the plans. Each link is labeled as a referral link.
@@ -17,11 +17,17 @@ has entries, and that heading becomes the version heading when the release is cu
 - **Rebuild network from the notification bell.** When nothing in the bell comes from your network but some notifications come from outside it, the bell says so at the top, offers **Rebuild network**, and shows the outside group straight away instead of an empty list. Otherwise it sits small at the foot of the bell, under Load more or under the empty state. Both say how many people your network holds, so a thin one shows where it does its damage.
 - **Removing Sidecar opens a short page on sidecar.top that asks, if you so desire, why.** Its address carries nothing about you or your browser, and what you write there is sent only if you submit it. The privacy policy says so.
 - **Discard the draft you are writing from Saved drafts.** Its “Open now” row has a trash button, in the panel and the full-size composer, that asks once and then clears the editor along with the saved copy, so it does not come back on the next save.
+- **nostube joins the app directory,** a YouTube-style video site on Nostr.
 
 ### Fixed
 - **The “Find people beyond your follows?” question sits inside the full-size composer’s field.** It ran along the field’s edges; it now lines up with your text.
 - **A network read from relays that did not all answer is no longer kept for a day.** It is used for the session and rebuilt next time, so one flaky relay cannot leave the bell sorting nearly everyone outside your network.
 - **An attachment’s links are in sight when a quoted note sits beside it.** The pictures’ row has a list button, beside its arrow, that opens and closes their links, each with its own copy button. The links were there before, behind the “1 attachment” label, which did not look like something to tap.
+- **The Saved drafts folder stays in the full-size composer after you pick a draft from it.** It went missing until the window lost focus and got it back. And a reply’s “Replying to” no longer stays at the top of Saved drafts; it steps aside with the rest of the draft and comes back with the editor.
+- **Iris and Snort have their icons back in the app directory.** The picture Iris used was gone from its site, so the directory shows Iris’s own logo; Snort’s site turned the browser’s request for its picture into a bot check, so Sidecar now carries a copy.
+
+### Documentation
+- **The README shows two more quotes from people who use Sidecar** above the fold.
 
 ## [1.18.0] — 2026-11-19
 

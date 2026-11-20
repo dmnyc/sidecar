@@ -318,6 +318,10 @@
     // the list did not already have.
     { text: 'I like work: it fascinates me. I can sit and look at it for hours.', who: 'Jerome K. Jerome, 1889' },
     { text: 'There is an ecstasy that marks the summit of life, and beyond which life cannot rise.', who: 'Jack London, 1903' },
+    // 1.18.1. Checked against the Standard Ebooks text of Saki's short fiction (Project
+    // Gutenberg was down again): Reginald (1904), "Reginald on Besetting Sins". A writer the
+    // list did not already have.
+    { text: 'The cook was a good cook, as cooks go; and as cooks go she went.', who: 'Saki, 1904' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

@@ -951,18 +951,25 @@
   //
   // THE FOLDER IS UP WITH NO DRAFTS TOO, its count left off: Saved drafts is also where
   // drafts kept on relays are read back and this one is saved to them (NIP-37).
+  //
+  // THE LAST CALL PAINTS, AND IT READS THE LIST AS IT IS THEN. Picking a draft repaints
+  // while the list is still up and again on the way back to the editor; the first one,
+  // finishing after the second, hid the folder for good.
+  let savedDraftsPaint = 0;
   async function paintSavedDrafts() {
     const btn = $('compose-drafts-btn');
     if (!btn || !state || !state.activePubkey) return;
+    const paint = ++savedDraftsPaint;
     const pane = $('compose-drafts-pane');
-    const listing = !pane.classList.contains('hidden');
     // The draft on screen is listed too, so it goes to the store first.
-    if (listing) await flushDraft();
+    if (!pane.classList.contains('hidden')) await flushDraft();
     const inPanel = await draftOpenInPanel();
     // Notes set aside come back through the note slot, so while the panel is writing it
     // they are the panel's to bring back, the same as the note itself.
     const others = SC.otherDraftEntries(await readAllDrafts(), state.activePubkey, dkey)
       .filter((e) => e.key !== inPanel && !(e.shelved && inPanel === state.activePubkey));
+    if (paint !== savedDraftsPaint) return;
+    const listing = !pane.classList.contains('hidden');
     // Not while the list is up: the list is what it opens, and "Back to composer" is
     // the way out of it, as in the panel.
     btn.classList.toggle('hidden', listing || receiptShown);
@@ -974,6 +981,7 @@
     if (!listing) return;
     const pubkey = state.activePubkey;
     const all = await readAllDrafts();
+    if (paint !== savedDraftsPaint) return;
     const entries = others.slice();
     // THE DRAFT ON SCREEN FIRST, as "Open now", for Save to relays; a tap goes back to it.
     if (all[dkey] && draftHasContent(all[dkey])) {
@@ -2095,11 +2103,12 @@
       // The toolbar edits this draft, so it stands down while another draft is being
       // chosen rather than offering to attach a photo to a list.
       $('compose-actions').classList.toggle('hidden', which === 'drafts');
-      // AND SO DOES WHAT BELONGS TO IT: the attachment strip, the media drawer and the dev
-      // fields. Left up under the list, the open draft's quoted note read as part of the
-      // list. A class of its own rather than .hidden, which each of them sets for its own
-      // reasons and would get back wrong.
-      for (const el of [$('compose-thumbs'), mediaDrawer.wrap, $('compose-dev')]) {
+      // AND SO DOES WHAT BELONGS TO IT: the reply's target, the attachment strip, the
+      // media drawer and the dev fields. Left up over the list, the open draft's quoted
+      // note and the note it answers read as part of the list, whose own row already says
+      // "Reply to". A class of its own rather than .hidden, which each of them sets for its
+      // own reasons and would get back wrong.
+      for (const el of [$('compose-reply-target'), $('compose-thumbs'), mediaDrawer.wrap, $('compose-dev')]) {
         el.classList.toggle('drafts-away', which === 'drafts');
       }
       if (which === 'drafts') { closeGifPicker(); closeAltEditor(); }

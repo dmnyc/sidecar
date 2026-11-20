@@ -29,8 +29,6 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 >
 > — [Tomek K.](https://jumble.social/notes/nevent1qqsrx6ggamwthpfl5gw42zfr7p408k0nzurwljf33ay02ctkvzlqahqpzemhxue69uhhyetvv9ujuurjd9kkzmpwdejhgq3q4wxtsrj7g2jugh70pfkzjln43vgn4p7655pgky9j9w9d75u465pqfdy0uu), head of [The Bitcoin District](https://thebitcoindistrict.com/), on Nostr
 
-<details>
-<summary><strong>More from people who use it</strong></summary>
 
 > "I just upgraded my browser signing extension to #Sidecar - you should too! So many excellent features."
 >
@@ -41,6 +39,8 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 >
 > — [Fundamentals](https://jumble.social/users/npub12eml5kmtrjmdt0h8shgg32gye5yqsf2jha6a70jrqt82q9d960sspky99g), creator of [Magic Internet Math](https://magicinternetmath.com)
 
+<details>
+<summary><strong>More from people who use it</strong></summary>
 
 > "Best UX for a browser key signer so far. And the nsec is encrypted using PBKDF2/AES-GCM, then stored in chrome.storage.local, so other potentially malicious add-ons can't get to it. In my broad testing across multiple browser key signers last year, only Alby did this, though I don't know if others have added it since. Sidecar also has a better UX than Alby. [...] I'm thinking about replacing Alby with Sidecar in NoorNote's onboarding wizard because Sidecar is better for beginners right now."
 >

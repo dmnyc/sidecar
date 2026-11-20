@@ -10,8 +10,9 @@ function apps() {
     url: 'https://iris.to',
     domain: 'iris.to',
     cat: 'social',
-    icon: 'https://iris.to/img/apple-touch-icon.png',
-    flush: true,
+    // Their own favicon.svg, a colored ring on transparency, so it takes the framed
+    // treatment. The apple-touch-icon this used went missing from the site.
+    icon: 'https://iris.to/favicon.svg',
     desc: t('A fast, lightweight social client for Nostr: a familiar timeline with search and private messages.'),
   },
   {
@@ -70,8 +71,10 @@ function apps() {
     url: 'https://snort.social',
     domain: 'snort.social',
     cat: 'social',
-    // Their apple-touch-icon is an opaque full-bleed square, so it takes the flush treatment.
-    icon: 'https://snort.social/img/apple-touch-icon.png',
+    // Their apple-touch-icon, an opaque full-bleed square, so it takes the flush treatment.
+    // Bundled like Circl's: snort.social sits behind a bot check that answers a browser's
+    // image request with a challenge page, so the hotlinked copy never loaded.
+    icon: 'icons/apps/snort.png',
     flush: true,
     desc: t('A fast, feature-packed, open-source social client built on Nostr.'),
   },
@@ -246,6 +249,16 @@ function apps() {
     cat: 'media',
     desc: t('Short-form looping videos on Nostr: discover and share clips with Lightning tipping built in.'),
     icon: 'https://divine.video/favicon.png',
+  },
+  {
+    name: 'nostube',
+    url: 'https://nostu.be',
+    domain: 'nostu.be',
+    cat: 'media',
+    // Their own nostube.svg, a play button on a transparent circle, so it takes the
+    // framed treatment. Their apple-touch-icon puts the same circle on black.
+    icon: 'https://nostu.be/nostube.svg',
+    desc: t('A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.'),
   },
   {
     name: 'Zapstore',
@@ -436,7 +449,7 @@ function apps() {
     domain: 'brainstorm.world',
     cat: 'tools',
     // Their own favicon.svg — a filled rounded square, so it sits flush in the frame
-    // like Iris's apple-touch-icon rather than taking the velvet wrap.
+    // rather than taking the velvet wrap.
     icon: 'https://brainstorm.world/favicon.svg',
     flush: true,
     desc: t('Web of Trust for Nostr: trust scores built from your own connections, not an algorithm.'),

@@ -2229,5 +2229,6 @@
   "Show {{count}} reply_few": "Показать {{count}} ответа",
   "Show {{count}} reply_many": "Показать {{count}} ответов",
   "Show {{count}} reply_other": "Показать {{count}} ответа",
-  "Add an account to chat →": "Добавить аккаунт, чтобы писать в чат →"
+  "Add an account to chat →": "Добавить аккаунт, чтобы писать в чат →",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Видеосайт в стиле YouTube на Nostr: смотрите и загружайте видео и шортсы, с плейлистами и подписками."
 }

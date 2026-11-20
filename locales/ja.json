@@ -2013,5 +2013,6 @@
   "Open Sidecar and unlock it, then open this comment again.": "Sidecarを開いてロックを解除し、もう一度このコメントを開いてください。",
   "Sidecar could not open this comment.": "Sidecarがこのコメントを開けませんでした。",
   "Show {{count}} reply_other": "{{count}}件の返信を表示",
-  "Add an account to chat →": "アカウントを追加してチャット →"
+  "Add an account to chat →": "アカウントを追加してチャット →",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr上のYouTube風動画サイト。動画やショートを視聴・アップロードでき、プレイリストや登録チャンネルも使えます。"
 }

@@ -2085,5 +2085,6 @@
   "Sidecar could not open this comment.": "Sidecar نتوانست این نظر را باز کند.",
   "Show {{count}} reply_one": "نمایش {{count}} پاسخ",
   "Show {{count}} reply_other": "نمایش {{count}} پاسخ",
-  "Add an account to chat →": "افزودن حساب برای گفتگو ←"
+  "Add an account to chat →": "افزودن حساب برای گفتگو ←",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "یک سایت ویدیو به سبک YouTube روی Nostr: ویدیوها و شورت‌ها را ببینید و بارگذاری کنید، با فهرست پخش و اشتراک."
 }

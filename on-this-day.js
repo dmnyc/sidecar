@@ -1153,9 +1153,13 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-30': [
     { year: 1835, text: "Mark Twain was born in Missouri, just as Halley's Comet appeared in the sky." }, // Florida, Missouri
+    // 1.18.1. Wikipedia's November 30 page ("The first-ever international football match takes place at Hamilton Crescent, Glasgow, between Scotland and England").
+    { year: 1872, text: "Scotland and England played the first international football match, at Hamilton Crescent in Glasgow." }, // Wikipedia, November 30
   ],
   '12-01': [
     { year: 1913, text: "Ford introduced the first moving assembly line for an entire automobile, dropping the build time to hours." }, // Highland Park
+    // 1.18.1. Wikipedia's December 1 page ("The Buenos Aires Metro, the first underground railway system in the Southern Hemisphere and in Latin America, begins operation").
+    { year: 1913, text: "The Buenos Aires Underground opened, the first subway in Latin America and the Southern Hemisphere." }, // Wikipedia, December 1
   ],
   '12-02': [
     { year: 1942, text: "Under a stadium in Chicago, Enrico Fermi's team started the first nuclear chain reaction." }, // Chicago Pile-1, Stagg Field
