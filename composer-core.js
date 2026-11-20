@@ -45,6 +45,8 @@ window.SidecarCore = (function () {
     // stroked, the same as `grip` below: at r=1.5 an unfilled circle is a ring with a
     // hole in it, not a dot of paint.
     palette: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.93 0 1.68-.75 1.68-1.68 0-.44-.17-.83-.44-1.13a1.66 1.66 0 0 1 1.24-2.77h1.98A5.54 5.54 0 0 0 22 10.88C22 5.98 17.52 2 12 2z"></path><circle cx="6.5" cy="11.5" r="1.5" fill="currentColor"></circle><circle cx="9.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="14.5" cy="7.5" r="1.5" fill="currentColor"></circle><circle cx="17.5" cy="11.5" r="1.5" fill="currentColor"></circle>',
+    // Feather's list, for the links behind the pictures beside a quote.
+    list: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>',
     copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
     users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
     edit: '<path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>',
@@ -2497,15 +2499,30 @@ window.SidecarCore = (function () {
     const list = h('div', { className: 'compose-media-drawer attach-group-list' });
     for (const u of urls) list.append(buildUrlRow(u));
     const toggle = h('button', { className: 'attach-group-toggle', type: 'button' });
+    let links = null; // the list button in the actions, made below
     const paintOpen = () => {
       list.classList.toggle('hidden', !attachmentUrlsOpen);
       toggle.classList.toggle('open', attachmentUrlsOpen);
       toggle.setAttribute('aria-expanded', attachmentUrlsOpen ? 'true' : 'false');
+      if (links) {
+        links.title = attachmentUrlsOpen ? t('Hide links') : t('Show links');
+        links.setAttribute('aria-label', links.title);
+        links.setAttribute('aria-expanded', attachmentUrlsOpen ? 'true' : 'false');
+      }
     };
     toggle.append(icon('chevron-down'), h('span', { textContent: tn('{{count}} attachment', '{{count}} attachments', count) }));
     toggle.addEventListener('click', () => { attachmentUrlsOpen = !attachmentUrlsOpen; paintOpen(); });
-    paintOpen();
     const actions = h('span', { className: 'quote-block-actions' });
+    // THE LINKS, IN THE OPEN. The label opens the list too, but it reads as a heading
+    // like "Quoting", and nothing said it could be tapped. This opens and closes the same
+    // list whatever the count, and copying stays on its rows: one button that copied for
+    // one attachment and opened a list for several could not be read before tapping.
+    if (urls.length) {
+      links = blockIconBtn('list', t('Show links'), () => { attachmentUrlsOpen = !attachmentUrlsOpen; paintOpen(); });
+      links.classList.add('attach-group-links');
+      actions.append(links);
+    }
+    paintOpen();
     if (c.canUp) actions.append(blockIconBtn('arrow-up', t('Move above the quote'), c.onUp));
     if (c.canDown) actions.append(blockIconBtn('arrow-down', t('Move below the quote'), c.onDown));
     const label = h('div', { className: 'attach-group-label' }, [toggle, actions]);
