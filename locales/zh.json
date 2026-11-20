@@ -2013,5 +2013,6 @@
   "Open Sidecar and unlock it, then open this comment again.": "请打开 Sidecar 并解锁，然后重新打开此评论。",
   "Sidecar could not open this comment.": "Sidecar 无法打开此评论。",
   "Show {{count}} reply_other": "显示 {{count}} 条回复",
-  "Add an account to chat →": "添加账户以聊天 →"
+  "Add an account to chat →": "添加账户以聊天 →",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 上的 YouTube 风格视频网站：观看和上传视频与短视频，支持播放列表和订阅。"
 }

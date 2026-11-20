@@ -2085,5 +2085,6 @@
   "{{count}} saved item couldn’t be found on your relays._other": "Kayıtlı {{count}} öğe relay’lerinizde bulunamadı.",
   "Show {{count}} reply_one": "{{count}} yanıtı göster",
   "Show {{count}} reply_other": "{{count}} yanıtı göster",
-  "Add an account to chat →": "Sohbet için hesap ekle →"
+  "Add an account to chat →": "Sohbet için hesap ekle →",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr üzerinde YouTube tarzı bir video sitesi: video ve shorts izleyin ve yükleyin, oynatma listeleri ve aboneliklerle."
 }

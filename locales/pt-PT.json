@@ -2157,5 +2157,6 @@
   "Show {{count}} reply_one": "Mostrar {{count}} resposta",
   "Show {{count}} reply_many": "Mostrar {{count}} de respostas",
   "Show {{count}} reply_other": "Mostrar {{count}} respostas",
-  "Add an account to chat →": "Adicionar conta para conversar →"
+  "Add an account to chat →": "Adicionar conta para conversar →",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Um site de vídeos ao estilo do YouTube sobre Nostr: veja e carregue vídeos e shorts, com listas de reprodução e subscrições."
 }

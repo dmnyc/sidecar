@@ -2085,5 +2085,6 @@
   "Sidecar could not open this comment.": "A Sidecar nem tudta megnyitni ezt a hozzászólást.",
   "Show {{count}} reply_one": "{{count}} válasz megjelenítése",
   "Show {{count}} reply_other": "{{count}} válasz megjelenítése",
-  "Add an account to chat →": "Fiók hozzáadása a csevegéshez →"
+  "Add an account to chat →": "Fiók hozzáadása a csevegéshez →",
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "YouTube-stílusú videós oldal a Nostren: nézz és tölts fel videókat és shortokat, lejátszási listákkal és feliratkozásokkal."
 }
