@@ -201,8 +201,11 @@ test('a set belongs to one account and expires', () => {
   assert.match(panel, /Date\.now\(\) - \(saved\.ts \|\| 0\) < WOT_TTL_MS/);
   assert.match(panel, /function forgetWot\(\)/);
   assert.match(panel, /forgetWot\(\);/, 'dropped when the follow list is');
-  // An empty set is the fail-open signal and is not worth persisting.
-  assert.match(panel, /if \(res\.set\.size\) \{/);
+  // An empty set is the fail-open signal and is not worth persisting, and neither is a
+  // partial one: a chunk no relay answered narrows the set, and keeping that for a day left
+  // the bell sorting nearly everyone outside a half-read network.
+  assert.match(panel, /if \(res\.set\.size && !\(res\.expanded < res\.follows\)\) \{/);
+  assert.match(panel, /if \(!answered\) throw new Error\('no relay answered'\);/, 'a chunk no relay answered must count as unread');
 });
 
 test('the build fails open', () => {
