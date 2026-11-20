@@ -4025,8 +4025,11 @@
           },
           // One REQ per chunk of seeds, collecting their p-tags. Bounded per chunk so a
           // single unresponsive relay cannot hold the whole build open.
+          // A chunk NO relay answered for throws, so the build counts it as unread rather than as
+          // people with no follows, and the set is not kept (see the store below).
           fetchFollowsOf: async (chunk) => {
-            const evs = await poolQuerySync(relays, { kinds: [3], authors: chunk }, { maxWait: 8000 });
+            const { events: evs, answered } = await poolQueryAnswered(relays, { kinds: [3], authors: chunk }, { maxWait: 8000 });
+            if (!answered) throw new Error('no relay answered');
             // Deduped by author before counting: the pool spans relays, so one person's
             // list arrives once per relay holding it, and counting copies multiplies every
             // vote. See followsFromEvents.
@@ -4037,7 +4040,10 @@
         _wotSet = res.set;
         // Only worth keeping if it can actually filter. An empty set is the fail-open
         // signal, and persisting one would just make the next open re-read "no filter".
-        if (res.set.size) {
+        // And only if it is WHOLE: a chunk whose relays did not answer narrows the set, and
+        // keeping that for a day left the bell sorting nearly everyone outside a network it
+        // had only half read. A partial set is used for this session and rebuilt next time.
+        if (res.set.size && !(res.expanded < res.follows)) {
           chrome.storage.local.set({
             [WOT_STORE]: { pubkey, algo: WOT_ALGO, keys: [...res.set], seen: res.seen, qualified: res.qualified, ts: Date.now() },
           }, () => void chrome.runtime.lastError);
@@ -9442,6 +9448,55 @@
         ? null
         : emptyQuote(t('Replies, reactions and zaps show up here.'), panelQuote);
       if (emptyMsg) scroll.appendChild(emptyMsg);
+
+      // REBUILD NETWORK, from the bell. A thin network sorts nearly everything outside it, and
+      // the bell then looks empty with the answer three screens away in Settings. The button
+      // rebuilds the set and reopens the bell sorted by the new one.
+      // The size of the network the bell is sorting by, the same sentence Settings shows, so a
+      // thin one is visible right where it does its damage. Nothing while there is no set.
+      // On its own line, so the question and its button below it read as one thing.
+      function networkSize() {
+        if (!(wotSet && wotSet.size)) return [];
+        return [document.createTextNode(tn('Your network: {{count}} person.', 'Your network: {{count}} people.', wotSet.size)), h('br')];
+      }
+      function rebuildNetworkBtn() {
+        const b = h('button', { className: 'notif-offnet-settings notif-rebuild', type: 'button', textContent: t('Rebuild network') });
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          b.textContent = t('Rebuilding…');
+          try { await rebuildWot(); } catch (_) {}
+          closeModal();
+          showNotifModal(a, place);
+        });
+        return b;
+      }
+      // Nothing from your network, and plenty from outside it: say so above the group, where
+      // the eye lands, instead of leaving an empty list over a collapsed count.
+      let thinNote = null;
+      if (!events.length && offNet.length) {
+        thinNote = scroll.appendChild(h('p', { className: 'notif-offnet-note notif-thin' }, [
+          ...networkSize(),
+          document.createTextNode(t('Nothing from your network here. If that looks wrong, rebuild it.') + ' '),
+          rebuildNetworkBtn(),
+        ]));
+      }
+      // AND AT THE FOOT, small, under Load more (or the empty state, or the end note): the
+      // place someone who scrolled down looking for what is missing ends up. Only while the
+      // bell is sorting by a network, and not while the line at the top already offers it.
+      let rebuildFoot = null;
+      function placeRebuildFoot() {
+        if (!wotSet || thinNote) return;
+        if (!rebuildFoot) {
+          rebuildFoot = h('p', { className: 'notif-rebuild-foot' }, [
+            ...networkSize(),
+            // The question and its button never part at a wrap.
+            h('span', { className: 'notif-keep' }, [document.createTextNode(t('Missing someone?') + ' '), rebuildNetworkBtn()]),
+          ]);
+        }
+        const anchor = moreBtn || endNote || emptyMsg;
+        if (anchor && anchor.parentNode === scroll) scroll.insertBefore(rebuildFoot, anchor.nextSibling);
+        else scroll.appendChild(rebuildFoot);
+      }
       function clearEmptyMessage() {
         if (emptyMsg) { emptyMsg.remove(); emptyMsg = null; }
       }
@@ -9537,6 +9592,8 @@
           }
           return;
         }
+        // One from the network answers the "nothing from your network" line.
+        if (thinNote) { thinNote.remove(); thinNote = null; }
         list.prepend(buildItem(ev));
         showEndNote();
       }
@@ -9593,10 +9650,12 @@
             if (offNetBox) scroll.insertBefore(moreBtn, offNetBox);
             else scroll.appendChild(moreBtn);
           }
+          placeRebuildFoot();
           return;
         }
         if (moreBtn) { moreBtn.remove(); moreBtn = null; }
         showEndNote();
+        placeRebuildFoot();
       }
 
       // What this sheet holds, so a page of history adds only what it has not drawn.
@@ -9651,7 +9710,12 @@
 
       // An empty main list can still have notifications in the outside-network group.
       // Run the end-of-list render for that case so its toggle remains reachable.
+      // Nothing from the network but some from outside it: the group is drawn straight away,
+      // under the line that says so, rather than only after Load more has run dry. Load more
+      // then sits above it, as it does whenever the group is up.
+      if (!events.length && offNet.length) showOffNet();
       if (events.length || offNet.length) { showNextPage(); syncMore(); }
+      else placeRebuildFoot();
 
       // Back to where you were. The pages first — scrolling to an offset that nothing has
       // been rendered into yet would just clamp to the bottom of a short list — and then
