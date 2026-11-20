@@ -110,6 +110,14 @@ straight from 1.8.0 to 1.10.0. Consequences worth holding onto:
       `scripts/store-screenshots/README.md`), look at every image in `store/screenshots-X.Y.Z/chrome`
       and `/firefox`, and upload them to both stores and the site. No hit, no new set. A pull request
       that changes the interface is not done until this pass can be made from it.
+- [ ] **Directory check.** Run `npm run check-directory` (`scripts/check-directory.js`). Every
+      card in the Nostr apps directory and the Wallets list must answer and every logo must draw:
+      it fetches each link and logo as a browser asks, judges a logo by its bytes (a bot check
+      or a catch-all page answers 200 with HTML), then opens both pages in the real extension
+      and checks that every logo drew. It exits 1 on a failure; fix or remove the card, and
+      bundle a logo under `icons/apps/` when its host turns browsers away. A warning (a site
+      behind a bot check, a link that now lands elsewhere) is opened by hand. Then sync the
+      site's catalog, so sidecar.top shows the same cards.
 - [ ] **Firefox smoke test** — `about:debugging` → This Firefox → Load Temporary Add-on;
       exercise the sidebar, an approval, and confirm the panel actually renders (the
       blank-panel regression — i.e. the origin gate lets extension pages through).

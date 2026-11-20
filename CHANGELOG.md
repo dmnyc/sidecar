@@ -28,6 +28,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Documentation
 - **The README shows two more quotes from people who use Sidecar** above the fold.
+- **The release checklist has a directory check.** A command asks every site and logo in the Nostr apps directory and the Wallets list whether it still answers, then opens both pages in the extension to see that every logo draws.
 
 ## [1.18.0] — 2026-11-19
 
