@@ -427,6 +427,17 @@ function dlog(level, tag, msg, data) {
   if (debugLog.length > DEBUG_LOG_MAX) debugLog.shift();
   if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_LOG_UPDATED' }); } catch (_) {} }
 }
+// ---- the page an uninstall opens ----
+// The browser opens it in a new tab once Sidecar is removed: a short page that asks, if
+// you so desire, why. The address is bare on purpose, with no version, install ID or
+// anything else about the browser it came from. Set each time the worker starts, so an
+// update or a restart keeps it; the browser remembers it between starts anyway.
+const UNINSTALL_URL = 'https://sidecar.top/uninstall';
+try {
+  const set = chrome.runtime.setUninstallURL && chrome.runtime.setUninstallURL(UNINSTALL_URL);
+  if (set && set.catch) set.catch(() => {});
+} catch (_) { /* a browser without it opens nothing, which is fine */ }
+
 // ---- side panel open on toolbar click ----
 chrome.runtime.onInstalled.addListener((details) => {
   if (chrome.sidePanel) chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
