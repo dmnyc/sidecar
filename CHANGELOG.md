@@ -19,6 +19,7 @@ has entries, and that heading becomes the version heading when the release is cu
 ### Fixed
 - **The “Find people beyond your follows?” question sits inside the full-size composer’s field.** It ran along the field’s edges; it now lines up with your text.
 - **A network read from relays that did not all answer is no longer kept for a day.** It is used for the session and rebuilt next time, so one flaky relay cannot leave the bell sorting nearly everyone outside your network.
+- **An attachment’s links are in sight when a quoted note sits beside it.** The pictures’ row has a list button, beside its arrow, that opens and closes their links, each with its own copy button. The links were there before, behind the “1 attachment” label, which did not look like something to tap.
 
 ## [1.18.0] — 2026-11-19
 
