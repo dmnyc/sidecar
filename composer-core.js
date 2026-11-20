@@ -2957,10 +2957,15 @@ window.SidecarCore = (function () {
         });
         kids.push(save);
       }
+      // THE DRAFT ON SCREEN IS DISCARDED, NOT DELETED: the editor still holds its text, and
+      // deleting only the saved copy would see the next autosave write it straight back. So
+      // it has a trash only where the caller can clear the editor too (d.onDiscard).
+      const discard = !!(entry.current && d.onDiscard);
       let trash = null;
-      if (!entry.current) {
+      if (!entry.current || discard) {
         trash = h('button', { className: 'saved-draft-x', type: 'button',
-          title: entry.relayItem ? t('Delete from your relays') : t('Delete draft') });
+          title: discard ? t('Discard draft') : entry.relayItem ? t('Delete from your relays') : t('Delete draft') });
+        trash.setAttribute('aria-label', trash.title);
         trash.append(icon('trash'));
         kids.push(trash);
       }
@@ -2996,9 +3001,10 @@ window.SidecarCore = (function () {
       };
       const confirmDelete = () => {
         row.classList.add('confirming');
-        label.textContent = entry.relayItem ? t('Delete it from your relays?') : t('Delete this draft?');
+        label.textContent = discard ? t('Discard this draft?')
+          : entry.relayItem ? t('Delete it from your relays?') : t('Delete this draft?');
         meta.classList.add('hidden');
-        snip.textContent = t('Tap again to delete');
+        snip.textContent = discard ? t('Tap again to discard') : t('Tap again to delete');
         timer = setTimeout(settle, 4000);
       };
       // The row says so the moment the second tap lands: deleting from relays is a round
@@ -3011,10 +3017,10 @@ window.SidecarCore = (function () {
         row.classList.remove('confirming');
         row.classList.add('deleting');
         row.setAttribute('aria-busy', 'true');
-        label.textContent = t('Deleting…');
+        label.textContent = discard ? t('Discarding…') : t('Deleting…');
         meta.classList.add('hidden');
         snip.textContent = snipText();
-        try { await d.onDelete(entry); } catch (_) { settle(); buttons.forEach((b) => { b.disabled = false; }); }
+        try { await (discard ? d.onDiscard : d.onDelete)(entry); } catch (_) { settle(); buttons.forEach((b) => { b.disabled = false; }); }
       };
       if (trash) trash.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else confirmDelete(); });
       open.addEventListener('click', () => {
