@@ -1014,9 +1014,31 @@
         toast(t('Draft deleted.'), 'success');
         paintSavedDrafts();
       },
+      onDiscard: () => discardOpenDraft(),
     }) : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') }));
     pane.append(relayPane.el);
     pane.append(back);
+  }
+
+  // THE DRAFT ON SCREEN, THROWN AWAY from its row in Saved drafts. The editor is cleared
+  // with the stored copy, or its next save would write the text straight back. A reply
+  // goes with its target, and the tab returns to the account's note, as after a post.
+  async function discardOpenDraft() {
+    if (busy()) return;
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    const pubkey = state.activePubkey;
+    const now = await readAllDrafts();
+    const removed = now[dkey];
+    delete now[dkey];
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: now });
+    if (removed) relayDrafts.forget(pubkey, removed);
+    if (replyId) {
+      replyId = null;
+      try { history.replaceState(null, '', location.pathname); } catch (_) {}
+    }
+    await reopenDraft();
+    paintSaved('');
+    toast(t('Draft discarded.'), 'success');
   }
 
   // A draft read back from the relays, now in the store (relayDrafts.adopt): this tab

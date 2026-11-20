@@ -15517,10 +15517,33 @@
             toast(t('Draft deleted.'), 'success');
             showSavedDrafts();
           },
+          onDiscard: () => discardOpenDraft(),
         }) : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') }),
         pane.el,
         h('div', { className: 'actions' }, [back]),
       );
+    }
+
+    // THE DRAFT ON SCREEN, THROWN AWAY from its row in Saved drafts. This composer closes
+    // without saving (switchingDraft), or its close would write the text straight back,
+    // and the account's note opens in its place, as the full-size composer does. Not while
+    // a tab is writing the same slot: its next autosave would put the draft back.
+    async function discardOpenDraft() {
+      const open = await liveComposeTab();
+      if (open && !open.done && draftKey(pubkey, open.replyId ? { id: open.replyId } : null) === dkey) {
+        toast(t('Your draft is already open in a tab'), 'info');
+        throw new Error('open in a tab');
+      }
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      const now = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
+      const removed = now[dkey];
+      delete now[dkey];
+      await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: now });
+      if (removed) relayDrafts.forget(pubkey, removed);
+      switchingDraft = true;
+      closeModal();
+      toast(t('Draft discarded.'), 'success');
+      openComposer('', { resumeSaved: true });
     }
 
     // A draft read back from the relays, now in the store (relayDrafts.adopt), opened the
