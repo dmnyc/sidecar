@@ -23,7 +23,7 @@ test('the Post button stays hidden over Saved drafts opened in a new tab', opts,
     assert.equal(await tab.evaluate(`!document.getElementById('compose-drafts-pane').classList.contains('hidden')`), true, 'the list did not open');
     assert.equal(await tab.evaluate(shown), false, 'Post showed over Saved drafts');
     // Back to the composer: Post is back, and still the primary button.
-    await tab.evaluate(`[...document.querySelectorAll('#compose-drafts-pane button')].find((b) => /back to composer/i.test(b.textContent)).click()`);
+    await tab.evaluate(`[...document.querySelectorAll('#compose-drafts-pane button')].find((b) => /to composer/i.test(b.textContent)).click()`);
     await sleep(300);
     assert.equal(await tab.evaluate(shown), true, 'Post did not come back with the composer');
     assert.equal(await tab.evaluate(`document.getElementById('compose-post').classList.contains('primary')`), true);

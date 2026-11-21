@@ -1,0 +1,359 @@
+{
+  "alby-hub": {
+    "name": "Alby Hub",
+    "domain": "albyhub.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=albyhub.com&sz=128",
+    "kind": "png"
+  },
+  "aqstr": {
+    "name": "Aqstr",
+    "domain": "aqstr.com",
+    "from": "site",
+    "url": "https://aqstr.com/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "blitz": {
+    "name": "Blitz",
+    "domain": "blitzwalletapp.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=blitzwalletapp.com&sz=128",
+    "kind": "png"
+  },
+  "boost-me-bitch": {
+    "name": "Boost Me Bitch",
+    "domain": "boostmebitch.com",
+    "from": "site",
+    "url": "https://www.boostmebitch.com/icons/icon-192.png",
+    "kind": "png"
+  },
+  "brainstorm": {
+    "name": "Brainstorm",
+    "domain": "brainstorm.world",
+    "from": "archive",
+    "url": "https://brainstorm.world/favicon.svg",
+    "kind": "svg"
+  },
+  "club-orange": {
+    "name": "Club Orange",
+    "domain": "cluborange.org",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=cluborange.org&sz=128",
+    "kind": "png"
+  },
+  "contextvm": {
+    "name": "ContextVM",
+    "domain": "contextvm.org",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=contextvm.org&sz=128",
+    "kind": "jpeg"
+  },
+  "coracle": {
+    "name": "Coracle",
+    "domain": "coracle.social",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=coracle.social&sz=128",
+    "kind": "jpeg"
+  },
+  "cordn": {
+    "name": "Cordn",
+    "domain": "cordn.net",
+    "from": "site",
+    "url": "https://cordn.net/pwa/icon-192.png",
+    "kind": "png"
+  },
+  "divine": {
+    "name": "Divine",
+    "domain": "divine.video",
+    "from": "site",
+    "url": "https://divine.video/favicon.png",
+    "kind": "png"
+  },
+  "fanfares": {
+    "name": "Fanfares",
+    "domain": "fanfares.io",
+    "from": "site",
+    "url": "https://fanfares.io/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "flotilla": {
+    "name": "Flotilla",
+    "domain": "flotilla.social",
+    "from": "site",
+    "url": "https://flotilla.social/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "formstr": {
+    "name": "Formstr",
+    "domain": "formstr.app",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=formstr.app&sz=128",
+    "kind": "png"
+  },
+  "fountain": {
+    "name": "Fountain",
+    "domain": "fountain.fm",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=fountain.fm&sz=128",
+    "kind": "png"
+  },
+  "gamestr": {
+    "name": "Gamestr",
+    "domain": "gamestr.io",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=gamestr.io&sz=128",
+    "kind": "png"
+  },
+  "geyser": {
+    "name": "Geyser",
+    "domain": "geyser.fund",
+    "from": "site",
+    "url": "https://geyser.fund/logo-brand.svg",
+    "kind": "svg"
+  },
+  "ghostr": {
+    "name": "Ghostr",
+    "domain": "ghostr.org",
+    "from": "site",
+    "url": "https://ghostr.org/favicon/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "gratefulday": {
+    "name": "GratefulDay",
+    "domain": "gratefulday.space",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=gratefulday.space&sz=128",
+    "kind": "png"
+  },
+  "grimoire": {
+    "name": "Grimoire",
+    "domain": "grimoire.rocks",
+    "from": "site",
+    "url": "https://grimoire.rocks/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "hivetalk": {
+    "name": "HiveTalk",
+    "domain": "hivetalk.org",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=hivetalk.org&sz=128",
+    "kind": "png"
+  },
+  "iris": {
+    "name": "Iris",
+    "domain": "iris.to",
+    "from": "site",
+    "url": "https://iris.to/favicon.svg",
+    "kind": "svg"
+  },
+  "jumble": {
+    "name": "Jumble",
+    "domain": "jumble.social",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=jumble.social&sz=128",
+    "kind": "png"
+  },
+  "listr": {
+    "name": "Listr",
+    "domain": "listr.lol",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=listr.lol&sz=128",
+    "kind": "png"
+  },
+  "lnbits": {
+    "name": "LNbits",
+    "domain": "lnbits.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=lnbits.com&sz=128",
+    "kind": "png"
+  },
+  "local-bitcoiners": {
+    "name": "Local Bitcoiners",
+    "domain": "localbitcoiners.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=localbitcoiners.com&sz=128",
+    "kind": "png"
+  },
+  "minibits": {
+    "name": "Minibits",
+    "domain": "minibits.cash",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=minibits.cash&sz=128",
+    "kind": "jpeg"
+  },
+  "mynostrspace": {
+    "name": "MyNostrSpace",
+    "domain": "mynostrspace.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=mynostrspace.com&sz=128",
+    "kind": "jpeg"
+  },
+  "noornote": {
+    "name": "NoorNote",
+    "domain": "noornote.app",
+    "from": "site",
+    "url": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://noornote.app/&size=256",
+    "kind": "png"
+  },
+  "nostr-build": {
+    "name": "nostr.build",
+    "domain": "nostr.build",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=nostr.build&sz=128",
+    "kind": "png"
+  },
+  "nostr-nests": {
+    "name": "Nostr Nests",
+    "domain": "nostrnests.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=nostrnests.com&sz=128",
+    "kind": "png"
+  },
+  "nostr-protocol-forum": {
+    "name": "Nostr Protocol Forum",
+    "domain": "nostr-proto.org",
+    "from": "site",
+    "url": "https://nostr-proto.org/nostr-proto-logo.png",
+    "kind": "png"
+  },
+  "nostrhub": {
+    "name": "NostrHub",
+    "domain": "nostrhub.io",
+    "from": "site",
+    "url": "https://nostrhub.io/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "nostria": {
+    "name": "Nostria",
+    "domain": "nostria.app",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=nostria.app&sz=128",
+    "kind": "png"
+  },
+  "nostrudel": {
+    "name": "noStrudel",
+    "domain": "nostrudel.ninja",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=nostrudel.ninja&sz=128",
+    "kind": "png"
+  },
+  "nostube": {
+    "name": "nostube",
+    "domain": "nostu.be",
+    "from": "site",
+    "url": "https://nostu.be/nostube.svg",
+    "kind": "svg"
+  },
+  "plebeian-market": {
+    "name": "Plebeian Market",
+    "domain": "plebeian.market",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=plebeian.market&sz=128",
+    "kind": "png"
+  },
+  "primal": {
+    "name": "Primal",
+    "domain": "primal.net",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=primal.net&sz=128",
+    "kind": "png"
+  },
+  "razr": {
+    "name": "Razr",
+    "domain": "razr.social",
+    "from": "site",
+    "url": "https://razr.social/razr-icon-180.png",
+    "kind": "png"
+  },
+  "rizful": {
+    "name": "Rizful",
+    "domain": "rizful.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=rizful.com&sz=128",
+    "kind": "png"
+  },
+  "shakespeare": {
+    "name": "Shakespeare",
+    "domain": "shakespeare.diy",
+    "from": "site",
+    "url": "https://shakespeare.diy/shakespeare-192x192.png",
+    "kind": "png"
+  },
+  "shopstr": {
+    "name": "Shopstr",
+    "domain": "shopstr.market",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=shopstr.market&sz=128",
+    "kind": "png"
+  },
+  "shosho": {
+    "name": "Shosho",
+    "domain": "shosho.live",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=shosho.live&sz=128",
+    "kind": "png"
+  },
+  "stacker-news": {
+    "name": "Stacker News",
+    "domain": "stacker.news",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=stacker.news&sz=128",
+    "kind": "png"
+  },
+  "tunestr": {
+    "name": "Tunestr",
+    "domain": "tunestr.io",
+    "from": "site",
+    "url": "https://tunestr.io/logo.png",
+    "kind": "webp"
+  },
+  "wavefunc-radio": {
+    "name": "WaveFunc Radio",
+    "domain": "wavefunc.live",
+    "from": "site",
+    "url": "https://wavefunc.live/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "wavlake": {
+    "name": "Wavlake",
+    "domain": "wavlake.com",
+    "from": "site",
+    "url": "https://wavlake.com/apple-touch-icon.png",
+    "kind": "png"
+  },
+  "words-with-zaps": {
+    "name": "Words with Zaps",
+    "domain": "wordswithzaps.top",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=wordswithzaps.top&sz=128",
+    "kind": "png"
+  },
+  "yakbak": {
+    "name": "YakBak",
+    "domain": "yakbak.app",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=yakbak.app&sz=128",
+    "kind": "png"
+  },
+  "yakihonne": {
+    "name": "YakiHonne",
+    "domain": "yakihonne.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=yakihonne.com&sz=128",
+    "kind": "png"
+  },
+  "zap-stream": {
+    "name": "zap.stream",
+    "domain": "zap.stream",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=zap.stream&sz=128",
+    "kind": "png"
+  },
+  "zeus": {
+    "name": "Zeus",
+    "domain": "zeusln.com",
+    "from": "google",
+    "url": "https://www.google.com/s2/favicons?domain=zeusln.com&sz=128",
+    "kind": "jpeg"
+  }
+}

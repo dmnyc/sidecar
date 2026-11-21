@@ -53,8 +53,9 @@ test('the item is there with no drafts at all, and the list opens without overwr
     // Still there in the store, word for word, after the list saved "what is on screen".
     assert.equal((await stored(x))[x.me].text, 'A note in progress');
 
-    // And back to it, in the editor, with the text in the box.
-    assert.ok(await x.evaluate(`(() => { const b = [...document.querySelectorAll('#modal button')].find((e) => e.textContent.trim() === 'Back to composer'); if (!b) return false; b.click(); return true; })()`));
+    // And on to it, in the editor, with the text in the box. Opened from the menu, the way
+    // out says Go to composer: there was no composer on screen to go back to.
+    assert.ok(await x.evaluate(`(() => { const b = [...document.querySelectorAll('#modal button')].find((e) => e.textContent.trim() === 'Go to composer'); if (!b) return false; b.click(); return true; })()`));
     await x.waitFor(`!!document.querySelector('#modal [contenteditable]')`);
     assert.equal(await x.evaluate(`document.querySelector('#modal [contenteditable]').innerText.trim()`), 'A note in progress');
     assert.deepEqual(x.errors, []);

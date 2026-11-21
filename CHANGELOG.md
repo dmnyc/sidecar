@@ -9,6 +9,19 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [1.18.2] — 2026-11-21
+
+### Fixed
+- **A line that starts with a mention can be joined to the line above.** With a mention at the start of a line, the caret could not be placed in front of it: Delete at the end of the line above removed the line break and the mention with it, and Backspace took a letter of the line above. Backspace in front of the mention, or Delete at the end of the line above, now removes only the line break, in the panel and the full-size composer.
+- **The Post button no longer shows over Saved drafts** when the list opens in a new full-size composer tab.
+- **Saved drafts opened from the compose menu says “Go to composer”** at its foot, in the panel and the full-size composer. It said “Back to composer” when there was no composer to go back to; opened from the folder inside the composer, it still says Back.
+- **Every logo in the app directory and the Wallets list ships with Sidecar.** Cards loaded their pictures from each site, or from Google, so a site that was down or answered with a bot check left its card with only an initial. Fifty-one logos are now copies kept in the extension.
+
+### Documentation
+- **The README notes Sidecar topping a survey of active Nostr signers** in November 2026.
+- **Store screenshots always show the same On this day entry,** so a new set does not change with the day it was taken.
+- **A script copies the directory’s logos into the extension,** for adding a card or refreshing a logo, and a test fails if a card loads its picture from the web again.
+
 ## [1.18.1] — 2026-11-20
 
 ### Added
