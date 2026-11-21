@@ -69,6 +69,16 @@ for (const e of entries) {
     const w = Number(execFileSync('sips', ['-g', 'pixelWidth', file]).toString().match(/pixelWidth: (\d+)/)[1]);
     if (w > 128) execFileSync('sips', ['-Z', '128', file], { stdio: 'ignore' });
   }
+  // Then recompressed losslessly, as every shipped image is: oxipng for a PNG (no --alpha,
+  // so even the hidden colors of transparent pixels stay), jpegtran for a JPEG. Skipped
+  // quietly when the tool is not installed.
+  try {
+    if (got.kind === 'png') execFileSync('oxipng', ['-q', '-o', 'max', '--strip', 'safe', file], { stdio: 'ignore' });
+    if (got.kind === 'jpeg') {
+      const out = execFileSync('jpegtran', ['-optimize', '-progressive', '-copy', 'none', file]);
+      if (out.length < fs.statSync(file).size) fs.writeFileSync(file, out);
+    }
+  } catch (_) { /* not installed: the file stays as fetched */ }
   record[slug] = { name: e.name, domain: e.domain, from: src.from, url: src.url.replace('https://web.archive.org/web/2026id_/', ''), kind: got.kind };
   console.log(`fetched  ${e.list.padEnd(8)} ${e.name}: icons/apps/${path.basename(file)} (${src.from}, ${fs.statSync(file).size} bytes)`);
 }
