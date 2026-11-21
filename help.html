@@ -313,29 +313,6 @@
           Sidecar first, then use the client's "add account" option and choose the
           browser extension method. Once each account is added and approved, you can
           hop between them using the client's own switcher.</p>
-          <p>On a site where two of your accounts are signed in, the sheet behind
-          <em>Manage</em> in Connected sites lists each account with its own permission level.
-          Changing one never changes Sidecar&rsquo;s active account.</p>
-          <!-- screenshot: the shared-site sheet, one block per account -->
-          <figure class="shot shot-sm">
-            <div class="shot-frame">
-              <img src="screenshots/shared-site-sheet.webp" width="672" height="962" alt="The shared-site sheet for social.example: Amelia and Gatsby, each with a trash can and a permission level set to Ask every time, then a Don't ask which account switch and Close">
-            </div>
-            <figcaption>The sheet behind <em>Manage</em>: one level for each account.</figcaption>
-          </figure>
-          <p><strong>A safety net.</strong> Because these clients can show one account
-          while signing as another, Sidecar watches for the mismatch: once a site has
-          signed in with more than one of your accounts, every post asks you to confirm
-          who's signing, with a <em>Multiple accounts used</em> note on the prompt. So
-          even when the client's switcher and Sidecar disagree, you catch it before
-          anything publishes as the wrong you.</p>
-          <p><strong>Background syncs are the exception.</strong> As you browse, clients
-          quietly save app settings — read status, feed preferences, and the like. These
-          aren't posts: nobody sees them in a feed, and they're harmless to write under
-          either account. So Sidecar handles them for you rather than interrupting every
-          few seconds to ask who's syncing. If you'd rather confirm each one, turn on
-          <em>Confirm background app-data syncs</em> in Settings.</p>
-
           <!-- screenshot: a multi-account client's switcher (e.g. Jumble or noStrudel) -->
           <figure class="shot shot-sm">
             <div class="shot-frame">
@@ -345,6 +322,30 @@
           </figure>
         </div>
       </div>
+
+      <h3>Two of your accounts in one client</h3>
+      <p><strong>A safety net.</strong> Because these clients can show one account
+      while signing as another, Sidecar watches for the mismatch: once a site has
+      signed in with more than one of your accounts, every post asks you to confirm
+      who's signing, with a <em>Multiple accounts used</em> note on the prompt. So
+      even when the client's switcher and Sidecar disagree, you catch it before
+      anything publishes as the wrong you.</p>
+      <p>On a site where two of your accounts are signed in, the sheet behind
+      <em>Manage</em> in Connected sites lists each account with its own permission level.
+      Changing one never changes Sidecar&rsquo;s active account.</p>
+      <!-- screenshot: the shared-site sheet, one block per account -->
+      <figure class="shot shot-sm">
+        <div class="shot-frame">
+          <img src="screenshots/shared-site-sheet.webp" width="672" height="962" alt="The shared-site sheet for social.example: Amelia and Gatsby, each with a trash can and a permission level set to Ask every time, then a Don't ask which account switch and Close">
+        </div>
+        <figcaption>The sheet behind <em>Manage</em>: one level for each account.</figcaption>
+      </figure>
+      <p><strong>Background syncs are the exception.</strong> As you browse, clients
+      quietly save app settings — read status, feed preferences, and the like. These
+      aren't posts: nobody sees them in a feed, and they're harmless to write under
+      either account. So Sidecar handles them for you rather than interrupting every
+      few seconds to ask who's syncing. If you'd rather confirm each one, turn on
+      <em>Confirm background app-data syncs</em> in Settings.</p>
 
       <p class="fine-note">A pleasant detail: some clients, noStrudel among them, tell
       Sidecar exactly which account they expect on every signature. When Sidecar holds

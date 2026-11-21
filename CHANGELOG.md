@@ -19,6 +19,7 @@ has entries, and that heading becomes the version heading when the release is cu
 
 ### Documentation
 - **The README notes Sidecar topping a survey of active Nostr signers** in November 2026.
+- **The help guide’s two kinds of client sit side by side as equals.** The built-in-switchers card ran three times the length of the one-user card beside it; what happens when two of your accounts share one client now has its own part below the pair.
 - **Store screenshots always show the same On this day entry,** so a new set does not change with the day it was taken.
 - **Every PNG and JPEG Sidecar ships is recompressed losslessly,** about 100 KB smaller with the same pixels.
 - **A script copies the directory’s logos into the extension,** for adding a card or refreshing a logo, and a test fails if a card loads its picture from the web again.
