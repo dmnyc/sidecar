@@ -50,6 +50,8 @@ nine-offset trick as scripts/gen-japanese-patterns.py.
 """
 import json, math, random
 
+from svg_paths import compact_svg  # straight-line paths in their shortest exact form
+
 # ---- Constellation ----------------------------------------------------------------------
 SKY = json.load(open('scripts/data/sky-naked-eye.json'))
 PW, PH = 600, 1560              # the sheet, in its own units: 1:2.6, taller than most panels
@@ -381,9 +383,9 @@ def mycelium():
 if __name__ == '__main__':
     for plate in PLATES:
         with open(f'themes/constellation-sky-{plate[0]}.svg', 'w') as f:
-            f.write(constellation(plate))
+            f.write(compact_svg(constellation(plate)))
         with open(f'themes/constellation-sky-{plate[0]}-wide.svg', 'w') as f:
-            f.write(constellation(plate, WIDE))
+            f.write(compact_svg(constellation(plate, WIDE)))
     with open('themes/mycelium-hyphae.svg', 'w') as f:
-        f.write(mycelium())
+        f.write(compact_svg(mycelium()))
     print('wrote the four Constellation plates, each tall and wide, and themes/mycelium-hyphae.svg')
