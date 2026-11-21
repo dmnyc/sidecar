@@ -15,6 +15,8 @@ Established at Bitcoin block [954179](https://mempool.space/block/954179).
 
 <img width="1280" height="800" alt="Sidecar" src="https://i.nostr.build/I8a4wG0An5kdUcRDZA4E4i.png" />
 
+**The most active Nostr signer.** In [Vitor Pamplona](https://jumble.social/users/npub1gcxzte5zlkncx26j68ez60fzkvtkm9e0vrwdcvsjakxf9mu9qewqlfnj5z)’s [survey of November 19, 2026](https://jumble.social/notes/nevent1qqsqqqqqc509kf9futvddqsuyw4eyhfmf8hqhj4rmuynlt08v9vrepcpzemhxue69uhhv6t5daezumn0wd68yvfwvdhk6q3qgcxzte5zlkncx26j68ez60fzkvtkm9e0vrwdcvsjakxf9mu9qewq84u09y) covering 49 Nostr signers and key tools, Sidecar led the field with 781 commits in 90 days. Vitor is the creator of [Amethyst](https://github.com/vitorpamplona/amethyst).
+
 > "Best Nostr Extension ever! Every Nostr app should take notes on this onboarding flow. This makes me want to use Nostr."
 >
 > — [Car](https://github.com/thrillerxx), Co-Founder of [PlebLab](https://github.com/PlebLab)
