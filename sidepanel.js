@@ -322,6 +322,9 @@
     // Gutenberg was down again): Reginald (1904), "Reginald on Besetting Sins". A writer the
     // list did not already have.
     { text: 'The cook was a good cook, as cooks go; and as cooks go she went.', who: 'Saki, 1904' },
+    // 1.18.2. Checked against the Standard Ebooks text of The Devil's Dictionary (1911),
+    // "Patience" (Project Gutenberg did not answer). A writer the list did not already have.
+    { text: 'Patience: a minor form of despair, disguised as a virtue.', who: 'Ambrose Bierce, 1911' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
@@ -15458,6 +15461,9 @@
     // saved before it goes, because the list is built from the store.
     // THE DRAFT ON SCREEN IS LISTED FIRST, as "Open now": it is the one most often meant
     // by Save to relays, and its row is where that button is. Tapping it goes back to it.
+    // Whether Saved drafts was opened straight from the compose menu, before the composer was
+    // shown: its way out then says Go to composer, not Back.
+    let listFirst = false;
     async function showSavedDrafts() {
       await flushDraftNow();
       const entries = await draftsToList();
@@ -15469,8 +15475,8 @@
       modal.innerHTML = '';
       modal.classList.remove('has-drafts-btn');
       addCorner(false);
-      const back = h('button', { className: 'secondary drafts-back', type: 'button' }, [icon('feather'), h('span', { textContent: t('Back to composer') })]);
-      back.addEventListener('click', () => showEditor());
+      const back = h('button', { className: 'secondary drafts-back', type: 'button' }, [icon('feather'), h('span', { textContent: listFirst ? t('Go to composer') : t('Back to composer') })]);
+      back.addEventListener('click', () => { listFirst = false; showEditor(); });
       // THE SAME HAND-OFF AS EXPAND, to the tab's own list of these drafts. The slot goes to
       // the tab, so this composer must not save over it on the way out (handedToTab), and
       // the draft on screen was already saved when this list was built.
@@ -16853,6 +16859,7 @@
         // or opening the list would overwrite the draft it is meant to list.
         if (opts && opts.showDrafts) {
           if (hasSaved) resumeFrom(saved); else showEditor();
+          listFirst = true;
           showSavedDrafts();
         }
         else if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);

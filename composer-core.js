@@ -480,11 +480,31 @@ window.SidecarCore = (function () {
   // Serialize a contenteditable editor div to plain nostr text.
   // Text nodes → text, BR → \n, block divs → \n prefix, pill spans → their data-bech32.
   //   (NBSP used after pills to prevent browser whitespace collapse) → regular space.
+  // A PILL THAT STARTS A LINE GETS AN ANCHOR IN FRONT OF IT: a zero-width space, in a text
+  // node of its own. A pill is contentEditable=false, and Chrome has no caret position in
+  // front of one with nothing editable before it on its line, so the caret snapped to the
+  // end of the line above: Delete there took the line break and the pill with it, Backspace
+  // "before" the pill took a letter of the line above, and the arrow keys jumped over both.
+  // The anchor is that missing position. It is never saved: serializeEditor drops it.
+  const PILL_ANCHOR = '\u200B';
+  const isPill = (n) => !!(n && n.nodeType === 1 && n.dataset && n.dataset.bech32);
+  const isAnchor = (n) => !!(n && n.nodeType === Node.TEXT_NODE && n.textContent && !n.textContent.replace(/\u200B/g, ''));
+  function anchorPills(el) {
+    el.querySelectorAll('[data-bech32]').forEach((pill) => {
+      let prev = pill.previousSibling;
+      // An empty text node is not something a caret can stand on either.
+      while (prev && prev.nodeType === Node.TEXT_NODE && !prev.textContent) { const p = prev.previousSibling; prev.remove(); prev = p; }
+      if (prev && prev.nodeName !== 'BR' && !isPill(prev)) return;
+      if (isAnchor(prev)) return;
+      pill.before(document.createTextNode(PILL_ANCHOR));
+    });
+  }
+
   function serializeEditor(el) {
     let out = '';
     const walk = (node) => {
       if (node.nodeType === Node.TEXT_NODE) {
-        out += node.textContent.replace(/ /g, ' ');
+        out += node.textContent.replace(/\u200B/g, '').replace(/ /g, ' ');
       } else if (node.nodeName === 'BR') {
         out += '\n';
       } else if (node.dataset && node.dataset.bech32) {
@@ -546,6 +566,7 @@ window.SidecarCore = (function () {
       }
     }
     if (last < text.length) appendText(text.slice(last));
+    anchorPills(editor);
   }
 
   // ---- a URL pasted on its own is a picture asking to be attached ----
@@ -632,6 +653,7 @@ window.SidecarCore = (function () {
 
     // Report the text upward, keeping the placeholder state in sync first.
     function emit() {
+      anchorPills(editor);
       const text = serializeEditor(editor);
       syncEmptyClass();
       onChange(text);
@@ -848,6 +870,53 @@ window.SidecarCore = (function () {
       // about to do. The offer re-checks instead: it stands while the URL still
       // sits on its own line, and goes only when that line does.
       refreshAttachOffer();
+    });
+
+    // JOINING A LINE THAT STARTS WITH A PILL. Backspace with the caret at the start of such a
+    // line (on its anchor) and Delete at the end of the line above both take the line break
+    // and nothing else, as they would before a word. Left to the browser, the first deleted
+    // only the anchor (nothing visible happened) and the second deleted the pill too.
+    editor.addEventListener('keydown', (e) => {
+      if ((e.key !== 'Backspace' && e.key !== 'Delete') || e.isComposing || acDropdown) return;
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !sel.isCollapsed) return;
+      const r = sel.getRangeAt(0);
+      const node = r.startContainer; const off = r.startOffset;
+      if (!editor.contains(node)) return;
+      let br = null;
+      if (e.key === 'Backspace') {
+        // On the anchor, with only the anchor before the caret; or just in front of it.
+        let anchor = null;
+        if (isAnchor(node) && !node.textContent.slice(0, off).replace(/\u200B/g, '')) anchor = node;
+        else if (node.nodeType === 1 && isAnchor(node.childNodes[off])) anchor = node.childNodes[off];
+        else if (node.nodeType === 1 && isPill(node.childNodes[off]) && node.childNodes[off - 1] && node.childNodes[off - 1].nodeName === 'BR') br = node.childNodes[off - 1];
+        if (anchor && anchor.previousSibling && anchor.previousSibling.nodeName === 'BR') br = anchor.previousSibling;
+      } else {
+        // At the end of the line above: the next thing after the caret is the break, and the
+        // line it ends starts with a pill (or its anchor).
+        let next = null;
+        if (node.nodeType === Node.TEXT_NODE) next = off >= node.textContent.length ? node.nextSibling : null;
+        else next = node.childNodes[off] || null;
+        if (next && next.nodeName === 'BR' && (isPill(next.nextSibling) || (isAnchor(next.nextSibling) && isPill(next.nextSibling.nextSibling)))) br = next;
+      }
+      if (!br) return;
+      e.preventDefault();
+      let after = br.nextSibling;
+      br.remove();
+      // The anchor is spent once the pill no longer starts a line: left in, it would cost the
+      // next Backspace a keypress that does nothing visible.
+      const prev = after && after.previousSibling;
+      if (isAnchor(after) && prev && prev.nodeName !== 'BR') { const pill = after.nextSibling; after.remove(); after = pill; }
+      // The caret stays where the two lines now meet.
+      const at = document.createRange();
+      if (prev && prev.nodeType === Node.TEXT_NODE && prev.nextSibling === after) at.setStart(prev, prev.textContent.length);
+      else if (after && after.nodeType === Node.TEXT_NODE) at.setStart(after, 0);
+      else if (after) at.setStartBefore(after);
+      else { at.selectNodeContents(editor); at.collapse(false); }
+      at.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(at);
+      emit();
     });
 
     editor.addEventListener('keydown', (e) => {

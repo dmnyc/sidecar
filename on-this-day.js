@@ -1142,6 +1142,8 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-27': [
     { year: 1895, text: "Alfred Nobel signed his final will, setting aside his fortune to establish the Nobel Prizes." }, // Swedish-Norwegian Club
+    // 1.18.2. Wikipedia's November 27 page ("In New York City, the first Macy's Thanksgiving Day Parade is held").
+    { year: 1924, text: "The first Macy's Thanksgiving Day Parade marched through New York City." }, // Wikipedia, November 27
   ],
   '11-28': [
     { year: 1520, text: "Magellan sailed out of his treacherous strait and reached the open waters of the Pacific." }, // Strait of Magellan
@@ -1184,6 +1186,8 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '12-09': [
     { year: 1905, text: "France passed a historic law separating church and state." },
+    // 1.18.2. Wikipedia's December 9 page ("The first traffic lights are installed, outside the Palace of Westminster in London").
+    { year: 1868, text: "The first traffic lights went up outside Parliament in London, with semaphore arms and gas lamps for night." }, // Wikipedia, December 9
   ],
   '12-10': [
     { year: 1901, text: "The first Nobel Prizes were awarded, five years to the day after Alfred Nobel died." },

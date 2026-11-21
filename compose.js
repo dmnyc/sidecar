@@ -955,6 +955,9 @@
   // THE LAST CALL PAINTS, AND IT READS THE LIST AS IT IS THEN. Picking a draft repaints
   // while the list is still up and again on the way back to the editor; the first one,
   // finishing after the second, hid the folder for good.
+  // Whether Saved drafts was opened straight from the panel's compose menu, with no visit to
+  // the composer since: its way out then says Go to composer, not Back.
+  let listFirst = false;
   let savedDraftsPaint = 0;
   async function paintSavedDrafts() {
     const btn = $('compose-drafts-btn');
@@ -988,7 +991,9 @@
       entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId });
     }
     pane.innerHTML = '';
-    const back = h('button', { className: 'secondary drafts-back compose-drafts-back', type: 'button' }, [icon('feather'), h('span', { textContent: t('Back to composer') })]);
+    // "Go", not "Back", when the list is where this started: opened from the panel's compose
+    // menu, there is no composer behind it to go back to.
+    const back = h('button', { className: 'secondary drafts-back compose-drafts-back', type: 'button' }, [icon('feather'), h('span', { textContent: listFirst ? t('Go to composer') : t('Back to composer') })]);
     back.addEventListener('click', () => showTab('write'));
     const nameFor = (pk) => fetchPreviewProfile(pk).then((p) => (p && p.name) || null);
     const relayPane = SC.buildRelayDraftsPane({
@@ -1123,7 +1128,7 @@
     // whatever it is showing. No switching, since the list is every draft's, and none of
     // the editor's business while it is posting.
     if (msg.showDrafts === true && !receiptShown) {
-      if (!busy()) showTab('drafts');
+      if (!busy()) { listFirst = true; showTab('drafts'); }
       return;
     }
     const want = typeof msg.replyId === 'string' && /^[0-9a-f]{64}$/i.test(msg.replyId)
@@ -1503,9 +1508,18 @@
   // a minute into no feedback at all is worse than any of the things that could follow.
   function paintPostButton() {
     const post = $('compose-post');
+    // Primary or secondary, and nothing else touched. This assigned className outright, which
+    // also wiped the `hidden` that Saved drafts puts on the button, so opening the list in a
+    // new tab (compose.html#drafts, whose boot repaints the button just after showing it) left
+    // Post standing under the list.
+    const setPostLook = (el, primary) => {
+      el.classList.add('compose-post');
+      el.classList.toggle('primary', primary);
+      el.classList.toggle('secondary', !primary);
+    };
     if (mining) {
       post.textContent = t('Stop mining');
-      post.className = 'secondary compose-post';
+      setPostLook(post, false);
       post.disabled = false;
       return;
     }
@@ -1513,12 +1527,12 @@
       // Inert, and saying so. There is no route from this page to the unlock, so a button
       // that looked pressable would be the third thing today that does nothing when it is.
       post.textContent = t('Unlock to post');
-      post.className = 'secondary compose-post';
+      setPostLook(post, false);
       post.disabled = true;
       return;
     }
     post.textContent = repeatAsked ? t('Post it again?') : replyTo ? t('Reply') : t('Post');
-    post.className = 'primary compose-post';
+    setPostLook(post, true);
     const n = (draft.text || '').trim().length;
     if (draft.poll) {
       // A poll needs its question, where a plain note can be an image on its own: the
@@ -2086,6 +2100,7 @@
     const list = $('compose-drafts-pane');
     const slot = $('compose-slot');
     showTab = (which) => {
+      if (which !== 'drafts') listFirst = false;
       const wasListing = !list.classList.contains('hidden');
       // THE LIST TAKES THE EDITOR'S PLACE AT THE EDITOR'S SIZE, measured before the
       // editor is hidden, so the card does not jump when you open it.
@@ -2286,6 +2301,7 @@
     // returns to the draft instead of the list.
     if (location.hash === '#drafts') {
       try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+      listFirst = true;
       showTab('drafts');
     }
     renderThumbs();

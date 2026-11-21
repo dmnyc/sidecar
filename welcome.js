@@ -12,13 +12,14 @@ function apps() {
     cat: 'social',
     // Their own favicon.svg, a colored ring on transparency, so it takes the framed
     // treatment. The apple-touch-icon this used went missing from the site.
-    icon: 'https://iris.to/favicon.svg',
+    icon: 'icons/apps/iris.svg', // a copy of https://iris.to/favicon.svg
     desc: t('A fast, lightweight social client for Nostr: a familiar timeline with search and private messages.'),
   },
   {
     name: 'Jumble',
     url: 'https://jumble.social',
     domain: 'jumble.social',
+    icon: 'icons/apps/jumble.png', // a copy of Google's favicon for jumble.social
     cat: 'social',
     desc: t('A clean relay-first feed: browse any relay like a channel, great for discovering new voices.'),
   },
@@ -26,6 +27,7 @@ function apps() {
     name: 'Coracle',
     url: 'https://coracle.social',
     domain: 'coracle.social',
+    icon: 'icons/apps/coracle.jpg', // a copy of Google's favicon for coracle.social
     cat: 'social',
     desc: t('A polished multi-protocol client: groups, DMs, and smart relay routing built in.'),
   },
@@ -46,7 +48,7 @@ function apps() {
     url: 'https://flotilla.social',
     domain: 'flotilla.social',
     cat: 'other',
-    icon: 'https://flotilla.social/apple-touch-icon.png',
+    icon: 'icons/apps/flotilla.png', // a copy of https://flotilla.social/apple-touch-icon.png
     flush: true,
     desc: t('Community platform: chat, voice, video, and events in spaces you truly own.'),
   },
@@ -55,7 +57,7 @@ function apps() {
     url: 'https://cordn.net',
     domain: 'cordn.net',
     cat: 'other',
-    icon: 'https://cordn.net/pwa/icon-192.png',
+    icon: 'icons/apps/cordn.png', // a copy of https://cordn.net/pwa/icon-192.png
     flush: true,
     desc: t('Coordinator-assisted encrypted group messaging: sign in and chat with your key.'),
   },
@@ -63,6 +65,7 @@ function apps() {
     name: 'Primal',
     url: 'https://primal.net',
     domain: 'primal.net',
+    icon: 'icons/apps/primal.png', // a copy of Google's favicon for primal.net
     cat: 'social',
     desc: t('Fast, slick social feed with trending analytics, advanced search, and a built-in wallet.'),
   },
@@ -82,6 +85,7 @@ function apps() {
     name: 'noStrudel',
     url: 'https://nostrudel.ninja',
     domain: 'nostrudel.ninja',
+    icon: 'icons/apps/nostrudel.png', // a copy of Google's favicon for nostrudel.ninja
     cat: 'social',
     desc: t('Power-user toolkit: communities, streams, wikis, badges — nearly every NIP in one place.'),
   },
@@ -90,7 +94,7 @@ function apps() {
     url: 'https://geyser.fund',
     domain: 'geyser.fund',
     cat: 'commerce',
-    icon: 'https://geyser.fund/logo-brand.svg',
+    icon: 'icons/apps/geyser.svg', // a copy of https://geyser.fund/logo-brand.svg
     flush: true,
     desc: t('Crowdfunding for Bitcoin and Nostr projects, powered by Lightning contributions.'),
   },
@@ -116,6 +120,7 @@ function apps() {
     name: 'YakiHonne',
     url: 'https://yakihonne.com',
     domain: 'yakihonne.com',
+    icon: 'icons/apps/yakihonne.png', // a copy of Google's favicon for yakihonne.com
     cat: 'social',
     desc: t('Articles, short notes, and curated content: a versatile client popular in the Global South.'),
   },
@@ -123,6 +128,7 @@ function apps() {
     name: 'zap.stream',
     url: 'https://zap.stream',
     domain: 'zap.stream',
+    icon: 'icons/apps/zap-stream.png', // a copy of Google's favicon for zap.stream
     cat: 'media',
     desc: t('Live streaming with real-time Lightning zaps: go live or tip streamers as you watch.'),
   },
@@ -131,7 +137,7 @@ function apps() {
     url: 'https://tunestr.io',
     domain: 'tunestr.io',
     cat: 'media',
-    icon: 'https://tunestr.io/logo.png',
+    icon: 'icons/apps/tunestr.webp', // a copy of https://tunestr.io/logo.png
     flush: true,
     desc: t('Live music streaming: independent artists get paid directly by fans, no middlemen.'),
   },
@@ -139,6 +145,7 @@ function apps() {
     name: 'Shosho',
     url: 'https://shosho.live',
     domain: 'shosho.live',
+    icon: 'icons/apps/shosho.png', // a copy of Google's favicon for shosho.live
     cat: 'media',
     desc: t('Go live from your camera and chat with friends: watch on the web or the mobile app.'),
   },
@@ -146,6 +153,7 @@ function apps() {
     name: 'Nostr Nests',
     url: 'https://nostrnests.com',
     domain: 'nostrnests.com',
+    icon: 'icons/apps/nostr-nests.png', // a copy of Google's favicon for nostrnests.com
     cat: 'media',
     desc: t('Audio rooms for chatting, debating, jamming, and micro-conferences over Nostr.'),
   },
@@ -162,6 +170,7 @@ function apps() {
     name: 'ContextVM',
     url: 'https://contextvm.org',
     domain: 'contextvm.org',
+    icon: 'icons/apps/contextvm.jpg', // a copy of Google's favicon for contextvm.org
     cat: 'other',
     desc: t('Bridges Nostr and the Model Context Protocol (MCP): AI tooling over open relays.'),
   },
@@ -170,7 +179,7 @@ function apps() {
     url: 'https://wavlake.com',
     domain: 'wavlake.com',
     cat: 'media',
-    icon: 'https://wavlake.com/apple-touch-icon.png',
+    icon: 'icons/apps/wavlake.png', // a copy of https://wavlake.com/apple-touch-icon.png
     flush: true,
     desc: t('Music streaming where artists get paid directly: play, boost, and zap tracks over Lightning.'),
   },
@@ -179,7 +188,7 @@ function apps() {
     url: 'https://wavefunc.live',
     domain: 'wavefunc.live',
     cat: 'media',
-    icon: 'https://wavefunc.live/apple-touch-icon.png',
+    icon: 'icons/apps/wavefunc-radio.png', // a copy of https://wavefunc.live/apple-touch-icon.png
     flush: true,
     desc: t('A decentralized internet radio directory and player: browse stations and tune in.'),
   },
@@ -187,6 +196,7 @@ function apps() {
     name: 'Fountain',
     url: 'https://fountain.fm',
     domain: 'fountain.fm',
+    icon: 'icons/apps/fountain.png', // a copy of Google's favicon for fountain.fm
     cat: 'media',
     desc: t('Podcast player with streaming payments: earn sats while you listen and tip your hosts.'),
   },
@@ -195,7 +205,7 @@ function apps() {
     url: 'https://www.boostmebitch.com',
     domain: 'boostmebitch.com',
     cat: 'media',
-    icon: 'https://www.boostmebitch.com/icons/icon-192.png',
+    icon: 'icons/apps/boost-me-bitch.png', // a copy of https://www.boostmebitch.com/icons/icon-192.png
     flush: true,
     desc: t('A podcast boost station: search, listen, and boost Podcasting 2.0 shows over Lightning.'),
   },
@@ -203,6 +213,7 @@ function apps() {
     name: 'Gamestr',
     url: 'https://gamestr.io',
     domain: 'gamestr.io',
+    icon: 'icons/apps/gamestr.png', // a copy of Google's favicon for gamestr.io
     cat: 'gaming',
     desc: t('Decentralized gaming: play, earn sats, and own your scores on a censorship-resistant network.'),
   },
@@ -210,6 +221,7 @@ function apps() {
     name: 'Words with Zaps',
     url: 'https://www.wordswithzaps.top',
     domain: 'wordswithzaps.top',
+    icon: 'icons/apps/words-with-zaps.png', // a copy of Google's favicon for wordswithzaps.top
     cat: 'gaming',
     desc: t('A two-player word game with Lightning stakes: challenge friends and zap to win.'),
   },
@@ -221,7 +233,7 @@ function apps() {
     // Their apple-touch-icon is a transparent logo, not a full-bleed tile — its
     // corners sample at alpha 0 — so it takes the framed treatment rather than
     // flush, the same call as Circl.
-    icon: 'https://nostrhub.io/apple-touch-icon.png',
+    icon: 'icons/apps/nostrhub.png', // a copy of https://nostrhub.io/apple-touch-icon.png
     desc: t('Where developers draft and discuss NIPs, the open specs Nostr itself is built from.'),
   },
   {
@@ -248,7 +260,7 @@ function apps() {
     domain: 'divine.video',
     cat: 'media',
     desc: t('Short-form looping videos on Nostr: discover and share clips with Lightning tipping built in.'),
-    icon: 'https://divine.video/favicon.png',
+    icon: 'icons/apps/divine.png', // a copy of https://divine.video/favicon.png
   },
   {
     name: 'nostube',
@@ -257,7 +269,7 @@ function apps() {
     cat: 'media',
     // Their own nostube.svg, a play button on a transparent circle, so it takes the
     // framed treatment. Their apple-touch-icon puts the same circle on black.
-    icon: 'https://nostu.be/nostube.svg',
+    icon: 'icons/apps/nostube.svg', // a copy of https://nostu.be/nostube.svg
     desc: t('A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.'),
   },
   {
@@ -272,6 +284,7 @@ function apps() {
     name: 'Plebeian Market',
     url: 'https://plebeian.market',
     domain: 'plebeian.market',
+    icon: 'icons/apps/plebeian-market.png', // a copy of Google's favicon for plebeian.market
     cat: 'commerce',
     desc: t('A peer-to-peer Nostr marketplace: buy and sell for Bitcoin, no middleman.'),
   },
@@ -290,6 +303,7 @@ function apps() {
     name: 'Formstr',
     url: 'https://formstr.app',
     domain: 'formstr.app',
+    icon: 'icons/apps/formstr.png', // a copy of Google's favicon for formstr.app
     cat: 'tools',
     desc: t('Create forms and surveys on Nostr: collect responses privately, with no central server.'),
   },
@@ -297,6 +311,7 @@ function apps() {
     name: 'HiveTalk',
     url: 'https://hivetalk.org',
     domain: 'hivetalk.org',
+    icon: 'icons/apps/hivetalk.png', // a copy of Google's favicon for hivetalk.org
     cat: 'media',
     desc: t('Free browser-based video meetings and rooms with Nostr sign-in and Lightning tipping.'),
   },
@@ -332,7 +347,7 @@ function apps() {
     // declares, but razr.social answers 200 text/html on any unknown path, so an icon
     // URL here has to be one the site really serves. Both of these were checked by
     // content-type, not status.
-    icon: 'https://razr.social/razr-icon-180.png',
+    icon: 'icons/apps/razr.png', // a copy of https://razr.social/razr-icon-180.png
     flush: true,
     desc: t('Notes, groups, live streams and messages, with a clean reading view.'),
   },
@@ -341,7 +356,7 @@ function apps() {
     url: 'https://grimoire.rocks',
     domain: 'grimoire.rocks',
     cat: 'tools',
-    icon: 'https://grimoire.rocks/apple-touch-icon.png',
+    icon: 'icons/apps/grimoire.png', // a copy of https://grimoire.rocks/apple-touch-icon.png
     flush: true,
     desc: t('A command line for Nostr: open any event, query relays by filter, and read the NIPs.'),
   },
@@ -357,6 +372,7 @@ function apps() {
     name: 'Nostria',
     url: 'https://nostria.app',
     domain: 'nostria.app',
+    icon: 'icons/apps/nostria.png', // a copy of Google's favicon for nostria.app
     cat: 'social',
     desc: t('A focused social client — “social without the noise,” built for real human connections.'),
   },
@@ -365,13 +381,14 @@ function apps() {
     url: 'https://noornote.app',
     domain: 'noornote.app',
     cat: 'social',
-    icon: 'https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://noornote.app/&size=256',
+    icon: 'icons/apps/noornote.png', // a copy of https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://noornote.app/&size=256
     desc: t('A feature-rich client with guided onboarding and dozens of built-in addons to explore.'),
   },
   {
     name: 'MyNostrSpace',
     url: 'https://mynostrspace.com',
     domain: 'mynostrspace.com',
+    icon: 'icons/apps/mynostrspace.jpg', // a copy of Google's favicon for mynostrspace.com
     cat: 'social',
     desc: t('A nostalgic, MySpace-style take on Nostr: a customizable profile page with your own theme.'),
   },
@@ -379,6 +396,7 @@ function apps() {
     name: 'YakBak',
     url: 'https://yakbak.app',
     domain: 'yakbak.app',
+    icon: 'icons/apps/yakbak.png', // a copy of Google's favicon for yakbak.app
     cat: 'media',
     desc: t('Share short voice notes on Nostr: record, post, and listen to audio from the people you follow.'),
   },
@@ -386,6 +404,7 @@ function apps() {
     name: 'nostr.build',
     url: 'https://nostr.build',
     domain: 'nostr.build',
+    icon: 'icons/apps/nostr-build.png', // a copy of Google's favicon for nostr.build
     cat: 'media',
     desc: t('Privacy-focused media hosting: upload images and video, with metadata stripped automatically.'),
     // A second link on the card, to the plans through a referral link that credits Sidecar's creator, and labeled so.
@@ -397,13 +416,14 @@ function apps() {
     url: 'https://ghostr.org',
     domain: 'ghostr.org',
     cat: 'tools',
-    icon: 'https://ghostr.org/favicon/apple-touch-icon.png',
+    icon: 'icons/apps/ghostr.png', // a copy of https://ghostr.org/favicon/apple-touch-icon.png
     desc: t('Dead-simple post delegation: writers draft, publishers sign, with no scary key sharing.'),
   },
   {
     name: 'Listr',
     url: 'https://listr.lol',
     domain: 'listr.lol',
+    icon: 'icons/apps/listr.png', // a copy of Google's favicon for listr.lol
     cat: 'tools',
     desc: t('Create, manage, and discover Nostr lists: follow packs, mute lists, and more.'),
   },
@@ -411,6 +431,7 @@ function apps() {
     name: 'Stacker News',
     url: 'https://stacker.news',
     domain: 'stacker.news',
+    icon: 'icons/apps/stacker-news.png', // a copy of Google's favicon for stacker.news
     cat: 'social',
     desc: t('A Hacker News-style forum where good posts earn Bitcoin — share links, discuss, get zapped.'),
   },
@@ -418,6 +439,7 @@ function apps() {
     name: 'Shopstr',
     url: 'https://shopstr.market',
     domain: 'shopstr.market',
+    icon: 'icons/apps/shopstr.png', // a copy of Google's favicon for shopstr.market
     cat: 'commerce',
     desc: t('A permissionless marketplace: buy and sell for Bitcoin over Lightning or Cashu, peer to peer.'),
   },
@@ -425,6 +447,7 @@ function apps() {
     name: 'GratefulDay',
     url: 'https://gratefulday.space',
     domain: 'gratefulday.space',
+    icon: 'icons/apps/gratefulday.png', // a copy of Google's favicon for gratefulday.space
     cat: 'other',
     desc: t('A daily gratitude journal: note what you’re thankful for and build a calendar of good days.'),
   },
@@ -432,6 +455,7 @@ function apps() {
     name: 'Local Bitcoiners',
     url: 'https://localbitcoiners.com',
     domain: 'localbitcoiners.com',
+    icon: 'icons/apps/local-bitcoiners.png', // a copy of Google's favicon for localbitcoiners.com
     cat: 'media',
     desc: t('A podcast about Bitcoin meetup culture: sign in with Nostr and boost episodes with sats.'),
   },
@@ -439,6 +463,7 @@ function apps() {
     name: 'Club Orange',
     url: 'https://signup.cluborange.org/co/thedaniel',
     domain: 'cluborange.org',
+    icon: 'icons/apps/club-orange.png', // a copy of Google's favicon for cluborange.org
     cat: 'other',
     desc: t('A location-based social network for Bitcoiners: a member club with Nostr sign-in.'),
   },
@@ -450,7 +475,7 @@ function apps() {
     cat: 'tools',
     // Their own favicon.svg — a filled rounded square, so it sits flush in the frame
     // rather than taking the velvet wrap.
-    icon: 'https://brainstorm.world/favicon.svg',
+    icon: 'icons/apps/brainstorm.svg', // a copy of https://brainstorm.world/favicon.svg
     flush: true,
     desc: t('Web of Trust for Nostr: trust scores built from your own connections, not an algorithm.'),
   },
@@ -472,7 +497,7 @@ function apps() {
     domain: 'shakespeare.diy',
     cat: 'tools',
     // Serves a clean 192x192 PNG at a stable path; filled square, flush.
-    icon: 'https://shakespeare.diy/shakespeare-192x192.png',
+    icon: 'icons/apps/shakespeare.png', // a copy of https://shakespeare.diy/shakespeare-192x192.png
     flush: true,
     desc: t('Describe an app and it builds and publishes it to Nostr, in your browser. By Soapbox.'),
   },
@@ -482,7 +507,7 @@ function apps() {
     domain: 'nostr-proto.org',
     cat: 'social',
     // Transparent 256px mark, so it takes the framed treatment rather than flush.
-    icon: 'https://nostr-proto.org/nostr-proto-logo.png',
+    icon: 'icons/apps/nostr-protocol-forum.png', // a copy of https://nostr-proto.org/nostr-proto-logo.png
     desc: t('A forum about Nostr itself, with rooms for the protocol, relays, apps, and help.'),
   },
   {
@@ -552,7 +577,7 @@ function apps() {
     domain: 'fanfares.io',
     cat: 'commerce',
     // Their 180px touch icon: a rounded square with its own margin, so framed rather than flush.
-    icon: 'https://fanfares.io/apple-touch-icon.png',
+    icon: 'icons/apps/fanfares.png', // a copy of https://fanfares.io/apple-touch-icon.png
     desc: t('Sell your content for bitcoin: publishing for the internet money era.'),
   },
   {
@@ -561,7 +586,7 @@ function apps() {
     domain: 'aqstr.com',
     cat: 'commerce',
     // Their touch icon is a full-bleed rounded tile with no margin of its own, so flush.
-    icon: 'https://aqstr.com/apple-touch-icon.png',
+    icon: 'icons/apps/aqstr.png', // a copy of https://aqstr.com/apple-touch-icon.png
     flush: true,
     desc: t('Complete social tasks and earn sats, or boost your own Nostr events.'),
   },
