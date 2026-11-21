@@ -1501,11 +1501,20 @@
   // review countdown and then a full proof-of-work mine, which is as much as a minute,
   // before the signer refused and a toast said the store was locked. A note vanishing for
   // a minute into no feedback at all is worse than any of the things that could follow.
+  // Primary or secondary, and nothing else touched. This assigned className outright, which
+  // also wiped the `hidden` that Saved drafts puts on the button, so opening the list in a
+  // new tab (compose.html#drafts, whose boot repaints the button just after showing it) left
+  // Post standing under the list.
+  function setPostLook(post, primary) {
+    post.classList.add('compose-post');
+    post.classList.toggle('primary', primary);
+    post.classList.toggle('secondary', !primary);
+  }
   function paintPostButton() {
     const post = $('compose-post');
     if (mining) {
       post.textContent = t('Stop mining');
-      post.className = 'secondary compose-post';
+      setPostLook(post, false);
       post.disabled = false;
       return;
     }
@@ -1513,12 +1522,12 @@
       // Inert, and saying so. There is no route from this page to the unlock, so a button
       // that looked pressable would be the third thing today that does nothing when it is.
       post.textContent = t('Unlock to post');
-      post.className = 'secondary compose-post';
+      setPostLook(post, false);
       post.disabled = true;
       return;
     }
     post.textContent = repeatAsked ? t('Post it again?') : replyTo ? t('Reply') : t('Post');
-    post.className = 'primary compose-post';
+    setPostLook(post, true);
     const n = (draft.text || '').trim().length;
     if (draft.poll) {
       // A poll needs its question, where a plain note can be an image on its own: the
