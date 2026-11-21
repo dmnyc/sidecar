@@ -284,6 +284,15 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
               await chrome.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 }, page.sessionId);
             }
           },
+          // A real key press, by the DevTools input domain, so the browser's own editing runs
+          // (what a caret does at a pill, at a line start) rather than a script's guess at it.
+          press: async (key) => {
+            const KEYS = { Backspace: 8, Delete: 46, ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Home: 36, End: 35, Enter: 13 };
+            const code = KEYS[key];
+            await chrome.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }, page.sessionId);
+            if (key === 'Enter') await chrome.send('Input.dispatchKeyEvent', { type: 'char', text: '\r', key }, page.sessionId);
+            await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }, page.sessionId);
+          },
           // The size of a browser window, from now on: for a page that lays itself out for the width it has while
           // it is being used, not only when it is photographed.
           viewport: async ({ width = 1280, height = 800, scale = 2 } = {}) => {
