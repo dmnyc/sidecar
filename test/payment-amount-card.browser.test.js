@@ -7,8 +7,8 @@
 //
 //   - 212 sats: the number at its largest, under the wallet card's own balance, "sats" under it
 //   - 21,000 sats: a large send, whose first press is "Confirm amount above", reads the block
-//   - an absurd amount (a page writes the invoice): smaller, still on one line, every digit
-//     on screen
+//   - the largest amount Sidecar pays (99,999,999 sats): smaller, still on one line, every
+//     digit on screen
 //   - German: the unit is the reviewed translation's ("Sats"); the pseudo-locale's brackets
 //     do not get a line of their own
 
@@ -18,7 +18,8 @@ const http = require('node:http');
 const { startExtension, CHROME } = require('./helpers/real-extension');
 
 const opts = { skip: CHROME ? false : 'no Chrome found', timeout: 300000 };
-const tail = 'p' + 'q'.repeat(200) + 'xyz0123456';
+// Bech32 data only: its alphabet has no '1', so the invoice's last '1' is its separator.
+const tail = 'p' + 'q'.repeat(200) + 'xyz0234567';
 const invoice = (hrpAmount) => 'lnbc' + hrpAmount + '1' + tail;
 
 async function until(fn, ms = 10000) {
@@ -91,13 +92,13 @@ test('a large send reads the block above its "Confirm amount above"', opts, asyn
   assert.ok(r.panel.oneLine && r.popup.oneLine);
 });
 
-test('an absurd amount is smaller, on one line, every digit on screen', opts, async (t) => {
+test('the largest amount Sidecar pays is smaller, on one line, every digit on screen', opts, async (t) => {
   let r;
-  // 20,000,000 milli-bitcoin: 2,000,000,000,000 sats, seventeen characters.
-  try { r = await pay(invoice('20000000m')); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  // 999,999,990 nanobitcoin: 99,999,999 sats, the most Sidecar pays at once (nwc-client.js).
+  try { r = await pay(invoice('999999990n')); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
   for (const [where, s] of [['panel', r.panel], ['popup', r.popup]]) {
-    assert.equal(s.lines[1], 'value:2,000,000,000,000', where);
-    assert.ok(s.size < 26, `${where} draws it at ${s.size}px`);
+    assert.equal(s.lines[1], 'value:99,999,999', where);
+    assert.ok(s.size <= 26, `${where} draws it at ${s.size}px`);
     assert.ok(s.oneLine, `${where} wrapped it`);
     assert.ok(!s.clipped, `${where} cut digits off`);
   }
