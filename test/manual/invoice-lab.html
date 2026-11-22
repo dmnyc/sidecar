@@ -27,7 +27,8 @@
   Cases 10 and 11 are a zap modal that shortens its invoice, with and without a dialog around
   it: the first opens the card when its Copy button is pressed, the second stays a pill.
 
-  Cases 12 to 16 are the payment limit: Sidecar pays at most 99,999,999 sats at once. They need
+  Cases 12 to 16 are the payment limit: Sidecar pays at most 99,999,999 sats at once, and
+  never an invoice that states no amount. They need
   a wallet connected in Sidecar as well as Connect, because they ask through window.webln the
   way a page's own Zap button does. Over the limit there is no payment card, only a card that
   says Sidecar can't pay it; at the limit, the ordinary card. Every invoice in them is as bogus
@@ -280,8 +281,10 @@
 
   <div class="case">
     <h2>16. A page asks to pay an invoice with no amount</h2>
-    <p><span class="expect">Expect the payment card to say the amount is "set by invoice"</span>,
-    never "0 sats". Reject it.</p>
+    <p><span class="expect">Expect no payment card.</span> The same refusal as case 12, saying
+    "This invoice has no amount, and Sidecar only pays an invoice that states one, so nothing was
+    paid", with only <b>Close</b>, and this page prints the error it was given. Never a Pay
+    button, never "0 sats".</p>
     <button id="ask-none">Ask to pay an amountless invoice</button>
     <div class="slot" id="out-none"></div>
   </div>

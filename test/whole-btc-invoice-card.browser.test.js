@@ -4,7 +4,8 @@
 // pay "lnbc11p…", 1 BTC: misread as 0 sats, the card offered "Pay 0 sats" and skipped the
 // 10,000-sat "Confirm amount above". Read right, it is over the most Sidecar pays, so it is
 // refused (test/payment-limit-card.browser.test.js has the refusal in full); the point here
-// is that it is never a "0 sats" card. An invoice with no amount says so, rather than 0.
+// is that it is never a "0 sats" card. An invoice with no amount is refused too: there is no
+// figure on it to agree to.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -46,9 +47,10 @@ test('a 1 BTC invoice is read as 1 BTC, so it is refused, never offered as 0 sat
   assert.equal(seen.button, 'Close');
 });
 
-test('an invoice with no amount says it is set by the invoice, not 0', opts, async (t) => {
+test('an invoice with no amount is refused with a card saying so, never shown as 0 or paid', opts, async (t) => {
   let seen;
   try { seen = await card('lnbc1' + DATA); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
-  assert.match(seen.text, /set by invoice/, seen.text);
-  assert.doesNotMatch(seen.text, /(^|\D)0 sats/, seen.text);
+  assert.match(seen.text, /has no amount, and Sidecar only pays an invoice that states one/, seen.text);
+  assert.doesNotMatch(seen.text, /(^|\D)0 sats|set by invoice/, seen.text);
+  assert.equal(seen.button, 'Close');
 });

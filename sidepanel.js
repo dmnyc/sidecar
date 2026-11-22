@@ -28010,9 +28010,10 @@
     if (document.documentElement.classList.contains('modal-open')) closeModal('approval');
 
     const payment = isPaymentApproval(data);
-    // MORE THAN SIDECAR PAYS: a card saying so, not a payment card (see the end of this
+    // A PAYMENT SIDECAR WON'T MAKE (more than it pays, or no amount): a card saying so, not a
+    // payment card (see the end of this
     // function). This card is reused, so what a refusal hides comes back for the next one.
-    const refused = payment && data.overLimit === true;
+    const refused = payment && !!data.refused;
     show($('approval-account'));
     show($('approval-allow'));
     $('approval-reject').textContent = tSec('Reject');
@@ -28031,7 +28032,9 @@
     if (refused) {
       $('approval-preview').replaceChildren(h('p', {
         className: 'pay-refused',
-        textContent: tSec('Sidecar can’t pay more than {{max}} sats at once, so nothing was paid.', { max: fmtSats(data.maxSats) }),
+        textContent: data.refused === 'no-amount'
+          ? tSec('This invoice has no amount, and Sidecar only pays an invoice that states one, so nothing was paid.')
+          : tSec('Sidecar can’t pay more than {{max}} sats at once, so nothing was paid.', { max: fmtSats(data.maxSats) }),
       }));
       show($('approval-preview'));
     }

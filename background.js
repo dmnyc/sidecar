@@ -2524,14 +2524,17 @@ const KEYSEND_MAX_SATS = 99999999;
 
 const toHex = (bytes) => Array.from(bytes, (x) => x.toString(16).padStart(2, '0')).join('');
 
-// What the page is told when it asks for more than Sidecar pays. English, as every error a
-// page reads is: apps match on them.
+// What the page is told when it asks for a payment Sidecar won't make: more than it pays, or
+// an invoice that states no amount, which Sidecar has no way to agree to. English, as every
+// error a page reads is: apps match on them.
 const OVER_LIMIT_MESSAGE = "Sidecar can't pay more than 99,999,999 sats at once";
+const NO_AMOUNT_MESSAGE = "Sidecar can't pay an invoice with no amount";
 // The card that says so, where a payment card would have opened. Not awaited: the page has
 // its answer already, and the card only tells the person why nothing was paid. It carries no
 // amount and no account, and its one button, Close, settles nothing but itself.
-function refusePayment(host, method, originWindowId) {
-  openPrompt({ scope: 'webln', host, method, overLimit: true, maxSats: KEYSEND_MAX_SATS, needUnlock: false, needApproval: true }, originWindowId)
+// `reason`: 'over-limit' or 'no-amount', which picks the sentence the card shows.
+function refusePayment(host, method, originWindowId, reason) {
+  openPrompt({ scope: 'webln', host, method, refused: reason || 'over-limit', maxSats: KEYSEND_MAX_SATS, needUnlock: false, needApproval: true }, originWindowId)
     .catch(() => {});
 }
 
@@ -3126,8 +3129,14 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   // Over the most Sidecar pays: no payment card and no Pay button, a card saying so, and the
   // page told no. Before the budgets and Auto Zaps, which could never cover it anyway.
   if (sats != null && sats > KEYSEND_MAX_SATS) {
-    refusePayment(host, 'sendPayment', originWindowId);
+    refusePayment(host, 'sendPayment', originWindowId, 'over-limit');
     throw new Error(OVER_LIMIT_MESSAGE);
+  }
+  // NO AMOUNT, NO PAYMENT. The wallet would be the one to choose what leaves it, and there is
+  // no figure on any card to agree to. The same refusal, saying why.
+  if (sats == null) {
+    refusePayment(host, 'sendPayment', originWindowId, 'no-amount');
+    throw new Error(NO_AMOUNT_MESSAGE);
   }
 
   // Pay without a prompt when unlocked and either the site's budget covers a known
@@ -3510,7 +3519,7 @@ async function weblnKeysend(params, host, pubkey, originWindowId) {
   // a page should cost nothing and put no card in front of anyone.
   let ks;
   try { ks = normalizeKeysend(params); } catch (e) {
-    if (e && e.overLimit) refusePayment(host, 'keysend', originWindowId);
+    if (e && e.overLimit) refusePayment(host, 'keysend', originWindowId, 'over-limit');
     throw e;
   }
   // And ask the wallet whether it can do this at all before spending someone's attention on

@@ -410,13 +410,14 @@
     }
   }
 
-  // NOT OFFERED: an expired invoice, or one for more than Sidecar pays (99,999,999 sats, the
-  // same limit as nwc-client.js). A card offering to pay what Sidecar will refuse would be a
-  // card with nothing true to say, so neither is put in front of anyone.
+  // NOT OFFERED: an expired invoice, one with no amount, or one for more than Sidecar pays
+  // (99,999,999 sats, the same limit as nwc-client.js). Sidecar refuses the last two, so a card
+  // offering to pay them would have nothing true to say; a tapped link to one goes to the
+  // Lightning app, which can ask for an amount.
   const MAX_PAY_SATS = 99999999;
   function notOffered(bolt11) {
     const sats = invoiceSats(bolt11);
-    return (sats != null && sats > MAX_PAY_SATS) || invoiceExpired(bolt11);
+    return sats == null || sats > MAX_PAY_SATS || invoiceExpired(bolt11);
   }
 
   // Is this node inside a deliberate pay/zap surface — a modal dialog, a payment

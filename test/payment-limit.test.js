@@ -117,7 +117,7 @@ test('the panel\'s payment forms refuse an amount over the limit, with the sente
   assert.equal(gate.pass(n), true);
 });
 
-test('the page card does not offer to pay an invoice over the limit', () => {
+test('the page card does not offer to pay an invoice over the limit, or one with no amount', () => {
   const content = read('content.js');
   const ctx = { Date, Math };
   vm.createContext(ctx);
@@ -132,6 +132,7 @@ test('the page card does not offer to pay an invoice over the limit', () => {
   assert.equal(ctx.notOffered('lnbc11' + DATA), true, '1 BTC offered');
   assert.equal(ctx.notOffered('lnbc999999990n1' + DATA), false, '99,999,999 sats not offered');
   assert.equal(ctx.notOffered('lnbc2120n1' + DATA), false);
+  assert.equal(ctx.notOffered('lnbc1' + DATA), true, 'an invoice with no amount offered');
 });
 
 test('the limit is one number everywhere it is written', () => {
