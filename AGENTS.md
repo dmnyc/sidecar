@@ -59,6 +59,28 @@ Each of these was broken once, and each cost a release day.
   every commit since the previous tag, and is dated the day it ships.
 - **A test that reads source text is not verification.** Prefer one that runs the
   code, and check that it fails on the old code.
+- **Follow a change downstream before showing it.** List everything it reaches and
+  check each one, so the maintainer is not the one who finds the consequences:
+  - the other surfaces that draw the same thing (the panel and the popup approval
+    cards, the panel and the full-size composer, Sidecar and Zap Cooking);
+  - translation: reviewed `tSec` keys, word order, plurals, the pseudo-locale,
+    right-to-left languages and other digits;
+  - every theme, and the narrowest and widest widths it shows at;
+  - extreme, empty and hostile input, remembering that a page writes the invoices,
+    events and names Sidecar shows;
+  - what depends on the old behavior: other code paths, tests, docs and copy.
+
+  A problem this turns up outside the change is reported as its own finding, not
+  folded in quietly and not left unsaid.
+- **Recipe composer changes follow
+  [editor-matrix/recipes](https://github.com/dmnyc/editor-matrix/tree/main/recipes)**,
+  which keeps Sidecar's recipe composer and Zap Cooking's (web, iOS, Android) from
+  growing apart. A change to the recipe form, its publishing or its categories updates
+  Sidecar's column in `recipes/README.md` there, and `fixtures.json` or
+  `categories.json` first if what is published or suggested changes. Sidecar leads
+  the design; Zap Cooking's gaps are listed there. From the 1.19 recipe work on,
+  `test/recipe-contract.test.js` holds Sidecar to both files whenever editor-matrix
+  sits beside the checkout.
 
 ## UI rules
 
