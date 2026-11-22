@@ -23050,6 +23050,9 @@
   // Set by loadTransactions so the walletChanged handler can prepend new entries
   // without tearing the whole view down. Null when the wallet view isn't mounted.
   let _refreshTxList = null;
+  // The interval that keeps the visible rows' relative times current — set by
+  // loadTransactions, cleared with the view. Same shape as the refresh handle above.
+  let _txTimeTick = null;
 
   // Prepend any transactions not already in the list, without clearing it.
   // Called from the walletChanged handler so a zap doesn't make the history blink.
@@ -23060,6 +23063,9 @@
   async function renderWallet() {
     const view = $('wallet-view');
     const seq = ++walletRenderSeq;
+    // The old view's time tick is stale from here on — including on the no-account
+    // early return just below, which never reaches the reset further down.
+    if (_txTimeTick) { clearInterval(_txTimeTick); _txTimeTick = null; }
     if (!state.activePubkey) {
       view.innerHTML = '';
       view.append(h('p', { className: 'hint', textContent: t('No active account.') }));
@@ -24327,6 +24333,15 @@
 
     more.addEventListener('click', () => { more.textContent = t('Loading…'); loadPage(); });
     _refreshTxList = refresh;
+    // THE ROWS ONLY EVER RENDER AT ARRIVAL, so a list left open went on saying "just
+    // now" about a zap from an hour ago — and the next arrival said it too, then froze.
+    // A slow tick re-stamps what is on screen from the timestamps txRow wrote; it never
+    // re-fetches. renderWallet clears this with the view.
+    _txTimeTick = setInterval(() => {
+      listEl.querySelectorAll('.item-sub[data-ts]').forEach((el) => {
+        el.textContent = relTime(Number(el.dataset.ts));
+      });
+    }, 30000);
     loadPage();
   }
 
@@ -24565,9 +24580,18 @@
     } else {
       labelEl.textContent = counterparty || normDesc || (incoming ? t('Received') : t('Sent'));
     }
+    // The relative label is painted once per row, so it goes stale while the list sits
+    // open. The stamp is what loadTransactions' interval re-renders from.
+    const when = h('div', { className: 'item-sub' });
+    if (tx.settled_at) {
+      when.dataset.ts = tx.settled_at * 1000;
+      when.textContent = relTime(tx.settled_at * 1000);
+    } else {
+      when.textContent = t('pending');
+    }
     const main = h('div', { className: 'item-main' }, [
       labelEl,
-      h('div', { className: 'item-sub', textContent: tx.settled_at ? relTime(tx.settled_at * 1000) : t('pending') }),
+      when,
     ]);
     const amt = h('div', { className: 'tx-amt ' + (incoming ? 'in' : 'out'), textContent: (incoming ? '+' : '−') + fmtSats(sats) });
     const caret = h('span', { className: 'tx-caret' });
