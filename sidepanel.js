@@ -24260,6 +24260,27 @@
 
     listState(listEl, t('Loading…'));
 
+    // BY WHEN IT SETTLED, NOT WHEN IT WAS MADE. Wallets list newest-created first, and a
+    // received payment is created when its invoice is made, before the send that pays it,
+    // so a payment to your own wallet read Sent above Received under the same "just now".
+    // Newest settled first; one payment seen from both sides puts Received on top, since the
+    // receive completes it; anything else that ties keeps the wallet's order. A row with no
+    // time at all stays below the rest.
+    function orderTxRows() {
+      const rows = [...listEl.querySelectorAll('.tx-row')];
+      const key = (el) => (el.dataset.at ? Number(el.dataset.at) : -Infinity);
+      const sorted = rows.map((el, i) => ({ el, i })).sort((a, b) => {
+        const ka = key(a.el), kb = key(b.el);
+        if (ka !== kb) return kb - ka;
+        if (a.el.dataset.ph && a.el.dataset.ph === b.el.dataset.ph && a.el.dataset.dir !== b.el.dataset.dir) {
+          return a.el.dataset.dir === 'in' ? -1 : 1;
+        }
+        return a.i - b.i;
+      });
+      if (sorted.every((r, i) => r.el === rows[i])) return;
+      sorted.forEach(({ el }) => { el.remove(); listEl.append(el); });
+    }
+
     async function loadPage() {
       if (loading) return false;
       loading = true;
@@ -24271,6 +24292,7 @@
           listEl.innerHTML = '';
         }
         txns.forEach((tx) => listEl.append(txRow(tx, metaMap)));
+        orderTxRows();
         offset += txns.length;
         // A full page back suggests there may be more to fetch.
         if (txns.length >= PAGE) { show(more); more.textContent = t('Show more'); }
@@ -24303,17 +24325,22 @@
       try {
         const res = await client.listTransactions({ limit: PAGE, offset: 0, unpaid: false });
         const txns = (res && res.transactions) || [];
+        // A payment to your own wallet is two rows with one payment hash, so a row is known by
+        // its hash AND its side: keyed on the hash alone, a Received that arrived after its Sent
+        // was taken for a row already shown and never appeared.
+        const sideOf = (tx) => tx.payment_hash + (tx.type === 'incoming' ? ':in' : ':out');
         const existing = new Set(
-          [...listEl.querySelectorAll('.tx-row[data-ph]')].map((el) => el.dataset.ph)
+          [...listEl.querySelectorAll('.tx-row[data-ph]')].map((el) => el.dataset.ph + ':' + el.dataset.dir)
         );
         // Find new entries in reverse so prepend lands them newest-first.
-        const fresh = txns.filter((tx) => tx.payment_hash && !existing.has(tx.payment_hash));
+        const fresh = txns.filter((tx) => tx.payment_hash && !existing.has(sideOf(tx)));
         if (fresh.length) {
           // If the list was showing "No transactions yet.", clear that placeholder.
           const placeholder = listEl.querySelector('.list-state');
           if (placeholder) placeholder.remove();
           const freshMeta = await getPayMeta();
           fresh.reverse().forEach((tx) => listEl.prepend(txRow(tx, freshMeta)));
+          orderTxRows();
           show(more);
           more.textContent = t('Show more');
         }
@@ -24516,6 +24543,11 @@
 
     const row = h('div', { className: 'item tx-row' });
     if (tx.payment_hash) row.dataset.ph = tx.payment_hash;
+    // What orderTxRows sorts on: when the payment settled (or was made, while pending), and
+    // which side of it this row is.
+    const at = tx.settled_at || tx.created_at;
+    if (at) row.dataset.at = String(at);
+    row.dataset.dir = incoming ? 'in' : 'out';
     const ic = h('span', { className: 'tx-icon ' + (incoming ? 'in' : 'out') });
     ic.append(icon(incoming ? 'arrow-down' : 'arrow-up'));
     // A zap names the other party in the description itself, which nothing else here does

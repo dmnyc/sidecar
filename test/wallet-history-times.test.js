@@ -155,7 +155,7 @@ function harness(txns) {
   vm.runInContext(
     'let _refreshTxList = null;\nlet _txTimeTick = null;\n'
     + loadTransactionsSrc + '\n' + txRowSrc + '\n' + relTimeSrc + '\n'
-    + 'this.runLoad = loadTransactions;\nthis.getTick = () => _txTimeTick;',
+    + 'this.runLoad = loadTransactions;\nthis.getTick = () => _txTimeTick;\nthis.refresh = () => _refreshTxList();',
     ctx
   );
   return { ctx, client, listEl, ticks, cleared, listCalls };
@@ -193,4 +193,59 @@ test('renderWallet tears the tick down with the view', () => {
   const noAccount = body.indexOf('No active account.');
   assert.notEqual(noAccount, -1);
   assert.ok(clear < noAccount, 'cleared before the no-account early return, which skips the later reset');
+});
+
+// A PAYMENT TO YOUR OWN WALLET LISTED SENT ABOVE RECEIVED. The rows came in the wallet's
+// order, newest-created first, and a received payment is created when its invoice is made,
+// a moment before the send that pays it, so the pair read upside down under the same "just
+// now". Rows are ordered by when they settled, newest first; for one payment seen from both
+// sides, Received above Sent, since the receive is what completes it. The same order holds
+// for rows that arrive while the list is open.
+const dirOf = (listEl) => listEl.querySelectorAll('.tx-row').map((r) => r.dataset.ph.slice(0, 2) + ':' + (r.querySelector('.tx-icon').classList.contains('in') ? 'in' : 'out'));
+
+test('a payment to your own wallet lists Received above Sent, and rows go by when they settled', async () => {
+  const at = Math.floor(BASE / 1000);
+  const self = 'dd'.repeat(32);
+  const txns = [
+    // the wallet's order: newest created first
+    { type: 'outgoing', amount: 1000, created_at: at - 2, settled_at: at - 2, payment_hash: self },
+    { type: 'incoming', amount: 2000, created_at: at - 30, settled_at: at - 30, payment_hash: 'ee'.repeat(32) },
+    { type: 'incoming', amount: 1000, created_at: at - 40, settled_at: at - 2, payment_hash: self },
+    { type: 'incoming', amount: 3000, created_at: at - 900, settled_at: at - 10, payment_hash: 'ff'.repeat(32) },
+  ];
+  const { ctx, client, listEl } = harness(txns);
+  ctx.runLoad(listEl, client);
+  await flush();
+  assert.deepEqual(dirOf(listEl), ['dd:in', 'dd:out', 'ff:in', 'ee:in']);
+});
+
+test('rows that arrive while the list is open take their place by when they settled', async () => {
+  const at = Math.floor(BASE / 1000);
+  const first = [{ type: 'incoming', amount: 2000, created_at: at - 300, settled_at: at - 300, payment_hash: 'ee'.repeat(32) }];
+  const later = [
+    { type: 'outgoing', amount: 1000, created_at: at - 2, settled_at: at - 2, payment_hash: 'dd'.repeat(32) },
+    { type: 'incoming', amount: 1000, created_at: at - 40, settled_at: at - 2, payment_hash: 'dd'.repeat(32) },
+    ...first,
+  ];
+  const { ctx, client, listEl } = harness(first);
+  ctx.runLoad(listEl, client);
+  await flush();
+  client.listTransactions = async () => ({ transactions: later });
+  await ctx.refresh();
+  assert.deepEqual(dirOf(listEl), ['dd:in', 'dd:out', 'ee:in']);
+});
+
+test('the Received half of a payment to your own wallet still appears when it arrives after the Sent half', async () => {
+  const at = Math.floor(BASE / 1000);
+  const sent = { type: 'outgoing', amount: 1000, created_at: at - 2, settled_at: at - 2, payment_hash: 'dd'.repeat(32) };
+  const received = { type: 'incoming', amount: 1000, created_at: at - 40, settled_at: at - 2, payment_hash: 'dd'.repeat(32) };
+  const older = { type: 'incoming', amount: 2000, created_at: at - 300, settled_at: at - 300, payment_hash: 'ee'.repeat(32) };
+  const { ctx, client, listEl } = harness([older]);
+  ctx.runLoad(listEl, client);
+  await flush();
+  client.listTransactions = async () => ({ transactions: [sent, older] });
+  await ctx.refresh();
+  client.listTransactions = async () => ({ transactions: [sent, received, older] });
+  await ctx.refresh();
+  assert.deepEqual(dirOf(listEl), ['dd:in', 'dd:out', 'ee:in']);
 });
