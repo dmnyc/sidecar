@@ -472,7 +472,13 @@
 
     if (isPayment) {
       const rows = [];
-      rows.push(row(tSec('Amount'), data.amountSats != null ? tSec('{{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('set by invoice')));
+      // THE AMOUNT, LARGE. It is what is being agreed to, so it is the biggest thing on the card,
+      // as a reaction's emoji is on its card. The number gets the width to itself and the unit
+      // its own line, from the reviewed "{{amount}} sats" split around the number (so a language
+      // that writes the unit first has it above). Unknown until the invoice says it: a row.
+      rows.push(data.amountSats != null
+        ? amountBlock(fmtSats(data.amountSats))
+        : row(tSec('Amount'), tSec('set by invoice')));
       // Keysend goes to a bare node key, so say where — and, when the site sent a
       // boostagram, say what it is for. A card reading "500 sats to 03a1…9f2c" tells
       // nobody anything; one naming the show is a decision someone can actually make.
@@ -615,6 +621,22 @@
   }
   // Both halves escaped. The label was a literal until it became translated text, and a
   // locale file is something a pull request can change.
+  // The amount block: label, the number sized to fit by its length (a page writes the invoice,
+  // so the number can be absurd, and every digit must stay on screen), and the unit. Twin of
+  // amountBlock in sidepanel.js.
+  function amountBlock(num) {
+    const parts = String(tSec('{{amount}} sats')).split('{{amount}}');
+    // A piece with no letters (the pseudo-locale's brackets) is not a unit, and gets no line.
+    const unit = (txt) => (/\p{L}/u.test(txt) ? `<div class="pay-amount-unit">${escapeHtml(txt.trim())}</div>` : '');
+    return `<div class="pay-amount"><div class="pay-amount-label">${escapeHtml(tSec('Amount'))}</div>`
+      + unit(parts[0] || '')
+      + `<div class="pay-amount-value" data-len="${amountLenClass(num)}">${escapeHtml(num)}</div>`
+      + unit(parts.slice(1).join('') || '') + '</div>';
+  }
+  function amountLenClass(num) {
+    const n = Array.from(num).length;
+    return n <= 5 ? 's' : n <= 7 ? 'm' : n <= 9 ? 'l' : n <= 11 ? 'xl' : n <= 15 ? 'xxl' : 'huge';
+  }
   function row(k, v, cls) {
     return `<div class="row${cls ? ' ' + cls : ''}"><span>${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`;
   }

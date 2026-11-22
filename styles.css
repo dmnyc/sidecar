@@ -5341,6 +5341,19 @@ html:has(#view-approval:not(.hidden)) .toasts {
   box-shadow: var(--sheen);
 }
 .card .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+/* A payment's amount, the thing being agreed to, drawn large as a reaction's emoji is. */
+.card .pay-amount { text-align: center; padding: 4px 0 6px; }
+.card .pay-amount-label { font-size: 12.5px; color: var(--muted); }
+/* Sized by the number's length, so it stays on one line; wrapping is the last resort, never
+   clipping, since a page writes the invoice and every digit must stay visible. Never larger
+   than the wallet card's own balance (40px): the card asks about a payment, it does not shout. */
+.card .pay-amount-value { font-size: 34px; font-weight: 700; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.card .pay-amount-value[data-len="m"] { font-size: 32px; }
+.card .pay-amount-value[data-len="l"] { font-size: 30px; }
+.card .pay-amount-value[data-len="xl"] { font-size: 26px; }
+.card .pay-amount-value[data-len="xxl"] { font-size: 22px; }
+.card .pay-amount-value[data-len="huge"] { font-size: 18px; }
+.card .pay-amount-unit { font-size: 14px; color: var(--muted); line-height: 1.3; }
 .card .row span:first-child { color: var(--muted); }
 .card .row span:last-child { word-break: break-all; text-align: end; font-family: var(--font-mono); font-size: 12px; }
 /* A row whose value is a sentence rather than an identifier: break at words and set it in

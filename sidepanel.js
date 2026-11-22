@@ -27492,7 +27492,20 @@
       return h('div', { className: 'row' }, [h('span', { textContent: label }), val]);
     };
     if (isPaymentApproval(data)) {
-      box.append(row(tSec('Amount'), data.amountSats != null ? tSec('{{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('set by invoice')));
+      // The amount, large: twin of amountBlock in prompt.js, for the same reasons.
+      box.append(data.amountSats != null
+        ? (() => {
+          const num = fmtSats(data.amountSats);
+          const n = Array.from(num).length;
+          const len = n <= 5 ? 's' : n <= 7 ? 'm' : n <= 9 ? 'l' : n <= 11 ? 'xl' : n <= 15 ? 'xxl' : 'huge';
+          const value = h('div', { className: 'pay-amount-value', textContent: num });
+          value.dataset.len = len;
+          const parts = I18N.fill(tSec('{{amount}} sats'), { amount: value })
+            .map((p) => (typeof p === 'string' ? (/\p{L}/u.test(p) ? h('div', { className: 'pay-amount-unit', textContent: p.trim() }) : null) : p))
+            .filter(Boolean);
+          return h('div', { className: 'pay-amount' }, [h('div', { className: 'pay-amount-label', textContent: tSec('Amount') }), ...parts]);
+        })()
+        : row(tSec('Amount'), tSec('set by invoice')));
       // Keysend pays a bare node key, so say where it goes and — when the site sent a
       // boostagram — what it is for. Wording matches prompt.js; keep the two surfaces in
       // step. Never the raw 66-character key, for the reason stated at txRow below.
