@@ -25754,15 +25754,25 @@
     // Show a short middle-ellipsis of the invoice; the full string is on Copy.
     const short = invoice.length > 36 ? invoice.slice(0, 22) + '…' + invoice.slice(-10) : invoice;
     const copy = h('button', { className: 'secondary recv-copy', textContent: tSec('Copy invoice') });
-    copy.addEventListener('click', async () => {
+    const copyInvoice = async () => {
       try {
         await copyPlain(invoice);
         copy.textContent = tSec('Copied ✓');
         setTimeout(() => (copy.textContent = tSec('Copy invoice')), 1200);
       } catch (_) {}
+    };
+    copy.addEventListener('click', copyInvoice);
+    // THE INVOICE ITSELF COPIES. A tap on the text is the obvious way to take it, so it does
+    // what the button does, and says so on the button. What is on screen is the short form;
+    // the whole invoice is what goes on the clipboard, by tap or by Cmd+C.
+    const bolt = h('button', { type: 'button', className: 'recv-bolt', textContent: short, title: tSec('Copy invoice') });
+    bolt.addEventListener('click', copyInvoice);
+    bolt.addEventListener('copy', (e) => {
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', invoice);
     });
     const waiting = waitingRow(tSec('Waiting for payment…'));
-    out.append(canvas, h('div', { className: 'recv-bolt', textContent: short }), copy, waiting);
+    out.append(canvas, bolt, copy, waiting);
     container.append(out);
   }
 

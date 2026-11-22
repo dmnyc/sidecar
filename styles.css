@@ -4629,6 +4629,8 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: center;
   padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
   background: rgba(var(--well-rgb), 0.4); max-width: 100%;
+  /* A button: a tap copies the whole invoice (showInvoice). */
+  cursor: pointer; display: block; margin: 0 auto; line-height: inherit;
 }
 .recv-copy { width: 100%; }
 
