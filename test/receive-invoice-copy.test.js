@@ -3,10 +3,10 @@
 // THE INVOICE UNDER THE QR CODE IS DATA, AND DATA CAN BE COPIED. The panel turns text
 // selection off everywhere and back on for values; the receive sheet's invoice box was
 // never one of them, and it shows a shortened form (start…end), so even a selection would
-// have copied the ellipsis. One click now takes the whole box, and copying from it puts the
-// whole invoice on the clipboard, while the box keeps its short form on screen.
+// have copied the ellipsis. A tap on the invoice now copies it, as the button does, and
+// Cmd+C on it copies the whole invoice too, while the box keeps its short form on screen.
 //
-// Run: showInvoice builds its box over a small fake DOM and a copy event is fired at it.
+// Run: showInvoice builds its box over a small fake DOM; a tap and a copy event are fired at it.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -47,24 +47,25 @@ class El {
 
 const INVOICE = 'lnbc210n1p' + 'q'.repeat(200) + 'xyz0123456';
 
+const copied = [];
 function build() {
   const document = { createElement: (tag) => new El(tag) };
   const h = (tag, props, kids) => { const el = new El(tag); Object.assign(el, props || {}); (kids || []).forEach((k) => el.append(k)); return el; };
   const ctx = {
     document, h, tSec: (s) => s,
     window: { SidecarQR: { draw: () => {} } },
-    copyPlain: async () => {}, waitingRow: () => new El('div'),
+    copyPlain: async (v) => { copied.push(v); }, waitingRow: () => new El('div'),
     setTimeout,
   };
   vm.createContext(ctx);
   vm.runInContext(liftFn(panel, '  function showInvoice(container, invoice) {') + '\nthis.showInvoice = showInvoice;', ctx);
   const container = new El('div');
   ctx.showInvoice(container, INVOICE);
-  return container.find('recv-bolt');
+  return { box: container.find('recv-bolt'), button: container.find('recv-copy') };
 }
 
 test('copying from the invoice box puts the whole invoice on the clipboard, not the shortened form', () => {
-  const box = build();
+  const { box } = build();
   assert.ok(box, 'the invoice box is drawn');
   assert.ok(box.textContent.includes('…') && box.textContent.length < 40, 'it still shows the short form');
   const data = {};
@@ -74,9 +75,12 @@ test('copying from the invoice box puts the whole invoice on the clipboard, not 
   assert.ok(prevented, 'the shortened text the browser would copy is replaced');
 });
 
-test('one click selects the whole invoice box', () => {
-  // The body turns selection off; this rule is what turns it back on for the box.
-  const rule = css.slice(css.indexOf('.recv-bolt {'), css.indexOf('}', css.indexOf('.recv-bolt {')));
-  assert.match(rule, /(^|[\s;])user-select:\s*all/);
-  assert.match(rule, /-webkit-user-select:\s*all/);
+test('a tap on the invoice copies the whole invoice, and the button says so', async () => {
+  copied.length = 0;
+  const { box, button } = build();
+  assert.equal(box.tagName, 'button', 'a control, so the keyboard reaches it too');
+  box.fire('click', {});
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(copied, [INVOICE]);
+  assert.equal(button.textContent, 'Copied ✓');
 });

@@ -180,8 +180,8 @@ input, textarea, select, [contenteditable="true"],
   -webkit-user-select: text;
   user-select: text;
 }
-/* .mention-pill, .secret-box and .recv-bolt set `user-select: all` further down — one click
-   takes the whole value. All three are more specific than the body rule, so they keep
+/* .mention-pill and .secret-box set `user-select: all` further down — one click
+   takes the whole value. Both are more specific than the body rule, so they keep
    working; listing them here would only weaken that to `text`. */
 
 .hidden { display: none !important; }
@@ -4629,9 +4629,8 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: center;
   padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
   background: rgba(var(--well-rgb), 0.4); max-width: 100%;
-  /* One click takes the whole invoice; the copy handler in showInvoice supplies the full
-     string behind the shortened text. */
-  -webkit-user-select: all; user-select: all; cursor: text;
+  /* A button: a tap copies the whole invoice (showInvoice). */
+  cursor: pointer; display: block; margin: 0 auto; line-height: inherit;
 }
 .recv-copy { width: 100%; }
 
