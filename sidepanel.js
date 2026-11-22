@@ -14493,18 +14493,33 @@
     let reuse = true;
     try { const s = await call({ type: 'SIDECAR_GET_SETTINGS' }); reuse = s.reuseClientTab !== false; } catch (_) {}
     if (!(chrome.tabs && chrome.tabs.query)) { window.open(url, '_blank', 'noopener'); return; }
-    if (!reuse || !host) { chrome.tabs.create({ url }); return; }
-    chrome.tabs.query({}, (tabs) => {
-      const match = (tabs || []).find((t) => {
+    const fresh = () => chrome.tabs.create({ url });
+    if (!reuse || !host) { fresh(); return; }
+    // A CLICK ENDS WITH THE NOTE ON SCREEN. Any tab showing the client's site was reused,
+    // in any window, and its window asked for focus: a minimized window stayed minimized
+    // and an installed app's window took the note out of sight, so the click looked like
+    // nothing at all. Only a tab in an ordinary browser window is reused, the window in
+    // use first; a minimized one is brought back; and if the tab is gone by now, the note
+    // opens in a new tab as it would with reuse off.
+    try {
+      const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+      const byId = new Map(windows.map((w) => [w.id, w]));
+      let current = null;
+      try { current = (await chrome.windows.getLastFocused({ windowTypes: ['normal'] })).id; } catch (_) { /* none focused */ }
+      const tabs = await chrome.tabs.query({});
+      const matches = (tabs || []).filter((t) => {
+        if (!byId.has(t.windowId)) return false;
         try { return t.url && new URL(t.url).host === host; } catch (_) { return false; }
       });
-      if (match) {
-        chrome.tabs.update(match.id, { active: true, url });
-        if (match.windowId != null) chrome.windows.update(match.windowId, { focused: true });
-      } else {
-        chrome.tabs.create({ url });
-      }
-    });
+      const match = matches.find((t) => t.windowId === current) || matches[0];
+      if (!match) { fresh(); return; }
+      await chrome.tabs.update(match.id, { active: true, url });
+      const win = byId.get(match.windowId);
+      // The note is in the tab by now; a window that will not take focus is no reason for a second copy.
+      try { await chrome.windows.update(match.windowId, win && win.state === 'minimized' ? { focused: true, state: 'normal' } : { focused: true }); } catch (_) { /* best effort */ }
+    } catch (_) {
+      fresh();
+    }
   }
 
   // Open one of Sidecar's own pages (help, welcome, wallets), reusing the tab we
