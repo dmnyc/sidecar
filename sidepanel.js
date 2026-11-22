@@ -25761,8 +25761,15 @@
         setTimeout(() => (copy.textContent = tSec('Copy invoice')), 1200);
       } catch (_) {}
     });
+    // THE BOX IS DATA TOO. One click selects it (styles.css), and a copy from it carries the
+    // whole invoice: what is on screen is the short form, and the ellipsis would be copied.
+    const bolt = h('div', { className: 'recv-bolt', textContent: short });
+    bolt.addEventListener('copy', (e) => {
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', invoice);
+    });
     const waiting = waitingRow(tSec('Waiting for payment…'));
-    out.append(canvas, h('div', { className: 'recv-bolt', textContent: short }), copy, waiting);
+    out.append(canvas, bolt, copy, waiting);
     container.append(out);
   }
 
