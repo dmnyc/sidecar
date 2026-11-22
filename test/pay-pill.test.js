@@ -52,7 +52,8 @@ test('the detector says which invoices were asked for', () => {
   const fn = stripComments(lift(content, 'function findPageInvoice('));
   // hasPayIntent is the qualifier for both loud cases: a dialog, a modal, or a QR.
   assert.match(fn, /hasPayIntent\(f\)\) return \{ invoice: inv, asked: true \}/, 'a dialog no longer counts as asked');
-  assert.match(fn, /if \(!invoiceExpired\(inv\)\) return \{ invoice: inv, asked: true \}/, 'an invoice beside a QR no longer counts as asked');
+  // notOffered() is the expiry check, plus the payment limit (content.js).
+  assert.match(fn, /if \(!notOffered\(inv\)\) return \{ invoice: inv, asked: true \}/, 'an invoice beside a QR no longer counts as asked');
   // And the two quiet ones. These are the shapes the bug report was made of.
   assert.match(fn, /if \(passive\) return \{ invoice: passive, asked: false \}/, 'a bare lightning: link is treated as a request');
   assert.match(fn, /return \{ invoice: copiedInvoice, asked: qrInOpenDialog\(\) \}/, 'a clipboard copy is quiet unless a QR is up in a dialog');
@@ -100,7 +101,7 @@ test('a TAPPED lightning: link opens the card', () => {
   assert.match(handler, /lightning:/i, 'the listener does not look for a lightning link');
   assert.match(handler, /renderCard\(inv\)/, 'a tapped link does not open the card');
   assert.match(handler, /composedPath/, 'a link inside a shadow root is missed');
-  assert.match(handler, /invoiceExpired\(inv\)/, 'an expired invoice still opens a card');
+  assert.match(handler, /notOffered\(inv\)/, 'an expired invoice still opens a card');
   // THE TAP IS SIDECAR'S when it opens the card. Left alone, an app registered for
   // lightning: took it too: on a BTCPay checkout the tap opened BlueWallet in a new tab
   // instead of the card. Prevented only on the path that opens the card, so a tap Sidecar

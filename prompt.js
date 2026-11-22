@@ -792,6 +792,22 @@
     chosenPubkey = data.activePubkey;
 
     els.host.textContent = data.host;
+    // MORE THAN SIDECAR PAYS. Nothing was paid and nothing can be: the page has its answer
+    // already. Not a payment card: no amount, no account, no Pay. One line saying why, and Close.
+    // Twin of the panel's refusal in renderApproval (sidepanel.js).
+    if (data.overLimit) {
+      els.ask.textContent = tSec('asked for a payment Sidecar can’t make');
+      els.account.classList.add('hidden');
+      const why = document.createElement('p');
+      why.className = 'pay-refused';
+      why.textContent = tSec('Sidecar can’t pay more than {{max}} sats at once, so nothing was paid.', { max: fmtSats(data.maxSats) });
+      els.preview.replaceChildren(why);
+      els.preview.classList.remove('hidden');
+      els.allow.classList.add('hidden');
+      els.trust.classList.add('hidden');
+      els.reject.textContent = t('Close');
+      return;
+    }
     const verb = isPayment ? tSec('wants to send a Lightning payment') : signAsk(data);
     els.ask.textContent = verb;
     buildAccountCapsule();

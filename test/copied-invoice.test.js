@@ -164,7 +164,9 @@ test('content.js re-validates a copied invoice instead of trusting the page', ()
   const body = handler[0];
   // The provider runs in the page world, so this channel is page-controlled.
   assert.match(body, /INVOICE_TEXT_RE\.exec/, 'must re-run the invoice regex');
-  assert.match(body, /invoiceExpired\(/, 'must re-check expiry');
+  // notOffered() is the expiry check, plus the payment limit (content.js).
+  assert.match(body, /notOffered\(/, 'must re-check expiry');
+  assert.match(contentSrc, /function notOffered\(bolt11\) \{[\s\S]*?invoiceExpired\(bolt11\)/, 'notOffered must still check expiry');
   assert.match(body, /toLowerCase\(\)/, 'must normalize case');
 });
 
@@ -174,7 +176,7 @@ test('a copied invoice expires, so a card cannot outlive the modal', () => {
   assert.ok(route, 'the copied-invoice fallback was not found in findPageInvoice');
   assert.match(route[0], /copiedInvoice === dismissedInvoice/, 'a dismissed invoice must not linger');
   assert.match(route[0], /COPIED_TTL_MS/, 'the ceiling must actually be applied');
-  assert.match(route[0], /invoiceExpired\(copiedInvoice\)/, "the BOLT11's own expiry still applies");
+  assert.match(route[0], /notOffered\(copiedInvoice\)/, "the BOLT11's own expiry still applies");
 });
 
 test('the copied invoice is the last resort, after the DOM routes', () => {

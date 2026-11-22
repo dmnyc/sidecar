@@ -59,6 +59,10 @@ const WITHDRAW = (() => {
 const EN = withI18n({});
 const decode = new Function('t', 'tn', 'tSec', `${DECODER}\nreturn { decodeBolt11, fmtExpiresIn };`)(EN.t, EN.tn, EN.tSec);
 const GATE = [
+  // The payment limit the gate refuses above, read from nwc-client.js in the panel.
+  'const self = { SidecarNWC: { MAX_PAY_SATS: 99999999 } };',
+  source.match(/const MAX_PAY_SATS = [^;]+;/)[0],
+  source.match(/const overPayLimitText = [^\n]+/)[0],
   source.match(/const LARGE_SEND_SATS = \d+;/)[0],
   source.match(/const LARGE_SEND_WINDOW_MS = \d+;/)[0],
   liftFn('function largeSendGate('),
