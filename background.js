@@ -2334,11 +2334,19 @@ const msatToSat = (m) => Math.floor((m || 0) / 1000);
 // full decoder. Returns null for amountless invoices (caller must then prompt).
 function invoiceSats(bolt11) {
   if (!bolt11) return null;
-  const m = /^ln(?:bc|tb|bcrt)(\d+)([munp]?)/i.exec(String(bolt11).replace(/^lightning:/i, '').trim());
-  if (!m) return null;
+  // The amount is everything between the network and the LAST '1', which separates the
+  // prefix from the data (bech32 data never contains a '1'). Reading digits from the start
+  // without that anchor took the separator as a digit and the data's first letter (almost
+  // always 'p', the timestamp) as the unit: a 1 BTC invoice, "lnbc11p…", read as 11
+  // pico-bitcoin, 0 sats, and an invoice with no amount, "lnbc1p…", read as 0 rather than
+  // unknown. Same reading as msatsFromBolt11 in sidepanel.js.
+  const s = String(bolt11).replace(/^lightning:/i, '').trim().toLowerCase();
+  const sep = s.lastIndexOf('1');
+  if (sep < 1) return null;
+  const m = /^ln(?:bc|tb|bcrt)(\d+)([munp]?)$/.exec(s.slice(0, sep));
+  if (!m) return null; // no digits: an invoice with no amount, or not an invoice
   const digits = m[1];
-  const mult = m[2].toLowerCase();
-  if (!digits) return null; // amountless invoice
+  const mult = m[2];
   // BOLT11 amount is in BTC * multiplier; convert to sats (1 BTC = 1e8 sats).
   const FACTOR = { m: 1e5, u: 1e2, n: 1e-1, p: 1e-4, '': 1e8 };
   return Math.round(Number(digits) * FACTOR[mult]);
@@ -2508,11 +2516,27 @@ const TLV_MAX_RECORDS = 16;
 // wallet's to refuse.
 const TLV_MAX_VALUE_BYTES = 8192;
 const TLV_MAX_TOTAL_BYTES = 16384;
-// A sanity bound, not a policy one — the approval card and the site budget decide what is
-// allowed to be spent. This only keeps absurd input out of the arithmetic.
-const KEYSEND_MAX_SATS = 100000000;
+// THE MOST SIDECAR PAYS AT ONCE, for a keysend as for an invoice: the same 99,999,999 as
+// SidecarNWC.MAX_PAY_SATS (nwc-client.js), written out so the keysend tests can lift it;
+// test/payment-limit.test.js holds the two together. Over it, the page is told no and the
+// person is shown a card saying Sidecar can't pay it (refusePayment).
+const KEYSEND_MAX_SATS = 99999999;
 
 const toHex = (bytes) => Array.from(bytes, (x) => x.toString(16).padStart(2, '0')).join('');
+
+// What the page is told when it asks for a payment Sidecar won't make: more than it pays, or
+// an invoice that states no amount, which Sidecar has no way to agree to. English, as every
+// error a page reads is: apps match on them.
+const OVER_LIMIT_MESSAGE = "Sidecar can't pay more than 99,999,999 sats at once";
+const NO_AMOUNT_MESSAGE = "Sidecar can't pay an invoice with no amount";
+// The card that says so, where a payment card would have opened. Not awaited: the page has
+// its answer already, and the card only tells the person why nothing was paid. It carries no
+// amount and no account, and its one button, Close, settles nothing but itself.
+// `reason`: 'over-limit' or 'no-amount', which picks the sentence the card shows.
+function refusePayment(host, method, originWindowId, reason) {
+  openPrompt({ scope: 'webln', host, method, refused: reason || 'over-limit', maxSats: KEYSEND_MAX_SATS, needUnlock: false, needApproval: true }, originWindowId)
+    .catch(() => {});
+}
 
 // Validate what the page sent and translate it to NIP-47 shape. Throws with a message the
 // page will see. Runs BEFORE the payment lock and before any prompt: bad input should
@@ -2538,7 +2562,11 @@ function normalizeKeysend(params) {
   if (!Number.isFinite(sats) || !Number.isInteger(sats) || sats < 1) {
     throw new Error('keysend needs a whole number of sats, at least 1');
   }
-  if (sats > KEYSEND_MAX_SATS) throw new Error('That keysend amount is out of range');
+  if (sats > KEYSEND_MAX_SATS) {
+    const e = new Error(OVER_LIMIT_MESSAGE);
+    e.overLimit = true;
+    throw e;
+  }
 
   const records = [];
   let total = 0;
@@ -3098,6 +3126,18 @@ async function payInvoiceLocked(invoiceRaw, host, pubkey, memo, originWindowId, 
   if (!invoice) throw new Error('No invoice provided');
   if (!/^ln(bc|tb)[0-9]/i.test(invoice)) throw new Error('Not a BOLT11 Lightning invoice');
   const sats = invoiceSats(invoice);
+  // Over the most Sidecar pays: no payment card and no Pay button, a card saying so, and the
+  // page told no. Before the budgets and Auto Zaps, which could never cover it anyway.
+  if (sats != null && sats > KEYSEND_MAX_SATS) {
+    refusePayment(host, 'sendPayment', originWindowId, 'over-limit');
+    throw new Error(OVER_LIMIT_MESSAGE);
+  }
+  // NO AMOUNT, NO PAYMENT. The wallet would be the one to choose what leaves it, and there is
+  // no figure on any card to agree to. The same refusal, saying why.
+  if (sats == null) {
+    refusePayment(host, 'sendPayment', originWindowId, 'no-amount');
+    throw new Error(NO_AMOUNT_MESSAGE);
+  }
 
   // Pay without a prompt when unlocked and either the site's budget covers a known
   // amount, or "auto-approve zaps" is on and this is a genuine zap within the limit.
@@ -3477,7 +3517,11 @@ async function weblnKeysend(params, host, pubkey, originWindowId) {
   // Validate before the lock, the heartbeat and any prompt. Nothing upstream checks this —
   // content.js routes by scope and the router only re-derives the host — so bad input from
   // a page should cost nothing and put no card in front of anyone.
-  const ks = normalizeKeysend(params);
+  let ks;
+  try { ks = normalizeKeysend(params); } catch (e) {
+    if (e && e.overLimit) refusePayment(host, 'keysend', originWindowId, 'over-limit');
+    throw e;
+  }
   // And ask the wallet whether it can do this at all before spending someone's attention on
   // an approval. Skipped while locked, because reading the connection needs an unlock; in
   // that case the wallet answers for itself after the prompt. An unknown method list is

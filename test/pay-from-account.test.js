@@ -41,6 +41,7 @@ function harness(decide, wallet) {
     self: { NostrTools: { nip19: { npubEncode: (pk) => 'npub-' + pk.slice(0, 4) } } },
     chrome: { runtime: { sendMessage: () => Promise.resolve() } },
     LARGE_SEND_SATS: 100000, AUTOZAP_DEFAULT_MAX: 1000, AUTOZAP_DAILY_MULTIPLE: 5,
+    KEYSEND_MAX_SATS: 99999999, OVER_LIMIT_MESSAGE: 'over', refusePayment: () => {},
     invoiceSats: () => 21,
     sget: async () => ({ sidecar_settings: {} }),
     sset: async () => {}, pushPageSettings() {},

@@ -27,6 +27,13 @@
   Cases 10 and 11 are a zap modal that shortens its invoice, with and without a dialog around
   it: the first opens the card when its Copy button is pressed, the second stays a pill.
 
+  Cases 12 to 16 are the payment limit: Sidecar pays at most 99,999,999 sats at once, and
+  never an invoice that states no amount. They need
+  a wallet connected in Sidecar as well as Connect, because they ask through window.webln the
+  way a page's own Zap button does. Over the limit there is no payment card, only a card that
+  says Sidecar can't pay it; at the limit, the ordinary card. Every invoice in them is as bogus
+  as the 21-sat ones, so nothing can be spent even at 99,999,999.
+
   Case 9 is a BTCPay checkout, and the one case that wants a site NOT connected to
   Sidecar, which is what a real BTCPay server is. Serve the lab a second time on a port
   that has never connected, and do not press Connect there. Connect binds the port to
@@ -225,6 +232,62 @@
     <button data-show="k">Show it</button> <button data-hide="k">Remove</button>
     <div class="slot" id="slot-k"></div>
   </div>
+
+  <h2 style="font-size:17px;margin:30px 0 6px">The payment limit</h2>
+  <p class="sub">Sidecar pays at most 99,999,999 sats at once. These ask through
+  <code>window.webln</code>, as a page's own Zap button does, so they need a wallet connected in
+  Sidecar as well as Connect above. Every invoice here is as bogus as the ones above: nothing can
+  be spent, even at the limit.</p>
+
+  <div class="case">
+    <h2>12. A page asks Sidecar to pay 1 BTC</h2>
+    <p><span class="expect">Expect no payment card.</span> Where it would have opened (the panel, or
+    the popup), a card reads "asked for a payment Sidecar can’t make" and "Sidecar can’t pay
+    more than 99,999,999 sats at once, so nothing was paid", with no amount, no account and no Pay
+    button, only <b>Close</b>. This page prints the error it was given. The keysend button asks for
+    100,000,000 sats to a node and must end the same way.</p>
+    <button id="ask-btc">Ask to pay 1 BTC</button> <button id="ask-keysend">Ask to keysend 100,000,000 sats</button>
+    <div class="slot" id="out-btc"></div>
+  </div>
+
+  <div class="case">
+    <h2>13. A page asks for exactly 99,999,999 sats, the most Sidecar pays</h2>
+    <p><span class="expect">Expect the ordinary payment card</span> for 99,999,999 sats, its button
+    reading "Confirm amount above" first. <b>Reject it.</b> (The invoice is bogus, so a wallet would
+    refuse it anyway.)</p>
+    <button id="ask-max">Ask to pay 99,999,999 sats</button>
+    <div class="slot" id="out-max"></div>
+  </div>
+
+  <div class="case">
+    <h2>14. A 1 BTC invoice beside a QR</h2>
+    <p>Case 2's shape, for 1 BTC. <span class="none">Expect nothing.</span> Sidecar does not offer
+    to pay what it will refuse, any more than it offers an expired invoice.</p>
+    <button data-show="l">Show it</button> <button data-hide="l">Remove</button>
+    <div class="slot" id="slot-l"></div>
+  </div>
+
+  <div class="case">
+    <h2>15. A 1 BTC invoice pasted into Sidecar's Send sheet</h2>
+    <p>Copy it, then in Sidecar open the wallet, press <b>Send</b>, paste it and press Pay.
+    <span class="expect">Expect "Sidecar can’t pay more than 99,999,999 sats at once." under the
+    field as soon as it is pasted, the Pay button dimmed, and nothing sent.</span> Pressing Pay
+    again must not send it either: a large send confirms on the second press, and this is not a
+    large send. This invoice has a real checksum, because the Send sheet checks one; it still has
+    no payee and a zero signature, so no wallet can pay it.</p>
+    <button id="copy-btc">Copy a 1 BTC invoice</button>
+    <div class="slot" id="out-copy-btc"></div>
+  </div>
+
+  <div class="case">
+    <h2>16. A page asks to pay an invoice with no amount</h2>
+    <p><span class="expect">Expect no payment card.</span> The same refusal as case 12, saying
+    "This invoice has no amount, and Sidecar only pays an invoice that states one, so nothing was
+    paid", with only <b>Close</b>, and this page prints the error it was given. Never a Pay
+    button, never "0 sats".</p>
+    <button id="ask-none">Ask to pay an amountless invoice</button>
+    <div class="slot" id="out-none"></div>
+  </div>
 </div>
 
 <script>
@@ -234,7 +297,9 @@
   // a realistic length (7 timestamp + 104 signature + 6 checksum) before it will even look.
   const CS = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
   const enc = (n) => { let s = ''; for (let i = 6; i >= 0; i--) s += CS[(n >> (5 * i)) & 31]; return s; };
-  const mk = (ts, memo) => {
+  // `amount` is the invoice's amount as BOLT11 writes it before the separator: '210n' is 21
+  // sats, '999999990n' is 99,999,999, '1' with no unit is 1 BTC, '' is no amount at all.
+  const mk = (ts, memo, amount = '210n') => {
     let tagged = '';
     if (memo) {
       // BOLT11 tagged field 'd' (description): tag char, two words of length, then the
@@ -247,7 +312,7 @@
       if (bits) words.push((acc << (5 - bits)) & 31);
       tagged = CS[13] + enc2(words.length) + words.map((x) => CS[x]).join('');
     }
-    return 'lnbc210n1' + enc(ts) + tagged + 'q'.repeat(110);
+    return 'lnbc' + amount + '1' + enc(ts) + tagged + 'q'.repeat(110);
   };
   const enc2 = (n) => CS[(n >> 5) & 31] + CS[n & 31];
   const now = Math.floor(Date.now() / 1000);
@@ -260,6 +325,24 @@
   const fresh = () => mk(now - 5 - (serial++));          // fresh, no description
   const OLD = mk(now - 86400);                           // a day old, so the expiry filter drops it
   const memo = () => mk(now - 5 - (serial++), 'Coffee at the Blue Door'); // carries a BOLT11 description
+  const sized = (amount) => mk(now - 5 - (serial++), '', amount);       // any amount, for the limit cases
+  // AN INVOICE THE PANEL CAN READ. The wallet's Send sheet checks the bech32 checksum (BIP-173),
+  // so the padded invoices above read there as "doesn't read correctly". This one has a real
+  // checksum over a current timestamp and a zero signature: the panel reads its amount, and no
+  // wallet can pay it, since there is no payee and no valid signature.
+  const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  const polymod = (vs) => { let c = 1; for (const v of vs) { const t = c >>> 25; c = ((c & 0x1ffffff) << 5) ^ v; for (let i = 0; i < 5; i++) if ((t >>> i) & 1) c ^= GEN[i]; } return c; };
+  const readable = (amount) => {
+    const hrp = 'lnbc' + amount;
+    const ts = now - 5 - (serial++);
+    const words = [];
+    for (let i = 6; i >= 0; i--) words.push(Math.floor(ts / 2 ** (5 * i)) & 31);
+    for (let i = 0; i < 104; i++) words.push(0); // the signature, all zeros
+    const pre = [...hrp].map((c) => c.charCodeAt(0) >> 5).concat([0], [...hrp].map((c) => c.charCodeAt(0) & 31));
+    const mod = polymod(pre.concat(words, [0, 0, 0, 0, 0, 0])) ^ 1;
+    const sum = []; for (let i = 0; i < 6; i++) sum.push((mod >> (5 * (5 - i))) & 31);
+    return hrp + '1' + words.concat(sum).map((w) => CS[w]).join('');
+  };
 
   const state = document.getElementById('state');
   function paint() {
@@ -298,6 +381,8 @@
              '<a class="ln" href="lightning:' + fresh() + '">Open in wallet</a></div></div>',
     i: () => btcpay(fresh()),
     j: () => shortModal(true),
+    l: () => '<div class="modal"><canvas class="qr" width="108" height="108"></canvas>' +
+             '<p style="margin:10px 0 0"><code>' + sized('1') + '</code></p></div>',
     k: () => shortModal(false),
   };
 
@@ -388,11 +473,13 @@
   const invBox = document.getElementById('inv');
 
   // Mirrors invoiceSats in content.js, so what this prints is what the card will print.
+  // The amount ends at the LAST '1', which separates it from the data.
   const satsOf = (b) => {
-    const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(b);
-    if (!m || !m[1]) return null;
+    const s = String(b).toLowerCase();
+    const m = /^ln(?:bc|tb)(\d+)([munp]?)$/.exec(s.slice(0, s.lastIndexOf('1')));
+    if (!m) return null;
     const F = { m: 1e5, u: 1e2, n: 1e-1, p: 1e-4, '': 1e8 };
-    return Math.round(Number(m[1]) * F[m[2].toLowerCase()]);
+    return Math.round(Number(m[1]) * F[m[2]]);
   };
 
   async function resolve(address, sats) {
@@ -465,5 +552,35 @@
     out.textContent = '';
     invBox.value = '';
     realInv = '';
+  });
+  // ---- the payment limit -------------------------------------------------------------
+  //
+  // Asked through window.webln, as a page's Zap button asks, and the answer printed: the
+  // error over the limit, or what the card ended with at and under it.
+  async function ask(outId, label, run) {
+    const out = document.getElementById(outId);
+    out.textContent = label + '… (answer the card in Sidecar)';
+    try {
+      if (!window.webln) throw new Error('window.webln is not here: is Sidecar the Lightning wallet for this browser?');
+      await window.webln.enable();
+      await run();
+      out.innerHTML = '<span class="err">Paid?</span> That should never happen with these invoices.';
+    } catch (e) {
+      out.innerHTML = 'The page was told: <code>' + String(e && e.message || e).replace(/</g, '&lt;') + '</code>';
+    }
+  }
+  document.getElementById('ask-btc').addEventListener('click', () =>
+    ask('out-btc', 'Asking for 1 BTC', () => window.webln.sendPayment(sized('1'))));
+  document.getElementById('ask-keysend').addEventListener('click', () =>
+    ask('out-btc', 'Asking to keysend 100,000,000 sats', () => window.webln.keysend({ destination: '02' + 'a1'.repeat(32), amount: '100000000' })));
+  document.getElementById('ask-max').addEventListener('click', () =>
+    ask('out-max', 'Asking for 99,999,999 sats', () => window.webln.sendPayment(sized('999999990n'))));
+  document.getElementById('ask-none').addEventListener('click', () =>
+    ask('out-none', 'Asking to pay an amountless invoice', () => window.webln.sendPayment(sized(''))));
+  document.getElementById('copy-btc').addEventListener('click', async () => {
+    const inv = readable('1');
+    const out = document.getElementById('out-copy-btc');
+    try { await navigator.clipboard.writeText(inv); out.textContent = 'Copied a 1 BTC invoice (' + inv.slice(0, 18) + '…). Paste it into Send.'; }
+    catch (e) { out.innerHTML = 'The clipboard refused; copy it from here: <code>' + inv + '</code>'; }
   });
 </script>

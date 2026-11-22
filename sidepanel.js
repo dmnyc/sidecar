@@ -3028,6 +3028,7 @@
             : offerData.price || 0),
         label: () => tSec('Pay offer'),
         confirmLabel: tSec('Confirm'),
+        refuse: (msg) => { offerErr.textContent = msg; },
       });
       offerAmount.addEventListener('input', offerGate.paint);
       let offerHandoff = null; // the QR and copy block, built the first time it is wanted
@@ -3188,7 +3189,7 @@
       const presets = zapPresetRow(amount);
       const note = h('input', { type: 'text', className: 'status-input', placeholder: t('Message (optional)'), maxLength: 200 });
       const send = h('button', { className: 'primary', textContent: tSec('Send zap') });
-      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm') });
+      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm'), refuse: (msg) => { zapErr.textContent = msg; } });
       amount.addEventListener('input', zapGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
@@ -9142,7 +9143,7 @@
       const presets = zapPresetRow(amount, stop);
       const comment = h('input', { type: 'text', className: 'status-input', placeholder: t('Message (optional)'), maxLength: 200 });
       const send = h('button', { className: 'primary', type: 'button', textContent: t('Send zap') });
-      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm') });
+      const zapGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Send zap'), confirmLabel: tSec('Confirm'), refuse: (msg) => { err.textContent = msg; } });
       amount.addEventListener('input', zapGate.paint);
       const status = h('div', { className: 'hint', textContent: t('Checking their lightning address…') });
       // Under the field it reads, so the offer to keep an amount sits with the amount.
@@ -25047,6 +25048,11 @@
     });
   }
 
+  // MORE THAN SIDECAR PAYS is not a larger send to confirm: pass() refuses it outright and
+  // hands `refuse` the sentence to show, so no press can send it (nwc-client.js refuses it
+  // too, under every payment). Same limit and wording as the approval card's refusal.
+  const MAX_PAY_SATS = self.SidecarNWC.MAX_PAY_SATS;
+  const overPayLimitText = () => tSec('Sidecar can’t pay more than {{max}} sats at once.', { max: fmtSats(MAX_PAY_SATS) });
   // A LARGE PAYMENT TAKES A SECOND PRESS. Every send the panel makes itself is
   // authorized by the one press that starts it, which is right for 21 sats and too
   // little for a mistyped extra zero. At LARGE_SEND_SATS or more the button itself asks
@@ -25059,19 +25065,32 @@
   // changing the amount, or leaving it, asks again.
   const LARGE_SEND_SATS = 10000;
   const LARGE_SEND_WINDOW_MS = 15000;
-  function largeSendGate(button, { sats, label, confirmLabel }) {
+  function largeSendGate(button, { sats, label, confirmLabel, refuse }) {
     let armed = null; // { sats, timer }
     const disarm = () => { if (armed) { clearTimeout(armed.timer); armed = null; } };
     function paint() {
       if (button.disabled) return; // mid-payment: the handler's own "Sending…" stands
       const n = sats();
-      const ask = n >= LARGE_SEND_SATS && !(armed && armed.sats === n);
+      // Over the limit there is nothing to confirm: the button keeps its own label, and the
+      // sentence saying why it will not pay is up as soon as the amount is.
+      const over = n > MAX_PAY_SATS;
+      if (over && refuse) refuse(overPayLimitText());
+      // Drawn as unavailable, not made `disabled`: that is this gate's "payment in flight"
+      // signal above. A press still reaches pass(), which says why and pays nothing.
+      button.setAttribute('aria-disabled', String(over));
+      const ask = !over && n >= LARGE_SEND_SATS && !(armed && armed.sats === n);
       button.textContent = ask ? confirmLabel : label(n);
       button.classList.toggle('primary', !ask);
       button.classList.toggle('secondary', ask);
     }
     // True when this press should pay.
     function pass(n) {
+      if (n > MAX_PAY_SATS) {
+        disarm();
+        paint();
+        if (refuse) refuse(overPayLimitText());
+        return false;
+      }
       const ok = !(n >= LARGE_SEND_SATS) || !!(armed && armed.sats === n);
       disarm();
       if (!ok) armed = { sats: n, timer: setTimeout(() => { armed = null; paint(); }, LARGE_SEND_WINDOW_MS) };
@@ -25109,6 +25128,7 @@
         sats: paySatsNow,
         label: (n) => (n ? tn('Pay {{count}} sat', 'Pay {{count}} sats', n) : tSec('Pay')),
         confirmLabel: tSec('Confirm amount above'),
+        refuse: (msg) => { err.textContent = msg; },
       });
       const refreshPay = payGate.paint;
       amount.addEventListener('input', refreshPay);
@@ -25341,6 +25361,9 @@
             const inv = decodeBolt11(val);
             if (!inv) return (err.textContent = tSec("That invoice doesn't read correctly. Check it was copied whole."));
             if (inv.expiresAt <= Math.floor(Date.now() / 1000)) return (err.textContent = tSec('This invoice has expired. Ask for a new one.'));
+            // Over the most Sidecar pays: said before the wallet is asked anything, even
+            // whether it was paid already. The gate below says it again for a typed amount.
+            if (inv.sats != null && inv.sats > MAX_PAY_SATS) return (err.textContent = overPayLimitText());
             if (await paidHere(val).catch(() => null)) return (err.textContent = tSec('This invoice has already been paid.'));
             if (inv.sats == null) {
               const sats = parseInt(amount.value, 10);
@@ -26232,7 +26255,7 @@
       const message = h('input', { type: 'text', placeholder: t('Message (optional)'), value: 'Thanks for Sidecar! 🍸', maxLength: 200 });
       const amount = satsInput('sats');
       const send = h('button', { className: 'primary', textContent: tSec('Zap') });
-      const creatorGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Zap'), confirmLabel: tSec('Confirm') });
+      const creatorGate = largeSendGate(send, { sats: () => parseInt(amount.value, 10) || 0, label: () => tSec('Zap'), confirmLabel: tSec('Confirm'), refuse: (msg) => { err.textContent = msg; } });
       amount.addEventListener('input', creatorGate.paint);
       send.addEventListener('click', async () => {
         const sats = parseInt(amount.value, 10);
@@ -27987,16 +28010,34 @@
     if (document.documentElement.classList.contains('modal-open')) closeModal('approval');
 
     const payment = isPaymentApproval(data);
+    // A PAYMENT SIDECAR WON'T MAKE (more than it pays, or no amount): a card saying so, not a
+    // payment card (see the end of this
+    // function). This card is reused, so what a refusal hides comes back for the next one.
+    const refused = payment && !!data.refused;
+    show($('approval-account'));
+    show($('approval-allow'));
+    $('approval-reject').textContent = tSec('Reject');
     $('approval-host').textContent = data.host;
-    $('approval-ask').textContent = payment
-      ? tSec('wants to send a Lightning payment')
-      : approvalAsk(data);
+    $('approval-ask').textContent = refused
+      ? tSec('asked for a payment Sidecar can’t make')
+      : payment
+        ? tSec('wants to send a Lightning payment')
+        : approvalAsk(data);
 
     renderApprovalAccountCapsule(data);
 
     renderSharedNote(data);
 
     renderApprovalPreview(data);
+    if (refused) {
+      $('approval-preview').replaceChildren(h('p', {
+        className: 'pay-refused',
+        textContent: data.refused === 'no-amount'
+          ? tSec('This invoice has no amount, and Sidecar only pays an invoice that states one, so nothing was paid.')
+          : tSec('Sidecar can’t pay more than {{max}} sats at once, so nothing was paid.', { max: fmtSats(data.maxSats) }),
+      }));
+      show($('approval-preview'));
+    }
 
     // After the preview so the note sits just under it, mirroring prompt.html.
     renderConsentNote(data);
@@ -28129,6 +28170,18 @@
       show(nudge);
     } else {
       hide(nudge);
+    }
+    // The refusal, last so nothing above re-shows what it hides: no account, no Pay, no
+    // budget, no offers, no unlock; one button, Close, which only puts the card away. Twin of
+    // the refusal in prompt.js init().
+    if (refused) {
+      for (const id of ['approval-account', 'approval-switch-toggle', 'approval-switch-menu', 'approval-bind-payer',
+        'approval-allow', 'approval-trust', 'approval-remember', 'approval-unlock', 'approval-autozap-offer',
+        'approval-payanywhere-offer', 'approval-trust-nudge']) {
+        const el = $(id);
+        if (el) hide(el);
+      }
+      $('approval-reject').textContent = t('Close');
     }
   }
 
