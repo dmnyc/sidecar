@@ -21,13 +21,7 @@ const path = require('node:path');
 
 const ROOT = process.env.STORE_SCREENSHOTS_VERSION_ROOT || path.join(__dirname, '..');
 const { FADE_VERSION } = require(path.join(ROOT, 'scripts', 'store-screenshots', 'capture.js'));
-const candidates = [
-  process.env.CHROME_PATH,
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-].filter(Boolean);
-const CHROME = candidates.find((p) => fs.existsSync(p)) || null;
+const CHROME = require('./helpers/chrome-path').findChrome(); // never the Chrome you browse with: see helpers/chrome-path.js
 
 function page() {
   // The slots are the panel's own, from sidepanel.html: one on the first-run screen, one on the lock screen.

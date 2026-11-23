@@ -28,13 +28,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = process.env.EXTENSION_ROOT || path.join(__dirname, '..', '..');   // EXTENSION_ROOT: a scratch copy, to prove a test fails on old code
-const CHROME_CANDIDATES = [
-  process.env.CHROME_PATH,
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-].filter(Boolean);
-const CHROME = CHROME_CANDIDATES.find((p) => fs.existsSync(p)) || null;
+const CHROME = require('./chrome-path').findChrome(); // never the Chrome you browse with: see helpers/chrome-path.js
 
 const SK = { me: '05'.repeat(32), bea: '06'.repeat(32), cal: '07'.repeat(32) };
 const PIN = 'testpin1234';
@@ -314,6 +308,8 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
             const shot = await chrome.send('Page.captureScreenshot', { format: 'png' }, page.sessionId);
             fs.writeFileSync(file, Buffer.from(shot.data, 'base64'));
           },
+          // Any DevTools call on this page, for what the helpers above do not cover (drag and drop, input methods).
+          cdp: (method, params = {}) => chrome.send(method, params, page.sessionId),
           close: () => chrome.send('Target.closeTarget', { targetId: page.targetId }),
         };
       },
@@ -358,4 +354,7 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
   }
 }
 
-module.exports = { startExtension, CHROME, sleep };
+module.exports = { startExtension, CHROME, sleep, _internals: { startRelay, nostrTools, SK, PIN } };
+
+// SIDECAR_BROWSER=firefox runs the same tests in Firefox (real-extension-firefox.js).
+if (process.env.SIDECAR_BROWSER === 'firefox') module.exports = { ...module.exports, ...require('./real-extension-firefox.js') };

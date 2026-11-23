@@ -124,6 +124,9 @@ for (const PAGE of ['compose', 'panel']) {
           // After Cmd+Z what came back is selected, as in Word: a marker typed would replace it.
           if (op[op.length - 1] !== UNDO) { await tab.type('^'); await sleep(120); }
         } catch (e) { fails.push([name, 'threw ' + e.message.slice(0, 80)]); continue; }
+        // A pasted pill shows its key until the name is looked up; wait for the name (up to 3s)
+        // rather than read the moment before it arrives.
+        for (let i = 0; i < 30 && (await tab.evaluate(`[...document.querySelectorAll('${ED} .mention-pill')].some((p) => /npub1/.test(p.textContent))`)); i++) await sleep(100);
         const got = await tab.evaluate(SHOWN);
         const ok = [].concat(expect).includes(got);
         // What the composer saved: no anchor in it, and one address for every pill on screen.
