@@ -631,6 +631,134 @@ window.SidecarCore = (function () {
     return html ? textFromHtml(html) : '';
   }
 
+  // ---- what a clipboard or a drop holds, as markdown ----
+  //
+  // AN ARTICLE IS MARKDOWN, so formatting pasted into one is kept, written the way a person
+  // would type it: bold as **bold**, a link as [text](address), headings, lists, quotes,
+  // code and pictures. What markdown cannot say (colors, fonts, sizes) is dropped, as a
+  // note drops everything. Only http(s) links and pictures come along.
+  //
+  // Returns null when there is nothing to keep: the HTML carries no formatting markdown can
+  // say, or it is code (a code editor's copy is colored, preformatted text), and the
+  // clipboard's own plain text is then the paste, with its spacing exactly as copied.
+  const MD_BLOCK = /^(P|DIV|LI|H[1-6]|UL|OL|BLOCKQUOTE|PRE|TABLE|THEAD|TBODY|TFOOT|TR|SECTION|ARTICLE|HEADER|FOOTER|MAIN|NAV|ASIDE|ADDRESS|FIGURE|FIGCAPTION|HR|DL|DT|DD)$/;
+  const MD_MARKUP = /\*\*|(^|[^\w])_[^\s_]|`|!?\[[^\]\n]*\]\(|^#{1,6} |^> |^[-*+] |^\d+[.)] |^---$|~~/m;
+  function markdownFromHtml(html) {
+    let doc;
+    try { doc = new DOMParser().parseFromString(String(html || ''), 'text/html'); } catch (_) { return null; }
+    doc.querySelectorAll('script, style, head, template, noscript, meta, link, title').forEach((n) => n.remove());
+    const body = doc.body;
+    if (!body) return null;
+    // Code: preformatted all through, as a code editor copies.
+    if (!body.querySelector('pre') && /white-space:\s*pre/i.test(body.innerHTML) && !body.querySelector('h1,h2,h3,h4,h5,h6,li,blockquote,a[href]')) return null;
+    const httpUrl = (u) => { try { const x = new URL(u); return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : null; } catch (_) { return null; } };
+    const weight = (el) => {
+      const w = (el.style && el.style.fontWeight) || '';
+      if (/^(bold|bolder|[6-9]00)$/.test(w)) return 'bold';
+      if (/^(normal|lighter|[1-5]00)$/.test(w)) return 'normal';
+      return '';
+    };
+    const italic = (el) => {
+      const s = (el.style && el.style.fontStyle) || '';
+      return s === 'italic' || s === 'oblique' ? 'italic' : s === 'normal' ? 'normal' : '';
+    };
+    // Marks hug the words: "** bold **" is not bold in markdown, so spaces go outside.
+    const wrap = (mark, s) => {
+      if (!s.trim()) return s;
+      const m = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
+      return m[1] + mark + m[2] + mark + m[3];
+    };
+    function inline(node, st) {
+      if (node.nodeType === 3) return node.textContent.replace(/[\t\n\r ]+/g, ' ').replace(/ /g, ' ');
+      if (node.nodeType !== 1) return '';
+      const tag = node.nodeName;
+      if (tag === 'BR') return '\n';
+      if (tag === 'IMG') {
+        const src = httpUrl(node.getAttribute('src'));
+        return src ? '![' + (node.getAttribute('alt') || '').replace(/[\[\]\n]/g, ' ').trim() + '](' + src + ')' : '';
+      }
+      if (MD_BLOCK.test(tag)) return '\n' + blocks(node) + '\n';
+      if (tag === 'CODE' || tag === 'KBD' || tag === 'SAMP') {
+        const code = node.textContent.replace(/\s+/g, ' ');
+        return code.trim() ? '`' + code.replace(/`/g, "'") + '`' : code;
+      }
+      const w = weight(node), it = italic(node);
+      const bold = (tag === 'B' || tag === 'STRONG' || w === 'bold') && w !== 'normal';
+      const em = (tag === 'I' || tag === 'EM' || it === 'italic') && it !== 'normal';
+      const strike = tag === 'S' || tag === 'DEL' || tag === 'STRIKE';
+      const next = { b: st.b || bold, i: st.i || em, s: st.s || strike };
+      let s = '';
+      node.childNodes.forEach((c) => { s += inline(c, next); });
+      if (strike && !st.s) s = wrap('~~', s);
+      if (em && !st.i) s = wrap('_', s);
+      if (bold && !st.b) s = wrap('**', s);
+      if (tag === 'A') {
+        const href = httpUrl(node.getAttribute('href'));
+        const text = s.trim();
+        if (href && text && !/^!\[/.test(text)) {
+          if (text === href || text === href.replace(/\/$/, '')) return href;
+          return s.replace(text, '[' + text.replace(/[\[\]]/g, '') + '](' + href + ')');
+        }
+      }
+      return s;
+    }
+    // A run of inline content, tidied into lines: no space at either end of a line.
+    const tidy = (s) => s.split('\n').map((l) => l.replace(/ +/g, ' ').trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    function blockOf(el) {
+      const tag = el.nodeName;
+      if (/^H[1-6]$/.test(tag)) {
+        const text = tidy(inlineOf(el)).replace(/\n+/g, ' ').replace(/^\*\*([\s\S]*)\*\*$/, '$1');
+        return text ? '#'.repeat(Number(tag[1])) + ' ' + text : '';
+      }
+      if (tag === 'HR') return '---';
+      if (tag === 'PRE') {
+        const code = el.textContent.replace(/\n$/, '');
+        return code.trim() ? '```\n' + code + '\n```' : '';
+      }
+      if (tag === 'BLOCKQUOTE') {
+        const inner = blocks(el);
+        return inner ? inner.split('\n').map((l) => (l ? '> ' + l : '>')).join('\n') : '';
+      }
+      if (tag === 'UL' || tag === 'OL') {
+        const start = tag === 'OL' ? Number(el.getAttribute('start')) || 1 : 1;
+        let n = 0;
+        return [...el.children].map((li) => {
+          if (li.nodeName === 'UL' || li.nodeName === 'OL') return blockOf(li).replace(/^/gm, '   ');
+          const marker = tag === 'OL' ? (start + n++) + '. ' : '- ';
+          const body = blocks(li).replace(/\n{2,}/g, '\n');
+          if (!body) return '';
+          return marker + body.split('\n').join('\n' + ' '.repeat(marker.length));
+        }).filter(Boolean).join('\n');
+      }
+      if (tag === 'TABLE' || tag === 'THEAD' || tag === 'TBODY' || tag === 'TFOOT') {
+        return [...el.querySelectorAll('tr')].filter((tr) => tr.closest('table') === (tag === 'TABLE' ? el : el.closest('table')))
+          .map((tr) => [...tr.children].map((c) => tidy(inlineOf(c)).replace(/\n+/g, ' ')).filter(Boolean).join(' | '))
+          .filter(Boolean).join('\n');
+      }
+      return blocks(el);
+    }
+    function inlineOf(el) {
+      let s = '';
+      el.childNodes.forEach((c) => { s += inline(c, {}); });
+      return s;
+    }
+    // A container's children: inline runs become paragraphs, blocks are converted, and
+    // the two are kept apart by a blank line.
+    function blocks(el) {
+      const out = [];
+      let run = '';
+      const flush = () => { const p = tidy(run); if (p) out.push(p); run = ''; };
+      el.childNodes.forEach((c) => {
+        if (c.nodeType === 1 && MD_BLOCK.test(c.nodeName)) { flush(); const b = blockOf(c); if (b) out.push(b); }
+        else run += inline(c, {});
+      });
+      flush();
+      return out.join('\n\n');
+    }
+    const md = blocks(body).replace(/\n{3,}/g, '\n\n').trim();
+    return md && MD_MARKUP.test(md) ? md : null;
+  }
+
   // TEXT WITH nostr: MENTIONS IN IT, PASTED, COMES IN AS PILLS. Through insertHTML, so the
   // paste is one step on the undo stack; text with no mention goes through insertText as it
   // always did.
@@ -3348,11 +3476,63 @@ window.SidecarCore = (function () {
   //   d.onSave         a second icon, the cloud, on rows that can go to relays (not a
   //                    poll: NIP-37 drafts here are kinds 1 and 1111 only)
   // Two icons at most in the inline slot, never a word: AGENTS.md's row grammar.
+  // ARTICLES AND RECIPES IN SAVED DRAFTS. They keep their own store (longform.js), one of
+  // each per account, and are listed apart from the notes, under their own heading, in the
+  // note rows' own markup. Shared by the panel and the full-size composer so the two lists
+  // say the same thing. `mine` is the account's entry in that store; `current` names the
+  // kind on screen, which reads "Open now" and has no delete, as the note on screen does.
+  function longformDraftItems(mine, current) {
+    const out = [];
+    const a = mine && mine.article;
+    const r = mine && mine.recipe;
+    if (a) out.push({ kind: 'article', label: t('Article'), savedAt: a.savedAt, current: current === 'article',
+      snippet: (a.title || a.summary || String(a.body || '').slice(0, 140)).trim() });
+    if (r) out.push({ kind: 'recipe', label: t('Recipe'), savedAt: r.savedAt, current: current === 'recipe',
+      snippet: (r.title || r.summary || (r.ingredients || [])[0] || '').trim() });
+    // A thread's draft (kept for dev/threads) is not listed: this build has no Thread tab to open it in.
+    return out;
+  }
+  function buildLongformDraftList(items, opts) {
+    if (!items.length) return '';
+    const rows = items.map((it) => {
+      const label = h('span', { className: 'saved-draft-label', textContent: it.label });
+      const when = h('span', { className: 'saved-draft-when', textContent: it.current ? t('Open now') : (it.savedAt ? relTime(it.savedAt) : '') });
+      const open = h('button', { className: 'saved-draft-open', type: 'button' }, [
+        h('span', { className: 'saved-draft-top' }, [label, h('span', { className: 'saved-draft-meta' }, [when])]),
+        h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: it.snippet || t('Untitled') }),
+      ]);
+      open.addEventListener('click', () => opts.onOpen(it.kind));
+      const row = h('div', { className: 'saved-draft' + (it.current ? ' saved-draft-current' : '') }, [open]);
+      // The one on screen only where the caller clears the form as it deletes (opts.discard):
+      // otherwise the form's next save would write it straight back.
+      const discard = it.current && opts.discard;
+      if ((!it.current || discard) && opts.onDelete) {
+        // Two taps, as the note rows ask: the first says what the second does.
+        const trash = h('button', { className: 'saved-draft-x', type: 'button', title: discard ? t('Discard draft') : t('Delete draft') }, [icon('trash')]);
+        trash.setAttribute('aria-label', trash.title);
+        trash.addEventListener('click', () => {
+          if (!row.classList.contains('confirming')) {
+            row.classList.add('confirming');
+            label.textContent = discard ? t('Tap again to discard') : t('Tap again to delete');
+            return;
+          }
+          opts.onDelete(it.kind);
+        });
+        row.append(trash);
+      }
+      return row;
+    });
+    return h('div', { className: 'lf-saved-drafts' }, [
+      h('h4', { className: 'lf-saved-head', textContent: t('Articles and recipes') }),
+      h('div', { className: 'saved-drafts' }, rows),
+    ]);
+  }
+
   function buildSavedDraftList(d) {
     const list = h('div', { className: 'saved-drafts' });
     d.entries.forEach((entry) => {
       const label = h('span', { className: 'saved-draft-label', textContent: draftKindLabel(entry, null) });
-      const whenText = () => (entry.current ? t('Open now')
+      const whenText = () => (entry.current ? (entry.openLabel != null ? entry.openLabel : t('Open now'))
         : entry.draft.savedAt ? relTime(entry.draft.savedAt) : '');
       const when = h('span', { className: 'saved-draft-when', textContent: whenText() });
       // The time and, when there is one, the mark beside it are ONE unit at the end of the
@@ -6319,7 +6499,7 @@ window.SidecarCore = (function () {
     paintSavedState,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls,
-    LIGHT_THEMES, COMPOSE_DARK_BAR_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc,
+    LIGHT_THEMES, COMPOSE_DARK_BAR_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc, buildUrlRow, relTime, longformDraftItems, buildLongformDraftList,
     installComposer,
     // Furniture: the same three things every composer needs, wired through installComposer
     // so they read their relays and their profile cache from whichever page installed it.
@@ -6334,7 +6514,7 @@ window.SidecarCore = (function () {
     splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, textFromHtml, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, textFromHtml, markdownFromHtml, transferText, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,

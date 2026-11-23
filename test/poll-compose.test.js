@@ -302,7 +302,8 @@ test('TURNING A NOTE INTO A POLL RE-ASKS WHETHER IT CAN BE POSTED', () => {
   // changed() is updatePostState AND the save, together. They were two calls and two of
   // the sites only ever saved, which is how one of them could stop updating the button.
   assert.match(body, /d\.changed\(\);/, 'adding a poll must re-check whether Post is allowed');
-  assert.match(source, /changed: \(\) => \{ updatePostState\(\); scheduleSave\(\); \},/,
+  // (It repaints the prompt too, which asks for the poll's question.)
+  assert.match(source, /changed: \(\) => \{ updatePostState\(\); scheduleSave\(\);[^}]*\},/,
     'the panel no longer re-checks Post when the editor says the draft moved');
 
   // Both directions, or the same bug returns wearing the other hat.

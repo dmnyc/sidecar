@@ -290,7 +290,7 @@ test('A FAILED OR STOPPED POST GOES BACK TO BEING A DRAFT', () => {
 test('the add buttons share a row, and it wraps rather than shrinks', () => {
   // Media, GIF, Poll and PoW are peers, so they read as a toolbar rather than stacked
   // decisions. They are icons, which is what makes five of them fit one row.
-  assert.match(bare, /h\('div', \{ className: 'compose-actions' \}, \[addBtn, gifPicker\.addBtn, emojiPicker\.addBtn, pollAdd, powBtn\]\)/);
+  assert.match(bare, /h\('div', \{ className: 'compose-actions' \}, \[addBtn, gifPicker\.addBtn, emojiPicker\.addBtn, moreBtn, powBtn\]\)/);
   const row = css.slice(css.indexOf('.compose-actions {'));
   const decls = row.slice(0, row.indexOf('}'));
   assert.match(decls, /display: flex/);

@@ -696,7 +696,7 @@ test('THE TOOLBAR\'S CELLS ARE EQUAL, SO NOTHING A BUTTON SAYS MOVES THE ROW', (
   // And the floor is written out, because .is-uploading clips for its stripes, and a
   // clipping flex item's automatic minimum is zero: without it the busy button could be
   // squeezed below its own label, the one thing the panel's row rule forbids.
-  assert.match(css, /\.compose-add\.is-uploading \{[^}]*overflow: hidden/);
+  assert.match(css, /\.compose-add\.is-uploading[^{]*\{[^}]*overflow: hidden/);
 });
 
 test('THE WAY OUT IS A CLOSE BOX IN THE CARD, AND THE WAY TO PUBLISH IS NOT', () => {

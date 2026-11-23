@@ -565,6 +565,12 @@
     noteActivity: () => { chrome.runtime.sendMessage({ type: 'SIDECAR_ACTIVITY' }).catch(() => {}); },
     shortNpub,
   });
+  // The article and recipe forms (longform.js) upload through the same path as an
+  // attachment: the account's Blossom servers, then nostr.build.
+  window.SidecarComposeUpload = (file) => composer.uploadMedia(file, state.activePubkey);
+  // And they reach the Saved drafts list: back to the editor from it, and a repaint of the
+  // folder's count when one of theirs is saved or cleared.
+  window.SidecarComposeDrafts = { back: () => showTab('write'), repaint: () => paintSavedDrafts() };
 
   // ---- the draft, shared with the panel ----
   function loadDraft() {
@@ -685,6 +691,14 @@
     el.textContent = t('kind {{kind}}', { kind });
   }
 
+  // THE EDITOR'S PROMPT SAYS WHAT IS BEING WRITTEN: a reply, a poll's question (the words
+  // above its options are what people vote on), or a note. Painted from paintReplyTarget and
+  // from paintCount, which every change to the poll already goes through.
+  function paintPrompt() {
+    if (!editorApi || !editorApi.editor) return;
+    editorApi.editor.dataset.placeholder = replyTo ? t('Write your reply…')
+      : draft.poll ? t('Ask your question…') : t('What’s on your mind?');
+  }
   function paintReplyTarget() {
     // The dev controls depend on whether this is a reply, and every path that changes
     // that comes through here.
@@ -693,9 +707,7 @@
     // placeholder and the button. The tab used to say "Post" and "What's on your mind?"
     // over an answered note, which is how a reply got mistaken for a new one. A tab that
     // lost its target below is still a new note, and says so by keeping all three plain.
-    if (editorApi && editorApi.editor) {
-      editorApi.editor.dataset.placeholder = replyTo ? t('Write your reply…') : t('What’s on your mind?');
-    }
+    paintPrompt();
     paintPostButton();
     const box = document.getElementById('compose-reply-target');
     if (!box) return;
@@ -976,11 +988,13 @@
     // Not while the list is up: the list is what it opens, and "Back to composer" is
     // the way out of it, as in the panel.
     btn.classList.toggle('hidden', listing || receiptShown);
-    $('compose-drafts-count').textContent = others.length ? I18N.fmtNum(others.length) : '';
-    $('compose-drafts-count').classList.toggle('hidden', !others.length);
+    // Articles and recipes waiting in their own tabs count too (longform.js keeps them).
+    const waiting = others.length + (window.SidecarLongform ? window.SidecarLongform.waitingCount() : 0);
+    $('compose-drafts-count').textContent = waiting ? I18N.fmtNum(waiting) : '';
+    $('compose-drafts-count').classList.toggle('hidden', !waiting);
     // Said in words, because the count is the button's only text and would otherwise be
     // its whole name to a screen reader: "2".
-    btn.setAttribute('aria-label', tn('{{count}} saved draft', '{{count}} saved drafts', others.length));
+    btn.setAttribute('aria-label', tn('{{count}} saved draft', '{{count}} saved drafts', waiting));
     if (!listing) return;
     const pubkey = state.activePubkey;
     const all = await readAllDrafts();
@@ -988,7 +1002,11 @@
     const entries = others.slice();
     // THE DRAFT ON SCREEN FIRST, as "Open now", for Save to relays; a tap goes back to it.
     if (all[dkey] && draftHasContent(all[dkey])) {
-      entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId });
+      // "Open now" only while the Note tab is up: from the Article or Recipe tab the note is
+      // not what is on screen, and two rows both saying so was the confusion.
+      const inNote = !window.SidecarLongform || window.SidecarLongform.state.mode === 'note';
+      entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId,
+        openLabel: inNote ? null : (all[dkey].savedAt ? SC.relTime(all[dkey].savedAt) : '') });
     }
     pane.innerHTML = '';
     // "Go", not "Back", when the list is where this started: opened from the panel's compose
@@ -1028,7 +1046,11 @@
         paintSavedDrafts();
       },
       onDiscard: () => discardOpenDraft(),
-    }) : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') }));
+    }) : (window.SidecarLongform && window.SidecarLongform.waitingCount(true) ? ''
+      : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') })));
+    // Articles and recipes, each opening in its own tab: their drafts are kept apart from
+    // the note's, so they are listed apart too.
+    if (window.SidecarLongform) pane.append(window.SidecarLongform.draftsSection());
     pane.append(relayPane.el);
     pane.append(back);
   }
@@ -1209,6 +1231,8 @@
     if (!next || !next.activePubkey) return;
     const moved = next.activePubkey !== state.activePubkey;
     state = next;
+    // The article and recipe forms (longform.js) keep a draft per account too.
+    if (moved) document.dispatchEvent(new CustomEvent('sidecar-account', { detail: state.activePubkey }));
     paintWho();
     paintLocked();
     if (!moved) return;
@@ -1249,6 +1273,7 @@
   }
 
   function paintCount() {
+    paintPrompt();
     const n = (draft.text || '').trim().length;
     $('compose-count').textContent = n ? tn('{{count}} character', '{{count}} characters', n) : '';
     // Media alone is a postable note, the same as in the panel: an image with no caption
@@ -1495,6 +1520,118 @@
     paintSavedDrafts();
   }
 
+  // ---- an article or a recipe going out (longform.js builds it) ----
+  //
+  // The note's own path, minus what only a note has: the review countdown the account asked
+  // for, the signer, the relays this tab writes to, and "who took it" counted the same way.
+  // No proof of work: its switch is in the note's toolbar, which an article never shows.
+  // Resolves { signed, report } once at least one relay accepted, null when the review was
+  // canceled, and throws otherwise, leaving the draft where it is.
+  // The review window alone, for what longform.js publishes: true to go ahead, false when
+  // it was canceled, and straight through when the account has no countdown.
+  async function reviewLongform({ title, preview, confirmLabel }) {
+    if (posting || countdown) return false;
+    if (state && state.locked) throw new Error(t('Sidecar is locked. Unlock it, then press Post again.'));
+    const { on, secs } = await composer.postCountdownSetting();
+    if (!on) return true;
+    return new Promise((resolve) => {
+      const pane = $('compose-countdown');
+      const restore = () => {
+        if (countdown) { countdown.stop(); countdown = null; }
+        pane.innerHTML = '';
+        pane.classList.add('hidden');
+        setReviewing(false);
+      };
+      setReviewing(true);
+      pane.classList.remove('hidden');
+      countdown = composer.showPostCountdown({
+        modal: pane, secs, title, preview,
+        confirmLabel: confirmLabel || t('Publish now'),
+        onFire: () => { restore(); resolve(true); },
+        onCancel: () => { restore(); resolve(false); },
+      });
+    });
+  }
+  // One event signed and sent, counted as out only once a relay accepted it. Throws with
+  // the reason otherwise, so the caller keeps its draft.
+  async function sendLongform(template) {
+    posting = true;
+    const status = $('compose-status');
+    try {
+      status.textContent = t('Signing…');
+      const signed = await call({ type: 'SIDECAR_OWNER_SIGN', event: template, expectedPubkey: state.activePubkey });
+      status.textContent = t('Publishing…');
+      const relays = await targetRelays();
+      if (!relays.length) throw new Error(t('No relays configured (add some in Settings)'));
+      const report = await SC.publishToRelays({
+        pool: pool(), relays, signed, params: { onauth: signAuth }, normalize: (u) => NT.utils.normalizeURL(u),
+      });
+      if (!report.accepted.length) {
+        // The size is the likeliest reason a relay that takes notes refuses one of these.
+        const big = report.failed.some((f) => /too (large|big)|size|exceed/i.test(String(f.text || '')));
+        const e = new Error(big ? t('A relay refused this as too large. It is still saved as a draft.')
+          : t('No relay accepted it. It is still saved as a draft.'));
+        e.report = report;
+        throw e;
+      }
+      try {
+        chrome.runtime.sendMessage({ type: 'SIDECAR_EVENT', event: 'notePublished', pubkey: signed.pubkey, id: signed.id, kind: signed.kind }).catch(() => {});
+      } catch (_) { /* nobody listening is the normal case */ }
+      return { signed, report, relays };
+    } catch (e) {
+      if (/is locked/i.test((e && e.message) || '') && state) { state.locked = true; paintLocked(); }
+      throw e;
+    } finally {
+      status.textContent = '';
+      posting = false;
+    }
+  }
+  // An article or a recipe going out (longform.js builds it). The note's own path, minus
+  // what only a note has: no proof of work, as its switch is in the note's toolbar, which
+  // these tabs never show. Resolves { signed, report } once at least one relay accepted,
+  // null when the review was canceled, and throws otherwise, leaving the draft where it is.
+  async function publishLongform({ template, title, preview }) {
+    if (!(await reviewLongform({ title, preview }))) return null;
+    return sendLongform(template);
+  }
+  // Read by longform.js: the account's own published articles at an address, for the
+  // replace-or-rename question, from the relays this tab writes to and reads from.
+  async function findOwnLongform(d) {
+    const relays = [...new Set([...(await targetRelays()), ...(await relayUrls(false).catch(() => []))])];
+    if (!relays.length || !state || !state.activePubkey) return [];
+    try {
+      return await pool().querySync(relays, { kinds: [30023], authors: [state.activePubkey], '#d': [d] }, { maxWait: 4000 });
+    } catch (_) { return []; }
+  }
+  window.SidecarComposePublish = {
+    publish: publishLongform,
+    review: reviewLongform,
+    send: sendLongform,
+    // For the Poll tab: the note's own poll, and whether this tab is answering.
+    isReply: () => !!replyTo,
+    hasPoll: () => !!draft.poll,
+    startPoll: () => { if (!draft.poll && pollEditor) pollEditor.addBtn.click(); },
+    dropPoll: () => { if (draft.poll) { draft.poll = null; if (pollEditor) pollEditor.paint(); paintCount(); scheduleSave(); } },
+    pollHasWork: () => !!(draft.poll && ((draft.poll.options || []).some((o) => String(o).trim()))),
+    mentionEditor: (opts) => composer.createMentionEditor(opts),
+    neventFor: (signed, relays) => neventFor(signed, relays),
+    // The account's chosen reader for a note, as the note receipt links it: { href, label }.
+    readerLink: async (signed, accepted) => {
+      try {
+        const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
+        const client = composer.resolveClient(settings, signed.pubkey || state.activePubkey);
+        return { href: client.url(await neventFor(signed, accepted)), label: client.label };
+      } catch (_) { return null; }
+    },
+    showPosted: (signed, report, extra) => showPosted(signed, report, 'longform', extra),
+    findOwn: findOwnLongform,
+    pubkey: () => state && state.activePubkey,
+    settings: () => call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({})),
+    busy: () => busy(),
+    repaint: () => { paintPostButton(); paintCount(); },
+    renderPreview: (el, text) => composer.renderNotePreview(el, text),
+  };
+
   // ---- what the one button currently is ----
   //
   // There is exactly one primary control on this page, so it has to say which of the
@@ -1674,7 +1811,9 @@
     return NT.nip19.neventEncode({ id: signed.id, author: signed.pubkey, relays });
   }
 
-  async function showPosted(signed, report, what) {
+  // `extra`, for an article or a recipe: its own title line and links (longform.js), since
+  // a note reader's address is a nevent and these are read by their naddr.
+  async function showPosted(signed, report, what, extra) {
     const sheet = document.querySelector('.compose-sheet');
     // THE ADDRESS SAYS SO. The panel cannot ask a tab anything without the "tabs"
     // permission, but getContexts reports each document's URL, fragment and all, so a
@@ -1685,7 +1824,7 @@
     try { history.replaceState(null, '', location.pathname + location.search + '#done'); } catch (_) {}
     let href = null;
     let label = null;
-    try {
+    if (extra) { /* its links come with it */ } else try {
       const settings = await call({ type: 'SIDECAR_GET_SETTINGS' });
       // The account that SIGNED it, not whatever is active by the time this paints. They
       // can differ if the panel switched while the tab was open.
@@ -1703,7 +1842,7 @@
     mark.append(icon('check'));
     sheet.append(
       mark,
-      h('h2', { className: 'compose-done-title', textContent: what === 'poll' ? t('Your poll is live.')
+      h('h2', { className: 'compose-done-title', textContent: extra ? extra.title : what === 'poll' ? t('Your poll is live.')
         : what === 'reply' ? t('Your reply is live.') : t('Your note is live.') }),
       // "Published to N relays.", and when not every relay accepted it, a row that opens onto
       // which did and why the others did not. The panel's banner draws the same thing.
@@ -1711,6 +1850,9 @@
     );
 
     const row = h('div', { className: 'compose-done-actions' });
+    for (const l of (extra && extra.links) || []) {
+      row.append(h('a', { className: (l.primary ? 'primary' : 'mini ghost') + ' compose-done-open', href: l.href, target: '_blank', rel: 'noreferrer noopener', textContent: l.label }));
+    }
     if (href) {
       const open = document.createElement('a');
       open.className = 'primary compose-done-open';
@@ -2075,6 +2217,8 @@
       mediaBtn: () => addBtn,
       gif: () => gifPicker,
     });
+    // The Poll tab turns the poll on in this page; the button stays built, for the tab to press.
+    pollEditor.addBtn.classList.add('compose-poll-add');
     row.append(addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
     // Below the toolbar rather than inside it: the editor is a form, and the row is a
     // row of buttons.
@@ -2175,6 +2319,7 @@
       document.documentElement.classList.remove('compose-booting');
       return;
     }
+    document.dispatchEvent(new CustomEvent('sidecar-account', { detail: state.activePubkey }));
     naPlan().catch(() => {}); // reads the account's search relays now, so the first @ does not wait for them
     const settings = await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => ({}));
     applyTheme(settings, state.activePubkey);

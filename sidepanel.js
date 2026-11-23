@@ -15577,6 +15577,27 @@
         .filter((e) => e.key !== tabKey && !(e.shelved && tabKey === pubkey));
     }
 
+    // The account's article and recipe drafts (the full-size composer's longform.js keeps
+    // them in a store of their own). The panel lists them and opens each in that tab, where
+    // they are written: the panel never edits one.
+    async function longformItems() {
+      const lf = await call({ type: 'SIDECAR_SECRET_GET', store: 'longform' }).catch(() => null);
+      return window.SidecarCore.longformDraftItems(lf && lf[pubkey], null);
+    }
+    async function openLongformInTab(kind) {
+      closeModal(); // the note on screen was saved when this list was drawn
+      try {
+        const open = await liveComposeTab();
+        if (open) {
+          chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_MODE', mode: kind }).catch(() => {});
+          await chrome.tabs.update(open.tabId, { active: true });
+          await chrome.windows.update(open.windowId, { focused: true });
+        } else {
+          chrome.tabs.create({ url: chrome.runtime.getURL('compose.html') + '#' + kind });
+        }
+      } catch (e) { toast(e.message || t('Could not open a tab'), 'error'); }
+    }
+
     function addCorner(withDrafts) {
       const closeX = h('button', { className: 'modal-x', title: t('Close') });
       closeX.append(icon('x'));
@@ -15592,8 +15613,8 @@
       // SHOWN WITH NO DRAFTS TOO, the count left off: Saved drafts is also where drafts
       // kept on relays are read back and this one is saved to them (NIP-37), and a folder
       // that appeared only once something was saved locally hid both.
-      draftsToList().then((entries) => {
-        const n = entries.length;
+      Promise.all([draftsToList(), longformItems()]).then(([entries, lf]) => {
+        const n = entries.length + lf.length;
         if (!btn.isConnected) return;
         count.textContent = n ? I18N.fmtNum(n) : '';
         count.classList.toggle('hidden', !n);
@@ -15614,6 +15635,7 @@
     async function showSavedDrafts() {
       await flushDraftNow();
       const entries = await draftsToList();
+      const lfItems = await longformItems();
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
       if (all[dkey] && window.SidecarCore.draftHasContent(all[dkey])) {
         entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId: replyTo ? replyTo.id : null });
@@ -15675,7 +15697,20 @@
             showSavedDrafts();
           },
           onDiscard: () => discardOpenDraft(),
-        }) : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') }),
+        }) : (lfItems.length ? '' : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') })),
+        window.SidecarCore.buildLongformDraftList(lfItems, {
+          onOpen: (kind) => openLongformInTab(kind),
+          onDelete: async (kind) => {
+            // The tab holds the draft it is writing in memory and would save it straight back.
+            if (await liveComposeTab()) return toast(t('Delete it in the full-size composer, where it is open.'), 'info');
+            const all = await call({ type: 'SIDECAR_SECRET_GET', store: 'longform' });
+            if (!all || typeof all !== 'object') return toast(t('Could not delete the draft.'), 'error');
+            if (all[pubkey]) { delete all[pubkey][kind]; if (!Object.keys(all[pubkey]).length) delete all[pubkey]; }
+            await call({ type: 'SIDECAR_SECRET_SET', store: 'longform', value: all });
+            toast(t('Draft deleted.'), 'success');
+            showSavedDrafts();
+          },
+        }),
         pane.el,
         h('div', { className: 'actions' }, [back]),
       );
@@ -16173,7 +16208,7 @@
         // The editor it writes into is hidden in Preview, so the button goes with it.
         emojiPicker.addBtn.classList.toggle('hidden', p || !emojiPicker.available);
         if (p) emojiPicker.close();
-        pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
+        moreBtn.classList.toggle('hidden', p || !!draft.poll || !!replyTo);
         pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
         if (p) { mentionEditor.close(); renderPreview(); }
@@ -16611,7 +16646,7 @@
         setPoll: (p) => { draft.poll = p; },
         // One callback for both, because they always went together here except at two
         // sites that only saved, and those two stopped updating Post when they did not.
-        changed: () => { updatePostState(); scheduleSave(); },
+        changed: () => { updatePostState(); scheduleSave(); paintPrompt(); },
         isReply: () => !!replyTo,
         hasMedia: () => !!(draft.media && draft.media.length),
         mediaBtn: () => addBtn,
@@ -16619,7 +16654,19 @@
         devSelect: () => modal.querySelector('#compose-dev-kind'),
       });
       const pollWrap = pollEditor.wrap;
-      const pollAdd = pollEditor.addBtn;
+      // The prompt says what is being written: a reply, a poll's question, or a note. As the
+      // full-size composer's paintPrompt; painted now too, for a draft that comes back a poll.
+      function paintPrompt() {
+        mentionEditor.editor.dataset.placeholder = replyTo ? t('Write your reply…')
+          : draft.poll ? t('Ask your question…') : t('What’s on your mind?');
+      }
+      paintPrompt();
+      // MORE OPTIONS, where the poll button was: a poll, an article and a recipe are each
+      // written in the full-size composer, which has a tab for every one of them. This
+      // hands the note over the way Expand does. A poll already in the draft (started before
+      // this button existed) still shows its editor here, and can still be removed.
+      const moreBtn = composeToolBtn('more', t('More options: polls, articles and recipes'));
+      moreBtn.classList.add('compose-more-options');
       const paintPoll = pollEditor.paint;
       const paintEitherOr = pollEditor.paintEitherOr;
 
@@ -16743,6 +16790,7 @@
       }
 
       if (expand) modal.append(expand);
+      moreBtn.addEventListener('click', () => { if (expand && !expand.disabled) expand.click(); });
 
       modal.append(
         h('h3', { textContent: replyTo ? t('Reply') : t('New note') }),
@@ -16756,7 +16804,7 @@
         previewPane,
         thumbs,
         mediaDrawer.wrap,
-        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollAdd, powBtn]),
+        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, emojiPicker.addBtn, moreBtn, powBtn]),
         fileInput,
         gifPicker.wrap,
         emojiPicker.wrap,

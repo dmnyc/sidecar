@@ -3630,9 +3630,11 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
    button keeps its full strength while it works (it is busy, not unavailable), and angled
    stripes of the theme's accent run across all of it toward the right, the way a busy bar
    does. With motion reduced, the stripes hold still: still plainly busy. */
-.compose-add.is-uploading { position: relative; overflow: hidden; cursor: progress; }
-.compose-add.is-uploading:disabled { opacity: 1; }
-.compose-add.is-uploading::after {
+/* The long-form forms' upload controls (the picture drop zone, the body's Image button) take the
+   same stripes, so an upload looks the same in every tab. */
+.compose-add.is-uploading, .lf-drop.is-uploading, .lf-tool.is-uploading { position: relative; overflow: hidden; cursor: progress; }
+.compose-add.is-uploading:disabled, .lf-drop.is-uploading:disabled, .lf-tool.is-uploading:disabled { opacity: 1; }
+.compose-add.is-uploading::after, .lf-drop.is-uploading::after, .lf-tool.is-uploading::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -3644,9 +3646,11 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
 }
 @keyframes upload-stripes { to { background-position: 22.63px 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .compose-add.is-uploading::after { animation: none; }
+  .compose-add.is-uploading::after, .lf-drop.is-uploading::after, .lf-tool.is-uploading::after { animation: none; }
 }
-html.reduce-balance-motion .compose-add.is-uploading::after { animation: none; }
+html.reduce-balance-motion .compose-add.is-uploading::after,
+html.reduce-balance-motion .lf-drop.is-uploading::after,
+html.reduce-balance-motion .lf-tool.is-uploading::after { animation: none; }
 /* ---- the expanded composer ----
    The panel's own corner button for it, and then the page it opens. The page reuses the
    panel's stylesheet and themes wholesale: it is the same product at a different size, so
@@ -3766,6 +3770,10 @@ html.compose-booting .compose-brand { visibility: hidden; }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-editor-lg:focus { border-color: var(--gold-soft); }
+/* A POLL'S QUESTION IS A LINE OR TWO, and its options are the rest of the card: with the poll
+   on, the editor starts at four lines rather than the full pane, and still grows as it is
+   written. */
+.compose-sheet:has(.poll-editor:not(.hidden)) .compose-editor-lg { min-height: calc(4 * 1.6em + 36px); }
 /* The mention dropdown, and the name-search ask inside it, sit in from the field's border by
    its padding, so they line up with the text instead of running along the field's edges.
    The panel's field has no border of its own, so there the full width is right. */
@@ -7239,3 +7247,238 @@ a.thread-anc:hover { background: var(--hover-soft); color: var(--text); }
   .thread-text, .thread-chips { padding-inline-start: 0; }
   .thread-acts { margin-inline-start: -7px; }
 }
+
+/* ---- Articles and recipes in the expanded composer (longform.js) ---- */
+/* Note | Article | Recipe: a segmented switch under the account row. */
+.compose-modes {
+  display: inline-flex; align-self: flex-start; gap: 2px; padding: 3px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--input-bg, rgba(0, 0, 0, 0.15));
+}
+.compose-mode {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: none; border: none; border-radius: 9px; padding: 7px 14px;
+  color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.compose-mode svg { width: 15px; height: 15px; flex-shrink: 0; }
+.compose-mode:hover { color: var(--text); }
+.compose-mode.active { background: var(--velvet-2, rgba(255, 255, 255, 0.08)); color: var(--lav); box-shadow: 0 1px 0 var(--border-strong); }
+
+.lf-form { display: flex; flex-direction: column; gap: 14px; }
+/* The recipe's fields sit in a wrapper so Preview can hide them together; laid out as if it
+   were not there. */
+.lf-recipe-write { display: contents; }
+/* A picture in the article's Preview carries the strip's own + ALT chip in its corner. */
+.lf-preview-img { position: relative; display: block; }
+.lf-preview-img > img { margin: 0.6em 0; }
+.lf-preview-img > .compose-thumb-alt { top: calc(0.6em + 8px); inset-inline-start: 8px; }
+.lf-field, .lf-group { display: flex; flex-direction: column; gap: 6px; }
+.lf-label { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.03em; }
+.lf-hint { color: var(--faint); font-size: 11.5px; }
+/* The title is the headline, not a form field: no box until it has focus. It is set in
+   Playfair Display in every theme rather than the theme's display face: most of those are
+   drawn for a word or two (Cast Iron's is hollow, Ben Day's a comic shout), and a title
+   is read as a line of text. */
+.lf-form .lf-title {
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 700; line-height: 1.25;
+  padding: 4px 0; border: none; border-bottom: 1px solid var(--border); border-radius: 0; background: none;
+}
+.lf-form .lf-title:focus { box-shadow: none; border-bottom-color: var(--gold-soft); }
+.lf-summary, .lf-notes { min-height: 0; }
+
+.lf-drop {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: start;
+  padding: 18px; border: 1.5px dashed var(--border-strong); border-radius: 12px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.lf-drop:hover { border-color: var(--gold-soft); color: var(--text); }
+.lf-drop > svg { width: 28px; height: 28px; flex-shrink: 0; }
+.lf-drop-text { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+.lf-drop-text strong { color: var(--text); font-size: 14px; }
+
+.lf-chips {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 7px 9px; cursor: text;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg, rgba(0, 0, 0, 0.15));
+}
+.lf-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px;
+  background: var(--mention-bg); color: var(--lav); font-size: 13px;
+}
+.lf-chip-x { display: inline-flex; background: none; border: none; padding: 2px; color: inherit; cursor: pointer; opacity: 0.7; }
+.lf-chip-x:hover { opacity: 1; }
+.lf-chip-x svg { width: 12px; height: 12px; }
+.lf-chips .lf-chip-input { flex: 1; min-width: 120px; width: auto; border: none; background: none; padding: 4px; font-size: 14px; }
+.lf-chips .lf-chip-input:focus { box-shadow: none; }
+.lf-chip-hints { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lf-chip-hint {
+  background: none; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px;
+  color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.lf-chip-hint:hover { color: var(--text); border-color: var(--border-strong); }
+
+.lf-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+
+.lf-list-wrap { display: flex; flex-direction: column; gap: 8px; }
+.lf-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lf-list-item {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 6px 8px 10px;
+  border: 1px solid var(--border); border-radius: 10px; font-size: 14.5px; line-height: 1.45; color: var(--text);
+}
+.lf-list-mark { flex-shrink: 0; min-width: 16px; color: var(--lav); font-weight: 700; font-variant-numeric: tabular-nums; }
+.lf-list-text { flex: 1; min-width: 0; overflow-wrap: anywhere; cursor: text; }
+/* An item being edited: the words become a box in the same place, and the row is outlined. */
+.lf-list-item.is-editing { border-color: var(--lav); box-shadow: 0 0 0 1px var(--lav); }
+.lf-list-item .lf-list-edit {
+  flex: 1; min-width: 0; margin: 0; padding: 0; border: none; border-radius: 0; background: none; box-shadow: none;
+  font: inherit; line-height: inherit; color: var(--text); outline: none;
+}
+.lf-list-actions { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.lf-icon-btn { display: inline-flex; background: none; border: none; padding: 3px; color: var(--muted); cursor: pointer; border-radius: 6px; }
+.lf-icon-btn:hover:not(:disabled) { color: var(--text); }
+.lf-icon-btn:disabled { opacity: 0.3; cursor: default; }
+.lf-icon-btn svg { width: 15px; height: 15px; }
+.lf-list-row { display: flex; gap: 8px; }
+.lf-list-row .lf-list-input { flex: 1; min-width: 0; }
+.lf-list-add { flex-shrink: 0; }
+
+.lf-zc-badge {
+  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+  color: var(--muted); font-size: 11.5px; text-decoration: none;
+}
+.lf-zc-badge:hover { color: var(--text); }
+.lf-zc-logo { height: 15px; width: auto; display: block; }
+
+.lf-toolbar {
+  display: flex; flex-wrap: wrap; gap: 2px; padding: 3px;
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.lf-tool { display: inline-flex; background: none; border: none; border-radius: 7px; padding: 6px 8px; color: var(--muted); cursor: pointer; }
+.lf-tool:hover { color: var(--text); background: var(--mention-bg); }
+.lf-tool svg { width: 16px; height: 16px; }
+.lf-length { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* The article's own body: plain markdown in a tall field, its own draft. */
+.lf-form .lf-body { min-height: 300px; resize: vertical; font-size: 16px; line-height: 1.6; }
+/* A tab that has a draft waiting says so with a dot. */
+.compose-mode.has-draft span::after {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-inline-start: 6px; vertical-align: middle; background: var(--gold-soft, var(--lav));
+}
+.lf-saved { margin-inline-start: 0; }
+/* A recipe is the form; the note editor and its attachments step aside. */
+/* Outside the Note tab, everything that belongs to the note steps aside, untouched: its
+   editor, Write / Preview, attachments, the toolbar row and the drafts pane. */
+.compose-sheet:not([data-mode="note"]) #compose-slot,
+.compose-sheet:not([data-mode="note"]) #compose-tabs,
+.compose-sheet:not([data-mode="note"]) #compose-preview,
+.compose-sheet:not([data-mode="note"]) #compose-thumbs,
+.compose-sheet:not([data-mode="note"]) #compose-actions,
+.compose-sheet:not([data-mode="note"]) .poll-editor,
+.compose-sheet:not([data-mode="note"]) .compose-media-note:not(.lf-links),
+/* The note's ALT row only: the article's and the recipe's own rows sit inside their forms. */
+.compose-sheet:not([data-mode="note"]) .compose-alt-row:not(.lf-form .compose-alt-row) { display: none; }
+@media (max-width: 560px) { .lf-details { grid-template-columns: 1fr; } }
+/* The article's word count stands in for the note's character count, and a recipe's
+   "Still needed" line for both, each taking the count's place before Post. */
+.lf-length, .lf-missing { font-size: 12px; color: var(--muted); margin-inline-end: auto; }
+.compose-sheet[data-mode="article"] #compose-count,
+.compose-sheet[data-mode="recipe"] #compose-count { display: none; }
+/* Images go into an article through the toolbar, at the caret; polls and note attachments
+   are a note's. The recipe's own preview comes with publishing; until then no tabs. */
+.compose-sheet[data-mode="article"] #compose-actions,
+.compose-sheet[data-mode="article"] #compose-thumbs,
+.compose-sheet[data-mode="recipe"] #compose-tabs { display: none; }
+.lf-zc-logo { height: 15px; }
+/* A recipe's "Still needed" takes a line of its own above the toggle and Publish. */
+.compose-foot:has(.lf-missing:not(.hidden)) { flex-wrap: wrap; }
+.compose-foot .lf-missing { flex-basis: 100%; order: -1; margin: 0 0 2px; text-align: end; }
+.compose-sheet[data-mode="recipe"] .compose-post { margin-inline-start: auto; }
+/* The picture strip under a recipe's photos or an article's cover: the attachment strip's
+   own cells (.compose-thumb), with the first one marked as the cover. */
+.lf-images { display: flex; flex-direction: column; gap: 8px; }
+.lf-images .lf-strip { margin: 0; }
+.lf-images .compose-thumb { width: 96px; height: 96px; }
+/* The cover, drawn as a cover: full width at the 1.91:1 a link preview crops to, with the
+   strip's own ALT and remove controls in its corners and a label saying what it is. */
+.lf-cover { position: relative; width: 100%; aspect-ratio: 1.91 / 1; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: var(--input-bg, rgba(0, 0, 0, 0.3)); }
+.lf-cover > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lf-cover .compose-thumb-alt { top: 10px; inset-inline-start: 10px; height: 26px; padding: 0 10px; font-size: 11.5px; }
+.lf-cover .compose-thumb-x { top: 10px; inset-inline-end: 10px; width: 30px; height: 30px; }
+.lf-cover .compose-thumb-x svg { width: 15px; height: 15px; }
+.lf-cover.drop-target { outline: 2px dashed var(--gold-soft); outline-offset: -2px; }
+.lf-cover.is-broken > img { visibility: hidden; }
+.lf-cover-chip {
+  position: absolute; bottom: 10px; inset-inline-start: 10px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px; background: rgba(5, 0, 12, 0.7); color: #fff; font-size: 12.5px; font-weight: 600;
+}
+.lf-cover-chip svg { width: 14px; height: 14px; }
+.lf-more-head { display: block; margin-top: 4px; }
+.lf-make-cover { cursor: pointer; }
+.lf-drop.drop-target { border-color: var(--gold-soft); color: var(--text); }
+.lf-img-more { display: flex; }
+.lf-img-err:empty { display: none; }
+/* A one-line link that opens an optional field: Add by link, Add a source. */
+.lf-disclose {
+  align-self: flex-start; background: none; border: none; padding: 2px 0; cursor: pointer;
+  color: var(--muted); font-size: 12.5px; font-weight: 600;
+}
+.lf-disclose:hover { color: var(--lav); }
+/* Note | Article | Recipe on the left, "Powered by Zap Cooking" at the right of the same row. */
+.lf-mode-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* At the end of the recipe's Write | Preview row; under the tabs when the row is too narrow. */
+.lf-recipe-tabs { flex-wrap: wrap; align-items: center; }
+.lf-recipe-tabs .lf-zc-badge { margin-inline-start: auto; padding-bottom: 4px; }
+.lf-images .lf-links { margin: 0; }
+/* Saved drafts takes the card in every tab: the article or recipe form and its footer notes
+   step aside while it is up, as the note editor does. */
+.compose-sheet:has(#compose-drafts-pane:not(.hidden)) .lf-form,
+.compose-sheet:has(#compose-drafts-pane:not(.hidden)) .lf-length,
+.compose-sheet:has(#compose-drafts-pane:not(.hidden)) .lf-missing,
+.compose-sheet:has(#compose-drafts-pane:not(.hidden)) .lf-saved { display: none; }
+.lf-saved-drafts { margin-top: 14px; }
+.lf-saved-head { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.03em; color: var(--muted); }
+
+/* ---- publishing an article or a recipe ---- */
+/* The body's own Write | Preview, the note's tab look without its saved-state slot. */
+.lf-body-tabs { margin: 0; }
+/* The body and the review window as a reader sees them: a readable measure, the markdown's
+   own structure, pictures held to the column. */
+.lf-preview {
+  min-height: 300px; padding: 18px; border-radius: 14px;
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
+.lf-md { font-size: 16px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.lf-md > :first-child { margin-top: 0; }
+.lf-md h1, .lf-md h2, .lf-md h3, .lf-md h4, .lf-md h5, .lf-md h6 { line-height: 1.25; margin: 1.2em 0 0.4em; }
+.lf-md h1 { font-size: 1.6em; }
+.lf-md h2 { font-size: 1.3em; }
+.lf-md h3 { font-size: 1.1em; }
+.lf-md p, .lf-md ul, .lf-md ol, .lf-md blockquote, .lf-md pre { margin: 0 0 0.9em; }
+.lf-md ul, .lf-md ol { padding-inline-start: 1.4em; }
+.lf-md blockquote { padding-inline-start: 12px; border-inline-start: 3px solid var(--border-strong); color: var(--text-2); }
+.lf-md code { font-size: 0.9em; padding: 1px 5px; border-radius: 5px; background: var(--mention-bg); }
+.lf-md pre { padding: 12px; border-radius: 10px; background: var(--mention-bg); overflow-x: auto; }
+.lf-md pre code { padding: 0; background: none; }
+.lf-md img { display: block; max-width: 100%; height: auto; border-radius: 10px; margin: 0.6em 0; }
+.lf-md hr { border: none; border-top: 1px solid var(--border-strong); margin: 1.4em 0; }
+.lf-md a { color: var(--lav); }
+.lf-review { max-height: calc(52vh / var(--panel-zoom, 1)); overflow-y: auto; }
+.lf-review-summary { color: var(--text-2); font-style: italic; }
+.lf-review-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.lf-review-tag { padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-2); font-size: 13px; }
+/* The review window owns the card while it runs, as it does for a note. */
+.compose-sheet.is-reviewing .lf-form,
+.compose-sheet.is-reviewing .lf-mode-row,
+.compose-sheet.is-reviewing .lf-confirm { display: none; }
+/* Replace or rename: words, so a row of its own under the form (the confirm grammar). */
+.lf-confirm {
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+  margin-top: 14px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--border-strong); background: var(--mention-bg);
+}
+.lf-confirm.hidden { display: none; }
+.lf-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- the poll tab in the full-size composer ---- */
+/* The Poll tab is how a poll starts here; its toolbar button would be a second way in. */
+.compose-sheet #compose-actions .compose-poll-add { display: none; }
+.compose-mode.is-off { opacity: 0.45; cursor: not-allowed; }

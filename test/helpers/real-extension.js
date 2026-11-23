@@ -285,7 +285,7 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
           // MoveLeftAndModifySelection, SelectAll, Undo…), which is how Chrome on a Mac is told
           // what Option+Backspace or Cmd+Z mean when the key comes from DevTools.
           press: async (key, { shift = false, alt = false, ctrl = false, meta = false, commands } = {}) => {
-            const KEYS = { Backspace: 8, Delete: 46, ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Home: 36, End: 35, Enter: 13, Tab: 9, a: 65, c: 67, v: 86, x: 88, z: 90 };
+            const KEYS = { Backspace: 8, Delete: 46, ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Home: 36, End: 35, Enter: 13, Tab: 9, a: 65, b: 66, c: 67, i: 73, k: 75, v: 86, x: 88, z: 90 };
             const code = KEYS[key];
             const modifiers = (alt ? 1 : 0) | (ctrl ? 2 : 0) | (meta ? 4 : 0) | (shift ? 8 : 0);
             const base = { key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, modifiers };
