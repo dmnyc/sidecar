@@ -2014,5 +2014,6 @@
   "Sidecar could not open this comment.": "Sidecarがこのコメントを開けませんでした。",
   "Show {{count}} reply_other": "{{count}}件の返信を表示",
   "Add an account to chat →": "アカウントを追加してチャット →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr上のYouTube風動画サイト。動画やショートを視聴・アップロードでき、プレイリストや登録チャンネルも使えます。"
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr上のYouTube風動画サイト。動画やショートを視聴・アップロードでき、プレイリストや登録チャンネルも使えます。",
+  "{{count}} more account_other": "ほかに{{count}}件のアカウント"
 }

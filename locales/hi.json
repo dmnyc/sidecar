@@ -2086,5 +2086,7 @@
   "Show {{count}} reply_one": "{{count}} जवाब दिखाएँ",
   "Show {{count}} reply_other": "{{count}} जवाब दिखाएँ",
   "Add an account to chat →": "चैट करने के लिए अकाउंट जोड़ें →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr पर YouTube जैसी वीडियो साइट: वीडियो और शॉर्ट्स देखें और अपलोड करें, प्लेलिस्ट और सब्सक्रिप्शन के साथ।"
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr पर YouTube जैसी वीडियो साइट: वीडियो और शॉर्ट्स देखें और अपलोड करें, प्लेलिस्ट और सब्सक्रिप्शन के साथ।",
+  "{{count}} more account_one": "{{count}} और खाता",
+  "{{count}} more account_other": "{{count}} और खाते"
 }

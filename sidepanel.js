@@ -4378,6 +4378,8 @@
       // animating the outgoing content is just noise.
       const scroller = $('view-main').querySelector('.content');
       if (scroller) scroller.scrollTop = 0;
+      // Leaving Accounts folds its list; arriving redraws it below.
+      if (name !== 'accounts') foldAccountList(false);
       if (name === 'activity') { sitesShownN = 0; logShownN = 0; renderActivity(); }
       else if (name === 'profile') renderProfile();
       // Arriving on Wallet is the one card rebuild that earns a strike: the figure is
@@ -4391,6 +4393,15 @@
       else if (name === 'accounts') { renderMain(); revealActiveAccount(); }
       renderPinnedBalanceBar(); // show on non-wallet tabs, hide on Wallet
     });
+  });
+
+  // The folded account list's button, and the activity that keeps an open list open.
+  $('account-list-more').addEventListener('click', () => {
+    if (accountListOpen) foldAccountList(true);
+    else openAccountList(true);
+  });
+  ['pointerdown', 'pointermove', 'keydown', 'dragover', 'focusin'].forEach((type) => {
+    $('account-list').addEventListener(type, () => { if (accountListOpen) armAccountListFold(); }, { passive: true });
   });
 
   // ---- activity sub-tabs: Connected sites | Recent activity ----
@@ -4911,6 +4922,23 @@
   const ACCOUNT_STATS_OPEN_MAX = 3;
   // Whether the panel has shown the active account once since it opened (revealActiveAccount).
   let _activeRevealedOnOpen = false;
+
+  // THE ACCOUNT LIST FOLDS FROM THREE ACCOUNTS. Every account as a full row is a wall
+  // with several, and anything below the list sinks out of sight. Folded, it shows the
+  // active account and the first other one in your order, then a button for the rest.
+  // Open, it is the whole list as before, and the only state where dragging works: a
+  // reorder of the rows on screen would otherwise drop the hidden ones to the end.
+  //
+  // Opening is not remembered. The list folds again after a quiet spell, on leaving the
+  // tab and when the panel closes (this is plain panel state), so it tidies itself;
+  // the order you dragged into is saved as always. An account that appears in the list
+  // (generated, imported, restored) opens it, so you see where it landed.
+  const ACCOUNT_LIST_FOLD_AT = 3;
+  const ACCOUNT_LIST_FOLDED_OTHERS = 1;
+  const ACCOUNT_LIST_IDLE_MS = 30000;
+  let accountListOpen = false;
+  let accountListTimer = null;
+  let accountListSeen = null; // pubkeys at the last draw, to notice a new one
   // While the video player is open the overview stays closed, so more of the panel shows
   // beside it. Held apart from accountStatsExpanded, which is the person's own choice and
   // comes back when the player closes; opening the drawer by hand ends the hold.
@@ -10046,17 +10074,7 @@
     head.classList.toggle('hidden', hasAccounts);
     if (!hasAccounts) head.appendChild(buildWelcome());
 
-    const list = $('account-list');
-    list.innerHTML = '';
-    state.accounts.forEach((a) => {
-      list.appendChild(accountRow(a));
-      // Stats drawer sits right beneath the active account row, inside the
-      // list but not draggable (no .item class, no draggable attr).
-      if (a.pubkey === state.activePubkey) {
-        list.appendChild(buildAccountStats(a.pubkey));
-      }
-    });
-    makeSortable(list);
+    renderAccountList();
     // Once per panel, when the panel opens on Accounts: marked done only once it
     // actually ran, so a first render behind another tab does not use it up.
     if (!_activeRevealedOnOpen) _activeRevealedOnOpen = revealActiveAccount();
@@ -10068,6 +10086,88 @@
     state.accounts.forEach((a) => {
       if (needsProfileBackfill(a)) maybeFetchProfile(a.pubkey);
     });
+  }
+
+  // Which accounts a folded list shows: the active one and the first others in your
+  // order, kept in that order so opening the list only adds rows around them.
+  function foldedAccounts(accounts, activePubkey) {
+    const keep = new Set();
+    if (accounts.some((a) => a.pubkey === activePubkey)) keep.add(activePubkey);
+    for (const a of accounts) {
+      if (keep.size >= 1 + ACCOUNT_LIST_FOLDED_OTHERS) break;
+      keep.add(a.pubkey);
+    }
+    return accounts.filter((a) => keep.has(a.pubkey));
+  }
+
+  function renderAccountList() {
+    const list = $('account-list');
+    const moreBtn = $('account-list-more');
+    const accounts = state.accounts;
+    const pubkeys = accounts.map((a) => a.pubkey);
+    if (accountListSeen && pubkeys.some((pk) => !accountListSeen.has(pk))) openAccountList(false);
+    accountListSeen = new Set(pubkeys);
+
+    const foldable = accounts.length >= ACCOUNT_LIST_FOLD_AT;
+    if (!foldable) foldAccountList(false);
+    const folded = foldable && !accountListOpen;
+    const shown = folded ? foldedAccounts(accounts, state.activePubkey) : accounts;
+
+    list.innerHTML = '';
+    list.classList.toggle('account-list-folded', folded);
+    shown.forEach((a) => {
+      const row = accountRow(a);
+      if (folded) row.draggable = false;
+      list.appendChild(row);
+      // Stats drawer sits right beneath the active account row, inside the
+      // list but not draggable (no .item class, no draggable attr).
+      if (a.pubkey === state.activePubkey) {
+        list.appendChild(buildAccountStats(a.pubkey));
+      }
+    });
+    makeSortable(list);
+
+    moreBtn.classList.toggle('hidden', !foldable);
+    moreBtn.setAttribute('aria-expanded', String(!folded));
+    moreBtn.innerHTML = '';
+    const chev = icon('chevron-down');
+    chev.classList.add('account-list-more-chev');
+    moreBtn.append(
+      h('span', {
+        textContent: folded
+          ? tn('{{count}} more account', '{{count}} more accounts', accounts.length - shown.length)
+          : t('Show less'),
+      }),
+      chev
+    );
+  }
+
+  // Count down to folding again; anything you do with the list starts the count over.
+  function armAccountListFold() {
+    clearTimeout(accountListTimer);
+    if (!accountListOpen) return;
+    accountListTimer = setTimeout(() => {
+      // Never out from under a drag, or behind a sheet opened from one of the rows.
+      if ($('account-list').querySelector('.dragging') || panelIsCovered()) {
+        armAccountListFold();
+        return;
+      }
+      foldAccountList(true);
+    }, ACCOUNT_LIST_IDLE_MS);
+  }
+
+  function openAccountList(draw) {
+    accountListOpen = true;
+    armAccountListFold();
+    if (draw) renderAccountList();
+  }
+
+  function foldAccountList(draw) {
+    clearTimeout(accountListTimer);
+    accountListTimer = null;
+    if (!accountListOpen) return;
+    accountListOpen = false;
+    if (draw) renderAccountList();
   }
 
   // ARRIVING ON ACCOUNTS SHOWS THE ACTIVE ONE. The list keeps the order you gave it, so
@@ -10087,6 +10187,10 @@
   }
 
   function makeSortable(listEl) {
+    // The list element outlives every redraw, so its listeners are added once: each
+    // redraw used to add another set, and one drop sent one reorder per redraw.
+    if (listEl._sortable) return;
+    listEl._sortable = true;
     let dragged = null;
 
     // The items that are actually draggable, excluding the dragged element itself.

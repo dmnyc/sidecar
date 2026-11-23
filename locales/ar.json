@@ -2374,5 +2374,11 @@
   "Show {{count}} reply_many": "عرض {{count}} ردًا",
   "Show {{count}} reply_other": "عرض {{count}} رد",
   "Add an account to chat →": "إضافة حساب للدردشة ←",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "موقع فيديو على طراز YouTube فوق Nostr: شاهد مقاطع الفيديو والمقاطع القصيرة وارفعها، مع قوائم تشغيل واشتراكات."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "موقع فيديو على طراز YouTube فوق Nostr: شاهد مقاطع الفيديو والمقاطع القصيرة وارفعها، مع قوائم تشغيل واشتراكات.",
+  "{{count}} more account_zero": "لا حسابات أخرى",
+  "{{count}} more account_one": "حساب آخر واحد",
+  "{{count}} more account_two": "حسابان آخران",
+  "{{count}} more account_few": "{{count}} حسابات أخرى",
+  "{{count}} more account_many": "{{count}} حسابًا آخر",
+  "{{count}} more account_other": "{{count}} حساب آخر"
 }

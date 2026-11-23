@@ -2086,5 +2086,7 @@
   "Show {{count}} reply_one": "Εμφάνιση {{count}} απάντησης",
   "Show {{count}} reply_other": "Εμφάνιση {{count}} απαντήσεων",
   "Add an account to chat →": "Προσθήκη λογαριασμού για συνομιλία →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Ένας ιστότοπος βίντεο σε στιλ YouTube πάνω στο Nostr: δείτε και ανεβάστε βίντεο και shorts, με λίστες αναπαραγωγής και συνδρομές."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Ένας ιστότοπος βίντεο σε στιλ YouTube πάνω στο Nostr: δείτε και ανεβάστε βίντεο και shorts, με λίστες αναπαραγωγής και συνδρομές.",
+  "{{count}} more account_one": "Ακόμη {{count}} λογαριασμός",
+  "{{count}} more account_other": "Ακόμη {{count}} λογαριασμοί"
 }

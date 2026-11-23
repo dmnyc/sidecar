@@ -2086,5 +2086,7 @@
   "Show {{count}} reply_one": "{{count}} válasz megjelenítése",
   "Show {{count}} reply_other": "{{count}} válasz megjelenítése",
   "Add an account to chat →": "Fiók hozzáadása a csevegéshez →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "YouTube-stílusú videós oldal a Nostren: nézz és tölts fel videókat és shortokat, lejátszási listákkal és feliratkozásokkal."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "YouTube-stílusú videós oldal a Nostren: nézz és tölts fel videókat és shortokat, lejátszási listákkal és feliratkozásokkal.",
+  "{{count}} more account_one": "{{count}} további fiók",
+  "{{count}} more account_other": "{{count}} további fiók"
 }
