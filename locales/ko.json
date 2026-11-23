@@ -2014,5 +2014,6 @@
   "Sidecar could not open this comment.": "Sidecar에서 이 댓글을 열지 못했어요.",
   "Show {{count}} reply_other": "답글 {{count}}개 보기",
   "Add an account to chat →": "채팅하려면 계정 추가 →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 위의 YouTube 스타일 동영상 사이트: 동영상과 쇼츠를 보고 올리며, 재생목록과 구독도 지원합니다."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 위의 YouTube 스타일 동영상 사이트: 동영상과 쇼츠를 보고 올리며, 재생목록과 구독도 지원합니다.",
+  "{{count}} more account_other": "계정 {{count}}개 더"
 }

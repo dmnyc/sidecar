@@ -2158,5 +2158,8 @@
   "Show {{count}} reply_one": "Mostra {{count}} risposta",
   "Show {{count}} reply_other": "Mostra {{count}} risposte",
   "Add an account to chat →": "Aggiungi un account per chattare →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Un sito video in stile YouTube su Nostr: guarda e carica video e short, con playlist e iscrizioni."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Un sito video in stile YouTube su Nostr: guarda e carica video e short, con playlist e iscrizioni.",
+  "{{count}} more account_one": "{{count}} altro account",
+  "{{count}} more account_many": "{{count}} di altri account",
+  "{{count}} more account_other": "{{count}} altri account"
 }

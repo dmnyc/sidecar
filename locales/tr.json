@@ -2086,5 +2086,7 @@
   "Show {{count}} reply_one": "{{count}} yanıtı göster",
   "Show {{count}} reply_other": "{{count}} yanıtı göster",
   "Add an account to chat →": "Sohbet için hesap ekle →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr üzerinde YouTube tarzı bir video sitesi: video ve shorts izleyin ve yükleyin, oynatma listeleri ve aboneliklerle."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr üzerinde YouTube tarzı bir video sitesi: video ve shorts izleyin ve yükleyin, oynatma listeleri ve aboneliklerle.",
+  "{{count}} more account_one": "{{count}} hesap daha",
+  "{{count}} more account_other": "{{count}} hesap daha"
 }

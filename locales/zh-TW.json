@@ -2014,5 +2014,6 @@
   "Sidecar could not open this comment.": "Sidecar 無法開啟此留言。",
   "Show {{count}} reply_other": "顯示 {{count}} 則回覆",
   "Add an account to chat →": "新增帳號以聊天 →",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 上的 YouTube 風格影音網站：觀看與上傳影片和短片，支援播放清單與訂閱。"
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 上的 YouTube 風格影音網站：觀看與上傳影片和短片，支援播放清單與訂閱。",
+  "{{count}} more account_other": "還有 {{count}} 個帳號"
 }

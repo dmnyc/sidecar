@@ -2086,5 +2086,7 @@
   "Show {{count}} reply_one": "نمایش {{count}} پاسخ",
   "Show {{count}} reply_other": "نمایش {{count}} پاسخ",
   "Add an account to chat →": "افزودن حساب برای گفتگو ←",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "یک سایت ویدیو به سبک YouTube روی Nostr: ویدیوها و شورت‌ها را ببینید و بارگذاری کنید، با فهرست پخش و اشتراک."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "یک سایت ویدیو به سبک YouTube روی Nostr: ویدیوها و شورت‌ها را ببینید و بارگذاری کنید، با فهرست پخش و اشتراک.",
+  "{{count}} more account_one": "{{count}} حساب دیگر",
+  "{{count}} more account_other": "{{count}} حساب دیگر"
 }

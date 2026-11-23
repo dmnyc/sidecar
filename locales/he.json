@@ -2158,5 +2158,8 @@
   "Show {{count}} reply_two": "הצגת שתי תשובות ({{count}})",
   "Show {{count}} reply_other": "הצגת {{count}} תשובות",
   "Add an account to chat →": "הוספת חשבון כדי לשוחח ←",
-  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "אתר וידאו בסגנון YouTube על Nostr: צפו בסרטונים ובשורטס והעלו אותם, עם פלייליסטים ומינויים."
+  "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "אתר וידאו בסגנון YouTube על Nostr: צפו בסרטונים ובשורטס והעלו אותם, עם פלייליסטים ומינויים.",
+  "{{count}} more account_one": "עוד חשבון אחד",
+  "{{count}} more account_two": "עוד שני חשבונות",
+  "{{count}} more account_other": "עוד {{count}} חשבונות"
 }

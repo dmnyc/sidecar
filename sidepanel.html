@@ -280,6 +280,9 @@
         <div class="active-account" id="active-account"></div>
         <h2 id="accounts-heading" data-i18n="Accounts">Accounts</h2>
         <div id="account-list" class="list"></div>
+        <!-- Shown from three accounts: folds the list to the active one and the next.
+             Filled by renderAccountList in sidepanel.js. -->
+        <button type="button" class="account-list-more hidden" id="account-list-more" aria-controls="account-list"></button>
         <div class="add-actions">
           <button class="secondary" id="add-generate" data-i18n="Generate new">Generate new</button>
           <button class="secondary" id="add-import" data-i18n="Import nsec">Import nsec</button>
