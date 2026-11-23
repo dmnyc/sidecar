@@ -253,9 +253,11 @@
      than an orange and a red doing similar jobs. Red is left to mean only "destructive",
      which is the job it measures best at.
      The quill is white, not the theme ink: black on this orange measured 4.98:1 and read
-     as a heavy mark on a bright plane. White at 3.79:1 clears the 3.0 non-text bar and
-     matches the label on the blue primary, so the two action buttons share a label color. */
-  --fab-bg: #E1552B;
+     as a heavy mark on a bright plane. White matches the label on the blue primary, so
+     the two action buttons share a label color. The disc is the balance orange taken one
+     step deeper (#E1552B there), because white on the balance orange itself measured
+     3.79:1, the weakest feather of any theme; here it is 4.59:1. */
+  --fab-bg: #D0461F;
   --fab-icon: #FFFFFF;
 
   /* Floating shadows are tuned for dark themes; half-opacity black under a button

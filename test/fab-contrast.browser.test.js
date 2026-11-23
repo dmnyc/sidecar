@@ -26,9 +26,10 @@ const path = require('node:path');
 
 const ROOT = process.env.FAB_CONTRAST_ROOT || path.join(__dirname, '..');
 
-// Every feather at least this far from its disc, everywhere on the disc: WCAG's floor for
-// a graphic that carries meaning (1.4.11, non-text contrast).
-const FLOOR = 3;
+// Every feather at least this far from its disc, everywhere on the disc. WCAG asks 3:1 of a
+// graphic that carries meaning (1.4.11); the feather is the button's only label, so it is
+// held to the 4.5:1 asked of text.
+const FLOOR = 4.5;
 // And no theme's feather more than this many times weaker than the median theme's, which
 // is what keeps the themes alike rather than merely legal: with the median near 8.6:1, a
 // theme has to stay above roughly 3.5:1.
