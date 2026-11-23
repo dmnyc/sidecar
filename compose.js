@@ -1424,6 +1424,7 @@
           ...body.p,
           ...silentP,
           ...body.q,
+          ...body.t,
           ...(asPoll ? SC.buildPollTags(draft.poll, Math.floor(Date.now() / 1000), await targetRelays()) : []),
           ...SC.imetaTagsForMedia(draft.media, { videoImeta: settings.videoImeta }),
         ],

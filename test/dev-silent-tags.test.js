@@ -116,7 +116,7 @@ function assembleTags({ dev = true, enabled = true, setting = true, clientTag = 
     // mentions it would find, deduped against the threading as the real one does.
     window: { SidecarCore: { proseWithQuotes: (prose) => prose, noteBodyTags: (prose, NT, thread) => {
       const already = new Set((thread || []).filter((t) => t[0] === 'p').map((t) => t[1]));
-      return { p: pTags.filter((t) => !already.has(t[1])), q: [] };
+      return { p: pTags.filter((t) => !already.has(t[1])), q: [], t: [] };
     } } },
   };
   c.globalThis = c;

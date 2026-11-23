@@ -597,6 +597,9 @@ window.SidecarCore = (function () {
     const BLOCK = /^(P|DIV|LI|H[1-6]|TR|BLOCKQUOTE|PRE|UL|OL|TABLE|SECTION|ARTICLE|HEADER|FOOTER|DT|DD|FIGURE|FIGCAPTION|HR)$/;
     let out = '';
     const newline = () => { if (out && !out.endsWith('\n')) out += '\n'; };
+    // A PARAGRAPH IS SET OFF BY A BLANK LINE, as the browser's own plain text of it is: two
+    // pasted paragraphs became one line break, and the blank line between them was lost.
+    const blankLine = () => { if (!out) return; newline(); if (!out.endsWith('\n\n')) out += '\n'; };
     const walk = (node, pre) => {
       if (node.nodeType === 3) {
         let t = node.textContent;
@@ -616,9 +619,10 @@ window.SidecarCore = (function () {
         return;
       }
       const block = BLOCK.test(tag);
-      if (block) { out = out.replace(/ $/, ''); newline(); }
+      const para = tag === 'P';
+      if (block) { out = out.replace(/ $/, ''); para ? blankLine() : newline(); }
       node.childNodes.forEach((c) => walk(c, pre || tag === 'PRE'));
-      if (block) { out = out.replace(/ $/, ''); newline(); }
+      if (block) { out = out.replace(/ $/, ''); para ? blankLine() : newline(); }
     };
     walk(doc.body || doc.documentElement, false);
     return out.replace(/^\n+|\n+$/g, '');
@@ -2695,7 +2699,7 @@ window.SidecarCore = (function () {
   // is which key to leave OUT of the p tags.
   const WEB_COMMENT_KIND = 1111;
 
-  // The kind a reply to this event goes out as: 1111 under a comment, 1 otherwise. Asked
+  // The kind a reply to this event goes out as: 1 under a note, 1111 under anything else. Asked
   // of replyTags itself rather than restated, so the label that announces it cannot
   // drift from what is published.
   function replyKind(target) {
@@ -2739,6 +2743,22 @@ window.SidecarCore = (function () {
       }
       // Parent: the comment being answered.
       tags.push(['e', id], ['k', String(target.kind)]);
+      return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
+    }
+
+    // A REPLY TO ANYTHING BUT A NOTE IS A COMMENT (NIP-22). An article, a recipe, a picture,
+    // a highlight: answered with a kind 1 it was a note in a thread nobody reads that way,
+    // and Zap Cooking's comments under a recipe never showed it. The thing answered is the
+    // root, in uppercase, and the parent, in lowercase; an addressable one (an article, a
+    // recipe) is named by its address too, so a comment survives the article being edited.
+    const kind = typeof target.kind === 'number' ? target.kind : 1;
+    if (kind !== 1) {
+      const d = kind >= 30000 && kind < 40000 ? ((tgTags.find((t) => t[0] === 'd') || [])[1] || '') : null;
+      const address = d !== null ? `${kind}:${author}:${d}` : null;
+      if (address) tags.push(['A', address]);
+      tags.push(['E', id, '', author], ['K', String(kind)], ['P', author]);
+      if (address) tags.push(['a', address]);
+      tags.push(['e', id, '', author], ['k', String(kind)]);
       return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
     }
 
@@ -2848,6 +2868,23 @@ window.SidecarCore = (function () {
   // then the authors it quotes that are not already among them, less anyone the reply's
   // own threading tags already name (threadTags), and the q tags. Both composers place
   // these after the threading and client tags: p tags, then q tags, then imeta.
+  // A HASHTAG IS A t TAG (NIP-24), lowercase, once each, in the order written: clients and
+  // relays find posts by hashtag through #t filters, so one written only in the text is a
+  // word no search finds. Not inside a link (a page's #section), not inside code, and not a
+  // number on its own ("#1 fan"). A trailing hyphen or underscore is punctuation, not tag.
+  function hashtagTags(text) {
+    const prose = String(text || '').replace(/```[\s\S]*?```|`[^`\n]+`/g, ' ').replace(/\b(?:https?|wss?):\/\/\S+/gi, ' ');
+    const out = [];
+    const seen = new Set();
+    for (const m of prose.matchAll(/(^|[^\p{L}\p{N}_&#/])#([\p{L}\p{N}_][\p{L}\p{M}\p{N}_-]*)/gu)) {
+      const tag = m[2].replace(/[-_]+$/, '').toLowerCase();
+      if (!tag || /^\p{N}+$/u.test(tag) || seen.has(tag)) continue;
+      seen.add(tag);
+      out.push(['t', tag]);
+    }
+    return out;
+  }
+
   function noteBodyTags(prose, NT, threadTags) {
     const pTags = mentionPTags(prose, NT);
     const quotes = quoteTags(prose, NT);
@@ -2858,7 +2895,7 @@ window.SidecarCore = (function () {
       pTags.push(['p', pk]);
     }
     const already = new Set((threadTags || []).filter((t) => t[0] === 'p').map((t) => t[1]));
-    return { p: pTags.filter((t) => !already.has(t[1])), q: quotes.tags };
+    return { p: pTags.filter((t) => !already.has(t[1])), q: quotes.tags, t: hashtagTags(prose) };
   }
 
   // ---- dev-build composer fixtures, shared by both composers ------------------------
@@ -6517,7 +6554,7 @@ window.SidecarCore = (function () {
     splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, textFromHtml, markdownFromHtml, transferText, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, textFromHtml, markdownFromHtml, transferText, mentionPTags, quoteTags, noteBodyTags, hashtagTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,

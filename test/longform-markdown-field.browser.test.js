@@ -101,7 +101,8 @@ test('the article body takes formatting as markdown, and writes like a word proc
     check('a code editor’s copy keeps its spacing', await d.value(BODY), CODE_TEXT);
 
     await d.focus(BODY); await d.paste({ html: '<p>only</p><p>words</p>' });
-    check('an HTML-only clipboard with no formatting', await d.value(BODY), 'only\nwords');
+    // Two paragraphs keep the blank line between them (editor-matrix: rich-html-only-paragraphs).
+    check('an HTML-only clipboard with no formatting', await d.value(BODY), 'only\n\nwords');
 
     await d.focus(BODY); await d.type('make this bold'); await d.selectAll(); await d.cmd('b');
     check('Cmd+B', await d.value(BODY), '**make this bold**');

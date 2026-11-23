@@ -15912,8 +15912,8 @@
         : [];
       const base = reply ? reply.tags : [];
       const tags = settings && settings.showClientTag === false
-        ? [...base, ...bodyP, ...silentP, ...quotes.tags]
-        : [...base, CLIENT_TAG.slice(), ...bodyP, ...silentP, ...quotes.tags];
+        ? [...base, ...bodyP, ...silentP, ...quotes.tags, ...body.t]
+        : [...base, CLIENT_TAG.slice(), ...bodyP, ...silentP, ...quotes.tags, ...body.t];
       // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after
       // the body-derived tags. Undescribed media emits nothing, so a note of bare
       // URLs is byte-identical to what it published before alt text existed. A poll

@@ -104,7 +104,8 @@ for (const surface of SURFACES) {
       check('rich paste', await ed.read(), 'bold and red');
 
       await ed.reset(); await ed.paste({ html: '<p>only</p><p>html</p>' });
-      check('a clipboard with only HTML', await ed.read(), 'only\nhtml');
+      // Two paragraphs keep the blank line between them (editor-matrix: rich-html-only-paragraphs).
+      check('a clipboard with only HTML', await ed.read(), 'only\n\nhtml');
 
       await ed.reset(); await ed.paste({ text: 'one\r\ntwo' });
       check('Windows line endings', await ed.read(), 'one\ntwo');
