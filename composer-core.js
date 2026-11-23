@@ -6076,7 +6076,9 @@ window.SidecarCore = (function () {
   // composer is the third caller, and the only thing left that knew which document it
   // was drawing into was the identity strip, which is now passed in like the rest.
   function showPostCountdown(opts) {
-    const { modal, secs, title, hint, preview, confirmLabel, onFire, onCancel } = opts;
+    const { modal, secs, title, hint, preview, confirmLabel, cancelLabel, onFire, onCancel } = opts;
+    // No seconds: a review with no timer, which goes out only when its button is pressed (an
+    // article or a recipe, too long to take in against a clock).
     // WHO IS POSTING, supplied rather than looked up. It was read off the panel's own
     // state here, which is the one thing in this function that knew which document it was
     // drawing into. The expanded composer asks the same question of a different page.
@@ -6101,7 +6103,7 @@ window.SidecarCore = (function () {
 
     const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
     const now = h('button', { className: 'primary', textContent: confirmLabel || 'Post now' });
-    const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
+    const cancel = h('button', { className: 'ghost', textContent: cancelLabel || t('Cancel') });
 
     async function fire() {
       stop();
@@ -6117,9 +6119,10 @@ window.SidecarCore = (function () {
       ...(author ? [author] : []),
       h('p', { className: 'hint', textContent: hint || 'Review before it posts.' }),
       preview,
-      ringWrap,
+      ...(secs ? [ringWrap] : []),
       h('div', { className: 'actions' }, [now, cancel])
     );
+    if (!secs) return { stop };
 
     const fill = ring.querySelector('.ring-fill');
     timer = setInterval(() => {

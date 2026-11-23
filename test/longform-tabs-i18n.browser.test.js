@@ -92,6 +92,18 @@ test('in a real language the tabs and the recipe form are translated', opts, asy
     await tab.evaluate(choose('recipe'));
     await sleep(300);
     assert.equal(await tab.evaluate(`document.querySelector('.lf-recipe .lf-list-add').textContent`), 'Hinzufügen', 'the recipe form kept its English');
+    // What is still needed is a list in the language, with its own "und", not an English ", ".
+    const missing = await tab.evaluate(`[...document.querySelectorAll('.lf-missing')].find((n) => n.offsetParent).textContent`);
+    assert.match(missing, /^Es fehlt noch: .+ und [^,]+$/u, 'the still-needed list: ' + missing);
+    // "Raw" and "Healthy" were already keys for raw event data and a working relay, so their
+    // chips read "Rohdaten" and "Funktionsfähig". They are food, and still filed in English.
+    for (const name of ['Raw', 'Healthy']) {
+      await tab.evaluate(`(() => { const i = document.querySelector('.lf-recipe .lf-chip-input'); i.value = '${name}'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()`);
+      await sleep(200);
+    }
+    assert.deepEqual(await tab.evaluate(`window.SidecarLongform.state.recipe.categories.slice()`), ['Raw', 'Healthy']);
+    const chips = await tab.evaluate(`[...document.querySelectorAll('.lf-recipe .lf-chip span')].map((s) => s.textContent.replace(/^\\S+ /u, ''))`);
+    assert.deepEqual(chips, ['Rohkost', 'Gesund'], 'the category chips: ' + chips.join(', '));
     assert.deepEqual(x.errors, []);
   } finally { x.close(); }
 });

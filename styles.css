@@ -4018,6 +4018,16 @@ html.compose-booting .compose-brand { visibility: hidden; }
 .compose-countdown .actions .primary { font-size: 15px; padding: 12px 30px; border-radius: 12px; min-width: 184px; }
 .compose-countdown .actions .ghost { background: none; border: none; padding: 6px 2px; color: var(--muted); font-size: 14px; }
 .compose-countdown .actions .ghost:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
+/* AN ARTICLE OR A RECIPE IS REVIEWED WHOLE, the way its Preview tab draws it, on that tab's
+   own ground: the window's height less the card's head and its buttons, scrolling inside
+   itself, so Publish and Back to editor never leave the screen. (Not position: sticky on the
+   buttons: .compose-page clips overflow-x, which makes it the sticky box, and it never
+   scrolls, the document does.) */
+.compose-countdown.is-longform .countdown-preview {
+  max-height: max(240px, calc(100vh / var(--panel-zoom, 1) - 360px)); overflow-y: auto;
+  padding: 18px; border: none; border-radius: 14px;
+  background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
+}
 
 .compose-empty { padding: 48px 24px; text-align: center; }
 

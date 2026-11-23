@@ -53,8 +53,8 @@ test('articles and recipes keep their own drafts, apart from the note', opts, as
     assert.equal(await tab.evaluate(`document.querySelector('.lf-article .lf-body').value`), 'Its own body\n\n![](https://example.com/up.png)\n\n');
     // With a title and a body the article can go out, and the button says Publish: it is the
     // article's button here, never the hidden note's.
-    assert.equal(await tab.evaluate(`document.getElementById('compose-post').disabled`), false, 'Publish stayed off for a complete article');
-    assert.equal(await tab.evaluate(`document.getElementById('compose-post').textContent`), 'Publish');
+    assert.equal(await tab.evaluate(`document.getElementById('compose-post').disabled`), false, 'Review stayed off for a complete article');
+    assert.equal(await tab.evaluate(`document.getElementById('compose-post').textContent`), 'Review');
 
     await tab.evaluate(`[...document.querySelectorAll('.compose-mode')].find((b) => b.textContent.trim() === 'Recipe').click()`);
     await tab.evaluate(`(() => { const ti = document.querySelector('.lf-recipe .lf-title'); ti.focus(); document.execCommand('insertText', false, 'A recipe'); })()`);

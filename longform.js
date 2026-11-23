@@ -92,12 +92,27 @@
     t('Yucatecan'), t('Healthy'), t('Gluten Free'),
   ];
   const ZAP_COOKING_CATEGORIES = categoryNames((s) => s);
+  // TWO NAMES WERE ALREADY KEYS FOR SOMETHING ELSE: "Raw" is an event's raw data and
+  // "Healthy" a relay that works, so a German chip read "Rohdaten". These two take keys of
+  // their own. A language without them shows the English name, which is what is published.
+  const OWN_CATEGORY_KEY = {
+    Raw: ['Raw (recipe category)', () => t('Raw (recipe category)')],
+    Healthy: ['Healthy (recipe category)', () => t('Healthy (recipe category)')],
+  };
+  // `listed` is the name as the list itself translates it, which the pseudo-locale uses.
+  function ownCategoryLabel(en, listed) {
+    const I = window.SidecarI18n;
+    if (I.lang === I.PSEUDO) return listed;
+    const [key, label] = OWN_CATEGORY_KEY[en];
+    const s = label();
+    return s === key ? en : s;
+  }
   let categoryLabels = null;
   // A category as shown: its name in the panel's language, or as typed if it is not theirs.
   function categoryLabel(en) {
     if (!categoryLabels) {
       const shown = categoryNames(t);
-      categoryLabels = new Map(ZAP_COOKING_CATEGORIES.map((c, i) => [c, shown[i]]));
+      categoryLabels = new Map(ZAP_COOKING_CATEGORIES.map((c, i) => [c, OWN_CATEGORY_KEY[c] ? ownCategoryLabel(c, shown[i]) : shown[i]]));
     }
     return categoryLabels.get(en) || en;
   }
@@ -1052,13 +1067,20 @@
     ].filter(Boolean);
   }
 
+  // A list in the panel's language: "a title, a photo and a category", with its own commas
+  // and "and" (、 in Japanese, ، in Arabic). An English ", " read wrong in most of them.
+  function listOf(items) {
+    try { return new Intl.ListFormat(window.SidecarI18n.lang, { type: 'conjunction' }).format(items); }
+    catch (_) { return items.join(', '); }
+  }
+
   // What an article still needs before it can go out, and what a recipe needs before Zap
-  // Cooking would list it, beside Publish.
+  // Cooking would list it, beside Review.
   function updateMissing() {
     const miss = state.mode === 'recipe' ? recipeMissing() : state.mode === 'article' ? articleMissing()
       : [];
     missingNote.classList.toggle('hidden', !miss.length);
-    missingNote.textContent = miss.length ? t('Still needed: {{list}}', { list: miss.join(', ') }) : '';
+    missingNote.textContent = miss.length ? t('Still needed: {{list}}', { list: listOf(miss) }) : '';
     if (typeof labelPost === 'function') labelPost();
   }
 
@@ -1239,7 +1261,8 @@
     : false);
   function labelPost() {
     if (state.mode === 'note') return;
-    const want = publishing ? t('Publishing…') : t('Publish');
+    // "Review", not "Publish": the button opens the review, and Publish is pressed there.
+    const want = publishing ? t('Publishing…') : t('Review');
     if (post.textContent !== want) post.textContent = want;
     const off = publishing || !ready() || !P() || P().busy();
     if (post.disabled !== off) post.disabled = off;
@@ -1312,6 +1335,13 @@
     labelPost();
     try {
       await flush();
+      // THE REVIEW FIRST, every time: the whole piece as it will read, then Publish or Back
+      // to editor. Back leaves the form as it was.
+      const go = await api.review({
+        title: kind === 'article' ? t('Review your article') : t('Review your recipe'),
+        preview: reviewNode(kind),
+      });
+      if (!go) return;
       const now = Math.floor(Date.now() / 1000);
       const obj = kind === 'article' ? art : rec;
       let d = kind === 'article' ? EV.articleIdentifier(art.title, now) : EV.recipeIdentifier(rec.title, now);
@@ -1343,13 +1373,7 @@
       const template = kind === 'article'
         ? EV.articleTemplate(art, { now, d, extra })
         : EV.recipeTemplate(rec, { now, d, extra });
-      const result = await api.publish({
-        template,
-        title: kind === 'article' ? t('Publishing your article') : t('Publishing your recipe'),
-        preview: reviewNode(kind),
-      });
-      if (!result) return; // the review was canceled: back to the form as it was
-      const { signed, report } = result;
+      const { signed, report } = await api.send(template);
       // Out: the draft goes, as a note's does once a relay has it.
       fill(obj, null, kind === 'article' ? BLANK_ARTICLE : BLANK_RECIPE);
       obj.savedAt = 0;

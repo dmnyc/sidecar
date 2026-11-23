@@ -1,7 +1,7 @@
 'use strict';
 
 // Publishing an article and a recipe from the full-size composer, in the real extension.
-// The relay side is stood in for (window.SidecarComposePublish.publish and findOwn): what is
+// The relay side is stood in for (window.SidecarComposePublish.send and findOwn): what is
 // checked is the event the page builds, the question asked before an address is reused, the
 // draft clearing only once the piece is out, and the receipt's links.
 
@@ -27,13 +27,20 @@ const STUB = (taken) => `(() => {
   const api = window.SidecarComposePublish;
   const taken = ${JSON.stringify(taken)};
   api.findOwn = async (d) => taken.includes(d) ? [{ created_at: 1, tags: [['d', d], ['title', 'The old one']] }] : [];
-  api.publish = async ({ template }) => {
+  // The sending only: the review screen before it is the real one.
+  api.send = async (template) => {
     window.__published.push(template);
     return { signed: { ...template, id: 'f'.repeat(64), pubkey: api.pubkey() }, report: { accepted: ['wss://relay.example/'], failed: [], total: 1 } };
   };
 })()`;
 
 const type = (sel, text) => `(() => { const e = document.querySelector(${JSON.stringify(sel)}); e.focus(); document.execCommand('insertText', false, ${JSON.stringify(text)}); })()`;
+
+const waitReview = async (tab) => {
+  for (let i = 0; i < 40 && (await tab.evaluate(`document.getElementById('compose-countdown').classList.contains('hidden')`)); i++) await sleep(100);
+  assert.equal(await tab.evaluate(`document.getElementById('compose-countdown').classList.contains('hidden')`), false, 'no review screen');
+};
+const clickReview = (tab, label) => tab.evaluate(`[...document.querySelectorAll('#compose-countdown button')].find((b) => b.textContent === ${JSON.stringify(label)}).click()`);
 
 test('an article publishes as NIP-23, clears its draft, and ends on a receipt', opts, async (t) => {
   let x;
@@ -58,12 +65,27 @@ test('an article publishes as NIP-23, clears its draft, and ends on a receipt', 
     await tab.evaluate(`[...document.querySelectorAll('.lf-body-tabs .compose-tab')][0].click()`);
 
     assert.equal(await tab.evaluate(`document.getElementById('compose-post').disabled`), false);
+    // The form's button leads to the review, and says so; Publish is on the review.
+    assert.equal(await tab.evaluate(`document.getElementById('compose-post').textContent`), 'Review');
     await tab.evaluate(`document.getElementById('compose-post').click()`);
-    // The review countdown, if the account has one, is pressed through.
-    for (let i = 0; i < 20 && !(await tab.evaluate(`window.__published.length`)); i++) {
-      await tab.evaluate(`(() => { const b = [...document.querySelectorAll('#compose-countdown button')].find((b) => /now/i.test(b.textContent)); if (b) b.click(); })()`);
-      await sleep(250);
-    }
+    // The review, always: the whole article, Publish and Back to editor, no countdown.
+    await waitReview(tab);
+    assert.deepEqual(await tab.evaluate(`[...document.querySelectorAll('#compose-countdown button')].map((b) => b.textContent)`), ['Publish', 'Back to editor']);
+    assert.equal(await tab.evaluate(`!!document.querySelector('#compose-countdown .countdown-ring')`), false, 'a timer on the review');
+    assert.equal(await tab.evaluate(`document.querySelector('#compose-countdown .lf-review h1').textContent`), 'Hello, Long Form!');
+    assert.equal(await tab.evaluate(`!!document.querySelector('.lf-article .lf-title').offsetParent`), false, 'the form showed under the review');
+    // Back to editor: nothing goes out, and the form is as it was.
+    await clickReview(tab, 'Back to editor');
+    await sleep(300);
+    assert.equal(await tab.evaluate(`window.__published.length`), 0);
+    assert.equal(await tab.evaluate(`document.querySelector('.lf-article .lf-title').value`), 'Hello, Long Form!');
+    assert.equal(await tab.evaluate(`!!document.querySelector('.lf-article .lf-title').offsetParent`), true, 'the form did not come back');
+    assert.equal(await tab.evaluate(`document.getElementById('compose-post').textContent`), 'Review');
+    // And again, through to Publish.
+    await tab.evaluate(`document.getElementById('compose-post').click()`);
+    await waitReview(tab);
+    await clickReview(tab, 'Publish');
+    for (let i = 0; i < 20 && !(await tab.evaluate(`window.__published.length`)); i++) await sleep(250);
     const ev = (await tab.evaluate(`window.__published`))[0];
     assert.equal(ev.kind, 30023);
     assert.equal(ev.content, '## Part one\n\nSome **bold** words.');
@@ -103,15 +125,16 @@ test('a recipe publishes in Zap Cooking\'s format, and a used address is asked a
     await sleep(200);
     assert.equal(await tab.evaluate(`document.getElementById('compose-post').disabled`), false);
     await tab.evaluate(`document.getElementById('compose-post').click()`);
+    // The review first; the address question once Publish is pressed there.
+    await waitReview(tab);
+    assert.equal(await tab.evaluate(`document.querySelector('.lf-confirm').classList.contains('hidden')`), true, 'asked before the review');
+    await clickReview(tab, 'Publish');
     // The address is taken: asked, not replaced.
     for (let i = 0; i < 20 && (await tab.evaluate(`document.querySelector('.lf-confirm').classList.contains('hidden')`)); i++) await sleep(100);
     assert.match(await tab.evaluate(`document.querySelector('.lf-confirm .confirm-msg').textContent`), /The old one/);
     assert.equal(await tab.evaluate(`window.__published.length`), 0);
     await tab.evaluate(`[...document.querySelectorAll('.lf-confirm button')].find((b) => b.textContent === 'Publish as a new one').click()`);
-    for (let i = 0; i < 20 && !(await tab.evaluate(`window.__published.length`)); i++) {
-      await tab.evaluate(`(() => { const b = [...document.querySelectorAll('#compose-countdown button')].find((b) => /now/i.test(b.textContent)); if (b) b.click(); })()`);
-      await sleep(250);
-    }
+    for (let i = 0; i < 20 && !(await tab.evaluate(`window.__published.length`)); i++) await sleep(250);
     const ev = (await tab.evaluate(`window.__published`))[0];
     const tag = (k) => ev.tags.filter((x) => x[0] === k).map((x) => x[1]);
     assert.deepEqual(tag('d'), ['apple-pie-2']);

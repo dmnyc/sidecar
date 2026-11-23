@@ -1527,26 +1527,30 @@
   // No proof of work: its switch is in the note's toolbar, which an article never shows.
   // Resolves { signed, report } once at least one relay accepted, null when the review was
   // canceled, and throws otherwise, leaving the draft where it is.
-  // The review window alone, for what longform.js publishes: true to go ahead, false when
-  // it was canceled, and straight through when the account has no countdown.
+  // The review screen, for what longform.js publishes: true to go ahead, false to go back to
+  // the editor. Always shown, whatever the account's countdown setting, and never on a
+  // timer: an article or a recipe is read through before it goes out, and goes out only
+  // when Publish is pressed.
   async function reviewLongform({ title, preview, confirmLabel }) {
     if (posting || countdown) return false;
     if (state && state.locked) throw new Error(t('Sidecar is locked. Unlock it, then press Post again.'));
-    const { on, secs } = await composer.postCountdownSetting();
-    if (!on) return true;
     return new Promise((resolve) => {
       const pane = $('compose-countdown');
       const restore = () => {
         if (countdown) { countdown.stop(); countdown = null; }
         pane.innerHTML = '';
         pane.classList.add('hidden');
+        pane.classList.remove('is-longform');
         setReviewing(false);
       };
       setReviewing(true);
       pane.classList.remove('hidden');
+      pane.classList.add('is-longform');
       countdown = composer.showPostCountdown({
-        modal: pane, secs, title, preview,
-        confirmLabel: confirmLabel || t('Publish now'),
+        modal: pane, secs: 0, title, preview,
+        hint: t('This is how it will read once published.'),
+        confirmLabel: confirmLabel || t('Publish'),
+        cancelLabel: t('Back to editor'),
         onFire: () => { restore(); resolve(true); },
         onCancel: () => { restore(); resolve(false); },
       });
