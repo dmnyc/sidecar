@@ -16092,8 +16092,13 @@
       // modal. Edits flow back through onChange into the draft + Post button.
       // The attachments drawer is built further down; an edit can land before it exists.
       let syncDrawer = () => {};
+      // Filled in below, once the attachments and their upload button exist.
+      let panelFiles = () => {};
+      let panelPasteText = () => false;
       const mentionEditor = createMentionEditor({
         placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
+        onFiles: (files, how) => panelFiles(files, how),
+        onPasteText: (plain) => panelPasteText(plain),
         onChange: (text) => {
           draft.text = text;
           paintCount();
@@ -16481,49 +16486,45 @@
         fileInput.value = '';
       });
 
-      editor.addEventListener('paste', async (e) => {
-        const imageFiles = Array.from(e.clipboardData?.items ?? [])
-          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-          .map((item) => item.getAsFile())
-          .filter((f) => f !== null);
-        if (imageFiles.length === 0) {
-          e.preventDefault();
-          const plain = e.clipboardData.getData('text/plain');
-          // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
-          // or naddr references becomes a block under the field, showing the note, so there is
-          // something to check it against and it can be put above or below the pictures. A poll
-          // carries no attachments, so there it pastes as the text it is.
-          const quotes = draft.poll ? [] : quoteEntriesFromPaste(plain, draft.media);
-          if (quotes.length) {
-            draft.media.push(...quotes);
+      // PASTE AND DROP, as the shared editor hands them over (createMentionEditor): pictures to
+      // upload into the attachments, and text this composer may take as a quoted note first.
+      panelPasteText = (plain) => {
+        // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
+        // or naddr references becomes a block under the field, showing the note, so there is
+        // something to check it against and it can be put above or below the pictures. A poll
+        // carries no attachments, so there it pastes as the text it is.
+        const quotes = draft.poll ? [] : quoteEntriesFromPaste(plain, draft.media);
+        if (quotes.length) {
+          draft.media.push(...quotes);
+          scheduleSave();
+          updatePostState();
+          renderThumbs();
+          paintEitherOr();
+          // A note no relay shows us does not stay a quote block: it goes back to the text
+          // it was pasted as, and the toast says why.
+          checkPastedQuote(quotes[0], () => {
+            const at = draft.media.indexOf(quotes[0]);
+            // Already removed, posted, handed to the tab or closed: nothing to undo, and no
+            // saved draft to bring back.
+            if (at < 0 || published || handedToTab || !editor.isConnected) return;
+            draft.media.splice(at, 1);
+            closeAltEditor(false); // the row edits a media slot that may no longer exist
+            const words = String(draft.text || '').replace(/\s+$/, '');
+            mentionEditor.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
+            mentionEditor.sync();
             scheduleSave();
             updatePostState();
             renderThumbs();
             paintEitherOr();
-            // A note no relay shows us does not stay a quote block: it goes back to the text
-            // it was pasted as, and the toast says why.
-            checkPastedQuote(quotes[0], () => {
-              const at = draft.media.indexOf(quotes[0]);
-              // Already removed, posted, handed to the tab or closed: nothing to undo, and no
-              // saved draft to bring back.
-              if (at < 0 || published || handedToTab || !editor.isConnected) return;
-              draft.media.splice(at, 1);
-              closeAltEditor(false); // the row edits a media slot that may no longer exist
-              const words = String(draft.text || '').replace(/\s+$/, '');
-              mentionEditor.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
-              mentionEditor.sync();
-              scheduleSave();
-              updatePostState();
-              renderThumbs();
-              paintEitherOr();
-              toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
-            });
-            return;
-          }
-          if (plain) mentionEditor.insertPasted(plain);
-          return;
+            toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
+          });
+          return true;
         }
-        e.preventDefault();
+        return false;
+      };
+      panelFiles = async (files, { pasted }) => {
+        const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+        if (!imageFiles.length) return;
         // A poll and its attachments are one or the other, and the Media button is
         // hidden while a poll is open; a paste was the way round that.
         if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
@@ -16533,7 +16534,7 @@
         addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file, pubkey, { pasted: true });
+            const url = await uploadMedia(file, pubkey, { pasted });
             window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();
@@ -16546,7 +16547,7 @@
         }
         addBtn.disabled = false;
         addBtn.classList.remove('is-uploading');
-      });
+      };
 
       // ---- poll editor ----
       //

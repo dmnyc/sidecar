@@ -2233,58 +2233,49 @@
         paintCount();
         renderThumbs();
       },
+      // A PICTURE PASTED OR DROPPED IS AN ATTACHMENT, uploaded into the strip, never an
+      // inline image at its own size that is not published. Text is the editor's own work
+      // (createMentionEditor). A poll and its attachments are one or the other; the Media
+      // button is hidden for the same reason.
+      onFiles: (files, { pasted }) => {
+        const media = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+        if (!media.length) return;
+        if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
+        uploadFiles(media, { pasted });
+      },
+      // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
+      // or naddr references becomes a block under the field, showing the note, so there is
+      // something to check it against and it can be put above or below the pictures. A poll
+      // carries no attachments, so there it pastes as the text it is.
+      onPasteText: (plain) => {
+        const quotes = draft.poll ? [] : SC.quoteEntriesFromPaste(plain, draft.media);
+        if (!quotes.length) return false;
+        draft.media.push(...quotes);
+        scheduleSave();
+        paintCount();
+        renderThumbs();
+        // A note no relay shows us does not stay a quote block: it goes back to the text it
+        // was pasted as, and the toast says why.
+        composer.checkPastedQuote(quotes[0], () => {
+          const at = draft.media.indexOf(quotes[0]);
+          if (at < 0) return; // already removed, moved on or replaced: nothing to undo
+          draft.media.splice(at, 1);
+          closeAltEditor(false); // the row edits a media slot that may no longer exist
+          const words = String(draft.text || '').replace(/\s+$/, '');
+          editorApi.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
+          editorApi.sync();
+          scheduleSave();
+          paintCount();
+          renderThumbs();
+          toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
+        });
+        return true;
+      },
     });
     editorApi.editor.classList.add('compose-editor-lg');
     $('compose-slot').append(editorApi.wrap);
     editorApi.setText(draft.text);
     buildToolbar();
-    // PASTE, AS THE PANEL HANDLES IT. An image on the clipboard is uploaded into the
-    // attachments, and anything else goes in as plain text. Left to the browser, a
-    // contenteditable takes the image as an inline picture at its own size, never
-    // uploaded and never published, and rich text keeps its fonts and colors.
-    editorApi.editor.addEventListener('paste', (e) => {
-      const images = Array.from((e.clipboardData && e.clipboardData.items) || [])
-        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-        .map((item) => item.getAsFile())
-        .filter(Boolean);
-      e.preventDefault();
-      if (!images.length) {
-        const plain = e.clipboardData && e.clipboardData.getData('text/plain');
-        // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
-        // or naddr references becomes a block under the field, showing the note, so there is
-        // something to check it against and it can be put above or below the pictures. A poll
-        // carries no attachments, so there it pastes as the text it is.
-        const quotes = draft.poll ? [] : SC.quoteEntriesFromPaste(plain, draft.media);
-        if (quotes.length) {
-          draft.media.push(...quotes);
-          scheduleSave();
-          paintCount();
-          renderThumbs();
-          // A note no relay shows us does not stay a quote block: it goes back to the text it
-          // was pasted as, and the toast says why.
-          composer.checkPastedQuote(quotes[0], () => {
-            const at = draft.media.indexOf(quotes[0]);
-            if (at < 0) return; // already removed, moved on or replaced: nothing to undo
-            draft.media.splice(at, 1);
-            closeAltEditor(false); // the row edits a media slot that may no longer exist
-            const words = String(draft.text || '').replace(/\s+$/, '');
-            editorApi.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
-            editorApi.sync();
-            scheduleSave();
-            paintCount();
-            renderThumbs();
-            toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
-          });
-          return;
-        }
-        if (plain) editorApi.insertPasted(plain);
-        return;
-      }
-      // A poll and its attachments are one or the other; the Media button is hidden
-      // for the same reason.
-      if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
-      uploadFiles(images, { pasted: true });
-    });
     // After the toolbar, because that is what builds the poll editor: a poll restored
     // from the slot above has nothing to paint into until it exists.
     paintCount();

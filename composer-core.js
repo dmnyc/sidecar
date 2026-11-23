@@ -583,11 +583,61 @@ window.SidecarCore = (function () {
     return null;
   }
 
+  // ---- what a clipboard or a drop holds, as text ----
+  //
+  // SOME APPS PUT ONLY HTML ON THE CLIPBOARD, and a paste that read text/plain alone pasted
+  // nothing at all. The HTML is read for its words: a block (paragraph, heading, list item,
+  // table row) is a line, a <br> is a break, table cells are tab-separated, whitespace
+  // collapses as a browser collapses it, and nothing else of it (styles, links, pictures,
+  // scripts) comes along.
+  function textFromHtml(html) {
+    let doc;
+    try { doc = new DOMParser().parseFromString(String(html || ''), 'text/html'); } catch (_) { return ''; }
+    doc.querySelectorAll('script, style, head, template, noscript').forEach((n) => n.remove());
+    const BLOCK = /^(P|DIV|LI|H[1-6]|TR|BLOCKQUOTE|PRE|UL|OL|TABLE|SECTION|ARTICLE|HEADER|FOOTER|DT|DD|FIGURE|FIGCAPTION|HR)$/;
+    let out = '';
+    const newline = () => { if (out && !out.endsWith('\n')) out += '\n'; };
+    const walk = (node, pre) => {
+      if (node.nodeType === 3) {
+        let t = node.textContent;
+        if (!pre) {
+          t = t.replace(/[\t\n\r ]+/g, ' ');
+          if (out.endsWith('\n') || out.endsWith(' ') || out.endsWith('\t') || !out) t = t.replace(/^ /, '');
+        }
+        out += t.replace(/\u00a0/g, ' ');
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      const tag = node.nodeName;
+      if (tag === 'BR') { out += '\n'; return; }
+      if (tag === 'TD' || tag === 'TH') {
+        if (node.previousElementSibling) out = out.replace(/ $/, '') + '\t';
+        node.childNodes.forEach((c) => walk(c, pre));
+        return;
+      }
+      const block = BLOCK.test(tag);
+      if (block) { out = out.replace(/ $/, ''); newline(); }
+      node.childNodes.forEach((c) => walk(c, pre || tag === 'PRE'));
+      if (block) { out = out.replace(/ $/, ''); newline(); }
+    };
+    walk(doc.body || doc.documentElement, false);
+    return out.replace(/^\n+|\n+$/g, '');
+  }
+  function transferText(dt) {
+    if (!dt) return '';
+    const plain = dt.getData('text/plain');
+    if (plain) return plain;
+    const html = dt.getData('text/html');
+    return html ? textFromHtml(html) : '';
+  }
+
   // TEXT WITH nostr: MENTIONS IN IT, PASTED, COMES IN AS PILLS. Through insertHTML, so the
   // paste is one step on the undo stack; text with no mention goes through insertText as it
   // always did.
   function insertPasted(editor, text) {
-    const s = String(text || '');
+    // A Windows clipboard ends lines with \r\n and an old Mac one with \r; left in, the \r
+    // is published as part of the note. Chrome cleaned it on the way in and Firefox did not.
+    const s = String(text || '').replace(/\r\n?/g, '\n');
     if (!/nostr:(npub1|nprofile1)/.test(s)) { document.execCommand('insertText', false, s); return; }
     const scratch = document.createElement('div');
     hydrateEditorFromText(scratch, s, { holdLastLine: false }); // pasted mid-note, not a note's end
@@ -759,13 +809,13 @@ window.SidecarCore = (function () {
     function syncEmptyClass() {
       // EMPTY MEANS NOTHING AT ALL. A space or a line break is something the writer put
       // there, at the start of a note as anywhere else; this once tested the trimmed text,
-      // so a space or Enter in an empty editor was wiped as it was typed. What is wiped is
-      // only the lone <br> a browser leaves when everything is deleted, which would
-      // otherwise keep the placeholder from coming back.
+      // so a space or Enter in an empty editor was wiped as it was typed. The lone <br> a
+      // browser leaves when everything is deleted still counts as empty, and is left where
+      // it is: clearing it by hand cut the browser's undo history, so in Firefox Select
+      // All, Delete, then Undo brought nothing back.
       const isEmpty = !editor.textContent && !editor.querySelector('[data-bech32]')
         && editor.querySelectorAll('br').length <= 1;
       editor.classList.toggle('is-empty', isEmpty);
-      if (isEmpty) editor.innerHTML = '';
     }
 
     // Report the text upward, keeping the placeholder state in sync first.
@@ -1123,6 +1173,25 @@ window.SidecarCore = (function () {
       const sel = window.getSelection();
       if (!sel.rangeCount || !sel.isCollapsed) return;
       const node = sel.anchorNode;
+      // A CARET BETWEEN TWO LINES BELONGS TO ONE OF THEM. After Select All and the Right
+      // arrow, Firefox leaves the caret in the editor itself, between its line blocks, and the
+      // next Enter made an empty line with whatever came next on another line below it. It
+      // goes to the end of the line before it (ahead of a <br> that only holds that line
+      // open), or to the start of the first line.
+      if (node === editor) {
+        const kids = editor.childNodes;
+        const isLine = (n) => n && n.nodeType === 1 && (n.nodeName === 'DIV' || n.nodeName === 'P');
+        const before = kids[sel.anchorOffset - 1], after = kids[sel.anchorOffset];
+        const r = document.createRange();
+        if (isLine(before)) {
+          const last = before.lastChild;
+          if (last && last.nodeName === 'BR') r.setStartBefore(last); else r.setStart(before, before.childNodes.length);
+        } else if (!before && isLine(after)) r.setStart(after, 0);
+        else return;
+        r.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r);
+        return;
+      }
       const el = node && (node.nodeType === 1 ? node : node.parentElement);
       const pill = el && el.closest && el.closest('[data-bech32]');
       if (!pill || !editor.contains(pill)) return;
@@ -1153,13 +1222,62 @@ window.SidecarCore = (function () {
       if (!sel.rangeCount || sel.isCollapsed || !editor.contains(sel.getRangeAt(0).commonAncestorContainer)) return;
       const box = document.createElement('div');
       box.append(sel.getRangeAt(0).cloneContents());
-      if (!box.querySelector('[data-bech32]')) return; // plain text: the browser copies it as well
+      // Always the editor's own reading, not only around a mention: Firefox copied lines
+      // with a blank one between them with an extra break, so pasting them back added a line.
       e.preventDefault();
       e.clipboardData.setData('text/plain', serializeEditor(box));
       if (cut) document.execCommand('delete');
     }
     editor.addEventListener('copy', (e) => copySelection(e, false));
     editor.addEventListener('cut', (e) => copySelection(e, true));
+
+    // PASTE AND DROP ARE TEXT, IN EVERY EDITOR. Left to the browser, a contenteditable takes
+    // rich text with its fonts, colors and links, and pictures as inline images that are
+    // never uploaded or published; a drop bypassed the composers' paste handling entirely,
+    // and the page-comment box had none at all. Text comes in as text (mentions as pills,
+    // through insertPasted, so it can be undone). Files go to onFiles where the editor's owner
+    // takes attachments, and are refused where it does not. onPasteText lets an owner take a
+    // paste as something else (a quoted note) by returning true.
+    const onFiles = (opts && opts.onFiles) || null;
+    const onPasteText = (opts && opts.onPasteText) || null;
+    const filesIn = (dt) => [...((dt && dt.files) || [])];
+    const takeText = (text) => {
+      if (!text) return;
+      if (onPasteText && onPasteText(text)) return;
+      insertPasted(editor, text);
+    };
+    editor.addEventListener('paste', (e) => {
+      const dt = e.clipboardData;
+      e.preventDefault();
+      const files = filesIn(dt).filter((f) => f.type.startsWith('image/'));
+      if (files.length) { if (onFiles) onFiles(files, { pasted: true }); return; }
+      takeText(transferText(dt));
+    });
+    // Text dragged within the editor is its own markup moving, and the browser moves it.
+    let draggingInside = false;
+    editor.addEventListener('dragstart', () => { draggingInside = true; });
+    editor.addEventListener('dragend', () => { draggingInside = false; });
+    editor.addEventListener('drop', (e) => {
+      if (draggingInside) { draggingInside = false; return; }
+      e.preventDefault();
+      const dt = e.dataTransfer;
+      const files = filesIn(dt);
+      if (files.length) { if (onFiles) onFiles(files, { pasted: false }); return; }
+      const text = transferText(dt);
+      if (!text) return;
+      // Where it was dropped, as the browser would have put it.
+      let at = null;
+      if (document.caretPositionFromPoint) {
+        const p = document.caretPositionFromPoint(e.clientX, e.clientY);
+        if (p) { at = document.createRange(); at.setStart(p.offsetNode, p.offset); }
+      } else if (document.caretRangeFromPoint) at = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (at && editor.contains(at.startContainer)) at.collapse(true);
+      else { at = document.createRange(); at.selectNodeContents(editor); at.collapse(false); } // off the text: at its end
+      editor.focus();
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(at);
+      takeText(text);
+    });
 
     editor.addEventListener('keydown', (e) => {
       if (!acDropdown) return;
@@ -6216,7 +6334,7 @@ window.SidecarCore = (function () {
     splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, textFromHtml, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,

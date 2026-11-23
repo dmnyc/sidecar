@@ -3219,8 +3219,15 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
    landed on the sheet and the caret stayed where it was. The field reaches 8px into the
    sheet's own padding on each side, and the text does not move. */
 #modal .compose-editor:not(.compose-editor-lg) { padding-inline: 8px; margin-inline: -8px; width: calc(100% + 16px); }
+/* THE PLACEHOLDER LIES OVER THE FIRST LINE, IT DOES NOT TAKE IT. Deleting everything leaves
+   the <br> a browser keeps to hold the line open (kept on purpose: removing it cut Firefox's
+   undo, see syncEmptyClass), and a placeholder in the flow pushed that line, and the caret on
+   it, below itself. Out of the flow, where it sat: no top given, so it stays where it was, and
+   the editor's own padding on either side, so it wraps and aligns as the text will. */
+.compose-editor { position: relative; }
 .compose-editor.is-empty::before {
   content: attr(data-placeholder); color: var(--muted); pointer-events: none; display: block;
+  position: absolute; inset-inline: 0; padding-inline: inherit;
 }
 /* @mention atomic pill */
 .mention-pill {

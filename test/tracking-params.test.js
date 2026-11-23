@@ -213,7 +213,9 @@ test('OFFERED, NEVER DONE FOR YOU', () => {
   // earlier in the joined source and that one DOES preventDefault, on purpose.
   const factory = bare.slice(bare.indexOf('function createMentionEditor(opts) {'));
   const scope = factory.slice(0, factory.indexOf('\n  }\n'));
-  const paste = scope.match(/editor\.addEventListener\('paste', [^\n]*\n?/);
+  // The tracking scan's own paste hook (the factory's text paste, which does preventDefault,
+  // is a separate listener).
+  const paste = scope.match(/editor\.addEventListener\('paste', [^\n]*scanTracking[^\n]*\n?/);
   assert.ok(paste, 'no paste hook in the editor factory');
   assert.ok(!/preventDefault/.test(paste[0]), 'the scan must not interfere with the paste');
   assert.match(paste[0], /setTimeout\(scanTracking, 0\)/);

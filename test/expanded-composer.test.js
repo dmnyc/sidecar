@@ -886,15 +886,17 @@ test('a theme listed as drawing the panel bar dark draws it dark', () => {
 test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
   // Left to the browser, the contenteditable took a pasted image as an inline picture at
   // full size, never uploaded and never published, and rich text kept its formatting.
+  // Paste and drop are the shared editor's (composer-core createMentionEditor): text in
+  // plain through insertPasted, files handed to the owner's onFiles. The tab's onFiles
+  // uploads into the strip.
   const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
-  const at = page.indexOf("editorApi.editor.addEventListener('paste'");
-  assert.ok(at > -1, 'the tab has no paste handler of its own');
+  const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
+  const at = page.indexOf('onFiles: (files, { pasted }) => {');
+  assert.ok(at > -1, 'the tab takes no files from its editor');
   const body = page.slice(at, at + 2600);
-  assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
-  assert.match(body, /e\.preventDefault\(\);/);
-  // Text goes in plain, with any nostr: mention in it made a pill (composer-core insertPasted).
-  assert.match(body, /editorApi\.insertPasted\(plain\)/);
-  assert.match(body, /uploadFiles\(images, \{ pasted: true \}\)/);
+  assert.match(body, /uploadFiles\(media, \{ pasted \}\)/);
+  assert.match(core, /if \(files\.length\) \{ if \(onFiles\) onFiles\(files, \{ pasted: true \}\); return; \}/);
+  assert.match(core, /insertPasted\(editor, text\);/);
   // The Media button and a paste share one upload path.
   assert.match(page, /if \(file\) await uploadFiles\(\[file\]\);/);
   // Neither composer lets a paste attach to a poll.
