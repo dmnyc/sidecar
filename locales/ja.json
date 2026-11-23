@@ -2015,5 +2015,7 @@
   "Show {{count}} reply_other": "{{count}}件の返信を表示",
   "Add an account to chat →": "アカウントを追加してチャット →",
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr上のYouTube風動画サイト。動画やショートを視聴・アップロードでき、プレイリストや登録チャンネルも使えます。",
-  "{{count}} more account_other": "ほかに{{count}}件のアカウント"
+  "{{count}} more account_other": "ほかに{{count}}件のアカウント",
+  "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "地球に重ねられたサイバースペースを探索。自分の世界を築き、隠された宝を見つけ、実在の場所を訪れましょう。",
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "参加している人だけが読める、プライベートな個人チャットとグループチャット。電話番号は不要です。"
 }

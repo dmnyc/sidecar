@@ -244,6 +244,13 @@
     "url": "https://nostu.be/nostube.svg",
     "kind": "svg"
   },
+  "onosendai": {
+    "name": "Onosendai",
+    "domain": "onosendai.tech",
+    "from": "site",
+    "url": "https://www.onosendai.tech/apple-touch-icon.png",
+    "kind": "png"
+  },
   "plebeian-market": {
     "name": "Plebeian Market",
     "domain": "plebeian.market",
@@ -298,6 +305,13 @@
     "domain": "stacker.news",
     "from": "google",
     "url": "https://www.google.com/s2/favicons?domain=stacker.news&sz=128",
+    "kind": "png"
+  },
+  "staircase": {
+    "name": "Staircase",
+    "domain": "staircase.chat",
+    "from": "site",
+    "url": "https://staircase.chat/assets/mark.webp",
     "kind": "png"
   },
   "tunestr": {

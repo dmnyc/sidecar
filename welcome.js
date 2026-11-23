@@ -226,6 +226,16 @@ function apps() {
     desc: t('A two-player word game with Lightning stakes: challenge friends and zap to win.'),
   },
   {
+    name: 'Onosendai',
+    url: 'https://www.onosendai.tech',
+    domain: 'onosendai.tech',
+    cat: 'gaming',
+    // Their touch icon is an opaque square tile that fills its frame, so flush.
+    icon: 'icons/apps/onosendai.png', // a copy of https://www.onosendai.tech/apple-touch-icon.png
+    flush: true,
+    desc: t('Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.'),
+  },
+  {
     name: 'NostrHub',
     url: 'https://nostrhub.io',
     domain: 'nostrhub.io',
@@ -490,6 +500,17 @@ function apps() {
     icon: 'icons/apps/nym.png',
     flush: true,
     desc: t('Ephemeral chat over Nostr: geohash channels for people near you, and Bluetooth mesh offline.'),
+  },
+  {
+    name: 'Staircase',
+    url: 'https://staircase.chat',
+    domain: 'staircase.chat',
+    cat: 'social',
+    // Their mark is a dark drawing on a transparent ground, lost on a dark tile, so it is
+    // set on their page's paper color (#f8f6f0) as a square of its own, and flush.
+    icon: 'icons/apps/staircase.png', // https://staircase.chat/assets/mark.webp on their paper color
+    flush: true,
+    desc: t('Private direct and group chats that only the people in them can read, with no phone number needed.'),
   },
   {
     name: 'Shakespeare',

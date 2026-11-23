@@ -2380,5 +2380,7 @@
   "{{count}} more account_two": "حسابان آخران",
   "{{count}} more account_few": "{{count}} حسابات أخرى",
   "{{count}} more account_many": "{{count}} حسابًا آخر",
-  "{{count}} more account_other": "{{count}} حساب آخر"
+  "{{count}} more account_other": "{{count}} حساب آخر",
+  "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "استكشف فضاءً سيبرانيًا مرسومًا على الأرض: ابنِ عالمك الخاص، واعثر على كنوز مخفية، وزُر أماكن حقيقية.",
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "محادثات خاصة، فردية وجماعية، لا يقرؤها إلا المشاركون فيها، دون الحاجة إلى رقم هاتف."
 }

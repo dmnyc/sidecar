@@ -2161,5 +2161,7 @@
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Um site de vídeos no estilo do YouTube sobre Nostr: assista e envie vídeos e shorts, com playlists e inscrições.",
   "{{count}} more account_one": "Mais {{count}} conta",
   "{{count}} more account_many": "Mais {{count}} contas",
-  "{{count}} more account_other": "Mais {{count}} contas"
+  "{{count}} more account_other": "Mais {{count}} contas",
+  "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "Explore um ciberespaço mapeado sobre a Terra: construa seu próprio mundo, encontre tesouros escondidos e visite lugares reais.",
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Conversas privadas, diretas e em grupo, que só quem participa pode ler, sem precisar de número de telefone."
 }

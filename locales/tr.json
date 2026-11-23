@@ -2088,5 +2088,7 @@
   "Add an account to chat →": "Sohbet için hesap ekle →",
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr üzerinde YouTube tarzı bir video sitesi: video ve shorts izleyin ve yükleyin, oynatma listeleri ve aboneliklerle.",
   "{{count}} more account_one": "{{count}} hesap daha",
-  "{{count}} more account_other": "{{count}} hesap daha"
+  "{{count}} more account_other": "{{count}} hesap daha",
+  "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "Dünya üzerine yerleştirilmiş bir siber uzayı keşfet: kendi dünyanı kur, gizli hazineler bul ve gerçek yerleri ziyaret et.",
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Yalnızca katılanların okuyabildiği özel birebir ve grup sohbetleri, telefon numarası gerekmeden."
 }

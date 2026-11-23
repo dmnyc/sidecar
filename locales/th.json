@@ -2015,5 +2015,7 @@
   "Show {{count}} reply_other": "แสดงการตอบกลับ {{count}} รายการ",
   "Add an account to chat →": "เพิ่มบัญชีเพื่อแชต →",
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "เว็บวิดีโอสไตล์ YouTube บน Nostr: ดูและอัปโหลดวิดีโอและคลิปสั้น พร้อมเพลย์ลิสต์และการติดตาม",
-  "{{count}} more account_other": "อีก {{count}} บัญชี"
+  "{{count}} more account_other": "อีก {{count}} บัญชี",
+  "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "สำรวจไซเบอร์สเปซที่จำลองบนโลกจริง: สร้างโลกของคุณเอง ค้นหาสมบัติที่ซ่อนอยู่ และเยี่ยมชมสถานที่จริง",
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "แชทส่วนตัวและแชทกลุ่มที่มีเพียงคนในแชทเท่านั้นที่อ่านได้ ไม่ต้องใช้เบอร์โทรศัพท์"
 }
