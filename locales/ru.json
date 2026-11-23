@@ -2236,5 +2236,6 @@
   "{{count}} more account_many": "Ещё {{count}} аккаунтов",
   "{{count}} more account_other": "Ещё {{count}} аккаунта",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "Исследуйте киберпространство, наложенное на Землю: стройте свой мир, ищите спрятанные сокровища и посещайте реальные места.",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Личные и групповые чаты, которые могут читать только их участники, без номера телефона."
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Личные и групповые чаты, которые могут читать только их участники, без номера телефона.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Сообщайте о спам-ботах в ответах в Nostr и добавляйте их ответы в проверенный людьми корпус спама."
 }

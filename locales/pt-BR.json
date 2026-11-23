@@ -2163,5 +2163,6 @@
   "{{count}} more account_many": "Mais {{count}} contas",
   "{{count}} more account_other": "Mais {{count}} contas",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "Explore um ciberespaço mapeado sobre a Terra: construa seu próprio mundo, encontre tesouros escondidos e visite lugares reais.",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Conversas privadas, diretas e em grupo, que só quem participa pode ler, sem precisar de número de telefone."
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Conversas privadas, diretas e em grupo, que só quem participa pode ler, sem precisar de número de telefone.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Denuncie bots de spam em respostas no Nostr e adicione as respostas deles a um corpus de spam revisado por pessoas."
 }

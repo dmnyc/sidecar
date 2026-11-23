@@ -490,6 +490,17 @@ function apps() {
     desc: t('Web of Trust for Nostr: trust scores built from your own connections, not an algorithm.'),
   },
   {
+    name: 'nspam',
+    url: 'https://nspam.utxo.one',
+    domain: 'nspam.utxo.one',
+    cat: 'tools',
+    // The site has no favicon or touch icon, so this is its mascot, the purple ostrich, cut
+    // square from its poster (https://nspam.utxo.one/nspam-ostriches-poster.jpg). Opaque, so flush.
+    icon: 'icons/apps/nspam.png',
+    flush: true,
+    desc: t('Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.'),
+  },
+  {
     name: 'NymChat',
     url: 'https://nymchat.app',
     domain: 'nymchat.app',

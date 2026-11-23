@@ -2017,5 +2017,6 @@
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 위의 YouTube 스타일 동영상 사이트: 동영상과 쇼츠를 보고 올리며, 재생목록과 구독도 지원합니다.",
   "{{count}} more account_other": "계정 {{count}}개 더",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "지구 위에 펼쳐진 사이버스페이스를 탐험하세요. 나만의 세계를 짓고, 숨겨진 보물을 찾고, 실제 장소를 방문할 수 있습니다.",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "대화에 참여한 사람만 읽을 수 있는 비공개 1:1 및 그룹 채팅. 전화번호가 필요 없습니다."
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "대화에 참여한 사람만 읽을 수 있는 비공개 1:1 및 그룹 채팅. 전화번호가 필요 없습니다.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr에서 답글 스팸 봇을 신고하고, 그 답글을 사람이 검토한 스팸 말뭉치에 추가하세요."
 }

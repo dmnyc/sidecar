@@ -244,6 +244,13 @@
     "url": "https://nostu.be/nostube.svg",
     "kind": "svg"
   },
+  "nspam": {
+    "name": "nspam",
+    "domain": "nspam.utxo.one",
+    "from": "site",
+    "url": "https://nspam.utxo.one/nspam-ostriches-poster.jpg",
+    "kind": "png"
+  },
   "onosendai": {
     "name": "Onosendai",
     "domain": "onosendai.tech",

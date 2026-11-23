@@ -2017,5 +2017,6 @@
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 上的 YouTube 风格视频网站：观看和上传视频与短视频，支持播放列表和订阅。",
   "{{count}} more account_other": "还有 {{count}} 个账号",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "探索映射到地球上的赛博空间：建造你自己的世界，寻找隐藏的宝藏，造访真实的地点。",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "只有聊天中的人才能阅读的私密单聊和群聊，无需手机号码。"
+  "Private direct and group chats that only the people in them can read, with no phone number needed.": "只有聊天中的人才能阅读的私密单聊和群聊，无需手机号码。",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "举报 Nostr 上的回复垃圾机器人，并将它们的回复加入经人工审核的垃圾信息语料库。"
 }
