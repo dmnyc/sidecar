@@ -500,23 +500,126 @@ window.SidecarCore = (function () {
     });
   }
 
+  // A MENTION ENDS WHERE ITS KEY ENDS, and a reader can only tell where that is if the
+  // next character cannot belong to it. A pill with a word typed straight after it wrote
+  // `nostr:npub1…challenged`: every client, and this one reading the draft back, took the
+  // word for more of the key, so the mention broke and its person was never notified.
+  // So a letter or digit that follows a pill is set off by a space.
+  const JOINS_A_KEY = /^[\p{L}\p{N}_]/u;
+  // The pill a key would reach from the caret if anchors took no room, or null.
+  function pillAhead(node, off) {
+    let next;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent.slice(off).replace(/\u200B/g, '')) return null;
+      next = node.nextSibling;
+    } else next = node.childNodes[off] || null;
+    while (isAnchor(next)) next = next.nextSibling;
+    return isPill(next) ? next : null;
+  }
+  function pillBehind(node, off) {
+    let prev;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent.slice(0, off).replace(/\u200B/g, '')) return null;
+      prev = node.previousSibling;
+    } else prev = off > 0 ? node.childNodes[off - 1] : null;
+    while (isAnchor(prev)) prev = prev.previousSibling;
+    return isPill(prev) ? prev : null;
+  }
   function serializeEditor(el) {
     let out = '';
+    let afterPill = false;
+    const put = (s) => {
+      if (!s) return;
+      if (afterPill && JOINS_A_KEY.test(s)) out += ' ';
+      afterPill = false;
+      out += s;
+    };
+    // A LINE BREAK THAT ENDS ITS BLOCK IS NOT A LINE. A browser ends an empty line, and the
+    // last line of a note, with a <br> that only holds the line open: Enter in an empty
+    // editor leaves two of them (or two blocks), which is one line break, not two. Read as
+    // breaks, a lone Enter came out as "\n\n" and a note ending on a new line gained one.
+    // Each block is a line of its own, an empty one too.
+    let started = false;   // anything at all has been read
+    let lineStart = true;  // a break was just written, so a block needs no other
+    const holdsLineOpen = (br) => {
+      let next = br.nextSibling;
+      while (next && next.nodeType === Node.TEXT_NODE && !next.textContent.replace(/\u200B/g, '')) next = next.nextSibling;
+      return !next;
+    };
     const walk = (node) => {
       if (node.nodeType === Node.TEXT_NODE) {
-        out += node.textContent.replace(/\u200B/g, '').replace(/ /g, ' ');
+        const s = node.textContent.replace(/\u200B/g, '').replace(/\u00a0/g, ' ');
+        if (s) { started = true; lineStart = false; }
+        put(s);
       } else if (node.nodeName === 'BR') {
-        out += '\n';
+        started = true;
+        if (!holdsLineOpen(node)) { put('\n'); lineStart = true; }
       } else if (node.dataset && node.dataset.bech32) {
-        out += node.dataset.bech32;
+        started = true; lineStart = false;
+        put(node.dataset.bech32);
+        afterPill = true;
       } else {
         const isBlock = node.nodeName === 'DIV' || node.nodeName === 'P';
-        if (isBlock && out && !out.endsWith('\n')) out += '\n';
+        if (isBlock && started && !lineStart) { out += '\n'; afterPill = false; }
         node.childNodes.forEach(walk);
+        if (isBlock) { started = true; lineStart = false; }
       }
     };
     el.childNodes.forEach(walk);
     return out;
+  }
+
+  // The longest start of a bech32 run that decodes, and what it decodes to; null if no
+  // start of it does. The checksum is what marks where a key really ends: `npub1…` with a
+  // word run on after it decodes only when cut back to the key itself. Notes and drafts
+  // written before serializeEditor spaced a mention off still carry that join.
+  function readRef(code, NT) {
+    // The whole run first, so anything that decoded before decodes the same; then shorter,
+    // down to the shortest that could hold a checksum.
+    const floor = Math.min(code.length, code.indexOf('1') + 1 + 6);
+    for (let end = code.length; end >= floor; end--) {
+      try { return { code: code.slice(0, end), decoded: NT.nip19.decode(code.slice(0, end)) }; } catch (_) { /* shorter */ }
+    }
+    return null;
+  }
+
+  // TEXT WITH nostr: MENTIONS IN IT, PASTED, COMES IN AS PILLS. Through insertHTML, so the
+  // paste is one step on the undo stack; text with no mention goes through insertText as it
+  // always did.
+  function insertPasted(editor, text) {
+    const s = String(text || '');
+    if (!/nostr:(npub1|nprofile1)/.test(s)) { document.execCommand('insertText', false, s); return; }
+    const scratch = document.createElement('div');
+    hydrateEditorFromText(scratch, s, { holdLastLine: false }); // pasted mid-note, not a note's end
+    scratch.querySelectorAll('.mention-pill').forEach((p) => p.setAttribute('data-pasted', ''));
+    // Anchors are the editor's own business, added again once the paste is in. The empty
+    // span marks where the paste ends: the caret goes there, which the browser left nowhere
+    // when the paste ended on a pill, and the next letter typed was lost.
+    document.execCommand('insertHTML', false, scratch.innerHTML.replace(/\u200B/g, '') + '<span data-paste-end></span>');
+    const end = editor.querySelector('[data-paste-end]');
+    if (end) {
+      const r = document.createRange();
+      r.setStartBefore(end);
+      r.collapse(true);
+      end.remove();
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    // The names: insertHTML made new pills from the markup, so the lookups hydrate started
+    // were for copies no one sees.
+    editor.querySelectorAll('.mention-pill[data-pasted]').forEach((p) => {
+      p.removeAttribute('data-pasted');
+      p.contentEditable = 'false';
+      const ref = readRef(p.dataset.bech32.replace(/^nostr:/, ''), deps.NT);
+      const d = ref && ref.decoded;
+      const pk = d ? (d.type === 'npub' ? d.data : d.data.pubkey) : null;
+      if (!pk) return;
+      const cached = deps.cachedProfile(pk);
+      if (cached && cached.name) p.textContent = '@' + cached.name;
+      else deps.fetchPreviewProfile(pk).then((pr) => { if (pr && pr.name) p.textContent = '@' + pr.name; });
+    });
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   // Inverse of serializeEditor: rebuild the editor's rich DOM (mention pills,
@@ -525,7 +628,7 @@ window.SidecarCore = (function () {
   // instead of a resolved @name pill. A pill's name resolves instantly from the
   // profile cache when available, else shows a short npub that upgrades in
   // place once the profile loads (same pattern as embed cards elsewhere).
-  function hydrateEditorFromText(editor, text) {
+  function hydrateEditorFromText(editor, text, { holdLastLine = true } = {}) {
     editor.innerHTML = '';
     const appendText = (s) => {
       const lines = s.split('\n');
@@ -538,10 +641,14 @@ window.SidecarCore = (function () {
     let last = 0, m;
     while ((m = mentionRe.exec(text)) !== null) {
       if (m.index > last) appendText(text.slice(last, m.index));
-      const bech32 = m[0];
+      // Only as much as decodes: a draft saved before the space above came back with the
+      // next word glued on, and that word is text again, not part of the pill.
+      const ref = readRef(m[1], deps.NT);
+      if (ref) mentionRe.lastIndex = m.index + 'nostr:'.length + ref.code.length;
+      const bech32 = ref ? 'nostr:' + ref.code : m[0];
       let pubkey = null, fallback = bech32;
       try {
-        const decoded = deps.NT.nip19.decode(m[1]);
+        const decoded = ref ? ref.decoded : deps.NT.nip19.decode(m[1]);
         pubkey = decoded.type === 'npub' ? decoded.data : decoded.data.pubkey;
         fallback = deps.shortNpub(deps.NT.nip19.npubEncode(pubkey));
       } catch (_) {}
@@ -566,6 +673,10 @@ window.SidecarCore = (function () {
       }
     }
     if (last < text.length) appendText(text.slice(last));
+    // A note that ends on a new line ends with an empty line, and a browser shows an empty
+    // last line only with a <br> holding it open (serializeEditor reads that one as no
+    // break). Without it the line was not there to type on, and the draft lost it.
+    if (holdLastLine && text.endsWith('\n')) editor.appendChild(document.createElement('br'));
     anchorPills(editor);
   }
 
@@ -646,7 +757,13 @@ window.SidecarCore = (function () {
     let reAskDismissed = false; // "Just my follows" answered on the ask that returns when nothing matches
 
     function syncEmptyClass() {
-      const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
+      // EMPTY MEANS NOTHING AT ALL. A space or a line break is something the writer put
+      // there, at the start of a note as anywhere else; this once tested the trimmed text,
+      // so a space or Enter in an empty editor was wiped as it was typed. What is wiped is
+      // only the lone <br> a browser leaves when everything is deleted, which would
+      // otherwise keep the placeholder from coming back.
+      const isEmpty = !editor.textContent && !editor.querySelector('[data-bech32]')
+        && editor.querySelectorAll('br').length <= 1;
       editor.classList.toggle('is-empty', isEmpty);
       if (isEmpty) editor.innerHTML = '';
     }
@@ -720,7 +837,11 @@ window.SidecarCore = (function () {
       const trailingSpace = document.createTextNode(' ');
       range.setStartAfter(pill);
       range.insertNode(trailingSpace);
-      range.setStartAfter(trailingSpace);
+      // Inside the space's own text node, not "after it" among the editor's children: emit()
+      // adds an anchor in front of a pill that starts a line, which moves every child one
+      // place on, and a caret held as a child index slid back in front of the space. The
+      // next word typed then went against the pill.
+      range.setStart(trailingSpace, trailingSpace.length);
       range.collapse(true);
       sel.removeAllRanges();
       sel.addRange(range);
@@ -878,6 +999,8 @@ window.SidecarCore = (function () {
     // only the anchor (nothing visible happened) and the second deleted the pill too.
     editor.addEventListener('keydown', (e) => {
       if ((e.key !== 'Backspace' && e.key !== 'Delete') || e.isComposing || acDropdown) return;
+      // Cmd+Backspace (to the start of the line) and its kin are the browser's to do whole.
+      if (e.metaKey || e.ctrlKey) return;
       const sel = window.getSelection();
       if (!sel.rangeCount || !sel.isCollapsed) return;
       const r = sel.getRangeAt(0);
@@ -899,25 +1022,144 @@ window.SidecarCore = (function () {
         else next = node.childNodes[off] || null;
         if (next && next.nodeName === 'BR' && (isPill(next.nextSibling) || (isAnchor(next.nextSibling) && isPill(next.nextSibling.nextSibling)))) br = next;
       }
-      if (!br) return;
+      if (!br) {
+        // THE ANCHOR IS NOT A CHARACTER ANYONE CAN SEE, so a key acts as if it were not
+        // there: Delete with only anchors between the caret and a pill takes the pill, and so
+        // does Backspace with only anchors between a pill and the caret. Left to the browser,
+        // a click just left of a pill that starts a line put the caret before its anchor, and
+        // Delete took the anchor and nothing visible happened.
+        const pill = e.key === 'Delete' ? pillAhead(node, off) : pillBehind(node, off);
+        if (!pill) return;
+        e.preventDefault();
+        deleteNodes(sel, pill, pill);
+        return;
+      }
       e.preventDefault();
-      let after = br.nextSibling;
-      br.remove();
-      // The anchor is spent once the pill no longer starts a line: left in, it would cost the
-      // next Backspace a keypress that does nothing visible.
-      const prev = after && after.previousSibling;
-      if (isAnchor(after) && prev && prev.nodeName !== 'BR') { const pill = after.nextSibling; after.remove(); after = pill; }
-      // The caret stays where the two lines now meet.
-      const at = document.createRange();
-      if (prev && prev.nodeType === Node.TEXT_NODE && prev.nextSibling === after) at.setStart(prev, prev.textContent.length);
-      else if (after && after.nodeType === Node.TEXT_NODE) at.setStart(after, 0);
-      else if (after) at.setStartBefore(after);
-      else { at.selectNodeContents(editor); at.collapse(false); }
-      at.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(at);
-      emit();
+      // Only the break: the two lines meet, and the pill stays.
+      deleteNodes(sel, br, br);
     });
+
+    // A WORD TYPED AGAINST A PILL GETS ITS SPACE AS IT IS TYPED. The saved text always has
+    // one there (serializeEditor), so the screen shows it too, at the keystroke, rather than
+    // after a reload. Through the browser's insert, so undo takes the letter and the space
+    // together.
+    editor.addEventListener('beforeinput', (e) => {
+      if (e.inputType !== 'insertText' || e.isComposing || !e.data || !JOINS_A_KEY.test(e.data)) return;
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !sel.isCollapsed) return;
+      const node = sel.anchorNode; const off = sel.anchorOffset;
+      if (!editor.contains(node) || !pillBehind(node, off)) return;
+      // Only right against it: anchors aside, nothing may stand between the pill and the caret.
+      e.preventDefault();
+      document.execCommand('insertText', false, '\u00a0' + e.data);
+    });
+
+    // EVERY DELETION HERE GOES THROUGH THE BROWSER'S OWN DELETE, on a selection of exactly
+    // what is to go, so it lands on the undo stack: Cmd+Z brings a pill or a line break
+    // back. Removing the nodes by hand, as these keys first did, left nothing to undo.
+    function deleteNodes(sel, first, last) {
+      const r = document.createRange();
+      r.setStartBefore(first);
+      r.setEndAfter(last);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      document.execCommand('delete');
+    }
+
+    // THE ARROW KEYS STEP OVER WHAT CANNOT BE SEEN. An anchor is a character to the browser,
+    // so at a pill that starts a line one press of an arrow moved the caret across it and
+    // nothing visible happened. A move that crossed only anchors moves again.
+    editor.addEventListener('keydown', (e) => {
+      if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.metaKey || e.ctrlKey || e.altKey || e.isComposing || acDropdown) return;
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !sel.modify) return;
+      if (!sel.isCollapsed && !e.shiftKey) return; // collapsing a selection is one step already
+      e.preventDefault();
+      const alter = e.shiftKey ? 'extend' : 'move';
+      // modify() is told the visual side, so right-to-left text moves the way the key points.
+      const side = e.key === 'ArrowLeft' ? 'left' : 'right';
+      for (let i = 0; i < 4; i++) {
+        const fromNode = sel.focusNode; const fromOff = sel.focusOffset;
+        sel.modify(alter, side, 'character');
+        if (sel.focusNode === fromNode && sel.focusOffset === fromOff) break; // the end of the note
+        // What the step crossed, in document order, whichever way it went.
+        const crossed = document.createRange();
+        crossed.setStart(fromNode, fromOff);
+        crossed.collapse(true);
+        if (crossed.comparePoint(sel.focusNode, sel.focusOffset) < 0) crossed.setStart(sel.focusNode, sel.focusOffset);
+        else crossed.setEnd(sel.focusNode, sel.focusOffset);
+        const bit = crossed.cloneContents();
+        const onlyAnchors = !bit.querySelector('*') && bit.textContent && !bit.textContent.replace(/\u200B/g, '');
+        if (!onlyAnchors) break;
+      }
+    });
+
+    // A CLICK ON A PILL PUTS THE CARET BESIDE IT, on the side clicked. Left to the browser,
+    // the click selected the pill with nothing to show it, and the next letter typed
+    // replaced the mention.
+    editor.addEventListener('mousedown', (e) => {
+      const pill = e.target && e.target.closest && e.target.closest('[data-bech32]');
+      if (!pill || !editor.contains(pill) || e.button !== 0 || e.shiftKey) return;
+      e.preventDefault();
+      editor.focus();
+      const box = pill.getBoundingClientRect();
+      const r = document.createRange();
+      if ((e.clientX - box.left) < box.width / 2) r.setStartBefore(pill); else r.setStartAfter(pill);
+      r.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    });
+
+    // THE CARET NEVER STANDS INSIDE A PILL. Firefox puts it there: Enter in front of a pill
+    // left it inside the pill on the new line, and a click just left of a pill that starts a
+    // line put it at the pill's end. A pill cannot be edited, so the next letters typed went
+    // nowhere and Delete did nothing. Moved out, it goes to the side a click was nearer, or
+    // in front of the pill when it stood at its start.
+    let lastPress = null;
+    editor.addEventListener('pointerdown', (e) => { lastPress = { x: e.clientX, at: Date.now() }; }, true);
+    const caretOutOfPill = () => {
+      if (!editor.isConnected) { document.removeEventListener('selectionchange', caretOutOfPill); return; }
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !sel.isCollapsed) return;
+      const node = sel.anchorNode;
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      const pill = el && el.closest && el.closest('[data-bech32]');
+      if (!pill || !editor.contains(pill)) return;
+      let before;
+      if (lastPress && Date.now() - lastPress.at < 500) {
+        const box = pill.getBoundingClientRect();
+        before = lastPress.x < box.left + box.width / 2;
+      } else {
+        const ahead = document.createRange();
+        ahead.setStart(pill, 0);
+        ahead.setEnd(node, sel.anchorOffset);
+        before = !ahead.toString();
+      }
+      const r = document.createRange();
+      if (before) r.setStartBefore(pill); else r.setStartAfter(pill);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    };
+    document.addEventListener('selectionchange', caretOutOfPill);
+
+    // COPY AND CUT CARRY A MENTION AS ITS ADDRESS. The browser copied a pill as the words on
+    // it, "@name", and pasting that back gave text that mentions nobody. What is copied is
+    // the note's own text, nostr: addresses and all, which this editor (and any client)
+    // reads back as the mention.
+    function copySelection(e, cut) {
+      const sel = window.getSelection();
+      if (!sel.rangeCount || sel.isCollapsed || !editor.contains(sel.getRangeAt(0).commonAncestorContainer)) return;
+      const box = document.createElement('div');
+      box.append(sel.getRangeAt(0).cloneContents());
+      if (!box.querySelector('[data-bech32]')) return; // plain text: the browser copies it as well
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', serializeEditor(box));
+      if (cut) document.execCommand('delete');
+    }
+    editor.addEventListener('copy', (e) => copySelection(e, false));
+    editor.addEventListener('cut', (e) => copySelection(e, true));
 
     editor.addEventListener('keydown', (e) => {
       if (!acDropdown) return;
@@ -1102,6 +1344,9 @@ window.SidecarCore = (function () {
       editor,
       insertText,
       getText: () => serializeEditor(editor),
+      // Pasted text at the caret, as the paste handlers insert it: mentions in it come in as
+      // pills, through the browser's own insert so the paste can be undone.
+      insertPasted: (text) => insertPasted(editor, text),
       // Re-read the editor after the caller mutated its DOM directly (e.g.
       // appending an uploaded media URL) so the text, placeholder and any
       // onChange-driven state agree with what's on screen.
@@ -2279,7 +2524,9 @@ window.SidecarCore = (function () {
     let m;
     while ((m = re.exec(String(content || ''))) !== null) {
       try {
-        const d = NT.nip19.decode(m[1]);
+        const ref = readRef(m[1], NT);
+        if (!ref) continue;
+        const d = ref.decoded;
         const pk = d.type === 'npub' ? d.data : d.data.pubkey;
         if (pk && !seen.has(pk)) { seen.add(pk); out.push(['p', pk]); }
       } catch (_) { /* malformed mention — skip it, don't fail the post */ }
@@ -2306,7 +2553,9 @@ window.SidecarCore = (function () {
     BODY_REF_RE.lastIndex = 0;
     while ((m = BODY_REF_RE.exec(String(content || ''))) !== null) {
       let d = null;
-      try { d = NT.nip19.decode(m[1]); } catch (_) { continue; } // malformed ref — skip it, don't fail the post
+      const ref = readRef(m[1], NT);
+      if (!ref) continue; // malformed ref — skip it, don't fail the post
+      d = ref.decoded;
       let value = null;
       let relay = '';
       let author = '';
@@ -2932,13 +3181,22 @@ window.SidecarCore = (function () {
   // (`names` maps the bech32 to it), and a note, event or address is its first and last
   // characters. Only the display changes: the draft keeps the full reference.
   function draftRefsAsText(text, names) {
-    return String(text || '').replace(/nostr:((?:npub|nprofile|note|nevent|naddr)1[02-9ac-hj-np-z]+)/g, (whole, code) => {
-      const person = code.startsWith('npub1') || code.startsWith('nprofile1');
-      const known = names && names[code];
-      if (person && known) return '@' + known;
-      const short = code.length > 20 ? code.slice(0, 10) + '\u2026' + code.slice(-4) : code;
-      return person ? '@' + short : short;
+    // The page's nip19; display only, so without it a reference is shortened whole.
+    const NT = (typeof window !== 'undefined' && window.NostrTools) || null;
+    return String(text || '').replace(/nostr:((?:npub|nprofile|note|nevent|naddr)1[02-9ac-hj-np-z]+)/g, (whole, run) => {
+      // A word joined onto the reference is kept as the word, not shortened with it.
+      const ref = NT ? readRef(run, NT) : null;
+      const code = ref ? ref.code : run;
+      const rest = run.slice(code.length);
+      return refAsText(code, names) + (rest ? ' ' + rest : '');
     });
+  }
+  function refAsText(code, names) {
+    const person = code.startsWith('npub1') || code.startsWith('nprofile1');
+    const known = names && names[code];
+    if (person && known) return '@' + known;
+    const short = code.length > 20 ? code.slice(0, 10) + '\u2026' + code.slice(-4) : code;
+    return person ? '@' + short : short;
   }
   function draftSnippet(d, names) {
     const text = draftRefsAsText(stripDraftMediaUrls(d.text || '', d.media), names).replace(/\s+/g, ' ').trim();
@@ -5958,7 +6216,7 @@ window.SidecarCore = (function () {
     splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,

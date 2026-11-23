@@ -286,13 +286,21 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
           },
           // A real key press, by the DevTools input domain, so the browser's own editing runs
           // (what a caret does at a pill, at a line start) rather than a script's guess at it.
-          press: async (key) => {
-            const KEYS = { Backspace: 8, Delete: 46, ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Home: 36, End: 35, Enter: 13 };
+          // A key as a person presses it. `shift`, `alt`, `ctrl` and `meta` hold modifiers down;
+          // `commands` names the editing commands the key stands for (DeleteWordBackward,
+          // MoveLeftAndModifySelection, SelectAll, Undo…), which is how Chrome on a Mac is told
+          // what Option+Backspace or Cmd+Z mean when the key comes from DevTools.
+          press: async (key, { shift = false, alt = false, ctrl = false, meta = false, commands } = {}) => {
+            const KEYS = { Backspace: 8, Delete: 46, ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Home: 36, End: 35, Enter: 13, Tab: 9, a: 65, c: 67, v: 86, x: 88, z: 90 };
             const code = KEYS[key];
-            await chrome.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }, page.sessionId);
-            if (key === 'Enter') await chrome.send('Input.dispatchKeyEvent', { type: 'char', text: '\r', key }, page.sessionId);
-            await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }, page.sessionId);
+            const modifiers = (alt ? 1 : 0) | (ctrl ? 2 : 0) | (meta ? 4 : 0) | (shift ? 8 : 0);
+            const base = { key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, modifiers };
+            await chrome.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base, ...(commands ? { commands } : {}) }, page.sessionId);
+            if (key === 'Enter' && !modifiers) await chrome.send('Input.dispatchKeyEvent', { type: 'char', text: '\r', key }, page.sessionId);
+            await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }, page.sessionId);
           },
+          // Text as a keyboard (or an input method) delivers it: beforeinput, input, the lot.
+          type: async (text) => { await chrome.send('Input.insertText', { text }, page.sessionId); },
           // The size of a browser window, from now on: for a page that lays itself out for the width it has while
           // it is being used, not only when it is photographed.
           viewport: async ({ width = 1280, height = 800, scale = 2 } = {}) => {

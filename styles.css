@@ -3214,6 +3214,11 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
   min-height: 120px; max-height: 240px; overflow-y: auto; resize: none;
   outline: none; cursor: text; white-space: pre-wrap; word-break: break-word;
 }
+/* A CLICK BESIDE A LINE PUTS THE CARET ON IT, as a click in a page margin does. The
+   panel's field has no padding, so a click a pixel left of a mention that starts a line
+   landed on the sheet and the caret stayed where it was. The field reaches 8px into the
+   sheet's own padding on each side, and the text does not move. */
+#modal .compose-editor:not(.compose-editor-lg) { padding-inline: 8px; margin-inline: -8px; width: calc(100% + 16px); }
 .compose-editor.is-empty::before {
   content: attr(data-placeholder); color: var(--muted); pointer-events: none; display: block;
 }

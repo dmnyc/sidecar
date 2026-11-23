@@ -892,7 +892,8 @@ test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
   const body = page.slice(at, at + 2600);
   assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
   assert.match(body, /e\.preventDefault\(\);/);
-  assert.match(body, /document\.execCommand\('insertText', false, plain\)/);
+  // Text goes in plain, with any nostr: mention in it made a pill (composer-core insertPasted).
+  assert.match(body, /editorApi\.insertPasted\(plain\)/);
   assert.match(body, /uploadFiles\(images, \{ pasted: true \}\)/);
   // The Media button and a paste share one upload path.
   assert.match(page, /if \(file\) await uploadFiles\(\[file\]\);/);

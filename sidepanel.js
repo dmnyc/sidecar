@@ -6804,7 +6804,8 @@
     const pubkeys = new Set();
     for (const match of content.matchAll(/nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g)) {
       try {
-        const decoded = NT.nip19.decode(match[1]);
+        // Up to where the key ends: a word can be joined onto it (SidecarCore.readRef).
+        const decoded = window.SidecarCore.readRef(match[1], NT).decoded;
         const pk = decoded.type === 'npub' ? decoded.data : decoded.data?.pubkey;
         if (pk && !notifProfileName(pk)) pubkeys.add(pk);
       } catch (_) {}
@@ -7380,14 +7381,18 @@
 
   function cleanSnippet(content) {
     return content
-      .replace(/nostr:(npub1\S+|nprofile1\S+)/g, (_, entity) => {
+      .replace(/nostr:((?:npub1|nprofile1)[0-9a-z]+)/g, (_, run) => {
         try {
-          const decoded = NT.nip19.decode(entity);
+          // The key alone, read to its checksum; a word joined onto it stays a word.
+          const ref = window.SidecarCore.readRef(run, NT);
+          const entity = ref.code;
+          const rest = run.slice(entity.length);
+          const decoded = ref.decoded;
           const pk = decoded.type === 'npub' ? decoded.data : decoded.data && decoded.data.pubkey;
           if (pk) {
             const name = notifProfileName(pk);
-            if (name) return '@' + name;
-            return '@' + entity.slice(0, 12) + '…';
+            if (name) return '@' + name + (rest ? ' ' + rest : '');
+            return '@' + entity.slice(0, 12) + '…' + (rest ? ' ' + rest : '');
           }
         } catch (_) {}
         return '@…';
@@ -9850,7 +9855,7 @@
             let mm;
             while ((mm = re.exec(e.content)) !== null) {
               try {
-                const d = NT.nip19.decode(mm[1]);
+                const d = window.SidecarCore.readRef(mm[1], NT).decoded;
                 const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
                 if (pk) need.add(pk);
               } catch (_) {}
@@ -16515,7 +16520,7 @@
             });
             return;
           }
-          if (plain) document.execCommand('insertText', false, plain);
+          if (plain) mentionEditor.insertPasted(plain);
           return;
         }
         e.preventDefault();

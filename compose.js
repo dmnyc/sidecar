@@ -2277,7 +2277,7 @@
           });
           return;
         }
-        if (plain) document.execCommand('insertText', false, plain);
+        if (plain) editorApi.insertPasted(plain);
         return;
       }
       // A poll and its attachments are one or the other; the Media button is hidden

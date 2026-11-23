@@ -24,6 +24,10 @@ function setup() {
     getProfile: async (pk) => { fetched.push(pk); profiles.set(pk, { name: 'Resolved ' + pk }); },
   };
   vm.createContext(ctx);
+  // The panel reads a mention only as far as its key decodes, with composer-core's readRef.
+  const core = fs.readFileSync(require('node:path').join(__dirname, '../composer-core.js'), 'utf8');
+  vm.runInContext(core.slice(core.indexOf('  function readRef('), core.indexOf('  // Inverse of serializeEditor')), ctx);
+  ctx.window = { SidecarCore: { readRef: ctx.readRef } };
   vm.runInContext(between('  function notifProfileName(', '  function notifAuthorName(') +
     between('  function cleanSnippet(', '  // ---- mute matching'), ctx);
   return { ctx, profiles, fetched };
