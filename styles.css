@@ -1061,6 +1061,9 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   border: 1px solid var(--border-strong); border-radius: 14px;
   box-shadow: var(--sheen), 0 20px 50px rgba(0, 0, 0, 0.6);
   padding: 6px; z-index: 90;
+  /* A column: the accounts scroll in .acct-menu-list, the foot rows stay below it.
+     max-height is set on open by fitAcctMenu (sidepanel.js), to the panel's height. */
+  display: flex; flex-direction: column;
   /* Grows from the top-left, which is where acct-btn sits and where its own left: 10px
      puts its edge. .hidden still does the showing and hiding; these two classes only
      decide how it gets there, so nothing downstream has to know about them. */
@@ -1074,6 +1077,8 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   will-change: transform, opacity;
 }
 .acct-menu.is-open { transform: scale(1); opacity: 1; pointer-events: auto; }
+.acct-menu-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.acct-menu > .acct-row.foot { flex-shrink: 0; }
 .acct-menu.is-closing {
   transform: scale(var(--dropdown-closing-scale));
   opacity: 0;
