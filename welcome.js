@@ -47,7 +47,7 @@ function apps() {
     name: 'Flotilla',
     url: 'https://flotilla.social',
     domain: 'flotilla.social',
-    cat: 'other',
+    cat: 'messaging',
     icon: 'icons/apps/flotilla.png', // a copy of https://flotilla.social/apple-touch-icon.png
     flush: true,
     desc: t('Community platform: chat, voice, video, and events in spaces you truly own.'),
@@ -575,7 +575,7 @@ function apps() {
     name: 'Armada',
     url: 'https://armada.buzz/',
     domain: 'armada.buzz',
-    cat: 'social',
+    cat: 'messaging',
     // A dark chip inset with margin, not a full-bleed square, so it takes the framed treatment.
     icon: 'icons/apps/armada.svg',
     desc: t('Open-source, encrypted Discord alternative: channels, voice and DMs, no host required.'),
