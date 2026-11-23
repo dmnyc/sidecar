@@ -233,7 +233,7 @@ function apps() {
     // Their touch icon is an opaque square tile that fills its frame, so flush.
     icon: 'icons/apps/onosendai.png', // a copy of https://www.onosendai.tech/apple-touch-icon.png
     flush: true,
-    desc: t('Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.'),
+    desc: t('A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for hidden treasure.'),
   },
   {
     name: 'NostrHub',
