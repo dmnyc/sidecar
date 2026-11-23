@@ -696,7 +696,7 @@
     'phantom-bouquet': ['#FBF8F0', '#E4DCCA', '#A3443A', '#8F3A31', '#6B3B5A'],
     'film-noir': ['#F2F2F2', '#BDBDBD', '#C8C8C8', '#8E8E8E', '#E0E0E0'],
     'brownstone': ['#F2E7DD', '#CDB9A7', '#D2AD70', '#A9843F', '#D69A6A'],
-    'cast-iron': ['#D9D3C5', '#A39D8E', '#B9B19F', '#6E6858', '#948C79'],
+    'cast-iron': ['#4A453F', '#36322D', '#403B35', '#29261F', '#38332D'],
     'par-avion': ['#FFFFFF', '#E8E8EA', '#C0272D', '#A02C2E', '#1B4C8C'],
     'industria': ['#FFFFFF', '#E8E8EA', '#A67C1E', '#7A5A18', '#6B4E1C'],
     'werkstatte': ['#FFFFFF', '#E8E8EA', '#A08018', '#7C6212', '#15171C'],

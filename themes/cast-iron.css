@@ -142,10 +142,10 @@
 
   /* Compose FAB — blacked out: cast iron where every other theme hangs brass or a
      lamp. A dark disc on a dark plate is findable by its edge, not by a glow (Nixie's
-     disc is lit by its tube; iron has no light to shed), so the feather carries what
-     brightness the object has and the scoped rule below seats it with a rim lip. */
+     disc is lit by its tube; iron has no light to shed), so the scoped rule below seats
+     it with a rim lip. The feather is the logo's own ink, flat: part of the metal. */
   --fab-bg: linear-gradient(160deg, #171310, #090705);
-  --fab-icon: #beb6a4;
+  --fab-icon: #4a453f;
 
   /* ink — every stop demoted from the first pass. Body copy tops out around #a5,
      muted and faint step down toward the plate, and nothing anywhere reaches for
@@ -225,15 +225,6 @@
     0 10px 26px rgba(0, 0, 0, 0.65),
     inset 0 1px 0 rgba(216, 209, 196, 0.14),
     inset 0 -1px 0 rgba(0, 0, 0, 0.8);
-}
-/* ...and the feather carries what brightness the disc has (see --fab-icon above), lit
-   by the same lamp the struck type answers to: the catch pools along the top of each
-   stroke and the ink shades as it falls — bright enough that the quill is the first
-   thing the eye finds on this surface. A stroke can only take a gradient through an
-   SVG paint server — sidepanel.html carries the def this names — so currentColor stands
-   in wherever that node is absent. */
-[data-theme="cast-iron"] .fab svg :is(path, line, polyline, polygon, circle) {
-  stroke: url(#cast-iron-stroke-light);
 }
 /* Hover on a black disc over a black plate needs more than the shared lift, which
    moves the object without showing it. Two additions, both in the theme's language:
