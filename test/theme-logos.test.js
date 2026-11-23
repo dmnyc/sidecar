@@ -116,7 +116,7 @@ const themeBg = (t) => {
 };
 
 test('each cut stays legible on the theme it was drawn for', () => {
-  for (const t of cut.filter((x) => x !== 'phantom-bouquet')) {
+  for (const t of cut.filter((x) => x !== 'phantom-bouquet' && x !== 'cast-iron')) {
     const bg = themeBg(t);
     const f = fills(read(core.logoSrcFor(t))); // garnish, garnish shade, glass lit, glass shade, wordmark x7
     const [garnish, garnishShade, glassLit, glassShade, word] = [f[0], f[1], f[2], f[3], f[4]];
@@ -127,5 +127,17 @@ test('each cut stays legible on the theme it was drawn for', () => {
       assert.ok(ratio(garnish, bg) >= 3, t + ' garnish ' + garnish + ' on ' + bg);
       assert.ok(ratio(garnishShade, bg) >= 3, t + ' garnish shade ' + garnishShade + ' on ' + bg);
     }
+  }
+});
+
+// Cast Iron's logo is cast into the panel's metal, not printed on it: its inks sit just above the
+// background on purpose, flat. So it is held to
+// a floor of its own, which keeps every part a visible step up from the iron without letting it
+// drift back toward a printed, readable-text contrast.
+test('cast iron: every part of the logo sits just above the iron, none sinks into it or stands off it', () => {
+  const bg = themeBg('cast-iron');
+  for (const ink of new Set(fills(read(core.logoSrcFor('cast-iron'))))) {
+    const r = ratio(ink, bg);
+    assert.ok(r >= 1.3 && r <= 2.5, 'cast-iron ' + ink + ' on ' + bg + ' is ' + r.toFixed(2) + ':1');
   }
 });
