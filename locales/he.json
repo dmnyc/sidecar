@@ -2164,5 +2164,6 @@
   "{{count}} more account_other": "עוד {{count}} חשבונות",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "חקרו מרחב סייבר הממופה על פני כדור הארץ: בנו עולם משלכם, מצאו אוצרות חבויים ובקרו במקומות אמיתיים.",
   "Private direct and group chats that only the people in them can read, with no phone number needed.": "צ׳אטים פרטיים, אישיים וקבוצתיים, שרק המשתתפים בהם יכולים לקרוא, בלי צורך במספר טלפון.",
-  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "דווחו על בוטים ששולחים ספאם בתגובות ב־Nostr והוסיפו את התגובות שלהם למאגר ספאם שנבדק בידי בני אדם."
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "דווחו על בוטים ששולחים ספאם בתגובות ב־Nostr והוסיפו את התגובות שלהם למאגר ספאם שנבדק בידי בני אדם.",
+  "Messaging": "מסרים"
 }

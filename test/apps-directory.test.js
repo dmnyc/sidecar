@@ -15,7 +15,7 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 const src = fs.readFileSync(path.join(ROOT, 'welcome.js'), 'utf8');
 
-const CATS = ['social', 'media', 'gaming', 'commerce', 'tools', 'other'];
+const CATS = ['social', 'messaging', 'media', 'gaming', 'commerce', 'tools', 'other'];
 const ENTRIES = [...src.matchAll(/\{\n\s+name: '([^']+)',\n\s+url: '([^']+)',\n\s+domain: '([^']+)',\n\s+cat: '([^']+)',/g)]
   .map((m) => ({ name: m[1], url: m[2], domain: m[3], cat: m[4] }));
 
@@ -58,7 +58,7 @@ test('the #339 additions are present, in their categories', () => {
   const by = (n) => ENTRIES.find((e) => e.name === n);
   assert.deepEqual(
     ['Brainstorm', 'NymChat', 'Shakespeare'].map((n) => by(n) && by(n).cat),
-    ['tools', 'social', 'tools']
+    ['tools', 'messaging', 'tools']
   );
   assert.equal(by('NymChat').domain, 'nymchat.app');
   // NymChat has nothing hotlinkable on its site, so its icon is bundled — the Circl

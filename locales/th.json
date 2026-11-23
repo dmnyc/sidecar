@@ -2018,5 +2018,6 @@
   "{{count}} more account_other": "อีก {{count}} บัญชี",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "สำรวจไซเบอร์สเปซที่จำลองบนโลกจริง: สร้างโลกของคุณเอง ค้นหาสมบัติที่ซ่อนอยู่ และเยี่ยมชมสถานที่จริง",
   "Private direct and group chats that only the people in them can read, with no phone number needed.": "แชทส่วนตัวและแชทกลุ่มที่มีเพียงคนในแชทเท่านั้นที่อ่านได้ ไม่ต้องใช้เบอร์โทรศัพท์",
-  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "รายงานบอตที่สแปมในการตอบกลับบน Nostr และเพิ่มการตอบกลับของพวกมันลงในคลังสแปมที่มนุษย์ตรวจสอบแล้ว"
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "รายงานบอตที่สแปมในการตอบกลับบน Nostr และเพิ่มการตอบกลับของพวกมันลงในคลังสแปมที่มนุษย์ตรวจสอบแล้ว",
+  "Messaging": "การส่งข้อความ"
 }

@@ -56,7 +56,7 @@ function apps() {
     name: 'Cordn',
     url: 'https://cordn.net',
     domain: 'cordn.net',
-    cat: 'other',
+    cat: 'messaging',
     icon: 'icons/apps/cordn.png', // a copy of https://cordn.net/pwa/icon-192.png
     flush: true,
     desc: t('Coordinator-assisted encrypted group messaging: sign in and chat with your key.'),
@@ -504,7 +504,7 @@ function apps() {
     name: 'NymChat',
     url: 'https://nymchat.app',
     domain: 'nymchat.app',
-    cat: 'social',
+    cat: 'messaging',
     // Nothing hotlinkable on the site (data-URI favicon, no apple-touch-icon, the
     // manifest 403s), so the launcher art is bundled like Circl's mark. The squared
     // icon is opaque and fills its frame — flush.
@@ -516,7 +516,7 @@ function apps() {
     name: 'Staircase',
     url: 'https://staircase.chat',
     domain: 'staircase.chat',
-    cat: 'social',
+    cat: 'messaging',
     // Their mark is a dark drawing on a transparent ground, lost on a dark tile, so it is
     // set on their page's paper color (#f8f6f0) as a square of its own, and flush.
     icon: 'icons/apps/staircase.png', // https://staircase.chat/assets/mark.webp on their paper color
@@ -556,7 +556,7 @@ function apps() {
     name: 'Anagram',
     url: 'https://anagram.chat',
     domain: 'anagram.chat',
-    cat: 'social',
+    cat: 'messaging',
     // Transparent mark, so it takes the framed treatment rather than flush.
     icon: 'icons/apps/anagram.png',
     desc: t('Private messaging and calls over Nostr.'),
@@ -626,10 +626,11 @@ function apps() {
 }
 
 // The key order is the category order, for the filter pills and the grid alike.
-const CAT_ORDER = ['social', 'media', 'gaming', 'commerce', 'tools', 'other'];
+const CAT_ORDER = ['social', 'messaging', 'media', 'gaming', 'commerce', 'tools', 'other'];
 function catLabels() {
   return {
     social: t('Social'),
+    messaging: t('Messaging'),
     media: t('Media'),
     gaming: t('Gaming'),
     commerce: t('Commerce'),

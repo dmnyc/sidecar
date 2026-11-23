@@ -336,6 +336,7 @@ body {
 
 /* Category badge palette */
 .cat-social   { background: rgba(167, 139, 250, 0.14); color: var(--lav); }
+.cat-messaging { background: rgba(56, 189, 248, 0.14); color: #38bdf8; }
 .cat-media    { background: rgba(234, 119, 47,  0.14); color: var(--orange); }
 .cat-gaming   { background: rgba(52,  211, 153, 0.14); color: #34d399; }
 .cat-commerce { background: rgba(232, 121, 249, 0.14); color: #e879f9; }

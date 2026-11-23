@@ -2018,5 +2018,6 @@
   "{{count}} more account_other": "ほかに{{count}}件のアカウント",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "地球に重ねられたサイバースペースを探索。自分の世界を築き、隠された宝を見つけ、実在の場所を訪れましょう。",
   "Private direct and group chats that only the people in them can read, with no phone number needed.": "参加している人だけが読める、プライベートな個人チャットとグループチャット。電話番号は不要です。",
-  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostrで返信スパムを送るボットを報告し、その返信を人の目で確認したスパムコーパスに加えましょう。"
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostrで返信スパムを送るボットを報告し、その返信を人の目で確認したスパムコーパスに加えましょう。",
+  "Messaging": "メッセージ"
 }

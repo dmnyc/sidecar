@@ -2091,5 +2091,6 @@
   "{{count}} more account_other": "{{count}} további fiók",
   "Explore a cyberspace mapped onto Earth: build your own world, find hidden treasures, and visit real places.": "Fedezzen fel egy a Földre vetített kibertért: építse fel saját világát, találjon rejtett kincseket, és látogasson el valódi helyekre.",
   "Private direct and group chats that only the people in them can read, with no phone number needed.": "Privát közvetlen és csoportos csevegések, amelyeket csak a résztvevők olvashatnak, telefonszám nélkül.",
-  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Jelentse a válaszokban spammelő botokat a Nostron, és adja hozzá válaszaikat egy emberek által ellenőrzött spamgyűjteményhez."
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Jelentse a válaszokban spammelő botokat a Nostron, és adja hozzá válaszaikat egy emberek által ellenőrzött spamgyűjteményhez.",
+  "Messaging": "Üzenetküldés"
 }
