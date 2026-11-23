@@ -9,7 +9,7 @@
   window.SidecarI18n.ready.then(() => {
     const I18N = window.SidecarI18n;
     const note = document.getElementById('guide-language-note');
-    if (note && I18N.lang !== 'en') {
+    if (note && I18N.lang !== 'en' && I18N.lang !== 'en-GB') {
       note.textContent = I18N.t('This guide is currently available in English. Translations are in progress.');
       note.lang = I18N.lang === 'en-XA' ? 'en' : I18N.lang;
       note.hidden = false;

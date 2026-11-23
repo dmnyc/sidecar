@@ -11,7 +11,9 @@ const {auditCatalog}=require('./i18n-coverage-core');
 const context={Intl};
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(ROOT,'i18n.js'),'utf8'),context);
-const production=context.SidecarI18n.languages().filter(item=>item.code!=='en');
+// English variants (en-GB) list only the strings they spell differently, so they are not
+// measured as translations; test/en-gb.test.js holds them to the English keys instead.
+const production=context.SidecarI18n.languages().filter(item=>!/^en(-|$)/.test(item.code));
 const draftArg=process.argv.find(arg=>arg.startsWith('--draft='));
 const draftCodes=draftArg ? [...new Set(draftArg.slice(8).split(','))] : null;
 if(draftCodes && draftCodes.some(code=>! /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(code))) {
