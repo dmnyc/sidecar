@@ -2089,8 +2089,8 @@
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "YouTube-stílusú videós oldal a Nostren: nézz és tölts fel videókat és shortokat, lejátszási listákkal és feliratkozásokkal.",
   "{{count}} more account_one": "{{count}} további fiók",
   "{{count}} more account_other": "{{count}} további fiók",
-  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for hidden treasure.": "Egy a Földre vetített 3D-s kibertér: fedezze fel avatárjával, építsen, és kutasson rejtett kincsek után.",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Privát közvetlen és csoportos csevegések, amelyeket csak a résztvevők olvashatnak, telefonszám nélkül.",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Egy a Földre vetített 3D-s kibertér: fedezze fel avatárjával, építsen, és kutasson kincsek után.",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "Privát kétszemélyes és csoportos csevegések, amelyeket csak a tagjaik olvashatnak, telefonszám nélkül.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Jelentse a válaszokban spammelő botokat a Nostron, és adja hozzá válaszaikat egy emberek által ellenőrzött spamgyűjteményhez.",
   "Messaging": "Üzenetküldés"
 }

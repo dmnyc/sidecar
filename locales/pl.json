@@ -2235,8 +2235,8 @@
   "{{count}} more account_few": "{{count}} konta więcej",
   "{{count}} more account_many": "{{count}} kont więcej",
   "{{count}} more account_other": "{{count}} konta więcej",
-  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for hidden treasure.": "Trójwymiarowa cyberprzestrzeń nałożona na Ziemię: odkrywaj ją swoim awatarem, buduj i szukaj ukrytych skarbów.",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "Prywatne czaty, bezpośrednie i grupowe, które mogą czytać tylko ich uczestnicy, bez numeru telefonu.",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Trójwymiarowa cyberprzestrzeń nałożona na Ziemię: odkrywaj ją swoim awatarem, buduj i szukaj skarbów.",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "Prywatne czaty jeden na jeden i grupowe, które mogą czytać tylko ich uczestnicy, bez numeru telefonu.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Zgłaszaj boty spamujące w odpowiedziach na Nostr i dodawaj ich odpowiedzi do sprawdzanego przez ludzi korpusu spamu.",
   "Messaging": "Komunikatory"
 }

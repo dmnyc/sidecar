@@ -233,7 +233,7 @@ function apps() {
     // Their touch icon is an opaque square tile that fills its frame, so flush.
     icon: 'icons/apps/onosendai.png', // a copy of https://www.onosendai.tech/apple-touch-icon.png
     flush: true,
-    desc: t('A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for hidden treasure.'),
+    desc: t('A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.'),
   },
   {
     name: 'NostrHub',
@@ -521,7 +521,7 @@ function apps() {
     // set on their page's paper color (#f8f6f0) as a square of its own, and flush.
     icon: 'icons/apps/staircase.png', // https://staircase.chat/assets/mark.webp on their paper color
     flush: true,
-    desc: t('Private direct and group chats that only the people in them can read, with no phone number needed.'),
+    desc: t('Private one-on-one and group chats only their members can read, with no phone number.'),
   },
   {
     name: 'Shakespeare',

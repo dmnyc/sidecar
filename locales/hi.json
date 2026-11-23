@@ -2089,8 +2089,8 @@
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr पर YouTube जैसी वीडियो साइट: वीडियो और शॉर्ट्स देखें और अपलोड करें, प्लेलिस्ट और सब्सक्रिप्शन के साथ।",
   "{{count}} more account_one": "{{count}} और खाता",
   "{{count}} more account_other": "{{count}} और खाते",
-  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for hidden treasure.": "पृथ्वी पर बना एक 3D साइबरस्पेस: अपने अवतार के साथ घूमें, निर्माण करें और छिपे ख़ज़ाने खोजें।",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "निजी सीधी और ग्रुप चैट, जिन्हें सिर्फ़ उनमें शामिल लोग पढ़ सकते हैं, बिना फ़ोन नंबर के।",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "पृथ्वी पर बना एक 3D साइबरस्पेस: अपने अवतार के साथ घूमें, निर्माण करें और ख़ज़ाना खोजें।",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "निजी वन-ऑन-वन और ग्रुप चैट, जिन्हें सिर्फ़ उनके सदस्य पढ़ सकते हैं, बिना फ़ोन नंबर के।",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr पर जवाबों में स्पैम करने वाले बॉट की रिपोर्ट करें और उनके जवाबों को इंसानों द्वारा जाँचे गए स्पैम संग्रह में जोड़ें।",
   "Messaging": "मैसेजिंग"
 }

@@ -2016,8 +2016,8 @@
   "Add an account to chat →": "添加账户以聊天 →",
   "A YouTube-style video site on Nostr: watch and upload videos and shorts, with playlists and subscriptions.": "Nostr 上的 YouTube 风格视频网站：观看和上传视频与短视频，支持播放列表和订阅。",
   "{{count}} more account_other": "还有 {{count}} 个账号",
-  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for hidden treasure.": "映射到地球上的 3D 赛博空间：用你的化身探索、建造，并寻找隐藏的宝藏。",
-  "Private direct and group chats that only the people in them can read, with no phone number needed.": "只有聊天中的人才能阅读的私密单聊和群聊，无需手机号码。",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "映射到地球上的 3D 赛博空间：用你的化身探索、建造，并寻找宝藏。",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "只有成员才能阅读的私密单聊和群聊，无需手机号码。",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "举报 Nostr 上的回复垃圾机器人，并将它们的回复加入经人工审核的垃圾信息语料库。",
   "Messaging": "消息"
 }
