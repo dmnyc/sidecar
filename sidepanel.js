@@ -4139,6 +4139,12 @@
   function buildAcctMenu() {
     const menu = $('acct-menu');
     menu.innerHTML = '';
+    // THE ACCOUNTS SCROLL, THE FOOT STAYS. A long list used to run the menu past the
+    // panel's bottom, so the page scrolled the top bar away and left Add account and
+    // Manage accounts out of sight. The rows go in their own scroller; the two foot rows
+    // sit outside it, and fitAcctMenu holds the whole menu to the panel's height.
+    const list = h('div', { className: 'acct-menu-list' });
+    menu.append(list);
     let pendingRow = null;
 
     function resetRow(row, a) {
@@ -4214,7 +4220,7 @@
           }
         });
       }
-      menu.append(row);
+      list.append(row);
     });
     // Adding an account is the other thing you come to this menu for, and until now
     // it meant going to the Accounts tab first. Same modal the tab's button opens,
@@ -4239,13 +4245,29 @@
     menu.append(foot);
   }
   window.addEventListener('sidecar-open-streams', closeAcctMenu);
+  // Hold the menu to the panel: from where it opens down to 12px above the panel's bottom.
+  // Layout pixels (offsetTop, clientHeight) rather than getBoundingClientRect, so the panel
+  // zoom, which scales the screen but not these, needs no correcting for.
+  function fitAcctMenu() {
+    const menu = $('acct-menu');
+    if (menu.classList.contains('hidden')) return;
+    const view = $('view-main');
+    let top = 0;
+    for (let n = menu; n && n !== view; n = n.offsetParent) top += n.offsetTop;
+    menu.style.maxHeight = Math.max(160, view.clientHeight - top - 12) + 'px';
+  }
   function openAcctMenu() {
     buildAcctMenu();
     const menu = $('acct-menu');
     menu.classList.remove('is-closing');
     show(menu);
+    fitAcctMenu();
+    // The account you are on, in view, wherever it sits in your order.
+    const active = menu.querySelector('.acct-menu-list .acct-row.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
     requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add('is-open')));
   }
+  window.addEventListener('resize', fitAcctMenu);
   function closeAcctMenu() {
     const menu = $('acct-menu');
     if (menu.classList.contains('hidden')) return;
