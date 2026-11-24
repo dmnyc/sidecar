@@ -3081,6 +3081,15 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
 .notif-offnet-toggle:hover { background: var(--hover-medium); color: var(--text); }
 .notif-offnet-toggle svg { width: 14px; height: 14px; flex-shrink: 0; transition: transform 0.18s ease; }
 .notif-offnet-list.hidden { display: none; }
+/* nspam's mark on a stranger's reply that reads like a bot's: after the action's words, in the
+   muted color, with the row itself a step quieter. Marked, not hidden. */
+/* The line is a flex row: on a marked row its gap narrows to sit the mark like a separator,
+   and the row may wrap, so a long translation takes a second line, aligned with the first,
+   rather than running past the panel's edge. */
+.notif-spam-mark { color: var(--muted); font-weight: 500; white-space: nowrap; }
+.notif-spam-mark::before { content: '· '; }
+.notif-item.notif-likely-spam .notif-action { flex-wrap: wrap; column-gap: 4px; row-gap: 0; }
+.notif-item.notif-likely-spam .notif-content, .notif-item.notif-likely-spam .notif-media { opacity: 0.6; }
 /* The explanation sits at the FOOT of the expanded group: it answers "what is this" for
    someone who just opened it, without standing between them and the rows. */
 .notif-offnet-note {

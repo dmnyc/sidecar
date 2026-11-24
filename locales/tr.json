@@ -1769,7 +1769,6 @@
   "A line from a book in empty lists and while they load.": "Boş listelerde ve yüklenirken bir kitaptan bir satır.",
   "Show literary quotes": "Edebi alıntıları göster",
   "Your network first": "Önce ağınız",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "Ağınızın dışından gelen yanıtlar altta gruplanır. Hiçbir şey gizlenmez.",
   "Sort notifications by who you follow": "Bildirimleri takip ettiklerinize göre sırala",
   "Rebuild network": "Ağı yeniden oluştur",
   "Posting": "Paylaşım",
@@ -2337,5 +2336,7 @@
   "{{count}} min read_one": "{{count}} dk okuma",
   "{{count}} min read_other": "{{count}} dk okuma",
   "Raw (recipe category)": "Çiğ",
-  "Healthy (recipe category)": "Sağlıklı"
+  "Healthy (recipe category)": "Sağlıklı",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "Ağınızın dışından gelen yanıtlar, spam denetiminden geçenler dışında altta gruplanır. Hiçbir şey gizlenmez.",
+  "Likely spam": "Muhtemelen spam"
 }

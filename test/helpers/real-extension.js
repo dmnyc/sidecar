@@ -30,7 +30,7 @@ const path = require('node:path');
 const ROOT = process.env.EXTENSION_ROOT || path.join(__dirname, '..', '..');   // EXTENSION_ROOT: a scratch copy, to prove a test fails on old code
 const CHROME = require('./chrome-path').findChrome(); // never the Chrome you browse with: see helpers/chrome-path.js
 
-const SK = { me: '05'.repeat(32), bea: '06'.repeat(32), cal: '07'.repeat(32) };
+const SK = { me: '05'.repeat(32), bea: '06'.repeat(32), cal: '07'.repeat(32), dan: '08'.repeat(32) };
 const PIN = 'testpin1234';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -232,7 +232,7 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
     const nt = nostrTools();
     const me = nt.pubkey('me');
     const handle = {
-      extId, relay, errors, nt, me, bea: nt.pubkey('bea'), cal: nt.pubkey('cal'),
+      extId, relay, errors, nt, me, bea: nt.pubkey('bea'), cal: nt.pubkey('cal'), dan: nt.pubkey('dan'),
       sleep, evaluate, message, waitFor,
       sign: (template, who) => nt.sign(template, who),
       // An event on the relay, signed by `who`.

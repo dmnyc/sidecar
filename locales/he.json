@@ -1830,7 +1830,6 @@
   "A line from a book in empty lists and while they load.": "שורה מספר ברשימות ריקות ובזמן טעינתן.",
   "Show literary quotes": "הצגת ציטוטים ספרותיים",
   "Your network first": "הרשת שלכם קודם",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "תשובות מחוץ לרשת שלכם מקובצות בתחתית. דבר אינו מוסתר.",
   "Sort notifications by who you follow": "מיון התראות לפי מי שאתם עוקבים אחריו",
   "Rebuild network": "בנייה מחדש של הרשת",
   "Posting": "פרסום",
@@ -2412,5 +2411,7 @@
   "{{count}} min read_two": "{{count}} דקות קריאה",
   "{{count}} min read_other": "{{count}} דקות קריאה",
   "Raw (recipe category)": "אוכל חי",
-  "Healthy (recipe category)": "בריא"
+  "Healthy (recipe category)": "בריא",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "תשובות מחוץ לרשת שלכם מקובצות בתחתית, חוץ מאלה שעוברות בדיקת ספאם. דבר אינו מוסתר.",
+  "Likely spam": "כנראה ספאם"
 }

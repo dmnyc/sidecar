@@ -28,6 +28,24 @@ and rewrites the hash file. After running it against a clean checkout,
 | `qrcode-generator.js` | [`qrcode-generator@2.0.4`](https://www.npmjs.com/package/qrcode-generator/v/2.0.4) | `dist/qrcode.js` (byte-exact) | MIT | `79ec86f82856005b1c887905cfccfcfbec3821ca61c7fd5a952faa5f778f791c` |
 | `emoji-data.js` | [`unicode-emoji-json@0.9.0`](https://www.npmjs.com/package/unicode-emoji-json/v/0.9.0) + [`emojibase-data@17.0.0`](https://www.npmjs.com/package/emojibase-data/v/17.0.0) | `data-by-group.json` + `en/compact.json` (reduced and joined, see below) | MIT | `b031347618b2b5cb9e1ac505b4ebacb4ed067e33a4a11b700755786ebeff11c5` |
 
+## The nspam model
+
+`models/nspam.bin` is data, not code: the reply-spam model
+[nspam](https://huggingface.co/barrydeen/nspam) v2.4 (MIT), 500 LightGBM trees and an
+isotonic calibration table, repacked from the published `model.txt` and `calibration.npz`
+into the compact format `nspam.js` reads. `scripts/build-nspam-model.py` downloads both at
+a pinned revision (`29f76c80010554f64ef385608b20aad50ea0498e`), checks each against a pinned
+SHA-256, and writes the file byte-reproducibly; it also copies the model's reference cases
+into `test/fixtures/nspam/`, which `test/nspam.test.js` runs `nspam.js` against.
+
+| File | Source | License | SHA-256 |
+|---|---|---|---|
+| `models/nspam.bin` | `barrydeen/nspam` v2.4, `model.txt` + `calibration.npz` (repacked) | MIT | `67e3f69c5bcde9e5ec14d68382665aa3f5d72b6deed8d9235dd2d110e7b642c8` |
+
+`nspam.js` is first-party: a port of the model's feature pipeline, written from the Go port
+in `nspam-strfry` (MIT) and corrected to Python's whitespace and word classes where the
+reference cases showed it differed.
+
 All licenses are permissive and compatible with this repository's MIT license.
 (The previous QR renderer, `qrious`, was GPL-3.0 and has been replaced by
 `qrcode-generator` plus the first-party `qr.js` adapter.)

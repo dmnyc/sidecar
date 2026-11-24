@@ -1769,7 +1769,6 @@
   "A line from a book in empty lists and while they load.": "Μια φράση από βιβλίο σε κενές λίστες και ενώ φορτώνονται.",
   "Show literary quotes": "Εμφάνιση λογοτεχνικών αποσπασμάτων",
   "Your network first": "Πρώτα το δίκτυό σας",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "Οι απαντήσεις από εκτός του δικτύου σας ομαδοποιούνται στο κάτω μέρος. Δεν κρύβεται τίποτα.",
   "Sort notifications by who you follow": "Ταξινόμηση ειδοποιήσεων με βάση όσους ακολουθείτε",
   "Rebuild network": "Επανυπολογισμός δικτύου",
   "Posting": "Δημοσίευση",
@@ -2337,5 +2336,7 @@
   "{{count}} min read_one": "{{count}} λεπτό ανάγνωσης",
   "{{count}} min read_other": "{{count}} λεπτά ανάγνωσης",
   "Raw (recipe category)": "Ωμό",
-  "Healthy (recipe category)": "Υγιεινό"
+  "Healthy (recipe category)": "Υγιεινό",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "Οι απαντήσεις από εκτός του δικτύου σας ομαδοποιούνται στο κάτω μέρος, εκτός από όσες περνούν τον έλεγχο spam. Δεν κρύβεται τίποτα.",
+  "Likely spam": "Πιθανό spam"
 }

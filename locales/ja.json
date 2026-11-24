@@ -1708,7 +1708,6 @@
   "A line from a book in empty lists and while they load.": "空のリストや読み込み中に、本の一節を表示します。",
   "Show literary quotes": "文学の引用を表示",
   "Your network first": "ネットワークを優先",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "ネットワーク外からの返信は下にまとめて表示されます。非表示のものはありません。",
   "Sort notifications by who you follow": "フォロー中の人で通知を並べ替え",
   "Rebuild network": "ネットワークを再構築",
   "Posting": "投稿",
@@ -2262,5 +2261,7 @@
   "{{count}} image link_other": "画像リンク{{count}}件",
   "{{count}} min read_other": "{{count}}分で読めます",
   "Raw (recipe category)": "ロー",
-  "Healthy (recipe category)": "ヘルシー"
+  "Healthy (recipe category)": "ヘルシー",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "ネットワーク外からの返信は、スパムチェックを通過したものを除き、下にまとめて表示されます。非表示のものはありません。",
+  "Likely spam": "スパムの可能性"
 }

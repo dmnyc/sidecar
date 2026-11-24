@@ -1596,7 +1596,7 @@
     // large follow list it is ~20 chunked kind:3 queries across every relay — landing
     // exactly when the bell is resolving names, which is how those names became npubs. It
     // runs once a day; it does not need to win a race against what you are reading.
-    if (notifWotFilter) setTimeout(() => { getWotSet().catch(() => {}); }, 4000);
+    if (notifWotFilter) setTimeout(() => { getWotSet().catch(() => {}); warmNspam(); }, 4000);
     // Which relays this account will identify itself to. Rebuilt here because this runs
     // on load AND on every state change, including an account switch — the declared
     // relay list belongs to the account, so the allowlist has to follow it.
@@ -3991,6 +3991,69 @@
         resolve((got && got[WOT_STORE]) || null);
       })
     );
+  }
+
+  // ---- nspam: a second opinion on strangers' replies (nspam.js) ----
+  // THE WEB OF TRUST KNOWS YOUR CIRCLE AND NOTHING ABOUT A STRANGER; nspam knows nothing about
+  // your circle and something about the stranger, from how their replies read. So it only ever
+  // re-sorts the out-of-network group: a reply it clearly takes for a person's (NSPAM_LIFT or
+  // under) joins your list, and one it takes for a bot's (NSPAM_LABEL or over) stays in the group
+  // marked "Likely spam". Its calibration is nearly a step, so almost every score is 0 or 1 and
+  // the two lines are far apart. Nothing is hidden, and with no model loaded the bell sorts as it
+  // always did: fail open, like the trust set.
+  const NSPAM_LIFT = 0.05;
+  const NSPAM_LABEL = 0.9;
+  let _nspamModel = null;
+  let _nspamLoading = null;
+  function warmNspam() {
+    if (_nspamModel || _nspamLoading || !self.SidecarNspam) return _nspamLoading;
+    _nspamLoading = fetch(chrome.runtime.getURL('models/nspam.bin'))
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error('nspam model: ' + r.status))))
+      .then((buf) => { _nspamModel = self.SidecarNspam.load(buf); })
+      .catch(() => { /* no model: the bell sorts by the trust set alone */ })
+      .finally(() => { _nspamLoading = null; });
+    return _nspamLoading;
+  }
+  // A LINK IS NEVER LIFTED. The model reads a stranger's one short reply pushing a domain
+  // ("👀 LOok At tHis: one.example.cc") as a person's, sure of it, and lifting it put spam at the
+  // top of the bell. A reply with a link or a bare domain stays in the group, as every
+  // stranger's did before; the model lifts conversation only. nostr: references are not links.
+  // A picture or a video is not that kind of link: people answer with GIFs and photos all the
+  // time, and bait points at a page. One is known by its file ending or its Blossom hash.
+  // A domain ends in a lowercase name, which "point.Agreed" with its space left out does not.
+  const NSPAM_URL = /https?:\/\/|www\./i;
+  const NSPAM_DOMAIN = /(^|[^\w@.\/-])[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[a-z]{2,}(?![\w-])/;
+  const NSPAM_MEDIA = /https?:\/\/\S+?(\.(png|jpe?g|gif|webp|avif|heic|svg|mp4|webm|mov|m4v)|\/[0-9a-f]{64}(\.\w{2,5})?)(\?\S*)?(?=\s|$)/gi;
+  const carriesLink = (ev) => {
+    const text = String((ev && ev.content) || '').replace(/nostr:[a-z0-9]+/gi, '').replace(NSPAM_MEDIA, ' ');
+    return NSPAM_URL.test(text) || NSPAM_DOMAIN.test(text);
+  };
+
+  // Out-of-network events in; each scored reply's score by id, and the ids to lift. An author's
+  // replies are scored together, newest first, up to ten: that is how the model reads them.
+  function judgeStrangers(events) {
+    const N = self.SidecarNspam;
+    const scores = new Map();
+    const lift = new Set();
+    if (!_nspamModel || !N) return { scores, lift };
+    const byAuthor = new Map();
+    for (const ev of events) {
+      if (!N.scorable(ev)) continue;
+      const mine = byAuthor.get(ev.pubkey) || [];
+      if (!mine.some((x) => x.id === ev.id)) mine.push(ev);
+      byAuthor.set(ev.pubkey, mine);
+    }
+    for (const mine of byAuthor.values()) {
+      mine.sort((x, y) => y.created_at - x.created_at);
+      let r = null;
+      try { r = N.score(_nspamModel, mine); } catch (_) { /* unscored, so unmoved */ }
+      if (!r) continue;
+      for (const ev of mine) {
+        scores.set(ev.id, r.score);
+        if (r.score <= NSPAM_LIFT && !carriesLink(ev)) lift.add(ev.id);
+      }
+    }
+    return { scores, lift };
   }
 
   async function getWotSet() {
@@ -8698,8 +8761,14 @@
     // (see getWotSet) so the usual case is that it is ready by the time you open the bell.
     const wotSet = notifWotFilter && self.SidecarWot && _wotPubkey === a.pubkey ? _wotSet : null;
     const split = wotSet ? self.SidecarWot.partition(wotSet, shown, zapSender) : null;
-    const events = split ? split.inn : shown;
-    const offNet = split ? split.out : [];
+    // And nspam's second opinion on the strangers: lifted replies join the list in their place
+    // in time, the rest stay grouped, and its scores mark likely spam in the rows (buildItem).
+    const judged = split ? judgeStrangers(split.out) : { scores: new Map(), lift: new Set() };
+    const spamScores = judged.scores;
+    const outIds = new Set(split ? split.out.map((e) => e.id) : []);
+    const events = split ? shown.filter((e) => !outIds.has(e.id) || judged.lift.has(e.id)) : shown;
+    const offNet = split ? split.out.filter((e) => !judged.lift.has(e.id)) : [];
+    if (notifWotFilter && !_nspamModel) warmNspam();
     const PAGE = NOTIF_SCREEN;
 
     function buildItem(ev) {
@@ -8824,6 +8893,11 @@
 
       // Action row
       const actionRow = h('div', { className: 'notif-action', textContent: text });
+      // Its own element, never glued onto the action's words: those are a translated sentence.
+      if ((spamScores.get(ev.id) || 0) >= NSPAM_LABEL) {
+        item.classList.add('notif-likely-spam');
+        actionRow.append(h('span', { className: 'notif-spam-mark', textContent: t('Likely spam') }));
+      }
       item.appendChild(actionRow);
 
       // The ⋮ menu opens directly under the line it came from, not at the foot of a row
@@ -9643,7 +9717,15 @@
       // time you reopened — which is exactly when someone is most likely to be looking.
       function addLive(ev) {
         clearEmptyMessage();
+        // A stranger's reply is judged with their others already here, and joins the list if
+        // it clears the spam check, as it would have had it been there when the bell opened.
+        let lifted = false;
         if (split && !self.SidecarWot.inNetwork(wotSet, zapSender(ev))) {
+          const j = judgeStrangers([ev, ...offNet.filter((x) => x.pubkey === ev.pubkey)]);
+          j.scores.forEach((v, id) => spamScores.set(id, v));
+          lifted = j.lift.has(ev.id);
+        }
+        if (!lifted && split && !self.SidecarWot.inNetwork(wotSet, zapSender(ev))) {
           offNet.unshift(ev);
           showOffNet();
           if (offNetBox) {
@@ -9737,6 +9819,12 @@
         if (!fresh.length) return;
         for (const e of fresh) { drawnIds.add(e.id); oldestDrawn = Math.min(oldestDrawn, e.created_at); }
         const part = wotSet ? self.SidecarWot.partition(wotSet, fresh, zapSender) : { inn: fresh, out: [] };
+        const j = judgeStrangers(part.out);
+        j.scores.forEach((v, id) => spamScores.set(id, v));
+        if (j.lift.size) {
+          part.inn = [...part.inn, ...part.out.filter((e) => j.lift.has(e.id))].sort((x, y) => y.created_at - x.created_at);
+          part.out = part.out.filter((e) => !j.lift.has(e.id));
+        }
         events.push(...part.inn);
         if (part.out.length) {
           offNet.push(...part.out);
@@ -26721,7 +26809,7 @@
     // large follow list it is ~20 chunked kind:3 queries across every relay — landing
     // exactly when the bell is resolving names, which is how those names became npubs. It
     // runs once a day; it does not need to win a race against what you are reading.
-    if (notifWotFilter) setTimeout(() => { getWotSet().catch(() => {}); }, 4000);
+    if (notifWotFilter) setTimeout(() => { getWotSet().catch(() => {}); warmNspam(); }, 4000);
   });
 
   $('reducemotion-toggle').addEventListener('change', async (e) => {

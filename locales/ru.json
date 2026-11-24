@@ -1891,7 +1891,6 @@
   "A line from a book in empty lists and while they load.": "Строка из книги в пустых списках и во время их загрузки.",
   "Show literary quotes": "Показывать цитаты из литературы",
   "Your network first": "Сначала ваша сеть",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "Ответы из-за пределов вашей сети сгруппированы внизу. Ничего не скрыто.",
   "Sort notifications by who you follow": "Сортировать уведомления по подпискам",
   "Rebuild network": "Перестроить сеть",
   "Posting": "Публикация",
@@ -2487,5 +2486,7 @@
   "{{count}} min read_one": "{{count}} минута чтения",
   "{{count}} min read_other": "{{count}} минуты чтения",
   "Raw (recipe category)": "Сыроедение",
-  "Healthy (recipe category)": "Полезное"
+  "Healthy (recipe category)": "Полезное",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "Ответы из-за пределов вашей сети сгруппированы внизу, кроме тех, что прошли проверку на спам. Ничего не скрыто.",
+  "Likely spam": "Похоже на спам"
 }

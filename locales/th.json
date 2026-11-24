@@ -1708,7 +1708,6 @@
   "A line from a book in empty lists and while they load.": "ประโยคจากหนังสือในรายการว่างและระหว่างที่กำลังโหลด",
   "Show literary quotes": "แสดงคำคมวรรณกรรม",
   "Your network first": "เครือข่ายของคุณก่อน",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "การตอบกลับจากนอกเครือข่ายของคุณจะถูกจัดกลุ่มไว้ด้านล่าง ไม่มีสิ่งใดถูกซ่อน",
   "Sort notifications by who you follow": "จัดเรียงการแจ้งเตือนตามคนที่คุณติดตาม",
   "Rebuild network": "สร้างเครือข่ายใหม่",
   "Posting": "การโพสต์",
@@ -2262,5 +2261,7 @@
   "{{count}} image link_other": "ลิงก์รูป {{count}} รายการ",
   "{{count}} min read_other": "อ่าน {{count}} นาที",
   "Raw (recipe category)": "อาหารดิบ",
-  "Healthy (recipe category)": "เพื่อสุขภาพ"
+  "Healthy (recipe category)": "เพื่อสุขภาพ",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "การตอบกลับจากนอกเครือข่ายของคุณจะถูกจัดกลุ่มไว้ด้านล่าง ยกเว้นรายการที่ผ่านการตรวจสแปม ไม่มีสิ่งใดถูกซ่อน",
+  "Likely spam": "น่าจะเป็นสแปม"
 }

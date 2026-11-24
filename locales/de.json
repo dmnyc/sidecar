@@ -1619,7 +1619,6 @@
   "A line from a book in empty lists and while they load.": "Ein Satz aus einem Buch in leeren Listen und beim Laden.",
   "Show literary quotes": "Literarische Zitate anzeigen",
   "Your network first": "Dein Netzwerk zuerst",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "Antworten von außerhalb deines Netzwerks werden unten gruppiert. Nichts wird ausgeblendet.",
   "Sort notifications by who you follow": "Benachrichtigungen nach gefolgten Personen sortieren",
   "Rebuild network": "Netzwerk neu aufbauen",
   "Posting": "Veröffentlichen",
@@ -2337,5 +2336,7 @@
   "{{count}} min read_one": "{{count}} Min. Lesezeit",
   "{{count}} min read_other": "{{count}} Min. Lesezeit",
   "Raw (recipe category)": "Rohkost",
-  "Healthy (recipe category)": "Gesund"
+  "Healthy (recipe category)": "Gesund",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "Antworten von außerhalb deines Netzwerks werden unten gruppiert, außer denen, die eine Spamprüfung besteht. Nichts wird ausgeblendet.",
+  "Likely spam": "Wahrscheinlich Spam"
 }
