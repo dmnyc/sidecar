@@ -2643,6 +2643,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "محادثات خاصة، فردية وجماعية، لا يقرؤها إلا أعضاؤها، دون رقم هاتف.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "أبلغ عن روبوتات الرسائل المزعجة في الردود على Nostr وأضف ردودها إلى مجموعة رسائل مزعجة يراجعها بشر.",
   "Messaging": "المراسلة",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "قد لا تدفع محفظتك فاتورة بلا مبلغ. اطلب فاتورة تذكر مبلغها.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "التوقيع لـ {{host}} بصفة {{name}} دون سؤال لمدة 30 دقيقة.",
   "your account": "حسابك",
   "Searching names beyond your follows. Click to search only your follows.": "يجري البحث عن الأسماء خارج الحسابات التي تتابعها. انقر للبحث في الحسابات التي تتابعها فقط.",

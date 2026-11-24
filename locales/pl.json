@@ -2493,6 +2493,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "Prywatne czaty jeden na jeden i grupowe, które mogą czytać tylko ich uczestnicy, bez numeru telefonu.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Zgłaszaj boty spamujące w odpowiedziach na Nostr i dodawaj ich odpowiedzi do sprawdzanego przez ludzi korpusu spamu.",
   "Messaging": "Komunikatory",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Twój portfel może nie opłacić faktury bez kwoty. Poproś o taką, która ją podaje.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "Podpisywanie dla {{host}} jako {{name}} bez pytania przez 30 minut.",
   "your account": "twoje konto",
   "Searching names beyond your follows. Click to search only your follows.": "Wyszukiwanie nazw poza twoimi obserwowanymi. Kliknij, aby szukać tylko wśród twoich obserwowanych.",

@@ -454,6 +454,33 @@ test('AN AMOUNTLESS INVOICE ASKS FOR THE AMOUNT, AND PASSES IT TO THE WALLET', a
   assert.deepEqual(s.paid, [{ inv: DONATION, msat: 21000 }]);
 });
 
+// NIP-47 makes pay_invoice's amount optional for a wallet to honor, and a wallet that refuses an
+// amountless invoice rarely says why. When it refuses (walletDenied), the bar says first that the
+// wallet may not pay an invoice without an amount; an unanswered payment, or an invoice that
+// carried its own amount, gets the wallet's words alone.
+test('A WALLET THAT REFUSES AN AMOUNTLESS INVOICE IS EXPLAINED, AND ONLY THEN', async () => {
+  const refuse = (denied) => async () => { const e = new Error('Payment failed'); if (denied) e.walletDenied = true; throw e; };
+  const HINT = 'Your wallet may not pay an invoice without an amount. Ask for one that states it.';
+
+  let s = openSheet({ now: SIGNED_AT + 10, payInvoice: refuse(true) });
+  await s.paste(DONATION);
+  s.amount.value = '21';
+  await s.pay.fire('click');
+  assert.equal(s.flights[0].settles[0].sub, HINT + ' Payment failed');
+
+  s = openSheet({ now: SIGNED_AT + 10, payInvoice: refuse(false) });
+  await s.paste(DONATION);
+  s.amount.value = '21';
+  await s.pay.fire('click');
+  assert.equal(s.flights[0].settles[0].sub, 'Payment failed', 'an unanswered payment is not explained as a refusal');
+
+  s = openSheet({ now: SIGNED_AT + 10, payInvoice: refuse(true) });
+  await s.paste(COFFEE);
+  await s.pay.fire('click');
+  await s.pay.fire('click'); // 250,000 sats: the second press pays
+  assert.equal(s.flights[0].settles[0].sub, 'Payment failed', 'an invoice with its own amount needs no hint');
+});
+
 // ---- an invoice this Sidecar has already paid ---------------------------------------------
 
 const settle = () => new Promise((r) => setImmediate(r));

@@ -2418,6 +2418,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "צ׳אטים פרטיים, אישיים וקבוצתיים, שרק החברים בהם יכולים לקרוא, בלי מספר טלפון.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "דווחו על בוטים ששולחים ספאם בתגובות ב־Nostr והוסיפו את התגובות שלהם למאגר ספאם שנבדק בידי בני אדם.",
   "Messaging": "מסרים",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "ייתכן שהארנק שלכם לא משלם חשבונית ללא סכום. בקשו חשבונית שמציינת אותו.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "חותם עבור {{host}} בתור {{name}} בלי לשאול למשך 30 דקות.",
   "your account": "החשבון שלכם",
   "Searching names beyond your follows. Click to search only your follows.": "מחפש שמות גם מעבר למי שבמעקב שלכם. לחצו כדי לחפש רק בין מי שבמעקב שלכם.",

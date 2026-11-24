@@ -2268,6 +2268,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "只有成员才能阅读的私密单聊和群聊，无需手机号码。",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "举报 Nostr 上的回复垃圾机器人，并将它们的回复加入经人工审核的垃圾信息语料库。",
   "Messaging": "消息",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "你的钱包可能不支付没有金额的发票。请索取注明金额的发票。",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "接下来 30 分钟内，将以 {{name}} 为 {{host}} 签名，无需询问。",
   "your account": "你的账户",
   "Searching names beyond your follows. Click to search only your follows.": "正在搜索你关注范围之外的名称。点击可仅搜索你的关注。",

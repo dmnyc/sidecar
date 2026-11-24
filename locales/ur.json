@@ -2343,6 +2343,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "نجی ون آن ون اور گروپ چیٹس جنہیں صرف ان کے ارکان پڑھ سکتے ہیں، فون نمبر کے بغیر۔",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr پر جوابات میں اسپام کرنے والے بوٹس کی رپورٹ کریں اور ان کے جوابات کو انسانوں کے جانچے ہوئے اسپام ذخیرے میں شامل کریں۔",
   "Messaging": "پیغام رسانی",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "ہو سکتا ہے آپ کا بٹوہ بغیر رقم والی انوائس ادا نہ کرے۔ ایسی انوائس مانگیں جس میں رقم درج ہو۔",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "30 منٹ تک بغیر پوچھے {{host}} کے لیے {{name}} کے طور پر دستخط ہو رہے ہیں۔",
   "your account": "آپ کا اکاؤنٹ",
   "Searching names beyond your follows. Click to search only your follows.": "آپ کے فالو کیے ہوئے لوگوں سے باہر نام تلاش ہو رہے ہیں۔ صرف فالو کیے ہوئے لوگوں میں تلاش کے لیے کلک کریں۔",

@@ -2493,6 +2493,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "Личные и групповые чаты, которые могут читать только их участники, без номера телефона.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Сообщайте о спам-ботах в ответах в Nostr и добавляйте их ответы в проверенный людьми корпус спама.",
   "Messaging": "Мессенджеры",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Ваш кошелёк может не оплатить инвойс без суммы. Попросите инвойс с указанной суммой.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "Подписываем для {{host}} от имени {{name}} без запроса в течение 30 минут.",
   "your account": "ваш аккаунт",
   "Searching names beyond your follows. Click to search only your follows.": "Поиск имён за пределами ваших подписок. Нажмите, чтобы искать только среди подписок.",

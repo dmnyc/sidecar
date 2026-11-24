@@ -2343,6 +2343,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "Yalnızca üyelerinin okuyabildiği özel birebir ve grup sohbetleri, telefon numarası olmadan.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr’da yanıtlara spam atan botları bildir ve yanıtlarını insanlarca incelenen bir spam derlemine ekle.",
   "Messaging": "Mesajlaşma",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Cüzdanınız tutarı olmayan bir faturayı ödemeyebilir. Tutarı belirten bir fatura isteyin.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "30 dakika boyunca {{host}} için {{name}} olarak sormadan imzalanıyor.",
   "your account": "hesabınız",
   "Searching names beyond your follows. Click to search only your follows.": "Takip ettiklerinizin ötesinde de isim aranıyor. Yalnızca takip ettiklerinizde aramak için tıklayın.",

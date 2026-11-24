@@ -2268,6 +2268,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "참여한 사람만 읽을 수 있는 비공개 1:1 및 그룹 채팅. 전화번호 없이 쓸 수 있어요.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr에서 답글 스팸 봇을 신고하고, 그 답글을 사람이 검토한 스팸 말뭉치에 추가하세요.",
   "Messaging": "메신저",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "지갑이 금액 없는 인보이스는 결제하지 않을 수 있어요. 금액이 적힌 인보이스를 요청하세요.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "30분 동안 {{host}}에서 {{name}} 계정으로 묻지 않고 서명해요.",
   "your account": "내 계정",
   "Searching names beyond your follows. Click to search only your follows.": "팔로우 밖의 이름까지 검색하고 있어요. 클릭하면 팔로우만 검색해요.",

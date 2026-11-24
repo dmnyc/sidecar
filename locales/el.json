@@ -2343,6 +2343,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "Ιδιωτικές προσωπικές και ομαδικές συνομιλίες που διαβάζουν μόνο τα μέλη τους, χωρίς αριθμό τηλεφώνου.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Αναφέρετε bots που στέλνουν spam σε απαντήσεις στο Nostr και προσθέστε τις απαντήσεις τους σε ένα σώμα spam ελεγμένο από ανθρώπους.",
   "Messaging": "Μηνύματα",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Το πορτοφόλι σας ίσως δεν πληρώνει τιμολόγιο χωρίς ποσό. Ζητήστε ένα που αναγράφει το ποσό.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "Υπογραφή για το {{host}} ως {{name}} χωρίς ερώτηση για 30 λεπτά.",
   "your account": "τον λογαριασμό σας",
   "Searching names beyond your follows. Click to search only your follows.": "Αναζήτηση ονομάτων και πέρα από όσους ακολουθείτε. Κάντε κλικ για αναζήτηση μόνο σε όσους ακολουθείτε.",

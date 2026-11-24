@@ -2268,6 +2268,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "แชทส่วนตัวแบบตัวต่อตัวและแบบกลุ่มที่มีเพียงสมาชิกเท่านั้นที่อ่านได้ โดยไม่ต้องใช้เบอร์โทรศัพท์",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "รายงานบอตที่สแปมในการตอบกลับบน Nostr และเพิ่มการตอบกลับของพวกมันลงในคลังสแปมที่มนุษย์ตรวจสอบแล้ว",
   "Messaging": "การส่งข้อความ",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "กระเป๋าเงินของคุณอาจไม่จ่ายใบแจ้งหนี้ที่ไม่มีจำนวน ขอใบแจ้งหนี้ที่ระบุจำนวน",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "กำลังลงนามให้ {{host}} ในนาม {{name}} โดยไม่ถามเป็นเวลา 30 นาที",
   "your account": "บัญชีของคุณ",
   "Searching names beyond your follows. Click to search only your follows.": "กำลังค้นหาชื่อนอกเหนือจากคนที่คุณติดตาม คลิกเพื่อค้นหาเฉพาะคนที่คุณติดตาม",

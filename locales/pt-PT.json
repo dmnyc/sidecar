@@ -2418,6 +2418,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "Conversas privadas, individuais e de grupo, que só os membros podem ler, sem número de telemóvel.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Denuncia bots de spam em respostas no Nostr e junta as respostas deles a um corpus de spam revisto por pessoas.",
   "Messaging": "Mensagens",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "A tua carteira pode não pagar uma fatura sem montante. Pede uma que o indique.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "A assinar para {{host}} como {{name}} sem perguntar durante 30 minutos.",
   "your account": "a tua conta",
   "Searching names beyond your follows. Click to search only your follows.": "A pesquisar nomes além de quem segues. Clica para pesquisar só entre quem segues.",

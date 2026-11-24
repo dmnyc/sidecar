@@ -2343,6 +2343,7 @@
   "Private one-on-one and group chats only their members can read, with no phone number.": "Privát kétszemélyes és csoportos csevegések, amelyeket csak a tagjaik olvashatnak, telefonszám nélkül.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Jelentse a válaszokban spammelő botokat a Nostron, és adja hozzá válaszaikat egy emberek által ellenőrzött spamgyűjteményhez.",
   "Messaging": "Üzenetküldés",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Előfordulhat, hogy a tárcája nem fizet ki összeg nélküli számlát. Kérjen olyat, amely tartalmazza az összeget.",
   "Signing for {{host}} as {{name}} without asking for 30 minutes.": "Aláírás {{name}} néven itt: {{host}}, 30 percig kérdezés nélkül.",
   "your account": "az Ön fiókja",
   "Searching names beyond your follows. Click to search only your follows.": "Nevek keresése a követetteken túl is. Kattintson, ha csak a követettek között szeretne keresni.",

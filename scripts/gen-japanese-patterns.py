@@ -27,6 +27,8 @@ under the waves, and a painted disc would have to be one color.
 """
 import math, random
 
+from svg_paths import compact_svg  # straight-line paths in their shortest exact form
+
 # ---- Wabi-sabi -----------------------------------------------------------------------
 KW, KH = 520, 1040              # portrait, taller than a panel, so the break never visibly repeats
 # The WIDE break, for the full-tab composer: the 520 tile repeats three times across a
@@ -363,9 +365,9 @@ def ukiyo_e():
 
 if __name__ == '__main__':
     with open('themes/wabi-sabi-seams.svg', 'w') as f:
-        f.write(wabi_sabi())
+        f.write(compact_svg(wabi_sabi()))
     with open('themes/wabi-sabi-seams-wide.svg', 'w') as f:
-        f.write(wabi_sabi((WIDE_KW, WIDE_KH)))
+        f.write(compact_svg(wabi_sabi((WIDE_KW, WIDE_KH))))
     with open('themes/ukiyo-e-seigaiha.svg', 'w') as f:
-        f.write(ukiyo_e())
+        f.write(compact_svg(ukiyo_e()))
     print('wrote themes/wabi-sabi-seams.svg (and -wide) and themes/ukiyo-e-seigaiha.svg')
