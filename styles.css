@@ -2248,7 +2248,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .add-account-badge svg { width: 12px; height: 12px; }
 .add-account-link:hover .add-account-badge { background: var(--lav); }
-.explore-link-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; padding: 0 4px; }
+/* THE LINKS AND ON THIS DAY SIT AT THE FOOT OF THE PANEL when there is room, as a footer:
+   the accounts tab is a column that fills the panel, and the auto margin takes the free
+   space above them. Without room it is nothing, and the padding keeps the 24px they always
+   had below the accounts. The panel's own bottom padding keeps them clear of the compose
+   button. */
+.explore-link-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding: 24px 4px 0; }
 .explore-link { font-size: 13px; color: var(--muted); text-decoration: none; text-align: center; display: block; }
 .explore-link:hover { color: var(--lav); }
 /* For a link sitting inside a sentence rather than on its own line — the base rule
