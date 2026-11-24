@@ -15396,7 +15396,10 @@
       catch (_) {} // Missing/unavailable settings leave demo controls off.
     }
     // Deliberately not saved in drafts: a demo override belongs to this opening only.
-    let devKind = 0;
+    // Reply to any event can choose the reply's kind before the event loads; it arrives here
+    // with the reply and holds for this opening, whether or not the kind selector is on.
+    let devKind = (opts && opts.devReplyKind) || 0;
+    const devKindForced = !!(opts && opts.devReplyKind);
     let devSilentInput = null;   // the field, so publish can read it without a lookup
     let devReplyField = null;    // the reply-by-id field, so Post can see an id left in it
     // `let`, not const: a saved draft can carry its own reply target, and resuming one
@@ -15793,7 +15796,7 @@
     let replyKindEl = null;
     function paintReplyKind() {
       if (!replyKindEl || !replyTo) return;
-      const kind = isDevBuild() && devKindEnabled && devKind ? devKind : window.SidecarCore.replyKind(replyTo);
+      const kind = isDevBuild() && (devKindEnabled || devKindForced) && devKind ? devKind : window.SidecarCore.replyKind(replyTo);
       replyKindEl.textContent = t('kind {{kind}}', { kind });
     }
     function buildReplyBlock() {
@@ -15886,7 +15889,9 @@
       // marked root as the thread, and NIP-22 scope is read positionally by some
       // clients. Mentions and quotes from the body follow, deduped against the
       // participants replyTags already added.
-      const reply = isDevBuild() && devKindEnabled && settings?.devComposerKinds === true && devKind
+      // The switch that chose the kind is read again here, as the kind selector's always was.
+      const kindChosen = (devKindEnabled && settings?.devComposerKinds === true) || (devKindForced && settings?.devReplyById === true);
+      const reply = isDevBuild() && kindChosen && devKind
         ? await devComposerReply(replyTo, devKind)
         : replyTo ? replyTags(replyTo) : null;
       const already = new Set((reply ? reply.tags : []).filter((t) => t[0] === 'p').map((t) => t[1]));
@@ -16014,6 +16019,14 @@
       const go = h('button', { type: 'button', className: 'secondary', textContent: t('Reply to this event') });
       const hint = h('p', { className: 'hint', textContent: t('Dev build only. Paste an ID, or type one and press Enter.') });
       devReplyField = field;
+      // THE REPLY'S KIND, chosen before the event loads: Automatic is the kind a reply to it
+      // takes anyway; kind 1 or kind 1111 force a note or a NIP-22 comment, whatever it answers.
+      const kindSelect = h('select', { id: 'compose-dev-reply-kind' });
+      kindSelect.append(
+        h('option', { value: '0', textContent: t('Automatic') }),
+        h('option', { value: '1', textContent: t('Kind 1 — note') }),
+        h('option', { value: '1111', textContent: t('Kind 1111 — comment') }),
+      );
       const load = async () => {
         if (go.disabled) return;
         const ref = devParseEventRef(field.value);
@@ -16038,7 +16051,10 @@
         await flushDraftNow();
         switchingDraft = true;
         closeModal();
-        openComposer(text, { replyTo: { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content } });
+        openComposer(text, {
+          replyTo: { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content },
+          devReplyKind: Number(kindSelect.value) || 0,
+        });
       };
       go.addEventListener('click', load);
       // AN ID IN THE FIELD IS AN ID TO LOAD. Typing one and pressing Post published a plain
@@ -16047,7 +16063,8 @@
       field.addEventListener('paste', () => setTimeout(() => { if (devParseEventRef(field.value)) load(); }, 0));
       field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); load(); } });
       return h('div', { className: 'compose-dev-kind compose-dev-reply' }, [
-        h('label', { htmlFor: 'compose-dev-reply', textContent: t('Reply to an event') }), field, go, hint,
+        h('label', { htmlFor: 'compose-dev-reply', textContent: t('Reply to an event') }), field,
+        h('label', { htmlFor: 'compose-dev-reply-kind', textContent: t('Demo event kind') }), kindSelect, go, hint,
       ]);
     }
 
@@ -16893,7 +16910,7 @@
           }));
         }
       }
-      if (isDevBuild() && devKindEnabled && devKind && !draft.poll) {
+      if (isDevBuild() && (devKindEnabled || devKindForced) && devKind && !draft.poll) {
         previewScroll.append(h('p', { className: 'hint', textContent: t('Demo event kind: {{kind}}', { kind: devKind }) }));
       }
       const previewBody = h('div', { className: 'preview-body' });
@@ -29042,7 +29059,7 @@
         h('label', { className: 'toggle-row' }, [
           replyToggle, h('span', { textContent: 'Reply to any event' }),
         ]),
-        h('p', { className: 'hint', textContent: 'Enter an event ID in the main composer to reply to it. Applies when you next open the composer.' }),
+        h('p', { className: 'hint', textContent: 'Enter an event ID in the main composer to reply to it, as kind 1, kind 1111 or the kind it would take. Applies when you next open the composer.' }),
         cardBtn,
       ]));
 

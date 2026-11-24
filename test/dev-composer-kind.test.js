@@ -65,6 +65,19 @@ test('a kind 1111 reply to a kind 1 note names its root, parent, and both author
   ]);
 });
 
+test('A KIND 1111 COMMENT ON ANY OTHER KIND NAMES THAT KIND AS ITS ROOT', async () => {
+  // Reply to any event loads an article, a picture, anything: K is the kind of the root, so
+  // it said 1 for an article before, and a NIP-22 reader filed the comment under notes.
+  const article = { id: 'article', pubkey: 'gatsby', kind: 30023, tags: [['d', 'essay']] };
+  const result = await setup().devComposerReply(article, 1111);
+  assert.equal(result.kind, 1111);
+  // An article is addressable, so the comment names it by address as well (NIP-22).
+  assert.deepEqual(JSON.parse(JSON.stringify(result.tags)), [
+    ['A', '30023:gatsby:essay'], ['E', 'article', '', 'gatsby'], ['K', '30023'], ['P', 'gatsby'],
+    ['a', '30023:gatsby:essay'], ['e', 'article', '', 'gatsby'], ['k', '30023'], ['p', 'gatsby'],
+  ]);
+});
+
 test('converting a nested note reply keeps the original root and fetches its author', async () => {
   const ctx = setup();
   const result = await ctx.devComposerReply({ ...note, id: 'nested', tags: [['e', 'root', '', 'root']] }, 1111);
@@ -93,6 +106,9 @@ test('selector is dev-only, session-local, and explains nonstandard replies', ()
   assert.match(selector, /Nonstandard demo reply/);
   assert.match(selector, /disabled: !replyTo/);
   assert.match(selector, /select.disabled = !!draft.poll/);
-  assert.match(source, /let devKind = 0/);
-  assert.match(lift('async function doPublish('), /isDevBuild\(\) && devKindEnabled && settings\?\.devComposerKinds === true && devKind/);
+  // Automatic unless Reply to any event chose a kind for the reply it opened.
+  assert.match(source, /let devKind = \(opts && opts\.devReplyKind\) \|\| 0;/);
+  const publish = lift('async function doPublish(');
+  assert.match(publish, /const kindChosen = \(devKindEnabled && settings\?\.devComposerKinds === true\) \|\| \(devKindForced && settings\?\.devReplyById === true\);/);
+  assert.match(publish, /isDevBuild\(\) && kindChosen && devKind/);
 });

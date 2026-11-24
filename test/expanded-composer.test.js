@@ -142,7 +142,7 @@ test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
   // (Through the dev kind override first, which only a dev build with its switch on
   //  takes; every other build reaches the shared builder.)
   assert.match(pageBare, /const reply = kindOverride\s*\n\s*\? await SC\.devReplyTags\(replyTo, devKind, state\.activePubkey, devAuthorOf\)\s*\n\s*: replyTo \? SC\.replyTags\(replyTo, state\.activePubkey\) : null;/);
-  assert.match(pageBare, /const kindOverride = devBuild && devOn\.kind && settings\.devComposerKinds === true && devKind && !draft\.poll;/);
+  assert.match(pageBare, /const kindOverride = devBuild && devKind && !draft\.poll &&\s*\n\s*\(\(devOn\.kind && settings\.devComposerKinds === true\) \|\| \(settings\.devReplyById === true && devKindChosenFor\(replyTo\)\)\);/);
   // A poll is its own kind and is never a reply, so the ternary has a third arm now.
   assert.match(pageBare, /kind: asPoll \? SC\.POLL_KIND : reply \? reply\.kind : 1,/);
   // Threading leads, then the client tag, then the poll tags, then imeta. NIP-10 takes
