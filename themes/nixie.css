@@ -312,6 +312,16 @@
     inset 0 0 0 1px var(--rim),
     0 0 22px rgba(240, 48, 12, 0.26);
 }
+/* The feather is a lit glyph like the button labels, so it emits like them: a hot core
+   and a soft orange halo (drop-shadow, since it is a stroke; space-separated, as the
+   countdown arc's note below explains). Without it the feather was the one lit thing in
+   the theme that read as printed, thin orange line on dark glass. */
+[data-theme="nixie"] .fab svg {
+  overflow: visible;
+  filter:
+    drop-shadow(0 0 1px rgba(255, 246, 230, 0.5))
+    drop-shadow(0 0 4px rgba(255, 106, 36, 0.55));
+}
 
 /* The ink and the face for any figure this theme lights up. The bloom itself is
    below, because it has to be sized per surface.

@@ -36,7 +36,7 @@ test('a pick goes into the editor at the caret, in both composers', () => {
 });
 
 test('the button is mounted in each toolbar and stands down over Preview', () => {
-  assert.match(strip(panel), /\[addBtn, gifPicker\.addBtn, emojiPicker\.addBtn, pollAdd, powBtn\]/);
+  assert.match(strip(panel), /\[addBtn, gifPicker\.addBtn, emojiPicker\.addBtn, moreBtn, powBtn\]/);
   assert.match(strip(panel), /emojiPicker\.addBtn\.classList\.toggle\('hidden', p \|\| !emojiPicker\.available\)/);
   assert.match(strip(page), /emojiPicker\.addBtn, pollEditor\.addBtn/);
   assert.match(strip(page), /emojiBtn\.classList\.toggle\('hidden', which !== 'write'/);
@@ -55,7 +55,7 @@ test('every toolbar button names an icon that exists', () => {
   // blank cell with a tooltip. That happened once, when a glyph was replaced by cutting a
   // span of ICONS that had another button's glyph in it.
   const names = [core, panel, page].flatMap((src) => [...strip(src).matchAll(/composeToolBtn\('([\w-]+)'/g)].map((m) => m[1]));
-  assert.deepEqual([...new Set(names)].sort(), ['camera', 'check-square', 'gif', 'pickaxe', 'smile']);
+  assert.deepEqual([...new Set(names)].sort(), ['camera', 'check-square', 'gif', 'more', 'pickaxe', 'smile']);
   for (const n of names) {
     assert.match(core, new RegExp("^\\s+(?:'" + n + "'|" + n + "): '<", 'm'), n + ' has no glyph in ICONS');
   }

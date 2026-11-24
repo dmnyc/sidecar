@@ -24,10 +24,10 @@ test('both composers mark the button while it uploads, and clear it after', () =
 
 test('the uploading button keeps its strength and runs stripes, held still under reduced motion', () => {
   const css = read('styles.css');
-  assert.match(css, /\.compose-add\.is-uploading:disabled \{ opacity: 1; \}/);
-  assert.match(css, /\.compose-add\.is-uploading::after \{[^}]*repeating-linear-gradient\(-45deg[^}]*animation: upload-stripes/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.compose-add\.is-uploading::after \{ animation: none;/);
-  assert.match(css, /html\.reduce-balance-motion \.compose-add\.is-uploading::after \{ animation: none;/);
+  assert.match(css, /\.compose-add\.is-uploading:disabled[^{]*\{ opacity: 1; \}/);
+  assert.match(css, /\.compose-add\.is-uploading::after[^{]*\{[^}]*repeating-linear-gradient\(-45deg[^}]*animation: upload-stripes/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.compose-add\.is-uploading::after[^{]*\{ animation: none;/);
+  assert.match(css, /html\.reduce-balance-motion \.compose-add\.is-uploading::after[^{]*\{ animation: none;/);
 });
 
 test('the Media button is an icon, so an upload cannot reach for a label that is not there', () => {

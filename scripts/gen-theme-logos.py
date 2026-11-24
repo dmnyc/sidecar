@@ -22,8 +22,9 @@ DYES = {
     'film-noir':  ('#F2F2F2', '#BDBDBD', '#C8C8C8', '#8E8E8E', '#E0E0E0'),
     # Bronze wordmark over a gold glass, the two metals of the theme.
     'brownstone': ('#F2E7DD', '#CDB9A7', '#D2AD70', '#A9843F', '#D69A6A'),
-    # Warm iron: the wordmark and glass in the theme's own greys, shaded toward black.
-    'cast-iron':  ('#D9D3C5', '#A39D8E', '#B9B19F', '#6E6858', '#948C79'),
+    # Cast into the iron: the logo is the panel's own metal, a few shades up from it, flat.
+    # Darker than the legibility test's floor on purpose (see test/theme-logos.test.js).
+    'cast-iron':  ('#4A453F', '#36322D', '#403B35', '#29261F', '#38332D'),
     # Airmail: a blue wordmark and a stamp-red glass, its two inks.
     'par-avion':  ('#FFFFFF', '#E8E8EA', '#C0272D', '#A02C2E', '#1B4C8C'),
     # Ink brown wordmark over a brass glass.

@@ -72,7 +72,7 @@ function load(extra) {
   });
   vm.createContext(ctx);
   vm.runInContext(
-    ['draftHasContent', 'otherDraftEntries', 'draftRefsAsText', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') +
+    ['draftHasContent', 'otherDraftEntries', 'readRef', 'draftRefsAsText', 'refAsText', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') +
       '\nthis.draftHasContent = draftHasContent; this.otherDraftEntries = otherDraftEntries;' +
       ' this.buildSavedDraftList = buildSavedDraftList; this.draftSnippet = draftSnippet;',
     ctx

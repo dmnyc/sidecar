@@ -86,7 +86,8 @@ test('changed() means both, because folding them apart broke this once', () => {
   const ed = core.slice(core.indexOf('function buildPollEditor(d)'));
   const body = ed.slice(0, ed.indexOf('\n    paintPoll();'));
   assert.ok(!/updatePostState\(\)|scheduleSave\(\)/.test(body), 'the editor reaches for a panel binding');
-  assert.match(panel, /changed: \(\) => \{ updatePostState\(\); scheduleSave\(\); \},/);
+  // (The panel's also repaints its prompt, which asks for the poll's question.)
+  assert.match(panel, /changed: \(\) => \{ updatePostState\(\); scheduleSave\(\);[^}]*\},/);
   assert.match(page, /changed: \(\) => \{ paintCount\(\); scheduleSave\(\); \},/);
 });
 
