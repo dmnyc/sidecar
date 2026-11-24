@@ -9,6 +9,47 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [1.19.0] — 2026-11-23
+
+### Added
+- **Write articles and recipes in the full-size composer.** Article and Recipe tabs sit beside Note and Poll, each with its own drafts. An article (NIP-23) is written like a word processor: formatted paste comes in as markdown, Cmd+B, Cmd+I and Cmd+K work, lists continue on Enter, and a picture pasted, dropped or picked goes into the body where it lands. Preview draws the whole piece, and every picture can be given a description.
+- **Recipes publish in Zap Cooking’s format, so they open there.** The form matches theirs: ingredients and directions edited in place, a pasted list becomes items, photos with the first as the cover, and categories from Zap Cooking’s list with their emoji, suggested by season and as you type. Categories show in your language and are filed under their English names.
+- **Articles and recipes go through a review before publishing.** The button says Review and shows the piece as it will read, then Publish or Back to editor. If the address is already one of your articles or recipes, it asks before replacing it.
+- **A spam check sorts strangers’ replies in the bell.** With “Sort notifications by who you follow” on, nspam’s open model, run in Sidecar, reads replies from outside your network. A stranger who writes like a person joins your list; one who writes like a bot stays in the group, marked “Likely spam.” A reply that links to a page or names a domain is never lifted, replies mostly in a script other than Latin are not judged, and nothing is hidden either way. Nothing is sent anywhere.
+- **UK English.** English (UK) joins the language list beside English (US), and is chosen for a browser set to British, Irish, Australian, New Zealand, South African or Indian English. It spells the British way and writes numbers and dates the British way.
+- **Onosendai, Staircase and nspam join the app directory,** and messaging apps get a category of their own: Anagram, Armada, Cordn, Flotilla, NymChat and Staircase.
+- **Developer tools: Reply to any event chooses a note or a comment** (kind 1 or 1111), in both composers.
+
+### Changed
+- **The panel composer’s poll button is now More options,** which opens the full-size composer, where polls, articles and recipes each have a tab.
+- **A reply to an article or a recipe is a comment (NIP-22),** naming what it answers by its address, so it shows under the recipe on Zap Cooking. A hashtag in a note publishes a `t` tag.
+- **The Accounts tab shows two accounts and a button for the rest.** From three accounts, the active one and the next are shown, with “N more accounts” for the others. The list folds again after 30 seconds unused, when you leave the tab and when the panel closes, and drag to reorder works while it is open.
+- **A long account menu scrolls inside itself,** so the top bar stays in place and Add account and Manage accounts stay at its foot.
+- **A payment’s amount is drawn large on the approval card,** in the panel and the popup, sized by its length so every digit stays on screen.
+- **Explore Nostr apps, Share Sidecar and On this day sit at the foot of a tall panel,** clear of the compose button and of a toast. In a panel short enough to scroll, they stay under the accounts.
+- **Cast Iron’s logo is the theme’s own dark iron,** and every theme’s compose feather now reads on its button, checked by a test across themes.
+- **114 strings that showed in English are translated into all 21 languages.**
+- **Twelve pieces of theme art are half the size,** written as short relative steps, and look the same.
+
+### Fixed
+- **A whole-bitcoin invoice reads its amount.** A 1 BTC invoice read as 0 sats and an invoice with no amount as 0. Sidecar now pays at most 99,999,999 sats at once, never an invoice that states no amount from a page, and says why on the card.
+- **A note keeps its blank lines.** A line written above the lines that followed it could be published without the blank line before it.
+- **Undo takes back a line break on its own,** in every editor, instead of the whole note.
+- **In Arabic, Hebrew, Persian and Urdu, empty fields start at the right,** placeholder and caret both, in the note editor and every article and recipe field.
+- **The caret returns to the first line after you delete everything,** instead of sitting a line below the placeholder.
+- **Mention pills are easier to edit around, and paste and drop are plain text** in every editor. Two pasted paragraphs keep the blank line between them.
+- **A picture uploaded from the composer carries its type, hash and size** in an imeta tag, so apps can make room for it before it loads.
+- **When a wallet refuses an invoice with no amount, the message says it may be why,** before the wallet’s own words.
+- **Tapping the Receive sheet’s invoice copies it,** and Cmd+C copies the whole invoice rather than its shortened text.
+- **The wallet history keeps its times current** and lists payments by when they settled, Received above Sent for a payment to yourself.
+- **A click on a bell row always ends with the note on screen.** Only tabs in ordinary browser windows are reused, a minimized window is restored, and a closed tab becomes a new one.
+
+### Removed
+- **YakBak leaves the app directory for now.** Its site no longer answers at yakbak.app: browsers show a security warning in its place. It may return once the site is running again.
+
+### Documentation
+- **Two working rules:** follow a change downstream before showing it, and keep Sidecar’s recipe composer in step with Zap Cooking’s through editor-matrix.
+
 ## [1.18.2] — 2026-11-21
 
 ### Fixed

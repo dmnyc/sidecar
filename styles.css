@@ -2227,8 +2227,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .row-actions { display: flex; gap: 8px; align-items: center; }
 .row-actions input { flex: 1; }
 
-/* full-width stacked account actions with breathing room above */
-.add-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; }
+/* full-width stacked account actions with breathing room above. Shown only before the first
+   account, under the welcome card, where the empty list below the card keeps no margin of its
+   own: the 60px that added up there pushed the welcome screen past the panel at 913px, and its
+   last line under a toast (see #tab-accounts). 34px still reads as a pause. */
+.add-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+#account-list:empty { margin-bottom: 0; }
 .modal-add-actions { margin-top: 6px; margin-bottom: 4px; }
 .add-account-link {
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -2248,6 +2252,11 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 }
 .add-account-badge svg { width: 12px; height: 12px; }
 .add-account-link:hover .add-account-badge { background: var(--lav); }
+/* THE FOOT STAYS CLEAR OF A TOAST. Toasts stand 92px off the floor (.toasts) and a one-line
+   toast is 46px tall, so it covered the bottom of On this day, which sat 109px up: "Keystore
+   created" landed on it the moment Sidecar was set up. The tab ends 41px higher, so its last
+   line sits 12px above a toast. If .toasts moves, this number follows it. */
+#tab-accounts { padding-bottom: 41px; }
 /* THE LINKS AND ON THIS DAY SIT AT THE FOOT OF THE PANEL when there is room, as a footer:
    the accounts tab is a column that fills the panel, and the auto margin takes the free
    space above them. Without room it is nothing, and the padding keeps the 24px they always

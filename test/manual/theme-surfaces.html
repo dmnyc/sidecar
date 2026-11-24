@@ -52,8 +52,9 @@
     picker = SC.buildEmojiPicker({ onPick() {} });
     const pow = SC.buildPowButton();
     pow.paint(SC.powLevelFor(18));
+    // 1.19: More options took the poll button's place, so the row is drawn as it ships.
     bar.append(SC.composeToolBtn('camera', 'Media'), SC.composeToolBtn('gif', 'GIF'), picker.addBtn,
-      SC.composeToolBtn('check-square', 'Poll'), pow.btn);
+      SC.composeToolBtn('more', 'More options: polls, articles and recipes'), pow.btn);
   } else {
     for (const [i, l] of [['camera', 'Media'], ['gif', 'GIF'], ['bar-chart', 'Poll'], ['pickaxe', 'PoW off']]) {
       const b = h('button', { className: 'mini compose-add', type: 'button' });
@@ -151,6 +152,25 @@
     h('p', { className: 'custom-client-preview error', textContent: 'That link has no note address in it.' }),
     h('p', { className: 'custom-client-warn', textContent: 'It also carries ?ref=share, kept on every link.' }));
 
+  // ---- 1.19: the account list's fold, a bell row marked Likely spam, a payment card's
+  // amount at its sizes, and the Explore links with On this day under them ----
+  const fold = h('button', { type: 'button', className: 'account-list-more', 'aria-expanded': 'false' }, [h('span', { textContent: '3 more accounts' })]);
+  const chev = icon('chevron-down'); chev.classList.add('account-list-more-chev'); fold.append(chev);
+  const spamRow = h('div', { className: 'notif-item notif-likely-spam' }, [
+    h('div', { className: 'notif-top' }, [h('span', { className: 'notif-glyph', textContent: '💬' }), h('span', { className: 'notif-author', textContent: 'npub1p2vdv8hrd…y2ta' })]),
+    h('div', { className: 'notif-action', textContent: 'replied to your note' }, [h('span', { className: 'notif-spam-mark', textContent: 'Likely spam' })]),
+  ]);
+  const amount = (num, len) => h('div', { className: 'pay-amount' }, [h('div', { className: 'pay-amount-label', textContent: 'Amount' }),
+    h('div', { className: 'pay-amount-value', textContent: num }), h('div', { className: 'pay-amount-unit', textContent: 'sats' })]);
+  const payCard = h('div', { className: 'card' }, [amount('2,100', 's'), amount('99,999,999', 'xl')]);
+  // The value's size step, as the panel sets it from the number's length.
+  payCard.querySelectorAll('.pay-amount-value').forEach((el, i) => el.setAttribute('data-len', ['s', 'xl'][i]));
+  const foot = h('div', { className: 'explore-link-wrap' }, [h('a', { className: 'explore-link', href: '#', textContent: 'Explore Nostr apps →' }),
+    h('a', { className: 'explore-link share-link', href: '#', textContent: 'Share Sidecar with a friend' })]);
+  const otd = h('div', { className: 'otd' }, [h('div', { className: 'otd-main' }, [h('p', { className: 'otd-kicker', textContent: 'On this day in 1936' }),
+    h('p', { className: 'otd-text', textContent: 'The first issue of Life went on sale, with Margaret Bourke-White’s photograph of the Fort Peck Dam on the cover.' })])]);
+  section('1.19', fold, spamRow, payCard, foot, otd);
+
   // ---- checks ----
   const SQUARE = ['werkstatte', 'ben-day', 'turnstile'];
   const issues = [];
@@ -161,7 +181,8 @@
   if (SQUARE.includes(theme)) {
     const probe = ['button.primary', 'button.secondary', 'button.danger', 'button.mini', '.compose-add', '.setting input[type=text]',
       '.setting select', '.item', '.wallet-card', '.wallet-refresh', '.emoji-picker', '.emoji-cell', '.compose-editor',
-      '.bm-item', '.bm-delete-box', '.bm-title-menu', '.bm-unseen', '.stream-directory-actions .ghost', '.stream-directory-actions .icon-btn'];
+      '.bm-item', '.bm-delete-box', '.bm-title-menu', '.bm-unseen', '.stream-directory-actions .ghost', '.stream-directory-actions .icon-btn',
+      '.account-list-more', '.card'];
     for (const sel of probe) {
       for (const el of document.querySelectorAll(sel)) {
         const r = getComputedStyle(el).borderTopLeftRadius;
@@ -171,7 +192,7 @@
   }
 
   // Nothing wider than its box, and the page itself does not scroll sideways.
-  for (const el of document.querySelectorAll('button, .item, .wallet-card, .emoji-picker, .bm-item, .bm-delete-box, .bm-title-menu, .stream-chat-identity-row')) {
+  for (const el of document.querySelectorAll('button, .item, .wallet-card, .emoji-picker, .bm-item, .bm-delete-box, .bm-title-menu, .stream-chat-identity-row, .notif-item, .pay-amount, .otd')) {
     if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'hidden') {
       issues.push((el.className || el.tagName) + ' overflows by ' + (el.scrollWidth - el.clientWidth) + 'px'); break;
     }

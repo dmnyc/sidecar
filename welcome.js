@@ -403,14 +403,6 @@ function apps() {
     desc: t('A nostalgic, MySpace-style take on Nostr: a customizable profile page with your own theme.'),
   },
   {
-    name: 'YakBak',
-    url: 'https://yakbak.app',
-    domain: 'yakbak.app',
-    icon: 'icons/apps/yakbak.png', // a copy of Google's favicon for yakbak.app
-    cat: 'media',
-    desc: t('Share short voice notes on Nostr: record, post, and listen to audio from the people you follow.'),
-  },
-  {
     name: 'nostr.build',
     url: 'https://nostr.build',
     domain: 'nostr.build',

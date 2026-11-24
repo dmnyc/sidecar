@@ -325,6 +325,11 @@
     // 1.18.2. Checked against the Standard Ebooks text of The Devil's Dictionary (1911),
     // "Patience" (Project Gutenberg did not answer). A writer the list did not already have.
     { text: 'Patience: a minor form of despair, disguised as a virtue.', who: 'Ambrose Bierce, 1911' },
+    // 1.19.0. Checked against the Standard Ebooks texts: The Great Gatsby (1925), its last line;
+    // and Anna Karenina (1878) in Constance Garnett's 1901 translation, its first line. Two
+    // writers the list did not already have.
+    { text: 'So we beat on, boats against the current, borne back ceaselessly into the past.', who: 'F. Scott Fitzgerald, 1925' },
+    { text: 'Happy families are all alike; every unhappy family is unhappy in its own way.', who: 'Leo Tolstoy, 1878' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often
