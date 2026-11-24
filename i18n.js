@@ -26,7 +26,8 @@
   // The languages the picker offers, each named in itself,
   // with draft launch catalogs available for review; en-XA is the pseudo-locale.
   const LANGUAGES = [
-    { code: 'en', name: 'English' },
+    { code: 'en', name: 'English (US)' },
+    { code: 'en-GB', name: 'English (UK)' },
     { code: 'ar', name: 'العربية' },
     { code: 'de', name: 'Deutsch' },
     { code: 'el', name: 'Ελληνικά' },
@@ -78,6 +79,12 @@
       const pick = simplified ? 'zh' : 'zh-TW';
       if (codes.includes(pick)) return pick;
     }
+    // English: a British-spelling country reads the UK catalog (colour, cancelled,
+    // recognise), and every other English the US one, which is also the bare `en`.
+    if (base === 'en') {
+      const pick = /^en-(gb|uk|ie|au|nz|za|in)$/i.test(want) ? 'en-GB' : 'en';
+      if (codes.includes(pick)) return pick;
+    }
     // Portuguese has two catalogs and a bare `pt` names neither: it goes to Brazil, which has
     // far more speakers, and every other pt-XX (PT, AO, MZ, CV…) goes to Portugal.
     if (base === 'pt') {
@@ -110,12 +117,14 @@
 
   // The locale for numbers. English stays en-US, which is what the code wrote by hand
   // before this module existed, so nothing an English user sees changes.
-  const numLocale = () => (lang === 'en' || lang === PSEUDO ? 'en-US' : lang);
+  const isEnglish = () => lang === 'en' || lang === 'en-GB' || lang === PSEUDO;
+  const numLocale = () => (isEnglish() ? 'en-US' : lang);
   // And for dates, which in English kept following the BROWSER (the code passed
   // undefined): a UK browser shows "4 Mar". Forcing en-US would turn that into "Mar 4"
   // for English readers who never asked, so English keeps doing what it did. Another
   // language takes its own conventions.
-  const dateLocale = () => (lang === 'en' || lang === PSEUDO ? undefined : lang);
+  // UK English is the same English with British spelling: its dates follow the browser too.
+  const dateLocale = () => (isEnglish() ? undefined : lang);
 
   // ---- pseudo-locale ------------------------------------------------------------------
   //
@@ -231,7 +240,8 @@
       }
     };
     const base = code.split('-')[0];
-    return [await get(code), base !== code ? await get(base) : null].filter(Boolean);
+    // English has no catalog of its own (its keys are the text), so en-GB has no base to fetch.
+    return [await get(code), base !== code && base !== 'en' ? await get(base) : null].filter(Boolean);
   }
 
   // The setting, read once at startup. 'auto' (the default) follows the browser.

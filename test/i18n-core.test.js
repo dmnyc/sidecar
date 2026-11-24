@@ -59,7 +59,7 @@ test('ENGLISH PLURALS NEED NO LOCALE FILE', () => {
 
 test('English numbers stay exactly as the code wrote them by hand (en-US)', () => {
   const i = load({ uiLang: 'en-GB' });
-  assert.equal(i.lang, 'en');
+  assert.equal(i.lang, 'en-GB', 'a UK browser reads UK English, whose numbers are the same');
   assert.equal(i.fmtNum(1234567.5), '1,234,567.5');
   assert.equal(i.fmtNum(0.5, { style: 'percent' }), '50%');
 });
@@ -145,7 +145,13 @@ test('a compact relative time that is only a signed number is asked again in the
 
 test('THE BROWSER LANGUAGE RESOLVES TO A SUPPORTED ONE, OR ENGLISH', () => {
   const i = load();
-  assert.equal(i.resolve('en-GB'), 'en');
+  assert.equal(i.resolve('en-US'), 'en');
+  // British spelling: the UK, Ireland, Australia, New Zealand, South Africa and India read
+  // the en-GB catalog; any other English (Canada, a bare en) the US one.
+  assert.equal(i.resolve('en-GB'), 'en-GB');
+  assert.equal(i.resolve('en-AU'), 'en-GB');
+  assert.equal(i.resolve('en-CA'), 'en');
+  assert.equal(i.resolve('en'), 'en');
   assert.equal(i.resolve('fr-CA'), 'fr');
   assert.equal(i.resolve('pt-BR'), 'pt-BR');
   // Portuguese has two catalogs: a bare `pt` goes to Brazil, which has far more speakers, and
@@ -180,7 +186,10 @@ test('the setting wins over the browser, and is cached for a synchronous start',
 test('"auto" follows the browser', async () => {
   const i = load({ settings: { language: 'auto' }, uiLang: 'en-AU' });
   await i.ready;
-  assert.equal(i.lang, 'en');
+  assert.equal(i.lang, 'en-GB', 'Australia spells the British way');
+  const c = load({ settings: { language: 'auto' }, uiLang: 'en-CA' });
+  await c.ready;
+  assert.equal(c.lang, 'en');
 });
 
 // ---- the pseudo-locale ----------------------------------------------------------------
