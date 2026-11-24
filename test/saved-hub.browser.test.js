@@ -21,13 +21,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = process.env.SAVED_HUB_ROOT || path.join(__dirname, '..');
-const candidates = [
-  process.env.CHROME_PATH,
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-].filter(Boolean);
-const CHROME = candidates.find((p) => fs.existsSync(p)) || null;
+const CHROME = require('./helpers/chrome-path').findChrome(); // never the Chrome you browse with: see helpers/chrome-path.js
 
 const SRC = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8').replace(/^\s*\/\/.*$/gm, '');
 function lift(decl, src = SRC) {

@@ -6804,7 +6804,8 @@
     const pubkeys = new Set();
     for (const match of content.matchAll(/nostr:(npub1[0-9a-z]+|nprofile1[0-9a-z]+)/g)) {
       try {
-        const decoded = NT.nip19.decode(match[1]);
+        // Up to where the key ends: a word can be joined onto it (SidecarCore.readRef).
+        const decoded = window.SidecarCore.readRef(match[1], NT).decoded;
         const pk = decoded.type === 'npub' ? decoded.data : decoded.data?.pubkey;
         if (pk && !notifProfileName(pk)) pubkeys.add(pk);
       } catch (_) {}
@@ -7380,14 +7381,18 @@
 
   function cleanSnippet(content) {
     return content
-      .replace(/nostr:(npub1\S+|nprofile1\S+)/g, (_, entity) => {
+      .replace(/nostr:((?:npub1|nprofile1)[0-9a-z]+)/g, (_, run) => {
         try {
-          const decoded = NT.nip19.decode(entity);
+          // The key alone, read to its checksum; a word joined onto it stays a word.
+          const ref = window.SidecarCore.readRef(run, NT);
+          const entity = ref.code;
+          const rest = run.slice(entity.length);
+          const decoded = ref.decoded;
           const pk = decoded.type === 'npub' ? decoded.data : decoded.data && decoded.data.pubkey;
           if (pk) {
             const name = notifProfileName(pk);
-            if (name) return '@' + name;
-            return '@' + entity.slice(0, 12) + '…';
+            if (name) return '@' + name + (rest ? ' ' + rest : '');
+            return '@' + entity.slice(0, 12) + '…' + (rest ? ' ' + rest : '');
           }
         } catch (_) {}
         return '@…';
@@ -9850,7 +9855,7 @@
             let mm;
             while ((mm = re.exec(e.content)) !== null) {
               try {
-                const d = NT.nip19.decode(mm[1]);
+                const d = window.SidecarCore.readRef(mm[1], NT).decoded;
                 const pk = d.type === 'npub' ? d.data : d.data && d.data.pubkey;
                 if (pk) need.add(pk);
               } catch (_) {}
@@ -15572,6 +15577,27 @@
         .filter((e) => e.key !== tabKey && !(e.shelved && tabKey === pubkey));
     }
 
+    // The account's article and recipe drafts (the full-size composer's longform.js keeps
+    // them in a store of their own). The panel lists them and opens each in that tab, where
+    // they are written: the panel never edits one.
+    async function longformItems() {
+      const lf = await call({ type: 'SIDECAR_SECRET_GET', store: 'longform' }).catch(() => null);
+      return window.SidecarCore.longformDraftItems(lf && lf[pubkey], null);
+    }
+    async function openLongformInTab(kind) {
+      closeModal(); // the note on screen was saved when this list was drawn
+      try {
+        const open = await liveComposeTab();
+        if (open) {
+          chrome.runtime.sendMessage({ type: 'SIDECAR_COMPOSE_MODE', mode: kind }).catch(() => {});
+          await chrome.tabs.update(open.tabId, { active: true });
+          await chrome.windows.update(open.windowId, { focused: true });
+        } else {
+          chrome.tabs.create({ url: chrome.runtime.getURL('compose.html') + '#' + kind });
+        }
+      } catch (e) { toast(e.message || t('Could not open a tab'), 'error'); }
+    }
+
     function addCorner(withDrafts) {
       const closeX = h('button', { className: 'modal-x', title: t('Close') });
       closeX.append(icon('x'));
@@ -15587,8 +15613,8 @@
       // SHOWN WITH NO DRAFTS TOO, the count left off: Saved drafts is also where drafts
       // kept on relays are read back and this one is saved to them (NIP-37), and a folder
       // that appeared only once something was saved locally hid both.
-      draftsToList().then((entries) => {
-        const n = entries.length;
+      Promise.all([draftsToList(), longformItems()]).then(([entries, lf]) => {
+        const n = entries.length + lf.length;
         if (!btn.isConnected) return;
         count.textContent = n ? I18N.fmtNum(n) : '';
         count.classList.toggle('hidden', !n);
@@ -15609,6 +15635,7 @@
     async function showSavedDrafts() {
       await flushDraftNow();
       const entries = await draftsToList();
+      const lfItems = await longformItems();
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
       if (all[dkey] && window.SidecarCore.draftHasContent(all[dkey])) {
         entries.unshift({ key: dkey, draft: all[dkey], current: true, reply: !!replyTo, replyId: replyTo ? replyTo.id : null });
@@ -15670,7 +15697,20 @@
             showSavedDrafts();
           },
           onDiscard: () => discardOpenDraft(),
-        }) : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') }),
+        }) : (lfItems.length ? '' : h('p', { className: 'hint', textContent: t('No saved drafts in this browser.') })),
+        window.SidecarCore.buildLongformDraftList(lfItems, {
+          onOpen: (kind) => openLongformInTab(kind),
+          onDelete: async (kind) => {
+            // The tab holds the draft it is writing in memory and would save it straight back.
+            if (await liveComposeTab()) return toast(t('Delete it in the full-size composer, where it is open.'), 'info');
+            const all = await call({ type: 'SIDECAR_SECRET_GET', store: 'longform' });
+            if (!all || typeof all !== 'object') return toast(t('Could not delete the draft.'), 'error');
+            if (all[pubkey]) { delete all[pubkey][kind]; if (!Object.keys(all[pubkey]).length) delete all[pubkey]; }
+            await call({ type: 'SIDECAR_SECRET_SET', store: 'longform', value: all });
+            toast(t('Draft deleted.'), 'success');
+            showSavedDrafts();
+          },
+        }),
         pane.el,
         h('div', { className: 'actions' }, [back]),
       );
@@ -15872,8 +15912,8 @@
         : [];
       const base = reply ? reply.tags : [];
       const tags = settings && settings.showClientTag === false
-        ? [...base, ...bodyP, ...silentP, ...quotes.tags]
-        : [...base, CLIENT_TAG.slice(), ...bodyP, ...silentP, ...quotes.tags];
+        ? [...base, ...bodyP, ...silentP, ...quotes.tags, ...body.t]
+        : [...base, CLIENT_TAG.slice(), ...bodyP, ...silentP, ...quotes.tags, ...body.t];
       // One imeta per DESCRIBED attachment (NIP-92, as zap.cooking writes it), after
       // the body-derived tags. Undescribed media emits nothing, so a note of bare
       // URLs is byte-identical to what it published before alt text existed. A poll
@@ -16087,8 +16127,13 @@
       // modal. Edits flow back through onChange into the draft + Post button.
       // The attachments drawer is built further down; an edit can land before it exists.
       let syncDrawer = () => {};
+      // Filled in below, once the attachments and their upload button exist.
+      let panelFiles = () => {};
+      let panelPasteText = () => false;
       const mentionEditor = createMentionEditor({
         placeholder: replyTo ? t('Write your reply…') : t('What’s on your mind?'),
+        onFiles: (files, how) => panelFiles(files, how),
+        onPasteText: (plain) => panelPasteText(plain),
         onChange: (text) => {
           draft.text = text;
           paintCount();
@@ -16163,7 +16208,7 @@
         // The editor it writes into is hidden in Preview, so the button goes with it.
         emojiPicker.addBtn.classList.toggle('hidden', p || !emojiPicker.available);
         if (p) emojiPicker.close();
-        pollAdd.classList.toggle('hidden', p || !!draft.poll || !!replyTo || !!(draft.media && draft.media.length));
+        moreBtn.classList.toggle('hidden', p || !!draft.poll || !!replyTo);
         pollWrap.classList.toggle('hidden', p || !draft.poll);
         previewPane.classList.toggle('hidden', !p);
         if (p) { mentionEditor.close(); renderPreview(); }
@@ -16476,49 +16521,45 @@
         fileInput.value = '';
       });
 
-      editor.addEventListener('paste', async (e) => {
-        const imageFiles = Array.from(e.clipboardData?.items ?? [])
-          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-          .map((item) => item.getAsFile())
-          .filter((f) => f !== null);
-        if (imageFiles.length === 0) {
-          e.preventDefault();
-          const plain = e.clipboardData.getData('text/plain');
-          // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
-          // or naddr references becomes a block under the field, showing the note, so there is
-          // something to check it against and it can be put above or below the pictures. A poll
-          // carries no attachments, so there it pastes as the text it is.
-          const quotes = draft.poll ? [] : quoteEntriesFromPaste(plain, draft.media);
-          if (quotes.length) {
-            draft.media.push(...quotes);
+      // PASTE AND DROP, as the shared editor hands them over (createMentionEditor): pictures to
+      // upload into the attachments, and text this composer may take as a quoted note first.
+      panelPasteText = (plain) => {
+        // A PASTED NOTE REFERENCE IS A QUOTE, not text: a paste of nothing but note1, nevent1
+        // or naddr references becomes a block under the field, showing the note, so there is
+        // something to check it against and it can be put above or below the pictures. A poll
+        // carries no attachments, so there it pastes as the text it is.
+        const quotes = draft.poll ? [] : quoteEntriesFromPaste(plain, draft.media);
+        if (quotes.length) {
+          draft.media.push(...quotes);
+          scheduleSave();
+          updatePostState();
+          renderThumbs();
+          paintEitherOr();
+          // A note no relay shows us does not stay a quote block: it goes back to the text
+          // it was pasted as, and the toast says why.
+          checkPastedQuote(quotes[0], () => {
+            const at = draft.media.indexOf(quotes[0]);
+            // Already removed, posted, handed to the tab or closed: nothing to undo, and no
+            // saved draft to bring back.
+            if (at < 0 || published || handedToTab || !editor.isConnected) return;
+            draft.media.splice(at, 1);
+            closeAltEditor(false); // the row edits a media slot that may no longer exist
+            const words = String(draft.text || '').replace(/\s+$/, '');
+            mentionEditor.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
+            mentionEditor.sync();
             scheduleSave();
             updatePostState();
             renderThumbs();
             paintEitherOr();
-            // A note no relay shows us does not stay a quote block: it goes back to the text
-            // it was pasted as, and the toast says why.
-            checkPastedQuote(quotes[0], () => {
-              const at = draft.media.indexOf(quotes[0]);
-              // Already removed, posted, handed to the tab or closed: nothing to undo, and no
-              // saved draft to bring back.
-              if (at < 0 || published || handedToTab || !editor.isConnected) return;
-              draft.media.splice(at, 1);
-              closeAltEditor(false); // the row edits a media slot that may no longer exist
-              const words = String(draft.text || '').replace(/\s+$/, '');
-              mentionEditor.setText(words ? words + '\n\n' + quotes[0].quote : quotes[0].quote);
-              mentionEditor.sync();
-              scheduleSave();
-              updatePostState();
-              renderThumbs();
-              paintEitherOr();
-              toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
-            });
-            return;
-          }
-          if (plain) document.execCommand('insertText', false, plain);
-          return;
+            toast(t('Couldn’t find that note, so it was pasted as text.'), 'info');
+          });
+          return true;
         }
-        e.preventDefault();
+        return false;
+      };
+      panelFiles = async (files, { pasted }) => {
+        const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+        if (!imageFiles.length) return;
         // A poll and its attachments are one or the other, and the Media button is
         // hidden while a poll is open; a paste was the way round that.
         if (draft.poll) { toast(t('A poll can’t carry attachments.'), 'error'); return; }
@@ -16528,7 +16569,7 @@
         addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file, pubkey, { pasted: true });
+            const url = await uploadMedia(file, pubkey, { pasted });
             window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url) });
           }
           scheduleSave();
@@ -16541,7 +16582,7 @@
         }
         addBtn.disabled = false;
         addBtn.classList.remove('is-uploading');
-      });
+      };
 
       // ---- poll editor ----
       //
@@ -16605,7 +16646,7 @@
         setPoll: (p) => { draft.poll = p; },
         // One callback for both, because they always went together here except at two
         // sites that only saved, and those two stopped updating Post when they did not.
-        changed: () => { updatePostState(); scheduleSave(); },
+        changed: () => { updatePostState(); scheduleSave(); paintPrompt(); },
         isReply: () => !!replyTo,
         hasMedia: () => !!(draft.media && draft.media.length),
         mediaBtn: () => addBtn,
@@ -16613,7 +16654,19 @@
         devSelect: () => modal.querySelector('#compose-dev-kind'),
       });
       const pollWrap = pollEditor.wrap;
-      const pollAdd = pollEditor.addBtn;
+      // The prompt says what is being written: a reply, a poll's question, or a note. As the
+      // full-size composer's paintPrompt; painted now too, for a draft that comes back a poll.
+      function paintPrompt() {
+        mentionEditor.editor.dataset.placeholder = replyTo ? t('Write your reply…')
+          : draft.poll ? t('Ask your question…') : t('What’s on your mind?');
+      }
+      paintPrompt();
+      // MORE OPTIONS, where the poll button was: a poll, an article and a recipe are each
+      // written in the full-size composer, which has a tab for every one of them. This
+      // hands the note over the way Expand does. A poll already in the draft (started before
+      // this button existed) still shows its editor here, and can still be removed.
+      const moreBtn = composeToolBtn('more', t('More options: polls, articles and recipes'));
+      moreBtn.classList.add('compose-more-options');
       const paintPoll = pollEditor.paint;
       const paintEitherOr = pollEditor.paintEitherOr;
 
@@ -16737,6 +16790,7 @@
       }
 
       if (expand) modal.append(expand);
+      moreBtn.addEventListener('click', () => { if (expand && !expand.disabled) expand.click(); });
 
       modal.append(
         h('h3', { textContent: replyTo ? t('Reply') : t('New note') }),
@@ -16750,7 +16804,7 @@
         previewPane,
         thumbs,
         mediaDrawer.wrap,
-        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollAdd, powBtn]),
+        h('div', { className: 'compose-actions' }, [addBtn, gifPicker.addBtn, emojiPicker.addBtn, moreBtn, powBtn]),
         fileInput,
         gifPicker.wrap,
         emojiPicker.wrap,

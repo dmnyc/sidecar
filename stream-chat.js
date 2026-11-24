@@ -400,11 +400,8 @@
           input.replaceWith(mentionEditor.wrap);input=mentionEditor.editor;
           input.setAttribute('role','textbox');input.setAttribute('aria-label',t('Write a message'));input.setAttribute('aria-multiline','true');
           mentionEditor.wrap.classList.add('stream-chat-editor');
-          input.addEventListener('paste',event=>pastePlainText(event,text=>{
-            // insertText retains selection replacement and the browser's undo stack.
-            document.execCommand('insertText',false,text);mentionEditor.sync();
-          }));
-          input.addEventListener('drop',event=>{event.preventDefault();event.stopPropagation();});
+          // Paste and drop come in as plain text through the shared editor (createMentionEditor);
+          // it has no onFiles here, so a dropped or pasted file is refused.
           input.addEventListener('keydown',event=>{if(event.key==='Escape' && mentionEditor.wrap.querySelector('.ac-dropdown'))event.stopPropagation();},true);
         }
         // The composer's own emoji picker, so both offer the same table and the same search.

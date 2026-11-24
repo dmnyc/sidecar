@@ -22,16 +22,7 @@ const path = require('node:path');
 
 const ROOT = process.env.RTL_FIGURES_ROOT || path.join(__dirname, '..');
 
-function findChrome() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-  ].filter(Boolean);
-  return candidates.find((p) => fs.existsSync(p)) || null;
-}
-const CHROME = findChrome();
+const CHROME = require('./helpers/chrome-path').findChrome(); // never the Chrome you browse with: see helpers/chrome-path.js
 
 // The page builds the same markup splitGlyphs does (one .bal-glyph span per character) and
 // reports, for each figure, its characters in the order they are painted left to right.

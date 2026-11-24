@@ -77,7 +77,7 @@ function tabCtx(over) {
     fetchPreviewProfile: () => new Promise(() => {}),
     Date,
   }, over));
-  vm.runInContext(lift(compose, 'function paintPostButton(') + '\n' + lift(compose, 'function paintReplyKind(') + '\n' + lift(compose, 'function paintReplyTarget(') + '\nthis.paintPostButton = paintPostButton; this.paintReplyTarget = paintReplyTarget; this.paintReplyKind = paintReplyKind;', ctx);
+  vm.runInContext(lift(compose, 'function paintPostButton(') + '\n' + lift(compose, 'function paintReplyKind(') + '\n' + lift(compose, 'function paintPrompt(') + '\n' + lift(compose, 'function paintReplyTarget(') + '\nthis.paintPostButton = paintPostButton; this.paintReplyTarget = paintReplyTarget; this.paintReplyKind = paintReplyKind;', ctx);
   return { ctx, post, box, editor };
 }
 const NOTE = { id: 'a'.repeat(64), pubkey: 'b'.repeat(64), kind: 1, content: 'hi', tags: [] };

@@ -500,23 +500,308 @@ window.SidecarCore = (function () {
     });
   }
 
+  // A MENTION ENDS WHERE ITS KEY ENDS, and a reader can only tell where that is if the
+  // next character cannot belong to it. A pill with a word typed straight after it wrote
+  // `nostr:npub1…challenged`: every client, and this one reading the draft back, took the
+  // word for more of the key, so the mention broke and its person was never notified.
+  // So a letter or digit that follows a pill is set off by a space.
+  const JOINS_A_KEY = /^[\p{L}\p{N}_]/u;
+  // The pill a key would reach from the caret if anchors took no room, or null.
+  function pillAhead(node, off) {
+    let next;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent.slice(off).replace(/\u200B/g, '')) return null;
+      next = node.nextSibling;
+    } else next = node.childNodes[off] || null;
+    while (isAnchor(next)) next = next.nextSibling;
+    return isPill(next) ? next : null;
+  }
+  function pillBehind(node, off) {
+    let prev;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent.slice(0, off).replace(/\u200B/g, '')) return null;
+      prev = node.previousSibling;
+    } else prev = off > 0 ? node.childNodes[off - 1] : null;
+    while (isAnchor(prev)) prev = prev.previousSibling;
+    return isPill(prev) ? prev : null;
+  }
   function serializeEditor(el) {
     let out = '';
+    let afterPill = false;
+    const put = (s) => {
+      if (!s) return;
+      if (afterPill && JOINS_A_KEY.test(s)) out += ' ';
+      afterPill = false;
+      out += s;
+    };
+    // A LINE BREAK THAT ENDS ITS BLOCK IS NOT A LINE. A browser ends an empty line, and the
+    // last line of a note, with a <br> that only holds the line open: Enter in an empty
+    // editor leaves two of them (or two blocks), which is one line break, not two. Read as
+    // breaks, a lone Enter came out as "\n\n" and a note ending on a new line gained one.
+    // Each block is a line of its own, an empty one too.
+    let started = false;   // anything at all has been read
+    let lineStart = true;  // a break was just written, so a block needs no other
+    const holdsLineOpen = (br) => {
+      let next = br.nextSibling;
+      while (next && next.nodeType === Node.TEXT_NODE && !next.textContent.replace(/\u200B/g, '')) next = next.nextSibling;
+      return !next;
+    };
     const walk = (node) => {
       if (node.nodeType === Node.TEXT_NODE) {
-        out += node.textContent.replace(/\u200B/g, '').replace(/ /g, ' ');
+        const s = node.textContent.replace(/\u200B/g, '').replace(/\u00a0/g, ' ');
+        if (s) { started = true; lineStart = false; }
+        put(s);
       } else if (node.nodeName === 'BR') {
-        out += '\n';
+        started = true;
+        if (!holdsLineOpen(node)) { put('\n'); lineStart = true; }
       } else if (node.dataset && node.dataset.bech32) {
-        out += node.dataset.bech32;
+        started = true; lineStart = false;
+        put(node.dataset.bech32);
+        afterPill = true;
       } else {
         const isBlock = node.nodeName === 'DIV' || node.nodeName === 'P';
-        if (isBlock && out && !out.endsWith('\n')) out += '\n';
+        if (isBlock && started && !lineStart) { out += '\n'; afterPill = false; }
         node.childNodes.forEach(walk);
+        if (isBlock) { started = true; lineStart = false; }
       }
     };
     el.childNodes.forEach(walk);
     return out;
+  }
+
+  // The longest start of a bech32 run that decodes, and what it decodes to; null if no
+  // start of it does. The checksum is what marks where a key really ends: `npub1…` with a
+  // word run on after it decodes only when cut back to the key itself. Notes and drafts
+  // written before serializeEditor spaced a mention off still carry that join.
+  function readRef(code, NT) {
+    // The whole run first, so anything that decoded before decodes the same; then shorter,
+    // down to the shortest that could hold a checksum.
+    const floor = Math.min(code.length, code.indexOf('1') + 1 + 6);
+    for (let end = code.length; end >= floor; end--) {
+      try { return { code: code.slice(0, end), decoded: NT.nip19.decode(code.slice(0, end)) }; } catch (_) { /* shorter */ }
+    }
+    return null;
+  }
+
+  // ---- what a clipboard or a drop holds, as text ----
+  //
+  // SOME APPS PUT ONLY HTML ON THE CLIPBOARD, and a paste that read text/plain alone pasted
+  // nothing at all. The HTML is read for its words: a block (paragraph, heading, list item,
+  // table row) is a line, a <br> is a break, table cells are tab-separated, whitespace
+  // collapses as a browser collapses it, and nothing else of it (styles, links, pictures,
+  // scripts) comes along.
+  function textFromHtml(html) {
+    let doc;
+    try { doc = new DOMParser().parseFromString(String(html || ''), 'text/html'); } catch (_) { return ''; }
+    doc.querySelectorAll('script, style, head, template, noscript').forEach((n) => n.remove());
+    const BLOCK = /^(P|DIV|LI|H[1-6]|TR|BLOCKQUOTE|PRE|UL|OL|TABLE|SECTION|ARTICLE|HEADER|FOOTER|DT|DD|FIGURE|FIGCAPTION|HR)$/;
+    let out = '';
+    const newline = () => { if (out && !out.endsWith('\n')) out += '\n'; };
+    // A PARAGRAPH IS SET OFF BY A BLANK LINE, as the browser's own plain text of it is: two
+    // pasted paragraphs became one line break, and the blank line between them was lost.
+    const blankLine = () => { if (!out) return; newline(); if (!out.endsWith('\n\n')) out += '\n'; };
+    const walk = (node, pre) => {
+      if (node.nodeType === 3) {
+        let t = node.textContent;
+        if (!pre) {
+          t = t.replace(/[\t\n\r ]+/g, ' ');
+          if (out.endsWith('\n') || out.endsWith(' ') || out.endsWith('\t') || !out) t = t.replace(/^ /, '');
+        }
+        out += t.replace(/\u00a0/g, ' ');
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      const tag = node.nodeName;
+      if (tag === 'BR') { out += '\n'; return; }
+      if (tag === 'TD' || tag === 'TH') {
+        if (node.previousElementSibling) out = out.replace(/ $/, '') + '\t';
+        node.childNodes.forEach((c) => walk(c, pre));
+        return;
+      }
+      const block = BLOCK.test(tag);
+      const para = tag === 'P';
+      if (block) { out = out.replace(/ $/, ''); para ? blankLine() : newline(); }
+      node.childNodes.forEach((c) => walk(c, pre || tag === 'PRE'));
+      if (block) { out = out.replace(/ $/, ''); para ? blankLine() : newline(); }
+    };
+    walk(doc.body || doc.documentElement, false);
+    return out.replace(/^\n+|\n+$/g, '');
+  }
+  function transferText(dt) {
+    if (!dt) return '';
+    const plain = dt.getData('text/plain');
+    if (plain) return plain;
+    const html = dt.getData('text/html');
+    return html ? textFromHtml(html) : '';
+  }
+
+  // ---- what a clipboard or a drop holds, as markdown ----
+  //
+  // AN ARTICLE IS MARKDOWN, so formatting pasted into one is kept, written the way a person
+  // would type it: bold as **bold**, a link as [text](address), headings, lists, quotes,
+  // code and pictures. What markdown cannot say (colors, fonts, sizes) is dropped, as a
+  // note drops everything. Only http(s) links and pictures come along.
+  //
+  // Returns null when there is nothing to keep: the HTML carries no formatting markdown can
+  // say, or it is code (a code editor's copy is colored, preformatted text), and the
+  // clipboard's own plain text is then the paste, with its spacing exactly as copied.
+  const MD_BLOCK = /^(P|DIV|LI|H[1-6]|UL|OL|BLOCKQUOTE|PRE|TABLE|THEAD|TBODY|TFOOT|TR|SECTION|ARTICLE|HEADER|FOOTER|MAIN|NAV|ASIDE|ADDRESS|FIGURE|FIGCAPTION|HR|DL|DT|DD)$/;
+  const MD_MARKUP = /\*\*|(^|[^\w])_[^\s_]|`|!?\[[^\]\n]*\]\(|^#{1,6} |^> |^[-*+] |^\d+[.)] |^---$|~~/m;
+  function markdownFromHtml(html) {
+    let doc;
+    try { doc = new DOMParser().parseFromString(String(html || ''), 'text/html'); } catch (_) { return null; }
+    doc.querySelectorAll('script, style, head, template, noscript, meta, link, title').forEach((n) => n.remove());
+    const body = doc.body;
+    if (!body) return null;
+    // Code: preformatted all through, as a code editor copies.
+    if (!body.querySelector('pre') && /white-space:\s*pre/i.test(body.innerHTML) && !body.querySelector('h1,h2,h3,h4,h5,h6,li,blockquote,a[href]')) return null;
+    const httpUrl = (u) => { try { const x = new URL(u); return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : null; } catch (_) { return null; } };
+    const weight = (el) => {
+      const w = (el.style && el.style.fontWeight) || '';
+      if (/^(bold|bolder|[6-9]00)$/.test(w)) return 'bold';
+      if (/^(normal|lighter|[1-5]00)$/.test(w)) return 'normal';
+      return '';
+    };
+    const italic = (el) => {
+      const s = (el.style && el.style.fontStyle) || '';
+      return s === 'italic' || s === 'oblique' ? 'italic' : s === 'normal' ? 'normal' : '';
+    };
+    // Marks hug the words: "** bold **" is not bold in markdown, so spaces go outside.
+    const wrap = (mark, s) => {
+      if (!s.trim()) return s;
+      const m = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
+      return m[1] + mark + m[2] + mark + m[3];
+    };
+    function inline(node, st) {
+      if (node.nodeType === 3) return node.textContent.replace(/[\t\n\r ]+/g, ' ').replace(/ /g, ' ');
+      if (node.nodeType !== 1) return '';
+      const tag = node.nodeName;
+      if (tag === 'BR') return '\n';
+      if (tag === 'IMG') {
+        const src = httpUrl(node.getAttribute('src'));
+        return src ? '![' + (node.getAttribute('alt') || '').replace(/[\[\]\n]/g, ' ').trim() + '](' + src + ')' : '';
+      }
+      if (MD_BLOCK.test(tag)) return '\n' + blocks(node) + '\n';
+      if (tag === 'CODE' || tag === 'KBD' || tag === 'SAMP') {
+        const code = node.textContent.replace(/\s+/g, ' ');
+        return code.trim() ? '`' + code.replace(/`/g, "'") + '`' : code;
+      }
+      const w = weight(node), it = italic(node);
+      const bold = (tag === 'B' || tag === 'STRONG' || w === 'bold') && w !== 'normal';
+      const em = (tag === 'I' || tag === 'EM' || it === 'italic') && it !== 'normal';
+      const strike = tag === 'S' || tag === 'DEL' || tag === 'STRIKE';
+      const next = { b: st.b || bold, i: st.i || em, s: st.s || strike };
+      let s = '';
+      node.childNodes.forEach((c) => { s += inline(c, next); });
+      if (strike && !st.s) s = wrap('~~', s);
+      if (em && !st.i) s = wrap('_', s);
+      if (bold && !st.b) s = wrap('**', s);
+      if (tag === 'A') {
+        const href = httpUrl(node.getAttribute('href'));
+        const text = s.trim();
+        if (href && text && !/^!\[/.test(text)) {
+          if (text === href || text === href.replace(/\/$/, '')) return href;
+          return s.replace(text, '[' + text.replace(/[\[\]]/g, '') + '](' + href + ')');
+        }
+      }
+      return s;
+    }
+    // A run of inline content, tidied into lines: no space at either end of a line.
+    const tidy = (s) => s.split('\n').map((l) => l.replace(/ +/g, ' ').trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    function blockOf(el) {
+      const tag = el.nodeName;
+      if (/^H[1-6]$/.test(tag)) {
+        const text = tidy(inlineOf(el)).replace(/\n+/g, ' ').replace(/^\*\*([\s\S]*)\*\*$/, '$1');
+        return text ? '#'.repeat(Number(tag[1])) + ' ' + text : '';
+      }
+      if (tag === 'HR') return '---';
+      if (tag === 'PRE') {
+        const code = el.textContent.replace(/\n$/, '');
+        return code.trim() ? '```\n' + code + '\n```' : '';
+      }
+      if (tag === 'BLOCKQUOTE') {
+        const inner = blocks(el);
+        return inner ? inner.split('\n').map((l) => (l ? '> ' + l : '>')).join('\n') : '';
+      }
+      if (tag === 'UL' || tag === 'OL') {
+        const start = tag === 'OL' ? Number(el.getAttribute('start')) || 1 : 1;
+        let n = 0;
+        return [...el.children].map((li) => {
+          if (li.nodeName === 'UL' || li.nodeName === 'OL') return blockOf(li).replace(/^/gm, '   ');
+          const marker = tag === 'OL' ? (start + n++) + '. ' : '- ';
+          const body = blocks(li).replace(/\n{2,}/g, '\n');
+          if (!body) return '';
+          return marker + body.split('\n').join('\n' + ' '.repeat(marker.length));
+        }).filter(Boolean).join('\n');
+      }
+      if (tag === 'TABLE' || tag === 'THEAD' || tag === 'TBODY' || tag === 'TFOOT') {
+        return [...el.querySelectorAll('tr')].filter((tr) => tr.closest('table') === (tag === 'TABLE' ? el : el.closest('table')))
+          .map((tr) => [...tr.children].map((c) => tidy(inlineOf(c)).replace(/\n+/g, ' ')).filter(Boolean).join(' | '))
+          .filter(Boolean).join('\n');
+      }
+      return blocks(el);
+    }
+    function inlineOf(el) {
+      let s = '';
+      el.childNodes.forEach((c) => { s += inline(c, {}); });
+      return s;
+    }
+    // A container's children: inline runs become paragraphs, blocks are converted, and
+    // the two are kept apart by a blank line.
+    function blocks(el) {
+      const out = [];
+      let run = '';
+      const flush = () => { const p = tidy(run); if (p) out.push(p); run = ''; };
+      el.childNodes.forEach((c) => {
+        if (c.nodeType === 1 && MD_BLOCK.test(c.nodeName)) { flush(); const b = blockOf(c); if (b) out.push(b); }
+        else run += inline(c, {});
+      });
+      flush();
+      return out.join('\n\n');
+    }
+    const md = blocks(body).replace(/\n{3,}/g, '\n\n').trim();
+    return md && MD_MARKUP.test(md) ? md : null;
+  }
+
+  // TEXT WITH nostr: MENTIONS IN IT, PASTED, COMES IN AS PILLS. Through insertHTML, so the
+  // paste is one step on the undo stack; text with no mention goes through insertText as it
+  // always did.
+  function insertPasted(editor, text) {
+    // A Windows clipboard ends lines with \r\n and an old Mac one with \r; left in, the \r
+    // is published as part of the note. Chrome cleaned it on the way in and Firefox did not.
+    const s = String(text || '').replace(/\r\n?/g, '\n');
+    if (!/nostr:(npub1|nprofile1)/.test(s)) { document.execCommand('insertText', false, s); return; }
+    const scratch = document.createElement('div');
+    hydrateEditorFromText(scratch, s, { holdLastLine: false }); // pasted mid-note, not a note's end
+    scratch.querySelectorAll('.mention-pill').forEach((p) => p.setAttribute('data-pasted', ''));
+    // Anchors are the editor's own business, added again once the paste is in. The empty
+    // span marks where the paste ends: the caret goes there, which the browser left nowhere
+    // when the paste ended on a pill, and the next letter typed was lost.
+    document.execCommand('insertHTML', false, scratch.innerHTML.replace(/\u200B/g, '') + '<span data-paste-end></span>');
+    const end = editor.querySelector('[data-paste-end]');
+    if (end) {
+      const r = document.createRange();
+      r.setStartBefore(end);
+      r.collapse(true);
+      end.remove();
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    // The names: insertHTML made new pills from the markup, so the lookups hydrate started
+    // were for copies no one sees.
+    editor.querySelectorAll('.mention-pill[data-pasted]').forEach((p) => {
+      p.removeAttribute('data-pasted');
+      p.contentEditable = 'false';
+      const ref = readRef(p.dataset.bech32.replace(/^nostr:/, ''), deps.NT);
+      const d = ref && ref.decoded;
+      const pk = d ? (d.type === 'npub' ? d.data : d.data.pubkey) : null;
+      if (!pk) return;
+      const cached = deps.cachedProfile(pk);
+      if (cached && cached.name) p.textContent = '@' + cached.name;
+      else deps.fetchPreviewProfile(pk).then((pr) => { if (pr && pr.name) p.textContent = '@' + pr.name; });
+    });
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   // Inverse of serializeEditor: rebuild the editor's rich DOM (mention pills,
@@ -525,7 +810,7 @@ window.SidecarCore = (function () {
   // instead of a resolved @name pill. A pill's name resolves instantly from the
   // profile cache when available, else shows a short npub that upgrades in
   // place once the profile loads (same pattern as embed cards elsewhere).
-  function hydrateEditorFromText(editor, text) {
+  function hydrateEditorFromText(editor, text, { holdLastLine = true } = {}) {
     editor.innerHTML = '';
     const appendText = (s) => {
       const lines = s.split('\n');
@@ -538,10 +823,14 @@ window.SidecarCore = (function () {
     let last = 0, m;
     while ((m = mentionRe.exec(text)) !== null) {
       if (m.index > last) appendText(text.slice(last, m.index));
-      const bech32 = m[0];
+      // Only as much as decodes: a draft saved before the space above came back with the
+      // next word glued on, and that word is text again, not part of the pill.
+      const ref = readRef(m[1], deps.NT);
+      if (ref) mentionRe.lastIndex = m.index + 'nostr:'.length + ref.code.length;
+      const bech32 = ref ? 'nostr:' + ref.code : m[0];
       let pubkey = null, fallback = bech32;
       try {
-        const decoded = deps.NT.nip19.decode(m[1]);
+        const decoded = ref ? ref.decoded : deps.NT.nip19.decode(m[1]);
         pubkey = decoded.type === 'npub' ? decoded.data : decoded.data.pubkey;
         fallback = deps.shortNpub(deps.NT.nip19.npubEncode(pubkey));
       } catch (_) {}
@@ -566,6 +855,10 @@ window.SidecarCore = (function () {
       }
     }
     if (last < text.length) appendText(text.slice(last));
+    // A note that ends on a new line ends with an empty line, and a browser shows an empty
+    // last line only with a <br> holding it open (serializeEditor reads that one as no
+    // break). Without it the line was not there to type on, and the draft lost it.
+    if (holdLastLine && text.endsWith('\n')) editor.appendChild(document.createElement('br'));
     anchorPills(editor);
   }
 
@@ -646,9 +939,15 @@ window.SidecarCore = (function () {
     let reAskDismissed = false; // "Just my follows" answered on the ask that returns when nothing matches
 
     function syncEmptyClass() {
-      const isEmpty = !editor.textContent.trim() && !editor.querySelector('[data-bech32]');
+      // EMPTY MEANS NOTHING AT ALL. A space or a line break is something the writer put
+      // there, at the start of a note as anywhere else; this once tested the trimmed text,
+      // so a space or Enter in an empty editor was wiped as it was typed. The lone <br> a
+      // browser leaves when everything is deleted still counts as empty, and is left where
+      // it is: clearing it by hand cut the browser's undo history, so in Firefox Select
+      // All, Delete, then Undo brought nothing back.
+      const isEmpty = !editor.textContent && !editor.querySelector('[data-bech32]')
+        && editor.querySelectorAll('br').length <= 1;
       editor.classList.toggle('is-empty', isEmpty);
-      if (isEmpty) editor.innerHTML = '';
     }
 
     // Report the text upward, keeping the placeholder state in sync first.
@@ -720,7 +1019,11 @@ window.SidecarCore = (function () {
       const trailingSpace = document.createTextNode(' ');
       range.setStartAfter(pill);
       range.insertNode(trailingSpace);
-      range.setStartAfter(trailingSpace);
+      // Inside the space's own text node, not "after it" among the editor's children: emit()
+      // adds an anchor in front of a pill that starts a line, which moves every child one
+      // place on, and a caret held as a child index slid back in front of the space. The
+      // next word typed then went against the pill.
+      range.setStart(trailingSpace, trailingSpace.length);
       range.collapse(true);
       sel.removeAllRanges();
       sel.addRange(range);
@@ -878,6 +1181,8 @@ window.SidecarCore = (function () {
     // only the anchor (nothing visible happened) and the second deleted the pill too.
     editor.addEventListener('keydown', (e) => {
       if ((e.key !== 'Backspace' && e.key !== 'Delete') || e.isComposing || acDropdown) return;
+      // Cmd+Backspace (to the start of the line) and its kin are the browser's to do whole.
+      if (e.metaKey || e.ctrlKey) return;
       const sel = window.getSelection();
       if (!sel.rangeCount || !sel.isCollapsed) return;
       const r = sel.getRangeAt(0);
@@ -899,24 +1204,211 @@ window.SidecarCore = (function () {
         else next = node.childNodes[off] || null;
         if (next && next.nodeName === 'BR' && (isPill(next.nextSibling) || (isAnchor(next.nextSibling) && isPill(next.nextSibling.nextSibling)))) br = next;
       }
-      if (!br) return;
+      if (!br) {
+        // THE ANCHOR IS NOT A CHARACTER ANYONE CAN SEE, so a key acts as if it were not
+        // there: Delete with only anchors between the caret and a pill takes the pill, and so
+        // does Backspace with only anchors between a pill and the caret. Left to the browser,
+        // a click just left of a pill that starts a line put the caret before its anchor, and
+        // Delete took the anchor and nothing visible happened.
+        const pill = e.key === 'Delete' ? pillAhead(node, off) : pillBehind(node, off);
+        if (!pill) return;
+        e.preventDefault();
+        deleteNodes(sel, pill, pill);
+        return;
+      }
       e.preventDefault();
-      let after = br.nextSibling;
-      br.remove();
-      // The anchor is spent once the pill no longer starts a line: left in, it would cost the
-      // next Backspace a keypress that does nothing visible.
-      const prev = after && after.previousSibling;
-      if (isAnchor(after) && prev && prev.nodeName !== 'BR') { const pill = after.nextSibling; after.remove(); after = pill; }
-      // The caret stays where the two lines now meet.
-      const at = document.createRange();
-      if (prev && prev.nodeType === Node.TEXT_NODE && prev.nextSibling === after) at.setStart(prev, prev.textContent.length);
-      else if (after && after.nodeType === Node.TEXT_NODE) at.setStart(after, 0);
-      else if (after) at.setStartBefore(after);
-      else { at.selectNodeContents(editor); at.collapse(false); }
-      at.collapse(true);
+      // Only the break: the two lines meet, and the pill stays.
+      deleteNodes(sel, br, br);
+    });
+
+    // A WORD TYPED AGAINST A PILL GETS ITS SPACE AS IT IS TYPED. The saved text always has
+    // one there (serializeEditor), so the screen shows it too, at the keystroke, rather than
+    // after a reload. Through the browser's insert, so undo takes the letter and the space
+    // together.
+    editor.addEventListener('beforeinput', (e) => {
+      if (e.inputType !== 'insertText' || e.isComposing || !e.data || !JOINS_A_KEY.test(e.data)) return;
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !sel.isCollapsed) return;
+      const node = sel.anchorNode; const off = sel.anchorOffset;
+      if (!editor.contains(node) || !pillBehind(node, off)) return;
+      // Only right against it: anchors aside, nothing may stand between the pill and the caret.
+      e.preventDefault();
+      document.execCommand('insertText', false, '\u00a0' + e.data);
+    });
+
+    // EVERY DELETION HERE GOES THROUGH THE BROWSER'S OWN DELETE, on a selection of exactly
+    // what is to go, so it lands on the undo stack: Cmd+Z brings a pill or a line break
+    // back. Removing the nodes by hand, as these keys first did, left nothing to undo.
+    function deleteNodes(sel, first, last) {
+      const r = document.createRange();
+      r.setStartBefore(first);
+      r.setEndAfter(last);
       sel.removeAllRanges();
-      sel.addRange(at);
-      emit();
+      sel.addRange(r);
+      document.execCommand('delete');
+    }
+
+    // THE ARROW KEYS STEP OVER WHAT CANNOT BE SEEN. An anchor is a character to the browser,
+    // so at a pill that starts a line one press of an arrow moved the caret across it and
+    // nothing visible happened. A move that crossed only anchors moves again.
+    editor.addEventListener('keydown', (e) => {
+      if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.metaKey || e.ctrlKey || e.altKey || e.isComposing || acDropdown) return;
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !sel.modify) return;
+      if (!sel.isCollapsed && !e.shiftKey) return; // collapsing a selection is one step already
+      e.preventDefault();
+      const alter = e.shiftKey ? 'extend' : 'move';
+      // modify() is told the visual side, so right-to-left text moves the way the key points.
+      const side = e.key === 'ArrowLeft' ? 'left' : 'right';
+      for (let i = 0; i < 4; i++) {
+        const fromNode = sel.focusNode; const fromOff = sel.focusOffset;
+        sel.modify(alter, side, 'character');
+        if (sel.focusNode === fromNode && sel.focusOffset === fromOff) break; // the end of the note
+        // What the step crossed, in document order, whichever way it went.
+        const crossed = document.createRange();
+        crossed.setStart(fromNode, fromOff);
+        crossed.collapse(true);
+        if (crossed.comparePoint(sel.focusNode, sel.focusOffset) < 0) crossed.setStart(sel.focusNode, sel.focusOffset);
+        else crossed.setEnd(sel.focusNode, sel.focusOffset);
+        const bit = crossed.cloneContents();
+        const onlyAnchors = !bit.querySelector('*') && bit.textContent && !bit.textContent.replace(/\u200B/g, '');
+        if (!onlyAnchors) break;
+      }
+    });
+
+    // A CLICK ON A PILL PUTS THE CARET BESIDE IT, on the side clicked. Left to the browser,
+    // the click selected the pill with nothing to show it, and the next letter typed
+    // replaced the mention.
+    editor.addEventListener('mousedown', (e) => {
+      const pill = e.target && e.target.closest && e.target.closest('[data-bech32]');
+      if (!pill || !editor.contains(pill) || e.button !== 0 || e.shiftKey) return;
+      e.preventDefault();
+      editor.focus();
+      const box = pill.getBoundingClientRect();
+      const r = document.createRange();
+      if ((e.clientX - box.left) < box.width / 2) r.setStartBefore(pill); else r.setStartAfter(pill);
+      r.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    });
+
+    // THE CARET NEVER STANDS INSIDE A PILL. Firefox puts it there: Enter in front of a pill
+    // left it inside the pill on the new line, and a click just left of a pill that starts a
+    // line put it at the pill's end. A pill cannot be edited, so the next letters typed went
+    // nowhere and Delete did nothing. Moved out, it goes to the side a click was nearer, or
+    // in front of the pill when it stood at its start.
+    let lastPress = null;
+    editor.addEventListener('pointerdown', (e) => { lastPress = { x: e.clientX, at: Date.now() }; }, true);
+    const caretOutOfPill = () => {
+      if (!editor.isConnected) { document.removeEventListener('selectionchange', caretOutOfPill); return; }
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !sel.isCollapsed) return;
+      const node = sel.anchorNode;
+      // A CARET BETWEEN TWO LINES BELONGS TO ONE OF THEM. After Select All and the Right
+      // arrow, Firefox leaves the caret in the editor itself, between its line blocks, and the
+      // next Enter made an empty line with whatever came next on another line below it. It
+      // goes to the end of the line before it (ahead of a <br> that only holds that line
+      // open), or to the start of the first line.
+      if (node === editor) {
+        const kids = editor.childNodes;
+        const isLine = (n) => n && n.nodeType === 1 && (n.nodeName === 'DIV' || n.nodeName === 'P');
+        const before = kids[sel.anchorOffset - 1], after = kids[sel.anchorOffset];
+        const r = document.createRange();
+        if (isLine(before)) {
+          const last = before.lastChild;
+          if (last && last.nodeName === 'BR') r.setStartBefore(last); else r.setStart(before, before.childNodes.length);
+        } else if (!before && isLine(after)) r.setStart(after, 0);
+        else return;
+        r.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r);
+        return;
+      }
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      const pill = el && el.closest && el.closest('[data-bech32]');
+      if (!pill || !editor.contains(pill)) return;
+      let before;
+      if (lastPress && Date.now() - lastPress.at < 500) {
+        const box = pill.getBoundingClientRect();
+        before = lastPress.x < box.left + box.width / 2;
+      } else {
+        const ahead = document.createRange();
+        ahead.setStart(pill, 0);
+        ahead.setEnd(node, sel.anchorOffset);
+        before = !ahead.toString();
+      }
+      const r = document.createRange();
+      if (before) r.setStartBefore(pill); else r.setStartAfter(pill);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    };
+    document.addEventListener('selectionchange', caretOutOfPill);
+
+    // COPY AND CUT CARRY A MENTION AS ITS ADDRESS. The browser copied a pill as the words on
+    // it, "@name", and pasting that back gave text that mentions nobody. What is copied is
+    // the note's own text, nostr: addresses and all, which this editor (and any client)
+    // reads back as the mention.
+    function copySelection(e, cut) {
+      const sel = window.getSelection();
+      if (!sel.rangeCount || sel.isCollapsed || !editor.contains(sel.getRangeAt(0).commonAncestorContainer)) return;
+      const box = document.createElement('div');
+      box.append(sel.getRangeAt(0).cloneContents());
+      // Always the editor's own reading, not only around a mention: Firefox copied lines
+      // with a blank one between them with an extra break, so pasting them back added a line.
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', serializeEditor(box));
+      if (cut) document.execCommand('delete');
+    }
+    editor.addEventListener('copy', (e) => copySelection(e, false));
+    editor.addEventListener('cut', (e) => copySelection(e, true));
+
+    // PASTE AND DROP ARE TEXT, IN EVERY EDITOR. Left to the browser, a contenteditable takes
+    // rich text with its fonts, colors and links, and pictures as inline images that are
+    // never uploaded or published; a drop bypassed the composers' paste handling entirely,
+    // and the page-comment box had none at all. Text comes in as text (mentions as pills,
+    // through insertPasted, so it can be undone). Files go to onFiles where the editor's owner
+    // takes attachments, and are refused where it does not. onPasteText lets an owner take a
+    // paste as something else (a quoted note) by returning true.
+    const onFiles = (opts && opts.onFiles) || null;
+    const onPasteText = (opts && opts.onPasteText) || null;
+    const filesIn = (dt) => [...((dt && dt.files) || [])];
+    const takeText = (text) => {
+      if (!text) return;
+      if (onPasteText && onPasteText(text)) return;
+      insertPasted(editor, text);
+    };
+    editor.addEventListener('paste', (e) => {
+      const dt = e.clipboardData;
+      e.preventDefault();
+      const files = filesIn(dt).filter((f) => f.type.startsWith('image/'));
+      if (files.length) { if (onFiles) onFiles(files, { pasted: true }); return; }
+      takeText(transferText(dt));
+    });
+    // Text dragged within the editor is its own markup moving, and the browser moves it.
+    let draggingInside = false;
+    editor.addEventListener('dragstart', () => { draggingInside = true; });
+    editor.addEventListener('dragend', () => { draggingInside = false; });
+    editor.addEventListener('drop', (e) => {
+      if (draggingInside) { draggingInside = false; return; }
+      e.preventDefault();
+      const dt = e.dataTransfer;
+      const files = filesIn(dt);
+      if (files.length) { if (onFiles) onFiles(files, { pasted: false }); return; }
+      const text = transferText(dt);
+      if (!text) return;
+      // Where it was dropped, as the browser would have put it.
+      let at = null;
+      if (document.caretPositionFromPoint) {
+        const p = document.caretPositionFromPoint(e.clientX, e.clientY);
+        if (p) { at = document.createRange(); at.setStart(p.offsetNode, p.offset); }
+      } else if (document.caretRangeFromPoint) at = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (at && editor.contains(at.startContainer)) at.collapse(true);
+      else { at = document.createRange(); at.selectNodeContents(editor); at.collapse(false); } // off the text: at its end
+      editor.focus();
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(at);
+      takeText(text);
     });
 
     editor.addEventListener('keydown', (e) => {
@@ -1102,6 +1594,9 @@ window.SidecarCore = (function () {
       editor,
       insertText,
       getText: () => serializeEditor(editor),
+      // Pasted text at the caret, as the paste handlers insert it: mentions in it come in as
+      // pills, through the browser's own insert so the paste can be undone.
+      insertPasted: (text) => insertPasted(editor, text),
       // Re-read the editor after the caller mutated its DOM directly (e.g.
       // appending an uploaded media URL) so the text, placeholder and any
       // onChange-driven state agree with what's on screen.
@@ -2204,7 +2699,7 @@ window.SidecarCore = (function () {
   // is which key to leave OUT of the p tags.
   const WEB_COMMENT_KIND = 1111;
 
-  // The kind a reply to this event goes out as: 1111 under a comment, 1 otherwise. Asked
+  // The kind a reply to this event goes out as: 1 under a note, 1111 under anything else. Asked
   // of replyTags itself rather than restated, so the label that announces it cannot
   // drift from what is published.
   function replyKind(target) {
@@ -2251,6 +2746,22 @@ window.SidecarCore = (function () {
       return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
     }
 
+    // A REPLY TO ANYTHING BUT A NOTE IS A COMMENT (NIP-22). An article, a recipe, a picture,
+    // a highlight: answered with a kind 1 it was a note in a thread nobody reads that way,
+    // and Zap Cooking's comments under a recipe never showed it. The thing answered is the
+    // root, in uppercase, and the parent, in lowercase; an addressable one (an article, a
+    // recipe) is named by its address too, so a comment survives the article being edited.
+    const kind = typeof target.kind === 'number' ? target.kind : 1;
+    if (kind !== 1) {
+      const d = kind >= 30000 && kind < 40000 ? ((tgTags.find((t) => t[0] === 'd') || [])[1] || '') : null;
+      const address = d !== null ? `${kind}:${author}:${d}` : null;
+      if (address) tags.push(['A', address]);
+      tags.push(['E', id, '', author], ['K', String(kind)], ['P', author]);
+      if (address) tags.push(['a', address]);
+      tags.push(['e', id, '', author], ['k', String(kind)]);
+      return { kind: WEB_COMMENT_KIND, tags: [...tags, ...people] };
+    }
+
     // NIP-10. Reuse the target's root when it has one; otherwise the target is the root.
     const rootTag = tgTags.find((t) => t[0] === 'e' && t[3] === 'root' && t[1]);
     const root = rootTag ? rootTag[1] : id;
@@ -2279,7 +2790,9 @@ window.SidecarCore = (function () {
     let m;
     while ((m = re.exec(String(content || ''))) !== null) {
       try {
-        const d = NT.nip19.decode(m[1]);
+        const ref = readRef(m[1], NT);
+        if (!ref) continue;
+        const d = ref.decoded;
         const pk = d.type === 'npub' ? d.data : d.data.pubkey;
         if (pk && !seen.has(pk)) { seen.add(pk); out.push(['p', pk]); }
       } catch (_) { /* malformed mention — skip it, don't fail the post */ }
@@ -2306,7 +2819,9 @@ window.SidecarCore = (function () {
     BODY_REF_RE.lastIndex = 0;
     while ((m = BODY_REF_RE.exec(String(content || ''))) !== null) {
       let d = null;
-      try { d = NT.nip19.decode(m[1]); } catch (_) { continue; } // malformed ref — skip it, don't fail the post
+      const ref = readRef(m[1], NT);
+      if (!ref) continue; // malformed ref — skip it, don't fail the post
+      d = ref.decoded;
       let value = null;
       let relay = '';
       let author = '';
@@ -2353,6 +2868,23 @@ window.SidecarCore = (function () {
   // then the authors it quotes that are not already among them, less anyone the reply's
   // own threading tags already name (threadTags), and the q tags. Both composers place
   // these after the threading and client tags: p tags, then q tags, then imeta.
+  // A HASHTAG IS A t TAG (NIP-24), lowercase, once each, in the order written: clients and
+  // relays find posts by hashtag through #t filters, so one written only in the text is a
+  // word no search finds. Not inside a link (a page's #section), not inside code, and not a
+  // number on its own ("#1 fan"). A trailing hyphen or underscore is punctuation, not tag.
+  function hashtagTags(text) {
+    const prose = String(text || '').replace(/```[\s\S]*?```|`[^`\n]+`/g, ' ').replace(/\b(?:https?|wss?):\/\/\S+/gi, ' ');
+    const out = [];
+    const seen = new Set();
+    for (const m of prose.matchAll(/(^|[^\p{L}\p{N}_&#/])#([\p{L}\p{N}_][\p{L}\p{M}\p{N}_-]*)/gu)) {
+      const tag = m[2].replace(/[-_]+$/, '').toLowerCase();
+      if (!tag || /^\p{N}+$/u.test(tag) || seen.has(tag)) continue;
+      seen.add(tag);
+      out.push(['t', tag]);
+    }
+    return out;
+  }
+
   function noteBodyTags(prose, NT, threadTags) {
     const pTags = mentionPTags(prose, NT);
     const quotes = quoteTags(prose, NT);
@@ -2363,7 +2895,7 @@ window.SidecarCore = (function () {
       pTags.push(['p', pk]);
     }
     const already = new Set((threadTags || []).filter((t) => t[0] === 'p').map((t) => t[1]));
-    return { p: pTags.filter((t) => !already.has(t[1])), q: quotes.tags };
+    return { p: pTags.filter((t) => !already.has(t[1])), q: quotes.tags, t: hashtagTags(prose) };
   }
 
   // ---- dev-build composer fixtures, shared by both composers ------------------------
@@ -2932,13 +3464,22 @@ window.SidecarCore = (function () {
   // (`names` maps the bech32 to it), and a note, event or address is its first and last
   // characters. Only the display changes: the draft keeps the full reference.
   function draftRefsAsText(text, names) {
-    return String(text || '').replace(/nostr:((?:npub|nprofile|note|nevent|naddr)1[02-9ac-hj-np-z]+)/g, (whole, code) => {
-      const person = code.startsWith('npub1') || code.startsWith('nprofile1');
-      const known = names && names[code];
-      if (person && known) return '@' + known;
-      const short = code.length > 20 ? code.slice(0, 10) + '\u2026' + code.slice(-4) : code;
-      return person ? '@' + short : short;
+    // The page's nip19; display only, so without it a reference is shortened whole.
+    const NT = (typeof window !== 'undefined' && window.NostrTools) || null;
+    return String(text || '').replace(/nostr:((?:npub|nprofile|note|nevent|naddr)1[02-9ac-hj-np-z]+)/g, (whole, run) => {
+      // A word joined onto the reference is kept as the word, not shortened with it.
+      const ref = NT ? readRef(run, NT) : null;
+      const code = ref ? ref.code : run;
+      const rest = run.slice(code.length);
+      return refAsText(code, names) + (rest ? ' ' + rest : '');
     });
+  }
+  function refAsText(code, names) {
+    const person = code.startsWith('npub1') || code.startsWith('nprofile1');
+    const known = names && names[code];
+    if (person && known) return '@' + known;
+    const short = code.length > 20 ? code.slice(0, 10) + '\u2026' + code.slice(-4) : code;
+    return person ? '@' + short : short;
   }
   function draftSnippet(d, names) {
     const text = draftRefsAsText(stripDraftMediaUrls(d.text || '', d.media), names).replace(/\s+/g, ' ').trim();
@@ -2972,11 +3513,63 @@ window.SidecarCore = (function () {
   //   d.onSave         a second icon, the cloud, on rows that can go to relays (not a
   //                    poll: NIP-37 drafts here are kinds 1 and 1111 only)
   // Two icons at most in the inline slot, never a word: AGENTS.md's row grammar.
+  // ARTICLES AND RECIPES IN SAVED DRAFTS. They keep their own store (longform.js), one of
+  // each per account, and are listed apart from the notes, under their own heading, in the
+  // note rows' own markup. Shared by the panel and the full-size composer so the two lists
+  // say the same thing. `mine` is the account's entry in that store; `current` names the
+  // kind on screen, which reads "Open now" and has no delete, as the note on screen does.
+  function longformDraftItems(mine, current) {
+    const out = [];
+    const a = mine && mine.article;
+    const r = mine && mine.recipe;
+    if (a) out.push({ kind: 'article', label: t('Article'), savedAt: a.savedAt, current: current === 'article',
+      snippet: (a.title || a.summary || String(a.body || '').slice(0, 140)).trim() });
+    if (r) out.push({ kind: 'recipe', label: t('Recipe'), savedAt: r.savedAt, current: current === 'recipe',
+      snippet: (r.title || r.summary || (r.ingredients || [])[0] || '').trim() });
+    // A thread's draft (kept for dev/threads) is not listed: this build has no Thread tab to open it in.
+    return out;
+  }
+  function buildLongformDraftList(items, opts) {
+    if (!items.length) return '';
+    const rows = items.map((it) => {
+      const label = h('span', { className: 'saved-draft-label', textContent: it.label });
+      const when = h('span', { className: 'saved-draft-when', textContent: it.current ? t('Open now') : (it.savedAt ? relTime(it.savedAt) : '') });
+      const open = h('button', { className: 'saved-draft-open', type: 'button' }, [
+        h('span', { className: 'saved-draft-top' }, [label, h('span', { className: 'saved-draft-meta' }, [when])]),
+        h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: it.snippet || t('Untitled') }),
+      ]);
+      open.addEventListener('click', () => opts.onOpen(it.kind));
+      const row = h('div', { className: 'saved-draft' + (it.current ? ' saved-draft-current' : '') }, [open]);
+      // The one on screen only where the caller clears the form as it deletes (opts.discard):
+      // otherwise the form's next save would write it straight back.
+      const discard = it.current && opts.discard;
+      if ((!it.current || discard) && opts.onDelete) {
+        // Two taps, as the note rows ask: the first says what the second does.
+        const trash = h('button', { className: 'saved-draft-x', type: 'button', title: discard ? t('Discard draft') : t('Delete draft') }, [icon('trash')]);
+        trash.setAttribute('aria-label', trash.title);
+        trash.addEventListener('click', () => {
+          if (!row.classList.contains('confirming')) {
+            row.classList.add('confirming');
+            label.textContent = discard ? t('Tap again to discard') : t('Tap again to delete');
+            return;
+          }
+          opts.onDelete(it.kind);
+        });
+        row.append(trash);
+      }
+      return row;
+    });
+    return h('div', { className: 'lf-saved-drafts' }, [
+      h('h4', { className: 'lf-saved-head', textContent: t('Articles and recipes') }),
+      h('div', { className: 'saved-drafts' }, rows),
+    ]);
+  }
+
   function buildSavedDraftList(d) {
     const list = h('div', { className: 'saved-drafts' });
     d.entries.forEach((entry) => {
       const label = h('span', { className: 'saved-draft-label', textContent: draftKindLabel(entry, null) });
-      const whenText = () => (entry.current ? t('Open now')
+      const whenText = () => (entry.current ? (entry.openLabel != null ? entry.openLabel : t('Open now'))
         : entry.draft.savedAt ? relTime(entry.draft.savedAt) : '');
       const when = h('span', { className: 'saved-draft-when', textContent: whenText() });
       // The time and, when there is one, the mark beside it are ONE unit at the end of the
@@ -5520,7 +6113,9 @@ window.SidecarCore = (function () {
   // composer is the third caller, and the only thing left that knew which document it
   // was drawing into was the identity strip, which is now passed in like the rest.
   function showPostCountdown(opts) {
-    const { modal, secs, title, hint, preview, confirmLabel, onFire, onCancel } = opts;
+    const { modal, secs, title, hint, preview, confirmLabel, cancelLabel, onFire, onCancel } = opts;
+    // No seconds: a review with no timer, which goes out only when its button is pressed (an
+    // article or a recipe, too long to take in against a clock).
     // WHO IS POSTING, supplied rather than looked up. It was read off the panel's own
     // state here, which is the one thing in this function that knew which document it was
     // drawing into. The expanded composer asks the same question of a different page.
@@ -5545,7 +6140,7 @@ window.SidecarCore = (function () {
 
     const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
     const now = h('button', { className: 'primary', textContent: confirmLabel || 'Post now' });
-    const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
+    const cancel = h('button', { className: 'ghost', textContent: cancelLabel || t('Cancel') });
 
     async function fire() {
       stop();
@@ -5561,9 +6156,10 @@ window.SidecarCore = (function () {
       ...(author ? [author] : []),
       h('p', { className: 'hint', textContent: hint || 'Review before it posts.' }),
       preview,
-      ringWrap,
+      ...(secs ? [ringWrap] : []),
       h('div', { className: 'actions' }, [now, cancel])
     );
+    if (!secs) return { stop };
 
     const fill = ring.querySelector('.ring-fill');
     timer = setInterval(() => {
@@ -5943,7 +6539,7 @@ window.SidecarCore = (function () {
     paintSavedState,
     TRACKING_PARAMS, TRACKING_PREFIXES, HOST_TRACKING_PARAMS, isTrackingParam,
     hostTrackingParams, cleanTrackedUrl, trimUrlTail, findTrackedUrls,
-    LIGHT_THEMES, COMPOSE_DARK_BAR_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc,
+    LIGHT_THEMES, COMPOSE_DARK_BAR_THEMES, PANEL_DARK_BAR_THEMES, logoSrcFor, avatarPhSrc, buildUrlRow, relTime, longformDraftItems, buildLongformDraftList,
     installComposer,
     // Furniture: the same three things every composer needs, wired through installComposer
     // so they read their relays and their profile cache from whichever page installed it.
@@ -5958,7 +6554,7 @@ window.SidecarCore = (function () {
     splitTrailingQuote, takeTrailingQuote, proseWithQuotes, quoteEntriesFromPaste, placeQuote, moveQuoteEntry, buildAttachmentsLabel,
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
-    replyTags, replyKind, WEB_COMMENT_KIND, mentionPTags, quoteTags, noteBodyTags, linkBareRefs,
+    replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, textFromHtml, markdownFromHtml, transferText, mentionPTags, quoteTags, noteBodyTags, hashtagTags, linkBareRefs,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,

@@ -333,6 +333,10 @@ const CRYPTO = self.SidecarCrypto;
 const SECRET_STORES = {
   drafts: { v1: 'sidecar_drafts_enc', legacy: 'sidecar_compose_drafts' },
   paymeta: { v1: 'sidecar_pay_meta_enc', legacy: 'sidecar_pay_meta' },
+  // Article and recipe drafts (longform.js), per account. Kept apart from the note drafts
+  // above so they never appear in Saved drafts or open in the note editor. Never had a
+  // plaintext predecessor; the legacy key is only there because secretGet reads one.
+  longform: { v1: 'sidecar_longform_enc', legacy: 'sidecar_longform_drafts' },
 };
 // Add one entry to the encrypted pay-meta store, mirroring the panel's savePayMeta:
 // same 300-entry cap, same oldest-first eviction, same merge-don't-clobber. Two writers

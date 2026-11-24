@@ -179,7 +179,7 @@ test('a body mention does not duplicate a participant already tagged', () => {
   assert.match(fn, /window\.SidecarCore\.noteBodyTags\(window\.SidecarCore\.proseWithQuotes\(prose, draft\.media\), NT, reply \? reply\.tags : \[\]\)/);
   const core = fs.readFileSync(path.join(__dirname, '..', 'composer-core.js'), 'utf8');
   const body = core.slice(core.indexOf('function noteBodyTags('));
-  assert.match(body.slice(0, 900), /return \{ p: pTags\.filter\(\(t\) => !already\.has\(t\[1\]\)\), q: quotes\.tags \};/);
+  assert.match(body.slice(0, 900), /return \{ p: pTags\.filter\(\(t\) => !already\.has\(t\[1\]\)\), q: quotes\.tags, t: hashtagTags\(prose\) \};/);
 });
 
 // ---- where it is offered --------------------------------------------------------------

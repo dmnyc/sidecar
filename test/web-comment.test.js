@@ -53,6 +53,7 @@ if (!nostrTools || !nostrTools.nip19) throw new Error('vendored nostr-tools.js d
 const ctx = { console, URL, Date, NT: nostrTools };
 vm.createContext(ctx);
 vm.runInContext(
+  lift(/function readRef\(code, NT\) \{[\s\S]*?\n  \}/, 'readRef') + '\n' +
   lift(/const WEB_COMMENT_KIND = \d+;/, 'WEB_COMMENT_KIND') + '\n' +
   lift(/const TRACKING_PARAMS = \[[\s\S]*?\n  \];/, 'TRACKING_PARAMS') + '\n' +
   lift(/const TRACKING_PREFIXES = \[[^\]]*\];/, 'TRACKING_PREFIXES') + '\n' +

@@ -37,7 +37,8 @@ const NT = ntCtx.NostrTools;
 const ctx = { NT };
 vm.createContext(ctx);
 vm.runInContext(
-  lift(/const BODY_REF_RE = [^;]+;/, 'BODY_REF_RE') + '\n' +
+  lift(/function readRef\(code, NT\) \{[\s\S]*?\n  \}/, 'readRef') + '\n' +
+    lift(/const BODY_REF_RE = [^;]+;/, 'BODY_REF_RE') + '\n' +
     lift(/function quoteTags\(content, NT\) \{[\s\S]*?\n  \}/, 'quoteTags') + '\n' +
     lift(/function mentionPTags\(content, NT\) \{[\s\S]*?\n  \}/, 'mentionPTags') + '\n' +
     'globalThis.qt = (s) => quoteTags(s, NT); globalThis.mt = (s) => mentionPTags(s, NT);',
