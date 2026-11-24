@@ -142,7 +142,7 @@ test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
   // (Through the dev kind override first, which only a dev build with its switch on
   //  takes; every other build reaches the shared builder.)
   assert.match(pageBare, /const reply = kindOverride\s*\n\s*\? await SC\.devReplyTags\(replyTo, devKind, state\.activePubkey, devAuthorOf\)\s*\n\s*: replyTo \? SC\.replyTags\(replyTo, state\.activePubkey\) : null;/);
-  assert.match(pageBare, /const kindOverride = devBuild && devOn\.kind && settings\.devComposerKinds === true && devKind && !draft\.poll;/);
+  assert.match(pageBare, /const kindOverride = devBuild && devKind && !draft\.poll &&\s*\n\s*\(\(devOn\.kind && settings\.devComposerKinds === true\) \|\| \(settings\.devReplyById === true && devKindChosenFor\(replyTo\)\)\);/);
   // A poll is its own kind and is never a reply, so the ternary has a third arm now.
   assert.match(pageBare, /kind: asPoll \? SC\.POLL_KIND : reply \? reply\.kind : 1,/);
   // Threading leads, then the client tag, then the poll tags, then imeta. NIP-10 takes
@@ -373,7 +373,7 @@ test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
     assert.ok(!new RegExp('function ' + name + '\\(').test(panel), 'sidepanel.js kept a copy of ' + name);
   }
   assert.match(bare, /composer\.renderNotePreview\(box, body\)/);
-  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted \}\)/);
+  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted, info \}\)/);
   // Its relay reads go through this page's own pool, so the core never learns which
   // sockets it is using and cannot reach the panel's.
   assert.match(bare, /poolGet: \(relays, filter, params\) => pool\(\)\.get\(/);

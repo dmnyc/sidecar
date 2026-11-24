@@ -684,10 +684,15 @@
   // "kind 1" or "kind 1111" in small print beside the label. The dev selector can choose
   // the kind instead of inheriting it, so it repaints this too: a label that said kind 1
   // over a kind 1111 reply would be worse than none.
+  // Reply to any event chose this reply's kind: true only for the event it was chosen for.
+  function devKindChosenFor(target) {
+    return devOn.reply && !!target && !!devKindFor && devKindFor === target.id;
+  }
+
   function paintReplyKind() {
     const el = document.querySelector('#compose-reply-target .reply-target-kind');
     if (!el || !replyTo) return;
-    const kind = devBuild && devOn.kind && devKind ? devKind : SC.replyKind(replyTo);
+    const kind = devBuild && devKind && (devOn.kind || devKindChosenFor(replyTo)) ? devKind : SC.replyKind(replyTo);
     el.textContent = t('kind {{kind}}', { kind });
   }
 
@@ -794,6 +799,8 @@
   })();
   const devOn = { kind: false, silent: false, reply: false }; // the switches, read at boot
   let devKind = 0;          // 0 is Automatic: the kind a reply would take anyway
+  let devReplyKind = 0;     // Reply to any event's choice, kept across repaints of its row
+  let devKindFor = '';      // the event that choice was made for: it holds for that reply only
   let devSilentText = '';   // kept across repaints, which rebuild the field
   let devReplyField = null; // the reply-by-id field, so Post can see an id left in it
 
@@ -884,6 +891,15 @@
     const go = h('button', { type: 'button', className: 'secondary', textContent: t('Reply to this event') });
     const hint = h('p', { className: 'hint', textContent: t('Dev build only. Paste an ID, or type one and press Enter.') });
     devReplyField = field;
+    // THE REPLY'S KIND, chosen before the event loads, as in the panel.
+    const kindSelect = h('select', { id: 'compose-dev-reply-kind' });
+    kindSelect.append(
+      h('option', { value: '0', textContent: t('Automatic') }),
+      h('option', { value: '1', textContent: t('Kind 1 — note') }),
+      h('option', { value: '1111', textContent: t('Kind 1111 — comment') }),
+    );
+    kindSelect.value = String(devReplyKind);
+    kindSelect.addEventListener('change', () => { devReplyKind = Number(kindSelect.value) || 0; });
     const load = async () => {
       if (busy() || go.disabled) return;
       const ref = SC.parseEventRef(field.value, NT);
@@ -917,13 +933,19 @@
       all[key] = { ...(prior || {}), text: kept, media: (prior && prior.media) || [], replyTo: target, savedAt: Date.now() };
       await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
       await switchToDraft(ev.id);
+      // The chosen kind follows the reply it was chosen for, and only that one.
+      devKind = devReplyKind;
+      devKindFor = devReplyKind ? ev.id : '';
+      paintDevControls();
+      paintReplyKind();
     };
     go.addEventListener('click', load);
     // A paste or Enter loads the id; Post refuses while an unloaded one is in the field.
     field.addEventListener('paste', () => setTimeout(() => { if (SC.parseEventRef(field.value, NT)) load(); }, 0));
     field.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); load(); } });
     return h('div', { className: 'compose-dev-kind compose-dev-reply' }, [
-      h('label', { htmlFor: 'compose-dev-reply', textContent: t('Reply to an event') }), field, go, hint,
+      h('label', { htmlFor: 'compose-dev-reply', textContent: t('Reply to an event') }), field,
+      h('label', { htmlFor: 'compose-dev-reply-kind', textContent: t('Demo event kind') }), kindSelect, go, hint,
     ]);
   }
 
@@ -1390,7 +1412,10 @@
       // switch read again now, because the tab can be open for a long time and a silent
       // tag is invisible in the note.
       const settings = (await call({ type: 'SIDECAR_GET_SETTINGS' }).catch(() => null)) || {};
-      const kindOverride = devBuild && devOn.kind && settings.devComposerKinds === true && devKind && !draft.poll;
+      // The switch that chose the kind is read again here: the kind selector's, or Reply to
+      // any event's for the event it loaded.
+      const kindOverride = devBuild && devKind && !draft.poll &&
+        ((devOn.kind && settings.devComposerKinds === true) || (settings.devReplyById === true && devKindChosenFor(replyTo)));
       const reply = kindOverride
         ? await SC.devReplyTags(replyTo, devKind, state.activePubkey, devAuthorOf)
         : replyTo ? SC.replyTags(replyTo, state.activePubkey) : null;
@@ -2145,14 +2170,15 @@
       try {
         for (const file of files) {
           // The file is read for its type and size while it uploads, not after.
-          const [url, meta] = await Promise.all([composer.uploadMedia(file, state.activePubkey, { pasted }), SC.readVideoMeta(file)]);
+          const info = {};
+          const [url, meta] = await Promise.all([composer.uploadMedia(file, state.activePubkey, { pasted, info }), SC.readVideoMeta(file)]);
           // Into the media slot only. The URL is appended to the content at publish
           // (SC.composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
-          // A video carries its type and pixel size into its imeta tag (SC.readVideoMeta);
-          // an image has nothing to add and gets {}.
-          SC.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...meta });
+          // What its imeta tag says: the uploaded file's type, hash and picture size
+          // (uploadMedia), and a video's own type and size (SC.readVideoMeta).
+          SC.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...info, ...meta });
         }
         scheduleSave();
         paintCount();

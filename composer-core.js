@@ -541,6 +541,12 @@ window.SidecarCore = (function () {
     // Each block is a line of its own, an empty one too.
     let started = false;   // anything at all has been read
     let lineStart = true;  // a break was just written, so a block needs no other
+    // WHAT FOLLOWS A BLOCK STARTS A LINE OF ITS OWN, even when it is not in a block itself.
+    // Chrome leaves a line typed after the last block as bare text beside it
+    // (`<div>Cheers</div><div><br></div>My clankers`), and the browser draws it on its own
+    // line; read as more of the block before it, the blank line above it was lost.
+    let afterBlock = false;
+    const endBlock = () => { if (afterBlock) { out += '\n'; afterBlock = false; afterPill = false; lineStart = true; } };
     const holdsLineOpen = (br) => {
       let next = br.nextSibling;
       while (next && next.nodeType === Node.TEXT_NODE && !next.textContent.replace(/\u200B/g, '')) next = next.nextSibling;
@@ -549,20 +555,24 @@ window.SidecarCore = (function () {
     const walk = (node) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const s = node.textContent.replace(/\u200B/g, '').replace(/\u00a0/g, ' ');
-        if (s) { started = true; lineStart = false; }
+        if (s) { endBlock(); started = true; lineStart = false; }
         put(s);
       } else if (node.nodeName === 'BR') {
+        endBlock();
         started = true;
         if (!holdsLineOpen(node)) { put('\n'); lineStart = true; }
       } else if (node.dataset && node.dataset.bech32) {
+        endBlock();
         started = true; lineStart = false;
         put(node.dataset.bech32);
         afterPill = true;
       } else {
         const isBlock = node.nodeName === 'DIV' || node.nodeName === 'P';
-        if (isBlock && started && !lineStart) { out += '\n'; afterPill = false; }
+        if (isBlock) afterBlock = false;
+        // A block inside a block that has just started a line is on that line, not another.
+        if (isBlock && started && !lineStart) { out += '\n'; afterPill = false; lineStart = true; }
         node.childNodes.forEach(walk);
-        if (isBlock) { started = true; lineStart = false; }
+        if (isBlock) { started = true; lineStart = false; afterBlock = true; }
       }
     };
     el.childNodes.forEach(walk);
@@ -929,7 +939,7 @@ window.SidecarCore = (function () {
     // composers hand in the conversion, and an editor without one (the page-comment
     // box) never shows the row.
     const onAttachUrl = (opts && opts.onAttachUrl) || null;
-    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true', dir: 'auto' });
+    const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' }); // dir: see syncEmptyClass
     editor.dataset.placeholder = (opts && opts.placeholder) || '';
     const wrap = h('div', { className: 'compose-editor-wrap' });
     wrap.append(editor);
@@ -948,6 +958,11 @@ window.SidecarCore = (function () {
       const isEmpty = !editor.textContent && !editor.querySelector('[data-bech32]')
         && editor.querySelectorAll('br').length <= 1;
       editor.classList.toggle('is-empty', isEmpty);
+      // UNTIL THERE IS A LETTER, THE EDITOR GOES THE PAGE'S WAY. dir="auto" with nothing to
+      // go by reads as left-to-right, so in Arabic, Hebrew, Persian or Urdu the placeholder
+      // and the caret sat at the left of an empty editor. The first letter decides after that.
+      const decided = isEmpty ? false : (/\p{L}/u.test(editor.textContent) || !!editor.querySelector('[data-bech32]'));
+      if (decided) editor.dir = 'auto'; else editor.removeAttribute('dir');
     }
 
     // Report the text upward, keeping the placeholder state in sync first.
@@ -1235,6 +1250,22 @@ window.SidecarCore = (function () {
       e.preventDefault();
       document.execCommand('insertText', false, '\u00a0' + e.data);
     });
+
+    // A LINE BREAK IS AN UNDO STEP OF ITS OWN, as in any text editor: Cmd+Z after "one",
+    // Enter, "two" takes "two", then the break. Chrome keeps one typing group open across
+    // them once script has touched the editor while it was typed (the empty-state class
+    // does), and undo took the whole note at once. Setting the selection again, to where it
+    // already is, closes the group: before the break, and after it.
+    const closeTyping = () => {
+      const sel = window.getSelection();
+      if (!sel.rangeCount || !editor.contains(sel.anchorNode)) return;
+      const r = sel.getRangeAt(0).cloneRange();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    };
+    const isBreak = (e) => !e.isComposing && (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak');
+    editor.addEventListener('beforeinput', (e) => { if (isBreak(e)) closeTyping(); });
+    editor.addEventListener('input', (e) => { if (isBreak(e)) closeTyping(); });
 
     // EVERY DELETION HERE GOES THROUGH THE BROWSER'S OWN DELETE, on a selection of exactly
     // what is to go, so it lands on the undo stack: Cmd+Z brings a pill or a line break
@@ -2221,7 +2252,10 @@ window.SidecarCore = (function () {
     return false;
   }
 
-  async function uploadMedia(original, forPubkey, { pasted = false } = {}) {
+  // `info`, when given, is filled with what an imeta tag says about the file that went up
+  // (buildImetaTag): its type, its size in pixels if it is a picture, and its hash when the
+  // URL is named by it, as a Blossom URL is, so the hash is known to be of the bytes served.
+  async function uploadMedia(original, forPubkey, { pasted = false, info = null } = {}) {
     if (await isHeic(original)) throw new Error(t('HEIC is not a supported image type. Try pasting the image instead.'));
     const isImg = original.type.startsWith('image/');
     const isVid = original.type.startsWith('video/');
@@ -2238,6 +2272,7 @@ window.SidecarCore = (function () {
     const blossomUrl = await tryBlossomFirst(file, forPk);
     if (blossomUrl) {
       uploadLog('info', 'uploaded to Blossom', { url: blossomUrl, type: file.type, bytes: file.size });
+      if (info) await describeUpload(file, blossomUrl, info);
       return blossomUrl;
     }
     const url = 'https://nostr.build/api/v2/upload/files';
@@ -2268,7 +2303,23 @@ window.SidecarCore = (function () {
     const json = await resp.json().catch(() => null);
     const u = json && json.data && (Array.isArray(json.data) ? json.data[0] && json.data[0].url : json.data.url);
     if (!u) throw new Error(t('Upload returned no URL'));
+    if (info) await describeUpload(file, u, info);
     return u;
+  }
+
+  // Best effort, never throws: a fact that cannot be read is left out of the tag.
+  async function describeUpload(file, url, info) {
+    if (file.type) info.mime = file.type;
+    try {
+      const x = await sha256Hex(await file.arrayBuffer());
+      if (String(url).includes(x)) info.x = x;
+    } catch (_) {}
+    if (!file.type.startsWith('image/') || typeof createImageBitmap !== 'function') return;
+    try {
+      const bmp = await createImageBitmap(file);
+      if (bmp.width > 0 && bmp.height > 0) info.dim = bmp.width + 'x' + bmp.height;
+      bmp.close();
+    } catch (_) {}
   }
 
   // ---- NIP-92 imeta alt text, the write side ----
@@ -2310,22 +2361,28 @@ window.SidecarCore = (function () {
   // a composer that publishes without the editor ever being opened.
   function buildImetaTag(url, alt, extra) {
     const cleaned = capAltText(normalizeAltBreaks(alt));
-    // What the file itself says about it, for a video: its type and its size in pixels.
+    // What the file itself says about it: its type, its hash and its size in pixels.
     // Checked here rather than trusted, because a draft is restored from storage and a
     // malformed slot must come out as no slot, never as a tag a client chokes on.
-    const mime = extra && /^video\/[\w.+-]{1,60}$/i.test(extra.m || '') ? extra.m.toLowerCase() : '';
+    // A picture's type is an image type and a video's a video type, or it is left out.
+    const mime = extra && /^(image|video)\/[\w.+-]{1,60}$/i.test(extra.m || '')
+      && (!extra.as || extra.m.toLowerCase().startsWith(extra.as + '/')) ? extra.m.toLowerCase() : '';
+    const x = extra && /^[0-9a-f]{64}$/.test(extra.x || '') ? extra.x : '';
     const dim = extra && /^[1-9]\d{0,4}x[1-9]\d{0,4}$/.test(extra.dim || '') ? extra.dim : '';
-    if (!url || !(cleaned || mime || dim)) return null;
+    if (!url || !(cleaned || mime || x || dim)) return null;
     const tag = ['imeta', 'url ' + url];
     if (mime) tag.push('m ' + mime);
+    if (x) tag.push('x ' + x);
     if (dim) tag.push('dim ' + dim);
     if (cleaned) tag.push('alt ' + cleaned);
     return tag;
   }
 
-  // In draft order, one tag per attachment with something to say. A bare image or a
-  // video that was never measured contributes nothing, so a note of plain URLs publishes
-  // exactly as it did before this existed.
+  // In draft order, one tag per attachment with something to say. A picture uploaded here
+  // says its type, its hash and its size (uploadMedia reads them from the file that went
+  // up), so a client can reserve its box before a byte arrives and check what it fetched.
+  // A pasted link to a picture, never uploaded here, has nothing to add and contributes
+  // nothing.
   //
   // A VIDEO'S TYPE AND SIZE RIDE ALONG BY DEFAULT: a client that knows the shape before it
   // fetches a byte can reserve the box and pick a player, and several decline to show a
@@ -2334,7 +2391,7 @@ window.SidecarCore = (function () {
     const withVideo = !(opts && opts.videoImeta === false);
     const out = [];
     for (const m of media || []) {
-      const extra = withVideo && m && m.isVideo ? { m: m.mime, dim: m.dim } : null;
+      const extra = !m ? null : m.isVideo ? (withVideo ? { as: 'video', m: m.mime, x: m.x, dim: m.dim } : null) : { as: 'image', m: m.mime, x: m.x, dim: m.dim };
       const tag = buildImetaTag(m && m.url, m && m.alt, extra);
       if (tag) out.push(tag);
     }
@@ -2982,7 +3039,9 @@ window.SidecarCore = (function () {
         : rootTag[4] || (await authorOf(rootId));
       if (!rootAuthor) throw new Error(t('Could not load the thread author. Try again before posting this comment.'));
       return { kind: WEB_COMMENT_KIND, tags: [
-        ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
+        // K is the root's kind: the event itself when it is the root (an article, a picture,
+        // whatever Reply to any event loaded), and a note when it sits in a kind 1 thread.
+        ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', rootId === target.id ? String(target.kind) : '1'], ['P', rootAuthor],
         ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,
       ] };
     }
@@ -3788,8 +3847,9 @@ window.SidecarCore = (function () {
       const video = urlIsVideo(url) || /^video\//i.test(f.m || '');
       const m = { url, isVideo: video };
       if (f.alt) m.alt = f.alt;
-      if (video && f.m) m.mime = f.m;
-      if (video && f.dim) m.dim = f.dim;
+      if (f.m) m.mime = f.m;
+      if (f.x) m.x = f.x;
+      if (f.dim) m.dim = f.dim;
       return m;
     };
     const paras = whole.split('\n\n');
