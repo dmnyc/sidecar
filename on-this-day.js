@@ -1174,15 +1174,23 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '12-05': [
     { year: 1933, text: "Utah ratified the Twenty-first Amendment, officially ending Prohibition in the United States." },
+    // 1.19.0. Wikipedia's December 5 page ("Polk confirms that large amounts of gold had been discovered in California").
+    { year: 1848, text: 'President Polk confirmed to Congress that large amounts of gold had been discovered in California.' }, // Wikipedia, December 5
   ],
   '12-06': [
     { year: 1884, text: "Engineers capped the Washington Monument with a pyramid of aluminum, a rare and precious metal." },
+    // 1.19.0. The Washington Post article's infobox ("Founded December 6, 1877").
+    { year: 1877, text: "The Washington Post was founded in the nation's capital." }, // Wikipedia, The Washington Post
   ],
   '12-07': [
     { year: 1941, text: "Japanese naval forces launched a surprise attack on the US fleet anchored at Pearl Harbor." },
+    // 1.19.0. Wikipedia's December 7 page ("The Royal Opera House opens at Covent Garden, London, England").
+    { year: 1732, text: 'The Royal Opera House opened at Covent Garden in London.' }, // Wikipedia, December 7
   ],
   '12-08': [
     { year: 1941, text: "Congress declared war on Japan, bringing the United States into the Second World War." },
+    // 1.19.0. The Clifton Suspension Bridge article ("On 8 December 1864, the bridge was lit by ... four electric arc lamps for its ceremonial opening").
+    { year: 1864, text: "Bristol's Clifton Suspension Bridge was opened, lit for the ceremony by four electric arc lamps." }, // Wikipedia, Clifton Suspension Bridge
   ],
   '12-09': [
     { year: 1905, text: "France passed a historic law separating church and state." },
