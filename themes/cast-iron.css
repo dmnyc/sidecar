@@ -143,9 +143,10 @@
   /* Compose FAB — blacked out: cast iron where every other theme hangs brass or a
      lamp. A dark disc on a dark plate is findable by its edge, not by a glow (Nixie's
      disc is lit by its tube; iron has no light to shed), so the scoped rule below seats
-     it with a rim lip. The feather is the logo's own ink, flat: part of the metal. */
+     it with a rim lip. The feather is flat, in the theme's steel (--orange): quieter
+     than body text but a readable 5.5:1 on the disc, since it is the button's only label. */
   --fab-bg: linear-gradient(160deg, #171310, #090705);
-  --fab-icon: #4a453f;
+  --fab-icon: #8f887a;
 
   /* ink — every stop demoted from the first pass. Body copy tops out around #a5,
      muted and faint step down toward the plate, and nothing anywhere reaches for
