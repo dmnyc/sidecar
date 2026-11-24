@@ -66,7 +66,8 @@ test('--changed makes the images that need no client page; --only wins over it',
 test('a run that makes no client image never asks for the live client scenes', () => {
   const local = sel.scenesFor(sel.choose(manifest.images, { changed: true }));
   for (const scene of sel.LIVE_SCENES) assert.ok(!local.has(scene), scene + ' is not needed for images 1-3');
-  assert.deepEqual([...local].sort(), ['apps', 'lock', 'profile', 'wallet', 'wallet-setup', 'wallets', 'welcome', 'welcome-clean']);
+  // Image 1 takes the welcome screen once its toast has gone (1.19: the toast sat on On this day).
+  assert.deepEqual([...local].sort(), ['apps', 'lock', 'profile', 'wallet', 'wallet-setup', 'wallets', 'welcome-clean']);
   const signin = sel.scenesFor(sel.choose(manifest.images, { only: '4' }));
   assert.ok(signin.has('approve-login') && signin.has('client-login'));
   const supplied = sel.scenesFor(sel.choose(manifest.images, { only: '4' }), { 'client-login': '/x.png' });
