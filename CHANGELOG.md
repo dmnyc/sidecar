@@ -26,7 +26,7 @@ has entries, and that heading becomes the version heading when the release is cu
 - **The Accounts tab shows two accounts and a button for the rest.** From three accounts, the active one and the next are shown, with “N more accounts” for the others. The list folds again after 30 seconds unused, when you leave the tab and when the panel closes, and drag to reorder works while it is open.
 - **A long account menu scrolls inside itself,** so the top bar stays in place and Add account and Manage accounts stay at its foot.
 - **A payment’s amount is drawn large on the approval card,** in the panel and the popup, sized by its length so every digit stays on screen.
-- **Explore Nostr apps, Share Sidecar and On this day sit at the foot of a tall panel,** clear of the compose button. In a panel short enough to scroll, they stay under the accounts.
+- **Explore Nostr apps, Share Sidecar and On this day sit at the foot of a tall panel,** clear of the compose button and of a toast. In a panel short enough to scroll, they stay under the accounts.
 - **Cast Iron’s logo is the theme’s own dark iron,** and every theme’s compose feather now reads on its button, checked by a test across themes.
 - **114 strings that showed in English are translated into all 21 languages.**
 - **Twelve pieces of theme art are half the size,** written as short relative steps, and look the same.

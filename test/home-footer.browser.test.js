@@ -1,7 +1,7 @@
 'use strict';
 
 // The Explore and Share links and On this day sit at the foot of the panel when there is
-// room, as a footer, clear of the compose button; without room they stay where they were,
+// room, as a footer, clear of the compose button and of a toast; without room they stay where they were,
 // 24px below the accounts. Measured in the side panel at its width, tall and short.
 
 const { test } = require('node:test');
@@ -46,6 +46,17 @@ test('with room, the links and On this day sit at the foot of the panel; without
     assert.equal(tall.fromBottom, reserve, `on a tall panel the group ends ${tall.fromBottom}px from the bottom, not at the foot (${reserve}px)`);
     assert.ok(tall.belowAccounts > 24, 'the free space is above the group');
     assert.equal(tall.clearOfFab, true, 'the compose button covers the group');
+    // And clear of a toast: one made as toast() makes it, at the toasts' own place.
+    const toastClear = await p.evaluate(`(() => {
+      const t = document.createElement('div'); t.className = 'toast toast-success show';
+      t.innerHTML = '<svg viewBox="0 0 24 24"></svg><span>Keystore created</span>';
+      document.getElementById('toasts').appendChild(t);
+      const top = t.getBoundingClientRect().top; t.remove();
+      const otd = document.getElementById('otd');
+      const last = (otd.classList.contains('hidden') ? document.querySelector('.explore-link-wrap') : otd).getBoundingClientRect();
+      return Math.round(top - last.bottom);
+    })()`);
+    assert.ok(toastClear >= 8, `a toast covers the foot of the panel (${toastClear}px)`);
 
     // Short again: the free space is gone, and the links keep their 24px from what is above.
     await p.viewport({ width: 360, height: 560, scale: 1 }); await sleep(800);
