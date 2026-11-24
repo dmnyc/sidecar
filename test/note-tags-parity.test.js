@@ -57,7 +57,7 @@ async function panelTags({ text, media = [], replyTo = null, showClientTag = tru
     composeNoteContent: SC.composeNoteContent, imetaTagsForMedia: SC.imetaTagsForMedia,
     buildPollTags: SC.buildPollTags, CLIENT_TAG: ['client', 'Sidecar'],
     call: async () => ({ showClientTag, ...settings }),
-    isDevBuild: () => false, devKindEnabled: false, devSilentEnabled: false, devKind: 0, devSilentInput: null,
+    isDevBuild: () => false, devKindEnabled: false, devKindForced: false, devSilentEnabled: false, devKind: 0, devSilentInput: null,
     replyTags: (target) => SC.replyTags(target, ME),
     relayUrls: async () => [],
   };

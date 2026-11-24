@@ -82,9 +82,11 @@ test('the event is asked of its hints, the configured relays and its author\'s o
 test('the button empties the note draft and reopens the composer as a reply, carrying the text', async () => {
   const log = [];
   let clickHandler = null;
+  const byId = {};
   class El {
-    constructor(props = {}) { Object.assign(this, props); }
+    constructor(props = {}) { Object.assign(this, props); if (props.id) byId[props.id] = this; }
     addEventListener(type, fn) { if (type === 'click') clickHandler = fn; }
+    append() {}
   }
   const draft = { text: 'my reply', media: [], poll: null };
   const ev = { id: ID, pubkey: AUTHOR, kind: 1111, tags: [['K', 'web']], content: 'parent' };
@@ -97,7 +99,7 @@ test('the button empties the note draft and reopens the composer as a reply, car
     poolGet: async () => ev,
     flushDraftNow: async () => log.push(['flush', draft.text]),
     closeModal: () => log.push(['close']),
-    openComposer: (text, opts) => log.push(['open', text, opts.replyTo]),
+    openComposer: (text, opts) => log.push(['open', text, opts.replyTo, opts.devReplyKind]),
     switchingDraft: false,
   };
   vm.createContext(ctx);
@@ -110,12 +112,15 @@ test('the button empties the note draft and reopens the composer as a reply, car
   assert.ok(ctx.row, 'the row was not built in a dev build with the switch on');
   // The handler reads the field's value; every stub element answers with the same id.
   El.prototype.value = NT.nip19.noteEncode(ID);
+  // The reply's kind, chosen beside the id: it travels with the reply it opens.
+  byId['compose-dev-reply-kind'].value = '1';
   await clickHandler();
   assert.deepEqual(log.map((l) => l[0]), ['flush', 'close', 'open'], 'the draft was not saved empty before the composer closed');
   assert.equal(log[0][1], '', 'the note draft kept the text, so it would live in two drafts');
   assert.equal(log[2][1], 'my reply', 'the typed text did not come with the reply');
   assert.equal(log[2][2].id, ID);
   assert.equal(log[2][2].kind, 1111);
+  assert.equal(log[2][3], 1, 'the chosen reply kind did not come with the reply');
   assert.equal(ctx.switchingDraft, true, 'the close handler would save the note draft again');
 });
 

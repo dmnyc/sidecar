@@ -2982,7 +2982,9 @@ window.SidecarCore = (function () {
         : rootTag[4] || (await authorOf(rootId));
       if (!rootAuthor) throw new Error(t('Could not load the thread author. Try again before posting this comment.'));
       return { kind: WEB_COMMENT_KIND, tags: [
-        ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', '1'], ['P', rootAuthor],
+        // K is the root's kind: the event itself when it is the root (an article, a picture,
+        // whatever Reply to any event loaded), and a note when it sits in a kind 1 thread.
+        ['E', rootId, rootTag?.[2] || '', rootAuthor], ['K', rootId === target.id ? String(target.kind) : '1'], ['P', rootAuthor],
         ['e', target.id, '', target.pubkey], ['k', String(target.kind)], ...people,
       ] };
     }
