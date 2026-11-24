@@ -249,7 +249,8 @@ test('BOTH OUTCOMES SETTLE THE FLIGHT', () => {
   const pay = bare.slice(bare.indexOf("pay.addEventListener('click'"));
   const payBody = pay.slice(0, pay.indexOf('\n      });'));
   assert.match(payBody, /flight\.settle\(\s*true,/, 'a settled payment leaves its flight on the bar forever');
-  assert.match(payBody, /if \(flight\) flight\.settle\(false, null, e\.message\);/, 'a failed payment leaves its flight on the bar forever');
+  // `reason` is the error's message, with a word first when a wallet refused an amountless invoice.
+  assert.match(payBody, /if \(flight\) flight\.settle\(false, null, (e\.message|reason)\);/, 'a failed payment leaves its flight on the bar forever');
   const send = bare.indexOf("send.addEventListener('click'", bare.indexOf('const zapForm = h('));
   const zapBody = bare.slice(send, bare.indexOf('\n      });', send));
   assert.match(zapBody, /flight\.settle\(true, tSec\('Zapped \{\{amount\}\} sats'/, 'the zap bar settles with what it zapped');
@@ -268,9 +269,9 @@ test('A FAILED PAYMENT REACHES SOMEONE ON ANOTHER SURFACE', () => {
   // left the form.
   const pay = bare.slice(bare.indexOf("pay.addEventListener('click'"));
   const payBody = pay.slice(0, pay.indexOf('\n      });'));
-  assert.match(payBody, /surfacePaymentFailure\(e\.message\);/);
+  assert.match(payBody, /surfacePaymentFailure\((e\.message|reason)\);/);
   const toastAt = payBody.indexOf('surfacePaymentFailure(');
-  const inlineAt = payBody.indexOf('err.textContent = e.message');
+  const inlineAt = payBody.search(/err\.textContent = (e\.message|reason)/);
   assert.ok(toastAt > -1 && inlineAt > toastAt, 'the surface check comes first; the inline line is for whoever never got that far');
   assert.match(payBody, /pay\.disabled = false;/, 'and the button comes back');
 });

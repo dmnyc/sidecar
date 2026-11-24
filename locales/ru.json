@@ -2492,5 +2492,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Трёхмерное киберпространство, наложенное на Землю: исследуйте его со своим аватаром, стройте и ищите сокровища.",
   "Private one-on-one and group chats only their members can read, with no phone number.": "Личные и групповые чаты, которые могут читать только их участники, без номера телефона.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Сообщайте о спам-ботах в ответах в Nostr и добавляйте их ответы в проверенный людьми корпус спама.",
-  "Messaging": "Мессенджеры"
+  "Messaging": "Мессенджеры",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Ваш кошелёк может не оплатить инвойс без суммы. Попросите инвойс с указанной суммой."
 }

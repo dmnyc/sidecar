@@ -2642,5 +2642,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "فضاء سيبراني ثلاثي الأبعاد مرسوم على الأرض: استكشفه بصورتك الرمزية، وابنِ، وابحث عن الكنوز.",
   "Private one-on-one and group chats only their members can read, with no phone number.": "محادثات خاصة، فردية وجماعية، لا يقرؤها إلا أعضاؤها، دون رقم هاتف.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "أبلغ عن روبوتات الرسائل المزعجة في الردود على Nostr وأضف ردودها إلى مجموعة رسائل مزعجة يراجعها بشر.",
-  "Messaging": "المراسلة"
+  "Messaging": "المراسلة",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "قد لا تدفع محفظتك فاتورة بلا مبلغ. اطلب فاتورة تذكر مبلغها."
 }
