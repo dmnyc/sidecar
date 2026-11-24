@@ -2227,8 +2227,12 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .row-actions { display: flex; gap: 8px; align-items: center; }
 .row-actions input { flex: 1; }
 
-/* full-width stacked account actions with breathing room above */
-.add-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; }
+/* full-width stacked account actions with breathing room above. Shown only before the first
+   account, under the welcome card, where the empty list below the card keeps no margin of its
+   own: the 60px that added up there pushed the welcome screen past the panel at 913px, and its
+   last line under a toast (see #tab-accounts). 34px still reads as a pause. */
+.add-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+#account-list:empty { margin-bottom: 0; }
 .modal-add-actions { margin-top: 6px; margin-bottom: 4px; }
 .add-account-link {
   display: flex; align-items: center; justify-content: center; gap: 8px;

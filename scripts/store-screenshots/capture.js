@@ -210,8 +210,7 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     await x.evaluate(`[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'OK, got it').click()`);
     await x.waitFor(`document.body.innerText.includes('Keystore created')`, 15000);
     await shot('welcome');
-    // The same screen once the toast has gone. Both images that show it use this one: from 1.19,
-    // On this day sits at the foot of the panel, where the toast lands, so the toast covered it.
+    // The same screen once the toast has gone, for the image that sits beside a directory page.
     await x.waitFor(`!document.body.innerText.includes('Keystore created')`, 15000);
     await shot('welcome-clean');
     if (wants('apps')) {
