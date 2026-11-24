@@ -2267,5 +2267,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "對應到地球上的 3D 網路空間：用你的虛擬化身探索、建造，並尋找寶藏。",
   "Private one-on-one and group chats only their members can read, with no phone number.": "只有成員才能閱讀的私密一對一與群組聊天，不需要手機號碼。",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "檢舉 Nostr 上的回覆垃圾機器人，並將它們的回覆加入經人工審核的垃圾訊息語料庫。",
-  "Messaging": "訊息"
+  "Messaging": "訊息",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "您的錢包可能不會支付沒有金額的發票。請索取註明金額的發票。"
 }

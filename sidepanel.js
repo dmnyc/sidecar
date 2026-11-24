@@ -760,11 +760,14 @@
       glyph.append(h('span', { className: 'toast-spin' })); // the shared spinner idiom
       line.textContent = newest.label;
       sub.textContent = newest.sub;
+      sub.title = '';
     } else if (paymentResult) {
       glyph.append(icon(paymentResult.ok ? 'check' : 'alert'));
       if (!paymentResult.ok) glyph.classList.add('bad');
       line.textContent = paymentResult.line;
       sub.textContent = paymentResult.sub;
+      // A failure's words are cut after two lines; all of them are a hover away.
+      sub.title = paymentResult.ok ? '' : paymentResult.sub;
     }
     if (flightCount > 1) {
       count.textContent = t('{{count}} in flight', { count: I18N.fmtNum(flightCount) });
@@ -25639,10 +25642,10 @@
         const note = comment.value.trim();
         let address = ''; // lightning address, when sending to one
         let flight = null; // the payment bar's flight handle, once past the point of return
+        let amountMsat;    // only for an amountless invoice: the amount typed here, in msat
         try {
           let invoice = val;
           let paySats = null;     // what is being sent, for the toasts
-          let amountMsat;         // only for an amountless invoice
           if (isLnInvoice(val)) {
             // The same checks the card shows, made again at the moment of paying: the
             // invoice may have expired while the sheet sat open.
@@ -25718,9 +25721,17 @@
           // failure toasts too. The inline line still serves whoever is looking at a
           // form that never got that far: err is detached by then for the rest, so
           // writing it is a no-op.
-          if (flight) flight.settle(false, null, e.message);
-          surfacePaymentFailure(e.message);
-          err.textContent = e.message;
+          // AN INVOICE WITH NO AMOUNT, PAID WITH THE AMOUNT TYPED HERE, and refused by the
+          // wallet: NIP-47 lets a wallet ignore that amount, and its own words rarely say so.
+          // Only on a refusal (walletDenied), never on a payment that merely went unanswered,
+          // and never on Sidecar's own limit. First, so the bar's two lines keep it; the
+          // wallet's words follow, all of them in the line's tooltip when they run long.
+          const reason = amountMsat && e && e.walletDenied && !e.overLimit
+            ? tSec('Your wallet may not pay an invoice without an amount. Ask for one that states it.') + ' ' + e.message
+            : e.message;
+          if (flight) flight.settle(false, null, reason);
+          surfacePaymentFailure(reason);
+          err.textContent = reason;
           pay.disabled = false;
           payGate.paint();
         }

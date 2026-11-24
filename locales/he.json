@@ -2417,5 +2417,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "מרחב סייבר בתלת־ממד הממופה על פני כדור הארץ: חקרו אותו עם האווטאר שלכם, בנו וחפשו אוצרות.",
   "Private one-on-one and group chats only their members can read, with no phone number.": "צ׳אטים פרטיים, אישיים וקבוצתיים, שרק החברים בהם יכולים לקרוא, בלי מספר טלפון.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "דווחו על בוטים ששולחים ספאם בתגובות ב־Nostr והוסיפו את התגובות שלהם למאגר ספאם שנבדק בידי בני אדם.",
-  "Messaging": "מסרים"
+  "Messaging": "מסרים",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "ייתכן שהארנק שלכם לא משלם חשבונית ללא סכום. בקשו חשבונית שמציינת אותו."
 }

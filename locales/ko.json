@@ -2267,5 +2267,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "지구 위에 펼쳐진 3D 사이버스페이스. 아바타로 탐험하고, 무언가를 짓고, 보물을 찾아보세요.",
   "Private one-on-one and group chats only their members can read, with no phone number.": "참여한 사람만 읽을 수 있는 비공개 1:1 및 그룹 채팅. 전화번호 없이 쓸 수 있어요.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr에서 답글 스팸 봇을 신고하고, 그 답글을 사람이 검토한 스팸 말뭉치에 추가하세요.",
-  "Messaging": "메신저"
+  "Messaging": "메신저",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "지갑이 금액 없는 인보이스는 결제하지 않을 수 있어요. 금액이 적힌 인보이스를 요청하세요."
 }

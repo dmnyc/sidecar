@@ -2342,5 +2342,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Ein 3D-Cyberspace, der auf die Erde abgebildet ist: Erkunde ihn mit deinem Avatar, baue und suche nach Schätzen.",
   "Private one-on-one and group chats only their members can read, with no phone number.": "Private Einzel- und Gruppenchats, die nur ihre Mitglieder lesen können, ohne Telefonnummer.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Melde Reply-Spam-Bots auf Nostr und füge ihre Antworten einem von Menschen geprüften Spam-Korpus hinzu.",
-  "Messaging": "Nachrichten"
+  "Messaging": "Nachrichten",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Deine Wallet bezahlt eine Rechnung ohne Betrag möglicherweise nicht. Bitte um eine, die ihn angibt."
 }

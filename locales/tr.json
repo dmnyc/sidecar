@@ -2342,5 +2342,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Dünya üzerine yerleştirilmiş 3B bir siber uzay: avatarınla keşfet, inşa et ve hazine ara.",
   "Private one-on-one and group chats only their members can read, with no phone number.": "Yalnızca üyelerinin okuyabildiği özel birebir ve grup sohbetleri, telefon numarası olmadan.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr’da yanıtlara spam atan botları bildir ve yanıtlarını insanlarca incelenen bir spam derlemine ekle.",
-  "Messaging": "Mesajlaşma"
+  "Messaging": "Mesajlaşma",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "Cüzdanınız tutarı olmayan bir faturayı ödemeyebilir. Tutarı belirten bir fatura isteyin."
 }

@@ -2342,5 +2342,6 @@
   "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "فضای سایبری سه‌بعدی که روی زمین نقشه‌برداری شده است: با آواتار خود کاوش کنید، بسازید و دنبال گنج بگردید.",
   "Private one-on-one and group chats only their members can read, with no phone number.": "گفت‌وگوهای خصوصی دونفره و گروهی که فقط اعضایشان می‌توانند بخوانند، بدون شماره تلفن.",
   "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "ربات‌های اسپم در پاسخ‌ها را در Nostr گزارش کنید و پاسخ‌هایشان را به مجموعه‌ای از اسپم که انسان‌ها بازبینی می‌کنند بیفزایید.",
-  "Messaging": "پیام‌رسانی"
+  "Messaging": "پیام‌رسانی",
+  "Your wallet may not pay an invoice without an amount. Ask for one that states it.": "ممکن است کیف پول شما فاکتور بدون مبلغ را پرداخت نکند. فاکتوری بخواهید که مبلغ را ذکر کند."
 }
