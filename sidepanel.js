@@ -10404,11 +10404,6 @@
     row.draggable = true;
     row.dataset.pubkey = a.pubkey;
 
-    const grip = document.createElement('span');
-    grip.className = 'grip-handle';
-    grip.appendChild(icon('grip'));
-    row.appendChild(grip);
-
     const av = avatarEl(a, 'avatar');
     row.appendChild(av);
 
@@ -10438,8 +10433,8 @@
 
     if (!isActive) {
       // Both the avatar and the name area switch accounts on click — clicking the
-      // PFP used to be a no-op because only `main` carried the handler. The grip
-      // handle and the "more" actions are left out so drag and the menu still work.
+      // PFP used to be a no-op because only `main` carried the handler. The "more"
+      // actions are left out so the menu still works; the whole row drags.
       const clickables = [av, main];
       for (const el of clickables) {
         el.style.cursor = 'pointer';

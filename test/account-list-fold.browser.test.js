@@ -19,11 +19,9 @@ const SHOTS = process.env.ACCOUNT_FOLD_SHOTS || '';
 const list = (x) => x.evaluate(`(() => {
   const rows = [...document.querySelectorAll('#account-list .item[data-pubkey]')];
   const btn = document.getElementById('account-list-more');
-  const grip = document.querySelector('#account-list .grip-handle');
   return {
     pubkeys: rows.map((r) => r.dataset.pubkey),
     draggable: rows.map((r) => r.draggable),
-    grip: grip ? getComputedStyle(grip).visibility : null,
     button: btn.classList.contains('hidden') ? null : btn.textContent,
     expanded: btn.getAttribute('aria-expanded'),
   };
@@ -45,7 +43,6 @@ test('the account list folds from three accounts and opens on demand', opts, asy
     assert.equal(s.pubkeys.length, 2, 'two accounts both show');
     assert.equal(s.button, null, 'and no button under two');
     assert.deepEqual(s.draggable, [true, true]);
-    assert.equal(s.grip, 'visible');
 
     await add('07');
     await add('08');
@@ -59,7 +56,6 @@ test('the account list folds from three accounts and opens on demand', opts, asy
     assert.equal(s.button, '2 more accounts');
     assert.equal(s.expanded, 'false');
     assert.deepEqual(s.draggable, [false, false], 'a folded list cannot be dragged');
-    assert.equal(s.grip, 'hidden');
     await shot('folded.png');
 
     await press(x, '#account-list-more');
@@ -68,7 +64,6 @@ test('the account list folds from three accounts and opens on demand', opts, asy
     assert.equal(s.button, 'Show less');
     assert.equal(s.expanded, 'true');
     assert.deepEqual(s.draggable, [true, true, true, true]);
-    assert.equal(s.grip, 'visible');
     await shot('open.png');
 
     await press(x, '#account-list-more');
