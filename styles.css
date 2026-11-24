@@ -3229,6 +3229,11 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
   content: attr(data-placeholder); color: var(--muted); pointer-events: none; display: block;
   position: absolute; inset-inline: 0; padding-inline: inherit;
 }
+/* AN EMPTY FIELD GOES THE PAGE'S WAY. dir="auto" with nothing typed reads as left-to-right,
+   so in a right-to-left language the placeholder and the caret sat at the left of every
+   empty field. What is typed decides after that. (The note editor does this in
+   syncEmptyClass, since it has no :placeholder-shown.) */
+html[dir="rtl"] :is(input, textarea)[dir="auto"]:placeholder-shown { direction: rtl; }
 /* @mention atomic pill */
 .mention-pill {
   display: inline-block; background: var(--mention-bg); color: var(--lav);

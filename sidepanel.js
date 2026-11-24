@@ -16501,13 +16501,15 @@
         addBtn.classList.add('is-uploading');
         try {
           // The file is read for its type and size while it uploads, not after.
-          const [url, meta] = await Promise.all([uploadMedia(file, pubkey), readVideoMeta(file)]);
+          const info = {};
+          const [url, meta] = await Promise.all([uploadMedia(file, pubkey, { info }), readVideoMeta(file)]);
           // Into the media slot only. The URL is appended to the content at publish
           // (composeNoteContent), so nothing touches the editor here — and since no
           // input event fires, both the autosave and the Post button (media alone is
           // postable) have to be told by hand.
-          // A video carries its type and pixel size into its imeta tag; an image gets {}.
-          window.SidecarCore.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...meta });
+          // What its imeta tag says: the uploaded file's type, hash and picture size, and a
+          // video's own type and size.
+          window.SidecarCore.addMedia(draft.media, { url, isVideo: file.type.startsWith('video/'), ...info, ...meta });
           scheduleSave();
           updatePostState();
           renderThumbs();
@@ -16569,8 +16571,9 @@
         addBtn.classList.add('is-uploading');
         try {
           for (const file of imageFiles) {
-            const url = await uploadMedia(file, pubkey, { pasted });
-            window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url) });
+            const info = {};
+            const url = await uploadMedia(file, pubkey, { pasted, info });
+            window.SidecarCore.addMedia(draft.media, { url, isVideo: urlIsVideo(url), ...info });
           }
           scheduleSave();
           updatePostState();
