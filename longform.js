@@ -390,6 +390,12 @@
   // it into a box. Enter or leaving the box keeps the change, Escape takes it back, and a box
   // emptied keeps the old words (the X removes an item). A list pasted into the box becomes
   // items there, as it does in the box below.
+  //
+  // AN ITEM IS MOVED BY ITS GRIP, as on Zap Cooking: dragged by the dots at its start, it lands
+  // before the row it is dropped on when dropped on that row's top half and after it on the
+  // bottom half, so it can go past the last one; a line shows where. Only the grip starts a
+  // drag, so the words stay a place to click and select. From the keyboard, the grip's arrow
+  // keys move the item one place, and Move up stays for a single press.
   function listEditor(list, { numbered, placeholder, addLabel }) {
     const ol = h(numbered ? 'ol' : 'ul', { className: 'lf-list' + (numbered ? ' is-numbered' : '') });
     const input = h('input', { type: 'text', className: 'lf-list-input', placeholder });
@@ -436,8 +442,76 @@
     // Buttons and words act on mousedown's default being held back, so the open box keeps
     // focus until the press has done its work.
     const hold = (e) => e.preventDefault();
+
+    // ---- moving an item ----
+    const DRAG_TYPE = 'application/x-sidecar-list-item'; // its own type: dropped anywhere else, it carries no text
+    let dragFrom = -1;
+    function moveItem(from, to) {
+      if (from === to || from < 0 || to < 0 || to >= list.length) return;
+      commit();
+      const [item] = list.splice(from, 1);
+      list.splice(to, 0, item);
+      editing = -1;
+      draw();
+    }
+    const clearMarks = () => ol.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
+    const below = (e, li) => { const r = li.getBoundingClientRect(); return e.clientY >= r.top + r.height / 2; };
+    function grip(i, li) {
+      const g = h('button', { type: 'button', className: 'lf-icon-btn lf-list-grip', title: t('Drag to reorder'), 'aria-label': t('Drag to reorder') }, [icon('grip')]);
+      // The row is draggable only while the grip is held.
+      g.addEventListener('mousedown', () => { li.draggable = true; });
+      g.addEventListener('mouseup', () => { li.draggable = false; });
+      g.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        e.preventDefault();
+        const to = i + (e.key === 'ArrowUp' ? -1 : 1);
+        if (to < 0 || to >= list.length) return;
+        moveItem(i, to);
+        const moved = ol.children[to] && ol.children[to].querySelector('.lf-list-grip');
+        if (moved) moved.focus();
+      });
+      return g;
+    }
+    function dragRow(li, i) {
+      li.addEventListener('dragstart', (e) => {
+        if (!li.draggable) return;
+        dragFrom = i;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData(DRAG_TYPE, String(i));
+        li.classList.add('is-dragging');
+      });
+      li.addEventListener('dragover', (e) => {
+        if (dragFrom < 0) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const after = below(e, li);
+        if (li.classList.contains(after ? 'drop-after' : 'drop-before')) return;
+        clearMarks();
+        // No line where the item already is: before or after itself, or the gap it left.
+        if (i === dragFrom || (after && i === dragFrom - 1) || (!after && i === dragFrom + 1)) return;
+        li.classList.add(after ? 'drop-after' : 'drop-before');
+      });
+      li.addEventListener('dragleave', (e) => { if (!li.contains(e.relatedTarget)) li.classList.remove('drop-before', 'drop-after'); });
+      li.addEventListener('drop', (e) => {
+        if (dragFrom < 0) return;
+        e.preventDefault();
+        let to = below(e, li) ? i + 1 : i;
+        if (dragFrom < to) to--;
+        const from = dragFrom;
+        dragFrom = -1;
+        moveItem(from, to);
+      });
+      li.addEventListener('dragend', () => {
+        dragFrom = -1;
+        li.draggable = false;
+        li.classList.remove('is-dragging');
+        clearMarks();
+      });
+    }
+
     function draw() {
-      ol.replaceChildren(...list.map((v, i) => h('li', { className: 'lf-list-item' + (i === editing ? ' is-editing' : '') }, [
+      ol.replaceChildren(...list.map((v, i) => { const li = h('li', { className: 'lf-list-item' + (i === editing ? ' is-editing' : '') }); dragRow(li, i); li.append(
+        grip(i, li),
         h('span', { className: 'lf-list-mark', textContent: numbered ? String(i + 1) : '•' }),
         i === editing ? (openBox = editBox(i)) : h('span', { className: 'lf-list-text', textContent: v, onmousedown: hold, onclick: () => edit(i) }),
         h('span', { className: 'lf-list-actions' }, [
@@ -457,7 +531,7 @@
             draw();
           } }, [icon('x')]),
         ]),
-      ])));
+      ); return li; }));
       ol.classList.toggle('hidden', !list.length);
       document.dispatchEvent(new CustomEvent('lf-change'));
       const box = ol.querySelector('.lf-list-edit');
