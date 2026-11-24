@@ -1769,7 +1769,6 @@
   "A line from a book in empty lists and while they load.": "یک سطر از یک کتاب در فهرست‌های خالی و هنگام بارگیری آن‌ها.",
   "Show literary quotes": "نمایش نقل‌قول‌های ادبی",
   "Your network first": "ابتدا شبکهٔ شما",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "پاسخ‌های خارج از شبکهٔ شما در پایین گروه‌بندی می‌شوند. چیزی پنهان نمی‌شود.",
   "Sort notifications by who you follow": "مرتب‌سازی اعلان‌ها بر اساس افرادی که دنبال می‌کنید",
   "Rebuild network": "بازسازی شبکه",
   "Posting": "انتشار",
@@ -2337,5 +2336,7 @@
   "{{count}} min read_one": "{{count}} دقیقه مطالعه",
   "{{count}} min read_other": "{{count}} دقیقه مطالعه",
   "Raw (recipe category)": "خام",
-  "Healthy (recipe category)": "سالم"
+  "Healthy (recipe category)": "سالم",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "پاسخ‌های خارج از شبکهٔ شما در پایین گروه‌بندی می‌شوند، مگر آن‌هایی که از بررسی اسپم رد شوند. چیزی پنهان نمی‌شود.",
+  "Likely spam": "احتمالاً اسپم"
 }

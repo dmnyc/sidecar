@@ -1769,7 +1769,6 @@
   "A line from a book in empty lists and while they load.": "Egy sor egy könyvből az üres listákban és betöltés közben.",
   "Show literary quotes": "Irodalmi idézetek megjelenítése",
   "Your network first": "Előbb a saját hálózat",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "A hálózaton kívüli válaszok alulra kerülnek, csoportosítva. Semmi sincs elrejtve.",
   "Sort notifications by who you follow": "Értesítések rendezése a követések szerint",
   "Rebuild network": "Hálózat újraépítése",
   "Posting": "Közzététel",
@@ -2337,5 +2336,7 @@
   "{{count}} min read_one": "{{count}} perc olvasás",
   "{{count}} min read_other": "{{count}} perc olvasás",
   "Raw (recipe category)": "Nyers",
-  "Healthy (recipe category)": "Egészséges"
+  "Healthy (recipe category)": "Egészséges",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "A hálózaton kívüli válaszok alulra kerülnek, csoportosítva, kivéve azokat, amelyek átmennek a spamszűrésen. Semmi sincs elrejtve.",
+  "Likely spam": "Valószínűleg spam"
 }

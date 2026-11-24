@@ -631,7 +631,7 @@
 
           <div class="setting">
             <h3 data-i18n="Your network first">Your network first</h3>
-            <p class="hint" data-i18n="Replies from outside your network are grouped at the bottom. Nothing is hidden.">Replies from outside your network are grouped at the bottom. Nothing is hidden.</p>
+            <p class="hint" data-i18n="Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.">Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.</p>
             <label class="toggle-row"><input type="checkbox" id="wotfilter-toggle" /> <span data-i18n="Sort notifications by who you follow">Sort notifications by who you follow</span></label>
             <!-- Filled by renderWotStatus. A filter that fails open is silent by design,
                  which makes "it isn't working" unanswerable without this. -->
@@ -1282,6 +1282,7 @@
        which answers a client's getRelays() from the same rule the panel posts by. -->
   <script src="relay-policy.js"></script>
   <script src="wot.js"></script>
+  <script src="nspam.js"></script>
   <!-- Lazarus, recovery of user data from relay history (self.SidecarLazarus). Own
        code, pure core only: the registry, ranking and delta math live here; the
        scanning and signing stay in the panel, where the clicks are. -->

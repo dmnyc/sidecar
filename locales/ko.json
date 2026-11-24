@@ -1708,7 +1708,6 @@
   "A line from a book in empty lists and while they load.": "빈 목록이나 불러오는 동안 책 속 한 줄을 보여줘요.",
   "Show literary quotes": "문학 명언 표시",
   "Your network first": "내 네트워크 우선",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "내 네트워크 밖의 답글은 맨 아래에 모아서 보여줘요. 숨겨지는 것은 없어요.",
   "Sort notifications by who you follow": "팔로우하는 사람 기준으로 알림 정렬",
   "Rebuild network": "네트워크 다시 구성",
   "Posting": "게시",
@@ -2262,5 +2261,7 @@
   "{{count}} image link_other": "이미지 링크 {{count}}개",
   "{{count}} min read_other": "{{count}}분 분량",
   "Raw (recipe category)": "생식",
-  "Healthy (recipe category)": "건강식"
+  "Healthy (recipe category)": "건강식",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "내 네트워크 밖의 답글은 스팸 검사를 통과한 것을 빼고 맨 아래에 모아서 보여줘요. 숨겨지는 것은 없어요.",
+  "Likely spam": "스팸일 수 있음"
 }

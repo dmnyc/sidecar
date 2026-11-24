@@ -49,6 +49,7 @@ function render(events, offNet, cache) {
     events, offNet, list, scroll, PAGE: 25,
     _notifCache: new Map(cache ? [['account', cache]] : []), _muteLists: new Map(),
     wotSet: null, isMutedNotif: () => false, zapSender: (e) => e.pubkey, self: {},
+    judgeStrangers: () => ({ scores: new Map(), lift: new Set() }), spamScores: new Map(),
     h: element, icon: () => element('svg'), pickQuote: () => 'quote',
     emptyQuote: () => element('div', { className: 'empty' }),
     endQuote: () => element('p'),

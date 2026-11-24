@@ -1708,7 +1708,6 @@
   "A line from a book in empty lists and while they load.": "在空列表中和加载期间显示书中的一句话。",
   "Show literary quotes": "显示文学名句",
   "Your network first": "你的网络优先",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "来自你的网络之外的回复会归在底部。不会隐藏任何内容。",
   "Sort notifications by who you follow": "按你关注的人对通知排序",
   "Rebuild network": "重建网络",
   "Posting": "发布",
@@ -2262,5 +2261,7 @@
   "{{count}} image link_other": "{{count}} 个图片链接",
   "{{count}} min read_other": "阅读约 {{count}} 分钟",
   "Raw (recipe category)": "生食",
-  "Healthy (recipe category)": "健康"
+  "Healthy (recipe category)": "健康",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "来自你的网络之外的回复会归在底部，通过垃圾信息检查的除外。不会隐藏任何内容。",
+  "Likely spam": "可能是垃圾信息"
 }

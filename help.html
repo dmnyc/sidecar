@@ -568,6 +568,14 @@
       reply that mattered — a stranger with a good answer, an introduction, a bug report
       from someone who found you cold.</p>
 
+      <p><strong>A spam check sorts the strangers too.</strong> Sidecar carries
+      <a href="https://huggingface.co/barrydeen/nspam" target="_blank" rel="noopener noreferrer">nspam</a>,
+      a small open model trained on Nostr reply spam, and runs it on your own computer:
+      nothing is sent anywhere. A stranger’s replies that clearly read as a person’s join the
+      rest of your notifications. Ones that read like a bot’s stay in the counted row, marked
+      <em>Likely spam</em>. It reads only replies, and only in Latin script, since that is
+      what it learned from.</p>
+
       <figure class="shot">
         <div class="shot-frame">
           <img src="screenshots/notifications-network.webp" width="716" height="900" alt="Sidecar Settings with Notifications open, headed Your network first, with a checked box reading Sort notifications by who you follow, a line reading Your network: 953 people, from 11,211 your follows follow, and a Rebuild network button">

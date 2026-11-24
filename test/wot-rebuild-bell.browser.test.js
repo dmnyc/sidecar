@@ -17,12 +17,14 @@ test('a bell with nothing from your network offers Rebuild network at the top, o
   try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
   try {
     const now = Math.floor(Date.now() / 1000);
-    // You follow Bea; Bea follows nobody. Cal, whom no one follows, replies to you.
+    // You follow Bea; Bea follows nobody. Cal, whom no one follows, reacts to your note. A
+    // reaction, not a reply: a reply that reads as a person's is lifted into the list by the
+    // spam check (nspam.test.js), and this is about a bell with nothing in it but strangers.
     x.put({ kind: 3, created_at: now - 9000, tags: [['p', x.bea]], content: '' }, 'me');
     x.put({ kind: 3, created_at: now - 9000, tags: [], content: '' }, 'bea');
     x.put({ kind: 0, created_at: now - 9000, tags: [], content: JSON.stringify({ name: 'Cal' }) }, 'cal');
     const mine = x.put({ kind: 1, created_at: now - 7200, tags: [], content: 'A note of mine' }, 'me');
-    x.put({ kind: 1, created_at: now - 600, tags: [['e', mine.id, '', 'root'], ['p', x.me]], content: 'A reply from outside' }, 'cal');
+    x.put({ kind: 7, created_at: now - 600, tags: [['e', mine.id], ['p', x.me], ['k', '1']], content: '+' }, 'cal');
     await x.reload();
 
     // The network is built in the background; open the bell until it has sorted Cal out.

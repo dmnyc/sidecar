@@ -1708,7 +1708,6 @@
   "A line from a book in empty lists and while they load.": "在空白清單與載入期間顯示一句書中的話。",
   "Show literary quotes": "顯示文學名句",
   "Your network first": "人脈優先",
-  "Replies from outside your network are grouped at the bottom. Nothing is hidden.": "來自人脈之外的回覆會歸在最下方。沒有任何內容被隱藏。",
   "Sort notifications by who you follow": "依您追蹤的對象排序通知",
   "Rebuild network": "重建人脈",
   "Posting": "發布",
@@ -2262,5 +2261,7 @@
   "{{count}} image link_other": "{{count}} 個圖片連結",
   "{{count}} min read_other": "閱讀約 {{count}} 分鐘",
   "Raw (recipe category)": "生食",
-  "Healthy (recipe category)": "健康"
+  "Healthy (recipe category)": "健康",
+  "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "來自人脈之外的回覆會歸在最下方，通過垃圾訊息檢查的除外。沒有任何內容被隱藏。",
+  "Likely spam": "可能是垃圾訊息"
 }
