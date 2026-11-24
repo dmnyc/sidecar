@@ -2338,5 +2338,9 @@
   "Raw (recipe category)": "Nyers",
   "Healthy (recipe category)": "Egészséges",
   "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "A hálózaton kívüli válaszok alulra kerülnek, csoportosítva, kivéve azokat, amelyek átmennek a spamszűrésen. Semmi sincs elrejtve.",
-  "Likely spam": "Valószínűleg spam"
+  "Likely spam": "Valószínűleg spam",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Egy a Földre vetített 3D-s kibertér: fedezze fel avatárjával, építsen, és kutasson kincsek után.",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "Privát kétszemélyes és csoportos csevegések, amelyeket csak a tagjaik olvashatnak, telefonszám nélkül.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Jelentse a válaszokban spammelő botokat a Nostron, és adja hozzá válaszaikat egy emberek által ellenőrzött spamgyűjteményhez.",
+  "Messaging": "Üzenetküldés"
 }

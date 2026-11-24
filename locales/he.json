@@ -2413,5 +2413,9 @@
   "Raw (recipe category)": "אוכל חי",
   "Healthy (recipe category)": "בריא",
   "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "תשובות מחוץ לרשת שלכם מקובצות בתחתית, חוץ מאלה שעוברות בדיקת ספאם. דבר אינו מוסתר.",
-  "Likely spam": "כנראה ספאם"
+  "Likely spam": "כנראה ספאם",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "מרחב סייבר בתלת־ממד הממופה על פני כדור הארץ: חקרו אותו עם האווטאר שלכם, בנו וחפשו אוצרות.",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "צ׳אטים פרטיים, אישיים וקבוצתיים, שרק החברים בהם יכולים לקרוא, בלי מספר טלפון.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "דווחו על בוטים ששולחים ספאם בתגובות ב־Nostr והוסיפו את התגובות שלהם למאגר ספאם שנבדק בידי בני אדם.",
+  "Messaging": "מסרים"
 }

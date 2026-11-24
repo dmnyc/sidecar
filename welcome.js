@@ -47,7 +47,7 @@ function apps() {
     name: 'Flotilla',
     url: 'https://flotilla.social',
     domain: 'flotilla.social',
-    cat: 'other',
+    cat: 'messaging',
     icon: 'icons/apps/flotilla.png', // a copy of https://flotilla.social/apple-touch-icon.png
     flush: true,
     desc: t('Community platform: chat, voice, video, and events in spaces you truly own.'),
@@ -56,7 +56,7 @@ function apps() {
     name: 'Cordn',
     url: 'https://cordn.net',
     domain: 'cordn.net',
-    cat: 'other',
+    cat: 'messaging',
     icon: 'icons/apps/cordn.png', // a copy of https://cordn.net/pwa/icon-192.png
     flush: true,
     desc: t('Coordinator-assisted encrypted group messaging: sign in and chat with your key.'),
@@ -224,6 +224,16 @@ function apps() {
     icon: 'icons/apps/words-with-zaps.png', // a copy of Google's favicon for wordswithzaps.top
     cat: 'gaming',
     desc: t('A two-player word game with Lightning stakes: challenge friends and zap to win.'),
+  },
+  {
+    name: 'Onosendai',
+    url: 'https://www.onosendai.tech',
+    domain: 'onosendai.tech',
+    cat: 'gaming',
+    // Their touch icon is an opaque square tile that fills its frame, so flush.
+    icon: 'icons/apps/onosendai.png', // a copy of https://www.onosendai.tech/apple-touch-icon.png
+    flush: true,
+    desc: t('A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.'),
   },
   {
     name: 'NostrHub',
@@ -480,16 +490,38 @@ function apps() {
     desc: t('Web of Trust for Nostr: trust scores built from your own connections, not an algorithm.'),
   },
   {
+    name: 'nspam',
+    url: 'https://nspam.utxo.one',
+    domain: 'nspam.utxo.one',
+    cat: 'tools',
+    // The site has no favicon or touch icon, so this is its mascot, the purple ostrich, cut
+    // square from its poster (https://nspam.utxo.one/nspam-ostriches-poster.jpg). Opaque, so flush.
+    icon: 'icons/apps/nspam.png',
+    flush: true,
+    desc: t('Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.'),
+  },
+  {
     name: 'NymChat',
     url: 'https://nymchat.app',
     domain: 'nymchat.app',
-    cat: 'social',
+    cat: 'messaging',
     // Nothing hotlinkable on the site (data-URI favicon, no apple-touch-icon, the
     // manifest 403s), so the launcher art is bundled like Circl's mark. The squared
     // icon is opaque and fills its frame — flush.
     icon: 'icons/apps/nym.png',
     flush: true,
     desc: t('Ephemeral chat over Nostr: geohash channels for people near you, and Bluetooth mesh offline.'),
+  },
+  {
+    name: 'Staircase',
+    url: 'https://staircase.chat',
+    domain: 'staircase.chat',
+    cat: 'messaging',
+    // Their mark is a dark drawing on a transparent ground, lost on a dark tile, so it is
+    // set on their page's paper color (#f8f6f0) as a square of its own, and flush.
+    icon: 'icons/apps/staircase.png', // https://staircase.chat/assets/mark.webp on their paper color
+    flush: true,
+    desc: t('Private one-on-one and group chats only their members can read, with no phone number.'),
   },
   {
     name: 'Shakespeare',
@@ -524,7 +556,7 @@ function apps() {
     name: 'Anagram',
     url: 'https://anagram.chat',
     domain: 'anagram.chat',
-    cat: 'social',
+    cat: 'messaging',
     // Transparent mark, so it takes the framed treatment rather than flush.
     icon: 'icons/apps/anagram.png',
     desc: t('Private messaging and calls over Nostr.'),
@@ -543,7 +575,7 @@ function apps() {
     name: 'Armada',
     url: 'https://armada.buzz/',
     domain: 'armada.buzz',
-    cat: 'social',
+    cat: 'messaging',
     // A dark chip inset with margin, not a full-bleed square, so it takes the framed treatment.
     icon: 'icons/apps/armada.svg',
     desc: t('Open-source, encrypted Discord alternative: channels, voice and DMs, no host required.'),
@@ -594,10 +626,11 @@ function apps() {
 }
 
 // The key order is the category order, for the filter pills and the grid alike.
-const CAT_ORDER = ['social', 'media', 'gaming', 'commerce', 'tools', 'other'];
+const CAT_ORDER = ['social', 'messaging', 'media', 'gaming', 'commerce', 'tools', 'other'];
 function catLabels() {
   return {
     social: t('Social'),
+    messaging: t('Messaging'),
     media: t('Media'),
     gaming: t('Gaming'),
     commerce: t('Commerce'),

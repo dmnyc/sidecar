@@ -2263,5 +2263,9 @@
   "Raw (recipe category)": "ロー",
   "Healthy (recipe category)": "ヘルシー",
   "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "ネットワーク外からの返信は、スパムチェックを通過したものを除き、下にまとめて表示されます。非表示のものはありません。",
-  "Likely spam": "スパムの可能性"
+  "Likely spam": "スパムの可能性",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "地球に重ねられた3Dのサイバースペース。アバターで探索し、建物を作り、宝を探しましょう。",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "メンバーだけが読める、プライベートな1対1とグループのチャット。電話番号は不要です。",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostrで返信スパムを送るボットを報告し、その返信を人の目で確認したスパムコーパスに加えましょう。",
+  "Messaging": "メッセージ"
 }

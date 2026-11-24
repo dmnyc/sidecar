@@ -2263,5 +2263,9 @@
   "Raw (recipe category)": "生食",
   "Healthy (recipe category)": "健康",
   "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "來自人脈之外的回覆會歸在最下方，通過垃圾訊息檢查的除外。沒有任何內容被隱藏。",
-  "Likely spam": "可能是垃圾訊息"
+  "Likely spam": "可能是垃圾訊息",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "對應到地球上的 3D 網路空間：用你的虛擬化身探索、建造，並尋找寶藏。",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "只有成員才能閱讀的私密一對一與群組聊天，不需要手機號碼。",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "檢舉 Nostr 上的回覆垃圾機器人，並將它們的回覆加入經人工審核的垃圾訊息語料庫。",
+  "Messaging": "訊息"
 }

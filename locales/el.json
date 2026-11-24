@@ -2338,5 +2338,9 @@
   "Raw (recipe category)": "Ωμό",
   "Healthy (recipe category)": "Υγιεινό",
   "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "Οι απαντήσεις από εκτός του δικτύου σας ομαδοποιούνται στο κάτω μέρος, εκτός από όσες περνούν τον έλεγχο spam. Δεν κρύβεται τίποτα.",
-  "Likely spam": "Πιθανό spam"
+  "Likely spam": "Πιθανό spam",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Ένας τρισδιάστατος κυβερνοχώρος πάνω στη Γη: εξερευνήστε τον με το άβατάρ σας, χτίστε και ψάξτε για θησαυρούς.",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "Ιδιωτικές προσωπικές και ομαδικές συνομιλίες που διαβάζουν μόνο τα μέλη τους, χωρίς αριθμό τηλεφώνου.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Αναφέρετε bots που στέλνουν spam σε απαντήσεις στο Nostr και προσθέστε τις απαντήσεις τους σε ένα σώμα spam ελεγμένο από ανθρώπους.",
+  "Messaging": "Μηνύματα"
 }

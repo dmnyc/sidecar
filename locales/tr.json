@@ -2338,5 +2338,9 @@
   "Raw (recipe category)": "Çiğ",
   "Healthy (recipe category)": "Sağlıklı",
   "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "Ağınızın dışından gelen yanıtlar, spam denetiminden geçenler dışında altta gruplanır. Hiçbir şey gizlenmez.",
-  "Likely spam": "Muhtemelen spam"
+  "Likely spam": "Muhtemelen spam",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Dünya üzerine yerleştirilmiş 3B bir siber uzay: avatarınla keşfet, inşa et ve hazine ara.",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "Yalnızca üyelerinin okuyabildiği özel birebir ve grup sohbetleri, telefon numarası olmadan.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Nostr’da yanıtlara spam atan botları bildir ve yanıtlarını insanlarca incelenen bir spam derlemine ekle.",
+  "Messaging": "Mesajlaşma"
 }

@@ -2488,5 +2488,9 @@
   "Raw (recipe category)": "Na surowo",
   "Healthy (recipe category)": "Zdrowe",
   "Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.": "Odpowiedzi spoza twojej sieci są pogrupowane na dole, z wyjątkiem tych, które przejdą kontrolę spamu. Nic nie jest ukryte.",
-  "Likely spam": "Prawdopodobnie spam"
+  "Likely spam": "Prawdopodobnie spam",
+  "A 3D cyberspace mapped onto Earth: explore with your avatar, build, and hunt for treasure.": "Trójwymiarowa cyberprzestrzeń nałożona na Ziemię: odkrywaj ją swoim awatarem, buduj i szukaj skarbów.",
+  "Private one-on-one and group chats only their members can read, with no phone number.": "Prywatne czaty jeden na jeden i grupowe, które mogą czytać tylko ich uczestnicy, bez numeru telefonu.",
+  "Report reply-spam bots on Nostr and add their replies to a human-reviewed spam corpus.": "Zgłaszaj boty spamujące w odpowiedziach na Nostr i dodawaj ich odpowiedzi do sprawdzanego przez ludzi korpusu spamu.",
+  "Messaging": "Komunikatory"
 }
