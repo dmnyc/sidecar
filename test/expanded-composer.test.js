@@ -373,7 +373,7 @@ test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
     assert.ok(!new RegExp('function ' + name + '\\(').test(panel), 'sidepanel.js kept a copy of ' + name);
   }
   assert.match(bare, /composer\.renderNotePreview\(box, body\)/);
-  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted \}\)/);
+  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted, info \}\)/);
   // Its relay reads go through this page's own pool, so the core never learns which
   // sockets it is using and cannot reach the panel's.
   assert.match(bare, /poolGet: \(relays, filter, params\) => pool\(\)\.get\(/);
