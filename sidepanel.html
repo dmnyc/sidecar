@@ -91,7 +91,7 @@
       <!-- A long alphanumeric passphrase beats a short numeric PIN, which is advice rather
            than a fact about the field. The no-recovery line is not advice. -->
       <p class="hint" data-i18n="At least 8 characters. There is no recovery if you forget it." data-i18n-review>At least 8 characters. There is no recovery if you forget it.</p>
-      <div class="error" id="ob-error"></div>
+      <div class="error" id="ob-error" role="alert"></div>
       <button type="submit" class="primary" id="ob-submit" data-i18n="Create keystore">Create keystore</button>
     </form>
     <!-- The first screen is where a language matters most: the PIN and key-backup warnings
@@ -130,7 +130,7 @@
     <form id="unlock-form" class="stack">
       <label for="unlock-pin" data-i18n="PIN or passphrase">PIN or passphrase</label>
       <input type="password" id="unlock-pin" autocomplete="current-password" maxlength="32" autofocus />
-      <div class="error" id="unlock-error"></div>
+      <div class="error" id="unlock-error" role="alert"></div>
       <button type="submit" class="primary" data-i18n="Unlock">Unlock</button>
     </form>
     <div id="unlock-cooldown" class="unlock-cooldown hidden"></div>
@@ -233,11 +233,13 @@
     <!-- The active-tab underline is one element that travels, inserted and moved by
          wireTabSlider in sidepanel.js. Same for the Activity sub-tabs and the theme
          gallery's Dark and Light, so none of the three draws its own. -->
-    <nav class="tabs">
-      <button class="tab active" data-tab="accounts" data-i18n="Accounts">Accounts</button>
-      <button class="tab" data-tab="activity" data-i18n="Activity">Activity</button>
-      <button class="tab" data-tab="profile" data-i18n="Profile">Profile</button>
-      <button class="tab" data-tab="wallet" data-i18n="Wallet">Wallet</button>
+    <!-- A tab list to a screen reader: role, selection and the arrow keys are kept by
+         wirePanelTabs in sidepanel.js. -->
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="accounts" id="tabbtn-accounts" role="tab" aria-controls="tab-accounts" aria-selected="true" data-i18n="Accounts">Accounts</button>
+      <button class="tab" data-tab="activity" id="tabbtn-activity" role="tab" aria-controls="tab-activity" aria-selected="false" tabindex="-1" data-i18n="Activity">Activity</button>
+      <button class="tab" data-tab="profile" id="tabbtn-profile" role="tab" aria-controls="tab-profile" aria-selected="false" tabindex="-1" data-i18n="Profile">Profile</button>
+      <button class="tab" data-tab="wallet" id="tabbtn-wallet" role="tab" aria-controls="tab-wallet" aria-selected="false" tabindex="-1" data-i18n="Wallet">Wallet</button>
     </nav>
 
 
@@ -276,7 +278,7 @@
 
     <main class="content">
       <!-- Accounts -->
-      <div class="tabview" id="tab-accounts">
+      <div class="tabview" id="tab-accounts" role="tabpanel" aria-labelledby="tabbtn-accounts">
         <div class="active-account" id="active-account"></div>
         <h2 id="accounts-heading" data-i18n="Accounts">Accounts</h2>
         <div id="account-list" class="list"></div>
@@ -306,7 +308,7 @@
       </div>
 
       <!-- Activity: signing history + per-site permission tiers -->
-      <div class="tabview hidden" id="tab-activity">
+      <div class="tabview hidden" id="tab-activity" role="tabpanel" aria-labelledby="tabbtn-activity">
         <h2 data-i18n="Activity">Activity</h2>
         <div class="modal-tabs" id="activity-subtabs">
           <button class="modal-tab active" data-subtab="sites" data-i18n="Connected sites">Connected sites</button>
@@ -332,12 +334,15 @@
       </div>
 
       <!-- Profile — scoped to the active account -->
-      <div class="tabview hidden" id="tab-profile">
+      <div class="tabview hidden" id="tab-profile" role="tabpanel" aria-labelledby="tabbtn-profile">
+        <!-- The other tabs open on a heading; this one shows the profile card instead, so its
+             heading is there for a screen reader only. -->
+        <h2 class="sr-only" data-i18n="Profile">Profile</h2>
         <div id="profile-view"></div>
       </div>
 
       <!-- Wallet — NWC (NIP-47) -->
-      <div class="tabview hidden" id="tab-wallet">
+      <div class="tabview hidden" id="tab-wallet" role="tabpanel" aria-labelledby="tabbtn-wallet">
         <div id="wallet-view"></div>
       </div>
 
@@ -458,7 +463,7 @@
                index 0..5 in the markup, percents in sidepanel.js (PANEL_ZOOM_STOPS).
                Hidden entirely where CSS zoom is unsupported (initPanelZoom). -->
           <div class="setting" id="panel-zoom-setting">
-            <h3 data-i18n="Panel zoom">Panel zoom</h3>
+            <h4 data-i18n="Panel zoom">Panel zoom</h4>
             <p class="hint" data-i18n="Make everything in the panel larger or smaller.">Make everything in the panel larger or smaller.</p>
             <!-- Smaller, the current size, larger: a stepper over five stops, 80 to 120. The
                middle button is the reset. A slider was geometry to fight at this width, six
@@ -477,12 +482,12 @@
           <!-- Hidden until i18n.js lists a second language: a picker with one choice in it
                is a question with no answer. Each language is named in itself. -->
           <div class="setting hidden" id="language-setting">
-            <h3 data-i18n="Language">Language</h3>
+            <h4 data-i18n="Language">Language</h4>
             <select id="language-select" aria-label="Language" data-i18n-aria-label="Language"></select>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Theme">Theme</h3>
+            <h4 data-i18n="Theme">Theme</h4>
             <p class="hint" data-i18n="Choose your preferred color scheme and aesthetic. Sets the theme for the account you are in.">Choose your preferred color scheme and aesthetic. Sets the theme for the account you are in.</p>
             <!-- ORDER: the dark themes first, then the light ones. This is the
                  canonical list; the arrays in sidepanel.js (validThemes), prompt.js
@@ -587,31 +592,31 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Special editions">Special editions</h3>
+            <h4 data-i18n="Special editions">Special editions</h4>
             <p class="hint" data-i18n="Seasonal themes, here for a few weeks of the year. A card says when one arrives.">Seasonal themes, here for a few weeks of the year. A card says when one arrives.</p>
             <label class="toggle-row"><input type="checkbox" id="seasonal-offers-toggle" /> <span data-i18n="Tell me when one arrives">Tell me when one arrives</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Live video">Live video</h3>
+            <h4 data-i18n="Live video">Live video</h4>
             <p class="hint" data-i18n="Turning this off hides the LIVE strip and stops playback and stream discovery.">Turning this off hides the LIVE strip and stops playback and stream discovery.</p>
             <label class="toggle-row"><input type="checkbox" id="livevideo-toggle" /> <span data-i18n="Enable live video">Enable live video</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Reduce motion">Reduce motion</h3>
+            <h4 data-i18n="Reduce motion">Reduce motion</h4>
             <p class="hint" data-i18n="Covers the wallet balance, countdowns, and the lightning bolt on payments.">Covers the wallet balance, countdowns, and the lightning bolt on payments.</p>
             <label class="toggle-row"><input type="checkbox" id="reducemotion-toggle" /> <span data-i18n="Turn off Sidecar's animations">Turn off Sidecar's animations</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="On this day">On this day</h3>
+            <h4 data-i18n="On this day">On this day</h4>
             <p class="hint" data-i18n="A line of history at the foot of the Accounts tab.">A line of history at the foot of the Accounts tab.</p>
             <label class="toggle-row"><input type="checkbox" id="otd-toggle" /> <span data-i18n="Show On this day">Show On this day</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Literary quotes">Literary quotes</h3>
+            <h4 data-i18n="Literary quotes">Literary quotes</h4>
             <p class="hint" data-i18n="A line from a book in empty lists and while they load.">A line from a book in empty lists and while they load.</p>
             <label class="toggle-row"><input type="checkbox" id="quotes-toggle" /> <span data-i18n="Show literary quotes">Show literary quotes</span></label>
           </div>
@@ -630,7 +635,7 @@
         <div class="settings-section-body" id="section-body-notifications">
 
           <div class="setting">
-            <h3 data-i18n="Your network first">Your network first</h3>
+            <h4 data-i18n="Your network first">Your network first</h4>
             <p class="hint" data-i18n="Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.">Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.</p>
             <label class="toggle-row"><input type="checkbox" id="wotfilter-toggle" /> <span data-i18n="Sort notifications by who you follow">Sort notifications by who you follow</span></label>
             <!-- Filled by renderWotStatus. A filter that fails open is silent by design,
@@ -657,13 +662,13 @@
                one opens first. Both composers build the same editors out of
                composer-core, so there is nothing one can do that the other cannot. -->
           <div class="setting">
-            <h3 data-i18n="Where to write">Where to write</h3>
+            <h4 data-i18n="Where to write">Where to write</h4>
             <p class="hint" data-i18n="Open notes, replies and polls in a tab instead of the panel. Same draft either way.">Open notes, replies and polls in a tab instead of the panel. Same draft either way.</p>
             <label class="toggle-row"><input type="checkbox" id="compose-tab-toggle" /> <span data-i18n="Always use the full-size composer">Always use the full-size composer</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Post countdown">Post countdown</h3>
+            <h4 data-i18n="Post countdown">Post countdown</h4>
             <p class="hint" data-i18n="A countdown before a note publishes, so you can read it or cancel.">A countdown before a note publishes, so you can read it or cancel.</p>
             <label class="toggle-row"><input type="checkbox" id="countdown-toggle" /> <span data-i18n="Review countdown before posting">Review countdown before posting</span></label>
             <div class="amount-presets hidden" id="countdown-presets">
@@ -682,7 +687,7 @@
                actionable where "High" is a second thing to map. The line under them
                carries what that rung costs, which is the part a number cannot say. -->
           <div class="setting">
-            <h3 data-i18n="Proof of work">Proof of work</h3>
+            <h4 data-i18n="Proof of work">Proof of work</h4>
             <p class="hint" data-i18n="Mines a NIP-13 nonce into this account's posts. Costs time before each one publishes.">Mines a NIP-13 nonce into this account's posts. Costs time before each one publishes.</p>
             <label class="toggle-row"><input type="checkbox" id="pow-toggle" /> <span data-i18n="Mine proof of work before posting">Mine proof of work before posting</span></label>
             <div class="amount-presets hidden" id="pow-presets">
@@ -695,13 +700,13 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Client tag">Client tag</h3>
+            <h4 data-i18n="Client tag">Client tag</h4>
             <p class="hint" data-i18n="Tags the notes and comments you post as sent with Sidecar.">Tags the notes and comments you post as sent with Sidecar.</p>
             <label class="toggle-row"><input type="checkbox" id="clienttag-toggle" /> <span data-i18n="Tag posts as made with Sidecar">Tag posts as made with Sidecar</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Video details">Video details</h3>
+            <h4 data-i18n="Video details">Video details</h4>
             <p class="hint" data-i18n="Adds a video’s type and size to the post so apps can play it inline.">Adds a video’s type and size to the post so apps can play it inline.</p>
             <label class="toggle-row"><input type="checkbox" id="videoimeta-toggle" /> <span data-i18n="Add video details to posts">Add video details to posts</span></label>
           </div>
@@ -716,9 +721,9 @@
         <div class="settings-section-body" id="section-body-apps">
 
           <div class="setting">
-            <h3 data-i18n="Open notes in">Open notes in</h3>
+            <h4 id="client-select-label" data-i18n="Open notes in">Open notes in</h4>
             <p class="hint" data-i18n="Which web client to open your published notes in. Set per account, so a brand account and a personal one can read in different places.">Which web client to open your published notes in. Set per account, so a brand account and a personal one can read in different places.</p>
-            <select id="client-select">
+            <select id="client-select" aria-labelledby="client-select-label">
               <option value="" data-i18n="Use the default">Use the default</option>
               <option value="jumble">Jumble</option>
               <option value="primal">Primal</option>
@@ -740,7 +745,7 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Your added clients">Your added clients</h3>
+            <h4 data-i18n="Your added clients">Your added clients</h4>
             <p class="hint" data-i18n="A client not on the list. Paste both a note link and a profile link from it, as clients build the two differently.">A client not on the list. Paste both a note link and a profile link from it, as clients build the two differently.</p>
             <div class="list flat" id="custom-clients"></div>
             <button type="button" id="add-client-btn" class="secondary" data-i18n="Add a client">Add a client</button>
@@ -748,7 +753,7 @@
 
 
           <div class="setting">
-            <h3 data-i18n="Background app syncs">Background app syncs</h3>
+            <h4 data-i18n="Background app syncs">Background app syncs</h4>
             <!-- WHY THIS EXISTS, kept out of the panel: clients quietly sign app settings
                  (read status, preferences) as you browse. They are not posts, so Sidecar
                  handles them silently rather than interrupting you once per site per
@@ -759,7 +764,7 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Auto-sign with multiple accounts">Auto-sign with multiple accounts</h3>
+            <h4 data-i18n="Auto-sign with multiple accounts">Auto-sign with multiple accounts</h4>
             <!-- Off by default, and the reason it is: two accounts each able to sign without
                  asking is how a multi-account client's slot mix-up goes out under the wrong
                  account with no card. One at a time, the wrong one still asks. -->
@@ -768,7 +773,7 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Global name search">Global name search</h3>
+            <h4 data-i18n="Global name search">Global name search</h4>
             <!-- The long version, which does not belong on the panel: your relays only
                  know the names they have seen, so a name search misses most of Nostr
                  without a relay that indexes names across all of it. Asking one means
@@ -790,7 +795,7 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Pay button on web pages">Pay button on web pages</h3>
+            <h4 data-i18n="Pay button on web pages">Pay button on web pages</h4>
             <p class="hint" data-i18n="Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice." data-i18n-review>Show a floating “Pay with Sidecar” button when a page displays a Lightning invoice.</p>
             <label class="toggle-row"><input type="checkbox" id="paybutton-toggle" /> <span data-i18n="Show on Nostr sites">Show on Nostr sites</span></label>
             <label class="toggle-row"><input type="checkbox" id="paypill-anywhere-toggle" /> <span data-i18n="Show on unconnected sites">Show on unconnected sites</span></label>
@@ -801,7 +806,7 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Shared site confirmations">Shared site confirmations</h3>
+            <h4 data-i18n="Shared site confirmations">Shared site confirmations</h4>
             <!-- The restorer for the shared-identity "Heads up!" and its caption.
                  "Don't show this again" on the card silences the note for good, and a
                  decision like that needs a way back that does not involve editing
@@ -826,42 +831,42 @@
         <div class="settings-section-body" id="section-body-wallet">
 
           <div class="setting">
-            <h3 data-i18n="Payment animation">Payment animation</h3>
+            <h4 data-i18n="Payment animation">Payment animation</h4>
             <p class="hint" data-i18n="A lightning bolt across the screen when a payment goes out.">A lightning bolt across the screen when a payment goes out.</p>
             <label class="toggle-row"><input type="checkbox" id="zapflash-toggle" /> <span data-i18n="Lightning bolt on payment">Lightning bolt on payment</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Pin balance bar">Pin balance bar</h3>
+            <h4 data-i18n="Pin balance bar">Pin balance bar</h4>
             <p class="hint" data-i18n="Your balance under the navigation on every tab, with Send and Receive.">Your balance under the navigation on every tab, with Send and Receive.</p>
             <label class="toggle-row"><input type="checkbox" id="pinbalance-toggle" /> <span data-i18n="Pin balance bar across tabs">Pin balance bar across tabs</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Hide balances">Hide balances</h3>
+            <h4 data-i18n="Hide balances">Hide balances</h4>
             <p class="hint" data-i18n="Mask every amount in the wallet. Tap the eye on the balance to reveal them.">Mask every amount in the wallet. Tap the eye on the balance to reveal them.</p>
             <label class="toggle-row"><input type="checkbox" id="hidebalance-toggle" /> <span data-i18n="Hide balances by default">Hide balances by default</span></label>
             <label class="toggle-row toggle-sub"><input type="checkbox" id="balancepeek-toggle" /> <span data-i18n="Re-hide 30 seconds after a reveal">Re-hide 30 seconds after a reveal</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Local currency">Local currency</h3>
+            <h4 id="fiat-select-label" data-i18n="Local currency">Local currency</h4>
             <p class="hint fiat-on-hint" data-i18n="Tap your balance to cycle sats, BTC and this. Rates from mempool.space and Coinbase.">Tap your balance to cycle sats, BTC and this. Rates from mempool.space and Coinbase.</p>
             <p class="hint fiat-off-hint hidden" data-i18n="Tap your balance to switch between sats and BTC. No exchange rate is fetched.">Tap your balance to switch between sats and BTC. No exchange rate is fetched.</p>
             <label class="toggle-row"><input type="checkbox" id="fiat-off-toggle" /> <span data-i18n="Bitcoin only (no local currency)">Bitcoin only (no local currency)</span></label>
             <!-- Options are populated from FIAT_CURRENCIES in sidepanel.js, shared with
                  the wallet screen's copy of this picker. -->
-            <select id="fiat-select"></select>
+            <select id="fiat-select" aria-labelledby="fiat-select-label"></select>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="On-chain balance">On-chain balance</h3>
+            <h4 data-i18n="On-chain balance">On-chain balance</h4>
             <p class="hint" data-i18n="Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.">Watch the Bitcoin address this account's key can spend, so coins sent there can be swept back out. With this on, Sidecar asks mempool.space about those addresses. Nothing is looked up until it is on.</p>
             <label class="toggle-row"><input type="checkbox" id="btc-sweep-toggle" /> <span data-i18n="Show on-chain balance in the Wallet">Show on-chain balance in the Wallet</span></label>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Default zap amount" data-i18n-review>Default zap amount</h3>
+            <h4 data-i18n="Default zap amount" data-i18n-review>Default zap amount</h4>
             <p class="hint" data-i18n="Offered as a preset wherever you send a zap. Set for the account you are in." data-i18n-review>Offered as a preset wherever you send a zap. Set for the account you are in.</p>
             <label class="toggle-row">
               <span data-i18n="Zap" data-i18n-review>Zap</span>
@@ -871,7 +876,7 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Auto Zaps" data-i18n-review>Auto Zaps</h3>
+            <h4 data-i18n="Auto Zaps" data-i18n-review>Auto Zaps</h4>
             <p class="hint" data-i18n="Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day." data-i18n-review>Zaps under these limits need no approval. Capped at 1,000 sats a zap, 100,000 a day.</p>
             <label class="toggle-row"><input type="checkbox" id="autozap-toggle" /> <span data-i18n="Enable Auto Zaps" data-i18n-review>Enable Auto Zaps</span></label>
             <label class="toggle-row hidden" id="autozap-max-row">
@@ -900,7 +905,7 @@
                Someone who opens Relays looking for it would otherwise find only the
                bootstrap set and assume that is their list. -->
           <div class="setting">
-            <h3 data-i18n="Your relay list">Your relay list</h3>
+            <h4 data-i18n="Your relay list">Your relay list</h4>
             <p class="hint" data-i18n="Your public relay list (NIP-65) is edited on your Profile.">Your public relay list (NIP-65) is edited on your Profile.</p>
             <button class="secondary" id="edit-nip65-btn" data-i18n="Edit relay list">Edit relay list</button>
           </div>
@@ -910,7 +915,7 @@
                  (nip65-only-scope): "Bootstrap relays for {{name}}", one sentence, so a
                  language can order it its own way. With more than one account it is
                  clear these switches are not global. -->
-            <h3 id="nip65-only-scope" data-i18n="Bootstrap relays">Bootstrap relays</h3>
+            <h4 id="nip65-only-scope" data-i18n="Bootstrap relays">Bootstrap relays</h4>
             <p class="hint" data-i18n="Used to find your relay list, and as a fallback if it cannot be reached.">Used to find your relay list, and as a fallback if it cannot be reached.</p>
             <!-- No second hint. "Per account" is said by the scope beside the switch, and what
                  off means by the switch that appears under it. The discovery fetch still
@@ -940,11 +945,11 @@
             <div id="relay-section-body" class="relay-section-body">
               <div id="relay-list" class="list"></div>
               <div class="row-actions">
-                <input type="text" id="relay-input" placeholder="wss://relay.example.com" />
+                <input type="text" id="relay-input" placeholder="wss://relay.example.com" aria-label="Relay address" data-i18n-aria-label="Relay address" />
                 <button class="secondary" id="relay-add" data-i18n="Add">Add</button>
               </div>
               <!-- Validation errors from the Add field. -->
-              <div class="error hidden" id="relay-add-error"></div>
+              <div class="error" id="relay-add-error" role="alert"></div>
               <!-- A relay that failed the add-time health check: the question on its own
                    full-width row below the input (a label and two buttons never share the
                    input's line in a panel this narrow), the answers stretched beneath the
@@ -972,8 +977,8 @@
         <div class="settings-section-body" id="section-body-security">
 
           <div class="setting">
-            <h3 data-i18n="Auto-lock" data-i18n-review>Auto-lock</h3>
-            <select id="autolock-select">
+            <h4 id="autolock-select-label" data-i18n="Auto-lock" data-i18n-review>Auto-lock</h4>
+            <select id="autolock-select" aria-labelledby="autolock-select-label">
               <option value="5" data-i18n="After 5 minutes" data-i18n-review>After 5 minutes</option>
               <option value="15" data-i18n="After 15 minutes" data-i18n-review>After 15 minutes</option>
               <option value="30" data-i18n="After 30 minutes" data-i18n-review>After 30 minutes</option>
@@ -986,12 +991,12 @@
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Change PIN" data-i18n-review>Change PIN</h3>
+            <h4 data-i18n="Change PIN" data-i18n-review>Change PIN</h4>
             <button class="secondary" id="change-pin-btn" data-i18n="Change PIN…" data-i18n-review>Change PIN…</button>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Vault backup" data-i18n-review>Vault backup</h3>
+            <h4 data-i18n="Vault backup" data-i18n-review>Vault backup</h4>
             <!-- Not the per-account nsec/ncryptsec backup in the account menu. Two files, two jobs. -->
             <p class="hint" data-i18n="Every account's key and wallet in one encrypted file, not a single account's nsec." data-i18n-review>Every account's key and wallet in one encrypted file, not a single account's nsec.</p>
             <div class="vault-actions">
@@ -1011,13 +1016,13 @@
         <div class="settings-section-body" id="section-body-about">
 
           <div class="setting">
-            <h3 data-i18n="Share Sidecar">Share Sidecar</h3>
+            <h4 data-i18n="Share Sidecar">Share Sidecar</h4>
             <p class="hint" data-i18n="Know someone who'd like a classy Nostr signer? Send them the link.">Know someone who'd like a classy Nostr signer? Send them the link.</p>
             <button class="secondary" id="share-sidecar-btn"><span data-i18n="Share with a friend">Share with a friend</span></button>
           </div>
 
           <div class="setting">
-            <h3 data-i18n="Updates">Updates</h3>
+            <h4 data-i18n="Updates">Updates</h4>
             <p class="hint" id="settings-version"></p>
             <a href="#" id="whats-new-link" class="whats-new-link" data-i18n="What’s new in this version →">What’s new in this version →</a>
             <button class="secondary" id="check-update-btn" data-i18n="Check for updates">Check for updates</button>
@@ -1039,7 +1044,7 @@
                by syncSettingsSectionVisibility. The data-section key stays "about" — it
                is also the storage map's key, and the label is the only thing that moved. -->
           <div class="setting hidden" id="dev-settings-section">
-            <h3 data-i18n="Developer">Developer</h3>
+            <h4 data-i18n="Developer">Developer</h4>
             <p class="hint" data-i18n="Local build only — this section is hidden on the Chrome Web Store version.">Local build only — this section is hidden on the Chrome Web Store version.</p>
             <label class="toggle-row"><input type="checkbox" id="dev-indicator-toggle" /> <span data-i18n="Show dev build indicator">Show dev build indicator</span></label>
             <!-- en-XA: every string that goes through t() accented and padded 40%. Overflow
@@ -1177,7 +1182,7 @@
           <!-- PIN failures belong against the PIN, not below the budget/relax rows —
                this is where "N attempts left before all data is erased" lands.
                #approval-error stays for everything else. -->
-          <div class="error" id="approval-pin-error"></div>
+          <div class="error" id="approval-pin-error" role="alert"></div>
         </div>
 
         <!-- THE GRADUATED ROW: a sign card asks only "may this happen?". Once this site
@@ -1217,7 +1222,7 @@
         </div>
 
 
-        <div class="error" id="approval-error"></div>
+        <div class="error" id="approval-error" role="alert"></div>
 
         <!-- Shown once this site has been approved one-time a few times over. Nothing
              else here says which button ends the asking, and "Allow once" is the one
@@ -1250,7 +1255,7 @@
   </div>
 
   <!-- ===== Toast host ===== -->
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
   <!-- ===== Dev build indicator (local/unpacked builds only, opt-in via Settings) ===== -->
   <button id="dev-badge" class="dev-badge hidden" title="Sidecar dev build"></button>

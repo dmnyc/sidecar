@@ -2465,5 +2465,8 @@
   "Brainstorm’s relay": "A Brainstorm reléje",
   "A relay I choose": "Egy általam választott relé",
   "Search relay address": "Keresési relé címe",
-  "Drag to reorder": "Húzza az átrendezéshez"
+  "Drag to reorder": "Húzza az átrendezéshez",
+  "Relay address": "Relé címe",
+  "Move {{item}}": "{{item}} áthelyezése",
+  "Drag to reorder, or use the up and down arrow keys": "Húzza az átrendezéshez, vagy használja a fel és le nyílbillentyűket"
 }

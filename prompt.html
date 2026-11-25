@@ -496,7 +496,7 @@
   </style>
 </head>
 <body>
-  <div class="prompt-scroll">
+  <div class="prompt-scroll" role="main">
     <div class="brand"><img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" /></div>
     <div class="host" id="host">…</div>
     <div class="ask" id="ask" data-i18n="wants to…">wants to…</div>
@@ -539,7 +539,7 @@
            the buttons — this is where "N attempts left before all data is erased"
            lands. #error below stays for everything else (the budget message, which is
            already adjacent to the budget row). -->
-      <div class="error" id="pin-error"></div>
+      <div class="error" id="pin-error" role="alert"></div>
     </div>
     <!-- The payment's checkboxes, one group so that when more than one shows they share a
          left edge. Each row centered on its own width put the boxes at different points. -->
@@ -588,7 +588,7 @@
       <button type="button" class="relax-chip" data-mins="30" data-i18n="30 min" data-i18n-review>30 min</button>
     </div>
     </div>
-    <div class="error" id="error"></div>
+    <div class="error" id="error" role="alert"></div>
     <!-- Shown once you've approved this site a few times over. Nothing else on this
          screen says which button ends the asking, and "Sign" is the one that
          looks like the default answer. Sits directly above the buttons so it reads as

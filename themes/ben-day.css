@@ -670,7 +670,7 @@
 [data-theme="ben-day"] #view-settings .settings-section-body { padding: 12px; }
 /* The name of each setting, lettered in the red plate, in Bangers so it carries the
    weight of a subhead (the thin caption hand read too light for it). */
-[data-theme="ben-day"] #view-settings .settings-section-body .setting > h3 {
+[data-theme="ben-day"] #view-settings .settings-section-body .setting > h4 {
   font-family: var(--font-display);
   font-weight: 400;
   font-size: 17px;

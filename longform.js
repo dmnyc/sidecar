@@ -209,7 +209,7 @@
   // box, and `canonical` the spelling a typed value takes.
   function chipInput(list, placeholder, hints, canonical, label = (v) => v) {
     const box = h('div', { className: 'lf-chips' });
-    const input = h('input', { type: 'text', className: 'lf-chip-input', placeholder });
+    const input = h('input', { type: 'text', className: 'lf-chip-input', placeholder, 'aria-label': placeholder });
     const hintRow = hints ? h('div', { className: 'lf-chip-hints' }) : null;
     function draw() {
       box.replaceChildren(...list.map((v, i) => h('span', { className: 'lf-chip' }, [
@@ -396,9 +396,9 @@
   // bottom half, so it can go past the last one; a line shows where. Only the grip starts a
   // drag, so the words stay a place to click and select. From the keyboard, the grip's arrow
   // keys move the item one place, and Move up stays for a single press.
-  function listEditor(list, { numbered, placeholder, addLabel }) {
+  function listEditor(list, { numbered, placeholder, addLabel, label }) {
     const ol = h(numbered ? 'ol' : 'ul', { className: 'lf-list' + (numbered ? ' is-numbered' : '') });
-    const input = h('input', { type: 'text', className: 'lf-list-input', placeholder });
+    const input = h('input', { type: 'text', className: 'lf-list-input', placeholder, 'aria-label': label || placeholder });
     const addBtn = h('button', { type: 'button', className: 'secondary lf-list-add', textContent: addLabel });
     let editing = -1;
     let openBox = null;
@@ -457,7 +457,12 @@
     const clearMarks = () => ol.querySelectorAll('.drop-before, .drop-after').forEach((n) => n.classList.remove('drop-before', 'drop-after'));
     const below = (e, li) => { const r = li.getBoundingClientRect(); return e.clientY >= r.top + r.height / 2; };
     function grip(i, li) {
-      const g = h('button', { type: 'button', className: 'lf-icon-btn lf-list-grip', title: t('Drag to reorder'), 'aria-label': t('Drag to reorder') }, [icon('grip')]);
+      // Named for its item, since every row has one, and described with the keys that move it.
+      const g = h('button', {
+        type: 'button', className: 'lf-icon-btn lf-list-grip', title: t('Drag to reorder'),
+        'aria-label': t('Move {{item}}', { item: list[i] }),
+        'aria-description': t('Drag to reorder, or use the up and down arrow keys'),
+      }, [icon('grip')]);
       // The row is draggable only while the grip is held.
       g.addEventListener('mousedown', () => { li.draggable = true; });
       g.addEventListener('mouseup', () => { li.draggable = false; });
@@ -584,7 +589,7 @@
     const strip = h('div', { className: 'compose-thumbs lf-strip' });
     const coverBox = h('div', { className: 'lf-cover hidden' });
     const moreHead = h('span', { className: 'lf-label lf-more-head hidden', textContent: t('More photos') });
-    const urlInput = h('input', { type: 'url', placeholder: 'https://', className: 'lf-url-input' });
+    const urlInput = h('input', { type: 'url', placeholder: 'https://', className: 'lf-url-input', 'aria-label': t('Add image by link') });
     const urlAdd = h('button', { type: 'button', className: 'secondary', textContent: t('Add') });
     const urlRow = h('div', { className: 'lf-list-row lf-url-row hidden' }, [urlInput, urlAdd]);
     const urlToggle = h('button', { type: 'button', className: 'lf-disclose', 'aria-expanded': 'false', textContent: '+ ' + t('Add image by link') });
@@ -838,13 +843,13 @@
   // exactly as it was.
 
   const art = state.article;
-  const artTitle = h('input', { type: 'text', className: 'lf-title', placeholder: t('Title'), maxLength: 300 });
+  const artTitle = h('input', { type: 'text', className: 'lf-title', placeholder: t('Title'), 'aria-label': t('Title'), maxLength: 300 });
   artTitle.addEventListener('input', () => { art.title = artTitle.value; });
   const artSummary = h('textarea', { className: 'lf-summary', rows: 2, placeholder: t('A sentence or two that readers see before they open it') });
   artSummary.addEventListener('input', () => { art.summary = artSummary.value; });
   const artTopics = chipInput(art.topics, t('Add a topic'));
   const artCover = imagePicker(art.cover, { max: 1, cover: true, labelText: t('Add a cover image'), sub: t('Shown at the top of the article and in link previews') });
-  const artBody = h('textarea', { className: 'lf-body', placeholder: t('Write your article. Markdown works: **bold**, ## headings, > quotes.'), dir: 'auto' });
+  const artBody = h('textarea', { className: 'lf-body', placeholder: t('Write your article. Markdown works: **bold**, ## headings, > quotes.'), 'aria-label': t('Article'), dir: 'auto' });
   artBody.addEventListener('input', () => { art.body = artBody.value; });
   markdownField(artBody, { onImages: (files, a, b) => uploadIntoBody(files, a, b) });
   artTitle.dir = 'auto';
@@ -1016,7 +1021,7 @@
   // ---- the recipe form ----
 
   const rec = state.recipe;
-  const recTitle = h('input', { type: 'text', className: 'lf-title', placeholder: t('Recipe name'), maxLength: 300, dir: 'auto' });
+  const recTitle = h('input', { type: 'text', className: 'lf-title', placeholder: t('Recipe name'), 'aria-label': t('Recipe name'), maxLength: 300, dir: 'auto' });
   recTitle.addEventListener('input', () => { rec.title = recTitle.value; });
   const recSummary = h('textarea', { className: 'lf-summary', rows: 2, placeholder: t('What makes this one worth making'), dir: 'auto' });
   recSummary.addEventListener('input', () => { rec.summary = recSummary.value; });
@@ -1042,8 +1047,8 @@
     details[key] = input;
     return field(label, input);
   };
-  const recIngredients = listEditor(rec.ingredients, { numbered: false, placeholder: t('2 cups flour'), addLabel: t('Add') });
-  const recDirections = listEditor(rec.directions, { numbered: true, placeholder: t('Describe the next step'), addLabel: t('Add') });
+  const recIngredients = listEditor(rec.ingredients, { numbered: false, placeholder: t('2 cups flour'), addLabel: t('Add'), label: t('Ingredients') });
+  const recDirections = listEditor(rec.directions, { numbered: true, placeholder: t('Describe the next step'), addLabel: t('Add'), label: t('Directions') });
   const recCategories = chipInput(rec.categories, t('Add a category'), recipeCategoryHints, canonicalCategory, categoryShown);
   const recSource = h('input', { type: 'url', placeholder: 'https://' });
   recSource.addEventListener('input', () => { rec.source = recSource.value; });

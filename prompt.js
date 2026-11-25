@@ -1084,6 +1084,7 @@
     label.textContent = isPayment ? tSec('Paying from') : tSec('Signing as');
     const av = document.createElement('img');
     av.className = 'acct-av';
+    av.alt = ''; // the name beside it says who; the picture adds nothing to read out
     av.referrerPolicy = 'no-referrer';
     av.onerror = () => { av.onerror = null; av.src = avatarPh; };
     av.src = chosen.picture || avatarPh;

@@ -2548,5 +2548,8 @@
   "Brainstorm’s relay": "הריליי של Brainstorm",
   "A relay I choose": "ריליי שאבחר",
   "Search relay address": "כתובת ריליי לחיפוש",
-  "Drag to reorder": "גררו כדי לשנות את הסדר"
+  "Drag to reorder": "גררו כדי לשנות את הסדר",
+  "Relay address": "כתובת ריליי",
+  "Move {{item}}": "העברת {{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "גררו כדי לשנות את הסדר, או השתמשו במקשי החצים למעלה ולמטה"
 }

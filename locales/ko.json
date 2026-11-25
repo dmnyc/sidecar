@@ -2382,5 +2382,8 @@
   "Brainstorm’s relay": "Brainstorm의 릴레이",
   "A relay I choose": "내가 고른 릴레이",
   "Search relay address": "검색 릴레이 주소",
-  "Drag to reorder": "끌어서 순서 바꾸기"
+  "Drag to reorder": "끌어서 순서 바꾸기",
+  "Relay address": "릴레이 주소",
+  "Move {{item}}": "{{item}} 이동",
+  "Drag to reorder, or use the up and down arrow keys": "끌어서 순서를 바꾸거나 위아래 화살표 키를 사용하세요"
 }

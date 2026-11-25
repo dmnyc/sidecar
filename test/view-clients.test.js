@@ -36,7 +36,7 @@ function jsClients() {
 }
 
 function htmlOptions() {
-  const sel = html.match(/<select id="client-select">[\s\S]*?<\/select>/);
+  const sel = html.match(/<select id="client-select"[^>]*>[\s\S]*?<\/select>/);
   assert.ok(sel, 'client-select not found in sidepanel.html');
   const out = [];
   const re = /<option value="([^"]+)">([^<]+)<\/option>/g;

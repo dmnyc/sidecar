@@ -2339,7 +2339,24 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .list.flat.empty { background: none; border: none; box-shadow: none; }
 .list.flat.empty .hint { margin: 2px 0 0; }
 
+/* Read out, never drawn: a heading or label a screen reader needs where the design shows
+   none. !important because a theme's view headings (Turnstile's station signs) would
+   otherwise give it a size and a background. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
 .setting { margin-bottom: 24px; }
+/* Each setting's name is an h4 under its section's h3, so the outline reads Settings >
+   section > setting. Sized as the h3 it used to be (the browser's own h3), so nothing moves. */
+#view-settings .setting > h4 { font-size: 1.17em; margin-block: 1em; }
 
 /* Collapsible settings sections. The heading contains the button so heading
    semantics survive; the body hides by class (same grammar as .account-stats

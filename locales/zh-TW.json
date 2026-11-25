@@ -2382,5 +2382,8 @@
   "Brainstorm’s relay": "Brainstorm 的中繼站",
   "A relay I choose": "我選擇的中繼站",
   "Search relay address": "搜尋用中繼站位址",
-  "Drag to reorder": "拖曳以重新排序"
+  "Drag to reorder": "拖曳以重新排序",
+  "Relay address": "中繼站位址",
+  "Move {{item}}": "移動{{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "拖曳以重新排序，或使用上下方向鍵"
 }

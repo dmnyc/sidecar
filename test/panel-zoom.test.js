@@ -202,7 +202,7 @@ test('THE STEPPER SITS IN APPEARANCE, FIRST, LABELED AND SELF-DESCRIBING', () =>
   const langAt = html.indexOf('id="language-setting"');
   assert.ok(langAt > -1 && at < langAt, 'it opens the section, ahead of Language');
   const block = html.slice(html.lastIndexOf('<div class="setting"', at), sectionEnd);
-  assert.match(block, /<h3 data-i18n="Panel zoom">Panel zoom<\/h3>/);
+  assert.match(block, /<h4 data-i18n="Panel zoom">Panel zoom<\/h4>/);
   assert.match(block, /data-i18n="Make everything in the panel larger or smaller\."/);
   assert.match(block, /role="group" aria-label="Panel zoom" data-i18n-aria-label="Panel zoom"/);
   // Three controls, each named for a screen reader through the translation table.

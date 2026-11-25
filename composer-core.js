@@ -218,7 +218,15 @@ window.SidecarCore = (function () {
 
   function h(tag, props, children) {
     const el = document.createElement(tag);
-    if (props) Object.assign(el, props);
+    if (props) {
+      // aria-* and data-* are attributes, not properties: assigned as properties they were
+      // stored on the object and never reached the page, so a label or a state written
+      // here was silently dropped. They are set as attributes; everything else is assigned.
+      for (const [k, v] of Object.entries(props)) {
+        if (/^(aria|data)-/.test(k)) { if (v != null && v !== false) el.setAttribute(k, String(v)); }
+        else el[k] = v;
+      }
+    }
     // A child that is not there (null, undefined, false) adds nothing; append() would write the word.
     (children || []).forEach((c) => { if (c != null && c !== false) el.append(c); });
     return el;
@@ -942,6 +950,19 @@ window.SidecarCore = (function () {
     const onAttachUrl = (opts && opts.onAttachUrl) || null;
     const editor = h('div', { className: 'compose-text compose-editor is-empty', contentEditable: 'true' }); // dir: see syncEmptyClass
     editor.dataset.placeholder = (opts && opts.placeholder) || '';
+    // A screen reader is told what this is: a text box, more than one line, named by its
+    // placeholder (which says what it is for: a note, a reply, a comment). The placeholder is
+    // drawn by CSS, so it is read from here too, and kept in step when a caller changes it.
+    editor.setAttribute('role', 'textbox');
+    editor.setAttribute('aria-multiline', 'true');
+    const nameEditor = () => {
+      const ph = editor.dataset.placeholder || '';
+      const name = (opts && opts.label) || ph;
+      if (name) editor.setAttribute('aria-label', name); else editor.removeAttribute('aria-label');
+      if (ph) editor.setAttribute('aria-placeholder', ph); else editor.removeAttribute('aria-placeholder');
+    };
+    nameEditor();
+    if (typeof MutationObserver === 'function') new MutationObserver(nameEditor).observe(editor, { attributes: true, attributeFilter: ['data-placeholder'] });
     const wrap = h('div', { className: 'compose-editor-wrap' });
     wrap.append(editor);
 
