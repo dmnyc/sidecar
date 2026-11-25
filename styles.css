@@ -5860,6 +5860,16 @@ html:has(#view-approval:not(.hidden)) .toasts {
   cursor: default;
 }
 .payment-status.hidden { display: none; }
+/* A sheet stops at the top of the highest bar at the foot (the mine, a payment, the relax
+   timer) while any is up, so they stay in sight under the bell or a profile. The inset is
+   measured by placeFootInset in sidepanel.js; only while the main view is the one
+   showing, since the bars live there. */
+html:has(#view-main:not(.hidden) > :is(#mining-status, #payment-status, #relax-status):not(.hidden)) .modal-overlay {
+  bottom: var(--foot-bar-inset, 0px);
+}
+/* The timer's +N list opens upward into the space the sheet covers. Drawn over the
+   overlay (100), or it would open behind the sheet where nobody could see it. */
+html:has(#view-main:not(.hidden) > #relax-status:not(.hidden)) .relax-status-list { z-index: 101; }
 .payment-status-glyph { flex: 0 0 auto; display: flex; color: var(--gold); }
 .payment-status-glyph svg { width: 15px; height: 15px; }
 /* In flight: the shared spinner idiom. A payment has no measurable progress to

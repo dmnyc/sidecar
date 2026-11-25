@@ -723,10 +723,15 @@
   // The bar lives at the foot of the main view. When another surface owns the panel
   // (an approval card, the lock screen), a failure would land where nobody is
   // looking, so it toasts as well; from the main view the bar IS the announcement.
+  //
+  // The bar also cannot say it while another payment is still in the air: it draws the
+  // flights while there are any, and a result only once they are done, by which time
+  // this one has been replaced. Zaps run side by side now, so that is the ordinary case,
+  // and the failure toasts then as well.
   function surfacePaymentFailure(message) {
     if (!message) return;
     const view = document.getElementById('view-main');
-    if (view && view.classList.contains('hidden')) toast(message, 'error');
+    if ((view && view.classList.contains('hidden')) || paymentFlights.size) toast(message, 'error');
   }
 
   // Website payments arrive as worker events with no handle, so a settle retires the
@@ -739,6 +744,34 @@
     if (!ok) surfacePaymentFailure(sub || line);
   }
 
+  // THE BARS AT THE FOOT STAY IN SIGHT UNDER A SHEET. The mine, the payment and the
+  // relax timer all live at the foot of the main view, and a sheet covering the whole
+  // panel (the bell, a profile) covered them too: a zap sent from the bell was in flight
+  // somewhere nobody could see, and a running timer or mine went out of sight with it.
+  // While any of them is up, the overlay stops at the top of the highest one (see
+  // .modal-overlay in styles.css). Measured, not fixed: a failure's message can take two
+  // lines and the timer grows a track. Layout pixels inside the view, so the panel's
+  // zoom does not throw it off.
+  const FOOT_BARS = ['mining-status', 'payment-status', 'relax-status'];
+  function placeFootInset() {
+    const view = document.getElementById('view-main');
+    if (!view) return;
+    const top = FOOT_BARS.map((id) => document.getElementById(id))
+      .find((el) => el && !el.classList.contains('hidden'));
+    if (!top) return;
+    const inset = Math.max(0, view.clientHeight - top.offsetTop);
+    document.documentElement.style.setProperty('--foot-bar-inset', inset + 'px');
+  }
+  // Each bar's render calls it, since each knows when it shows, hides or changes. This
+  // catches the rest: the panel being resized, and text reflowing inside a bar.
+  if (typeof ResizeObserver === 'function') {
+    const watch = new ResizeObserver(() => placeFootInset());
+    for (const id of ['view-main', ...FOOT_BARS]) {
+      const el = document.getElementById(id);
+      if (el) watch.observe(el);
+    }
+  }
+
   function renderPaymentStatus() {
     const bar = document.getElementById('payment-status');
     const view = document.getElementById('view-main');
@@ -747,6 +780,7 @@
     if (!flightCount && !paymentResult) {
       bar.classList.add('hidden');
       if (view) view.classList.remove('payment-active'); // drop the FAB lift
+      placeFootInset(); // the next bar down, if any, is now the highest
       return;
     }
     bar.classList.remove('hidden');
@@ -780,6 +814,7 @@
     } else {
       count.classList.add('hidden');
     }
+    placeFootInset();
   }
 
   // ---- lightning strike (zap sent) ----
@@ -1293,6 +1328,7 @@
       hide(bar);
       if (view) view.classList.remove('relax-active');
       if (relaxTick) { clearInterval(relaxTick); relaxTick = null; }
+      placeFootInset();
       return;
     }
     show(bar);
@@ -1309,6 +1345,7 @@
     $('relax-status-fill').style.width = Math.max(0, Math.min(100, (remaining / total) * 100)) + '%';
     const dot = bar.querySelector('.relax-status-dot');
     if (dot) dot.classList.toggle('low', remaining < 60000); // green → amber under a minute
+    placeFootInset();
   }
 
   async function syncRelax() {
@@ -2713,6 +2750,15 @@
   function putAwayPaidSheet(sheetEl) {
     if (sheetEl && sheetEl.isConnected) closeModal();
   }
+  // An amount outside what the address said it takes, as the sentence to show, or ''.
+  // Asked by a zap form before it hands the zap to the bar, since past that point the
+  // form is gone and a typo would come back as a failed payment. `limits` is what
+  // lnAddressParams returned for the address; without it there is nothing to ask.
+  function zapAmountRefusal(sats, limits) {
+    if (!limits || !Number.isFinite(limits.minSats) || !Number.isFinite(limits.maxSats)) return '';
+    if (sats >= limits.minSats && sats <= limits.maxSats) return '';
+    return tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(limits.minSats), max: fmtSats(limits.maxSats) });
+  }
   // Any other control in the player bar puts an open zap sheet away first, so the chat and the list
   // are never left behind it. The bolt is not one: it opens and closes the sheet itself.
   const DOCK_CONTROLS = new Set(['stream-chat-toggle', 'stream-browse', 'stream-title-button', 'stream-feed-toggle', 'stream-expand', 'stream-stop']);
@@ -2829,6 +2875,7 @@
 
       let zapAddr = '';
       let zapZappable = false;
+      let zapLimits = null; // the address's own min and max, once it has answered
       let zapHasWallet = null;   // null until asked, so neither branch is guessed at
       let zapShown = false;
       let zapPanel = null;       // whichever of the two the Zap button opens
@@ -3204,27 +3251,28 @@
         if (!sats || sats < 1) return (zapErr.textContent = t('Enter an amount in sats.'));
         zapErr.textContent = '';
         if (!zapGate.pass(sats)) return;
-        send.disabled = true;
-        send.textContent = tSec('Sending…');
+        const refused = zapAmountRefusal(sats, zapLimits);
+        if (refused) return (zapErr.textContent = refused);
+        const message = note.value.trim();
         // The panel path people actually reach. This sheet is dismissible mid-zap, so a
-        // disabled button inside it was never an in-flight indicator: close the sheet and
-        // there was nothing at all until the toast. Same start point as the Send modal:
-        // the bar takes over once the invoice exists and the payment is genuinely going
-        // out, and it stays up wherever the user goes — sheet closed or not.
-        let flight = null;
+        // disabled button inside it was never an in-flight indicator. THE BAR TAKES OVER
+        // ON THE PRESS, not once the invoice exists: a provider slow to write one held
+        // the sheet on "Sending…" with nothing in the bar, and a failure before the
+        // invoice landed in a sheet that might already be gone. Nothing is left to decide
+        // here, so the sheet goes, and the bar stays up wherever the user goes next.
+        const flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
+        putAwayPaidSheet(zapForm);
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
           const invoice = await zapInvoice({
             addr: zapAddr,
             msats: sats * 1000,
-            comment: note.value.trim(),
+            comment: message,
             recipientPubkey: pubkey,
             streamEvent: options?.streamEvent,
             event: options?.chatEvent,
           });
-          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
-          putAwayPaidSheet(zapForm);
           const res = await client.payInvoice(invoice);
           // NWC history keeps the amount and nothing else, so an outgoing zap
           // rendered as a bare "Sent" with no counterparty. Both the other payment
@@ -3242,25 +3290,16 @@
             // is its id, so the details pane can link to it. A stream or profile zap has none.
             zapEvent: (options?.chatEvent && options.chatEvent.id) || undefined,
             address: zapAddr,
-            comment: note.value.trim(),
+            comment: message,
             feeMsat: res && res.fees_paid,
           });
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike(); // only once it settles
-          zapForm.classList.add('hidden');
-          amount.value = '';
-          note.value = '';
         } catch (e) {
-          // The bar is the announcement — this sheet is dismissible mid-payment, and
-          // zapErr goes with it. When another surface owns the panel the bar would
-          // land unseen, so the failure toasts too (see surfacePaymentFailure);
-          // the inline line still serves whoever never left the sheet.
-          if (flight) flight.settle(false, null, e.message);
+          // The bar is the announcement. When another surface owns the panel the bar
+          // would land unseen, so the failure toasts too (see surfacePaymentFailure).
+          flight.settle(false, null, e.message);
           surfacePaymentFailure(e.message);
-          zapErr.textContent = e.message;
-        } finally {
-          send.disabled = false;
-          zapGate.paint();
         }
       });
       zapBtn.addEventListener('click', () => {
@@ -3445,6 +3484,7 @@
           } else {
             lnAddressParams(c.lud16).then((p) => {
               if (!p.zappable) return settleZapSheetOffer();
+              zapLimits = p;
               zapZappable = true;
               revealZap();
             }).catch(() => settleZapSheetOffer());
@@ -9309,7 +9349,10 @@
         stop(e);
         if (!zapBuilt) {
           zapBuilt = true;
-          buildZapForm(ev, zapForm, err, stop);
+          buildZapForm(ev, zapForm, err, stop, () => {
+            zapForm.classList.add('hidden');
+            zapBtn.classList.remove('open');
+          });
         }
         zapForm.classList.toggle('hidden');
         zapBtn.classList.toggle('open', !zapForm.classList.contains('hidden'));
@@ -9348,7 +9391,7 @@
     // The amount form, built on first tap rather than with the row: it costs a profile
     // fetch to learn whether this person can even be zapped, and doing that for all 25
     // rows in the list would be 25 round trips for the one zap somebody sends.
-    function buildZapForm(ev, zapForm, err, stop) {
+    function buildZapForm(ev, zapForm, err, stop, putAway) {
       const who = zapSender(ev);
       const amount = satsInput('sats');
       const presets = zapPresetRow(amount, stop);
@@ -9362,6 +9405,7 @@
         zapDefaultSaver(amount, presets, stop));
 
       let addr = '';
+      let limits = null; // the address's own min and max, read once with the address
       send.disabled = true;
       // Same gate the profile sheet uses: an address without allowsNostr can take a
       // payment but can never produce a receipt, so a Zap button on it is a promise it
@@ -9377,6 +9421,7 @@
           if (!p.zappable) throw new Error(t('Their lightning address cannot receive zaps.'));
           if (!zapForm.isConnected) return;
           addr = lud;
+          limits = p;
           send.disabled = false;
           status.textContent = lud;
         })
@@ -9391,12 +9436,22 @@
         if (!sats || sats < 1) return (err.textContent = t('Enter an amount in sats.'));
         err.textContent = '';
         if (!zapGate.pass(sats)) return;
-        send.disabled = true;
-        send.textContent = t('Sending…');
-        // One payment bar for every path (#495): this sheet used to have only the
-        // disabled button as its pending indicator, and an inline-only failure. The
-        // bar starts once the invoice exists and the payment is genuinely going out.
-        let flight = null;
+        // The one refusal the form can still answer itself, so it is asked here, before
+        // the form steps aside. The provider asks again when it writes the invoice.
+        const refused = zapAmountRefusal(sats, limits);
+        if (refused) return (err.textContent = refused);
+        const message = comment.value.trim();
+        // THE ZAP GOES TO THE BAR THE MOMENT IT IS SENT. Waiting for the invoice first
+        // left the row locked on "Sending…" for as long as the provider took to answer,
+        // with nothing in the bar to say a zap was under way, and a failure written into
+        // a form that leaving the bell had already thrown away. Nothing is left to decide
+        // here once Send is pressed, so the form gets out of the way and the bar carries
+        // the rest, wherever you go next, including another zap.
+        const flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
+        putAway();
+        amount.value = '';
+        comment.value = '';
+        zapGate.paint();
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
@@ -9406,32 +9461,32 @@
           const invoice = await zapInvoice({
             addr,
             msats: sats * 1000,
-            comment: comment.value.trim(),
+            comment: message,
             recipientPubkey: who,
             event: ev,
           });
-          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           const res = await client.payInvoice(invoice);
           await savePayMeta(invoice, {
             zapPubkey: who,
             // The note the request's e tag names, so the details pane can link to it.
             zapEvent: (ev && ev.id) || undefined,
             address: addr,
-            comment: comment.value.trim(),
+            comment: message,
             feeMsat: res && res.fees_paid,
           });
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike();
-          zapForm.classList.add('hidden');
-          amount.value = '';
-          comment.value = '';
         } catch (e2) {
-          if (flight) flight.settle(false, null, e2.message);
+          flight.settle(false, null, e2.message);
           surfacePaymentFailure(e2.message);
+          // Still on the row for whoever stayed, with what they typed put back so trying
+          // again is one press, unless they have started on another amount since.
           err.textContent = e2.message;
-        } finally {
-          send.disabled = false;
-          zapGate.paint();
+          if (!amount.value) {
+            amount.value = String(sats);
+            if (!comment.value) comment.value = message;
+            zapGate.paint();
+          }
         }
       });
     }
@@ -15243,6 +15298,7 @@
     if (!miningStatus) {
       hide(bar);
       if (view) view.classList.remove('mining-active');
+      placeFootInset();
       return;
     }
     show(bar);
@@ -15267,6 +15323,7 @@
     // and cannot be spent under another. The switcher is disabled while this is up, and
     // naming the account is what makes that read as deliberate rather than broken.
     $('mining-status-who').textContent = acct ? displayName(acct) : '';
+    placeFootInset();
   }
 
   // Minimizing does NOT stop the mine, which is the whole point, so it has to leave
@@ -26562,6 +26619,28 @@
   // so the Send form can show the recipient's terms before anyone commits to an
   // amount — previously min/max were only discovered by having a payment
   // rejected, after the amount was already typed.
+  // HOW LONG A LIGHTNING ADDRESS GETS TO ANSWER. Its server is somebody else's, and
+  // nothing else ever ended the wait: a provider that never answered kept a zap on
+  // "Sending…" for as long as the panel stayed open, and the bar along with it.
+  const LNURL_TIMEOUT_MS = 15000;
+
+  // The invoice request, with the same limit. A provider that does not answer in time,
+  // or answers with something that is not JSON, gets the sentence a person can act on,
+  // not the parser's.
+  async function lnurlInvoiceBody(cb) {
+    let res;
+    try {
+      res = await fetch(cb.toString(), { signal: AbortSignal.timeout(LNURL_TIMEOUT_MS) });
+    } catch (_) {
+      throw new Error(t("Couldn't reach {{domain}}", { domain: cb.hostname }));
+    }
+    try {
+      return (await res.json()) || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   async function lnAddressParams(addr) {
     const [name, domain] = String(addr || '').split('@');
     if (!name || !domain) throw new Error(t('That does not look like a lightning address'));
@@ -26574,7 +26653,7 @@
     // DOCTYPE, which is what a 404 HTML page produces and tells the user nothing.
     let res;
     try {
-      res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name);
+      res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name, { signal: AbortSignal.timeout(LNURL_TIMEOUT_MS) });
     } catch (_) {
       throw new Error(t("Couldn't reach {{domain}}", { domain }));
     }
@@ -26663,8 +26742,7 @@
     if (cb.protocol !== 'https:') throw new Error(t('That lightning address uses an insecure callback'));
     cb.searchParams.set('amount', String(msats));
     cb.searchParams.set('nostr', JSON.stringify(signed));
-    const res = await fetch(cb.toString());
-    const body = await res.json();
+    const body = await lnurlInvoiceBody(cb);
     if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : t('The lightning address did not return an invoice'));
     return body.pr;
   }
@@ -26686,7 +26764,7 @@
     if (cb.protocol !== 'https:') throw new Error(t('Lightning address returned an insecure callback URL'));
     cb.searchParams.set('amount', String(msats));
     if (comment && meta.commentAllowed > 0) cb.searchParams.set('comment', comment.slice(0, meta.commentAllowed));
-    const res = await (await fetch(cb.toString())).json();
+    const res = await lnurlInvoiceBody(cb);
     if (!res.pr) throw new Error(res.reason || t('No invoice returned'));
     return res.pr;
   }

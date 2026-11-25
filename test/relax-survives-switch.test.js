@@ -231,7 +231,7 @@ test('the bar names the active account, and +N opens a row for each other window
     $, h, t: (s) => s, tn: (one, other, n) => (n === 1 ? one : other).replace('{{count}}', n),
     I18N: { fmtNum: String }, displayName: (a) => a.name, show() {}, hide() {}, setInterval: () => 1, clearInterval() {},
     state: { activePubkey: 'B', accounts: [{ pubkey: 'A', name: 'Scrubby' }, { pubkey: 'B', name: 'Gilded' }] },
-    call: async () => {}, syncRelax: async () => {}, Date: { now: () => 1e12 },
+    call: async () => {}, syncRelax: async () => {}, Date: { now: () => 1e12 }, placeFootInset() {},
   };
   vm.createContext(ctx);
   vm.runInContext([
