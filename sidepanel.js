@@ -6836,6 +6836,24 @@
     return ev.pubkey;
   }
 
+  // AN ADDRESS THAT CAN BE FOUND. An naddr names an article by author and d tag, and a
+  // client looks for it on the relays it carries. With none, a client tries its own, and an
+  // article that is not on them reads "not found" in Jumble, Snort and JANK. So it carries
+  // where the author says they write, then whatever relay the reference itself named.
+  // Synchronous, from the cache, since a notification row builds its link as it draws;
+  // the Library warms the cache before it calls this.
+  function addrNaddr(coord, hint) {
+    const [k, pk, ...rest] = String(coord || '').split(':');
+    const kind = parseInt(k, 10);
+    if (Number.isNaN(kind) || !/^[0-9a-f]{64}$/.test(pk || '')) return '';
+    const list = nip65Cache.get(pk);
+    const relays = [...new Set([
+      ...((list && list.write) || []),
+      ...(typeof hint === 'string' && /^wss:\/\/\S+$/.test(hint) ? [hint] : []),
+    ].map(normalizeRelay))].slice(0, 3);
+    return NT.nip19.naddrEncode({ kind, pubkey: pk, identifier: rest.join(':'), relays });
+  }
+
   // Resolve where a notification should open, as a full client URL — always
   // something the client can actually render. A reply/mention opens the note
   // itself; a reaction/repost/zap opens the note (or article) it refers to.
@@ -6866,6 +6884,16 @@
         }
       }
 
+      // A referenced article: by its address, so the row opens the article as it stands
+      // now, in the route the client keeps for articles. A reaction or a zap on one carries
+      // the revision's `e` beside the `a`, and that id is a dead end once the article is
+      // edited, and in some clients from the start.
+      const addrTag = tags.filter((t) => t[0] === 'a' && /^3\d{4}:[0-9a-f]{64}:/.test(t[1] || '')).pop();
+      if (addrTag) {
+        const naddr = addrNaddr(addrTag[1], addrTag[2]);
+        if (naddr) return client.url(naddr);
+      }
+
       // A referenced note (reacted/reposted/zapped note, or reply target).
       const eTag = tags.filter((t) => t[0] === 'e' && t[1]).pop();
       if (eTag) {
@@ -6873,14 +6901,11 @@
         return client.url(NT.nip19.neventEncode({ id: eTag[1], author: pTag ? pTag[1] : acctPubkey, relays: [] }));
       }
 
-      // A referenced addressable event (e.g. a long-form article).
+      // Any other addressable event (a list, a live event).
       const aTag = tags.filter((t) => t[0] === 'a' && t[1]).pop();
       if (aTag) {
-        const parts = aTag[1].split(':');
-        const kind = parseInt(parts[0], 10);
-        if (parts[1] && !Number.isNaN(kind)) {
-          return client.url(NT.nip19.naddrEncode({ kind, pubkey: parts[1], identifier: parts[2] || '', relays: [] }));
-        }
+        const naddr = addrNaddr(aTag[1], aTag[2]);
+        if (naddr) return client.url(naddr);
       }
 
       // No note/article — a profile zap. Open a profile (renders everywhere):
@@ -19716,8 +19741,14 @@
           if (en.type === 't') {
             openInClient((client.hashtag || VIEW_CLIENTS.primal.hashtag)(en.value));
           } else if (en.type === 'a') {
-            const [k, pk, ...rest] = en.value.split(':');
-            openInClient(client.url(NT.nip19.naddrEncode({ identifier: rest.join(':'), pubkey: pk, kind: Number(k), relays: [] })));
+            // Where the author writes, looked up if this is the first time, but never held
+            // up for long: a link without it still opens.
+            const pk = en.value.split(':')[1];
+            if (!nip65Cache.has(pk)) await Promise.race([getNip65(pk).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
+            const naddr = addrNaddr(en.value, en.hint);
+            // A recipe opens in Zap Cooking, the one client that lays it out as a recipe.
+            const recipe = ref && ref.kind === 30023 && (ref.tags || []).some((tg) => tg[0] === 't' && tg[1] === 'zapcooking');
+            if (naddr) openInClient((recipe ? VIEW_CLIENTS.zapcooking : client).url(naddr));
           } else {
             openInClient(client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] })));
           }

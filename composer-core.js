@@ -6054,6 +6054,28 @@ window.SidecarCore = (function () {
   };
   const DEFAULT_CLIENT = 'jumble';
 
+  // AN ARTICLE HAS ITS OWN ROUTE in some clients. Every client here draws a long-form
+  // article given its naddr, but these five answer one on their note route with an error
+  // page ("You're lost!", "Unknown type naddr", "Note not found", "Invalid note link"),
+  // and Primal keeps articles under /a/. Each was read out of the client's own links and
+  // loaded logged out with a real article. The rest take an naddr where they take a note.
+  const ARTICLE_ROUTES = {
+    primal: (na) => 'https://primal.net/a/' + na,
+    yakihonne: (na) => 'https://yakihonne.com/article/' + na,
+    nostrudel: (na) => 'https://nostrudel.ninja/#/articles/' + na,
+    zapcooking: (na) => 'https://zap.cooking/r/' + na,
+    noornote: (na) => 'https://noornote.app/article/' + na,
+    razr: (na) => 'https://razr.social/a/' + na,
+  };
+  // So url() takes either kind of address and sends each where the client reads it, and
+  // no caller has to know which clients split the two.
+  const isNaddr = (entity) => /^naddr1[02-9ac-hj-np-z]+$/.test(String(entity || ''));
+  for (const [key, article] of Object.entries(ARTICLE_ROUTES)) {
+    const note = VIEW_CLIENTS[key].url;
+    VIEW_CLIENTS[key].article = article;
+    VIEW_CLIENTS[key].url = (ref) => (isNaddr(ref) ? article(ref) : note(ref));
+  }
+
   // ---- a client of the user's own -----------------------------------------------------
   //
   // VIEW_CLIENTS is a curated directory: every entry's routes were read out of the
