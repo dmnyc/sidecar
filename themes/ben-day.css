@@ -212,7 +212,6 @@
 [data-theme="ben-day"] .add-account-badge:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .bm-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .poll-voter-av:not(.theme-card):not(.theme-card *),
-[data-theme="ben-day"] .restore-preview-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .site-bound-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .compose-author-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .ac-item-av:not(.theme-card):not(.theme-card *),
@@ -1072,7 +1071,6 @@
 [data-theme="ben-day"] .address-qr-toggle:hover { color: #111111; border-color: #111111; background: #FFF4C2; }
 [data-theme="ben-day"] .address-qr-toggle.active { color: #111111; border-color: #111111; background: #FFD400; }
 [data-theme="ben-day"] .recv-bolt { border: 2px solid #111111; background: #FFF4C2; }
-[data-theme="ben-day"] .wallet-nudge,
 [data-theme="ben-day"] .wallet-notice {
   background: #FFF4C2;
   border: 2px solid #111111;
@@ -1114,11 +1112,7 @@
 [data-theme="ben-day"] .secret-box,
 [data-theme="ben-day"] .destructive-warn-ack,
 [data-theme="ben-day"] .shared-note,
-[data-theme="ben-day"] .shared-headsup,
-[data-theme="ben-day"] .shared-headsup-btn,
-[data-theme="ben-day"] .shared-headsup-btn-quiet,
 [data-theme="ben-day"] .approval-switch-menu,
-[data-theme="ben-day"] .approval-wrong-acct-list,
 [data-theme="ben-day"] .mining-status-stop,
 [data-theme="ben-day"] .peek-banner,
 [data-theme="ben-day"] .notif-reacted-chip,

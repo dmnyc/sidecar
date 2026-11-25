@@ -326,9 +326,7 @@
    zap throws across the page (content.js) are white to match. */
 [data-theme="film-noir"] .lightning-svg { filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.7)); }
 /* The approval window carries a few gold washes of its own (prompt.html). */
-[data-theme="film-noir"] .shared-note,
-[data-theme="film-noir"] .shared-headsup { background: rgba(255, 255, 255, 0.05); }
-[data-theme="film-noir"] .shared-headsup-btn { background: rgba(255, 255, 255, 0.08); }
+[data-theme="film-noir"] .shared-note { background: rgba(255, 255, 255, 0.05); }
 [data-theme="film-noir"] .switch-row.active { background: rgba(255, 255, 255, 0.06); }
 [data-theme="film-noir"] input[type=password]:focus { box-shadow: 0 0 0 3px var(--focus-ring); }
 
