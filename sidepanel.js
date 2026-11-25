@@ -18344,6 +18344,11 @@
   // than a live event, but relabelling a kind nothing in this build writes is a separate
   // change from the one in hand.
   const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'poll' };
+  // A RECIPE is an article Zap Cooking lays out as a recipe: one tagged `t zapcooking`, or
+  // `t nostrcooking` from before the site was renamed. Zap Cooking reads both, case aside.
+  const RECIPE_TAGS = ['zapcooking', 'nostrcooking'];
+  const isRecipe = (ev) => !!ev && ev.kind === 30023
+    && (ev.tags || []).some((tg) => tg[0] === 't' && RECIPE_TAGS.includes(String(tg[1] || '').toLowerCase()));
 
   // Every bookmark list event, raw, for bookmarkSections to shape.
   async function fetchBookmarkLists() {
@@ -19655,7 +19660,7 @@
     // hashtag its name, opening that tag in the client. Removable by republishing the owning list,
     // except a private entry, which is shown and not edited here (changing it means re-encrypting the
     // list, and a list is not worth risking for a row).
-    const kindLabel = (ref) => BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind;
+    const kindLabel = (ref) => (isRecipe(ref) ? 'recipe' : BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind);
     const firstTag = (ev, name) => ((ev.tags || []).find((tg) => tg[0] === name) || [])[1] || '';
     const buildRow = (en, parent) => {
       const ref = en.type === 'e' ? events.get(en.value) : en.type === 'a' ? addrs.get(en.value) : null;
@@ -19747,8 +19752,7 @@
             if (!nip65Cache.has(pk)) await Promise.race([getNip65(pk).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
             const naddr = addrNaddr(en.value, en.hint);
             // A recipe opens in Zap Cooking, the one client that lays it out as a recipe.
-            const recipe = ref && ref.kind === 30023 && (ref.tags || []).some((tg) => tg[0] === 't' && tg[1] === 'zapcooking');
-            if (naddr) openInClient((recipe ? VIEW_CLIENTS.zapcooking : client).url(naddr));
+            if (naddr) openInClient((isRecipe(ref) ? VIEW_CLIENTS.zapcooking : client).url(naddr));
           } else {
             openInClient(client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] })));
           }

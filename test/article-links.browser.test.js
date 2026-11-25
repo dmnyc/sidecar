@@ -35,18 +35,24 @@ async function pressAndRead(x, expression) {
   return urls[0];
 }
 
-test('a bookmarked article opens on the client’s article route, with where its author writes; a recipe opens in Zap Cooking', opts, async (t) => {
+test('a bookmarked article opens on the client’s article route, with where its author writes; a recipe, old tag or new, opens in Zap Cooking', opts, async (t) => {
   await withExtension(t, { settings: { defaultClient: 'yakihonne' } }, async (x) => {
     const now = NOW();
     x.put({ kind: 0, created_at: now - 9000, tags: [], content: JSON.stringify({ name: 'Bea' }) }, 'bea');
     x.put({ kind: 10002, created_at: now - 9000, tags: [['r', ELSEWHERE, 'write'], ['r', x.relay.url]], content: '' }, 'bea');
     x.put({ kind: 30023, created_at: now - 6000, tags: [['d', 'on-soup'], ['title', 'On soup, at length']], content: 'Long body' }, 'bea');
     x.put({ kind: 30023, created_at: now - 5000, tags: [['d', 'pea-soup'], ['title', 'Pea soup'], ['t', 'zapcooking'], ['t', 'zapcooking-pea-soup']], content: '## Ingredients\n\n- peas' }, 'bea');
-    x.put({ kind: 10003, created_at: now - 50, tags: [['a', '30023:' + x.bea + ':on-soup'], ['a', '30023:' + x.bea + ':pea-soup']], content: '' }, 'me');
+    // Tagged as Zap Cooking tagged recipes before it was renamed.
+    x.put({ kind: 30023, created_at: now - 4000, tags: [['d', 'old-borscht'], ['title', 'Old borscht'], ['t', 'nostrcooking'], ['t', 'nostrcooking-old-borscht']], content: '## Ingredients\n\n- beets' }, 'bea');
+    x.put({ kind: 10003, created_at: now - 50, tags: [['a', '30023:' + x.bea + ':on-soup'], ['a', '30023:' + x.bea + ':pea-soup'], ['a', '30023:' + x.bea + ':old-borscht']], content: '' }, 'me');
     await x.reload();
     await x.recordTabs();
     await x.evaluate(`document.getElementById('bookmarks-btn').click()`);
-    await x.waitFor(`(document.querySelector('#modal .bm-scroll') || {}).innerText?.includes('Pea soup')`, 15000);
+    await x.waitFor(`['Pea soup', 'Old borscht', 'On soup'].every((s) => (document.querySelector('#modal .bm-scroll') || {}).innerText?.includes(s))`, 15000);
+    const kindOf = (title) => x.evaluate(`[...document.querySelectorAll('#modal .bm-item')].find((r) => r.innerText.includes(${JSON.stringify(title)})).innerText`);
+    assert.match(await kindOf('On soup, at length'), /\barticle\b/);
+    assert.match(await kindOf('Pea soup'), /\brecipe\b/, 'a recipe is labeled as an article');
+    assert.match(await kindOf('Old borscht'), /\brecipe\b/, 'an old-format recipe is labeled as an article');
     const row = (title) => `[...document.querySelectorAll('#modal .bm-item')].find((r) => r.innerText.includes(${JSON.stringify(title)})).click()`;
 
     const article = await pressAndRead(x, row('On soup, at length'));
@@ -58,6 +64,10 @@ test('a bookmarked article opens on the client’s article route, with where its
     const recipe = await pressAndRead(x, row('Pea soup'));
     assert.match(recipe, /^https:\/\/zap\.cooking\/r\/naddr1/, 'a recipe did not open in Zap Cooking');
     assert.equal(naddrIn(x, recipe).identifier, 'pea-soup');
+
+    const old = await pressAndRead(x, row('Old borscht'));
+    assert.match(old, /^https:\/\/zap\.cooking\/r\/naddr1/, 'an old-format recipe did not open in Zap Cooking');
+    assert.equal(naddrIn(x, old).identifier, 'old-borscht');
     assert.deepEqual(x.errors, []);
   });
 });
