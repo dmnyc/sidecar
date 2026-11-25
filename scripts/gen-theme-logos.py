@@ -24,7 +24,7 @@ DYES = {
     'brownstone': ('#F2E7DD', '#CDB9A7', '#D2AD70', '#A9843F', '#D69A6A'),
     # Cast into the iron: the logo is the panel's own metal, a few shades up from it, flat.
     # Darker than the legibility test's floor on purpose (see test/theme-logos.test.js).
-    'cast-iron':  ('#4A453F', '#36322D', '#403B35', '#29261F', '#38332D'),
+    'cast-iron':  ('#4A453F', '#36322D', '#403B35', '#29261F', '#423C35'),
     # Airmail: a blue wordmark and a stamp-red glass, its two inks.
     'par-avion':  ('#FFFFFF', '#E8E8EA', '#C0272D', '#A02C2E', '#1B4C8C'),
     # Ink brown wordmark over a brass glass.

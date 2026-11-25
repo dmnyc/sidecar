@@ -123,7 +123,7 @@
   --purple: #2C3038;
   /* The plus inside the add-account disc. Shared default is Speakeasy's ink and is
      invisible on this theme's --purple — the sheet on charcoal, 12.77. */
-  --add-badge-ink: var(--chip-ink);
+  --add-badge-ink: #FAFBFC;
   --lav: #3F3A22;
   /* The update card: this theme's --lav, which reads as news here. */
   --news: var(--lav);
@@ -188,7 +188,9 @@
   --card-wash: rgba(21, 23, 28, 0.045);
 
   --accent-fill: var(--amber);
-  --chip-ink: #FAFBFC;
+  /* The label on a leaf-gold fill: the dark ink, as the gilded figures are lettered.
+     The white sheet was 2.33:1 on the gold at 12px. */
+  --chip-ink: #15171C;
   --glow: var(--amber);
 
   --balloon-bg: #1C1F26;

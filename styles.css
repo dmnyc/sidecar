@@ -39,6 +39,10 @@
   --orange: #ea772f;
   --amber: #f4a64b;
   --gold: #cba14e;
+  /* The keyboard focus ring (see :focus-visible below). Set here, on the root, so it is
+     worked out once from the theme the page wears: a theme card in the gallery carries
+     its own theme's --gold, and its ring, drawn on the page around it, must not. */
+  --focus: var(--gold);
   /* The wallet balance, split out of --gold so a theme can make the number louder than
      the ink. --gold is a `color:` in 39 rules, most of them small text that has to clear
      4.5:1; the balance is 40px/700 (24px/700 compact and pinned), which is WCAG large
@@ -352,12 +356,18 @@ textarea.autosize { max-height: calc(45vh / var(--panel-zoom, 1)); overflow-y: a
 /* Explicit dark colors for the native option popup — belt-and-suspenders for
    platforms that draw options with the system theme regardless of color-scheme. */
 select option, select optgroup { background-color: var(--bg-2); color: var(--text); }
-input::placeholder, textarea::placeholder { color: var(--faint); }
+/* --placeholder for a theme whose --faint is too quiet to read as text (Industria, Cast Iron). */
+input::placeholder, textarea::placeholder { color: var(--placeholder, var(--faint)); }
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--gold-soft);
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
+/* The halo above is the field's look; the ring is what finds it (see the button ring
+   below). It hugs the border, where the eye already looks for a field's edge. A checkbox
+   is too small to hug, so its ring stands off like a button's. */
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+input[type=checkbox]:focus-visible, input[type=radio]:focus-visible { outline-offset: 2px; }
 
 /* The plaintext an app is asking Sidecar to encrypt (#305). Marked rather than shown
    plainly: the point of the line is that this text is about to become unreadable to
@@ -831,7 +841,17 @@ button { cursor: pointer; }
 .setting.danger-zone { margin-top: 30px; padding-top: 22px; border-top: 1px solid rgba(240, 86, 107, 0.3); }
 .setting.danger-zone h3 { color: var(--red); }
 .setting.danger-zone .danger { margin-top: 8px; }
-button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.4); }
+/* KEYBOARD FOCUS IS A SOLID RING in the theme's accent ink, 2px clear of the control. It
+   was a 40% glow of --accent-rgb, which measured 1.2 to 2.7:1 against the panel in every
+   theme, under the 3:1 a focus indicator needs. --focus is the theme's --gold, the accent
+   each theme already sets as small text, so it clears 3:1 on its surfaces; a dark bar on a
+   light theme sets its own (Turnstile's). An outline, not a box-shadow, so a theme's own shadows (Ben
+   Day's keylines, the selected theme card's halo) neither hide the ring nor are replaced
+   by it. :where() holds it to one pseudo-class of weight, so a control that places its
+   ring differently (inset in a clipped row, say) still can. */
+:where(button, a[href], summary, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 2px;
+}
 
 .icon-btn {
   background: transparent;
@@ -1034,7 +1054,7 @@ body.panel-narrow .wallet-budgets .item-actions { justify-content: flex-end; }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .search-row input:focus {
-  outline: none; border-color: var(--border-strong);
+  border-color: var(--border-strong);
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 .search-close { flex-shrink: 0; }
@@ -1808,7 +1828,10 @@ html[dir="rtl"] .modal-sheet > .modal-eyebrow { letter-spacing: 0; }
   font-size: 12px;
   font-weight: 600;
   text-align: end;
-  overflow: hidden;
+  /* clip, not hidden: the ellipsis still works, and the margin lets the focus ring of the
+     "Not set" and "Add wallet" buttons inside draw past the edge instead of being cut off. */
+  overflow: clip;
+  overflow-clip-margin: 5px;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
@@ -2438,6 +2461,9 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
   transition: transform 0.2s ease;
 }
 .switch input:checked ~ .switch-track { background: var(--gold); }
+/* The checkbox is invisible over the track, so the track wears its focus ring. */
+.switch input:focus-visible { outline: none; }
+.switch input:focus-visible ~ .switch-track { outline: 2px solid var(--focus); outline-offset: 2px; }
 .switch input:checked ~ .switch-track::after { transform: translateX(16px); }
 
 /* Bootstrap relays section */
@@ -2568,7 +2594,7 @@ a.notif-clickable:hover .notif-link { color: var(--lav); }
 .status-input { width: 100%; margin-top: 8px; }
 
 .nip65-setting { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border); }
-.nip65-status { color: var(--faint); }
+.nip65-status { color: var(--muted); } /* read, not decoration: --faint was under 3:1 in two themes */
 .nip65-status.done { color: var(--gold); }
 .nip65-warn:empty { display: none; }
 .item.nip65-row { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -3792,6 +3818,8 @@ html.compose-booting .compose-brand { visibility: hidden; }
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
 .compose-editor-lg:focus { border-color: var(--gold-soft); }
+/* The full-size editor is a field, and wears a field's ring (see input:focus-visible). */
+.compose-editor-lg:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
 /* A POLL'S QUESTION IS A LINE OR TWO, and its options are the rest of the card: with the poll
    on, the editor starts at four lines rather than the full pane, and still grows as it is
    written. */
@@ -4749,7 +4777,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
   border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; color: var(--text);
 }
-.btc-sweep-dest:focus { border-color: var(--gold-soft); outline: none; }
+.btc-sweep-dest:focus { border-color: var(--gold-soft); }
 .btc-sweep-scan {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 10px; cursor: pointer;
@@ -4789,7 +4817,9 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 /* centered loading/empty/error state inside list cards */
 .list-state {
   text-align: center; padding: 18px 14px; margin: 0;
-  color: var(--faint); font-size: 13px;
+  /* --muted, not --faint: this is a sentence to read ("No sites have connected yet"),
+     and faint ink on the capsule measured 2.4 to 3.3:1 in seven themes. */
+  color: var(--muted); font-size: 13px;
   border: 1px solid var(--border); border-radius: 12px;
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2)); box-shadow: var(--sheen);
 }
@@ -4808,7 +4838,7 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 .wallet-restore-block .hint { text-align: center; }
 .wallet-or {
   display: flex; align-items: center; gap: 10px;
-  margin: 0 0 12px; color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+  margin: 0 0 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
 }
 .wallet-or::before, .wallet-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
@@ -4865,9 +4895,9 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   color: var(--text); border: 1px solid var(--border);
   background: var(--input-bg, linear-gradient(180deg, rgba(8, 2, 20, 0.6), rgba(20, 4, 40, 0.6)));
 }
-.rizful-code::placeholder { color: var(--faint); letter-spacing: normal; }
+.rizful-code::placeholder { color: var(--placeholder, var(--faint)); letter-spacing: normal; }
 .rizful-code:focus {
-  outline: none; border-color: var(--border-strong);
+  border-color: var(--border-strong);
   box-shadow: 0 0 0 3px var(--focus-ring, rgba(203, 161, 78, 0.16));
 }
 /* Sits below the buttons, above the modal's bottom edge — visible without standing
@@ -4916,7 +4946,9 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
   color: var(--text-2); background: var(--hover-soft); border: 1px solid var(--border);
 }
 .preset-chip:hover { border-color: var(--gold-soft); }
-.preset-chip.active { color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold)); border-color: var(--accent-fill, var(--gold)); }
+/* The edge in --gold, the accent's ink: on a light theme the bright fill alone was
+   1.8 to 2.9:1 against the panel, too close to tell which chip is chosen. */
+.preset-chip.active { color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); background: var(--accent-fill, var(--gold)); border-color: var(--gold); }
 
 /* receive: waiting + success states */
 .recv-waiting { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
@@ -5644,7 +5676,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
   position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: inherit;
   background: none; cursor: pointer; color: transparent; font-size: 0;
 }
-.approval-capsule .approval-switch-toggle:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+.approval-capsule .approval-switch-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .approval-switch-menu {
   text-align: start;
   background: linear-gradient(180deg, var(--velvet-1), var(--velvet-2));
@@ -5850,7 +5882,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
   font: inherit; font-size: 11px; font-weight: 700; line-height: 18px; font-variant-numeric: tabular-nums;
 }
 .relax-status-more:hover, .relax-status-more[aria-expanded="true"] { background: color-mix(in srgb, currentColor 26%, transparent); }
-.relax-status-more:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+.relax-status-more:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* The list: a sheet laid over the panel above the bar, one row per other window. Over
    the compose button too, which sits at z-index 50. */
 .relax-status-list {
@@ -6544,7 +6576,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.poll-option-input:focus { outline: none; border-color: var(--gold-soft); }
+.poll-option-input:focus { border-color: var(--gold-soft); }
 .poll-option-x {
   flex-shrink: 0;
   display: flex;
@@ -6998,7 +7030,7 @@ button.poll-bar-head {
 .gif-search,
 .emoji-picker-search { padding: 8px 11px; font-size: 14px; }
 .gif-search:focus,
-.emoji-picker-search:focus { outline: none; border-color: var(--gold-soft); }
+.emoji-picker-search:focus { border-color: var(--gold-soft); }
 /* THE EMOJI PICKER, in the GIF picker's card. The search field is the one flexible thing
    in its row, min-width: 0 so it shrinks beside the close button, which keeps its size.
    The grid and tabs are the reaction picker's own; only the scroller differs, because
@@ -7340,6 +7372,9 @@ a.thread-anc:hover { background: var(--hover-soft); color: var(--text); }
 .lf-chip-x svg { width: 12px; height: 12px; }
 .lf-chips .lf-chip-input { flex: 1; min-width: 120px; width: auto; border: none; background: none; padding: 4px; font-size: 14px; }
 .lf-chips .lf-chip-input:focus { box-shadow: none; }
+/* The chip box is the field; the bare input inside it is only where the typing goes. */
+.lf-chips .lf-chip-input:focus-visible { outline: none; }
+.lf-chips:has(.lf-chip-input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 0; }
 .lf-chip-hints { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .lf-chip-hint {
   background: none; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px;

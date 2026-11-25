@@ -297,6 +297,9 @@
 }
 [data-theme="turnstile"] .topbar .icon-btn,
 [data-theme="turnstile"] .compose-topbar .icon-btn { color: #F1EBDA; }
+/* The focus ring on the dark tablet: the bar's brass band, not the green ink (1.9:1 here). */
+[data-theme="turnstile"] .topbar,
+[data-theme="turnstile"] .compose-topbar { --focus: #D8C690; }
 /* On the dark tablet a hovered icon brightens; the shared hover's cobalt would sink into it. */
 [data-theme="turnstile"] .topbar .icon-btn:hover,
 [data-theme="turnstile"] .compose-topbar .icon-btn:hover { color: #FFFFFF; background: rgba(241, 235, 218, 0.14); }
