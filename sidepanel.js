@@ -18343,7 +18343,9 @@
   // are kind 1311. 1063 is left alone deliberately: it is NIP-94 file metadata rather
   // than a live event, but relabelling a kind nothing in this build writes is a separate
   // change from the one in hand.
-  const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'poll' };
+  // Drawn when asked for, so each word is a t() call the key scanner can see and the row
+  // reads in the panel's language.
+  const bmKindLabel = (kind) => ({ 0: t('profile'), 1: t('note'), 6: t('repost'), 30023: t('article'), 1063: t('live event'), 1068: t('poll') })[kind];
   // A RECIPE is an article Zap Cooking lays out as a recipe: one tagged `t zapcooking`, or
   // `t nostrcooking` from before the site was renamed. Zap Cooking reads both, case aside.
   const RECIPE_TAGS = ['zapcooking', 'nostrcooking'];
@@ -19660,7 +19662,7 @@
     // hashtag its name, opening that tag in the client. Removable by republishing the owning list,
     // except a private entry, which is shown and not edited here (changing it means re-encrypting the
     // list, and a list is not worth risking for a row).
-    const kindLabel = (ref) => (isRecipe(ref) ? 'recipe' : BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind);
+    const kindLabel = (ref) => (isRecipe(ref) ? t('recipe') : bmKindLabel(ref.kind) || t('kind {{kind}}', { kind: ref.kind }));
     const firstTag = (ev, name) => ((ev.tags || []).find((tg) => tg[0] === name) || [])[1] || '';
     const buildRow = (en, parent) => {
       const ref = en.type === 'e' ? events.get(en.value) : en.type === 'a' ? addrs.get(en.value) : null;

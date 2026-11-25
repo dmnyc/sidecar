@@ -72,6 +72,25 @@ test('a bookmarked article opens on the client’s article route, with where its
   });
 });
 
+test('a bookmark row names its kind in the panel’s language', opts, async (t) => {
+  await withExtension(t, { settings: { language: 'de' } }, async (x) => {
+    const now = NOW();
+    x.put({ kind: 0, created_at: now - 9000, tags: [], content: JSON.stringify({ name: 'Bea' }) }, 'bea');
+    x.put({ kind: 30023, created_at: now - 6000, tags: [['d', 'on-soup'], ['title', 'On soup, at length']], content: 'Long body' }, 'bea');
+    x.put({ kind: 30023, created_at: now - 5000, tags: [['d', 'pea-soup'], ['title', 'Pea soup'], ['t', 'zapcooking']], content: '## Ingredients' }, 'bea');
+    const note = x.put({ kind: 1, created_at: now - 4000, tags: [], content: 'A plain note' }, 'bea');
+    x.put({ kind: 10003, created_at: now - 50, tags: [['a', '30023:' + x.bea + ':on-soup'], ['a', '30023:' + x.bea + ':pea-soup'], ['e', note.id]], content: '' }, 'me');
+    await x.reload();
+    await x.evaluate(`document.getElementById('bookmarks-btn').click()`);
+    await x.waitFor(`['Pea soup', 'On soup', 'A plain note'].every((s) => (document.querySelector('#modal .bm-scroll') || {}).innerText?.includes(s))`, 15000);
+    const meta = (title) => x.evaluate(`[...document.querySelectorAll('#modal .bm-item')].find((r) => r.innerText.includes(${JSON.stringify(title)})).querySelector('.bm-meta').textContent`);
+    assert.match(await meta('On soup'), /^Artikel · /);
+    assert.match(await meta('Pea soup'), /^Rezept · /);
+    assert.match(await meta('A plain note'), /^Notiz · /);
+    assert.deepEqual(x.errors, []);
+  });
+});
+
 test('a reaction to your article opens the article by address, on the article route, with your relays in it', opts, async (t) => {
   await withExtension(t, { settings: { defaultClient: 'yakihonne' } }, async (x) => {
     const now = NOW();

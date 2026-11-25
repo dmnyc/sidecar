@@ -2468,5 +2468,7 @@
   "Drag to reorder": "برای تغییر ترتیب بکشید",
   "Relay address": "نشانی ریلی",
   "Move {{item}}": "جابه‌جایی {{item}}",
-  "Drag to reorder, or use the up and down arrow keys": "برای تغییر ترتیب بکشید، یا از کلیدهای جهت‌نمای بالا و پایین استفاده کنید"
+  "Drag to reorder, or use the up and down arrow keys": "برای تغییر ترتیب بکشید، یا از کلیدهای جهت‌نمای بالا و پایین استفاده کنید",
+  "recipe": "دستور پخت",
+  "live event": "رویداد زنده"
 }

@@ -2551,5 +2551,7 @@
   "Drag to reorder": "גררו כדי לשנות את הסדר",
   "Relay address": "כתובת ריליי",
   "Move {{item}}": "העברת {{item}}",
-  "Drag to reorder, or use the up and down arrow keys": "גררו כדי לשנות את הסדר, או השתמשו במקשי החצים למעלה ולמטה"
+  "Drag to reorder, or use the up and down arrow keys": "גררו כדי לשנות את הסדר, או השתמשו במקשי החצים למעלה ולמטה",
+  "recipe": "מתכון",
+  "live event": "אירוע חי"
 }

@@ -2634,5 +2634,7 @@
   "Drag to reorder": "Перетащите, чтобы изменить порядок",
   "Relay address": "Адрес релея",
   "Move {{item}}": "Переместить «{{item}}»",
-  "Drag to reorder, or use the up and down arrow keys": "Перетащите, чтобы изменить порядок, или используйте стрелки вверх и вниз"
+  "Drag to reorder, or use the up and down arrow keys": "Перетащите, чтобы изменить порядок, или используйте стрелки вверх и вниз",
+  "recipe": "рецепт",
+  "live event": "прямая трансляция"
 }
