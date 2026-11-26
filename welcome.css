@@ -291,7 +291,8 @@ body {
 
 .card-url {
   font-size: 11px;
-  color: var(--faint);
+  /* --muted, not --faint: at 11px the faint ink was 3.4:1 on the card, 2.8 on a hovered one. */
+  color: var(--muted);
   margin-top: 1px;
 }
 
@@ -355,7 +356,7 @@ body {
 
 .footer-tip {
   font-size: 13px;
-  color: var(--faint);
+  color: var(--muted); /* --faint was 3.3 to 3.6:1; the links keep their underline */
   line-height: 1.6;
 }
 
@@ -509,7 +510,9 @@ body {
 /* Menu wrapper: inline on desktop, a dropdown behind the burger on mobile.
    Toggling is CSS-only (a visually-hidden checkbox the burger label flips). */
 .helpnav-menu { display: flex; align-items: center; gap: 18px; flex: 1; min-width: 0; }
-.helpnav-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* Hidden from the Tab order too where the Menu button is not shown: a Tab stop with
+   nothing on screen. Where it is shown (below), the button wears the checkbox's focus. */
+.helpnav-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; visibility: hidden; }
 .helpnav-burger { display: none; }
 
 .helpnav-pages a {
@@ -642,6 +645,8 @@ body {
     font-family: var(--font-ui); font-size: 14px; font-weight: 600; letter-spacing: 0.01em;
   }
   .helpnav-burger:hover { color: var(--text-2); background: rgba(167, 139, 250, 0.10); }
+  .helpnav-toggle { visibility: visible; }
+  .helpnav-toggle:focus-visible + .helpnav-burger { outline: 2px solid var(--gold); outline-offset: 2px; }
   .helpnav-burger svg { width: 22px; height: 22px; }
   .helpnav-menu {
     display: none;

@@ -161,8 +161,12 @@
   /* ink */
   --text: #2a2a2a;
   --text-2: #4a4a4a;
-  --muted: #6a6a6a;
+  /* #6a6a6a measured 3.2 to 3.8:1 on the darker cards at 11 to 13px; this clears 4.5 on
+     all of them, a step under --text-2 still. */
+  --muted: #5a5a5a;
   --faint: #8a8a8a;
+  /* Placeholders read as text, and --faint was 2.5:1 for them on this cream. */
+  --placeholder: var(--muted);
   /* 2.81-3.43:1 before, across 16 `color:` rules. Darkened to a deco lacquer red at
      4.73:1 worst surface rather than lightened, because everything else on this cream
      is dark ink. */
