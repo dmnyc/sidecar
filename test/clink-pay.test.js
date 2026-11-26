@@ -520,7 +520,8 @@ test('THE BOLT AND THE SWITCH SAY WHICH PANEL IS OPEN', () => {
 
   // Every route that opens or closes one repaints. Miss one and the state outlives the
   // panel it was describing, which is worse than never having had it.
-  assert.equal((bare.match(/paintPayState\(\);/g) || []).length, 6);
+  // The seventh is a zap sent from a profile, which folds the area back and stays.
+  assert.equal((bare.match(/paintPayState\(\);/g) || []).length, 7);
 });
 
 test('it ships', () => {

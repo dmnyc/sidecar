@@ -825,6 +825,30 @@
     if (phase === 'ok') document.querySelectorAll('[data-zap-note]').forEach((b) => { if (b.dataset.zapNote === id) zapBurst(b); });
   }
 
+  // A bolt with a zap of its own in flight, for a zap that marks no note (a person's, from
+  // their profile): the same pulse and label a note's bolt gets from zapMarks. Counted, so
+  // two zaps from one bolt keep it busy until both have settled.
+  function boltInFlight(btn, on) {
+    const n = Math.max(0, (parseInt(btn.dataset.flying || '0', 10) || 0) + (on ? 1 : -1));
+    btn.dataset.flying = String(n);
+    if (n && btn.dataset.idleLabel === undefined) btn.dataset.idleLabel = btn.getAttribute('aria-label') || btn.title || '';
+    btn.classList.toggle('zapping', n > 0);
+    if (n) {
+      btn.disabled = true;
+      btn.title = t('Zapping…');
+      btn.setAttribute('aria-label', t('Zapping…'));
+      btn.setAttribute('aria-busy', 'true');
+    } else {
+      btn.disabled = btn.classList.contains('pending');
+      btn.removeAttribute('aria-busy');
+      if (btn.dataset.idleLabel !== undefined) {
+        btn.title = btn.dataset.idleLabel;
+        btn.setAttribute('aria-label', btn.dataset.idleLabel);
+        delete btn.dataset.idleLabel;
+      }
+    }
+  }
+
   // THE BURST WHEN A ZAP LANDS, from the bolt that sent it: a flash, a ring, a handful of
   // small bolts and a spray of sparks, over 1.1 s. The same burst as Wisp and Zap Cooking,
   // with their counts, delays and curves, so a zap ends the same way in both. Drawn on a
@@ -3451,15 +3475,27 @@
         const refused = zapAmountRefusal(sats, zapLimits);
         if (refused) return (zapErr.textContent = refused);
         const message = note.value.trim();
-        // The panel path people actually reach. This sheet is dismissible mid-zap, so a
-        // disabled button inside it was never an in-flight indicator. THE BAR TAKES OVER
-        // ON THE PRESS, not once the invoice exists: a provider slow to write one held
-        // the sheet on "Sending…" with nothing in the bar, and a failure before the
-        // invoice landed in a sheet that might already be gone. Nothing is left to decide
-        // here, so the sheet goes, and the bar stays up wherever the user goes next.
+        // THE BAR TAKES OVER ON THE PRESS, not once the invoice exists: a provider slow to
+        // write one held the sheet on "Sending…" with nothing in the bar, and a failure
+        // before the invoice landed in a sheet that might already be gone.
+        //
+        // A STREAM'S ZAP SHEET GOES, since it covers the player and was opened for the one
+        // zap. A PROFILE STAYS: you came to look at someone, and zapping them is not leaving.
+        // Its payment area folds back to how it was before the bolt was pressed, and the
+        // bolt itself carries the zap: it pulses while it is out and bursts when it lands.
         const flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
         const from = state.activePubkey;
-        putAwayPaidSheet(zapForm);
+        // A comment's bolt is marked by the comment (markNoteZap); a person's is this sheet's.
+        const ownBolt = !chatId;
+        if (options?.zap) putAwayPaidSheet(zapForm);
+        else {
+          zapPanel.classList.add('hidden');
+          paintPayState();
+          amount.value = '';
+          note.value = '';
+          zapGate.paint();
+        }
+        if (ownBolt) boltInFlight(zapBtn, true);
         markNoteZap(chatId, 'start', from);
         try {
           const client = await ensureNwc();
@@ -3495,10 +3531,19 @@
             feeMsat: res && res.fees_paid,
           });
           markNoteZap(chatId, 'ok', from);
+          if (ownBolt) { boltInFlight(zapBtn, false); zapBurst(zapBtn); }
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike(); // only once it settles
         } catch (e) {
           markNoteZap(chatId, 'fail', from);
+          if (ownBolt) boltInFlight(zapBtn, false);
+          // What was typed goes back into the folded form, so trying again is the bolt and
+          // Send, unless another amount has been started since.
+          if (!amount.value) {
+            amount.value = String(sats);
+            if (!note.value) note.value = message;
+            zapGate.paint();
+          }
           // The bar is the announcement. When another surface owns the panel the bar
           // would land unseen, so the failure toasts too (see surfacePaymentFailure).
           flight.settle(false, null, e.message);
