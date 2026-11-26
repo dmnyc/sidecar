@@ -2553,5 +2553,7 @@
   "Move {{item}}": "העברת {{item}}",
   "Drag to reorder, or use the up and down arrow keys": "גררו כדי לשנות את הסדר, או השתמשו במקשי החצים למעלה ולמטה",
   "recipe": "מתכון",
-  "live event": "אירוע חי"
+  "live event": "אירוע חי",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

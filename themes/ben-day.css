@@ -486,6 +486,9 @@
   border-bottom: 2.5px solid #111111;
 }
 [data-theme="ben-day"] .wallet-chart-meta { padding: 0 8px; }
+/* The band has a ruled foot, so it keeps the full clearance above the corner buttons that the
+   shared chart gives up to its sats line: the line goes inside the band, and the card grows. */
+[data-theme="ben-day"] .wallet-card.chart-open:not(.compact) .wallet-chart-slot { margin-bottom: 30px; }
 /* The row the chart shows before its first data arrives (or when there is none) sits in
    the same white band, so its words are not on the art. */
 [data-theme="ben-day"] .wallet-chart-loading {

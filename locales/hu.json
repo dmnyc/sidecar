@@ -2470,5 +2470,7 @@
   "Move {{item}}": "{{item}} áthelyezése",
   "Drag to reorder, or use the up and down arrow keys": "Húzza az átrendezéshez, vagy használja a fel és le nyílbillentyűket",
   "recipe": "recept",
-  "live event": "élő esemény"
+  "live event": "élő esemény",
+  "{{sats}} sats/{{unit}}": "{{sats}} sat/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sat/{{unit}}"
 }

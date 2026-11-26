@@ -4367,11 +4367,14 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
    overflow there is risky). Bottom margin clears the two corner buttons. */
 .wallet-card.chart-open .wallet-chart-slot {
   /* 96px trace + the range row above it + the meta line below, plus breathing room.
-     Was 150px, before the range selector existed. */
-  max-height: 190px; opacity: 1; margin: 14px -16px 30px;
+     Was 150px, before the range selector existed. 240px with the sats line under the
+     meta, which a long language wraps to two lines, inside Ben Day's taller band.
+     The bottom margin was 30px to clear the corner buttons; the sats line now takes 16px
+     of that band, set in from both sides so it stays between the buttons. */
+  max-height: 240px; opacity: 1; margin: 14px -16px 14px;
 }
 /* Collapsed (scrolled) cards hide the chart — the compact card is a summary. Zero the
-   WHOLE margin, not just margin-top: the open rule sets a 30px bottom margin to clear
+   WHOLE margin, not just margin-top: the open rule sets a bottom margin to clear
    the corner buttons, and leaving it behind pads out the mini card. */
 .wallet-card.compact .wallet-chart-slot { max-height: 0; opacity: 0; margin: 0; }
 .wallet-card.compact .wallet-chart-btn { display: none; }
@@ -4397,6 +4400,11 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
 .wallet-chart-delta.down { color: var(--red); }
 .wallet-chart-price { color: var(--text-2); font-variant-numeric: tabular-nums; }
 .wallet-chart-lowhigh { font-variant-numeric: tabular-nums; opacity: 0.8; }
+/* The same figures in sats, under the price's: in the band the corner buttons sit in, so
+   inset past them (10px in, 30px wide, and a little air) on both sides. */
+/* Specific enough to outrank a theme's own .wallet-chart-meta padding (Ben Day, Turnstile),
+   which would otherwise run the line under the buttons. */
+.wallet-card .wallet-chart > .wallet-chart-meta.wallet-chart-sats { padding: 0 48px; margin-top: 1px; }
 
 /* ---- range selector ---- */
 .wallet-chart-ranges {
@@ -4434,6 +4442,7 @@ html.reduce-balance-motion .balances-hidden .pinned-balance-amt::after { animati
   font-size: 11.5px; line-height: 1.1; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+.wallet-chart-scrub-sats { font-size: 10px; line-height: 1.1; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .wallet-chart-scrub-time { font-size: 9.5px; line-height: 1.1; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
   .wallet-chart-mark { transition: none; }

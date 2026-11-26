@@ -2636,5 +2636,7 @@
   "Move {{item}}": "Przenieś {{item}}",
   "Drag to reorder, or use the up and down arrow keys": "Przeciągnij, aby zmienić kolejność, lub użyj strzałek w górę i w dół",
   "recipe": "przepis",
-  "live event": "wydarzenie na żywo"
+  "live event": "wydarzenie na żywo",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

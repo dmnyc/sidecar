@@ -2470,5 +2470,7 @@
   "Move {{item}}": "{{item}} öğesini taşı",
   "Drag to reorder, or use the up and down arrow keys": "Yeniden sıralamak için sürükleyin veya yukarı ve aşağı ok tuşlarını kullanın",
   "recipe": "tarif",
-  "live event": "canlı etkinlik"
+  "live event": "canlı etkinlik",
+  "{{sats}} sats/{{unit}}": "{{sats}} sat/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sat/{{unit}}"
 }

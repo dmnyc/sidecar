@@ -2470,5 +2470,7 @@
   "Move {{item}}": "Μετακίνηση {{item}}",
   "Drag to reorder, or use the up and down arrow keys": "Σύρετε για αναδιάταξη ή χρησιμοποιήστε τα πλήκτρα βέλους πάνω και κάτω",
   "recipe": "συνταγή",
-  "live event": "ζωντανή εκδήλωση"
+  "live event": "ζωντανή εκδήλωση",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

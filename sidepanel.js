@@ -22280,6 +22280,17 @@
     return p.sym + p.num;
   }
 
+  // What one unit of the currency buys in sats: 100,000,000 over the price ("Moscow time",
+  // for the dollar). Whole sats from ten up; below that one decimal, so a yen reads 6.5 and
+  // not 7. The number only: the templates around it carry the unit.
+  function fmtSatsPerUnit(price) {
+    if (!(price > 0)) return '–';
+    const sats = 1e8 / price;
+    return I18N.fmtNum(sats, { maximumFractionDigits: sats < 10 ? 1 : 0 });
+  }
+  // The currency's own symbol for "sats/$": "$", "€", "¥", "CHF".
+  const fiatUnit = (currency) => fmtFiatParts(1, currency).sym || currency;
+
   // Nearest index to `target` in a sorted times array. Binary search rather than a
   // scan: ALL runs to ~32k points and this is called on every pointer move.
   function nearestTimeIndex(times, target) {
@@ -22369,6 +22380,9 @@
     const first = series[0], last = series[series.length - 1];
     const pct = first ? ((last - first) / first) * 100 : 0;
     const fmt = (v) => fmtChartPrice(v, currency);
+    // The same figures in the sats one unit of the currency buys, on the line below them.
+    const unit = fiatUnit(currency);
+    const fmtSats = (v) => t('{{sats}} sats/{{unit}}', { sats: fmtSatsPerUnit(v), unit });
 
     const wrap = h('div', { className: 'wallet-chart' });
 
@@ -22398,8 +22412,9 @@
     plot.append(svg);
     const scrub = h('div', { className: 'wallet-chart-scrub' });
     const scrubPrice = h('span', { className: 'wallet-chart-scrub-price' });
+    const scrubSats = h('span', { className: 'wallet-chart-scrub-sats' });
     const scrubWhen = h('span', { className: 'wallet-chart-scrub-time' });
-    scrub.append(scrubPrice, scrubWhen);
+    scrub.append(scrubPrice, scrubSats, scrubWhen);
     plot.append(scrub);
     wrap.append(plot);
 
@@ -22420,6 +22435,7 @@
       markDot.setAttribute('cx', String(px));
       markDot.setAttribute('cy', String(py));
       scrubPrice.textContent = fmt(series[i]);
+      scrubSats.textContent = fmtSats(series[i]);
       scrubWhen.textContent = fmtScrubTime(times[i], range);
       // Positioned as a percentage in the DOM so the text renders crisp rather than
       // stretched with the viewBox. Clamped so it can't hang off either edge, and
@@ -22443,6 +22459,14 @@
         }),
         h('span', { className: 'wallet-chart-lowhigh', textContent: fmt(min) + ' – ' + fmt(max) }),
         h('span', { className: 'wallet-chart-price', textContent: fmt(last) }),
+      ]),
+      // Low to high in sats is the price's high to low: the most sats comes at the lowest price.
+      h('div', { className: 'wallet-chart-meta wallet-chart-sats' }, [
+        h('span', {
+          className: 'wallet-chart-lowhigh',
+          textContent: t('{{low}} – {{high}} sats/{{unit}}', { low: fmtSatsPerUnit(max), high: fmtSatsPerUnit(min), unit }),
+        }),
+        h('span', { className: 'wallet-chart-price', textContent: fmtSats(last) }),
       ])
     );
     return wrap;

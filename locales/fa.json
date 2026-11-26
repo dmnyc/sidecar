@@ -2470,5 +2470,7 @@
   "Move {{item}}": "جابه‌جایی {{item}}",
   "Drag to reorder, or use the up and down arrow keys": "برای تغییر ترتیب بکشید، یا از کلیدهای جهت‌نمای بالا و پایین استفاده کنید",
   "recipe": "دستور پخت",
-  "live event": "رویداد زنده"
+  "live event": "رویداد زنده",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

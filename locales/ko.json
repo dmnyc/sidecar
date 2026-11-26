@@ -2387,5 +2387,7 @@
   "Move {{item}}": "{{item}} 이동",
   "Drag to reorder, or use the up and down arrow keys": "끌어서 순서를 바꾸거나 위아래 화살표 키를 사용하세요",
   "recipe": "레시피",
-  "live event": "라이브 이벤트"
+  "live event": "라이브 이벤트",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

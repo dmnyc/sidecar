@@ -2470,5 +2470,7 @@
   "Move {{item}}": "{{item}} verschieben",
   "Drag to reorder, or use the up and down arrow keys": "Ziehen zum Umsortieren oder die Pfeiltasten nach oben und unten verwenden",
   "recipe": "Rezept",
-  "live event": "Live-Event"
+  "live event": "Live-Event",
+  "{{sats}} sats/{{unit}}": "{{sats}} Sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} Sats/{{unit}}"
 }
