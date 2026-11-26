@@ -2468,5 +2468,7 @@
   "Drag to reorder": "क्रम बदलने के लिए खींचें",
   "Relay address": "रिले का पता",
   "Move {{item}}": "{{item}} खिसकाएँ",
-  "Drag to reorder, or use the up and down arrow keys": "क्रम बदलने के लिए खींचें, या ऊपर और नीचे तीर कुंजियों का उपयोग करें"
+  "Drag to reorder, or use the up and down arrow keys": "क्रम बदलने के लिए खींचें, या ऊपर और नीचे तीर कुंजियों का उपयोग करें",
+  "recipe": "रेसिपी",
+  "live event": "लाइव इवेंट"
 }

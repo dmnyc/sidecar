@@ -2385,5 +2385,7 @@
   "Drag to reorder": "拖曳以重新排序",
   "Relay address": "中繼站位址",
   "Move {{item}}": "移動{{item}}",
-  "Drag to reorder, or use the up and down arrow keys": "拖曳以重新排序，或使用上下方向鍵"
+  "Drag to reorder, or use the up and down arrow keys": "拖曳以重新排序，或使用上下方向鍵",
+  "recipe": "食譜",
+  "live event": "直播活動"
 }

@@ -2468,5 +2468,7 @@
   "Drag to reorder": "Σύρετε για αναδιάταξη",
   "Relay address": "Διεύθυνση relay",
   "Move {{item}}": "Μετακίνηση {{item}}",
-  "Drag to reorder, or use the up and down arrow keys": "Σύρετε για αναδιάταξη ή χρησιμοποιήστε τα πλήκτρα βέλους πάνω και κάτω"
+  "Drag to reorder, or use the up and down arrow keys": "Σύρετε για αναδιάταξη ή χρησιμοποιήστε τα πλήκτρα βέλους πάνω και κάτω",
+  "recipe": "συνταγή",
+  "live event": "ζωντανή εκδήλωση"
 }

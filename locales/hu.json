@@ -2468,5 +2468,7 @@
   "Drag to reorder": "Húzza az átrendezéshez",
   "Relay address": "Relé címe",
   "Move {{item}}": "{{item}} áthelyezése",
-  "Drag to reorder, or use the up and down arrow keys": "Húzza az átrendezéshez, vagy használja a fel és le nyílbillentyűket"
+  "Drag to reorder, or use the up and down arrow keys": "Húzza az átrendezéshez, vagy használja a fel és le nyílbillentyűket",
+  "recipe": "recept",
+  "live event": "élő esemény"
 }

@@ -2551,5 +2551,7 @@
   "Drag to reorder": "Trascina per riordinare",
   "Relay address": "Indirizzo del relay",
   "Move {{item}}": "Sposta {{item}}",
-  "Drag to reorder, or use the up and down arrow keys": "Trascina per riordinare, oppure usa i tasti freccia su e giù"
+  "Drag to reorder, or use the up and down arrow keys": "Trascina per riordinare, oppure usa i tasti freccia su e giù",
+  "recipe": "ricetta",
+  "live event": "evento dal vivo"
 }

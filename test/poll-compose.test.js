@@ -401,7 +401,7 @@ test('the tally is applied to what comes back, not just asked for in the filter'
 
 test('a bookmarked poll is labelled a poll', () => {
   // 1068 read "live chat" here before polls existed; live chat messages are kind 1311.
-  assert.match(bare, /1068: 'poll'/);
+  assert.match(bare, /bmKindLabel = [^\n]*1068: t\('poll'\)/);
 });
 
 test('A POLL BANNER STACKS, BECAUSE TWO WORDED ACTIONS DO NOT SHARE A ROW', () => {

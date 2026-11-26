@@ -2468,5 +2468,7 @@
   "Drag to reorder": "Yeniden sıralamak için sürükleyin",
   "Relay address": "Relay adresi",
   "Move {{item}}": "{{item}} öğesini taşı",
-  "Drag to reorder, or use the up and down arrow keys": "Yeniden sıralamak için sürükleyin veya yukarı ve aşağı ok tuşlarını kullanın"
+  "Drag to reorder, or use the up and down arrow keys": "Yeniden sıralamak için sürükleyin veya yukarı ve aşağı ok tuşlarını kullanın",
+  "recipe": "tarif",
+  "live event": "canlı etkinlik"
 }

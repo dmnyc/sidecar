@@ -6836,6 +6836,24 @@
     return ev.pubkey;
   }
 
+  // AN ADDRESS THAT CAN BE FOUND. An naddr names an article by author and d tag, and a
+  // client looks for it on the relays it carries. With none, a client tries its own, and an
+  // article that is not on them reads "not found" in Jumble, Snort and JANK. So it carries
+  // where the author says they write, then whatever relay the reference itself named.
+  // Synchronous, from the cache, since a notification row builds its link as it draws;
+  // the Library warms the cache before it calls this.
+  function addrNaddr(coord, hint) {
+    const [k, pk, ...rest] = String(coord || '').split(':');
+    const kind = parseInt(k, 10);
+    if (Number.isNaN(kind) || !/^[0-9a-f]{64}$/.test(pk || '')) return '';
+    const list = nip65Cache.get(pk);
+    const relays = [...new Set([
+      ...((list && list.write) || []),
+      ...(typeof hint === 'string' && /^wss:\/\/\S+$/.test(hint) ? [hint] : []),
+    ].map(normalizeRelay))].slice(0, 3);
+    return NT.nip19.naddrEncode({ kind, pubkey: pk, identifier: rest.join(':'), relays });
+  }
+
   // Resolve where a notification should open, as a full client URL — always
   // something the client can actually render. A reply/mention opens the note
   // itself; a reaction/repost/zap opens the note (or article) it refers to.
@@ -6866,6 +6884,16 @@
         }
       }
 
+      // A referenced article: by its address, so the row opens the article as it stands
+      // now, in the route the client keeps for articles. A reaction or a zap on one carries
+      // the revision's `e` beside the `a`, and that id is a dead end once the article is
+      // edited, and in some clients from the start.
+      const addrTag = tags.filter((t) => t[0] === 'a' && /^3\d{4}:[0-9a-f]{64}:/.test(t[1] || '')).pop();
+      if (addrTag) {
+        const naddr = addrNaddr(addrTag[1], addrTag[2]);
+        if (naddr) return client.url(naddr);
+      }
+
       // A referenced note (reacted/reposted/zapped note, or reply target).
       const eTag = tags.filter((t) => t[0] === 'e' && t[1]).pop();
       if (eTag) {
@@ -6873,14 +6901,11 @@
         return client.url(NT.nip19.neventEncode({ id: eTag[1], author: pTag ? pTag[1] : acctPubkey, relays: [] }));
       }
 
-      // A referenced addressable event (e.g. a long-form article).
+      // Any other addressable event (a list, a live event).
       const aTag = tags.filter((t) => t[0] === 'a' && t[1]).pop();
       if (aTag) {
-        const parts = aTag[1].split(':');
-        const kind = parseInt(parts[0], 10);
-        if (parts[1] && !Number.isNaN(kind)) {
-          return client.url(NT.nip19.naddrEncode({ kind, pubkey: parts[1], identifier: parts[2] || '', relays: [] }));
-        }
+        const naddr = addrNaddr(aTag[1], aTag[2]);
+        if (naddr) return client.url(naddr);
       }
 
       // No note/article — a profile zap. Open a profile (renders everywhere):
@@ -18318,7 +18343,14 @@
   // are kind 1311. 1063 is left alone deliberately: it is NIP-94 file metadata rather
   // than a live event, but relabelling a kind nothing in this build writes is a separate
   // change from the one in hand.
-  const BM_KIND_LABEL = { 0: 'profile', 1: 'note', 6: 'repost', 30023: 'article', 1063: 'live event', 1068: 'poll' };
+  // Drawn when asked for, so each word is a t() call the key scanner can see and the row
+  // reads in the panel's language.
+  const bmKindLabel = (kind) => ({ 0: t('profile'), 1: t('note'), 6: t('repost'), 30023: t('article'), 1063: t('live event'), 1068: t('poll') })[kind];
+  // A RECIPE is an article Zap Cooking lays out as a recipe: one tagged `t zapcooking`, or
+  // `t nostrcooking` from before the site was renamed. Zap Cooking reads both, case aside.
+  const RECIPE_TAGS = ['zapcooking', 'nostrcooking'];
+  const isRecipe = (ev) => !!ev && ev.kind === 30023
+    && (ev.tags || []).some((tg) => tg[0] === 't' && RECIPE_TAGS.includes(String(tg[1] || '').toLowerCase()));
 
   // Every bookmark list event, raw, for bookmarkSections to shape.
   async function fetchBookmarkLists() {
@@ -19630,7 +19662,7 @@
     // hashtag its name, opening that tag in the client. Removable by republishing the owning list,
     // except a private entry, which is shown and not edited here (changing it means re-encrypting the
     // list, and a list is not worth risking for a row).
-    const kindLabel = (ref) => BM_KIND_LABEL[ref.kind] || 'kind ' + ref.kind;
+    const kindLabel = (ref) => (isRecipe(ref) ? t('recipe') : bmKindLabel(ref.kind) || t('kind {{kind}}', { kind: ref.kind }));
     const firstTag = (ev, name) => ((ev.tags || []).find((tg) => tg[0] === name) || [])[1] || '';
     const buildRow = (en, parent) => {
       const ref = en.type === 'e' ? events.get(en.value) : en.type === 'a' ? addrs.get(en.value) : null;
@@ -19716,8 +19748,13 @@
           if (en.type === 't') {
             openInClient((client.hashtag || VIEW_CLIENTS.primal.hashtag)(en.value));
           } else if (en.type === 'a') {
-            const [k, pk, ...rest] = en.value.split(':');
-            openInClient(client.url(NT.nip19.naddrEncode({ identifier: rest.join(':'), pubkey: pk, kind: Number(k), relays: [] })));
+            // Where the author writes, looked up if this is the first time, but never held
+            // up for long: a link without it still opens.
+            const pk = en.value.split(':')[1];
+            if (!nip65Cache.has(pk)) await Promise.race([getNip65(pk).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
+            const naddr = addrNaddr(en.value, en.hint);
+            // A recipe opens in Zap Cooking, the one client that lays it out as a recipe.
+            if (naddr) openInClient((isRecipe(ref) ? VIEW_CLIENTS.zapcooking : client).url(naddr));
           } else {
             openInClient(client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] })));
           }
