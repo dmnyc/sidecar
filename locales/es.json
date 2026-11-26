@@ -2553,5 +2553,7 @@
   "Move {{item}}": "Mover {{item}}",
   "Drag to reorder, or use the up and down arrow keys": "Arrastra para reordenar o usa las flechas arriba y abajo",
   "recipe": "receta",
-  "live event": "evento en directo"
+  "live event": "evento en directo",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

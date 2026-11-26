@@ -2387,5 +2387,7 @@
   "Move {{item}}": "移動{{item}}",
   "Drag to reorder, or use the up and down arrow keys": "拖曳以重新排序，或使用上下方向鍵",
   "recipe": "食譜",
-  "live event": "直播活動"
+  "live event": "直播活動",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

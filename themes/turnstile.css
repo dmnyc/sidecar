@@ -575,6 +575,9 @@
   box-shadow: inset 0 0 0 1px rgba(21, 26, 30, 0.25);
 }
 [data-theme="turnstile"] .wallet-card .wallet-chart-meta { padding: 0 8px; }
+/* The plate has an edge, so it keeps the full clearance above the corner buttons that the
+   shared chart gives up to its sats line: the line goes on the plate, and the card grows. */
+[data-theme="turnstile"] .wallet-card.chart-open:not(.compact) .wallet-chart-slot { margin-bottom: 30px; }
 [data-theme="turnstile"] .wallet-card.compact .wallet-balance { font-size: 29px; }
 /* The pinned bar is a strip of the red tablet. */
 [data-theme="turnstile"] .pinned-balance { background: url(turnstile-rust-field.svg) 0 0 / 28px 28px, #7E2A22; color: #F1EBDA; box-shadow: 0 2px 0 rgba(21, 26, 30, 0.25); }

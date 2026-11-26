@@ -2387,5 +2387,7 @@
   "Move {{item}}": "{{item}} を移動",
   "Drag to reorder, or use the up and down arrow keys": "ドラッグするか、上下の矢印キーで並べ替え",
   "recipe": "レシピ",
-  "live event": "ライブイベント"
+  "live event": "ライブイベント",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

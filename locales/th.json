@@ -2387,5 +2387,7 @@
   "Move {{item}}": "ย้าย {{item}}",
   "Drag to reorder, or use the up and down arrow keys": "ลากเพื่อจัดลำดับใหม่ หรือใช้ปุ่มลูกศรขึ้นและลง",
   "recipe": "สูตรอาหาร",
-  "live event": "กิจกรรมสด"
+  "live event": "กิจกรรมสด",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

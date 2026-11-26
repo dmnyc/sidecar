@@ -2470,5 +2470,7 @@
   "Move {{item}}": "{{item}} منتقل کریں",
   "Drag to reorder, or use the up and down arrow keys": "ترتیب بدلنے کے لیے گھسیٹیں، یا اوپر اور نیچے والی تیر کی کلیدیں استعمال کریں",
   "recipe": "ترکیب",
-  "live event": "لائیو ایونٹ"
+  "live event": "لائیو ایونٹ",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }

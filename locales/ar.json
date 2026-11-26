@@ -2802,5 +2802,7 @@
   "Move {{item}}": "نقل {{item}}",
   "Drag to reorder, or use the up and down arrow keys": "اسحب لإعادة الترتيب، أو استخدم مفتاحَي السهمين لأعلى ولأسفل",
   "recipe": "وصفة",
-  "live event": "حدث مباشر"
+  "live event": "حدث مباشر",
+  "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
 }
