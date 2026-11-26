@@ -2631,5 +2631,8 @@
   "Brainstorm’s relay": "Przekaźnik Brainstorm",
   "A relay I choose": "Wybrany przeze mnie przekaźnik",
   "Search relay address": "Adres przekaźnika wyszukiwania",
-  "Drag to reorder": "Przeciągnij, aby zmienić kolejność"
+  "Drag to reorder": "Przeciągnij, aby zmienić kolejność",
+  "Relay address": "Adres przekaźnika",
+  "Move {{item}}": "Przenieś {{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "Przeciągnij, aby zmienić kolejność, lub użyj strzałek w górę i w dół"
 }

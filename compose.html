@@ -97,7 +97,7 @@
       <div class="compose-thumbs" id="compose-thumbs"></div>
 
       <div class="compose-actions" id="compose-actions"></div>
-      <p class="error" id="compose-err"></p>
+      <p class="error" id="compose-err" role="alert"></p>
 
       <footer class="compose-foot">
         <!-- The same setting as Settings → Posting → Where to write, offered where the
@@ -120,7 +120,7 @@
   </div>
 
   <!-- Same id and class the panel uses, so styles.css dresses it without a second rule. -->
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
   <script src="i18n.js"></script>
   <script src="nostr-tools.js"></script>

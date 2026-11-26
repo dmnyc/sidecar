@@ -2382,5 +2382,8 @@
   "Brainstorm’s relay": "Brainstorm 的 relay",
   "A relay I choose": "我选择的 relay",
   "Search relay address": "搜索 relay 地址",
-  "Drag to reorder": "拖动以重新排序"
+  "Drag to reorder": "拖动以重新排序",
+  "Relay address": "relay 地址",
+  "Move {{item}}": "移动{{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "拖动以重新排序，或使用上下方向键"
 }

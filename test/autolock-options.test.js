@@ -12,7 +12,7 @@ const vm = require('node:vm');
 
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const options = (html) => {
-  const at = html.indexOf('<select id="autolock-select">');
+  const at = html.indexOf('<select id="autolock-select"');
   const block = html.slice(at, html.indexOf('</select>', at));
   return [...block.matchAll(/<option value="(\d+)"[^>]*>([^<]*)<\/option>/g)].map((m) => [Number(m[1]), m[2]]);
 };

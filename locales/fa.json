@@ -2465,5 +2465,8 @@
   "Brainstorm’s relay": "ریلی Brainstorm",
   "A relay I choose": "ریلی‌ای که خودم انتخاب می‌کنم",
   "Search relay address": "نشانی ریلی جستجو",
-  "Drag to reorder": "برای تغییر ترتیب بکشید"
+  "Drag to reorder": "برای تغییر ترتیب بکشید",
+  "Relay address": "نشانی ریلی",
+  "Move {{item}}": "جابه‌جایی {{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "برای تغییر ترتیب بکشید، یا از کلیدهای جهت‌نمای بالا و پایین استفاده کنید"
 }

@@ -2382,5 +2382,8 @@
   "Brainstorm’s relay": "รีเลย์ของ Brainstorm",
   "A relay I choose": "รีเลย์ที่ฉันเลือก",
   "Search relay address": "ที่อยู่รีเลย์ค้นหา",
-  "Drag to reorder": "ลากเพื่อจัดลำดับใหม่"
+  "Drag to reorder": "ลากเพื่อจัดลำดับใหม่",
+  "Relay address": "ที่อยู่รีเลย์",
+  "Move {{item}}": "ย้าย {{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "ลากเพื่อจัดลำดับใหม่ หรือใช้ปุ่มลูกศรขึ้นและลง"
 }

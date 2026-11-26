@@ -2548,5 +2548,8 @@
   "Brainstorm’s relay": "Il relay di Brainstorm",
   "A relay I choose": "Un relay a mia scelta",
   "Search relay address": "Indirizzo del relay di ricerca",
-  "Drag to reorder": "Trascina per riordinare"
+  "Drag to reorder": "Trascina per riordinare",
+  "Relay address": "Indirizzo del relay",
+  "Move {{item}}": "Sposta {{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "Trascina per riordinare, oppure usa i tasti freccia su e giù"
 }

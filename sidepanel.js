@@ -4488,6 +4488,48 @@
     });
   });
 
+  // THE PANEL'S TABS ARE A TAB LIST to a screen reader: the selected one says so, and only
+  // it is in the Tab order (roving tabindex), so Tab goes from the tabs into the page rather
+  // than through every tab. The arrow keys move between tabs, Home and End to the ends,
+  // skipping the ones gated off with no account; Left and Right swap in a right-to-left
+  // language, where the first tab is on the right. A tab chosen by key is clicked, so it
+  // opens exactly as a tap would. The selection is read off the .active class, which several
+  // paths set without a click, so the ARIA follows the class rather than each of them.
+  (function wirePanelTabs() {
+    const nav = document.querySelector('nav.tabs');
+    if (!nav) return;
+    const tabs = () => [...nav.querySelectorAll('.tab')];
+    const sync = () => {
+      const all = tabs();
+      const current = all.find((x) => x.classList.contains('active')) || all[0];
+      all.forEach((x) => {
+        const on = x === current;
+        if (x.getAttribute('aria-selected') !== String(on)) x.setAttribute('aria-selected', String(on));
+        const ti = on ? '0' : '-1';
+        if (x.getAttribute('tabindex') !== ti) x.setAttribute('tabindex', ti);
+      });
+    };
+    new MutationObserver(sync).observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    sync();
+    nav.addEventListener('keydown', (e) => {
+      const from = e.target.closest && e.target.closest('.tab');
+      if (!from || e.altKey || e.ctrlKey || e.metaKey) return;
+      const usable = tabs().filter((x) => !x.disabled);
+      const i = usable.indexOf(from);
+      if (i < 0) return;
+      const rtl = getComputedStyle(nav).direction === 'rtl';
+      let to = null;
+      if (e.key === 'ArrowRight') to = usable[(i + (rtl ? -1 : 1) + usable.length) % usable.length];
+      else if (e.key === 'ArrowLeft') to = usable[(i + (rtl ? 1 : -1) + usable.length) % usable.length];
+      else if (e.key === 'Home') to = usable[0];
+      else if (e.key === 'End') to = usable[usable.length - 1];
+      if (!to) return;
+      e.preventDefault();
+      if (to !== from) to.click();
+      to.focus();
+    });
+  })();
+
   // The folded account list's button, and the activity that keeps an open list open.
   $('account-list-more').addEventListener('click', () => {
     if (accountListOpen) foldAccountList(true);
@@ -23596,7 +23638,7 @@
           t('Paste a Nostr Wallet Connect (NWC) connection string from Alby Hub, Rizful, YakiHonne, or other NWC-capable wallets. Sidecar never holds your funds.'),
       })
     );
-    const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…' });
+    const input = h('textarea', { className: 'compose-text nwc-input', placeholder: 'nostr+walletconnect://…', 'aria-label': t('Wallet connection string') });
     const err = h('div', { className: 'error' });
     // Primal's string isn't a mistake — it's well-formed, just fundamentally
     // incompatible — so it gets its own calm, non-error styling rather than the
@@ -26593,10 +26635,20 @@
   }
 
   // Footer logo on every screen (main tabs + settings) opens the About card.
+  // It is the only way to About, so it is a button to the keyboard and a screen reader too:
+  // in the Tab order, named, and opened by Enter or Space, without changing how it looks.
   document.querySelectorAll('.brand-foot').forEach((foot) => {
     foot.classList.add('brand-foot-btn');
     foot.title = t('About Sidecar');
+    foot.setAttribute('role', 'button');
+    foot.setAttribute('tabindex', '0');
+    foot.setAttribute('aria-label', t('About Sidecar'));
     foot.addEventListener('click', aboutModal);
+    foot.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      aboutModal();
+    });
   });
 
   // Hand a modal off to a full-panel surface. The card has to finish dipping out and the
@@ -29062,7 +29114,7 @@
     openModal((modal) => {
       modal.classList.add('modal-sheet');
 
-      const xBtn = h('button', { className: 'modal-x', title: 'Close' });
+      const xBtn = h('button', { className: 'modal-x', title: t('Close') });
       xBtn.appendChild(icon('x'));
       xBtn.addEventListener('click', closeModal);
       modal.appendChild(xBtn);

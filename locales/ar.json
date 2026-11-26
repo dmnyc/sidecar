@@ -2797,5 +2797,8 @@
   "Brainstorm’s relay": "مرحّل Brainstorm",
   "A relay I choose": "مرحّل أختاره",
   "Search relay address": "عنوان مرحّل البحث",
-  "Drag to reorder": "اسحب لإعادة الترتيب"
+  "Drag to reorder": "اسحب لإعادة الترتيب",
+  "Relay address": "عنوان المرحّل",
+  "Move {{item}}": "نقل {{item}}",
+  "Drag to reorder, or use the up and down arrow keys": "اسحب لإعادة الترتيب، أو استخدم مفتاحَي السهمين لأعلى ولأسفل"
 }

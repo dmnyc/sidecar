@@ -2465,5 +2465,8 @@
   "Brainstorm’s relay": "Brainstorm’un relay’i",
   "A relay I choose": "Seçtiğim bir relay",
   "Search relay address": "Arama relay’i adresi",
-  "Drag to reorder": "Yeniden sıralamak için sürükleyin"
+  "Drag to reorder": "Yeniden sıralamak için sürükleyin",
+  "Relay address": "Relay adresi",
+  "Move {{item}}": "{{item}} öğesini taşı",
+  "Drag to reorder, or use the up and down arrow keys": "Yeniden sıralamak için sürükleyin veya yukarı ve aşağı ok tuşlarını kullanın"
 }
