@@ -19583,8 +19583,7 @@
           h('div', { className: 'rd-title', dir: 'auto', textContent: pieceTag(ev, 'title') || pieceTag(ev, 'd') }),
           summary ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: summary }) : null,
           meta,
-          menu.panel,
-        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]), menu.panel);
         item.addEventListener('click', async () => {
           if (armed) { menu.disarm(); return; }
           // Your own write relays go into the address, so the client finds the piece where it is.
@@ -19715,8 +19714,7 @@
           h('div', { className: 'hl-item-passage', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
           comment ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: comment }) : null,
           h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
-          menu.panel,
-        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]), menu.panel);
         item.addEventListener('click', async () => {
           const client = await preferredClient();
           try { openInClient(client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 9802, relays: [] }))); } catch (_) {}
@@ -19814,8 +19812,7 @@
           // Your own words are the row, so they are drawn as content, three lines like a highlight.
           h('div', { className: 'bm-text bm-text-3', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
           h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
-          menu.panel,
-        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]), menu.panel);
         // Most clients render a kind 1111 nowhere at all, so the row opens Sidecar's
         // own page for the comment rather than betting on a client.
         item.addEventListener('click', () => openThreadTab(ev));
@@ -20006,8 +20003,7 @@
               (note || targetId) && gist !== headline ? h('div', { className: 'cm-reaction-gist', dir: 'auto', textContent: gist }) : null,
             ]),
           ]),
-          menu.panel,
-        ]), h('div', { className: 'item-actions' }, [menu.btn]));
+        ]), h('div', { className: 'item-actions' }, [menu.btn]), menu.panel);
         // The note renders everywhere, so the row opens the target, not the reaction.
         if (opens) item.addEventListener('click', () => {
           try {
@@ -20473,7 +20469,8 @@
           onDisarm: () => { armed = false; if (off) { off(); off = null; } },
         },
       }) : null;
-      if (menu) { main.append(menu.panel); actions.append(menu.btn); }
+      // The open menu takes the row's full width, on a line of its own under it (see .bm-item).
+      if (menu) { actions.append(menu.btn); }
       item.addEventListener('click', async () => {
         // An armed row is not a link: a tap on it only lets go, so the question is never
         // answered by opening the client behind it.
@@ -20502,6 +20499,7 @@
         } catch (_) {}
       });
       item.append(main, actions);
+      if (menu) item.append(menu.panel);
       return item;
     };
 
