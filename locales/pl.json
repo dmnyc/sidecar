@@ -2643,5 +2643,16 @@
   "Articles": "Artykuły",
   "Recipes": "Przepisy",
   "Articles and recipes you publish show up here.": "Opublikowane przez ciebie artykuły i przepisy pojawią się tutaj.",
-  "Couldn’t read your articles and recipes from your relays.": "Nie udało się odczytać twoich artykułów i przepisów z przekaźników."
+  "Couldn’t read your articles and recipes from your relays.": "Nie udało się odczytać twoich artykułów i przepisów z przekaźników.",
+  "Delete article": "Usuń artykuł",
+  "Delete recipe": "Usuń przepis",
+  "Article deleted": "Artykuł usunięty",
+  "Recipe deleted": "Przepis usunięty",
+  "Could not delete it": "Nie udało się usunąć",
+  "{{count}} comment_few": "{{count}} komentarze",
+  "{{count}} comment_many": "{{count}} komentarzy",
+  "{{count}} comment_one": "{{count}} komentarz",
+  "{{count}} comment_other": "{{count}} komentarza",
+  "Copy article address": "Kopiuj adres",
+  "Copy recipe address": "Kopiuj adres"
 }

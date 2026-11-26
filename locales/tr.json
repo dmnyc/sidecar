@@ -2477,5 +2477,14 @@
   "Articles": "Makaleler",
   "Recipes": "Tarifler",
   "Articles and recipes you publish show up here.": "Yayımladığınız makaleler ve tarifler burada görünür.",
-  "Couldn’t read your articles and recipes from your relays.": "Makaleleriniz ve tarifleriniz relay’lerinizden okunamadı."
+  "Couldn’t read your articles and recipes from your relays.": "Makaleleriniz ve tarifleriniz relay’lerinizden okunamadı.",
+  "Delete article": "Makaleyi sil",
+  "Delete recipe": "Tarifi sil",
+  "Article deleted": "Makale silindi",
+  "Recipe deleted": "Tarif silindi",
+  "Could not delete it": "Silinemedi",
+  "{{count}} comment_one": "{{count}} yorum",
+  "{{count}} comment_other": "{{count}} yorum",
+  "Copy article address": "Makale adresini kopyala",
+  "Copy recipe address": "Tarif adresini kopyala"
 }

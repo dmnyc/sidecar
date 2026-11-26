@@ -2477,5 +2477,14 @@
   "Articles": "Cikkek",
   "Recipes": "Receptek",
   "Articles and recipes you publish show up here.": "Az Ön által közzétett cikkek és receptek itt jelennek meg.",
-  "Couldn’t read your articles and recipes from your relays.": "Nem sikerült beolvasni a cikkeit és receptjeit a relékből."
+  "Couldn’t read your articles and recipes from your relays.": "Nem sikerült beolvasni a cikkeit és receptjeit a relékből.",
+  "Delete article": "Cikk törlése",
+  "Delete recipe": "Recept törlése",
+  "Article deleted": "Cikk törölve",
+  "Recipe deleted": "Recept törölve",
+  "Could not delete it": "Nem sikerült törölni",
+  "{{count}} comment_one": "{{count}} hozzászólás",
+  "{{count}} comment_other": "{{count}} hozzászólás",
+  "Copy article address": "Cím másolása",
+  "Copy recipe address": "Cím másolása"
 }

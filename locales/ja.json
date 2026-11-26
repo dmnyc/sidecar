@@ -2394,5 +2394,13 @@
   "Articles": "記事",
   "Recipes": "レシピ",
   "Articles and recipes you publish show up here.": "公開した記事やレシピがここに表示されます。",
-  "Couldn’t read your articles and recipes from your relays.": "リレーから記事とレシピを読み取れませんでした。"
+  "Couldn’t read your articles and recipes from your relays.": "リレーから記事とレシピを読み取れませんでした。",
+  "Delete article": "記事を削除",
+  "Delete recipe": "レシピを削除",
+  "Article deleted": "記事を削除しました",
+  "Recipe deleted": "レシピを削除しました",
+  "Could not delete it": "削除できませんでした",
+  "{{count}} comment_other": "{{count}} 件のコメント",
+  "Copy article address": "記事のアドレスをコピー",
+  "Copy recipe address": "アドレスをコピー"
 }

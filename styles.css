@@ -2809,6 +2809,13 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
 }
 .rd-thumb svg { width: 18px; height: 18px; }
 .rd-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A piece's comments, in the meta line: a count in a capsule, tinted from the line's own ink. */
+.rd-comments {
+  display: inline-flex; align-items: center; gap: 3px; margin-inline-start: 6px; padding: 0 6px;
+  border-radius: 999px; background: color-mix(in srgb, currentColor 18%, transparent);
+  font-size: 11px; font-weight: 700; line-height: 16px; vertical-align: 1px;
+}
+.rd-comments svg { width: 11px; height: 11px; }
 .rd-title {
   font-weight: 600; font-size: 13px; line-height: 1.35; color: var(--text); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;

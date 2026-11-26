@@ -2643,5 +2643,16 @@
   "Articles": "Статьи",
   "Recipes": "Рецепты",
   "Articles and recipes you publish show up here.": "Опубликованные вами статьи и рецепты появятся здесь.",
-  "Couldn’t read your articles and recipes from your relays.": "Не удалось прочитать ваши статьи и рецепты с релеев."
+  "Couldn’t read your articles and recipes from your relays.": "Не удалось прочитать ваши статьи и рецепты с релеев.",
+  "Delete article": "Удалить статью",
+  "Delete recipe": "Удалить рецепт",
+  "Article deleted": "Статья удалена",
+  "Recipe deleted": "Рецепт удалён",
+  "Could not delete it": "Не удалось удалить",
+  "{{count}} comment_few": "{{count}} комментария",
+  "{{count}} comment_many": "{{count}} комментариев",
+  "{{count}} comment_one": "{{count}} комментарий",
+  "{{count}} comment_other": "{{count}} комментария",
+  "Copy article address": "Копировать адрес",
+  "Copy recipe address": "Копировать адрес"
 }

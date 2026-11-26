@@ -2394,5 +2394,13 @@
   "Articles": "文章",
   "Recipes": "食譜",
   "Articles and recipes you publish show up here.": "您發佈的文章和食譜會顯示在這裡。",
-  "Couldn’t read your articles and recipes from your relays.": "無法從您的中繼站讀取文章和食譜。"
+  "Couldn’t read your articles and recipes from your relays.": "無法從您的中繼站讀取文章和食譜。",
+  "Delete article": "刪除文章",
+  "Delete recipe": "刪除食譜",
+  "Article deleted": "文章已刪除",
+  "Recipe deleted": "食譜已刪除",
+  "Could not delete it": "無法刪除",
+  "{{count}} comment_other": "{{count}} 則留言",
+  "Copy article address": "複製文章位址",
+  "Copy recipe address": "複製食譜位址"
 }

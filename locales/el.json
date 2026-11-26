@@ -2477,5 +2477,14 @@
   "Articles": "Άρθρα",
   "Recipes": "Συνταγές",
   "Articles and recipes you publish show up here.": "Τα άρθρα και οι συνταγές που δημοσιεύετε εμφανίζονται εδώ.",
-  "Couldn’t read your articles and recipes from your relays.": "Δεν ήταν δυνατή η ανάγνωση των άρθρων και των συνταγών σας από τα relay σας."
+  "Couldn’t read your articles and recipes from your relays.": "Δεν ήταν δυνατή η ανάγνωση των άρθρων και των συνταγών σας από τα relay σας.",
+  "Delete article": "Διαγραφή άρθρου",
+  "Delete recipe": "Διαγραφή συνταγής",
+  "Article deleted": "Το άρθρο διαγράφηκε",
+  "Recipe deleted": "Η συνταγή διαγράφηκε",
+  "Could not delete it": "Δεν ήταν δυνατή η διαγραφή",
+  "{{count}} comment_one": "{{count}} σχόλιο",
+  "{{count}} comment_other": "{{count}} σχόλια",
+  "Copy article address": "Αντιγραφή διεύθυνσης",
+  "Copy recipe address": "Αντιγραφή διεύθυνσης"
 }

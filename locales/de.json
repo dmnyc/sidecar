@@ -2477,5 +2477,14 @@
   "Articles": "Artikel",
   "Recipes": "Rezepte",
   "Articles and recipes you publish show up here.": "Artikel und Rezepte, die du veröffentlichst, erscheinen hier.",
-  "Couldn’t read your articles and recipes from your relays.": "Deine Artikel und Rezepte konnten nicht von deinen Relays gelesen werden."
+  "Couldn’t read your articles and recipes from your relays.": "Deine Artikel und Rezepte konnten nicht von deinen Relays gelesen werden.",
+  "Delete article": "Artikel löschen",
+  "Delete recipe": "Rezept löschen",
+  "Article deleted": "Artikel gelöscht",
+  "Recipe deleted": "Rezept gelöscht",
+  "Could not delete it": "Konnte nicht gelöscht werden",
+  "{{count}} comment_one": "{{count}} Kommentar",
+  "{{count}} comment_other": "{{count}} Kommentare",
+  "Copy article address": "Artikeladresse kopieren",
+  "Copy recipe address": "Rezeptadresse kopieren"
 }

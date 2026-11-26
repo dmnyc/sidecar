@@ -142,3 +142,95 @@ test('one kind only: no picker; nothing published: says where they will show; a 
     assert.deepEqual(x.errors, []);
   });
 });
+
+// THE ⋮ ON A PIECE: copy where it opens and its address, and delete it. No Edit: editing a published
+// piece is deferred, and other clients handle it for now.
+const rowOf = (title) => `[...document.querySelectorAll('${PANE} .bm-item')].find((r) => r.innerText.includes(${JSON.stringify(title)}))`;
+const menuItems = (title) => `[...${rowOf(title)}.querySelectorAll('.notif-more-item')]`;
+const openMenu = (x, title) => x.evaluate(`${rowOf(title)}.querySelector('.item-actions .notif-more-btn').click()`);
+
+test('a piece’s ⋮ copies its link and address and deletes it in two taps, by address; there is no Edit', opts, async (t) => {
+  await withExtension(t, { settings: { defaultClient: 'yakihonne' } }, async (x) => {
+    seed(x);
+    await x.reload();
+    await openReads(x);
+    await x.waitFor(`${titles}.length === 4`, 15000);
+    await openMenu(x, 'An essay, edited');
+    const labels = await x.evaluate(`${menuItems('An essay, edited')}.map((e) => e.textContent)`);
+    // The link and the address lead, and the two identifiers sit together.
+    assert.deepEqual(labels.slice(0, 4), ['Copy link', 'Copy article address', 'Copy event ID', 'Copy event JSON'], JSON.stringify(labels));
+    assert.equal(labels[labels.length - 1], 'Delete article');
+    assert.ok(!labels.some((l) => /edit/i.test(l)), 'an Edit item: ' + JSON.stringify(labels));
+
+    const item = (label) => `${menuItems('An essay, edited')}.find((e) => e.textContent === ${JSON.stringify(label)})`;
+    const copied = async (label) => {
+      await x.evaluate(`window.__copied = null; navigator.clipboard.writeText = async (s) => { window.__copied = s; };`);
+      await x.evaluate(`${item(label)}.click()`);
+      await x.waitFor('window.__copied !== null', 5000);
+      return x.evaluate('window.__copied');
+    };
+    assert.match(await copied('Copy link'), /^https:\/\/yakihonne\.com\/article\/naddr1/);
+    await openMenu(x, 'An essay, edited');
+    const addr = x.nt.decode(await copied('Copy article address')).data;
+    assert.deepEqual([addr.kind, addr.pubkey, addr.identifier], [30023, x.me, 'essay']);
+
+    // First tap arms; a tap on the row lets go without opening the piece; the second tap deletes.
+    await openMenu(x, 'An essay, edited');
+    const del = `${menuItems('An essay, edited')}.pop()`;
+    await x.evaluate(`${del}.click()`);
+    assert.equal(await x.evaluate(`${del}.textContent`), 'Tap again to confirm');
+    await x.sleep(500);
+    await x.recordTabs();
+    await x.clearCalls();
+    await x.evaluate(`${rowOf('An essay, edited')}.querySelector('.bm-main').click()`);
+    await x.sleep(300);
+    assert.deepEqual(openedUrls(await x.calls()), [], 'an armed row opened the piece');
+    assert.equal(await x.evaluate(`${del}.textContent`), 'Delete article');
+    assert.equal(x.relay.events.filter((e) => e.kind === 5 && e.created_at > NOW() - 60 && e.tags.some((tg) => tg[1] === '30023:' + x.me + ':essay')).length, 0);
+
+    await x.evaluate(`${del}.click()`);
+    await x.sleep(500);
+    await x.evaluate(`${del}.click()`);
+    await x.waitFor(`${titles}.length === 3`, 10000);
+    assert.ok(!(await x.evaluate(titles)).includes('An essay, edited'));
+    const essay = x.relay.events.filter((e) => e.kind === 30023 && e.tags.some((tg) => tg[0] === 'd' && tg[1] === 'essay')).sort((a, b) => b.created_at - a.created_at)[0];
+    const req = x.relay.events.find((e) => e.kind === 5 && e.pubkey === x.me && e.tags.some((tg) => tg[0] === 'a' && tg[1] === '30023:' + x.me + ':essay'));
+    assert.ok(req, 'no deletion request by address');
+    assert.ok(req.tags.some((tg) => tg[0] === 'e' && tg[1] === essay.id), 'the request does not name the listed copy');
+    assert.ok(req.tags.some((tg) => tg[0] === 'k' && tg[1] === '30023'));
+    // Nothing republished: no new or emptied copy of the piece.
+    assert.equal(x.relay.events.filter((e) => e.kind === 30023 && e.tags.some((tg) => tg[0] === 'd' && tg[1] === 'essay')).length, 2);
+
+    // A recipe says recipe.
+    await openMenu(x, 'Pea soup');
+    assert.equal(await x.evaluate(`${menuItems('Pea soup')}[1].textContent`), 'Copy recipe address');
+    assert.equal(await x.evaluate(`${menuItems('Pea soup')}.pop().textContent`), 'Delete recipe');
+
+    // Reopened, the list still leaves it out: the relays have the request.
+    await x.evaluate(`document.querySelector('#modal .modal-x').click()`);
+    await openReads(x);
+    await x.waitFor(`${titles}.length === 3`, 15000);
+    assert.deepEqual(x.errors, []);
+  });
+});
+
+test('a piece with comments shows how many in a capsule; one without shows none', opts, async (t) => {
+  await withExtension(t, {}, async (x) => {
+    seed(x);
+    const now = NOW();
+    const essay = '30023:' + x.me + ':essay';
+    const comment = (A, content, at) => ({ kind: 1111, created_at: at, content, tags: [['A', A], ['K', '30023'], ['P', x.me], ['a', A], ['k', '30023'], ['p', x.me]] });
+    x.put(comment(essay, 'Loved it', now - 60), 'bea');
+    x.put(comment(essay, 'Same here', now - 50), 'bea');
+    // A comment on a piece by someone else is not counted on yours.
+    x.put(comment('30023:' + 'f'.repeat(64) + ':essay', 'Elsewhere', now - 40), 'bea');
+    await x.reload();
+    await openReads(x);
+    await x.waitFor(`${titles}.length === 4`, 15000);
+    await x.waitFor(`!!${rowOf('An essay, edited')}.querySelector('.rd-comments')`, 10000);
+    assert.equal(await x.evaluate(`${rowOf('An essay, edited')}.querySelector('.rd-comments').textContent`), '2');
+    assert.equal(await x.evaluate(`${rowOf('An essay, edited')}.querySelector('.rd-comments').getAttribute('aria-label')`), '2 comments');
+    assert.equal(await x.evaluate(`document.querySelectorAll('${PANE} .rd-comments').length`), 1, 'a zero capsule');
+    assert.deepEqual(x.errors, []);
+  });
+});

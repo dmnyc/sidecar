@@ -8680,6 +8680,13 @@
           linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
           [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
         ].filter(Boolean);
+        // An addressable piece (an article, a recipe) leads with its link and its address: the address
+        // every edit keeps, where the event ID names one revision. The two identifiers sit together.
+        if (opts && opts.addr && opts.addrLabel) {
+          const link = items.find(([label]) => label === t('Copy link'));
+          const rest = items.filter((it) => it !== link);
+          items.splice(0, items.length, ...[link, [opts.addrLabel, 'copy', opts.addr], ...rest].filter(Boolean));
+        }
         // A reaction or a zap is only ever about the note it landed on, so that is all its
         // menu offers. One whose note cannot be found keeps the full list rather than
         // opening empty.
@@ -8737,7 +8744,7 @@
           if (Date.now() - armedAt < 400) return;
           clearTimeout(timer);
           row.disabled = true;
-          label.textContent = t('Removing…');
+          label.textContent = rmv.busy || t('Removing…');
           try {
             await rmv.run();
             setOpen(false);
@@ -18901,7 +18908,7 @@
   // recipe is an article Zap Cooking lays out as one (isRecipe), so the two share the list, and
   // a picker narrows it to either when there are both. A row opens the piece by its address, with
   // the relays the account writes to, in a client that draws it (pieceClient).
-  const _rdCache = { pubkey: null, evs: null };
+  const _rdCache = { pubkey: null, evs: null, comments: null, commentsFor: '' };
   let _rdPick = 'all';
   const pieceTag = (ev, name) => ((ev.tags || []).find((tg) => tg[0] === name) || [])[1] || '';
   const pieceCoord = (ev) => '30023:' + ev.pubkey + ':' + pieceTag(ev, 'd');
@@ -18933,6 +18940,42 @@
       }
     }
     return [...newest.values()].sort(byPieceDate);
+  }
+  // How many comments (NIP-22, kind 1111) each piece has, by its address: a comment scopes its
+  // root with an A tag, which every edit keeps. Read from where you write and where you read,
+  // since a commenter's client sends to the author's inbox relays. Keyed by coordinate.
+  async function fetchPieceComments(pubkey, coords) {
+    const counts = new Map();
+    if (!coords.length) return counts;
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return counts;
+    const want = new Set(coords);
+    const seen = new Set();
+    const got = await poolQuerySync(relays, { kinds: [1111], '#A': coords, limit: 1000 }, { maxWait: 5000 });
+    for (const ev of got || []) {
+      if (!ev || ev.kind !== 1111 || seen.has(ev.id)) continue;
+      const root = (ev.tags || []).find((tg) => tg[0] === 'A' && want.has(tg[1]));
+      if (!root) continue;
+      seen.add(ev.id);
+      counts.set(root[1], (counts.get(root[1]) || 0) + 1);
+    }
+    return counts;
+  }
+  // Deleting a piece: a NIP-09 request naming it by address, which covers every copy an edit
+  // made, and by the id of the copy listed here. No empty replacement is published: Sidecar
+  // publishes pieces but never rewrites one, and a blank article would show in other clients.
+  async function deletePiece(ev) {
+    const author = state.activePubkey;
+    if (!author || ev.pubkey !== author) throw new Error(t('Could not delete it'));
+    const request = await call({
+      type: 'SIDECAR_OWNER_SIGN', expectedPubkey: author,
+      event: { kind: 5, created_at: Math.max(Math.floor(Date.now() / 1000), ev.created_at), content: '', tags: [['a', pieceCoord(ev)], ['e', ev.id], ['k', '30023']] },
+    });
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(author))])]; } catch (_) {}
+    if (relays.length) await publishToRelays(relays, request); else await publishSigned(request);
+    return request;
   }
   async function fillReads(pane, gone, tab) {
     const quote = pickQuote();
@@ -18967,7 +19010,40 @@
         const recipe = isRecipe(ev);
         const via = pieceClient(ev, client);
         const item = h('div', { className: 'bm-item rd-item', title: t('Open in {{client}}', { client: via.label }) });
-        const menu = buildEventMenu(ev, null, { npubOf: null });
+        const naddrNow = addrNaddr(pieceCoord(ev));
+        // Delete takes two taps, as Remove bookmark does, and while it is armed the row is not a link.
+        let armed = false;
+        let off = null;
+        const menu = buildEventMenu(ev, naddrNow ? via.url(naddrNow) : null, {
+          npubOf: null,
+          addr: () => addrNaddr(pieceCoord(ev)),
+          addrLabel: recipe ? t('Copy recipe address') : t('Copy article address'),
+          remove: {
+            label: recipe ? t('Delete recipe') : t('Delete article'),
+            busy: t('Deleting…'),
+            run: async () => {
+              try {
+                await deletePiece(ev);
+              } catch (err) {
+                toast((err && err.message) || t('Could not delete it'), 'error');
+                throw err;
+              }
+              if (_rdCache.evs) _rdCache.evs = _rdCache.evs.filter((e) => pieceCoord(e) !== pieceCoord(ev));
+              toast(recipe ? t('Recipe deleted') : t('Article deleted'), 'success');
+              if (_rdCache.redraw) _rdCache.redraw();
+            },
+            onArm: () => {
+              armed = true;
+              // Capture, and stopped: the first Escape cancels this, it does not also close the sheet.
+              const onDoc = () => menu.disarm();
+              const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); menu.disarm(); } };
+              document.addEventListener('click', onDoc);
+              document.addEventListener('keydown', onKey, true);
+              off = () => { document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey, true); };
+            },
+            onDisarm: () => { armed = false; if (off) { off(); off = null; } },
+          },
+        });
         // The cover when there is one, a page when there is not, so every row has the same edge.
         const thumb = h('div', { className: 'rd-thumb' }, [icon('file-text')]);
         const image = pieceTag(ev, 'image');
@@ -18981,13 +19057,23 @@
           thumb.append(img);
         }
         const summary = pieceTag(ev, 'summary');
+        // Comments, as a count in a capsule, only when there are any.
+        const nComments = (_rdCache.comments && _rdCache.comments.get(pieceCoord(ev))) || 0;
+        const meta = h('div', { className: 'bm-meta', textContent: (recipe ? t('recipe') : t('article')) + ' · ' + relativeTime(pieceDate(ev)) });
+        if (nComments) {
+          const cap = h('span', { className: 'rd-comments', title: tn('{{count}} comment', '{{count}} comments', nComments) });
+          cap.setAttribute('aria-label', tn('{{count}} comment', '{{count}} comments', nComments));
+          cap.append(icon('message-circle'), h('span', { textContent: I18N.fmtNum(nComments) }));
+          meta.append(cap);
+        }
         item.append(thumb, h('div', { className: 'bm-main' }, [
           h('div', { className: 'rd-title', dir: 'auto', textContent: pieceTag(ev, 'title') || pieceTag(ev, 'd') }),
           summary ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: summary }) : null,
-          h('div', { className: 'bm-meta', textContent: (recipe ? t('recipe') : t('article')) + ' · ' + relativeTime(pieceDate(ev)) }),
+          meta,
           menu.panel,
         ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
         item.addEventListener('click', async () => {
+          if (armed) { menu.disarm(); return; }
           // Your own write relays go into the address, so the client finds the piece where it is.
           if (!nip65Cache.has(ev.pubkey)) await Promise.race([getNip65(ev.pubkey).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
           const naddr = addrNaddr(pieceCoord(ev));
@@ -18998,6 +19084,17 @@
       pane.append(list);
       paged(list, shown, makeRow, null);
       pane.append(endQuote(quote));
+      // The comment counts follow the list: asked once for this set of pieces, then drawn in.
+      const pubkey = state.activePubkey;
+      const key = pubkey + '|' + evs.map(pieceCoord).sort().join(',');
+      if (_rdCache.commentsFor !== key) {
+        _rdCache.commentsFor = key;
+        fetchPieceComments(pubkey, evs.map(pieceCoord)).then((counts) => {
+          if (_rdCache.commentsFor !== key || state.activePubkey !== pubkey) return;
+          _rdCache.comments = counts;
+          if (counts.size && _rdCache.repaint) _rdCache.repaint();
+        }).catch(() => { if (_rdCache.commentsFor === key) _rdCache.commentsFor = ''; });
+      }
       return true;
     };
     await loadSavedList(pane, gone, _rdCache, fetchReads, paint, t('Couldn’t read your articles and recipes from your relays.'), quote);

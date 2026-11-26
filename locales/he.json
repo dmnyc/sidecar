@@ -2560,5 +2560,15 @@
   "Articles": "מאמרים",
   "Recipes": "מתכונים",
   "Articles and recipes you publish show up here.": "מאמרים ומתכונים שתפרסמו יופיעו כאן.",
-  "Couldn’t read your articles and recipes from your relays.": "לא ניתן היה לקרוא את המאמרים והמתכונים שלכם מהריליים."
+  "Couldn’t read your articles and recipes from your relays.": "לא ניתן היה לקרוא את המאמרים והמתכונים שלכם מהריליים.",
+  "Delete article": "מחיקת המאמר",
+  "Delete recipe": "מחיקת המתכון",
+  "Article deleted": "המאמר נמחק",
+  "Recipe deleted": "המתכון נמחק",
+  "Could not delete it": "לא ניתן למחוק",
+  "{{count}} comment_one": "תגובה אחת",
+  "{{count}} comment_two": "{{count}} תגובות",
+  "{{count}} comment_other": "{{count}} תגובות",
+  "Copy article address": "העתקת כתובת המאמר",
+  "Copy recipe address": "העתקת כתובת המתכון"
 }

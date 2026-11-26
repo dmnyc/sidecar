@@ -2809,5 +2809,18 @@
   "Articles": "مقالات",
   "Recipes": "وصفات",
   "Articles and recipes you publish show up here.": "تظهر هنا المقالات والوصفات التي تنشرها.",
-  "Couldn’t read your articles and recipes from your relays.": "تعذّرت قراءة مقالاتك ووصفاتك من مرحّلاتك."
+  "Couldn’t read your articles and recipes from your relays.": "تعذّرت قراءة مقالاتك ووصفاتك من مرحّلاتك.",
+  "Delete article": "حذف المقال",
+  "Delete recipe": "حذف الوصفة",
+  "Article deleted": "حُذف المقال",
+  "Recipe deleted": "حُذفت الوصفة",
+  "Could not delete it": "تعذّر الحذف",
+  "{{count}} comment_few": "{{count}} تعليقات",
+  "{{count}} comment_many": "{{count}} تعليقًا",
+  "{{count}} comment_one": "تعليق واحد",
+  "{{count}} comment_two": "تعليقان",
+  "{{count}} comment_zero": "لا تعليقات",
+  "{{count}} comment_other": "{{count}} تعليق",
+  "Copy article address": "نسخ عنوان المقالة",
+  "Copy recipe address": "نسخ عنوان الوصفة"
 }
