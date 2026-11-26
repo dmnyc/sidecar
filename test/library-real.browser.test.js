@@ -46,7 +46,7 @@ const text = (selector) => `(() => { const e = document.querySelector(${JSON.str
 const rows = (pane = '#modal .bm-scroll:not(.hidden)') => `document.querySelectorAll('${pane} .bm-item').length`;
 const openLibrary = (x) => x.evaluate(click('#bookmarks-btn'));
 const tab = (i) => `(() => { const t = document.querySelectorAll('#modal .modal-tab')[${i}]; if (!t) return false; t.click(); return true; })()`;
-const TAB = { bookmarks: 0, highlights: 1, comments: 2, reactions: 3 };
+const TAB = { bookmarks: 0, reads: 1, highlights: 2, comments: 3, reactions: 4 };
 
 // A bookmark row has no trash can: Remove bookmark is the last item in its ⋮ menu, which is built on the first press.
 const rowMore = (row) => `${row}.querySelector('.item-actions .notif-more-btn')`;
@@ -67,14 +67,14 @@ async function withExtension(t, o, fn) {
   try { await fn(x); } finally { x.close(); }
 }
 
-test('the library shows its four lists from the real worker and a real relay, and nothing throws', opts, async (t) => {
+test('the library shows its five lists from the real worker and a real relay, and nothing throws', opts, async (t) => {
   await withExtension(t, {}, async (x) => {
     seed(x);
     await x.reload();
     await openLibrary(x);
     await x.waitFor(`${text('#modal .bm-scroll')}.includes('A note worth reacting to')`);
     assert.deepEqual(await x.evaluate(`[...document.querySelectorAll('#modal .modal-tab')].map((t) => t.getAttribute('aria-label'))`),
-      ['Bookmarks', 'Highlights', 'Comments', 'Reactions']);
+      ['Bookmarks', 'Reads', 'Highlights', 'Comments', 'Reactions']);
     await x.evaluate(tab(TAB.highlights));
     await x.waitFor(`${rows()} === 1`);
     assert.match(await x.evaluate(text('#modal .bm-scroll:not(.hidden)')), /A highlighted passage/);

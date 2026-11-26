@@ -2555,5 +2555,20 @@
   "recipe": "receita",
   "live event": "evento em direto",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "Leituras",
+  "Articles": "Artigos",
+  "Recipes": "Receitas",
+  "Articles and recipes you publish show up here.": "Os artigos e receitas que publicares aparecem aqui.",
+  "Couldn’t read your articles and recipes from your relays.": "Não foi possível ler os teus artigos e receitas a partir dos teus relays.",
+  "Delete article": "Eliminar artigo",
+  "Delete recipe": "Eliminar receita",
+  "Article deleted": "Artigo eliminado",
+  "Recipe deleted": "Receita eliminada",
+  "Could not delete it": "Não foi possível eliminar",
+  "{{count}} comment_many": "{{count}} comentários",
+  "{{count}} comment_one": "{{count}} comentário",
+  "{{count}} comment_other": "{{count}} comentários",
+  "Copy article address": "Copiar endereço",
+  "Copy recipe address": "Copiar endereço"
 }

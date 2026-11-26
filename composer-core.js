@@ -171,12 +171,15 @@ window.SidecarCore = (function () {
     'check-square': '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
     globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
-    // The Yours sheet's four tabs — bookmark, highlighter, bubble, heart — are named from
+    // The library's tabs — bookmark, eyeglasses, highlighter, bubble, heart — are named from
     // this map. Bookmark, message-circle and heart already lived here (the note actions,
     // the page-comment button and the reactions carry them), so a tab wears the same mark
     // as the thing it lists; the highlighter is highlight.svg from Tabler Icons (MIT —
     // attribution in NOTICE), chosen over a filled glyph so it matches this map's stroke
     // vocabulary, and it is what Recent activity draws for a highlight too.
+    // Eyeglasses, for the library's Reads: eyeglass-2 from Tabler Icons (MIT, attribution in
+    // NOTICE), for the same reason as the highlighter. Feather has no pair.
+    eyeglass: '<path d="M8 4h-2l-3 10v2.5"></path><path d="M16 4h2l3 10v2.5"></path><path d="M10 16l4 0"></path><path d="M14 16.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0"></path><path d="M3 16.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0"></path>',
     highlighter: '<path d="M3 19h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"></path><path d="M12.5 5.5l4 4"></path><path d="M4.5 13.5l4 4"></path><path d="M21 15v4h-8l4 -4l4 0"></path>',
   };
 

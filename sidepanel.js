@@ -8680,6 +8680,13 @@
           linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
           [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
         ].filter(Boolean);
+        // An addressable piece (an article, a recipe) leads with its link and its address: the address
+        // every edit keeps, where the event ID names one revision. The two identifiers sit together.
+        if (opts && opts.addr && opts.addrLabel) {
+          const link = items.find(([label]) => label === t('Copy link'));
+          const rest = items.filter((it) => it !== link);
+          items.splice(0, items.length, ...[link, [opts.addrLabel, 'copy', opts.addr], ...rest].filter(Boolean));
+        }
         // A reaction or a zap is only ever about the note it landed on, so that is all its
         // menu offers. One whose note cannot be found keeps the full list rather than
         // opening empty.
@@ -8737,7 +8744,7 @@
           if (Date.now() - armedAt < 400) return;
           clearTimeout(timer);
           row.disabled = true;
-          label.textContent = t('Removing…');
+          label.textContent = rmv.busy || t('Removing…');
           try {
             await rmv.run();
             setOpen(false);
@@ -18351,6 +18358,12 @@
   const RECIPE_TAGS = ['zapcooking', 'nostrcooking'];
   const isRecipe = (ev) => !!ev && ev.kind === 30023
     && (ev.tags || []).some((tg) => tg[0] === 't' && RECIPE_TAGS.includes(String(tg[1] || '').toLowerCase()));
+  // WHERE A PIECE OPENS: a recipe in Zap Cooking, the one client that lays it out as a recipe;
+  // an article in the preferred client when it is one Sidecar lists (every one of those draws
+  // an article, on its article route), and in Jumble when it is a custom client, whose address
+  // may only know notes.
+  const pieceClient = (ev, client) => (isRecipe(ev) ? VIEW_CLIENTS.zapcooking
+    : Object.values(VIEW_CLIENTS).includes(client) ? client : VIEW_CLIENTS.jumble);
 
   // Every bookmark list event, raw, for bookmarkSections to shape.
   async function fetchBookmarkLists() {
@@ -18629,7 +18642,7 @@
     if (!relays.length) { _libLive.pubkey = null; return; }
     // A little before now, so an event published as the sheet opened is not missed in the gap.
     const since = Math.floor(Date.now() / 1000) - 60;
-    _libLive.sub = poolSubscribeMany(relays, { kinds: [5, 7, 1111, 9802, 10003, 30003, 30001], authors: [pubkey], since }, {
+    _libLive.sub = poolSubscribeMany(relays, { kinds: [5, 7, 1111, 9802, 10003, 30003, 30001, 30023], authors: [pubkey], since }, {
       onevent: (ev) => { try { libraryEvent(pubkey, ev); } catch (_) {} },
     });
   }
@@ -18647,10 +18660,22 @@
       if (scope && /^https?:\/\//i.test(scope[1] || '')) into(_cmCache);
     } else if (ev.kind === 10003 || ev.kind === 30003 || ev.kind === 30001) {
       if (_libLive.bookmarks) _libLive.bookmarks(); else _bmCache.pubkey = null;
+    } else if (ev.kind === 30023) {
+      // A new piece, or a newer copy of one already listed, which takes its place.
+      if (_rdCache.pubkey !== pubkey || !_rdCache.evs) return;
+      const had = _rdCache.evs.find((e) => pieceCoord(e) === pieceCoord(ev));
+      if (had && had.created_at >= ev.created_at) return;
+      _rdCache.evs = [ev, ..._rdCache.evs.filter((e) => e !== had)].sort(byPieceDate);
+      if (_rdCache.repaint) _rdCache.repaint();
     } else if (ev.kind === 5) {
       // A deleted list is named by address: the bookmarks refresh finds it gone.
       if ((ev.tags || []).some((tg) => tg[0] === 'a' && /^3000[13]:/.test(tg[1] || ''))) {
         if (_libLive.bookmarks) _libLive.bookmarks(); else _bmCache.pubkey = null;
+      }
+      const addrs = new Set((ev.tags || []).filter((tg) => tg[0] === 'a' && /^30023:/.test(tg[1] || '')).map((tg) => tg[1]));
+      if (addrs.size && _rdCache.pubkey === pubkey && _rdCache.evs) {
+        const left = _rdCache.evs.filter((e) => !(addrs.has(pieceCoord(e)) && e.created_at <= ev.created_at));
+        if (left.length !== _rdCache.evs.length) { _rdCache.evs = left; if (_rdCache.repaint) _rdCache.repaint(); }
       }
       const gone = new Set((ev.tags || []).filter((tg) => tg[0] === 'e' && tg[1]).map((tg) => tg[1]));
       for (const cache of [_rctCache, _hlCache, _cmCache]) {
@@ -18781,8 +18806,9 @@
       x.appendChild(icon('x'));
       x.addEventListener('click', closeModal);
       const scroll = h('div', { className: 'bm-scroll' });
-      // FOUR VIEWS OF WHAT THIS ACCOUNT KEEPS AND HAS PUT INTO THE WORLD: the bookmarks
-      // it keeps (a NIP-51 list), the passages it highlighted (NIP-84), the web pages it
+      // FIVE VIEWS OF WHAT THIS ACCOUNT KEEPS AND HAS PUT INTO THE WORLD: the bookmarks
+      // it keeps (a NIP-51 list), the articles and recipes it published (NIP-23), the
+      // passages it highlighted (NIP-84), the web pages it
       // commented on (its own kind 1111s over web addresses) and the notes it reacted to
       // (its kind 7s). Separate tabs because they are separate things on Nostr, and one
       // list mixing a list the account keeps with events it published would read as
@@ -18796,6 +18822,7 @@
       // lightest thing it does.
       const tabDefs = [
         ['bookmarks', t('Bookmarks'), 'bookmark'],
+        ['reads', t('Reads'), 'eyeglass'],
         ['highlights', t('Highlights'), 'highlighter'],
         ['comments', t('Comments'), 'message-circle'],
         ['reactions', t('Reactions'), 'heart'],
@@ -18805,6 +18832,7 @@
       const tabEls = {};
       const panes = {
         bookmarks: scroll,
+        reads: h('div', { className: 'bm-scroll hidden' }),
         highlights: h('div', { className: 'bm-scroll hidden' }),
         comments: h('div', { className: 'bm-scroll hidden' }),
         reactions: h('div', { className: 'bm-scroll hidden' }),
@@ -18827,6 +18855,7 @@
       // Filled on the first visit only, so opening bookmarks never pays for a query
       // nobody asked for.
       const fillers = {
+        reads: () => fillReads(panes.reads, gone, tabEls.reads),
         highlights: () => fillHighlights(panes.highlights, gone, tabEls.highlights),
         comments: () => fillComments(panes.comments, gone, tabEls.comments),
         reactions: () => fillReactions(panes.reactions, gone, tabEls.reactions),
@@ -18872,7 +18901,206 @@
     });
   }
 
-  // ---- the account's own highlights (NIP-84), the library's second tab ----
+  // ---- the account's own articles and recipes (NIP-23), the library's Reads ----
+  //
+  // What the account has published at length, newest first: one row per piece, its newest copy
+  // (an edit is a new event at the same address), leaving out any the account has deleted. A
+  // recipe is an article Zap Cooking lays out as one (isRecipe), so the two share the list, and
+  // a picker narrows it to either when there are both. A row opens the piece by its address, with
+  // the relays the account writes to, in a client that draws it (pieceClient).
+  const _rdCache = { pubkey: null, evs: null, comments: null, commentsFor: '' };
+  let _rdPick = 'all';
+  const pieceTag = (ev, name) => ((ev.tags || []).find((tg) => tg[0] === name) || [])[1] || '';
+  const pieceCoord = (ev) => '30023:' + ev.pubkey + ':' + pieceTag(ev, 'd');
+  // When it first went out: published_at, which an edit keeps, so an old piece touched up today
+  // stays where it was in the list. A piece without one is dated by its newest copy.
+  const pieceDate = (ev) => { const p = parseInt(pieceTag(ev, 'published_at'), 10); return p > 0 ? p : ev.created_at; };
+  const byPieceDate = (a, b) => pieceDate(b) - pieceDate(a);
+  async function fetchReads(pubkey) {
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return [];
+    const got = await poolQuerySync(relays, { kinds: [30023], authors: [pubkey], limit: 500 }, { maxWait: 6000 });
+    const newest = new Map();
+    for (const ev of got || []) {
+      if (!ev || ev.kind !== 30023 || ev.pubkey !== pubkey) continue;
+      const had = newest.get(pieceCoord(ev));
+      if (!had || ev.created_at > had.created_at) newest.set(pieceCoord(ev), ev);
+    }
+    // A deletion names a piece by its address; one made after the newest copy takes it away.
+    if (newest.size) {
+      let dels = [];
+      try { dels = await poolQuerySync(relays, { kinds: [5], authors: [pubkey], '#a': [...newest.keys()] }, { maxWait: 4000 }); } catch (_) {}
+      for (const del of dels || []) {
+        if (!del || del.kind !== 5 || del.pubkey !== pubkey) continue;
+        for (const tg of del.tags || []) {
+          const ev = tg[0] === 'a' && newest.get(tg[1]);
+          if (ev && ev.created_at <= del.created_at) newest.delete(tg[1]);
+        }
+      }
+    }
+    return [...newest.values()].sort(byPieceDate);
+  }
+  // How many comments (NIP-22, kind 1111) each piece has, by its address: a comment scopes its
+  // root with an A tag, which every edit keeps. Read from where you write and where you read,
+  // since a commenter's client sends to the author's inbox relays. Keyed by coordinate.
+  async function fetchPieceComments(pubkey, coords) {
+    const counts = new Map();
+    if (!coords.length) return counts;
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(pubkey))])]; } catch (_) {}
+    if (!relays.length) return counts;
+    const want = new Set(coords);
+    const seen = new Set();
+    const got = await poolQuerySync(relays, { kinds: [1111], '#A': coords, limit: 1000 }, { maxWait: 5000 });
+    for (const ev of got || []) {
+      if (!ev || ev.kind !== 1111 || seen.has(ev.id)) continue;
+      const root = (ev.tags || []).find((tg) => tg[0] === 'A' && want.has(tg[1]));
+      if (!root) continue;
+      seen.add(ev.id);
+      counts.set(root[1], (counts.get(root[1]) || 0) + 1);
+    }
+    return counts;
+  }
+  // Deleting a piece: a NIP-09 request naming it by address, which covers every copy an edit
+  // made, and by the id of the copy listed here. No empty replacement is published: Sidecar
+  // publishes pieces but never rewrites one, and a blank article would show in other clients.
+  async function deletePiece(ev) {
+    const author = state.activePubkey;
+    if (!author || ev.pubkey !== author) throw new Error(t('Could not delete it'));
+    const request = await call({
+      type: 'SIDECAR_OWNER_SIGN', expectedPubkey: author,
+      event: { kind: 5, created_at: Math.max(Math.floor(Date.now() / 1000), ev.created_at), content: '', tags: [['a', pieceCoord(ev)], ['e', ev.id], ['k', '30023']] },
+    });
+    let relays = [];
+    try { relays = [...new Set([...(await postRelays()), ...(await readRelayUrls(author))])]; } catch (_) {}
+    if (relays.length) await publishToRelays(relays, request); else await publishSigned(request);
+    return request;
+  }
+  async function fillReads(pane, gone, tab) {
+    const quote = pickQuote();
+    const client = await preferredClient();
+    const paint = async (evs) => {
+      setTabCount(tab, evs.length);
+      if (gone()) return true;
+      pane.textContent = '';
+      if (!evs.length) {
+        pane.append(emptyQuote(t('Articles and recipes you publish show up here.'), quote));
+        return true;
+      }
+      // The picker only when there is something to pick between: a list of one kind is
+      // already that kind.
+      const recipes = evs.filter(isRecipe);
+      const both = recipes.length > 0 && recipes.length < evs.length;
+      if (!both) _rdPick = 'all';
+      else {
+        const pick = h('select', { className: 'bm-pick' }, [
+          h('option', { value: 'all', textContent: t('All') }),
+          h('option', { value: 'articles', textContent: t('Articles') }),
+          h('option', { value: 'recipes', textContent: t('Recipes') }),
+        ]);
+        pick.setAttribute('aria-label', t('Reads'));
+        pick.value = _rdPick;
+        pick.addEventListener('change', () => { _rdPick = pick.value; paint(evs); });
+        pane.append(pick);
+      }
+      const shown = _rdPick === 'recipes' ? recipes : _rdPick === 'articles' ? evs.filter((ev) => !isRecipe(ev)) : evs;
+      const list = h('div', { className: 'bm-list' });
+      const makeRow = (ev) => {
+        const recipe = isRecipe(ev);
+        const via = pieceClient(ev, client);
+        const item = h('div', { className: 'bm-item rd-item', title: t('Open in {{client}}', { client: via.label }) });
+        const naddrNow = addrNaddr(pieceCoord(ev));
+        // Delete takes two taps, as Remove bookmark does, and while it is armed the row is not a link.
+        let armed = false;
+        let off = null;
+        const menu = buildEventMenu(ev, naddrNow ? via.url(naddrNow) : null, {
+          npubOf: null,
+          addr: () => addrNaddr(pieceCoord(ev)),
+          addrLabel: recipe ? t('Copy recipe address') : t('Copy article address'),
+          remove: {
+            label: recipe ? t('Delete recipe') : t('Delete article'),
+            busy: t('Deleting…'),
+            run: async () => {
+              try {
+                await deletePiece(ev);
+              } catch (err) {
+                toast((err && err.message) || t('Could not delete it'), 'error');
+                throw err;
+              }
+              if (_rdCache.evs) _rdCache.evs = _rdCache.evs.filter((e) => pieceCoord(e) !== pieceCoord(ev));
+              toast(recipe ? t('Recipe deleted') : t('Article deleted'), 'success');
+              if (_rdCache.redraw) _rdCache.redraw();
+            },
+            onArm: () => {
+              armed = true;
+              // Capture, and stopped: the first Escape cancels this, it does not also close the sheet.
+              const onDoc = () => menu.disarm();
+              const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); menu.disarm(); } };
+              document.addEventListener('click', onDoc);
+              document.addEventListener('keydown', onKey, true);
+              off = () => { document.removeEventListener('click', onDoc); document.removeEventListener('keydown', onKey, true); };
+            },
+            onDisarm: () => { armed = false; if (off) { off(); off = null; } },
+          },
+        });
+        // The cover when there is one, a page when there is not, so every row has the same edge.
+        const thumb = h('div', { className: 'rd-thumb' }, [icon('file-text')]);
+        const image = pieceTag(ev, 'image');
+        if (/^https:\/\/\S+$/i.test(image)) {
+          const img = document.createElement('img');
+          img.alt = '';
+          img.loading = 'lazy';
+          img.referrerPolicy = 'no-referrer';
+          img.onerror = () => img.remove();
+          img.src = image;
+          thumb.append(img);
+        }
+        const summary = pieceTag(ev, 'summary');
+        // Comments, as a count in a capsule, only when there are any.
+        const nComments = (_rdCache.comments && _rdCache.comments.get(pieceCoord(ev))) || 0;
+        const meta = h('div', { className: 'bm-meta', textContent: (recipe ? t('recipe') : t('article')) + ' · ' + relativeTime(pieceDate(ev)) });
+        if (nComments) {
+          const cap = h('span', { className: 'rd-comments', title: tn('{{count}} comment', '{{count}} comments', nComments) });
+          cap.setAttribute('aria-label', tn('{{count}} comment', '{{count}} comments', nComments));
+          cap.append(icon('message-circle'), h('span', { textContent: I18N.fmtNum(nComments) }));
+          meta.append(cap);
+        }
+        item.append(thumb, h('div', { className: 'bm-main' }, [
+          h('div', { className: 'rd-title', dir: 'auto', textContent: pieceTag(ev, 'title') || pieceTag(ev, 'd') }),
+          summary ? h('div', { className: 'bm-snippet', dir: 'auto', textContent: summary }) : null,
+          meta,
+          menu.panel,
+        ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]));
+        item.addEventListener('click', async () => {
+          if (armed) { menu.disarm(); return; }
+          // Your own write relays go into the address, so the client finds the piece where it is.
+          if (!nip65Cache.has(ev.pubkey)) await Promise.race([getNip65(ev.pubkey).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
+          const naddr = addrNaddr(pieceCoord(ev));
+          if (naddr) openInClient(via.url(naddr));
+        });
+        return item;
+      };
+      pane.append(list);
+      paged(list, shown, makeRow, null);
+      pane.append(endQuote(quote));
+      // The comment counts follow the list: asked once for this set of pieces, then drawn in.
+      const pubkey = state.activePubkey;
+      const key = pubkey + '|' + evs.map(pieceCoord).sort().join(',');
+      if (_rdCache.commentsFor !== key) {
+        _rdCache.commentsFor = key;
+        fetchPieceComments(pubkey, evs.map(pieceCoord)).then((counts) => {
+          if (_rdCache.commentsFor !== key || state.activePubkey !== pubkey) return;
+          _rdCache.comments = counts;
+          if (counts.size && _rdCache.repaint) _rdCache.repaint();
+        }).catch(() => { if (_rdCache.commentsFor === key) _rdCache.commentsFor = ''; });
+      }
+      return true;
+    };
+    await loadSavedList(pane, gone, _rdCache, fetchReads, paint, t('Couldn’t read your articles and recipes from your relays.'), quote);
+  }
+
+  // ---- the account's own highlights (NIP-84), the library's third tab ----
   //
   // Read from where they were written and where the account reads, newest first. A row is
   // the passage, the comment if there was one, and where it came from: a web page by its
@@ -19754,7 +19982,7 @@
             if (!nip65Cache.has(pk)) await Promise.race([getNip65(pk).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
             const naddr = addrNaddr(en.value, en.hint);
             // A recipe opens in Zap Cooking, the one client that lays it out as a recipe.
-            if (naddr) openInClient((isRecipe(ref) ? VIEW_CLIENTS.zapcooking : client).url(naddr));
+            if (naddr) openInClient(pieceClient(ref, client).url(naddr));
           } else {
             openInClient(client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] })));
           }

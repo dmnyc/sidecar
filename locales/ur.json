@@ -2472,5 +2472,19 @@
   "recipe": "ترکیب",
   "live event": "لائیو ایونٹ",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "تحریریں",
+  "Articles": "مضامین",
+  "Recipes": "ترکیبیں",
+  "Articles and recipes you publish show up here.": "آپ کے شائع کردہ مضامین اور ترکیبیں یہاں نظر آئیں گی۔",
+  "Couldn’t read your articles and recipes from your relays.": "آپ کے ریلے سے آپ کے مضامین اور ترکیبیں نہیں پڑھی جا سکیں۔",
+  "Delete article": "مضمون حذف کریں",
+  "Delete recipe": "ترکیب حذف کریں",
+  "Article deleted": "مضمون حذف ہو گیا",
+  "Recipe deleted": "ترکیب حذف ہو گئی",
+  "Could not delete it": "حذف نہیں ہو سکا",
+  "{{count}} comment_one": "{{count}} تبصرہ",
+  "{{count}} comment_other": "{{count}} تبصرے",
+  "Copy article address": "مضمون کا پتا کاپی کریں",
+  "Copy recipe address": "ترکیب کا پتا کاپی کریں"
 }

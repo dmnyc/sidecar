@@ -1,6 +1,6 @@
 'use strict';
 
-// The library sheet (bookmarks, highlights, comments, reactions) and the doorway a comment's
+// The library sheet (bookmarks, reads, highlights, comments, reactions) and the doorway a comment's
 // row is to its own page. The first version of these shipped with tests that read the source
 // for the right words, and bugs no such test could see: the highlights list wrote itself into
 // the comments cache, and an icon tab's aria-label never reached the DOM because h() assigns
@@ -187,7 +187,7 @@ const hub = () => ({
   if (S.flow === 'launch') {
     api.renderBookmarks();
     await wait(200);
-    qa('#modal .modal-tab')[2].click(); await wait(300);
+    qa('#modal .modal-tab')[3].click(); await wait(300);
     const row = () => q('#modal .bm-scroll:not(.hidden) .bm-item');
     // A row opens the comment on its own page, in a new tab, and the sheet is left alone.
     row().click(); await wait(100);
@@ -213,13 +213,13 @@ const hub = () => ({
     out.fresh = hub();
     out.queriesAtOpen = queried.slice();
     const tabs = () => qa('#modal .modal-tab');
-    tabs()[1].click(); await wait(300); out.highlights = hub();
+    tabs()[2].click(); await wait(300); out.highlights = hub();
     out.cmUntouched = api.caches.cm.evs === null && api.caches.rc.evs === null;
-    tabs()[2].click(); await wait(300); out.comments = hub();
+    tabs()[3].click(); await wait(300); out.comments = hub();
     out.menuComments = (() => { const b = q('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-btn'); b.click(); return qa('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-item').map((x) => x.textContent); })();
     // The control: the same menu asked for the way a notification asks, which does offer an npub.
     out.menuControl = (() => { const m = api.buildEventMenu({ id: id('1'), pubkey: ME, kind: 1111, tags: [], content: '' }, null, {}); m.btn.click(); return [...m.panel.querySelectorAll('.notif-more-item')].map((x) => x.textContent); })();
-    tabs()[3].click(); await wait(300);
+    tabs()[4].click(); await wait(300);
     out.reactions = hub();
     // The ⋮ menu of the first row of a tab: its labels, once opened.
     const menuOf = () => { const b = q('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-btn'); b.click(); return qa('#modal .bm-scroll:not(.hidden) .bm-item .notif-more-item').map((x) => x.textContent); };
@@ -239,18 +239,18 @@ const hub = () => ({
     out.reactionOpened = opened.slice();
     // Close, reopen: each list's cache must hold its own events.
     api.renderBookmarks(); await wait(200);
-    qa('#modal .modal-tab')[2].click(); await wait(300);
+    qa('#modal .modal-tab')[3].click(); await wait(300);
     out.reopened = hub();
     out.caches = { hl: api.caches.hl.evs.map((e) => e.kind), cm: api.caches.cm.evs.map((e) => e.kind), rc: api.caches.rc.evs.map((e) => e.kind) };
   }
   if (S.flow === 'paging') {
     api.renderBookmarks();
     await wait(200);
-    qa('#modal .modal-tab')[2].click();
+    qa('#modal .modal-tab')[3].click();
     await wait(400);
     const items = () => qa('#modal .bm-scroll:not(.hidden) .bm-item').length;
     const more = () => q('#modal .bm-scroll:not(.hidden) .show-more-btn');
-    out.first = { items: items(), more: !!more(), count: hub().tabs[2].count };
+    out.first = { items: items(), more: !!more(), count: hub().tabs[3].count };
     more().click(); out.second = { items: items(), more: !!more() };
     // Past what the relay sent in one page the next page is asked for, and the list is drawn again at the length it had plus a screen.
     for (let i = 0; i < 12 && more(); i++) { more().click(); await wait(500); }
@@ -297,17 +297,17 @@ test('a comment’s row opens its own page in a tab, points an open one at it, a
   assert.equal(r.createdAfterStranger, 2, 'a tab that is not this extension’s thread page is not one');
 });
 
-test('the sheet is four icon tabs, the heading follows the open one, and each list keeps its own cache', opts, () => {
+test('the sheet is five icon tabs, the heading follows the open one, and each list keeps its own cache', opts, () => {
   const r = measure({ flow: 'hub' });
-  assert.deepEqual(r.fresh.tabs.map((t) => t.label), ['Bookmarks', 'Highlights', 'Comments', 'Reactions']);
-  assert.deepEqual(r.fresh.tabs.map((t) => t.icon), ['bookmark', 'highlighter', 'message-circle', 'heart']);
+  assert.deepEqual(r.fresh.tabs.map((t) => t.label), ['Bookmarks', 'Reads', 'Highlights', 'Comments', 'Reactions']);
+  assert.deepEqual(r.fresh.tabs.map((t) => t.icon), ['bookmark', 'eyeglass', 'highlighter', 'message-circle', 'heart']);
   assert.ok(r.fresh.tabs.every((t) => t.role === 'tab'));
-  assert.deepEqual(r.fresh.tabs.map((t) => t.selected), ['true', 'false', 'false', 'false']);
+  assert.deepEqual(r.fresh.tabs.map((t) => t.selected), ['true', 'false', 'false', 'false', 'false']);
   assert.equal(r.fresh.heading, 'Bookmarks');
   assert.equal(r.highlights.heading, 'Highlights');
   assert.equal(r.highlights.rows.length, 1);
   assert.match(r.highlights.rows[0], /A highlighted passage/);
-  assert.equal(r.highlights.tabs[1].count, '1', 'the count hangs off the icon, inside the tab glyph');
+  assert.equal(r.highlights.tabs[2].count, '1', 'the count hangs off the icon, inside the tab glyph');
   assert.equal(r.comments.heading, 'Comments');
   assert.equal(r.comments.rows.length, 1, 'the Nostr-scoped comment stays out; only web pages are listed');
   assert.match(r.comments.rows[0], /First comment/);
