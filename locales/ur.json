@@ -2472,5 +2472,10 @@
   "recipe": "ترکیب",
   "live event": "لائیو ایونٹ",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "تحریریں",
+  "Articles": "مضامین",
+  "Recipes": "ترکیبیں",
+  "Articles and recipes you publish show up here.": "آپ کے شائع کردہ مضامین اور ترکیبیں یہاں نظر آئیں گی۔",
+  "Couldn’t read your articles and recipes from your relays.": "آپ کے ریلے سے آپ کے مضامین اور ترکیبیں نہیں پڑھی جا سکیں۔"
 }

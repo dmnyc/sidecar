@@ -2638,5 +2638,10 @@
   "recipe": "рецепт",
   "live event": "прямая трансляция",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "Чтение",
+  "Articles": "Статьи",
+  "Recipes": "Рецепты",
+  "Articles and recipes you publish show up here.": "Опубликованные вами статьи и рецепты появятся здесь.",
+  "Couldn’t read your articles and recipes from your relays.": "Не удалось прочитать ваши статьи и рецепты с релеев."
 }

@@ -2389,5 +2389,10 @@
   "recipe": "สูตรอาหาร",
   "live event": "กิจกรรมสด",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "บทอ่าน",
+  "Articles": "บทความ",
+  "Recipes": "สูตรอาหาร",
+  "Articles and recipes you publish show up here.": "บทความและสูตรอาหารที่คุณเผยแพร่จะแสดงที่นี่",
+  "Couldn’t read your articles and recipes from your relays.": "อ่านบทความและสูตรอาหารของคุณจากรีเลย์ไม่ได้"
 }

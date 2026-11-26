@@ -2472,5 +2472,10 @@
   "recipe": "recept",
   "live event": "élő esemény",
   "{{sats}} sats/{{unit}}": "{{sats}} sat/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sat/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sat/{{unit}}",
+  "Reads": "Olvasnivalók",
+  "Articles": "Cikkek",
+  "Recipes": "Receptek",
+  "Articles and recipes you publish show up here.": "Az Ön által közzétett cikkek és receptek itt jelennek meg.",
+  "Couldn’t read your articles and recipes from your relays.": "Nem sikerült beolvasni a cikkeit és receptjeit a relékből."
 }

@@ -2472,5 +2472,10 @@
   "recipe": "रेसिपी",
   "live event": "लाइव इवेंट",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "पठन",
+  "Articles": "लेख",
+  "Recipes": "रेसिपी",
+  "Articles and recipes you publish show up here.": "आपके प्रकाशित लेख और रेसिपी यहाँ दिखेंगे।",
+  "Couldn’t read your articles and recipes from your relays.": "आपके रिले से आपके लेख और रेसिपी नहीं पढ़े जा सके।"
 }

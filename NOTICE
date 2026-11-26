@@ -94,8 +94,8 @@ THE SOFTWARE.
 
 
 The highlighter icon, on the library sheet's tab and on a highlight in Recent
-activity, is highlight.svg from Tabler Icons
-(https://github.com/tabler/tabler-icons), Copyright the Tabler authors,
-licensed under the MIT License. It is inlined as path data in composer-core.js,
-so this file is the attribution notice.
+activity, and the eyeglasses on the library's Reads tab, are highlight.svg and
+eyeglass-2.svg from Tabler Icons (https://github.com/tabler/tabler-icons),
+Copyright the Tabler authors, licensed under the MIT License. They are inlined
+as path data in composer-core.js, so this file is the attribution notice.
 MIT: https://github.com/tabler/tabler-icons/blob/main/LICENSE

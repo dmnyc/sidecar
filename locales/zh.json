@@ -2389,5 +2389,10 @@
   "recipe": "食谱",
   "live event": "直播活动",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "阅读",
+  "Articles": "文章",
+  "Recipes": "食谱",
+  "Articles and recipes you publish show up here.": "你发布的文章和食谱会显示在这里。",
+  "Couldn’t read your articles and recipes from your relays.": "无法从你的 relay 读取文章和食谱。"
 }

@@ -2389,5 +2389,10 @@
   "recipe": "레시피",
   "live event": "라이브 이벤트",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "읽을거리",
+  "Articles": "아티클",
+  "Recipes": "레시피",
+  "Articles and recipes you publish show up here.": "게시한 아티클과 레시피가 여기에 표시돼요.",
+  "Couldn’t read your articles and recipes from your relays.": "릴레이에서 아티클과 레시피를 읽지 못했어요."
 }

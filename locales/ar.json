@@ -2804,5 +2804,10 @@
   "recipe": "وصفة",
   "live event": "حدث مباشر",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "قراءات",
+  "Articles": "مقالات",
+  "Recipes": "وصفات",
+  "Articles and recipes you publish show up here.": "تظهر هنا المقالات والوصفات التي تنشرها.",
+  "Couldn’t read your articles and recipes from your relays.": "تعذّرت قراءة مقالاتك ووصفاتك من مرحّلاتك."
 }

@@ -2555,5 +2555,10 @@
   "recipe": "recette",
   "live event": "événement en direct",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "Lectures",
+  "Articles": "Articles",
+  "Recipes": "Recettes",
+  "Articles and recipes you publish show up here.": "Les articles et recettes que vous publiez apparaissent ici.",
+  "Couldn’t read your articles and recipes from your relays.": "Impossible de lire vos articles et recettes depuis vos relais."
 }

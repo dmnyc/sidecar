@@ -2798,6 +2798,21 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
   display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .bm-text.bm-text-3 { -webkit-line-clamp: 3; line-clamp: 3; }
+/* A piece of yours in Reads: its cover beside its title, two lines at most, and its summary.
+   No cover, a page glyph in the same square, so the titles line up. */
+.rd-item { gap: 10px; }
+.rd-item > .item-actions { align-self: flex-start; }
+.rd-thumb {
+  position: relative; width: 44px; height: 44px; flex-shrink: 0; align-self: flex-start;
+  border-radius: 8px; overflow: hidden; display: grid; place-items: center;
+  background: var(--hover-soft); color: var(--faint);
+}
+.rd-thumb svg { width: 18px; height: 18px; }
+.rd-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.rd-title {
+  font-weight: 600; font-size: 13px; line-height: 1.35; color: var(--text); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 /* A comment's row in the list: what it answers, as a quiet line above its words. The comment
    itself is read on its own page (thread.html). */
 .cm-ref { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

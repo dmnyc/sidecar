@@ -2472,5 +2472,10 @@
   "recipe": "دستور پخت",
   "live event": "رویداد زنده",
   "{{sats}} sats/{{unit}}": "{{sats}} sats/{{unit}}",
-  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}"
+  "{{low}} – {{high}} sats/{{unit}}": "{{low}} – {{high}} sats/{{unit}}",
+  "Reads": "خواندنی‌ها",
+  "Articles": "مقاله‌ها",
+  "Recipes": "دستورهای پخت",
+  "Articles and recipes you publish show up here.": "مقاله‌ها و دستورهای پختی که منتشر می‌کنید اینجا نمایش داده می‌شوند.",
+  "Couldn’t read your articles and recipes from your relays.": "مقاله‌ها و دستورهای پخت شما از ریلی‌هایتان خوانده نشد."
 }
