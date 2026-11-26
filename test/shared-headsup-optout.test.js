@@ -22,7 +22,6 @@ const ROOT = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const prompt = fs.readFileSync(path.join(ROOT, 'prompt.js'), 'utf8');
 const panelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
-const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
 for (const [name, src] of [['sidepanel.js', panel], ['prompt.js', prompt]]) {
   test(name + ': opted out, no note at all — in either form', async () => {
@@ -83,7 +82,3 @@ test('the opt-out is recoverable, from Settings', () => {
   assert.match(panel, /sharedHeadsUp = \{ dismissed: false, optedOut: false \};/, 'the panel memo must refresh with the store');
 });
 
-test('the two answers sit on one row, the quiet one un-filled', () => {
-  assert.match(css, /\.shared-headsup-actions \{ display: flex/);
-  assert.match(css, /\.shared-headsup-btn-quiet \{[^}]*background: none/);
-});

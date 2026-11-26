@@ -129,7 +129,6 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-toolbar { flex:0 0 32px; }
 #stream-video { min-height:0; flex:0 1 auto; }
 #stream-advanced { order:3; margin-top:12px; }
-#stream-advanced summary { cursor:pointer; color:var(--text-muted); padding:8px 0; }
 #stream-form { margin-top:8px; }
 #stream-directory { display:flex; flex-direction:column; }
 #stream-directory[hidden] { display:none; }
@@ -141,11 +140,6 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 .stream-thumbnail { position:relative; display:grid; place-items:center; flex:0 0 86px; width:86px; height:48px; overflow:hidden; border-radius:6px; background:linear-gradient(145deg,var(--velvet-1),var(--velvet-2)); border:1px solid var(--border); }
 .stream-thumbnail-play { width:0; height:0; border-top:7px solid transparent; border-bottom:7px solid transparent; border-left:10px solid var(--muted); opacity:.65; margin-left:3px; }
 .stream-result .stream-thumbnail img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-.stream-more summary, #stream-advanced summary { list-style:none; font:inherit; font-size:13px; color:var(--muted); cursor:pointer; padding:10px 0; }
-.stream-more summary::-webkit-details-marker, #stream-advanced summary::-webkit-details-marker { display:none; }
-.stream-more summary::after, #stream-advanced summary::after { content:'›'; display:inline-block; margin-inline-start:8px; }
-.stream-more[open] summary::after, #stream-advanced[open] summary::after { transform:rotate(90deg); }
-.stream-more .stream-result { width:100%; margin-bottom:10px; }
 #stream-advanced { border-top:1px solid var(--border); margin-top:12px; }
 #stream-form { padding:4px 0 8px; }
 #stream-form input { min-width:0; }

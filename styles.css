@@ -5653,31 +5653,6 @@ html:has(#view-approval:not(.hidden)) .toasts {
 }
 .batch-member-text { font-size: 12.5px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
 .approval-batch-note { font-size: 12.5px; line-height: 1.45; color: var(--muted); margin: 8px 2px 0; }
-/* one-time explainer for multi-account (shared-identity) signing */
-.shared-headsup {
-  margin: 2px 0 14px; padding: 11px 12px; border-radius: 10px;
-  background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--gold-soft); text-align: start;
-}
-.shared-headsup-title {
-  display: flex; align-items: center; gap: 7px;
-  color: var(--gold); font-weight: 700; font-size: 13px; margin-bottom: 6px;
-}
-.shared-headsup-title svg { width: 15px; height: 15px; }
-.shared-headsup-body { margin: 0 0 10px; color: var(--text-2); font-size: 12px; line-height: 1.45; }
-.shared-headsup-btn {
-  display: block; width: 100%; padding: 8px; border-radius: 8px; cursor: pointer;
-  background: rgba(var(--accent-rgb), 0.16); border: 1px solid var(--gold-soft);
-  color: var(--gold); font-weight: 600; font-size: 12.5px;
-}
-.shared-headsup-btn:hover { filter: brightness(1.12); }
-/* The two answers sit on one row: Got it collapses the card, "Don't show this
-   again" ends the note. The quiet twin is un-filled so the primary read of the row
-   stays the acknowledgment, not the refusal. */
-.shared-headsup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.shared-headsup-btn-quiet {
-  background: none; border: 1px solid var(--border); color: var(--muted);
-}
-.shared-headsup-btn-quiet:hover { filter: none; color: var(--text); border-color: var(--gold-soft); }
 /* compact reminder once the explainer has been dismissed */
 /* One centered line above "Signing as". Block, not flex: as a flex row its sentences
    became side-by-side columns in a 300px card. */
