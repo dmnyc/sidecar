@@ -8062,6 +8062,7 @@
   // or during the bell modal's reconciliation. Keeps the unseen count and the
   // next open honest, and pulls the row out of a bell that is open right now.
   function pruneNameMuted(pubkey) {
+    readsMutesChanged(pubkey);
     const mute = _muteLists.get(pubkey);
     if (!mute || !mute.size) return;
     const cache = _notifCache.get(pubkey);
@@ -19492,9 +19493,10 @@
     }
     return [...newest.values()].sort(byPieceDate);
   }
-  // How many comments (NIP-22, kind 1111) each piece has, by its address: a comment scopes its
-  // root with an A tag, which every edit keeps. Read from where you write and where you read,
-  // since a commenter's client sends to the author's inbox relays. Keyed by coordinate.
+  // The comments (NIP-22, kind 1111) on each piece, by its address: a comment scopes its root
+  // with an A tag, which every edit keeps. Read from where you write and where you read, since a
+  // commenter's client sends to the author's inbox relays. Keyed by coordinate; the events are
+  // kept, not just counted, so the count can leave out whoever you mute now (pieceCommentCount).
   async function fetchPieceComments(pubkey, coords) {
     const counts = new Map();
     if (!coords.length) return counts;
@@ -19509,9 +19511,24 @@
       const root = (ev.tags || []).find((tg) => tg[0] === 'A' && want.has(tg[1]));
       if (!root) continue;
       seen.add(ev.id);
-      counts.set(root[1], (counts.get(root[1]) || 0) + 1);
+      if (!counts.has(root[1])) counts.set(root[1], []);
+      counts.get(root[1]).push(ev);
     }
     return counts;
+  }
+  // A piece's comment count, without what the bell would hide: a muted person, word, hashtag or
+  // thread. Worked out when drawn, so a mute made or a mute list loaded after the read applies.
+  function pieceCommentCount(coord) {
+    const evs = (_rdCache.comments && _rdCache.comments.get(coord)) || [];
+    const mute = _muteLists.get(state.activePubkey);
+    return evs.filter((ev) => !isMutedNotif(mute, ev)).length;
+  }
+  const pieceCountsKey = () => (_rdCache.comments ? [..._rdCache.comments.keys()].map((c) => c + '=' + pieceCommentCount(c)).join(',') : '');
+  // Your mutes changed: redraw Reads if a count it shows would change, and not otherwise (a
+  // repaint for nothing would close a menu that is open, were repaint not careful of that).
+  function readsMutesChanged(pubkey) {
+    if (pubkey !== state.activePubkey || !_rdCache.comments || !_rdCache.repaint) return;
+    if (pieceCountsKey() !== _rdCache.countsShown) _rdCache.repaint();
   }
   // Deleting a piece: a NIP-09 request naming it by address, which covers every copy an edit
   // made, and by the id of the copy listed here. No empty replacement is published: Sidecar
@@ -19609,7 +19626,7 @@
         }
         const summary = pieceTag(ev, 'summary');
         // Comments, as a count in a capsule, only when there are any.
-        const nComments = (_rdCache.comments && _rdCache.comments.get(pieceCoord(ev))) || 0;
+        const nComments = pieceCommentCount(pieceCoord(ev));
         const meta = h('div', { className: 'bm-meta', textContent: (recipe ? t('recipe') : t('article')) + ' · ' + relativeTime(pieceDate(ev)) });
         if (nComments) {
           const cap = h('span', { className: 'rd-comments', title: tn('{{count}} comment', '{{count}} comments', nComments) });
@@ -19634,6 +19651,7 @@
       pane.append(list);
       paged(list, shown, makeRow, null);
       pane.append(endQuote(quote));
+      _rdCache.countsShown = pieceCountsKey();
       // The comment counts follow the list: asked once for this set of pieces, then drawn in.
       const pubkey = state.activePubkey;
       const key = pubkey + '|' + evs.map(pieceCoord).sort().join(',');

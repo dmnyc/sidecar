@@ -56,6 +56,8 @@ vm.runInContext(
     // declarations above land on the vm context; the caches and `state` are
     // stand-ins the tests can seed directly.
     + '\nvar state = null;\nvar refreshBell = () => {};\nvar _openNotifBell = null;\n'
+    // Reads redraws its comment counts when mutes change; here it only records that it was told.
+    + 'var __readsTold = [];\nvar readsMutesChanged = (pk) => { __readsTold.push(pk); };\nglobalThis.__readsTold = __readsTold;\n'
     + 'var _notifCache = new Map();\nvar _muteLists = new Map();\n'
     // `const` bindings are lexical and never land on the vm context; the function
     // declarations above do. Hand the rest over explicitly.
@@ -255,4 +257,11 @@ test('prune leaves a cache with no word mutes entirely alone', () => {
   assert.equal(ctx._notifCache.get('me').events.length, 1);
   ctx._muteLists.delete('me');
   ctx._notifCache.delete('me');
+});
+
+test('a mute change reaches Reads’ comment counts, an unmute that empties the list too', () => {
+  ctx.__readsTold.length = 0;
+  ctx._muteLists.set('me', ctx.emptyMuteSet());
+  ctx.pruneNameMuted('me');
+  assert.deepEqual([...ctx.__readsTold], ['me'], 'told even when nothing is muted any more');
 });
