@@ -682,6 +682,10 @@ body {
   .helpnav:has(.toc-dropdown) .helpnav-pages { flex-direction: row; gap: 2px; margin-inline-start: auto; padding-inline-start: 8px; border: none; }
   .helpnav:has(.toc-dropdown) .helpnav-pages a { padding: 4px 8px; font-size: 12px; }
 }
+/* Narrower still, the page links take a row of their own rather than run off the edge. */
+@media (max-width: 420px) {
+  .helpnav:has(.toc-dropdown) { flex-wrap: wrap; row-gap: 2px; }
+}
 
 /* Host-permission gate — Firefox users can decline site access in the install
    prompt; without it no app below can see the signer. Hidden whenever granted

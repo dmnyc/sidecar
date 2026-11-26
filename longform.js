@@ -233,23 +233,35 @@
       let lastWidth = 0;
       new ResizeObserver(([e]) => { const w = Math.round(e.contentRect.width); if (w !== lastWidth) { lastWidth = w; fitHints(); } }).observe(hintRow);
     }
+    // A suggestion still offered keeps its button: Tab out of the box is already on its way to
+    // one when the box's blur repaints, and a button rebuilt under it sends the focus to the
+    // top of the page.
+    const hintBtns = new Map();
     function paintHints() {
       if (!hintRow) return;
       const left = hints(input.value).filter((x) => !list.some((v) => v.toLowerCase() === x.toLowerCase()));
-      hintRow.replaceChildren(...left.map((x) => h('button', {
-        type: 'button', className: 'lf-chip-hint', textContent: '+ ' + label(x),
-        // Before the box's blur adds the half-typed word: a pick replaces it.
-        onmousedown: (e) => e.preventDefault(),
-        onclick: () => { list.push(x); input.value = ''; draw(); },
-      })));
+      for (const k of [...hintBtns.keys()]) if (!left.includes(k)) hintBtns.delete(k);
+      hintRow.replaceChildren(...left.map((x) => {
+        if (!hintBtns.has(x)) hintBtns.set(x, h('button', {
+          type: 'button', className: 'lf-chip-hint', textContent: '+ ' + label(x),
+          // Before the box's blur adds the half-typed word: a pick replaces it.
+          onmousedown: (e) => e.preventDefault(),
+          onclick: () => { list.push(x); input.value = ''; draw(); },
+        }));
+        return hintBtns.get(x);
+      }));
       fitHints();
     }
+    // Only a word that was typed changes anything: leaving an empty box redraws nothing, so the
+    // focus Tab is moving lands where it was going.
     function add() {
-      let v = input.value.replace(/^#/, '').trim();
+      const typed = input.value;
+      if (!typed) return;
+      let v = typed.replace(/^#/, '').trim();
       if (v && canonical) v = canonical(v);
-      if (v && !list.some((x) => x.toLowerCase() === v.toLowerCase())) list.push(v);
       input.value = '';
-      draw();
+      if (v && !list.some((x) => x.toLowerCase() === v.toLowerCase())) { list.push(v); draw(); }
+      else paintHints();
     }
     input.addEventListener('input', paintHints);
     input.addEventListener('keydown', (e) => {
@@ -834,6 +846,24 @@
     ]);
     modes.append(modeBtns[id]);
   }
+  // THE ARROW KEYS MOVE ALONG THE TABS, as a tab list does: one Tab stop for the row, Left and
+  // Right (mirrored in a right-to-left language), Home and End. They move the focus only;
+  // Enter or Space opens one, since leaving a poll asks first.
+  modes.addEventListener('keydown', (e) => {
+    const btns = MODE_LIST.map(([id]) => modeBtns[id]);
+    const at = btns.indexOf(document.activeElement);
+    if (at < 0) return;
+    const rtl = getComputedStyle(modes).direction === 'rtl';
+    const step = { ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1 }[e.key];
+    let to = null;
+    if (step) to = (at + step + btns.length) % btns.length;
+    else if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = btns.length - 1;
+    if (to === null) return;
+    e.preventDefault();
+    btns.forEach((b, i) => { b.tabIndex = i === to ? 0 : -1; });
+    btns[to].focus();
+  });
 
   // ---- the article form ----
   //
@@ -1506,6 +1536,7 @@
     for (const [id] of MODE_LIST) {
       modeBtns[id].classList.toggle('active', id === lit);
       modeBtns[id].setAttribute('aria-selected', String(id === lit));
+      modeBtns[id].tabIndex = id === lit ? 0 : -1;
       const off = reply && id !== 'note';
       modeBtns[id].setAttribute('aria-disabled', String(off));
       modeBtns[id].classList.toggle('is-off', off);
