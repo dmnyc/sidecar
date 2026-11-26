@@ -41,6 +41,7 @@ function bar(state) {
     document: { getElementById: get },
     paymentFlights: new Map(state.flights || []), paymentResult: state.result || null,
     h: () => el(), icon: () => el(), t: (s) => s, I18N: { fmtNum: (n) => String(n) },
+    placeFootInset: () => {}, // measures the layout; zap-in-background.browser.test.js runs it
   });
   vm.runInContext(lift('function renderPaymentStatus(') + '\nthis.render = renderPaymentStatus;', ctx);
   ctx.render();

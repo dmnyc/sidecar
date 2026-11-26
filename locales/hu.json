@@ -2486,5 +2486,7 @@
   "{{count}} comment_one": "{{count}} hozzászólás",
   "{{count}} comment_other": "{{count}} hozzászólás",
   "Copy article address": "Cím másolása",
-  "Copy recipe address": "Cím másolása"
+  "Copy recipe address": "Cím másolása",
+  "Zapping…": "Zap küldése…",
+  "You zapped this": "Ezt már zappelted"
 }

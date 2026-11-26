@@ -723,10 +723,203 @@
   // The bar lives at the foot of the main view. When another surface owns the panel
   // (an approval card, the lock screen), a failure would land where nobody is
   // looking, so it toasts as well; from the main view the bar IS the announcement.
+  //
+  // The bar also cannot say it while another payment is still in the air: it draws the
+  // flights while there are any, and a result only once they are done, by which time
+  // this one has been replaced. Zaps run side by side now, so that is the ordinary case,
+  // and the failure toasts then as well.
   function surfacePaymentFailure(message) {
     if (!message) return;
     const view = document.getElementById('view-main');
-    if (view && view.classList.contains('hidden')) toast(message, 'error');
+    if ((view && view.classList.contains('hidden')) || paymentFlights.size) toast(message, 'error');
+  }
+
+  // A NOTE'S BOLT SAYS WHAT BECAME OF YOUR ZAP. Once Send zap is pressed the form steps
+  // aside and the bar carries the payment, which left the note itself looking untouched:
+  // nothing on it said a zap was out, or that one had landed, so the easy next move was to
+  // zap it again. The bolt pulses while a zap of that note is in flight and stays lit once
+  // one has gone through, and it stays tappable, since a second zap can be meant.
+  //
+  // Per account, by note id. What has gone through is read from the pay meta store, where
+  // every zap Sidecar pays records the note and, from now on, the account that sent it
+  // (zapFrom). Zaps sent before that, or from another app, are not known here.
+  const zapMarks = { flying: new Map(), done: null, loading: null };
+  const zapMarkKey = (id) => (state && state.activePubkey ? state.activePubkey : '') + '|' + id;
+  function loadZappedNotes() {
+    if (zapMarks.done) return Promise.resolve(zapMarks.done);
+    if (!zapMarks.loading) {
+      zapMarks.loading = getPayMeta().then((all) => {
+        const done = new Set();
+        for (const m of Object.values(all || {})) {
+          if (m && typeof m.zapEvent === 'string' && typeof m.zapFrom === 'string') done.add(m.zapFrom + '|' + m.zapEvent);
+        }
+        // A zap that settled while this was loading is already in the old set; keep it.
+        if (zapMarks.done) for (const k of zapMarks.done) done.add(k);
+        zapMarks.done = done;
+        return done;
+      }).catch(() => (zapMarks.done = zapMarks.done || new Set()));
+    }
+    return zapMarks.loading;
+  }
+  function noteZapState(id) {
+    if (!id) return '';
+    const k = zapMarkKey(id);
+    if (zapMarks.flying.get(k)) return 'zapping';
+    return zapMarks.done && zapMarks.done.has(k) ? 'zapped' : '';
+  }
+  // Paints one bolt from the note's state. The bolt carries data-zap-note and keeps its
+  // own label in data-zap-label, so every bolt for the note, in any open sheet, repaints.
+  function paintZapBolt(btn) {
+    const id = btn.dataset.zapNote;
+    const s = noteZapState(id);
+    const label = s === 'zapping' ? t('Zapping…') : s === 'zapped' ? t('You zapped this') : btn.dataset.zapLabel;
+    btn.classList.toggle('zapping', s === 'zapping');
+    btn.classList.toggle('zapped', s === 'zapped');
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    if (s === 'zapping') { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+    else if (btn.hasAttribute('aria-busy')) {
+      btn.removeAttribute('aria-busy');
+      // A bolt still waiting on the lightning address stays off; anything else comes back.
+      btn.disabled = btn.classList.contains('pending');
+    }
+    const form = btn.dataset.zapForm && document.getElementById(btn.dataset.zapForm);
+    const hint = form && form.querySelector('.zap-done-hint');
+    if (hint) hint.classList.toggle('hidden', s !== 'zapped');
+  }
+  function repaintZapBolts(id) {
+    document.querySelectorAll('[data-zap-note]').forEach((b) => { if (!id || b.dataset.zapNote === id) paintZapBolt(b); });
+  }
+  let zapFormSeq = 0;
+  // Marks a bolt as the one for this note, and the form it opens as its own, then paints
+  // it once what has already gone through is known.
+  function watchZapBolt(btn, id, form) {
+    if (!id) return;
+    btn.dataset.zapNote = id;
+    btn.dataset.zapLabel = btn.getAttribute('aria-label') || btn.title || '';
+    if (form) {
+      if (!form.id) form.id = 'zap-form-' + (++zapFormSeq);
+      btn.dataset.zapForm = form.id;
+    }
+    paintZapBolt(btn);
+    loadZappedNotes().then(() => { if (btn.isConnected) paintZapBolt(btn); });
+  }
+  // The line at the top of a note's zap form once you have zapped it, so a second zap is
+  // a choice made knowingly rather than a retry.
+  const zapDoneHint = () => h('div', { className: 'hint zap-done-hint hidden', textContent: t('You zapped this') });
+  // start → in flight; ok → zapped; fail → back to how it was. `from` is the account that
+  // pressed Send, read at the press: the panel can switch accounts while the zap is out.
+  function markNoteZap(id, phase, from) {
+    if (!id || !from) return;
+    const k = from + '|' + id;
+    const n = zapMarks.flying.get(k) || 0;
+    if (phase === 'start') zapMarks.flying.set(k, n + 1);
+    else {
+      if (n > 1) zapMarks.flying.set(k, n - 1); else zapMarks.flying.delete(k);
+      if (phase === 'ok') {
+        if (!zapMarks.done) zapMarks.done = new Set();
+        zapMarks.done.add(k);
+      }
+    }
+    repaintZapBolts(id);
+    if (phase === 'ok') document.querySelectorAll('[data-zap-note]').forEach((b) => { if (b.dataset.zapNote === id) zapBurst(b); });
+  }
+
+  // THE BURST WHEN A ZAP LANDS, from the bolt that sent it: a flash, a ring, a handful of
+  // small bolts and a spray of sparks, over 1.1 s. The same burst as Wisp and Zap Cooking,
+  // with their counts, delays and curves, so a zap ends the same way in both. Drawn on a
+  // canvas over the bolt that takes no taps
+  // and removes itself. Reduce motion, the system's or Sidecar's, leaves it out: the lit
+  // bolt already says the zap went through.
+  function zapBurst(btn) {
+    const reduce = document.documentElement.classList.contains('reduce-balance-motion')
+      || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (reduce || !btn.isConnected) return;
+    const SIZE = 160, DUR = 1100;
+    const dpr = window.devicePixelRatio || 1;
+    const c = h('canvas', { className: 'zap-burst' });
+    c.setAttribute('aria-hidden', 'true');
+    c.width = SIZE * dpr; c.height = SIZE * dpr;
+    btn.querySelectorAll('.zap-burst').forEach((old) => old.remove());
+    btn.append(c);
+    const ctx = c.getContext('2d');
+    if (!ctx) { c.remove(); return; }
+    ctx.scale(dpr, dpr);
+    // The bolt's own color, so the burst is in the theme's gold.
+    const rgb = (getComputedStyle(btn).color.match(/[\d.]+/g) || [250, 204, 21]).slice(0, 3).join(', ');
+    const zap = (a) => 'rgba(' + rgb + ', ' + Math.max(0, a) + ')';
+    const white = (a) => 'rgba(255, 255, 255, ' + Math.max(0, a) + ')';
+    const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+    const nBolts = 5 + Math.floor(Math.random() * 3);   // 5–7
+    const step = (2 * Math.PI) / nBolts;
+    const bolts = Array.from({ length: nBolts }, (_, i) => ({
+      angle: step * i + (Math.random() - 0.5) * step * 0.5,
+      dist: 30 + rand(0, 25), size: 6 + rand(0, 5), delay: rand(0, 0.15),
+    }));
+    const sparks = Array.from({ length: 12 + Math.floor(Math.random() * 8) }, () => ({   // 12–19
+      angle: rand(0, 2 * Math.PI), dist: 40 + rand(0, 35), size: 1.5 + rand(0, 2.5), delay: rand(0, 0.15),
+    }));
+    const cx = SIZE / 2, cy = SIZE / 2;
+    // The bolt glyph, 55 × 94 units, scaled to w × h with its top-left at (x, y).
+    const boltPath = (x, y, w, hgt) => {
+      const sx = w / 55, sy = hgt / 94;
+      const pts = [[35.563, 0], [35.563, 40.406], [54.969, 40.406], [21.016, 93.75], [21.016, 51.719], [0, 51.719]];
+      const path = new Path2D();
+      pts.forEach(([px, py], i) => path[i ? 'lineTo' : 'moveTo'](x + px * sx, y + py * sy));
+      path.closePath();
+      return path;
+    };
+    const draw = (p) => {
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      if (p < 0.25) { // the flash at the center
+        const f = p / 0.25, a = (1 - f) * 0.7, r = SIZE * 0.4;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * (0.5 + f * 0.5));
+        g.addColorStop(0, white(a)); g.addColorStop(0.5, zap(a * 0.6)); g.addColorStop(1, zap(0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.fill();
+      }
+      if (p < 0.5) { // the ring, growing and fading
+        const f = p / 0.5;
+        ctx.strokeStyle = zap((1 - f) * 0.5);
+        ctx.lineWidth = Math.max(1, 4 - 3 * f);
+        ctx.beginPath(); ctx.arc(cx, cy, 10 + SIZE * 0.45 * f, 0, 2 * Math.PI); ctx.stroke();
+      }
+      for (const b of bolts) { // small bolts, thrown out and settling
+        const lp = Math.max(0, Math.min(1, (p - b.delay) / Math.max(0.001, 1 - b.delay)));
+        if (lp <= 0) continue;
+        const d = b.dist * (1 - (1 - lp) * (1 - lp));
+        const scale = lp < 0.3 ? lp / 0.3 : 1 - ((lp - 0.3) / 0.7) * 0.6;
+        const a = lp > 0.6 ? 1 - (lp - 0.6) / 0.4 : 1;
+        if (a <= 0 || scale <= 0) continue;
+        const w = b.size * scale, hgt = w * (94 / 55);
+        const path = boltPath(cx + Math.cos(b.angle) * d - w / 2, cy + Math.sin(b.angle) * d - hgt / 2, w, hgt);
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.lineWidth = 2 * scale; ctx.strokeStyle = zap(a * 0.5); ctx.stroke(path);
+        ctx.fillStyle = zap(a * 0.9); ctx.fill(path);
+        ctx.fillStyle = white(a * 0.3); ctx.fill(path);
+      }
+      for (const s of sparks) { // sparks, thrown faster, a white dot in a gold halo
+        const lp = Math.max(0, Math.min(1, (p - s.delay) / Math.max(0.001, 1 - s.delay)));
+        if (lp <= 0) continue;
+        const d = s.dist * (1 - Math.pow(1 - lp, 3));
+        const a = lp > 0.5 ? 1 - (lp - 0.5) / 0.5 : 1;
+        const r = s.size * (1 - lp * 0.5);
+        if (a <= 0 || r <= 0) continue;
+        const x = cx + Math.cos(s.angle) * d, y = cy + Math.sin(s.angle) * d;
+        ctx.fillStyle = zap(a * 0.4); ctx.beginPath(); ctx.arc(x, y, r * 2, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = white(a * 0.9); ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+      }
+    };
+    const start = performance.now();
+    const frame = (now) => {
+      const p = (now - start) / DUR;
+      if (p >= 1 || !c.isConnected) { c.remove(); return; }
+      draw(Math.max(0, p));
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    // A hidden panel holds animation frames back; this takes the canvas away regardless.
+    setTimeout(() => c.remove(), DUR + 400);
   }
 
   // Website payments arrive as worker events with no handle, so a settle retires the
@@ -739,6 +932,34 @@
     if (!ok) surfacePaymentFailure(sub || line);
   }
 
+  // THE BARS AT THE FOOT STAY IN SIGHT UNDER A SHEET. The mine, the payment and the
+  // relax timer all live at the foot of the main view, and a sheet covering the whole
+  // panel (the bell, a profile) covered them too: a zap sent from the bell was in flight
+  // somewhere nobody could see, and a running timer or mine went out of sight with it.
+  // While any of them is up, the overlay stops at the top of the highest one (see
+  // .modal-overlay in styles.css). Measured, not fixed: a failure's message can take two
+  // lines and the timer grows a track. Layout pixels inside the view, so the panel's
+  // zoom does not throw it off.
+  const FOOT_BARS = ['mining-status', 'payment-status', 'relax-status'];
+  function placeFootInset() {
+    const view = document.getElementById('view-main');
+    if (!view) return;
+    const top = FOOT_BARS.map((id) => document.getElementById(id))
+      .find((el) => el && !el.classList.contains('hidden'));
+    if (!top) return;
+    const inset = Math.max(0, view.clientHeight - top.offsetTop);
+    document.documentElement.style.setProperty('--foot-bar-inset', inset + 'px');
+  }
+  // Each bar's render calls it, since each knows when it shows, hides or changes. This
+  // catches the rest: the panel being resized, and text reflowing inside a bar.
+  if (typeof ResizeObserver === 'function') {
+    const watch = new ResizeObserver(() => placeFootInset());
+    for (const id of ['view-main', ...FOOT_BARS]) {
+      const el = document.getElementById(id);
+      if (el) watch.observe(el);
+    }
+  }
+
   function renderPaymentStatus() {
     const bar = document.getElementById('payment-status');
     const view = document.getElementById('view-main');
@@ -747,6 +968,7 @@
     if (!flightCount && !paymentResult) {
       bar.classList.add('hidden');
       if (view) view.classList.remove('payment-active'); // drop the FAB lift
+      placeFootInset(); // the next bar down, if any, is now the highest
       return;
     }
     bar.classList.remove('hidden');
@@ -780,6 +1002,7 @@
     } else {
       count.classList.add('hidden');
     }
+    placeFootInset();
   }
 
   // ---- lightning strike (zap sent) ----
@@ -1293,6 +1516,7 @@
       hide(bar);
       if (view) view.classList.remove('relax-active');
       if (relaxTick) { clearInterval(relaxTick); relaxTick = null; }
+      placeFootInset();
       return;
     }
     show(bar);
@@ -1309,6 +1533,7 @@
     $('relax-status-fill').style.width = Math.max(0, Math.min(100, (remaining / total) * 100)) + '%';
     const dot = bar.querySelector('.relax-status-dot');
     if (dot) dot.classList.toggle('low', remaining < 60000); // green → amber under a minute
+    placeFootInset();
   }
 
   async function syncRelax() {
@@ -2713,6 +2938,15 @@
   function putAwayPaidSheet(sheetEl) {
     if (sheetEl && sheetEl.isConnected) closeModal();
   }
+  // An amount outside what the address said it takes, as the sentence to show, or ''.
+  // Asked by a zap form before it hands the zap to the bar, since past that point the
+  // form is gone and a typo would come back as a failed payment. `limits` is what
+  // lnAddressParams returned for the address; without it there is nothing to ask.
+  function zapAmountRefusal(sats, limits) {
+    if (!limits || !Number.isFinite(limits.minSats) || !Number.isFinite(limits.maxSats)) return '';
+    if (sats >= limits.minSats && sats <= limits.maxSats) return '';
+    return tSec('Amount must be {{min}}–{{max}} sats', { min: fmtSats(limits.minSats), max: fmtSats(limits.maxSats) });
+  }
   // Any other control in the player bar puts an open zap sheet away first, so the chat and the list
   // are never left behind it. The bolt is not one: it opens and closes the sheet itself.
   const DOCK_CONTROLS = new Set(['stream-chat-toggle', 'stream-browse', 'stream-title-button', 'stream-feed-toggle', 'stream-expand', 'stream-stop']);
@@ -2829,6 +3063,7 @@
 
       let zapAddr = '';
       let zapZappable = false;
+      let zapLimits = null; // the address's own min and max, once it has answered
       let zapHasWallet = null;   // null until asked, so neither branch is guessed at
       let zapShown = false;
       let zapPanel = null;       // whichever of the two the Zap button opens
@@ -3177,7 +3412,8 @@
       const zapBtn = h('button', { className: 'icon-btn sm peek-bolt pending', type: 'button', title: zapLabel, disabled: true });
       zapBtn.setAttribute('aria-label', zapLabel);
       zapBtn.append(boltIcon());
-      const enableBolt = () => { zapBtn.disabled = false; zapBtn.classList.remove('pending'); };
+      // Then painted again, so a comment zap still in flight keeps its bolt off.
+      const enableBolt = () => { zapBtn.disabled = false; zapBtn.classList.remove('pending'); if (zapBtn.dataset.zapNote) paintZapBolt(zapBtn); };
       let offerFound = null; // a profile with an offer and no address: the bolt opens it
       // The switch between the two ways to pay. Hidden unless there are two.
       const payTabs = h('div', { className: 'modal-tabs peek-pay-tabs hidden', role: 'tablist' });
@@ -3190,6 +3426,14 @@
       tabClink.addEventListener('click', () => selectTab('clink'));
       let offerShown = false;
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
+      // A comment zap marks the comment's bolt; a zap of the person has nothing to mark.
+      const chatId = (options?.chatEvent && options.chatEvent.id) || '';
+      if (chatId) {
+        const doneHint = zapDoneHint();
+        doneHint.classList.toggle('hidden', noteZapState(chatId) !== 'zapped');
+        zapForm.append(doneHint);
+        watchZapBolt(zapBtn, chatId, zapForm);
+      }
       const amount = satsInput('sats');
       // Presets first, keyboard second: most zaps are one of a few round numbers,
       // and on a 358px panel a row of taps beats a numeric keyboard covering half
@@ -3204,27 +3448,30 @@
         if (!sats || sats < 1) return (zapErr.textContent = t('Enter an amount in sats.'));
         zapErr.textContent = '';
         if (!zapGate.pass(sats)) return;
-        send.disabled = true;
-        send.textContent = tSec('Sending…');
+        const refused = zapAmountRefusal(sats, zapLimits);
+        if (refused) return (zapErr.textContent = refused);
+        const message = note.value.trim();
         // The panel path people actually reach. This sheet is dismissible mid-zap, so a
-        // disabled button inside it was never an in-flight indicator: close the sheet and
-        // there was nothing at all until the toast. Same start point as the Send modal:
-        // the bar takes over once the invoice exists and the payment is genuinely going
-        // out, and it stays up wherever the user goes — sheet closed or not.
-        let flight = null;
+        // disabled button inside it was never an in-flight indicator. THE BAR TAKES OVER
+        // ON THE PRESS, not once the invoice exists: a provider slow to write one held
+        // the sheet on "Sending…" with nothing in the bar, and a failure before the
+        // invoice landed in a sheet that might already be gone. Nothing is left to decide
+        // here, so the sheet goes, and the bar stays up wherever the user goes next.
+        const flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
+        const from = state.activePubkey;
+        putAwayPaidSheet(zapForm);
+        markNoteZap(chatId, 'start', from);
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
           const invoice = await zapInvoice({
             addr: zapAddr,
             msats: sats * 1000,
-            comment: note.value.trim(),
+            comment: message,
             recipientPubkey: pubkey,
             streamEvent: options?.streamEvent,
             event: options?.chatEvent,
           });
-          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
-          putAwayPaidSheet(zapForm);
           const res = await client.payInvoice(invoice);
           // NWC history keeps the amount and nothing else, so an outgoing zap
           // rendered as a bare "Sent" with no counterparty. Both the other payment
@@ -3241,26 +3488,21 @@
             // The comment this zap landed on, when it was a comment zap: the request's e tag
             // is its id, so the details pane can link to it. A stream or profile zap has none.
             zapEvent: (options?.chatEvent && options.chatEvent.id) || undefined,
+            // Who sent it, so the comment's bolt stays lit for that account (see zapMarks).
+            zapFrom: chatId ? from : undefined,
             address: zapAddr,
-            comment: note.value.trim(),
+            comment: message,
             feeMsat: res && res.fees_paid,
           });
+          markNoteZap(chatId, 'ok', from);
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike(); // only once it settles
-          zapForm.classList.add('hidden');
-          amount.value = '';
-          note.value = '';
         } catch (e) {
-          // The bar is the announcement — this sheet is dismissible mid-payment, and
-          // zapErr goes with it. When another surface owns the panel the bar would
-          // land unseen, so the failure toasts too (see surfacePaymentFailure);
-          // the inline line still serves whoever never left the sheet.
-          if (flight) flight.settle(false, null, e.message);
+          markNoteZap(chatId, 'fail', from);
+          // The bar is the announcement. When another surface owns the panel the bar
+          // would land unseen, so the failure toasts too (see surfacePaymentFailure).
+          flight.settle(false, null, e.message);
           surfacePaymentFailure(e.message);
-          zapErr.textContent = e.message;
-        } finally {
-          send.disabled = false;
-          zapGate.paint();
         }
       });
       zapBtn.addEventListener('click', () => {
@@ -3445,6 +3687,7 @@
           } else {
             lnAddressParams(c.lud16).then((p) => {
               if (!p.zappable) return settleZapSheetOffer();
+              zapLimits = p;
               zapZappable = true;
               revealZap();
             }).catch(() => settleZapSheetOffer());
@@ -9304,12 +9547,16 @@
 
       const zapBtn = actBtn(t('Zap'), boltIcon());
       const zapForm = h('div', { className: 'notif-zap hidden' });
+      watchZapBolt(zapBtn, ev && ev.id, zapForm);
       let zapBuilt = false;
       zapBtn.addEventListener('click', (e) => {
         stop(e);
         if (!zapBuilt) {
           zapBuilt = true;
-          buildZapForm(ev, zapForm, err, stop);
+          buildZapForm(ev, zapForm, err, stop, () => {
+            zapForm.classList.add('hidden');
+            zapBtn.classList.remove('open');
+          });
         }
         zapForm.classList.toggle('hidden');
         zapBtn.classList.toggle('open', !zapForm.classList.contains('hidden'));
@@ -9348,7 +9595,7 @@
     // The amount form, built on first tap rather than with the row: it costs a profile
     // fetch to learn whether this person can even be zapped, and doing that for all 25
     // rows in the list would be 25 round trips for the one zap somebody sends.
-    function buildZapForm(ev, zapForm, err, stop) {
+    function buildZapForm(ev, zapForm, err, stop, putAway) {
       const who = zapSender(ev);
       const amount = satsInput('sats');
       const presets = zapPresetRow(amount, stop);
@@ -9358,10 +9605,13 @@
       amount.addEventListener('input', zapGate.paint);
       const status = h('div', { className: 'hint', textContent: t('Checking their lightning address…') });
       // Under the field it reads, so the offer to keep an amount sits with the amount.
-      zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
+      const doneHint = zapDoneHint();
+      doneHint.classList.toggle('hidden', noteZapState(ev && ev.id) !== 'zapped');
+      zapForm.append(doneHint, status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
         zapDefaultSaver(amount, presets, stop));
 
       let addr = '';
+      let limits = null; // the address's own min and max, read once with the address
       send.disabled = true;
       // Same gate the profile sheet uses: an address without allowsNostr can take a
       // payment but can never produce a receipt, so a Zap button on it is a promise it
@@ -9377,6 +9627,7 @@
           if (!p.zappable) throw new Error(t('Their lightning address cannot receive zaps.'));
           if (!zapForm.isConnected) return;
           addr = lud;
+          limits = p;
           send.disabled = false;
           status.textContent = lud;
         })
@@ -9391,12 +9642,24 @@
         if (!sats || sats < 1) return (err.textContent = t('Enter an amount in sats.'));
         err.textContent = '';
         if (!zapGate.pass(sats)) return;
-        send.disabled = true;
-        send.textContent = t('Sending…');
-        // One payment bar for every path (#495): this sheet used to have only the
-        // disabled button as its pending indicator, and an inline-only failure. The
-        // bar starts once the invoice exists and the payment is genuinely going out.
-        let flight = null;
+        // The one refusal the form can still answer itself, so it is asked here, before
+        // the form steps aside. The provider asks again when it writes the invoice.
+        const refused = zapAmountRefusal(sats, limits);
+        if (refused) return (err.textContent = refused);
+        const message = comment.value.trim();
+        // THE ZAP GOES TO THE BAR THE MOMENT IT IS SENT. Waiting for the invoice first
+        // left the row locked on "Sending…" for as long as the provider took to answer,
+        // with nothing in the bar to say a zap was under way, and a failure written into
+        // a form that leaving the bell had already thrown away. Nothing is left to decide
+        // here once Send is pressed, so the form gets out of the way and the bar carries
+        // the rest, wherever you go next, including another zap.
+        const flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
+        const from = state.activePubkey;
+        putAway();
+        markNoteZap(ev && ev.id, 'start', from);
+        amount.value = '';
+        comment.value = '';
+        zapGate.paint();
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
@@ -9406,32 +9669,36 @@
           const invoice = await zapInvoice({
             addr,
             msats: sats * 1000,
-            comment: comment.value.trim(),
+            comment: message,
             recipientPubkey: who,
             event: ev,
           });
-          flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
           const res = await client.payInvoice(invoice);
           await savePayMeta(invoice, {
             zapPubkey: who,
             // The note the request's e tag names, so the details pane can link to it.
             zapEvent: (ev && ev.id) || undefined,
+            // Who sent it, so the note's bolt stays lit for that account (see zapMarks).
+            zapFrom: from,
             address: addr,
-            comment: comment.value.trim(),
+            comment: message,
             feeMsat: res && res.fees_paid,
           });
+          markNoteZap(ev && ev.id, 'ok', from);
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike();
-          zapForm.classList.add('hidden');
-          amount.value = '';
-          comment.value = '';
         } catch (e2) {
-          if (flight) flight.settle(false, null, e2.message);
+          markNoteZap(ev && ev.id, 'fail', from);
+          flight.settle(false, null, e2.message);
           surfacePaymentFailure(e2.message);
+          // Still on the row for whoever stayed, with what they typed put back so trying
+          // again is one press, unless they have started on another amount since.
           err.textContent = e2.message;
-        } finally {
-          send.disabled = false;
-          zapGate.paint();
+          if (!amount.value) {
+            amount.value = String(sats);
+            if (!comment.value) comment.value = message;
+            zapGate.paint();
+          }
         }
       });
     }
@@ -15243,6 +15510,7 @@
     if (!miningStatus) {
       hide(bar);
       if (view) view.classList.remove('mining-active');
+      placeFootInset();
       return;
     }
     show(bar);
@@ -15267,6 +15535,7 @@
     // and cannot be spent under another. The switcher is disabled while this is up, and
     // naming the account is what makes that read as deliberate rather than broken.
     $('mining-status-who').textContent = acct ? displayName(acct) : '';
+    placeFootInset();
   }
 
   // Minimizing does NOT stop the mine, which is the whole point, so it has to leave
@@ -26562,6 +26831,28 @@
   // so the Send form can show the recipient's terms before anyone commits to an
   // amount — previously min/max were only discovered by having a payment
   // rejected, after the amount was already typed.
+  // HOW LONG A LIGHTNING ADDRESS GETS TO ANSWER. Its server is somebody else's, and
+  // nothing else ever ended the wait: a provider that never answered kept a zap on
+  // "Sending…" for as long as the panel stayed open, and the bar along with it.
+  const LNURL_TIMEOUT_MS = 15000;
+
+  // The invoice request, with the same limit. A provider that does not answer in time,
+  // or answers with something that is not JSON, gets the sentence a person can act on,
+  // not the parser's.
+  async function lnurlInvoiceBody(cb) {
+    let res;
+    try {
+      res = await fetch(cb.toString(), { signal: AbortSignal.timeout(LNURL_TIMEOUT_MS) });
+    } catch (_) {
+      throw new Error(t("Couldn't reach {{domain}}", { domain: cb.hostname }));
+    }
+    try {
+      return (await res.json()) || {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   async function lnAddressParams(addr) {
     const [name, domain] = String(addr || '').split('@');
     if (!name || !domain) throw new Error(t('That does not look like a lightning address'));
@@ -26574,7 +26865,7 @@
     // DOCTYPE, which is what a 404 HTML page produces and tells the user nothing.
     let res;
     try {
-      res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name);
+      res = await fetch('https://' + domain + '/.well-known/lnurlp/' + name, { signal: AbortSignal.timeout(LNURL_TIMEOUT_MS) });
     } catch (_) {
       throw new Error(t("Couldn't reach {{domain}}", { domain }));
     }
@@ -26663,8 +26954,7 @@
     if (cb.protocol !== 'https:') throw new Error(t('That lightning address uses an insecure callback'));
     cb.searchParams.set('amount', String(msats));
     cb.searchParams.set('nostr', JSON.stringify(signed));
-    const res = await fetch(cb.toString());
-    const body = await res.json();
+    const body = await lnurlInvoiceBody(cb);
     if (!body || !body.pr) throw new Error(body && body.reason ? body.reason : t('The lightning address did not return an invoice'));
     return body.pr;
   }
@@ -26686,7 +26976,7 @@
     if (cb.protocol !== 'https:') throw new Error(t('Lightning address returned an insecure callback URL'));
     cb.searchParams.set('amount', String(msats));
     if (comment && meta.commentAllowed > 0) cb.searchParams.set('comment', comment.slice(0, meta.commentAllowed));
-    const res = await (await fetch(cb.toString())).json();
+    const res = await lnurlInvoiceBody(cb);
     if (!res.pr) throw new Error(res.reason || t('No invoice returned'));
     return res.pr;
   }

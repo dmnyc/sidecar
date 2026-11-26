@@ -2570,5 +2570,7 @@
   "{{count}} comment_two": "{{count}} תגובות",
   "{{count}} comment_other": "{{count}} תגובות",
   "Copy article address": "העתקת כתובת המאמר",
-  "Copy recipe address": "העתקת כתובת המתכון"
+  "Copy recipe address": "העתקת כתובת המתכון",
+  "Zapping…": "שליחת Zap…",
+  "You zapped this": "שלחת לזה Zap"
 }

@@ -2402,5 +2402,7 @@
   "Could not delete it": "삭제하지 못했습니다",
   "{{count}} comment_other": "댓글 {{count}}개",
   "Copy article address": "글 주소 복사",
-  "Copy recipe address": "레시피 주소 복사"
+  "Copy recipe address": "레시피 주소 복사",
+  "Zapping…": "Zap 보내는 중…",
+  "You zapped this": "Zap을 보냈습니다"
 }

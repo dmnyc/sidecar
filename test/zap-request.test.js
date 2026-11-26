@@ -42,6 +42,9 @@ function lift(decl) {
 }
 
 const zapFn = stripComments(lift('async function zapInvoice('));
+// The invoice request it makes, lifted with it so the run below goes through the real one.
+const invoiceBodyFn = 'const LNURL_TIMEOUT_MS = 15000; const t = (s) => s; const AbortSignal = { timeout: () => undefined };\n'
+  + stripComments(lift('async function lnurlInvoiceBody('));
 
 // ---- what makes it a zap -----------------------------------------------------------
 
@@ -142,7 +145,7 @@ test('the zap control only appears for an address that can be zapped', () => {
 
 test('stream zap keeps the host recipient and includes stable event linkage', async () => {
   let signed;
-  const run = new Function('lnAddressParams','readRelayUrls','NT','call','state','fetch','URL', zapFn + '; return zapInvoice;')(
+  const run = new Function('lnAddressParams','readRelayUrls','NT','call','state','fetch','URL', invoiceBodyFn + zapFn + '; return zapInvoice;')(
     async()=>({meta:{allowsNostr:true,nostrPubkey:'b'.repeat(64),minSendable:1,maxSendable:1000000,callback:'https://example.com/pay'}}),
     async()=>['wss://example.com'],
     {nip57:{makeZapRequest:({pubkey})=>({kind:9734,tags:[['p',pubkey]]})}},

@@ -2822,5 +2822,7 @@
   "{{count}} comment_zero": "لا تعليقات",
   "{{count}} comment_other": "{{count}} تعليق",
   "Copy article address": "نسخ عنوان المقالة",
-  "Copy recipe address": "نسخ عنوان الوصفة"
+  "Copy recipe address": "نسخ عنوان الوصفة",
+  "Zapping…": "جارٍ إرسال Zap…",
+  "You zapped this": "أرسلت Zap لهذا"
 }

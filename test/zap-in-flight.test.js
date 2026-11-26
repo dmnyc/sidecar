@@ -230,14 +230,18 @@ test('EVERY PANEL PAYMENT FEEDS THE BAR, AND NO PATH FEEDS A PROGRESS TOAST', ()
   assert.doesNotMatch(bare, /'progress'\)/, 'no panel payment shows a progress toast anymore');
 });
 
-test('the flight starts only once the payment is genuinely going out', () => {
-  // Same rule both surfaces already followed for the toast: a failure that can go back
-  // into a form must not be announced from behind an indicator that says the money is
-  // moving. Started after the invoice exists, before the wallet call.
+test('a zap is in the bar from the press, before the invoice is asked for', () => {
+  // A zap used to wait for the invoice before it reached the bar, so a provider slow to
+  // write one held the form on "Sending…" with nothing in the bar, and a failure before
+  // the invoice went into a form that might be gone. The amount is checked against the
+  // address's limits first, the one refusal the form can still answer itself.
+  // (zap-in-background.browser.test.js runs it.)
   const send = bare.indexOf("send.addEventListener('click'", bare.indexOf('const zapForm = h('));
   const zapBody = bare.slice(send, bare.indexOf('\n      });', send));
-  assert.ok(zapBody.indexOf('beginPaymentFlight(') > zapBody.indexOf('await zapInvoice('),
-    'the zap bar starts after the invoice exists');
+  assert.ok(zapBody.indexOf('beginPaymentFlight(') < zapBody.indexOf('await zapInvoice('),
+    'the zap bar waits for the invoice');
+  assert.ok(zapBody.indexOf('zapAmountRefusal(') < zapBody.indexOf('beginPaymentFlight('),
+    'an amount the address does not take reaches the bar instead of the form');
   assert.ok(zapBody.indexOf('beginPaymentFlight(') < zapBody.indexOf('client.payInvoice('),
     'the zap bar starts before the wallet call');
 });
@@ -254,7 +258,7 @@ test('BOTH OUTCOMES SETTLE THE FLIGHT', () => {
   const send = bare.indexOf("send.addEventListener('click'", bare.indexOf('const zapForm = h('));
   const zapBody = bare.slice(send, bare.indexOf('\n      });', send));
   assert.match(zapBody, /flight\.settle\(true, tSec\('Zapped \{\{amount\}\} sats'/, 'the zap bar settles with what it zapped');
-  assert.match(zapBody, /if \(flight\) flight\.settle\(false, null, e\.message\);/);
+  assert.match(zapBody, /flight\.settle\(false, null, e\.message\);/);
 });
 
 test('A FAILED PAYMENT REACHES SOMEONE ON ANOTHER SURFACE', () => {

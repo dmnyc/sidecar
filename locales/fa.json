@@ -2486,5 +2486,7 @@
   "{{count}} comment_one": "{{count}} نظر",
   "{{count}} comment_other": "{{count}} نظر",
   "Copy article address": "کپی نشانی مقاله",
-  "Copy recipe address": "کپی نشانی دستور پخت"
+  "Copy recipe address": "کپی نشانی دستور پخت",
+  "Zapping…": "در حال Zap کردن…",
+  "You zapped this": "این را Zap کرده‌اید"
 }

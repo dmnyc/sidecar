@@ -2486,5 +2486,7 @@
   "{{count}} comment_one": "{{count}} yorum",
   "{{count}} comment_other": "{{count}} yorum",
   "Copy article address": "Makale adresini kopyala",
-  "Copy recipe address": "Tarif adresini kopyala"
+  "Copy recipe address": "Tarif adresini kopyala",
+  "Zapping…": "Zap gönderiliyor…",
+  "You zapped this": "Buna zap gönderdin"
 }
