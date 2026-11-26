@@ -2402,5 +2402,7 @@
   "Could not delete it": "ลบไม่สำเร็จ",
   "{{count}} comment_other": "{{count}} ความคิดเห็น",
   "Copy article address": "คัดลอกที่อยู่บทความ",
-  "Copy recipe address": "คัดลอกที่อยู่สูตรอาหาร"
+  "Copy recipe address": "คัดลอกที่อยู่สูตรอาหาร",
+  "Zapping…": "กำลัง Zap…",
+  "You zapped this": "คุณ Zap รายการนี้แล้ว"
 }

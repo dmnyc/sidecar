@@ -141,7 +141,7 @@ function declaredIn(src) {
 }
 const BROWSER = new Set(('window document console Math JSON Object Array String Number Boolean Set ' +
   'Map WeakMap Promise Date RegExp Error URL URLSearchParams setTimeout clearTimeout setInterval ' +
-  'clearInterval requestAnimationFrame getComputedStyle fetch AbortSignal encodeURIComponent ' +
+  'clearInterval requestAnimationFrame Path2D getComputedStyle fetch AbortSignal encodeURIComponent ' +
   'decodeURIComponent parseInt parseFloat isNaN Infinity NaN undefined this arguments Node NodeFilter ' +
   'Range Selection navigator location structuredClone crypto TextEncoder TextDecoder Intl Symbol Worker ' +
   'FormData Blob File btoa atob Uint8Array chrome self globalThis performance matchMedia Image Event ' +

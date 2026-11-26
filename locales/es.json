@@ -2570,5 +2570,7 @@
   "{{count}} comment_other": "{{count}} comentarios",
   "{{count}} comment_many": "{{count}} comentarios",
   "Copy article address": "Copiar dirección",
-  "Copy recipe address": "Copiar dirección"
+  "Copy recipe address": "Copiar dirección",
+  "Zapping…": "Enviando zap…",
+  "You zapped this": "Ya le enviaste un zap"
 }

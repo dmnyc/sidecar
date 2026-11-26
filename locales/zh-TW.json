@@ -2402,5 +2402,7 @@
   "Could not delete it": "無法刪除",
   "{{count}} comment_other": "{{count}} 則留言",
   "Copy article address": "複製文章位址",
-  "Copy recipe address": "複製食譜位址"
+  "Copy recipe address": "複製食譜位址",
+  "Zapping…": "正在 Zap…",
+  "You zapped this": "你已 Zap 過這則"
 }

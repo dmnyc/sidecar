@@ -508,7 +508,8 @@ test('both are icons with names for assistive tech, and no words on the card for
 test('the bolt is enabled by whichever of a zap or an offer turns up first', () => {
   assert.match(source, /zapPanel = \(zapHasWallet && !isSelf\)[\s\S]*?\n\s*enableBolt\(\);/, 'an address enables it');
   assert.match(source, /offerFound = offer;\s*enableBolt\(\);/, 'an offer alone enables it');
-  assert.match(source, /const enableBolt = \(\) => \{ zapBtn\.disabled = false; zapBtn\.classList\.remove\('pending'\); \};/);
+  // Then painted again, so a comment zap still in flight keeps its bolt off (zapMarks).
+  assert.match(source, /const enableBolt = \(\) => \{ zapBtn\.disabled = false; zapBtn\.classList\.remove\('pending'\); if \(zapBtn\.dataset\.zapNote\) paintZapBolt\(zapBtn\); \};/);
 });
 
 test('the bolt is gold, set apart by a divider, and the area waits for a panel', () => {

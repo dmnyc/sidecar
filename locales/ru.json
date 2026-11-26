@@ -2654,5 +2654,7 @@
   "{{count}} comment_one": "{{count}} комментарий",
   "{{count}} comment_other": "{{count}} комментария",
   "Copy article address": "Копировать адрес",
-  "Copy recipe address": "Копировать адрес"
+  "Copy recipe address": "Копировать адрес",
+  "Zapping…": "Отправка zap…",
+  "You zapped this": "Вы уже отправили zap"
 }

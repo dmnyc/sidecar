@@ -2486,5 +2486,7 @@
   "{{count}} comment_one": "{{count}} σχόλιο",
   "{{count}} comment_other": "{{count}} σχόλια",
   "Copy article address": "Αντιγραφή διεύθυνσης",
-  "Copy recipe address": "Αντιγραφή διεύθυνσης"
+  "Copy recipe address": "Αντιγραφή διεύθυνσης",
+  "Zapping…": "Zap σε εξέλιξη…",
+  "You zapped this": "Το έχετε κάνει zap"
 }

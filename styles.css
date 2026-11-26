@@ -6482,6 +6482,22 @@ html:has(#view-main:not(.hidden) > #relax-status:not(.hidden)) .relax-status-lis
    spent, not unavailable. */
 .notif-act.done { color: var(--gold); cursor: default; }
 .notif-act.done:hover { background: none; border-color: transparent; color: var(--gold); }
+/* A note's bolt while your zap of it is in flight, and once one has gone through (zapMarks
+   in sidepanel.js). Lit, not dimmed: the plain :disabled fade would read as "can't zap",
+   when the truth is "a zap is on its way". Zapped stays tappable, so it keeps the hover. */
+.notif-act.zapping:disabled, .peek-bolt.zapping:disabled { opacity: 1; cursor: progress; color: var(--gold); }
+.notif-act.zapping, .peek-bolt.zapping { animation: balance-pulse 1.2s ease-in-out infinite; }
+.notif-act.zapped { color: var(--gold); }
+@media (prefers-reduced-motion: reduce) { .notif-act.zapping, .peek-bolt.zapping { animation: none; } }
+html.reduce-balance-motion .notif-act.zapping,
+html.reduce-balance-motion .peek-bolt.zapping { animation: none; }
+/* The burst when the zap lands (zapBurst in sidepanel.js): a canvas centered on the
+   bolt, larger than it, over its neighbors, and never in the way of a tap. */
+.notif-act[data-zap-note], .peek-bolt[data-zap-note] { position: relative; }
+.zap-burst {
+  position: absolute; left: 50%; top: 50%; width: 160px; height: 160px;
+  margin: -80px 0 0 -80px; pointer-events: none; z-index: 5;
+}
 .notif-zap { margin-top: 8px; }
 
 /* ===== the reaction picker ===== */

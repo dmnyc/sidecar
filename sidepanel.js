@@ -734,6 +734,194 @@
     if ((view && view.classList.contains('hidden')) || paymentFlights.size) toast(message, 'error');
   }
 
+  // A NOTE'S BOLT SAYS WHAT BECAME OF YOUR ZAP. Once Send zap is pressed the form steps
+  // aside and the bar carries the payment, which left the note itself looking untouched:
+  // nothing on it said a zap was out, or that one had landed, so the easy next move was to
+  // zap it again. The bolt pulses while a zap of that note is in flight and stays lit once
+  // one has gone through, and it stays tappable, since a second zap can be meant.
+  //
+  // Per account, by note id. What has gone through is read from the pay meta store, where
+  // every zap Sidecar pays records the note and, from now on, the account that sent it
+  // (zapFrom). Zaps sent before that, or from another app, are not known here.
+  const zapMarks = { flying: new Map(), done: null, loading: null };
+  const zapMarkKey = (id) => (state && state.activePubkey ? state.activePubkey : '') + '|' + id;
+  function loadZappedNotes() {
+    if (zapMarks.done) return Promise.resolve(zapMarks.done);
+    if (!zapMarks.loading) {
+      zapMarks.loading = getPayMeta().then((all) => {
+        const done = new Set();
+        for (const m of Object.values(all || {})) {
+          if (m && typeof m.zapEvent === 'string' && typeof m.zapFrom === 'string') done.add(m.zapFrom + '|' + m.zapEvent);
+        }
+        // A zap that settled while this was loading is already in the old set; keep it.
+        if (zapMarks.done) for (const k of zapMarks.done) done.add(k);
+        zapMarks.done = done;
+        return done;
+      }).catch(() => (zapMarks.done = zapMarks.done || new Set()));
+    }
+    return zapMarks.loading;
+  }
+  function noteZapState(id) {
+    if (!id) return '';
+    const k = zapMarkKey(id);
+    if (zapMarks.flying.get(k)) return 'zapping';
+    return zapMarks.done && zapMarks.done.has(k) ? 'zapped' : '';
+  }
+  // Paints one bolt from the note's state. The bolt carries data-zap-note and keeps its
+  // own label in data-zap-label, so every bolt for the note, in any open sheet, repaints.
+  function paintZapBolt(btn) {
+    const id = btn.dataset.zapNote;
+    const s = noteZapState(id);
+    const label = s === 'zapping' ? t('Zapping…') : s === 'zapped' ? t('You zapped this') : btn.dataset.zapLabel;
+    btn.classList.toggle('zapping', s === 'zapping');
+    btn.classList.toggle('zapped', s === 'zapped');
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    if (s === 'zapping') { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+    else if (btn.hasAttribute('aria-busy')) {
+      btn.removeAttribute('aria-busy');
+      // A bolt still waiting on the lightning address stays off; anything else comes back.
+      btn.disabled = btn.classList.contains('pending');
+    }
+    const form = btn.dataset.zapForm && document.getElementById(btn.dataset.zapForm);
+    const hint = form && form.querySelector('.zap-done-hint');
+    if (hint) hint.classList.toggle('hidden', s !== 'zapped');
+  }
+  function repaintZapBolts(id) {
+    document.querySelectorAll('[data-zap-note]').forEach((b) => { if (!id || b.dataset.zapNote === id) paintZapBolt(b); });
+  }
+  let zapFormSeq = 0;
+  // Marks a bolt as the one for this note, and the form it opens as its own, then paints
+  // it once what has already gone through is known.
+  function watchZapBolt(btn, id, form) {
+    if (!id) return;
+    btn.dataset.zapNote = id;
+    btn.dataset.zapLabel = btn.getAttribute('aria-label') || btn.title || '';
+    if (form) {
+      if (!form.id) form.id = 'zap-form-' + (++zapFormSeq);
+      btn.dataset.zapForm = form.id;
+    }
+    paintZapBolt(btn);
+    loadZappedNotes().then(() => { if (btn.isConnected) paintZapBolt(btn); });
+  }
+  // The line at the top of a note's zap form once you have zapped it, so a second zap is
+  // a choice made knowingly rather than a retry.
+  const zapDoneHint = () => h('div', { className: 'hint zap-done-hint hidden', textContent: t('You zapped this') });
+  // start → in flight; ok → zapped; fail → back to how it was. `from` is the account that
+  // pressed Send, read at the press: the panel can switch accounts while the zap is out.
+  function markNoteZap(id, phase, from) {
+    if (!id || !from) return;
+    const k = from + '|' + id;
+    const n = zapMarks.flying.get(k) || 0;
+    if (phase === 'start') zapMarks.flying.set(k, n + 1);
+    else {
+      if (n > 1) zapMarks.flying.set(k, n - 1); else zapMarks.flying.delete(k);
+      if (phase === 'ok') {
+        if (!zapMarks.done) zapMarks.done = new Set();
+        zapMarks.done.add(k);
+      }
+    }
+    repaintZapBolts(id);
+    if (phase === 'ok') document.querySelectorAll('[data-zap-note]').forEach((b) => { if (b.dataset.zapNote === id) zapBurst(b); });
+  }
+
+  // THE BURST WHEN A ZAP LANDS, from the bolt that sent it: a flash, a ring, a handful of
+  // small bolts and a spray of sparks, over 1.1 s. The same burst as Wisp and Zap Cooking,
+  // with their counts, delays and curves, so a zap ends the same way in both. Drawn on a
+  // canvas over the bolt that takes no taps
+  // and removes itself. Reduce motion, the system's or Sidecar's, leaves it out: the lit
+  // bolt already says the zap went through.
+  function zapBurst(btn) {
+    const reduce = document.documentElement.classList.contains('reduce-balance-motion')
+      || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (reduce || !btn.isConnected) return;
+    const SIZE = 160, DUR = 1100;
+    const dpr = window.devicePixelRatio || 1;
+    const c = h('canvas', { className: 'zap-burst' });
+    c.setAttribute('aria-hidden', 'true');
+    c.width = SIZE * dpr; c.height = SIZE * dpr;
+    btn.querySelectorAll('.zap-burst').forEach((old) => old.remove());
+    btn.append(c);
+    const ctx = c.getContext('2d');
+    if (!ctx) { c.remove(); return; }
+    ctx.scale(dpr, dpr);
+    // The bolt's own color, so the burst is in the theme's gold.
+    const rgb = (getComputedStyle(btn).color.match(/[\d.]+/g) || [250, 204, 21]).slice(0, 3).join(', ');
+    const zap = (a) => 'rgba(' + rgb + ', ' + Math.max(0, a) + ')';
+    const white = (a) => 'rgba(255, 255, 255, ' + Math.max(0, a) + ')';
+    const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+    const nBolts = 5 + Math.floor(Math.random() * 3);   // 5–7
+    const step = (2 * Math.PI) / nBolts;
+    const bolts = Array.from({ length: nBolts }, (_, i) => ({
+      angle: step * i + (Math.random() - 0.5) * step * 0.5,
+      dist: 30 + rand(0, 25), size: 6 + rand(0, 5), delay: rand(0, 0.15),
+    }));
+    const sparks = Array.from({ length: 12 + Math.floor(Math.random() * 8) }, () => ({   // 12–19
+      angle: rand(0, 2 * Math.PI), dist: 40 + rand(0, 35), size: 1.5 + rand(0, 2.5), delay: rand(0, 0.15),
+    }));
+    const cx = SIZE / 2, cy = SIZE / 2;
+    // The bolt glyph, 55 × 94 units, scaled to w × h with its top-left at (x, y).
+    const boltPath = (x, y, w, hgt) => {
+      const sx = w / 55, sy = hgt / 94;
+      const pts = [[35.563, 0], [35.563, 40.406], [54.969, 40.406], [21.016, 93.75], [21.016, 51.719], [0, 51.719]];
+      const path = new Path2D();
+      pts.forEach(([px, py], i) => path[i ? 'lineTo' : 'moveTo'](x + px * sx, y + py * sy));
+      path.closePath();
+      return path;
+    };
+    const draw = (p) => {
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      if (p < 0.25) { // the flash at the center
+        const f = p / 0.25, a = (1 - f) * 0.7, r = SIZE * 0.4;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * (0.5 + f * 0.5));
+        g.addColorStop(0, white(a)); g.addColorStop(0.5, zap(a * 0.6)); g.addColorStop(1, zap(0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.fill();
+      }
+      if (p < 0.5) { // the ring, growing and fading
+        const f = p / 0.5;
+        ctx.strokeStyle = zap((1 - f) * 0.5);
+        ctx.lineWidth = Math.max(1, 4 - 3 * f);
+        ctx.beginPath(); ctx.arc(cx, cy, 10 + SIZE * 0.45 * f, 0, 2 * Math.PI); ctx.stroke();
+      }
+      for (const b of bolts) { // small bolts, thrown out and settling
+        const lp = Math.max(0, Math.min(1, (p - b.delay) / Math.max(0.001, 1 - b.delay)));
+        if (lp <= 0) continue;
+        const d = b.dist * (1 - (1 - lp) * (1 - lp));
+        const scale = lp < 0.3 ? lp / 0.3 : 1 - ((lp - 0.3) / 0.7) * 0.6;
+        const a = lp > 0.6 ? 1 - (lp - 0.6) / 0.4 : 1;
+        if (a <= 0 || scale <= 0) continue;
+        const w = b.size * scale, hgt = w * (94 / 55);
+        const path = boltPath(cx + Math.cos(b.angle) * d - w / 2, cy + Math.sin(b.angle) * d - hgt / 2, w, hgt);
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.lineWidth = 2 * scale; ctx.strokeStyle = zap(a * 0.5); ctx.stroke(path);
+        ctx.fillStyle = zap(a * 0.9); ctx.fill(path);
+        ctx.fillStyle = white(a * 0.3); ctx.fill(path);
+      }
+      for (const s of sparks) { // sparks, thrown faster, a white dot in a gold halo
+        const lp = Math.max(0, Math.min(1, (p - s.delay) / Math.max(0.001, 1 - s.delay)));
+        if (lp <= 0) continue;
+        const d = s.dist * (1 - Math.pow(1 - lp, 3));
+        const a = lp > 0.5 ? 1 - (lp - 0.5) / 0.5 : 1;
+        const r = s.size * (1 - lp * 0.5);
+        if (a <= 0 || r <= 0) continue;
+        const x = cx + Math.cos(s.angle) * d, y = cy + Math.sin(s.angle) * d;
+        ctx.fillStyle = zap(a * 0.4); ctx.beginPath(); ctx.arc(x, y, r * 2, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = white(a * 0.9); ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+      }
+    };
+    const start = performance.now();
+    const frame = (now) => {
+      const p = (now - start) / DUR;
+      if (p >= 1 || !c.isConnected) { c.remove(); return; }
+      draw(Math.max(0, p));
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    // A hidden panel holds animation frames back; this takes the canvas away regardless.
+    setTimeout(() => c.remove(), DUR + 400);
+  }
+
   // Website payments arrive as worker events with no handle, so a settle retires the
   // oldest flight (a boost is several keysends back to back, started and settled in
   // order). A settle with no flight at all is still news — the panel may have been
@@ -3224,7 +3412,8 @@
       const zapBtn = h('button', { className: 'icon-btn sm peek-bolt pending', type: 'button', title: zapLabel, disabled: true });
       zapBtn.setAttribute('aria-label', zapLabel);
       zapBtn.append(boltIcon());
-      const enableBolt = () => { zapBtn.disabled = false; zapBtn.classList.remove('pending'); };
+      // Then painted again, so a comment zap still in flight keeps its bolt off.
+      const enableBolt = () => { zapBtn.disabled = false; zapBtn.classList.remove('pending'); if (zapBtn.dataset.zapNote) paintZapBolt(zapBtn); };
       let offerFound = null; // a profile with an offer and no address: the bolt opens it
       // The switch between the two ways to pay. Hidden unless there are two.
       const payTabs = h('div', { className: 'modal-tabs peek-pay-tabs hidden', role: 'tablist' });
@@ -3237,6 +3426,14 @@
       tabClink.addEventListener('click', () => selectTab('clink'));
       let offerShown = false;
       const zapForm = h('div', { className: 'peek-zap-form hidden' });
+      // A comment zap marks the comment's bolt; a zap of the person has nothing to mark.
+      const chatId = (options?.chatEvent && options.chatEvent.id) || '';
+      if (chatId) {
+        const doneHint = zapDoneHint();
+        doneHint.classList.toggle('hidden', noteZapState(chatId) !== 'zapped');
+        zapForm.append(doneHint);
+        watchZapBolt(zapBtn, chatId, zapForm);
+      }
       const amount = satsInput('sats');
       // Presets first, keyboard second: most zaps are one of a few round numbers,
       // and on a 358px panel a row of taps beats a numeric keyboard covering half
@@ -3261,7 +3458,9 @@
         // invoice landed in a sheet that might already be gone. Nothing is left to decide
         // here, so the sheet goes, and the bar stays up wherever the user goes next.
         const flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
+        const from = state.activePubkey;
         putAwayPaidSheet(zapForm);
+        markNoteZap(chatId, 'start', from);
         try {
           const client = await ensureNwc();
           if (!client) throw new Error(t('Wallet unavailable. Reconnect in the Wallet tab.'));
@@ -3289,13 +3488,17 @@
             // The comment this zap landed on, when it was a comment zap: the request's e tag
             // is its id, so the details pane can link to it. A stream or profile zap has none.
             zapEvent: (options?.chatEvent && options.chatEvent.id) || undefined,
+            // Who sent it, so the comment's bolt stays lit for that account (see zapMarks).
+            zapFrom: chatId ? from : undefined,
             address: zapAddr,
             comment: message,
             feeMsat: res && res.fees_paid,
           });
+          markNoteZap(chatId, 'ok', from);
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike(); // only once it settles
         } catch (e) {
+          markNoteZap(chatId, 'fail', from);
           // The bar is the announcement. When another surface owns the panel the bar
           // would land unseen, so the failure toasts too (see surfacePaymentFailure).
           flight.settle(false, null, e.message);
@@ -9344,6 +9547,7 @@
 
       const zapBtn = actBtn(t('Zap'), boltIcon());
       const zapForm = h('div', { className: 'notif-zap hidden' });
+      watchZapBolt(zapBtn, ev && ev.id, zapForm);
       let zapBuilt = false;
       zapBtn.addEventListener('click', (e) => {
         stop(e);
@@ -9401,7 +9605,9 @@
       amount.addEventListener('input', zapGate.paint);
       const status = h('div', { className: 'hint', textContent: t('Checking their lightning address…') });
       // Under the field it reads, so the offer to keep an amount sits with the amount.
-      zapForm.append(status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
+      const doneHint = zapDoneHint();
+      doneHint.classList.toggle('hidden', noteZapState(ev && ev.id) !== 'zapped');
+      zapForm.append(doneHint, status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
         zapDefaultSaver(amount, presets, stop));
 
       let addr = '';
@@ -9448,7 +9654,9 @@
         // here once Send is pressed, so the form gets out of the way and the bar carries
         // the rest, wherever you go next, including another zap.
         const flight = beginPaymentFlight(tSec('Zapping {{amount}} sats', { amount: fmtSats(sats) }));
+        const from = state.activePubkey;
         putAway();
+        markNoteZap(ev && ev.id, 'start', from);
         amount.value = '';
         comment.value = '';
         zapGate.paint();
@@ -9470,13 +9678,17 @@
             zapPubkey: who,
             // The note the request's e tag names, so the details pane can link to it.
             zapEvent: (ev && ev.id) || undefined,
+            // Who sent it, so the note's bolt stays lit for that account (see zapMarks).
+            zapFrom: from,
             address: addr,
             comment: message,
             feeMsat: res && res.fees_paid,
           });
+          markNoteZap(ev && ev.id, 'ok', from);
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike();
         } catch (e2) {
+          markNoteZap(ev && ev.id, 'fail', from);
           flight.settle(false, null, e2.message);
           surfacePaymentFailure(e2.message);
           // Still on the row for whoever stayed, with what they typed put back so trying
