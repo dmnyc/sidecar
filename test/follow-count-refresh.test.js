@@ -52,9 +52,11 @@ function writeHarness({ listTags, followListCache = null, prior } = {}) {
     t: (s) => s,
     state: { activePubkey: PK },
     listRelays: async () => ['wss://x'],
-    poolQuerySync: async () => listTags
-      ? [{ pubkey: PK, created_at: 1, kind: 3, tags: listTags, content: '' }]
-      : [],
+    readOwnList: async () => ({
+      list: listTags ? { pubkey: PK, created_at: 1, kind: 3, tags: listTags, content: '' } : null,
+      profile: false,
+      allAnswered: true,
+    }),
     call: async (m) => ({ ...m.event, id: 'signed', sig: 'sig' }),
     publishSigned: async () => {},
     seedBaseline: () => {},

@@ -7786,6 +7786,26 @@
     return [...new Set([...read, ...write])];
   }
 
+  // Read one of the account's own lists, with the profile beside it, and say whether every
+  // relay asked really answered (an EOSE, not a timeout: see poolQueryAnswered), one
+  // subscription per relay so a silent one cannot hide behind one that answered.
+  //
+  // A NEW ACCOUNT HAS NO LISTS AND OFTEN NO PROFILE, and "nothing came back" alone cannot tell
+  // that from relays that never answered. Every relay answering with nothing can: that is an
+  // account with no list yet, and the first follow or mute starts one. One silent relay is
+  // enough to refuse, since it may be the one holding the list.
+  async function readOwnList(pubkey, kind, relays) {
+    const each = await Promise.all(relays.map((url) =>
+      poolQueryAnswered([url], { kinds: [0, kind], authors: [pubkey] }, { maxWait: 6000 })
+        .catch(() => ({ events: [], answered: false }))));
+    const got = each.flatMap((r) => r.events || []).filter((e) => e && e.pubkey === pubkey);
+    return {
+      list: got.filter((e) => e.kind === kind).sort((a, b) => b.created_at - a.created_at)[0] || null,
+      profile: got.some((e) => e.kind === 0),
+      allAnswered: relays.length > 0 && each.every((r) => r.answered),
+    };
+  }
+
   // Add one entry to the PRIVATE part of the account's mute list: the tags that live
   // encrypted in the event's content, where nobody reading the list can see who the
   // account has muted. Public tags and every other private entry ride through
@@ -7819,9 +7839,12 @@
   async function writeMute(pubkey, tag, remove) {
     if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
     const relays = await listRelays(pubkey);
-    const got = await poolQuerySync(relays, { kinds: [0, 10000], authors: [pubkey] }, { maxWait: 6000 });
-    const list = (got || []).filter((e) => e.kind === 10000).sort((a, b) => b.created_at - a.created_at)[0] || null;
-    if (!list && !(got || []).some((e) => e.kind === 0)) {
+    const { list, profile, allAnswered } = await readOwnList(pubkey, 10000, relays);
+    // No list and no profile is a new account only when every relay said so, and only while
+    // Sidecar holds no mutes for it: an empty read beside mutes it loaded is a bad read.
+    const held = _muteLists.get(pubkey);
+    const holds = !!held && !!(held.pubkeys.size || held.hashtags.size || held.words.length || held.threads.size);
+    if (!list && !profile && (!allAnswered || holds)) {
       throw new Error(t('Could not read your mute list, so nothing was changed.'));
     }
     let hidden = [];
@@ -7901,9 +7924,11 @@
     if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
     if (!/^[0-9a-f]{64}$/.test(target)) throw new Error(t('Could not follow this account.'));
     const relays = await listRelays(pubkey);
-    const got = await poolQuerySync(relays, { kinds: [0, 3], authors: [pubkey] }, { maxWait: 6000 });
-    const list = (got || []).filter((e) => e.kind === 3).sort((a, b) => b.created_at - a.created_at)[0] || null;
-    if (!list && !(got || []).some((e) => e.kind === 0)) {
+    const { list, profile, allAnswered } = await readOwnList(pubkey, 3, relays);
+    // No list and no profile: a new account, whose first follow starts the list, but only
+    // when every relay answered with nothing (readOwnList). The empty-read check below still
+    // refuses when Sidecar holds follows for this account.
+    if (!list && !profile && !allAnswered) {
       throw new Error(t('Could not read your follow list, so nothing was changed.'));
     }
     const isP = (x) => Array.isArray(x) && x[0] === 'p' && typeof x[1] === 'string';
@@ -7962,8 +7987,14 @@
   async function isFollowing(target) {
     const owner = state.activePubkey;
     if (followListCache && followListPubkey === owner) return followListCache.some((c) => c.pubkey === target);
-    const ev = await poolGet(await readRelayUrls(owner), { kinds: [3], authors: [owner] }, { maxWait: 8000 });
-    if (!ev) throw new Error('No follow list');
+    // A relay that answered with no list is an answer: a new account follows nobody yet. Only
+    // silence is no answer. Following still reads again before it writes (writeFollow).
+    const { events, answered } = await poolQueryAnswered(await readRelayUrls(owner), { kinds: [3], authors: [owner] }, { maxWait: 8000 });
+    const ev = events.filter((e) => e && e.pubkey === owner).sort((a, b) => b.created_at - a.created_at)[0] || null;
+    if (!ev) {
+      if (answered) return false;
+      throw new Error('No follow list');
+    }
     return ev.tags.some((x) => Array.isArray(x) && x[0] === 'p' && x[1] === target);
   }
 
