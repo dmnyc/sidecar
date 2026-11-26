@@ -183,7 +183,13 @@ test('help, welcome and wallets have a main region, and help a link to skip to i
       await sleep(2000);
       const ax = await axTree(tab);
       assert.ok(ax.find('main'), `${page} has no main region`);
-      if (page !== 'help.html') assert.ok(ax.find('checkbox', 'Menu'), `${page}: the menu switch has no name`);
+      if (page !== 'help.html') {
+        // The Menu switch exists only where the Menu button shows (780px and under);
+        // at desktop width it is hidden, so it is read there.
+        await tab.viewport({ width: 600, height: 900, scale: 1 });
+        await sleep(300);
+        assert.ok((await axTree(tab)).find('checkbox', 'Menu'), `${page}: the menu switch has no name`);
+      }
       if (page === 'help.html') {
         const skip = () => tab.evaluate(`(() => { const a = document.activeElement; const r = a.getBoundingClientRect(); return { text: a.textContent.trim(), href: a.getAttribute('href'), seen: r.bottom > 0 && r.top >= 0 && r.width > 0 }; })()`);
         const before = await tab.evaluate(`(() => { const r = document.querySelector('.skip-link').getBoundingClientRect(); return r.bottom <= 0; })()`);
