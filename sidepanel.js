@@ -2651,6 +2651,21 @@
   // name@domain, or a bare domain (NIP-05 treats that as the "_" name).
   const NIP05_RE = /^(?:[^\s@]+@)?[a-z0-9.-]+\.[a-z]{2,}$/i;
 
+  // #myfirstnote: a hashtag, opened in your client's search for it. Read the way the composer
+  // writes one into a t tag (hashtagTags in composer-core.js): letters and digits of any script,
+  // lowercase, a trailing - or _ dropped, and never a number alone ("#1" is not a tag).
+  // Returns the tag without its #, or null.
+  function hashtagOf(raw) {
+    const m = String(raw || '').trim().match(/^#([\p{L}\p{N}_][\p{L}\p{M}\p{N}_-]*)$/u);
+    const tag = m ? m[1].replace(/[-_]+$/, '').toLowerCase() : '';
+    return tag && !/^\p{N}+$/u.test(tag) ? tag : null;
+  }
+  async function openHashtagSearch(tag) {
+    const client = await preferredClient();
+    openInClient((client.hashtag || VIEW_CLIENTS.primal.hashtag)(tag));
+    closeSearch();
+  }
+
   async function resolveNip05ToPubkey(id) {
     const at = id.indexOf('@');
     const name = at === -1 ? '_' : id.slice(0, at);
@@ -2685,6 +2700,9 @@
     const raw = $('search-input').value.trim();
     if (!raw) return;
 
+    const tag = hashtagOf(raw);
+    if (tag) { await openHashtagSearch(tag); return; }
+
     const entity = extractEntity(raw);
     let url = null;
 
@@ -2715,7 +2733,7 @@
       const client = await preferredClient();
       url = client.profile(NT.nip19.npubEncode(pubkey));
     } else {
-      setSearchStatus('No match. Try a name, an npub, a note, or a name@domain address.', true);
+      setSearchStatus(t('No match. Try a name, an npub, a note, a name@domain address or a #hashtag.'), true);
       return;
     }
 
@@ -3895,6 +3913,21 @@
     if (askEl) box.prepend(askEl);
   }
 
+  // The one row a hashtag gets: the tag, drawn like a saved hashtag (a # where the avatar
+  // goes), opening in your client. Enter opens it too, through runSearch.
+  function renderHashtagResult(tag) {
+    clearSearchResults();
+    const box = $('search-results');
+    const item = h('div', { className: 'ac-item active ac-hashtag' }, [
+      h('span', { className: 'ac-item-av ac-item-glyph', textContent: '#' }),
+      h('span', { className: 'ac-item-name', textContent: '#' + tag }),
+      h('span', { className: 'ac-item-trust', textContent: t('Hashtag') }),
+    ]);
+    item.addEventListener('mousedown', (e) => { e.preventDefault(); openHashtagSearch(tag); });
+    box.append(item);
+    box.classList.remove('hidden');
+  }
+
   let searchReAskDismissed = false; // "Just my follows" answered on the returning ask
   async function updateSearchAc() {
     const raw = $('search-input').value.trim();
@@ -3905,6 +3938,9 @@
       clearSearchResults();
       return;
     }
+    // A hashtag is not a name: offer the one thing it can be, and send it to no name search.
+    const tag = hashtagOf(raw);
+    if (tag) { renderHashtagResult(tag); return; }
     const seq = ++searchAcSeq;
     const q = raw.toLowerCase();
     // By name, other name, NIP-05 or lightning address (personAka).

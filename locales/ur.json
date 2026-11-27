@@ -1717,10 +1717,8 @@
   "PIN or passphrase": "PIN یا پاس فریز",
   "Unlock": "ان لاک کریں",
   "Switch account": "اکاؤنٹ بدلیں",
-  "Find a profile or note": "پروفائل یا نوٹ تلاش کریں",
   "Help & guides": "مدد اور گائیڈز",
   "Lock": "لاک کریں",
-  "npub, note, nevent, naddr, or username": "npub، note، nevent، naddr، یا صارف نام",
   "Name search scope": "نام کی تلاش کا دائرہ",
   "Close search": "تلاش بند کریں",
   "Accounts": "اکاؤنٹس",
@@ -2492,5 +2490,8 @@
   "You zapped this {{count}} sat_other": "آپ نے اسے {{count}} sats Zap کیا ہے",
   "{{count}} likely spam_one": "{{count}} ممکنہ اسپام",
   "{{count}} likely spam_other": "{{count}} ممکنہ اسپام",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "آپ کا نیٹ ورک ابھی لوڈ نہیں ہوا، اس لیے اسپام جانچ نے انہیں الگ رکھا ہے۔ کچھ بھی چھپایا نہیں گیا۔"
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "آپ کا نیٹ ورک ابھی لوڈ نہیں ہوا، اس لیے اسپام جانچ نے انہیں الگ رکھا ہے۔ کچھ بھی چھپایا نہیں گیا۔",
+  "Find a profile, note or hashtag": "پروفائل، نوٹ یا ہیش ٹیگ تلاش کریں",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub، note، nevent، naddr، صارف نام، یا #ہیش‌ٹیگ",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "کچھ نہیں ملا۔ کوئی نام، npub، نوٹ، name@domain پتہ یا #ہیش‌ٹیگ آزمائیں۔"
 }

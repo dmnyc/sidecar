@@ -1656,10 +1656,8 @@
   "PIN or passphrase": "PIN หรือวลีรหัสผ่าน",
   "Unlock": "ปลดล็อก",
   "Switch account": "สลับบัญชี",
-  "Find a profile or note": "ค้นหาโปรไฟล์หรือโน้ต",
   "Help & guides": "ความช่วยเหลือและคู่มือ",
   "Lock": "ล็อก",
-  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr หรือชื่อผู้ใช้",
   "Name search scope": "ขอบเขตการค้นหาชื่อ",
   "Close search": "ปิดการค้นหา",
   "Accounts": "บัญชี",
@@ -2406,5 +2404,8 @@
   "You zapped this": "คุณ Zap รายการนี้แล้ว",
   "You zapped this {{count}} sat_other": "คุณ Zap รายการนี้แล้ว {{count}} sats",
   "{{count}} likely spam_other": "น่าจะเป็นสแปม {{count}} รายการ",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "เครือข่ายของคุณยังโหลดไม่เสร็จ การตรวจสแปมจึงแยกรายการเหล่านี้ไว้ ไม่มีอะไรถูกซ่อน"
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "เครือข่ายของคุณยังโหลดไม่เสร็จ การตรวจสแปมจึงแยกรายการเหล่านี้ไว้ ไม่มีอะไรถูกซ่อน",
+  "Find a profile, note or hashtag": "ค้นหาโปรไฟล์ โน้ต หรือแฮชแท็ก",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, ชื่อผู้ใช้ หรือ #แฮชแท็ก",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "ไม่พบผลลัพธ์ ลองใช้ชื่อ npub โน้ต ที่อยู่แบบ name@domain หรือ #แฮชแท็ก"
 }

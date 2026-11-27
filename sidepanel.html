@@ -157,7 +157,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
           <span class="notif-badge hidden"></span>
         </button>
-        <button id="search-btn" class="icon-btn" title="Find a profile or note" data-i18n-title="Find a profile or note" aria-expanded="false" aria-controls="search-bar">
+        <button id="search-btn" class="icon-btn" title="Find a profile, note or hashtag" data-i18n-title="Find a profile, note or hashtag" aria-expanded="false" aria-controls="search-bar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="9"></circle><line x1="21" y1="21" x2="16.35" y2="16.35"></line></svg>
         </button>
         <!-- Comment on the current page (NIP-22 kind 1111). Feather's message-circle:
@@ -211,12 +211,12 @@
     </header>
 
     <!-- Drops down from the magnifier, over the tabs. Paste an npub, note,
-         nevent, naddr or a NIP-05 name; it opens in your preferred client and
-         closes itself. -->
+         nevent, naddr or a NIP-05 name, or type a #hashtag; it opens in your
+         preferred client and closes itself. -->
     <div id="search-bar" class="search-bar hidden">
       <div class="search-row">
         <input id="search-input" type="text" spellcheck="false" autocomplete="off"
-               placeholder="npub, note, nevent, naddr, or username" data-i18n-placeholder="npub, note, nevent, naddr, or username" />
+               placeholder="npub, note, nevent, naddr, username, or #hashtag" data-i18n-placeholder="npub, note, nevent, naddr, username, or #hashtag" />
         <!-- Scope chip: name search is either your follows (users) or every Nostr
              name via the search relay (globe). Painted by
              paintSearchModeIcon; click toggles, with the one-time ask when

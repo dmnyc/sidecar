@@ -1839,10 +1839,8 @@
   "PIN or passphrase": "PIN или парольная фраза",
   "Unlock": "Разблокировать",
   "Switch account": "Сменить аккаунт",
-  "Find a profile or note": "Найти профиль или заметку",
   "Help & guides": "Справка и руководства",
   "Lock": "Заблокировать",
-  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr или имя пользователя",
   "Name search scope": "Область поиска по имени",
   "Close search": "Закрыть поиск",
   "Accounts": "Аккаунты",
@@ -2664,5 +2662,8 @@
   "{{count}} likely spam_many": "{{count}} вероятный спам",
   "{{count}} likely spam_one": "{{count}} вероятный спам",
   "{{count}} likely spam_other": "{{count}} вероятный спам",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Ваша сеть ещё не загружена, поэтому проверка на спам отложила эти уведомления. Ничего не скрыто."
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Ваша сеть ещё не загружена, поэтому проверка на спам отложила эти уведомления. Ничего не скрыто.",
+  "Find a profile, note or hashtag": "Найти профиль, заметку или хештег",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, имя пользователя или #хештег",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Ничего не найдено. Попробуйте имя, npub, заметку, адрес вида name@domain или #хештег."
 }

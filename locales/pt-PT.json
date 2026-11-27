@@ -1778,10 +1778,8 @@
   "PIN or passphrase": "PIN ou frase-passe",
   "Unlock": "Desbloquear",
   "Switch account": "Mudar de conta",
-  "Find a profile or note": "Encontrar um perfil ou nota",
   "Help & guides": "Ajuda e guias",
   "Lock": "Bloquear",
-  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr ou nome de utilizador",
   "Name search scope": "Âmbito da pesquisa de nomes",
   "Close search": "Fechar pesquisa",
   "Accounts": "Contas",
@@ -2578,5 +2576,8 @@
   "{{count}} likely spam_many": "{{count}} provável spam",
   "{{count}} likely spam_one": "{{count}} provável spam",
   "{{count}} likely spam_other": "{{count}} provável spam",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "A tua rede ainda não carregou, por isso uma verificação de spam pôs estes de parte. Nada fica oculto."
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "A tua rede ainda não carregou, por isso uma verificação de spam pôs estes de parte. Nada fica oculto.",
+  "Find a profile, note or hashtag": "Encontrar um perfil, nota ou hashtag",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, nome de utilizador ou #hashtag",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Sem resultados. Experimente um nome, um npub, uma nota, um endereço nome@domínio ou uma #hashtag."
 }

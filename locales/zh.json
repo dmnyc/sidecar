@@ -1656,10 +1656,8 @@
   "PIN or passphrase": "PIN 或口令",
   "Unlock": "解锁",
   "Switch account": "切换账户",
-  "Find a profile or note": "查找个人资料或帖子",
   "Help & guides": "帮助与指南",
   "Lock": "锁定",
-  "npub, note, nevent, naddr, or username": "npub、note、nevent、naddr 或用户名",
   "Name search scope": "名称搜索范围",
   "Close search": "关闭搜索",
   "Accounts": "账户",
@@ -2406,5 +2404,8 @@
   "You zapped this": "你已 zap 过这条",
   "You zapped this {{count}} sat_other": "你已 zap 过这条 {{count}} sats",
   "{{count}} likely spam_other": "{{count}} 条可能是垃圾信息",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "你的网络尚未加载，因此垃圾信息检查先把这些放在一边。没有任何内容被隐藏。"
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "你的网络尚未加载，因此垃圾信息检查先把这些放在一边。没有任何内容被隐藏。",
+  "Find a profile, note or hashtag": "查找个人资料、帖子或话题标签",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub、note、nevent、naddr、用户名或 #话题标签",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "没有匹配项。请尝试名称、npub、帖子、name@domain 地址或 #话题标签。"
 }

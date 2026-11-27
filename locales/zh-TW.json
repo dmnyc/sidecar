@@ -1656,10 +1656,8 @@
   "PIN or passphrase": "PIN 碼或密語",
   "Unlock": "解鎖",
   "Switch account": "切換帳號",
-  "Find a profile or note": "尋找個人檔案或貼文",
   "Help & guides": "說明與指南",
   "Lock": "鎖定",
-  "npub, note, nevent, naddr, or username": "npub、note、nevent、naddr 或使用者名稱",
   "Name search scope": "名稱搜尋範圍",
   "Close search": "關閉搜尋",
   "Accounts": "帳號",
@@ -2406,5 +2404,8 @@
   "You zapped this": "你已 Zap 過這則",
   "You zapped this {{count}} sat_other": "你已 Zap 過這則 {{count}} sats",
   "{{count}} likely spam_other": "{{count}} 則可能是垃圾訊息",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "你的網路尚未載入，因此垃圾訊息檢查先把這些放在一旁。沒有任何內容被隱藏。"
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "你的網路尚未載入，因此垃圾訊息檢查先把這些放在一旁。沒有任何內容被隱藏。",
+  "Find a profile, note or hashtag": "尋找個人檔案、貼文或主題標籤",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub、note、nevent、naddr、使用者名稱或 #主題標籤",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "找不到相符項目。請試試名稱、npub、貼文、name@domain 地址或 #主題標籤。"
 }

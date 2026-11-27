@@ -1961,10 +1961,8 @@
   "PIN or passphrase": "رمز PIN أو عبارة المرور",
   "Unlock": "فتح القفل",
   "Switch account": "تبديل الحساب",
-  "Find a profile or note": "ابحث عن ملف شخصي أو منشور",
   "Help & guides": "المساعدة والأدلة",
   "Lock": "قفل",
-  "npub, note, nevent, naddr, or username": "npub أو note أو nevent أو naddr أو اسم مستخدم",
   "Name search scope": "نطاق البحث عن الأسماء",
   "Close search": "إغلاق البحث",
   "Accounts": "الحسابات",
@@ -2836,5 +2834,8 @@
   "{{count}} likely spam_two": "{{count}} رسائل مزعجة على الأرجح",
   "{{count}} likely spam_zero": "{{count}} رسائل مزعجة على الأرجح",
   "{{count}} likely spam_other": "{{count}} رسائل مزعجة على الأرجح",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "لم تُحمَّل شبكتك بعد، لذا وضع فحص الرسائل المزعجة هذه جانبًا. لا شيء مخفي."
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "لم تُحمَّل شبكتك بعد، لذا وضع فحص الرسائل المزعجة هذه جانبًا. لا شيء مخفي.",
+  "Find a profile, note or hashtag": "ابحث عن ملف شخصي أو منشور أو وسم",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub أو note أو nevent أو naddr أو اسم مستخدم أو #وسم",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "لا نتائج. جرّب اسمًا أو npub أو منشورًا أو عنوانًا بصيغة name@domain أو #وسم."
 }
