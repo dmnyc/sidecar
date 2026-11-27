@@ -456,7 +456,12 @@ function openReceive({ methods, routes, lookups, makeError, opts, address, walle
   const tab = (label) => tabs().find((t) => t._text === label);
   // The body is the last plain div the sheet made, which is where the current mode renders.
   const body = () => made.find((e) => e.tag === 'div' && e.cls.size === 0 && e.children !== undefined && e.parentElement && e.parentElement.tag === 'div' && !e.parentElement.cls.size && e.parentElement.children.includes(e) && e.parentElement.children.some((c) => c.cls && c.cls.has('compose-tabs')));
-  const settle = async () => { for (let i = 0; i < 40; i++) await new Promise((r) => setImmediate(r)); };
+  // Node fires a zero-delay timer after at least 1ms, and on a fast machine the forty
+  // setImmediate turns can finish sooner, so wait out one timer tick first.
+  const settle = async () => {
+    await new Promise((r) => setTimeout(r, 5));
+    for (let i = 0; i < 40; i++) await new Promise((r) => setImmediate(r));
+  };
   return {
     ctx, net, wallet, log, tabs, tab, settle, made,
     text: () => textOf(body()),
