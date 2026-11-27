@@ -3197,6 +3197,9 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
 .modal h3 { font-family: var(--font-display); font-weight: 700; line-height: 28.5px; font-size: calc(19px * var(--display-scale, 1)); margin: 0 0 8px; }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+/* Receive's button (Create invoice, Continue) takes a clear step down from the field or the
+   hint above it, so it reads as the next thing to do; at 6px the two ran together. */
+#modal:has(> .recv-tabs) .actions { margin-top: 16px; }
 
 /* ---- comment on this page (NIP-22 kind 1111) ---- */
 /* Follows the note composer: same author header, tabs and link card. Only the bits
@@ -5163,6 +5166,22 @@ html .balances-hidden .wallet-balance.btc-joke::after { content: none; }
 
 /* nsec/ncryptsec tabs (key backup modal) */
 .modal-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 14px; }
+/* TABS OVER A SCROLLING LIST (the bell's All and Polls, the Library) SIT ON THE LIST. The bar's
+   own margin and the sheet's 9px gap left a band of empty sheet between the line and the rows;
+   now the list scrolls up to the line. The line runs as wide as the rows, which reach 8px past
+   the list on each side (.notif-item, .bm-item): 8px out where they start, and level where
+   they end, since the scrollbar's 9px is there. Its room is kept with or without a scrollbar
+   (scrollbar-gutter below), so the two edges meet on a short list too. Logical sides, so a
+   right-to-left panel, which puts the scrollbar on the left, mirrors it. */
+.modal-sheet > .modal-tabs:has(~ .notif-scroll, ~ .bm-scroll) { margin-bottom: -9px; margin-inline: -8px 1px; }
+.modal-tabs ~ .notif-scroll, .modal-tabs ~ .bm-scroll { scrollbar-gutter: stable; }
+.modal-tabs ~ .notif-scroll > .notif-list:first-child, .modal-tabs ~ .bm-scroll > .bm-list:first-child { margin-top: 0; }
+/* A list picker above the rows (the Library's Bookmarks and Reads) keeps the room a row's own
+   padding gives its first line, so it does not sit on the line. */
+.modal-tabs ~ .bm-scroll > select.bm-pick:first-child { margin-top: 10px; }
+/* A line saying the list is on its way (the bell's Polls) is not a row and has no row's padding,
+   so it takes the same room below the line as a row's first line. */
+.modal-tabs ~ .notif-scroll > .list.empty > .recv-waiting:first-child { padding-top: 10px; }
 .modal-tab {
   flex: 1;
   position: relative;
