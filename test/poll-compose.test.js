@@ -480,9 +480,10 @@ test('THE COMPOSER SAYS A POLL MAY NOT SHOW UP AT ALL', () => {
   assert.ok(body.includes(CLIENT_WARNING), 'the copy, verbatim');
   assert.match(body, /className: 'kind-warn'/, 'the amber caution box that already exists');
   // Between the second separator and Remove poll, which is where Jumble puts its own.
+  // (Remove poll is the panel's only: the full-size composer's poll is a tab of its own.)
   assert.match(
     body,
-    /endsNote,\n *h\('div', \{ className: 'poll-editor-sep' \}\),\n *clientWarn,\n *remove/,
+    /endsNote,\n *h\('div', \{ className: 'poll-editor-sep' \}\),\n *clientWarn,\n *\.\.\.\(remove \? \[remove\] : \[\]\)/,
     'below the clock, above the remove button'
   );
   // One line, one fact: the budget every hint in this panel is written to.

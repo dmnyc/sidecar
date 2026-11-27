@@ -835,9 +835,9 @@
   // ---- the mode switch ----
 
   const modes = h('div', { className: 'compose-modes', role: 'tablist', 'aria-label': t('What are you writing?') });
-  // POLL IS NOT A MODE OF ITS OWN. A poll is the note with its poll on (the note's draft
-  // slot holds it, as it always has), so its tab is lit whenever the note has one, wherever
-  // the draft came from; choosing it turns the poll on, and choosing Note turns it off.
+  // POLL IS NOT A MODE OF ITS OWN: it is written in the note's editor. But it has a draft of
+  // its own beside the note's (compose.js keeps it in the poll slot), so choosing Poll moves
+  // the editor to the poll's draft and choosing Note moves it back, each kept as it was.
   const MODE_LIST = [['note', t('Note')], ['poll', t('Poll')], ['article', t('Article')], ['recipe', t('Recipe')]];
   const modeBtns = {};
   for (const [id, label] of MODE_LIST) {
@@ -848,7 +848,7 @@
   }
   // THE ARROW KEYS MOVE ALONG THE TABS, as a tab list does: one Tab stop for the row, Left and
   // Right (mirrored in a right-to-left language), Home and End. They move the focus only;
-  // Enter or Space opens one, since leaving a poll asks first.
+  // Enter or Space opens one.
   modes.addEventListener('keydown', (e) => {
     const btns = MODE_LIST.map(([id]) => modeBtns[id]);
     const at = btns.indexOf(document.activeElement);
@@ -1316,6 +1316,7 @@
   chrome.runtime.onMessage.addListener((msg, sender) => {
     if (!msg || !sender || sender.id !== chrome.runtime.id || !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) return;
     if (msg.type === 'SIDECAR_COMPOSE_MODE' && ['article', 'recipe', 'note'].includes(msg.mode)) setMode(msg.mode);
+    else if (msg.type === 'SIDECAR_COMPOSE_MODE' && msg.mode === 'poll') chooseTab('poll');
     else if ((msg.type === 'SIDECAR_COMPOSE_OPEN' && msg.showDrafts !== true) || msg.type === 'SIDECAR_COMPOSE_QUOTE') setMode('note', { keepList: true });
   });
   // And a note picked from Saved drafts, here or on the relays: every row outside the
@@ -1325,6 +1326,8 @@
     if (row && !row.closest('.lf-saved-drafts')) setMode('note', { keepList: true });
   }, true);
   document.addEventListener('sidecar-account', (e) => { loadFor(e.detail); });
+  // The note's editor moved to another draft (compose.js): the poll's, or away from it.
+  document.addEventListener('sidecar-slot', () => paintTabs());
 
   // ---- in Saved drafts ----
   //
@@ -1505,33 +1508,22 @@
 
   // ---- choosing a tab ----
   //
-  // Poll and Note are the same editor, so moving between them is the poll turning on or off.
-  // Turning it off with options typed asks first. Poll, Article and Recipe are not
-  // replies: while this tab answers a note, they say so instead of opening.
+  // Poll and Note are the same editor on two drafts, so moving between them moves the editor
+  // from one draft to the other, nothing asked and nothing lost. Poll, Article and Recipe
+  // are not replies: while this tab answers a note, they say so instead of opening.
   function chooseTab(id) {
     const api = P();
     if (modeBtns[id].getAttribute('aria-disabled') === 'true') return;
-    if (id === 'poll') { setMode('note'); if (api) api.startPoll(); paintTabs(); return; }
-    if (id === 'note' && api && api.hasPoll() && state.mode === 'note') {
-      if (api.pollHasWork() && !confirmDropPoll()) return;
-      api.dropPoll();
-      paintTabs();
+    if (id === 'poll' || id === 'note') {
+      setMode('note');
+      if (api && api.inPoll() !== (id === 'poll')) Promise.resolve(api.openPoll(id === 'poll')).then(paintTabs, paintTabs);
       return;
     }
     setMode(id);
   }
-  let dropAsked = 0;
-  function confirmDropPoll() {
-    // Two taps, as the draft rows ask: the first says what the second does.
-    if (Date.now() - dropAsked < 4000) { dropAsked = 0; return true; }
-    dropAsked = Date.now();
-    $('compose-err').textContent = t('Tap Note again to remove the poll and its options.');
-    setTimeout(() => { if (!dropAsked) return; if (Date.now() - dropAsked >= 4000 && $('compose-err').textContent === t('Tap Note again to remove the poll and its options.')) $('compose-err').textContent = ''; }, 4100);
-    return false;
-  }
   function paintTabs() {
     const api = P();
-    const lit = state.mode === 'note' && api && api.hasPoll() ? 'poll' : state.mode;
+    const lit = state.mode === 'note' && api && api.inPoll() ? 'poll' : state.mode;
     const reply = !!(api && api.isReply());
     for (const [id] of MODE_LIST) {
       modeBtns[id].classList.toggle('active', id === lit);

@@ -661,8 +661,38 @@
   // answers, exactly as the panel keys it: one account can hold a plain draft and a
   // reply to each of several notes at once, and they must not overwrite each other.
   // Mirrors draftKey() in sidepanel.js; pinned to it by test.
+  // THE POLL TAB HAS A SLOT OF ITS OWN (SC.pollSlotKey), beside the note's: a poll and a
+  // note are written separately, and moving between the tabs moves between the two drafts.
   function slotFor(pubkey) {
-    return replyId ? pubkey + '|r:' + replyId : pubkey;
+    return replyId ? pubkey + '|r:' + replyId : pollSlot ? SC.pollSlotKey(pubkey) : pubkey;
+  }
+  // The address names the slot, so a reload opens the draft on screen: ?reply=<id> for a
+  // reply, ?poll for the poll.
+  function addressFor() {
+    return location.pathname + (replyId ? '?reply=' + replyId : pollSlot ? '?poll' : '');
+  }
+  // The poll a slot loads with: the poll slot always holds one, a fresh one if nothing was
+  // saved, and every other slot none.
+  function pollFrom(saved) {
+    return pollSlot ? ((saved && saved.poll) || SC.newPollDraft()) : null;
+  }
+  // A NOTE STILL HOLDING A POLL, saved before the poll had its own slot: it moves there (or
+  // aside, when a poll is already in progress), and this tab follows it to the Poll tab, which
+  // is where it was being written. Not while the panel has the note open: its next autosave
+  // would put it back.
+  async function settleNoteSlot() {
+    if (replyId || pollSlot || !state || !state.activePubkey) return;
+    const pubkey = state.activePubkey;
+    const all = await readAllDrafts();
+    if (!all[pubkey] || !all[pubkey].poll) return;
+    if ((await draftOpenInPanel()) === pubkey) return;
+    const res = SC.movePollOutOfNote(all, pubkey, Date.now());
+    if (!res) return;
+    await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+    if (res.moved) {
+      pollSlot = true;
+      try { history.replaceState(null, '', addressFor()); } catch (_) {}
+    } else if (res.shelved) toast(t('Your draft is in Saved drafts.'), 'success');
   }
 
   // Which note this tab is answering. Seeded from the URL it was opened with and
@@ -676,6 +706,11 @@
       // A draft key is built from this, so it has to be a note id and nothing else.
       return /^[0-9a-f]{64}$/i.test(v) ? v.toLowerCase() : null;
     } catch (_) { return null; }
+  })();
+  // Whether this tab is on the poll's own draft: ?poll from a reload, #poll from the panel
+  // opening a poll here. A reply is never a poll.
+  let pollSlot = (() => {
+    try { return !replyId && (new URLSearchParams(location.search).has('poll') || location.hash === '#poll'); } catch (_) { return false; }
   })();
 
   // The note being answered, drawn above the tabs. Deliberately NOT the panel's
@@ -1052,7 +1087,7 @@
     pane.append(entries.length ? SC.buildSavedDraftList({
       entries,
       nameFor,
-      onPick: (entry) => (entry.shelved ? unshelve(entry.key) : switchToDraft(entry.replyId)),
+      onPick: (entry) => (entry.shelved ? unshelve(entry.key) : switchToDraft(entry.replyId, entry.poll)),
       onCurrent: () => showTab('write'),
       onSave: (entry) => relayPane.saveEntry(entry),
       onDelete: async (entry) => {
@@ -1091,7 +1126,7 @@
     if (removed) relayDrafts.forget(pubkey, removed);
     if (replyId) {
       replyId = null;
-      try { history.replaceState(null, '', location.pathname); } catch (_) {}
+      try { history.replaceState(null, '', addressFor()); } catch (_) {}
     }
     await reopenDraft();
     paintSaved('');
@@ -1105,9 +1140,8 @@
     if (busy()) return;
     const leavingReply = !!replyTo && draftHasContent(draft);
     replyId = res.replyTo ? res.replyTo.id : null;
-    try {
-      history.replaceState(null, '', location.pathname + (replyId ? '?reply=' + replyId : ''));
-    } catch (_) {}
+    pollSlot = false; // drafts on relays are notes and replies
+    try { history.replaceState(null, '', addressFor()); } catch (_) {}
     await reopenDraft();
     showTab('write');
     if (res.shelved) toast(t('Your draft is in Saved drafts.'), 'success');
@@ -1125,13 +1159,12 @@
     if (busy() || receiptShown || replyId) return;
     const entry = SC.quoteEntriesFromPaste(typeof ref === 'string' ? ref : '', [])[0];
     if (!entry) return;
+    if (pollSlot) await switchToDraft(null, false); // a quote is a note: the poll keeps its own draft
     if (!SC.draftHasWork(draft)) {
-      const placed = SC.placeQuote(draft.poll ? [] : draft.media, entry);
-      if (!placed.change && !draft.poll) return;
+      const placed = SC.placeQuote(draft.media, entry);
+      if (!placed.change) return;
       draft.media = placed.media;
-      draft.poll = null;
       closeAltEditor(false); // the row may be editing the slot that just changed
-      if (pollEditor) pollEditor.paint();
       scheduleSave();
       paintCount();
       renderThumbs();
@@ -1155,10 +1188,12 @@
     const leavingReply = !!replyTo && draftHasContent(draft);
     await flushDraft();
     const all = await readAllDrafts();
-    if (!SC.unshelveNoteDraft(all, state.activePubkey, key, Date.now())) return;
+    const slot = SC.unshelveNoteDraft(all, state.activePubkey, key, Date.now());
+    if (!slot) return;
     await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
     replyId = null;
-    try { history.replaceState(null, '', location.pathname); } catch (_) {}
+    pollSlot = slot === SC.pollSlotKey(state.activePubkey); // a poll set aside goes back to the Poll tab
+    try { history.replaceState(null, '', addressFor()); } catch (_) {}
     await reopenDraft();
     showTab('write');
     if (leavingReply) toast(t('Your reply is saved.'), 'info');
@@ -1181,7 +1216,7 @@
       location.replace(location.pathname + (want ? '?reply=' + want : ''));
       return;
     }
-    if (want === replyId) return;   // already here
+    if (want === replyId && !pollSlot) return;   // already here
     // Whatever is on screen belongs to the slot it was typed in, so it goes back
     // there before the key moves. Same rule as the account switch.
     switchToDraft(want).catch(() => {});
@@ -1190,16 +1225,17 @@
   // The one way this tab moves between drafts, for a chip and for the panel's message
   // alike. Leaving a reply with something in it says where it went, since the editor it
   // was in is about to show something else.
-  async function switchToDraft(want) {
-    if (busy() || want === replyId) return;
+  // `poll` moves to the poll's own draft (want is then null: a reply is never a poll).
+  async function switchToDraft(want, poll) {
+    const toPoll = !want && !!poll;
+    if (busy() || (want === replyId && toPoll === pollSlot)) return;
     const leavingReply = !!replyTo && draftHasContent(draft);
     await flushDraft();
     replyId = want;
+    pollSlot = toPoll;
     // The address follows, so a reload opens the draft on screen rather than the one
     // the tab was first opened on.
-    try {
-      history.replaceState(null, '', location.pathname + (want ? '?reply=' + want : ''));
-    } catch (_) {}
+    try { history.replaceState(null, '', addressFor()); } catch (_) {}
     await reopenDraft();
     showTab('write');
     if (leavingReply) toast(t('Your reply is saved.'), 'info');
@@ -1209,6 +1245,7 @@
   // its own reasons; this is the same work for the other thing that moves a slot, which
   // is the panel pointing this tab at a different draft.
   async function reopenDraft() {
+    await settleNoteSlot();
     dkey = slotFor(state.activePubkey);
     handoverRelays = null;
     const saved = await loadDraft();
@@ -1216,7 +1253,7 @@
     draft.media = (saved && Array.isArray(saved.media)) ? saved.media : [];
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
     if (saved && Array.isArray(saved.expandRelays)) handoverRelays = saved.expandRelays;
-    draft.poll = (saved && saved.poll) || null;
+    draft.poll = pollFrom(saved);
     if (pollEditor) pollEditor.paint();
     paintReplyTarget();
     closeAltEditor();
@@ -1226,6 +1263,7 @@
     renderThumbs();
     paintCount();
     paintSavedDrafts();
+    document.dispatchEvent(new CustomEvent('sidecar-slot')); // the tabs light the slot's own
   }
 
   function paintWho() {
@@ -1265,6 +1303,7 @@
     // belongs to the account that was active when it was typed, so it is written back
     // there before the key moves rather than being carried across into someone else's.
     await flushDraft();
+    await settleNoteSlot();
     dkey = slotFor(state.activePubkey);
     handoverRelays = null; // a different account can publish somewhere else entirely
     followCache = null;
@@ -1276,9 +1315,10 @@
     // The slot moved with the account, so what it is answering moves too. Replying to
     // one note from two accounts is two drafts, and the new account may not have one.
     replyTo = (saved && saved.replyTo && saved.replyTo.id) ? saved.replyTo : null;
-    draft.poll = (saved && saved.poll) || null;
+    draft.poll = pollFrom(saved);
     if (pollEditor) pollEditor.paint();
     paintReplyTarget();
+    document.dispatchEvent(new CustomEvent('sidecar-slot'));
     // The row edits a slot of the PREVIOUS account's draft, which was just swapped
     // under it — the same reason the editor itself is rewritten below.
     closeAltEditor();
@@ -1637,12 +1677,12 @@
     publish: publishLongform,
     review: reviewLongform,
     send: sendLongform,
-    // For the Poll tab: the note's own poll, and whether this tab is answering.
+    // For the Poll tab: whether the editor is on the poll's own draft, the way to it and
+    // back, and whether this tab is answering.
     isReply: () => !!replyTo,
-    hasPoll: () => !!draft.poll,
-    startPoll: () => { if (!draft.poll && pollEditor) pollEditor.addBtn.click(); },
-    dropPoll: () => { if (draft.poll) { draft.poll = null; if (pollEditor) pollEditor.paint(); paintCount(); scheduleSave(); } },
-    pollHasWork: () => !!(draft.poll && ((draft.poll.options || []).some((o) => String(o).trim()))),
+    inPoll: () => pollSlot,
+    // A tab on its receipt has no editor to move, so it starts over on the draft asked for.
+    openPoll: (on) => (receiptShown ? location.replace(location.pathname + (on ? '?poll' : '')) : switchToDraft(null, !!on)),
     mentionEditor: (opts) => composer.createMentionEditor(opts),
     neventFor: (signed, relays) => neventFor(signed, relays),
     // The account's chosen reader for a note, as the note receipt links it: { href, label }.
@@ -2247,8 +2287,10 @@
       hasMedia: () => !!(draft.media && draft.media.length),
       mediaBtn: () => addBtn,
       gif: () => gifPicker,
+      // The Poll tab is the poll here, with its own draft: Note is the way out, not a button.
+      removable: false,
     });
-    // The Poll tab turns the poll on in this page; the button stays built, for the tab to press.
+    // Hidden: the Poll tab opens the poll's own draft instead of adding one to the note.
     pollEditor.addBtn.classList.add('compose-poll-add');
     row.append(addBtn, gifPicker.addBtn, emojiPicker.addBtn, pollEditor.addBtn, powBtn, fileInput);
     // Below the toolbar rather than inside it: the editor is a form, and the row is a
@@ -2359,6 +2401,9 @@
     paintWho();
     paintLocked();
 
+    // #poll is the panel's marker for this load, not part of the address to keep.
+    if (location.hash === '#poll') { try { history.replaceState(null, '', addressFor()); } catch (_) {} }
+    await settleNoteSlot();
     dkey = slotFor(state.activePubkey);
     const saved = await loadDraft();
     // Same strip as the account switch: a draft saved before the URLs left the editor
@@ -2379,9 +2424,9 @@
     // A reply started in the panel while this tab sat in the background shows up when
     // you come back to it.
     window.addEventListener('focus', () => { paintSavedDrafts(); });
-    // The poll rides in the same slot as the text, so a poll started in the panel and
-    // expanded here arrives whole. Painted after buildToolbar has made the editor.
-    draft.poll = (saved && saved.poll) || null;
+    // The poll slot's poll, the question being its text. Painted after buildToolbar has made
+    // the editor.
+    draft.poll = pollFrom(saved);
 
     editorApi = composer.createMentionEditor({
       placeholder: t('What’s on your mind?'),
@@ -2473,6 +2518,7 @@
     }
     renderThumbs();
     paintCount();
+    document.dispatchEvent(new CustomEvent('sidecar-slot')); // a reload on the poll lights Poll
     editorApi.focus();
 
     $('compose-post').addEventListener('click', () => {

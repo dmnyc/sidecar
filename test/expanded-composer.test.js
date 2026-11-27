@@ -132,7 +132,7 @@ test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
   // 1. The panel names the slot in the URL.
   assert.match(panelBare, /'\?reply=' \+ encodeURIComponent\(wantId\)/);
   // 2. The page turns that into the same draft key draftKey() builds.
-  assert.match(pageBare, /return replyId \? pubkey \+ '\|r:' \+ replyId : pubkey;/);
+  assert.match(pageBare, /return replyId \? pubkey \+ '\|r:' \+ replyId : pollSlot \? SC\.pollSlotKey\(pubkey\) : pubkey;/);
   assert.match(panelBare, /replyTo && replyTo\.id \? pubkey \+ '\|r:' \+ replyTo\.id : pubkey/,
     'the two key builders have drifted, so the tab would open a slot the panel never wrote');
   // 3. The target is read off the DRAFT, not the URL, so a posted draft cannot resurrect
@@ -163,10 +163,11 @@ test('ONE TAB, AND IT IS THE RIGHT DRAFT', () => {
   assert.match(panelBare, /c\.documentUrl\.split\(\/\[\?#\]\/\)\[0\] === url/);
   // And it reports WHICH draft the tab holds, because focusing a tab that is open on
   // something else shows the wrong draft and says nothing.
-  assert.match(panelBare, /searchParams\.get\('reply'\)/);
+  assert.match(panelBare, /new URL\(found\.documentUrl\)\.searchParams;\s*\n\s*replyId = q\.get\('reply'\)/);
   assert.match(panelBare, /composeTabHoldsDraft\(open, wantId\)/,
     'the panel composer stands down for a tab holding this draft');
-  assert.match(panelBare, /return !!open && !open\.done && open\.replyId === wantId;/);
+  // A tab on the poll's own draft holds no note or reply, the only drafts the panel writes.
+  assert.match(panelBare, /return !!open && !open\.done && !open\.poll && open\.replyId === wantId;/);
   // A tab on another draft is TOLD to switch, not navigated. Pointing an open tab at
   // another URL needs the "tabs" permission, which this extension does not ask for, and
   // chrome.tabs.update fails silently without it: the tab stays on the old draft and

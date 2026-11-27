@@ -15881,10 +15881,16 @@
       // something else". Without this, expanding a reply while a plain note sat in the
       // tab focused that tab and showed the wrong draft, silently.
       let replyId = null;
-      try { replyId = new URL(found.documentUrl).searchParams.get('reply') || null; } catch (_) {}
+      let poll = false;
+      try {
+        const q = new URL(found.documentUrl).searchParams;
+        replyId = q.get('reply') || null;
+        // ?poll: the tab is on the poll's own draft, not the note's (compose.js addressFor).
+        poll = !replyId && q.has('poll');
+      } catch (_) {}
       // A tab that posted says so in its address (compose.js showPosted): what it holds is
       // a receipt, not a draft.
-      return { ...found, replyId, done: /#done$/.test(found.documentUrl) };
+      return { ...found, replyId, poll, done: /#done$/.test(found.documentUrl) };
     } catch (_) {
       // An older Chrome without getContexts, or a call that threw. Falling through to
       // opening the panel composer is the safe direction: the draft store is the same
@@ -15896,12 +15902,17 @@
   // Whether the open compose tab is editing THIS draft. A tab on its receipt is editing
   // nothing: treating it as an open composer refused every new note and reply until it
   // was closed.
+  // The panel writes notes and replies only, so a tab on the poll holds neither.
   function composeTabHoldsDraft(open, wantId) {
-    return !!open && !open.done && open.replyId === wantId;
+    return !!open && !open.done && !open.poll && open.replyId === wantId;
   }
   // Whether the open tab has to be pointed at another draft first.
   function composeTabNeedsSwitch(open, wantId) {
-    return !!open && (open.done || open.replyId !== wantId);
+    return !!open && (open.done || !!open.poll || open.replyId !== wantId);
+  }
+  // The slot the open tab is writing, keyed as the store keys it.
+  function composeTabSlot(open, pubkey) {
+    return open.poll ? window.SidecarCore.pollSlotKey(pubkey) : draftKey(pubkey, open.replyId ? { id: open.replyId } : null);
   }
 
   // HANDING A DRAFT TO THE TAB, from Expand and from the always-expanded setting alike.
@@ -16251,7 +16262,7 @@
     async function draftsToList() {
       const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
       const open = await liveComposeTab();
-      const tabKey = open ? draftKey(pubkey, open.replyId ? { id: open.replyId } : null) : null;
+      const tabKey = open ? composeTabSlot(open, pubkey) : null;
       // Notes set aside come back through the note slot, so while the tab is writing it
       // they are the tab's to bring back, the same as the note itself.
       return otherDraftEntries(all, pubkey, dkey)
@@ -16354,7 +16365,7 @@
         canOpen: async (item) => {
           const open = await liveComposeTab();
           const want = item.draft.replyTo ? { id: item.draft.replyTo.id } : null;
-          return open && !open.done && draftKey(pubkey, open.replyId ? { id: open.replyId } : null) === draftKey(pubkey, want)
+          return open && !open.done && composeTabSlot(open, pubkey) === draftKey(pubkey, want)
             ? t('Your draft is already open in a tab') : null;
         },
         onOpen: (res) => openAdoptedRelayDraft(res),
@@ -16403,7 +16414,7 @@
     // a tab is writing the same slot: its next autosave would put the draft back.
     async function discardOpenDraft() {
       const open = await liveComposeTab();
-      if (open && !open.done && draftKey(pubkey, open.replyId ? { id: open.replyId } : null) === dkey) {
+      if (open && !open.done && composeTabSlot(open, pubkey) === dkey) {
         toast(t('Your draft is already open in a tab'), 'info');
         throw new Error('open in a tab');
       }
@@ -16447,12 +16458,19 @@
         target = { id: ev.id, pubkey: ev.pubkey, kind: ev.kind, tags: ev.tags, content: ev.content };
       }
       await flushDraftNow();
+      // A POLL IS WRITTEN IN THE FULL-SIZE COMPOSER, in its Poll tab with its own draft: the
+      // panel opens it there, as it does an article.
+      // A note saved with a poll in it, from before, is that poll: the tab moves it to the poll's slot.
+      if (entry.poll || (!entry.reply && !entry.shelved && entry.draft.poll)) { openLongformInTab('poll'); return; }
       // A NOTE SET ASIDE comes back into the note slot, and whatever the note slot held
-      // goes aside in its place, so picking one never writes over another.
+      // goes aside in its place, so picking one never writes over another. A poll set aside
+      // goes back to the poll's slot, and opens in the tab.
       if (entry.shelved) {
         const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {};
-        if (!unshelveNoteDraft(all, pubkey, entry.key, Date.now())) return;
+        const slot = unshelveNoteDraft(all, pubkey, entry.key, Date.now());
+        if (!slot) return;
         await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        if (slot !== pubkey) { openLongformInTab('poll'); return; }
         target = null;
       }
       const wasReply = !!replyTo && !!((draft.text || '').trim() || (draft.media || []).length);
@@ -17361,8 +17379,8 @@
       paintPrompt();
       // MORE OPTIONS, where the poll button was: a poll, an article and a recipe are each
       // written in the full-size composer, which has a tab for every one of them. This
-      // hands the note over the way Expand does. A poll already in the draft (started before
-      // this button existed) still shows its editor here, and can still be removed.
+      // hands the note over the way Expand does. A poll saved in the note from before the poll
+      // had a draft of its own is moved to that draft when the note opens (openComposer).
       const moreBtn = composeToolBtn('more', t('More options: polls, articles and recipes'));
       moreBtn.classList.add('compose-more-options');
       const paintPoll = pollEditor.paint;
@@ -17713,6 +17731,18 @@
       modal.append(...parts);
     }
 
+    // A NOTE STILL HOLDING A POLL, saved before the poll had a draft of its own: the poll
+    // moves to its slot (or aside, if a poll is already in progress there), listed under
+    // Saved drafts and written in the full-size composer's Poll tab, and the note opens
+    // without it. A note never carries a poll.
+    let pollAside = false;
+    if (!replyTo) {
+      const all = (await call({ type: 'SIDECAR_SECRET_GET', store: 'drafts' }).catch(() => null)) || {};
+      if (window.SidecarCore.movePollOutOfNote(all, pubkey, Date.now())) {
+        await call({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: all });
+        pollAside = true;
+      }
+    }
     const saved = await loadComposeDraft(dkey);
     let hasSaved = !!(saved && ((saved.text && saved.text.trim()) || (saved.media && saved.media.length)));
     // TAPPED QUOTE OVER A NOTE IN PROGRESS. No "Resume your draft?": the quote opens in a
@@ -17759,7 +17789,7 @@
         else if (hasSaved && opts && opts.resumeSaved) resumeFrom(saved);
         else if (hasSaved) { showDraftChooser(saved); addCorner(false); }
         else showEditor();
-        if (setAside) toast(t('Your draft is in Saved drafts.'), 'success');
+        if (setAside || pollAside) toast(t('Your draft is in Saved drafts.'), 'success');
         // The close box comes with each view (addCorner). An X is where people look for
         // the way out, and someone who does not find one clicks the background instead,
         // which is guarded and does nothing, so without it the guard would read as a

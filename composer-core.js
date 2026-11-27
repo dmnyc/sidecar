@@ -3484,15 +3484,18 @@ window.SidecarCore = (function () {
   // A note set aside (shelveNoteDraft) is listed with the notes, as `shelved`, and picking
   // it brings it back into the note slot (unshelveNoteDraft) rather than opening it where it
   // sits: the note slot is the one every route, Expand included, knows how to open.
+  // The poll slot (pollSlotKey) is listed with the notes, as `poll`, and opens in the
+  // full-size composer's Poll tab.
   function otherDraftEntries(all, pubkey, currentKey) {
+    const pollKey = pollSlotKey(pubkey);
     return Object.keys(all || {})
       .filter((k) => k !== currentKey
-        && (k === pubkey || k.startsWith(pubkey + '|r:') || k.startsWith(pubkey + '|n:'))
+        && (k === pubkey || k === pollKey || k.startsWith(pubkey + '|r:') || k.startsWith(pubkey + '|n:'))
         && draftHasContent(all[k]))
       .map((k) => {
         const reply = k.startsWith(pubkey + '|r:');
         return {
-          key: k, draft: all[k], reply, shelved: k.startsWith(pubkey + '|n:'),
+          key: k, draft: all[k], reply, shelved: k.startsWith(pubkey + '|n:'), poll: k === pollKey,
           replyId: reply ? k.slice(k.indexOf('|r:') + 3) : null,
         };
       })
@@ -3511,12 +3514,14 @@ window.SidecarCore = (function () {
     return !!(d && ((d.text && d.text.trim()) || (d.media || []).some((m) => m && !m.quote)
       || (d.poll && d.poll.options && d.poll.options.some((o) => o && o.trim()))));
   }
-  // Moves the note slot's draft aside if it has content. Mutates `all`; returns the new
-  // key, or null when there was nothing to keep. A key already taken this millisecond
-  // (two taps at once) moves on rather than writing over it.
-  function shelveNoteDraft(all, pubkey, now) {
-    const d = all[pubkey];
-    if (!draftHasContent(d)) { delete all[pubkey]; return null; }
+  // Moves the note slot's draft aside if it has content (or the poll slot's, when `from`
+  // names it). Mutates `all`; returns the new key, or null when there was nothing to keep.
+  // A key already taken this millisecond (two taps at once) moves on rather than writing
+  // over it.
+  function shelveNoteDraft(all, pubkey, now, from) {
+    const slot = from || pubkey;
+    const d = all[slot];
+    if (!draftHasContent(d)) { delete all[slot]; return null; }
     let t0 = now;
     while (all[pubkey + '|n:' + t0]) t0++;
     const key = pubkey + '|n:' + t0;
@@ -3524,7 +3529,7 @@ window.SidecarCore = (function () {
     delete kept.expandRelays; // the tab's relay set for one post, not part of the note
     delete kept.replyTo;      // never set on the note slot; a note set aside stays a note
     all[key] = kept;
-    delete all[pubkey];
+    delete all[slot];
     const shelf = Object.keys(all).filter((k) => k.startsWith(pubkey + '|n:'));
     if (shelf.length > SHELVED_NOTE_MAX) {
       shelf.sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0))
@@ -3533,14 +3538,41 @@ window.SidecarCore = (function () {
     return key;
   }
   // Picking a note set aside: whatever is in the note slot goes aside in its place, and
-  // the picked one becomes the note. Mutates `all`; false if the key is not a shelved note.
+  // the picked one becomes the note. A poll set aside goes back to the poll slot the same
+  // way, since a note never carries one. Mutates `all`; returns the slot it went to, or
+  // false if the key is not a shelved draft.
   function unshelveNoteDraft(all, pubkey, key, now) {
     if (typeof key !== 'string' || !key.startsWith(pubkey + '|n:') || !all[key]) return false;
     const picked = all[key];
+    const slot = picked.poll ? pollSlotKey(pubkey) : pubkey;
     delete all[key];
-    shelveNoteDraft(all, pubkey, now);
-    all[pubkey] = { ...picked, savedAt: now };
-    return true;
+    shelveNoteDraft(all, pubkey, now, slot);
+    all[slot] = { ...picked, savedAt: now };
+    return slot;
+  }
+
+  // ---- the poll's own draft ----
+  //
+  // A POLL IS NOT A NOTE WITH OPTIONS. The full-size composer's Poll tab keeps its draft in
+  // a slot of its own beside the note's, so moving between the two tabs never carries the
+  // words or the options across, and a note never has a poll to take off.
+  function pollSlotKey(pubkey) {
+    return pubkey + '|p';
+  }
+  // A note slot still holding a poll, from before the poll had its own: it moves to the
+  // poll slot, or aside under Saved drafts when that slot already has a poll in progress.
+  // Mutates `all`. Returns { moved: key }, { shelved: key }, or null when there was none.
+  function movePollOutOfNote(all, pubkey, now) {
+    const d = all && all[pubkey];
+    if (!d || !d.poll) return null;
+    const pollKey = pollSlotKey(pubkey);
+    if (draftHasContent(all[pollKey])) return { shelved: shelveNoteDraft(all, pubkey, now) };
+    const kept = { ...d, savedAt: now };
+    delete kept.expandRelays;
+    delete kept.replyTo;
+    all[pollKey] = kept;
+    delete all[pubkey];
+    return { moved: pollKey };
   }
   // THE ONE-LINE VIEW OF A DRAFT READS NOSTR REFERENCES AS A PERSON WOULD. A mention is
   // stored as nostr:npub1… or nostr:nprofile1…, 63 characters or more of bech32 that filled
@@ -4862,13 +4894,18 @@ window.SidecarCore = (function () {
         textContent: t('Some clients cannot show polls. On those, this will not appear at all.'),
       });
 
-      const remove = h('button', { className: 'poll-remove' });
-      remove.append(icon('trash'), h('span', { textContent: t('Remove poll') }));
-      remove.addEventListener('click', () => {
-        d.setPoll(null);
-        paintPoll();
-        d.changed();
-      });
+      // Not in the full-size composer, where the poll is a tab with its own draft: the
+      // way out of a poll there is the Note tab (d.removable false).
+      let remove = null;
+      if (d.removable !== false) {
+        remove = h('button', { className: 'poll-remove' });
+        remove.append(icon('trash'), h('span', { textContent: t('Remove poll') }));
+        remove.addEventListener('click', () => {
+          d.setPoll(null);
+          paintPoll();
+          d.changed();
+        });
+      }
 
       pollWrap.append(
         list,
@@ -4881,7 +4918,7 @@ window.SidecarCore = (function () {
         endsNote,
         h('div', { className: 'poll-editor-sep' }),
         clientWarn,
-        remove
+        ...(remove ? [remove] : [])
       );
     }
 
@@ -6694,7 +6731,7 @@ window.SidecarCore = (function () {
     loneMediaUrl, removeUrlFromEditor, urlOnBoundary,
     postFingerprint, freshRecentPosts, RECENT_POSTS_KEY,
     draftHasContent, otherDraftEntries, buildSavedDraftList,
-    draftHasWork, shelveNoteDraft, unshelveNoteDraft, SHELVED_NOTE_MAX,
+    draftHasWork, shelveNoteDraft, unshelveNoteDraft, SHELVED_NOTE_MAX, pollSlotKey, movePollOutOfNote,
     RELAY_DRAFT_KIND, PRIVATE_RELAYS_KIND, RELAY_DRAFT_KINDS, RELAY_DRAFT_TTL_SECS,
     draftToEvent, draftFromEvent, splitDraftContent, relayDraftWrap, relayDraftBlank, newRelayDraftId,
     draftSum, liveRelayDrafts, openRelayDrafts, parsePrivateRelayList, adoptRelayDraft, relayDraftIsLocal,

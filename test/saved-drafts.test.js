@@ -72,7 +72,7 @@ function load(extra) {
   });
   vm.createContext(ctx);
   vm.runInContext(
-    ['draftHasContent', 'otherDraftEntries', 'readRef', 'draftRefsAsText', 'refAsText', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') +
+    ['draftHasContent', 'pollSlotKey', 'otherDraftEntries', 'readRef', 'draftRefsAsText', 'refAsText', 'draftSnippet', 'draftKindLabel', 'buildSavedDraftList'].map(lift).join('\n') +
       '\nthis.draftHasContent = draftHasContent; this.otherDraftEntries = otherDraftEntries;' +
       ' this.buildSavedDraftList = buildSavedDraftList; this.draftSnippet = draftSnippet;',
     ctx
@@ -110,6 +110,18 @@ test('the note first, then replies newest first', () => {
   };
   assert.deepEqual(plain(otherDraftEntries(all, PK, 'none').map((e) => e.key)),
     [PK, PK + '|r:' + N2, PK + '|r:' + N1]);
+});
+
+test('the poll draft is listed with the notes, as a poll, and left out while it is on screen', () => {
+  const { otherDraftEntries } = load();
+  const all = {
+    [PK]: { text: 'note', savedAt: 5 },
+    [PK + '|p']: { text: 'Tea or coffee?', poll: { options: ['Tea', 'Coffee'] }, savedAt: 9 },
+    [PK + '|r:' + N1]: { text: 'reply', savedAt: 1 },
+  };
+  const got = plain(otherDraftEntries(all, PK, 'none'));
+  assert.deepEqual(got.map((e) => [e.key, e.poll, e.reply]), [[PK + '|p', true, false], [PK, false, false], [PK + '|r:' + N1, false, true]]);
+  assert.deepEqual(plain(otherDraftEntries(all, PK, PK + '|p').map((e) => e.key)), [PK, PK + '|r:' + N1]);
 });
 
 test('a poll with an option typed, or media alone, counts as something', () => {
