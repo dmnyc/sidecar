@@ -248,8 +248,9 @@ test('A BOOKMARKED NOTE IS LOOKED FOR ON THE WRITE RELAYS, AND ON ITS HINT WHEN 
 
 test('SAVED ROWS CARRY THE SAME ⋮ MENU AS A NOTIFICATION', () => {
   assert.match(panelSrc, /^  function buildEventMenu\(ev, linkTarget, opts\) \{/m, 'the menu is shared, not inside the bell');
-  assert.match(liftPanel('async function fillHighlights('), /const menu = buildEventMenu\(ev, null, \{ npubOf:/);
-  assert.match(panelSrc, /const menu = ref \|\| !en\.priv \? buildEventMenu\(ref \|\| null, null, en\.priv \? undefined : \{/);
+  assert.match(liftPanel('async function fillHighlights('), /const menu = buildEventMenu\(ev, link, \{ npubOf:/);
+  // Every bookmark has a ⋮: Copy link at least (where the row opens), and Remove unless it is private.
+  assert.match(panelSrc, /const menu = buildEventMenu\(ref \|\| null, linkFor, en\.priv \? \{\} : \{/);
 });
 
 test('A BOOKMARK NO RELAY RETURNS IS COUNTED, NOT SHOWN AS AN UNKNOWN AUTHOR', () => {
@@ -315,7 +316,7 @@ test('the Saved lists read their authors in one query, not one per author', () =
 
 test('a highlight\'s Copy npub is the quoted author\'s, and a web page offers none', () => {
   assert.match(liftPanel('async function fillHighlights('),
-    /buildEventMenu\(ev, null, \{ npubOf: \(src && src\.kind !== 'page' && src\.author\) \|\| null,/);
+    /buildEventMenu\(ev, link, \{ npubOf: \(src && src\.kind !== 'page' && src\.author\) \|\| null,/);
   const menu = liftPanel('function buildEventMenu(ev, linkTarget, opts)');
   assert.match(menu, /const who = opts && 'npubOf' in opts \? opts\.npubOf : zapSender\(ev\);/);
   assert.match(menu, /who \? \[t\('Copy npub'\)/);

@@ -571,3 +571,27 @@ test('REMOVE: letting go puts the words back, and a failed removal leaves the it
   await row.click();
   assert.deepEqual(plain(log).filter((x) => x === 'run'), ['run']);
 });
+
+// ---- Copy link: what a row opens, for an entry with no event (a bookmarked page or hashtag) too ----
+test('COPY LINK: an entry with no event offers Copy link before Remove; a link worked out when copied is awaited', async () => {
+  const { ctx, toasts } = menuWorld(async () => true);
+  const copied = [];
+  ctx.copyPlain = async (s) => { copied.push(s); };
+  const menu = ctx.build(null, async () => 'https://example.org/recipe', { remove: { label: 'Remove bookmark', run: async () => {} } });
+  await menu.btn.click();
+  assert.deepEqual(plain(labels(menu)), ['Copy link', 'Remove bookmark']);
+  await menu.panel.children[0].click();
+  assert.deepEqual(copied, ['https://example.org/recipe'], 'the link itself, not a promise');
+  assert.deepEqual(plain(toasts.at(-1)), ['Copied', 'success']);
+});
+
+test('COPY LINK: a link that cannot be worked out says it could not copy, and copies nothing', async () => {
+  const { ctx, toasts } = menuWorld(async () => true);
+  const copied = [];
+  ctx.copyPlain = async (s) => { copied.push(s); };
+  const menu = ctx.build(null, async () => null, {});
+  await menu.btn.click();
+  await menu.panel.children[0].click();
+  assert.deepEqual(copied, []);
+  assert.deepEqual(plain(toasts.at(-1)), ['Could not copy', 'error']);
+});

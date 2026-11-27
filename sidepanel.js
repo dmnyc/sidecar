@@ -9100,6 +9100,26 @@
       setOpen(panel.classList.contains('hidden'));
     });
 
+    // The link may be worked out only when it is copied (a function), as a row works it out when tapped.
+    const linkOf = () => (typeof linkTarget === 'function' ? linkTarget() : linkTarget);
+    function addCopy(label, glyph, value) {
+      const row = h('button', { className: 'notif-more-item', type: 'button' });
+      row.append(icon(glyph), h('span', { textContent: label }));
+      row.addEventListener('click', async (e) => {
+        stop(e);
+        try {
+          const text = await value();
+          if (!text) throw new Error(t('Could not copy'));
+          await copyPlain(text);
+          toast(t('Copied'), 'success');
+          setOpen(false);
+        } catch (e2) {
+          toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
+        }
+      });
+      panel.appendChild(row);
+    }
+
     // On first open rather than with the row: the list builds 25 of these at a time.
     function build() {
       built = true;
@@ -9121,7 +9141,7 @@
           who ? [t('Copy npub'), 'user-check', () => NT.nip19.npubEncode(who)] : null,
           targetId ? [opts && opts.sourceNote ? t('Copy source note ID') : t('Copy parent note ID'), 'copy',
             () => NT.nip19.neventEncode({ id: targetId, relays: [] })] : null,
-          linkTarget ? [t('Copy link'), 'external', () => linkTarget] : null,
+          linkTarget ? [t('Copy link'), 'external', linkOf] : null,
           [t('Copy event JSON'), 'file-text', () => notifEventJson(ev)],
         ].filter(Boolean);
         // An addressable piece (an article, a recipe) leads with its link and its address: the address
@@ -9137,22 +9157,10 @@
         const parentOnly = (ev.kind === 7 || ev.kind === 9735) && targetId;
         const shown = parentOnly ? items.filter(([label]) => label === t('Copy parent note ID')) : items;
 
-        for (const [label, glyph, value] of shown) {
-          const row = h('button', { className: 'notif-more-item', type: 'button' });
-          row.append(icon(glyph), h('span', { textContent: label }));
-          row.addEventListener('click', async (e) => {
-            stop(e);
-            try {
-              await copyPlain(value());
-              toast(t('Copied'), 'success');
-              setOpen(false);
-            } catch (e2) {
-              toast(e2 && e2.message ? e2.message : t('Could not copy'), 'error');
-            }
-          });
-          panel.appendChild(row);
-        }
-
+        for (const [label, glyph, value] of shown) addCopy(label, glyph, value);
+      } else if (linkTarget) {
+        // No event behind the row (a bookmarked web page or hashtag): where it opens is all there is to copy.
+        addCopy(t('Copy link'), 'external', linkOf);
       }
 
       // A remove item, for a row that can be taken out of the list it is in. It takes two taps like the
@@ -19738,7 +19746,9 @@
         const comment = mentionsAsNames(comments.get(ev.id), profiles);
         const item = h('div', { className: 'bm-item hl-item', title: t('Open in {{client}}', { client: client.label }) });
         // The same ⋮ as a notification's; its npub is the quoted author's, not yours.
-        const menu = buildEventMenu(ev, null, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
+        // Where a tap opens it, worked out at the time: your client as it is set now.
+        const link = async () => (await preferredClient()).url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 9802, relays: [] }));
+        const menu = buildEventMenu(ev, link, { npubOf: (src && src.kind !== 'page' && src.author) || null, sourceNote: true });
         item.append(h('div', { className: 'bm-main' }, [
           from ? h('div', { className: 'cm-src', title: from }, [icon(fromIcon), h('span', { dir: 'auto', textContent: from })]) : null,
           h('div', { className: 'hl-item-passage', dir: 'auto', textContent: mentionsAsNames(ev.content, profiles) }),
@@ -19746,8 +19756,7 @@
           h('div', { className: 'bm-meta', textContent: relativeTime(ev.created_at) }),
         ].filter(Boolean)), h('div', { className: 'item-actions' }, [menu.btn]), menu.panel);
         item.addEventListener('click', async () => {
-          const client = await preferredClient();
-          try { openInClient(client.url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 9802, relays: [] }))); } catch (_) {}
+          try { openInClient(await link()); } catch (_) {}
         });
         return item;
       };
@@ -19831,7 +19840,10 @@
         const item = h('div', { className: 'bm-item', title: t('Open this comment') });
         // Always the account's own comment, so there is no one else's npub to copy: left to
         // itself the menu offers the author's, which here is you.
-        const menu = buildEventMenu(ev, null, { npubOf: null });
+        // Copy link gives the comment in your client: the row opens Sidecar's own page for it, an
+        // address inside this extension that nobody else can open.
+        const link = async () => (await preferredClient()).url(NT.nip19.neventEncode({ id: ev.id, author: ev.pubkey, kind: 1111, relays: [] }));
+        const menu = buildEventMenu(ev, link, { npubOf: null });
         // The site the comment was written on leads the row, so a list of comments reads as
         // a list of places. The address itself is the tooltip; the time stays below.
         const scope = (ev.tags || []).find((tg) => tg[0] === 'I');
@@ -20462,9 +20474,24 @@
       // a notification's (the event ID, its author's npub and its JSON, to copy, for an entry whose event
       // was found), with Remove bookmark at the end: the first tap turns it red and says "Tap again to
       // confirm", the second removes, and anything else lets go (a tap outside the menu, the row itself,
-      // Escape, a few seconds of nothing). A private entry has no remove item (see above), and so, when
-      // there is nothing to copy either, no ⋮.
+      // Escape, a few seconds of nothing). A private entry has no remove item (see above). Every entry has
+      // Copy link, the place a tap on the row opens, so every row has a ⋮.
       let armed = false;
+      // Where the entry opens: a web address is its own page; the rest go to your client, an article
+      // with where its author writes, looked up if this is the first time but never held up for long.
+      const linkFor = async () => {
+        if (en.type === 'r') return en.value;
+        const client = await preferredClient();
+        if (en.type === 't') return (client.hashtag || VIEW_CLIENTS.primal.hashtag)(en.value);
+        if (en.type === 'a') {
+          const pk = en.value.split(':')[1];
+          if (!nip65Cache.has(pk)) await Promise.race([getNip65(pk).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
+          const naddr = addrNaddr(en.value, en.hint);
+          // A recipe opens in Zap Cooking, the one client that lays it out as a recipe.
+          return naddr ? pieceClient(ref, client).url(naddr) : null;
+        }
+        return client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] }));
+      };
       let off = null;
       const remove = async () => {
         // Republish the owning list minus EVERY tag for this entry: a client that wrote the same
@@ -20483,7 +20510,7 @@
           throw err;
         }
       };
-      const menu = ref || !en.priv ? buildEventMenu(ref || null, null, en.priv ? undefined : {
+      const menu = buildEventMenu(ref || null, linkFor, en.priv ? {} : {
         remove: {
           label: t('Remove bookmark'),
           run: remove,
@@ -20498,9 +20525,9 @@
           },
           onDisarm: () => { armed = false; if (off) { off(); off = null; } },
         },
-      }) : null;
+      });
       // The open menu takes the row's full width, on a line of its own under it (see .bm-item).
-      if (menu) { actions.append(menu.btn); }
+      actions.append(menu.btn);
       item.addEventListener('click', async () => {
         // An armed row is not a link: a tap on it only lets go, so the question is never
         // answered by opening the client behind it.
@@ -20512,24 +20539,11 @@
             if (chrome.tabs && chrome.tabs.create) chrome.tabs.create({ url: en.value }); else window.open(en.value, '_blank', 'noopener');
             return;
           }
-          const client = await preferredClient();
-          if (en.type === 't') {
-            openInClient((client.hashtag || VIEW_CLIENTS.primal.hashtag)(en.value));
-          } else if (en.type === 'a') {
-            // Where the author writes, looked up if this is the first time, but never held
-            // up for long: a link without it still opens.
-            const pk = en.value.split(':')[1];
-            if (!nip65Cache.has(pk)) await Promise.race([getNip65(pk).catch(() => null), new Promise((r) => setTimeout(r, 1500))]);
-            const naddr = addrNaddr(en.value, en.hint);
-            // A recipe opens in Zap Cooking, the one client that lays it out as a recipe.
-            if (naddr) openInClient(pieceClient(ref, client).url(naddr));
-          } else {
-            openInClient(client.url(NT.nip19.neventEncode({ id: en.value, author: ref ? ref.pubkey : undefined, relays: [] })));
-          }
+          const url = await linkFor();
+          if (url) openInClient(url);
         } catch (_) {}
       });
-      item.append(main, actions);
-      if (menu) item.append(menu.panel);
+      item.append(main, actions, menu.panel);
       return item;
     };
 

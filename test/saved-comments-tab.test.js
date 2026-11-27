@@ -48,8 +48,12 @@ test('a row names the note it answers, hydrated by the last e tag', () => {
 });
 
 test('opening a row opens the comment’s own page, never a client', () => {
-  assert.match(fillPart, /openThreadTab\(ev\)/);
-  assert.ok(!fillPart.includes('preferredClient()'), 'the row no longer bets on a client');
+  assert.match(fillPart, /item\.addEventListener\('click', \(\) => openThreadTab\(ev\)\)/);
+  // The row no longer bets on a client. Copy link in its ⋮ is the one place one is asked for: an
+  // address inside this extension is no link to share.
+  assert.equal(fillPart.split('preferredClient()').length - 1, 1, 'the client is asked for once, for Copy link');
+  assert.match(fillPart, /const link = async \(\) => \(await preferredClient\(\)\)\.url\(NT\.nip19\.neventEncode\(\{ id: ev\.id, author: ev\.pubkey, kind: 1111/);
+  assert.match(fillPart, /buildEventMenu\(ev, link, /);
   const open = src.slice(src.indexOf('async function openThreadTab'), src.indexOf('// ---- the account\'s own reactions'));
   assert.match(open, /chrome\.runtime\.getURL\('thread\.html'\) \+ '\?id=' \+ ev\.id/, 'the comment goes in the address by its id');
   assert.match(open, /\^\[0-9a-f\]\{64\}\$/, 'and only a real id does');
