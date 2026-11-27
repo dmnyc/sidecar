@@ -2493,5 +2493,12 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "A hálózatod még nem töltődött be, ezért egy spamellenőrzés félretette ezeket. Semmi sincs elrejtve.",
   "Find a profile, note or hashtag": "Profil, bejegyzés vagy hashtag keresése",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, felhasználónév vagy #hashtag",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Nincs találat. Próbálj egy nevet, npubot, bejegyzést, név@domain címet vagy #hashtaget."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Nincs találat. Próbálj egy nevet, npubot, bejegyzést, név@domain címet vagy #hashtaget.",
+  "Use https": "https használata",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "Ez a link http-t használ, nem https-t. Koppintson újra erre: „{{action}}”, és így küldi el.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "Ez a(z) {{count}} link http-t használ, nem https-t. Koppintson újra erre: „{{action}}”, és így küldi el őket.",
+  "Use https for {{count}} link_one": "https használata {{count}} linkhez",
+  "Use https for {{count}} link_other": "https használata {{count}} linkhez",
+  "and {{count}} more_one": "és még {{count}}",
+  "and {{count}} more_other": "és még {{count}}"
 }

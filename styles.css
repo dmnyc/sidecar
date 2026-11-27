@@ -3406,6 +3406,26 @@ html[dir="rtl"] :is(input, textarea)[dir="auto"]:placeholder-shown { direction: 
 .na-ask-actions button:hover { filter: brightness(1.08); }
 .na-ask-yes { background: var(--accent-fill, var(--gold)); border: 1px solid var(--accent-fill, var(--gold)); color: var(--chip-ink, var(--btn-primary-text, #1a0d33)); }
 .na-ask-no { background: transparent; border: 1px solid var(--border-strong); color: var(--muted); }
+/* The offer to switch a link written http:// to https (createHttpOffer), under the tracking
+   row and built the same way: a full-width ghost .compose-add, on screen only while there is
+   something to switch. Held at Post, it takes the attachment offer's accent and a line above
+   it says why nothing went out and that a second press sends the link as it is. */
+.http-row { display: flex; flex-direction: column; align-items: stretch; margin: 7px 0 0; }
+.http-note { margin: 0 0 6px; min-width: 0; font-size: 12px; line-height: 1.45; color: var(--text); }
+.http-note-text { margin: 0; }
+/* The links are prose and truncate; the full address is each one's title. Left-aligned and
+   left-to-right in every language, as an address reads. */
+.http-note-links { margin: 3px 0 0; padding: 0; list-style: none; }
+.http-note-links li { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); }
+.http-note-links li svg { flex-shrink: 0; width: 13px; height: 13px; color: var(--lav); }
+.http-note-links li span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* "and 2 more" lines up under the addresses, past the triangles. */
+.http-note-links .http-note-more { display: block; padding-inline-start: 19px; }
+.http-row.is-held .http-fix {
+  color: var(--lav); border-color: var(--lav);
+  background: rgba(var(--accent-rgb, 189, 161, 255), 0.09);
+}
+.http-row.is-held .http-fix:hover { color: var(--lav); border-color: var(--lav); }
 .compose-preview {
   min-height: 120px; max-height: calc(46vh / var(--panel-zoom, 1)); overflow-y: auto;
   border: 1px solid var(--border); border-radius: 10px; padding: 12px;

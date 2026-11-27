@@ -2493,5 +2493,12 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "آپ کا نیٹ ورک ابھی لوڈ نہیں ہوا، اس لیے اسپام جانچ نے انہیں الگ رکھا ہے۔ کچھ بھی چھپایا نہیں گیا۔",
   "Find a profile, note or hashtag": "پروفائل، نوٹ یا ہیش ٹیگ تلاش کریں",
   "npub, note, nevent, naddr, username, or #hashtag": "npub، note، nevent، naddr، صارف نام، یا #ہیش‌ٹیگ",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "کچھ نہیں ملا۔ کوئی نام، npub، نوٹ، name@domain پتہ یا #ہیش‌ٹیگ آزمائیں۔"
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "کچھ نہیں ملا۔ کوئی نام، npub، نوٹ، name@domain پتہ یا #ہیش‌ٹیگ آزمائیں۔",
+  "Use https": "https استعمال کریں",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "یہ لنک https نہیں، http استعمال کرتا ہے۔ اسے ایسے ہی بھیجنے کے لیے «{{action}}» کو دوبارہ تھپتھپائیں۔",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "یہ {{count}} لنکس https نہیں، http استعمال کرتے ہیں۔ انہیں ایسے ہی بھیجنے کے لیے «{{action}}» کو دوبارہ تھپتھپائیں۔",
+  "Use https for {{count}} link_one": "{{count}} لنک کے لیے https استعمال کریں",
+  "Use https for {{count}} link_other": "{{count}} لنکس کے لیے https استعمال کریں",
+  "and {{count}} more_one": "اور {{count}} مزید",
+  "and {{count}} more_other": "اور {{count}} مزید"
 }

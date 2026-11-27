@@ -2407,5 +2407,9 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "เครือข่ายของคุณยังโหลดไม่เสร็จ การตรวจสแปมจึงแยกรายการเหล่านี้ไว้ ไม่มีอะไรถูกซ่อน",
   "Find a profile, note or hashtag": "ค้นหาโปรไฟล์ โน้ต หรือแฮชแท็ก",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, ชื่อผู้ใช้ หรือ #แฮชแท็ก",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "ไม่พบผลลัพธ์ ลองใช้ชื่อ npub โน้ต ที่อยู่แบบ name@domain หรือ #แฮชแท็ก"
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "ไม่พบผลลัพธ์ ลองใช้ชื่อ npub โน้ต ที่อยู่แบบ name@domain หรือ #แฮชแท็ก",
+  "Use https": "ใช้ https",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "ลิงก์ {{count}} รายการใช้ http ไม่ใช่ https แตะ “{{action}}” อีกครั้งเพื่อส่งตามเดิม",
+  "Use https for {{count}} link_other": "ใช้ https กับลิงก์ {{count}} รายการ",
+  "and {{count}} more_other": "และอีก {{count}} รายการ"
 }

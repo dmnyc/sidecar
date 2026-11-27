@@ -2493,5 +2493,12 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Ağın henüz yüklenmedi, bu yüzden bir spam denetimi bunları ayırdı. Hiçbir şey gizlenmedi.",
   "Find a profile, note or hashtag": "Profil, not veya etiket bul",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, kullanıcı adı veya #etiket",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Eşleşme yok. Bir ad, npub, not, ad@alanadı adresi veya #etiket deneyin."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Eşleşme yok. Bir ad, npub, not, ad@alanadı adresi veya #etiket deneyin.",
+  "Use https": "https kullan",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "Bu bağlantı https değil, http kullanıyor. Olduğu gibi göndermek için “{{action}}” düğmesine tekrar dokunun.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "Bu {{count}} bağlantı https değil, http kullanıyor. Olduğu gibi göndermek için “{{action}}” düğmesine tekrar dokunun.",
+  "Use https for {{count}} link_one": "{{count}} bağlantı için https kullan",
+  "Use https for {{count}} link_other": "{{count}} bağlantı için https kullan",
+  "and {{count}} more_one": "ve {{count}} tane daha",
+  "and {{count}} more_other": "ve {{count}} tane daha"
 }

@@ -972,6 +972,9 @@ window.SidecarCore = (function () {
     let acDropdown = null, acResults = [], acIndex = 0;
     let acSeq = 0, acSuggestTimer = null; // guard stale async + debounce global search
     let reAskDismissed = false; // "Just my follows" answered on the ask that returns when nothing matches
+    // The link offers under the editor (tracking tags, http), checked again on every change.
+    // A no-op until they are built further down, since the editor reports changes as it is set up.
+    let linkOffersChanged = () => {};
 
     function syncEmptyClass() {
       // EMPTY MEANS NOTHING AT ALL. A space or a line break is something the writer put
@@ -996,6 +999,7 @@ window.SidecarCore = (function () {
       const text = serializeEditor(editor);
       syncEmptyClass();
       onChange(text);
+      linkOffersChanged();
     }
 
     function getCaretContext() {
@@ -1506,7 +1510,10 @@ window.SidecarCore = (function () {
     wrap.append(trackRow);
 
     let tracked = [];
-    function scanTracking() {
+    // allowShow false: only bring a row that is already up in line with the text. An edit
+    // that takes a link away, or changes it, used to leave the button up holding the old
+    // link, and a tap on it then did nothing.
+    function scanTracking(allowShow = true) {
       tracked = findTrackedUrls(serializeEditor(editor));
       if (!tracked.length) { hide(trackRow); return; }
       // The count only when there is more than one, because "Remove tracking tags from 1
@@ -1514,7 +1521,7 @@ window.SidecarCore = (function () {
       trackLabel.textContent = tracked.length === 1
         ? t('Remove tracking tags')
         : t('Remove tracking tags from {{count}} links', { count: I18N.fmtNum(tracked.length) });
-      show(trackRow);
+      if (allowShow) show(trackRow);
     }
     trackBtn.addEventListener('click', () => {
       let text = serializeEditor(editor);
@@ -1524,10 +1531,13 @@ window.SidecarCore = (function () {
       syncEmptyClass();
       emit(); // the draft and the Post button both read the text, not the DOM
       scanTracking();
-      // BACK WHERE YOU WERE WRITING. The rewrite replaces every node in the editor, and
-      // focus() on its own leaves the caret at the very top, so tapping this would cost
-      // a click to get back to the end of the sentence you were in the middle of. One
-      // button, one tap, nothing to put right afterwards.
+      caretToEnd();
+    });
+    // BACK WHERE YOU WERE WRITING. A rewrite can replace every node in the editor, and
+    // focus() on its own leaves the caret at the very top, so tapping an offer would cost
+    // a click to get back to the end of the sentence you were in the middle of. One
+    // button, one tap, nothing to put right afterwards.
+    function caretToEnd() {
       editor.focus();
       const sel = window.getSelection();
       if (sel) {
@@ -1537,11 +1547,44 @@ window.SidecarCore = (function () {
         sel.removeAllRanges();
         sel.addRange(end);
       }
+    }
+
+    // ---- the offer, for a link written http:// (createHttpOffer) ----
+    //
+    // Below the tracking row, and in step with it: either fix rewrites the text, and the
+    // emit that follows checks both rows again, so a link with a tracking tail and an http
+    // address can be fixed in either order, both ways, with no stale button left behind.
+    const httpOffer = createHttpOffer({
+      read: () => serializeEditor(editor),
+      fix: (urls) => {
+        secureLinksInEditor(editor, urls); // in place: the pills and every other word stay put
+        // A link split across nodes survives that; the whole text then, as the tracking fix does.
+        const text = serializeEditor(editor);
+        if (plainHttpLinks(text).some((u) => urls.includes(u))) {
+          editor.innerHTML = '';
+          hydrateEditorFromText(editor, secureLinks(text, urls));
+        }
+        emit();
+        caretToEnd();
+      },
     });
+    wrap.append(httpOffer.row);
+    let offersTimer = 0;
+    function scanLinkOffers(allowShow) {
+      scanTracking(allowShow);
+      httpOffer.scan(allowShow);
+    }
+    // On every change, a row that is up follows the text at once; a row that is not comes up
+    // after a pause in the typing, so it does not jump in under a link half typed.
+    linkOffersChanged = () => {
+      scanLinkOffers(false);
+      clearTimeout(offersTimer);
+      offersTimer = setTimeout(() => scanLinkOffers(true), HTTP_OFFER_PAUSE);
+    };
     // AFTER the paste lands, not instead of it. The note composer has its own paste
     // handler that inserts the plain text itself, and the comment box has none at all;
     // a scan on the next tick reads whatever either of them ended up with.
-    editor.addEventListener('paste', () => setTimeout(scanTracking, 0));
+    editor.addEventListener('paste', () => setTimeout(() => scanLinkOffers(true), 0));
 
     // ---- the attachment offer, for a URL pasted on its own ----
     //
@@ -1663,8 +1706,11 @@ window.SidecarCore = (function () {
         syncEmptyClass();
         // A paste is not the only way a tail arrives. This is the path a restored draft
         // takes, so a link pasted yesterday is still offered today.
-        scanTracking();
+        scanLinkOffers(true);
       },
+      // Post asks this first: true when the press is held over an http link (createHttpOffer),
+      // and the caller stops. action is the button's name, for "Press Post again".
+      holdForHttp: (action) => httpOffer.hold(action),
       focus: () => editor.focus(),
       close: closeAcDropdown,
       refreshSuggestions: updateAcDropdown,
@@ -2965,6 +3011,143 @@ window.SidecarCore = (function () {
       out.push(['t', tag]);
     }
     return out;
+  }
+
+  // LINKS THAT GO OUT OVER PLAIN HTTP. A post is read on other people's screens, and a link
+  // typed or pasted with http:// by accident (an old bookmark, a page that dropped the s)
+  // sends every reader there unencrypted. Before anything publishes, every composer asks
+  // about these and offers to switch them to https. Not inside code, where an http:// is
+  // usually the point, and not for hosts that have no https to switch to: this machine, a
+  // local network name, a bare IP address, a Tor or I2P address.
+  const HTTP_LINK_RE = /\bhttp:\/\/[^\s<>"'`]+/gi;
+  const HTTP_LINK_TAIL = /[.,;:!?)\]}*_]+$/; // the sentence's punctuation, not the link's
+  function httpLinkHostExempt(host) {
+    const name = String(host || '').toLowerCase().replace(/\.$/, '');
+    if (!name || name.startsWith('[')) return true; // nothing, or an IPv6 address
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(name)) return true; // an IPv4 address
+    if (/(^|\.)(localhost|local|onion|i2p|internal|lan|home\.arpa)$/.test(name)) return true;
+    return !name.includes('.'); // a one-word name only means something on a local network
+  }
+  const proseParts = (text) => String(text || '').split(/(```[\s\S]*?```|`[^`\n]+`)/);
+  // Each distinct http:// link in the text, as written, in order.
+  function plainHttpLinks(text) {
+    const out = [];
+    proseParts(text).forEach((part, i) => {
+      if (i % 2) return;
+      for (const m of part.matchAll(HTTP_LINK_RE)) {
+        const url = m[0].replace(HTTP_LINK_TAIL, '');
+        let host;
+        try { host = new URL(url).hostname; } catch (_) { continue; }
+        if (!httpLinkHostExempt(host) && !out.includes(url)) out.push(url);
+      }
+    });
+    return out;
+  }
+  // The text with those links (as plainHttpLinks gave them) switched to https, and nothing else
+  // touched: the rest of each link, its case, code, and any http link not in the list.
+  function secureLinks(text, urls) {
+    const want = new Set(urls || []);
+    return proseParts(text)
+      .map((part, i) => (i % 2 ? part : part.replace(HTTP_LINK_RE, (m) => (
+        want.has(m.replace(HTTP_LINK_TAIL, '')) ? 'https://' + m.slice('http://'.length) : m
+      ))))
+      .join('');
+  }
+  // The same switch made in an editor's own text nodes, as removeUrlFromEditor cuts a URL:
+  // the caret, the mention pills and every other word stay where they were. The caller
+  // re-reads the editor afterwards (its sync), and falls back to setText if a link was
+  // somehow split across nodes and survived.
+  function secureLinksInEditor(editor, urls) {
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    let wn;
+    while ((wn = walker.nextNode())) {
+      if (!/http:\/\//i.test(wn.textContent)) continue;
+      const next = secureLinks(wn.textContent, urls);
+      if (next !== wn.textContent) wn.textContent = next;
+    }
+  }
+  // THE OFFER, in a row of its own under what is being written, as the tracking-tags offer
+  // is: a quiet Use https, on screen while an http link is in the text. Use https switches
+  // the links where they were written and publishes nothing. Nothing stops for it until
+  // Post: the first press with an http link still in the text is held, the row says so in
+  // the accent, and a second press sends the links as they are. A different set of links
+  // is asked about afresh.
+  //
+  // read() is the text being written; fix(urls) switches those links in it. changed() after
+  // an edit: the row updates at once when it is up, and comes up only after a pause, so it
+  // does not jump in under a link half typed.
+  const HTTP_OFFER_PAUSE = 700;
+  const HTTP_LINKS_NAMED = 3;
+  function createHttpOffer({ read, fix }) {
+    // Held, the note says why nothing went out and names the links, so the http ones can be
+    // found in a long post: up to three, each on its own line and cut short when long (the
+    // full address is its title), then how many more.
+    const noteText = h('p', { className: 'http-note-text' });
+    const noteLinks = h('ul', { className: 'http-note-links' });
+    const note = h('div', { className: 'http-note hidden' }, [noteText, noteLinks]);
+    note.setAttribute('aria-live', 'polite');
+    const btn = h('button', { className: 'mini ghost compose-add http-fix', type: 'button' });
+    const btnLabel = h('span', { textContent: t('Use https') });
+    btn.append(icon('lock'), btnLabel);
+    const row = h('div', { className: 'http-row hidden' }, [note, btn]);
+    let links = [];
+    let held = null; // the links the last held press was about
+    let timer = 0;
+    const keyOf = (l) => l.join('\n');
+    function release() {
+      held = null;
+      row.classList.remove('is-held');
+      hide(note);
+      noteText.textContent = '';
+      noteLinks.replaceChildren();
+    }
+    // The count only when there is more than one, as on the tracking button.
+    function paintButton() {
+      btnLabel.textContent = links.length > 1
+        ? tn('Use https for {{count}} link', 'Use https for {{count}} links', links.length)
+        : t('Use https');
+    }
+    function scan(allowShow) {
+      links = plainHttpLinks(read());
+      if (!links.length) { release(); hide(row); return; }
+      if (held !== null && held !== keyOf(links)) release();
+      paintButton();
+      if (allowShow) show(row);
+    }
+    function changed() {
+      scan(false);
+      clearTimeout(timer);
+      timer = setTimeout(() => scan(true), HTTP_OFFER_PAUSE);
+    }
+    // True when the press is held: the caller stops there, and the next press goes.
+    function hold(action) {
+      scan(true);
+      if (!links.length) return false;
+      const key = keyOf(links);
+      if (held === key) return false;
+      held = key;
+      noteText.textContent = tn(
+        'This link uses http, not https. Press {{action}} again to send it as is.',
+        'These {{count}} links use http, not https. Press {{action}} again to send them as is.',
+        links.length, { action });
+      // Each with the warning triangle, so the list reads as the problem at a glance.
+      noteLinks.replaceChildren(...links.slice(0, HTTP_LINKS_NAMED).map((u) => h('li', { title: u }, [icon('alert'), h('span', { textContent: u, dir: 'ltr' })])));
+      if (links.length > HTTP_LINKS_NAMED) {
+        const more = links.length - HTTP_LINKS_NAMED;
+        noteLinks.append(h('li', { className: 'http-note-more', textContent: tn('and {{count}} more', 'and {{count}} more', more) }));
+      }
+      show(note);
+      row.classList.add('is-held');
+      show(row);
+      return true;
+    }
+    btn.addEventListener('click', () => {
+      const urls = links.slice();
+      release();
+      fix(urls);
+      scan(true);
+    });
+    return { row, scan, changed, hold, release };
   }
 
   function noteBodyTags(prose, NT, threadTags) {
@@ -6753,6 +6936,7 @@ window.SidecarCore = (function () {
     movePicture, canMovePicture, pictureCount, addMedia, replaceMedia, draftSnippet,
     composeNoteContent, stripDraftMediaUrls, buildMediaDrawer, videoThumbCover, primeVideoThumb,
     replyTags, replyKind, WEB_COMMENT_KIND, readRef, serializeEditor, textFromHtml, markdownFromHtml, transferText, mentionPTags, quoteTags, noteBodyTags, hashtagTags, linkBareRefs,
+    plainHttpLinks, secureLinks, secureLinksInEditor, createHttpOffer,
     parseSilentTags, parseEventRef, fetchEventRef, devReplyTags,
     renderTextWithCode, makeMediaExpandable, openMediaLightbox,
     POLL_KIND, POLL_SINGLE, POLL_MULTIPLE, POLL_DEFAULT_SECS, POLL_DURATIONS,

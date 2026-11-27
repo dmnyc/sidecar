@@ -2665,5 +2665,18 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Twoja sieć nie jest jeszcze wczytana, więc kontrola spamu odłożyła je na bok. Nic nie jest ukryte.",
   "Find a profile, note or hashtag": "Znajdź profil, notatkę lub hashtag",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, nazwa użytkownika lub #hashtag",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Brak wyników. Spróbuj nazwy, npub, notatki, adresu nazwa@domena lub #hashtagu."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Brak wyników. Spróbuj nazwy, npub, notatki, adresu nazwa@domena lub #hashtagu.",
+  "Use https": "Użyj https",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "Ten link używa http, a nie https. Kliknij ponownie „{{action}}”, aby wysłać go bez zmian.",
+  "This link uses http, not https. Press {{action}} again to send it as is._few": "Te {{count}} linki używają http, a nie https. Kliknij ponownie „{{action}}”, aby wysłać je bez zmian.",
+  "This link uses http, not https. Press {{action}} again to send it as is._many": "Tych {{count}} linków używa http, a nie https. Kliknij ponownie „{{action}}”, aby wysłać je bez zmian.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}} linku używa http, a nie https. Kliknij ponownie „{{action}}”, aby wysłać je bez zmian.",
+  "Use https for {{count}} link_one": "Użyj https dla {{count}} linku",
+  "Use https for {{count}} link_few": "Użyj https dla {{count}} linków",
+  "Use https for {{count}} link_many": "Użyj https dla {{count}} linków",
+  "Use https for {{count}} link_other": "Użyj https dla {{count}} linku",
+  "and {{count}} more_one": "i {{count}} inny",
+  "and {{count}} more_few": "i {{count}} inne",
+  "and {{count}} more_many": "i {{count}} innych",
+  "and {{count}} more_other": "i {{count}} innego"
 }

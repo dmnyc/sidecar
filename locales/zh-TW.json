@@ -2407,5 +2407,9 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "你的網路尚未載入，因此垃圾訊息檢查先把這些放在一旁。沒有任何內容被隱藏。",
   "Find a profile, note or hashtag": "尋找個人檔案、貼文或主題標籤",
   "npub, note, nevent, naddr, username, or #hashtag": "npub、note、nevent、naddr、使用者名稱或 #主題標籤",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "找不到相符項目。請試試名稱、npub、貼文、name@domain 地址或 #主題標籤。"
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "找不到相符項目。請試試名稱、npub、貼文、name@domain 地址或 #主題標籤。",
+  "Use https": "使用 https",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}} 個連結使用的是 http，而不是 https。再點一下「{{action}}」即可照原樣送出。",
+  "Use https for {{count}} link_other": "為 {{count}} 個連結改用 https",
+  "and {{count}} more_other": "還有 {{count}} 個"
 }

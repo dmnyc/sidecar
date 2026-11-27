@@ -1360,6 +1360,8 @@
     if (state && state.locked) return;
     const text = (draft.text || '').trim();
     if (!text && !draft.media.length) return;
+    // An http link holds the first press (createHttpOffer); the next one posts it as is.
+    if (editorApi.holdForHttp(replyTo ? t('Reply') : t('Post'))) return;
     // THIS NOTE WENT OUT ALREADY, AND ASKS ONCE BEFORE IT GOES AGAIN, as in the panel:
     // the same words left here after a post would publish twice. A second press posts,
     // and any edit puts the button back to Post.

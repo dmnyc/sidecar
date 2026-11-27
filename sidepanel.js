@@ -2503,6 +2503,8 @@
         if (!target) return (err.textContent = t('No page to comment on.'));
         if (!text) return (err.textContent = t('Write something first.'));
         err.textContent = '';
+        // An http link holds the first press (createHttpOffer); the next one posts it as is.
+        if (commentEditor.holdForHttp(t('Post comment'))) return;
         // Same setting the note composer reads — "Review countdown before posting"
         // covers everything publishable, so this doesn't get a switch of its own.
         const { on, secs } = await postCountdownSetting();
@@ -17505,6 +17507,8 @@
           return;
         }
         closeAltEditor(); // the description commits before the note is snapshotted
+        // An http link holds the first press (createHttpOffer); the next one posts it as is.
+        if (mentionEditor.holdForHttp(replyTo ? t('Reply') : t('Post'))) return;
         const fp = await postFingerprint(pubkey, draft, replyTo);
         const at = repeatAsked === fp ? 0 : await recentlyPostedAt(fp);
         if (at) {

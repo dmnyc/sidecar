@@ -1240,8 +1240,14 @@
     await call({ type: 'SIDECAR_SECRET_SET', store: 'longform', value: all });
   }
   function paintSaved(st, locked) { SC.paintSavedState(savedNote, st, !!locked); }
+  // The http link offer (formTexts, below): built before anything can call scheduleSave.
+  const httpOffer = SC.createHttpOffer({
+    read: () => formTexts(state.mode).join('\n\n'),
+    fix: (urls) => secureForm(state.mode, urls),
+  });
   function scheduleSave() {
     markDrafts();
+    httpOffer.changed();
     if (loading || !owner) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
@@ -1437,6 +1443,22 @@
   }
 
   const titleOf = (ev) => ((ev.tags || []).find((x) => x[0] === 'title') || [])[1] || '';
+  // THE HTTP LINK OFFER for an article or a recipe (createHttpOffer), over every field a
+  // reader sees as text, the recipe's source link among them. Use https switches the links in
+  // the form itself, so the form shows them, and the draft saves as it would after typing.
+  function formTexts(kind) {
+    if (kind === 'article') return [art.title, art.summary, art.body];
+    if (kind === 'recipe') return [rec.title, rec.summary, rec.notes, ...rec.ingredients, ...rec.directions, rec.source]; // as the recipe reads
+    return [];
+  }
+  function secureForm(kind, urls) {
+    const fix = (v) => SC.secureLinks(v, urls);
+    const obj = kind === 'article' ? art : rec;
+    for (const k of kind === 'article' ? ['title', 'summary', 'body'] : ['title', 'summary', 'notes', 'source']) obj[k] = fix(obj[k]);
+    if (kind === 'recipe') for (const list of [rec.ingredients, rec.directions]) list.splice(0, list.length, ...list.map(fix));
+    paintForms();
+    scheduleSave();
+  }
   async function publishCurrent() {
     const kind = state.mode;
     const api = P();
@@ -1447,6 +1469,8 @@
     labelPost();
     try {
       await flush();
+      // An http link holds the first press; the next one goes on to the review.
+      if (httpOffer.hold(t('Review'))) return;
       // THE REVIEW FIRST, every time: the whole piece as it will read, then Publish or Back
       // to editor. Back leaves the form as it was.
       const go = await api.review({
@@ -1562,6 +1586,7 @@
     paintSaved(mode === 'article' && hasArticle() ? 'saved' : mode === 'recipe' && hasRecipe() ? 'saved' : '');
     paintTabs();
     updateMissing();
+    httpOffer.scan(true); // the note has its own, in its editor
     // Back on the note, its button is the note's again: what the note composer last set.
     if (mode === 'note' && was !== 'note') {
       if (noteDisabled !== null) post.disabled = noteDisabled;
@@ -1580,7 +1605,7 @@
   const tabs = $('compose-tabs');
   tabs.before(h('div', { className: 'lf-mode-row' }, [modes]), articleForm, recipeForm);
   $('compose-count').before(lengthNote, missingNote, savedNote);
-  $('compose-err').before(confirmRow);
+  $('compose-err').before(confirmRow, httpOffer.row);
   setMode('note');
 
   window.SidecarLongform = { seasonalCategories, matchingCategories, categoryShown, setMode, state, RECIPE_FORMAT, recipeMissing, articleMissing, renderMarkdown, publish: publishCurrent, flush, refresh: paintForms, changed: scheduleSave, waitingCount, draftsSection };
