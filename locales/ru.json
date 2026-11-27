@@ -2659,5 +2659,10 @@
   "You zapped this {{count}} sat_few": "Вы уже отправили zap: {{count}} sats",
   "You zapped this {{count}} sat_many": "Вы уже отправили zap: {{count}} sats",
   "You zapped this {{count}} sat_one": "Вы уже отправили zap: {{count}} sats",
-  "You zapped this {{count}} sat_other": "Вы уже отправили zap: {{count}} sats"
+  "You zapped this {{count}} sat_other": "Вы уже отправили zap: {{count}} sats",
+  "{{count}} likely spam_few": "{{count}} вероятный спам",
+  "{{count}} likely spam_many": "{{count}} вероятный спам",
+  "{{count}} likely spam_one": "{{count}} вероятный спам",
+  "{{count}} likely spam_other": "{{count}} вероятный спам",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Ваша сеть ещё не загружена, поэтому проверка на спам отложила эти уведомления. Ничего не скрыто."
 }

@@ -2574,5 +2574,9 @@
   "You zapped this": "שלחת לזה Zap",
   "You zapped this {{count}} sat_one": "שלחת לזה Zap של {{count}} sats",
   "You zapped this {{count}} sat_two": "שלחת לזה Zap של {{count}} sats",
-  "You zapped this {{count}} sat_other": "שלחת לזה Zap של {{count}} sats"
+  "You zapped this {{count}} sat_other": "שלחת לזה Zap של {{count}} sats",
+  "{{count}} likely spam_one": "{{count}} כנראה ספאם",
+  "{{count}} likely spam_two": "{{count}} כנראה ספאם",
+  "{{count}} likely spam_other": "{{count}} כנראה ספאם",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "הרשת שלך עדיין לא נטענה, אז בדיקת ספאם הניחה את אלה בצד. שום דבר לא מוסתר."
 }

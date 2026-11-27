@@ -164,11 +164,16 @@ test('the module loads before the panel that reads it', () => {
 test('NOTHING IS DROPPED, ONLY MOVED', () => {
   // The one property that separates this from every content filter that has ever
   // annoyed anybody. Out-of-network rows go into a collapsed, counted group.
-  assert.match(panel, /const offNet = split \? split\.out\.filter\(\(e\) => !judged\.lift\.has\(e\.id\)\) : \[\];/);
-  // What nspam lifts out of the group goes into the list, never nowhere.
-  assert.match(panel, /const events = split \? shown\.filter\(\(e\) => !outIds\.has\(e\.id\) \|\| judged\.lift\.has\(e\.id\)\) : shown;/);
+  // sortArrivals splits what it is given into the list (inn) and the group (out), every time.
+  const sort = panel.slice(panel.indexOf('function sortArrivals('), panel.indexOf('const opened = sortArrivals(shown);'));
+  assert.match(sort, /inn: evs\.filter\(\(e\) => !part\.out\.includes\(e\) \|\| j\.lift\.has\(e\.id\)\), out: part\.out\.filter\(\(e\) => !j\.lift\.has\(e\.id\)\)/,
+    'what nspam lifts out of the group goes into the list, never nowhere');
+  assert.match(sort, /inn: evs\.filter\(\(e\) => !j\.spam\.has\(e\.id\)\), out: evs\.filter\(\(e\) => j\.spam\.has\(e\.id\)\)/,
+    'what the spam check sets aside without a network goes into the group');
+  assert.match(sort, /return \{ inn: evs, out: \[\] \};/, 'filter off: everything in the list');
+  assert.match(panel, /const events = opened\.inn;\s*const offNet = opened\.out;/);
   assert.match(panel, /function showOffNet\(\)/);
-  assert.match(panel, /tn\('\{\{count\}\} from outside your network', '\{\{count\}\} from outside your network', offNet\.length\)/);
+  assert.match(panel, /tn\('\{\{count\}\} from outside your network', '\{\{count\}\} from outside your network', n\)/);
   // And they are still rendered with the same builder as everything else.
   // Inserted before the explanatory note, which lives at the foot of the group.
   assert.match(panel, /offNet\.forEach\(\(ev\) => inner\.insertBefore\(buildItem\(ev\), note\)\)/);
@@ -180,14 +185,19 @@ test('it judges the sender, not the event author', () => {
   // A zap receipt is authored by the LNURL service. Partitioning on ev.pubkey would sort
   // by the wrong person entirely, which is the same bug isMutedNotif already carries a
   // comment about.
-  assert.match(panel, /partition\(wotSet, shown, zapSender\)/);
+  assert.match(panel, /partition\(sortingSet, evs, zapSender\)/);
+  // And without a network, your follows are matched on the sender too.
+  assert.match(panel, /!follows\.has\(zapSender\(ev\)\)/);
 });
 
-test('no warm set means no sorting', () => {
-  // Building costs a kind:3 per follow, so the bell must never wait on it. No set is the
-  // fail-open direction: everything shows as it did before.
+test('no warm set means the spam check sorts alone, and the bell sorts again when one lands', () => {
+  // Building costs a kind:3 per follow, so the bell must never wait on it. No set, or an
+  // empty one, sorts nobody by network; the spam check still sets aside what it is sure of
+  // (bell-spam-without-network.browser.test.js runs it).
   assert.match(panel, /_wotPubkey === a\.pubkey \? _wotSet : null/);
-  assert.match(panel, /const split = wotSet \? self\.SidecarWot\.partition/);
+  assert.match(panel, /const sortingSet = wotSet && wotSet\.size \? wotSet : null;/);
+  assert.match(panel, /const spamOnly = notifWotFilter && !sortingSet;/);
+  assert.match(panel, /showNotifModal\(a, notifPlace\(\)\)/, 'the open bell is not sorted again when the set lands');
   // Warmed, not awaited — and deferred past first paint. At four concurrent chunks it
   // crowded the relay pool hard enough that the bell's own profile lookups failed and
   // every name in it fell back to an npub.
@@ -244,7 +254,7 @@ test('LIVE ARRIVALS ARE SORTED TOO', () => {
   assert.doesNotMatch(panel, /_openNotifBell\.list\.prepend/, 'never prepended blind');
   const fn = panel.slice(panel.indexOf('function addLive(ev)'));
   const body = fn.slice(0, fn.indexOf('\n      }'));
-  assert.match(body, /!self\.SidecarWot\.inNetwork\(wotSet, zapSender\(ev\)\)/, 'same test, same sender');
+  assert.match(body, /sortArrivals\(\[ev\], offNet\.filter\(\(x\) => x\.pubkey === ev\.pubkey\)\)\.out\.length/, 'same sort, same sender');
   assert.match(body, /offNet\.unshift\(ev\)/, 'out-of-network joins the group');
   assert.match(body, /list\.prepend\(buildItem\(ev\)\)/, 'in-network still goes to the top');
   // Collapsed, the count is the only thing that should move.

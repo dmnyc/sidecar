@@ -2489,5 +2489,8 @@
   "Zapping…": "در حال Zap کردن…",
   "You zapped this": "این را Zap کرده‌اید",
   "You zapped this {{count}} sat_one": "این را با {{count}} sats Zap کرده‌اید",
-  "You zapped this {{count}} sat_other": "این را با {{count}} sats Zap کرده‌اید"
+  "You zapped this {{count}} sat_other": "این را با {{count}} sats Zap کرده‌اید",
+  "{{count}} likely spam_one": "{{count}} احتمالاً هرزنامه",
+  "{{count}} likely spam_other": "{{count}} احتمالاً هرزنامه",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "شبکه‌ات هنوز بارگیری نشده، پس یک بررسی هرزنامه این‌ها را کنار گذاشت. چیزی پنهان نشده است."
 }

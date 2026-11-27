@@ -2404,5 +2404,7 @@
   "Copy recipe address": "레시피 주소 복사",
   "Zapping…": "Zap 보내는 중…",
   "You zapped this": "Zap을 보냈습니다",
-  "You zapped this {{count}} sat_other": "{{count}} sats Zap을 보냈습니다"
+  "You zapped this {{count}} sat_other": "{{count}} sats Zap을 보냈습니다",
+  "{{count}} likely spam_other": "스팸 의심 {{count}}건",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "네트워크를 아직 불러오지 못해 스팸 검사로 이것들을 따로 모았습니다. 숨긴 것은 없습니다."
 }

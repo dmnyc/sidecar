@@ -2489,5 +2489,8 @@
   "Zapping…": "Zap gönderiliyor…",
   "You zapped this": "Buna zap gönderdin",
   "You zapped this {{count}} sat_one": "Buna {{count}} sat zap gönderdin",
-  "You zapped this {{count}} sat_other": "Buna {{count}} sat zap gönderdin"
+  "You zapped this {{count}} sat_other": "Buna {{count}} sat zap gönderdin",
+  "{{count}} likely spam_one": "{{count}} olası spam",
+  "{{count}} likely spam_other": "{{count}} olası spam",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Ağın henüz yüklenmedi, bu yüzden bir spam denetimi bunları ayırdı. Hiçbir şey gizlenmedi."
 }

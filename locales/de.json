@@ -2489,5 +2489,8 @@
   "Zapping…": "Zap wird gesendet…",
   "You zapped this": "Du hast das gezappt",
   "You zapped this {{count}} sat_one": "Du hast das mit {{count}} Sat gezappt",
-  "You zapped this {{count}} sat_other": "Du hast das mit {{count}} Sats gezappt"
+  "You zapped this {{count}} sat_other": "Du hast das mit {{count}} Sats gezappt",
+  "{{count}} likely spam_one": "{{count}} vermutlich Spam",
+  "{{count}} likely spam_other": "{{count}} vermutlich Spam",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Dein Netzwerk ist noch nicht geladen, deshalb hat eine Spamprüfung diese beiseitegelegt. Nichts ist verborgen."
 }

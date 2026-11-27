@@ -59,6 +59,11 @@ function render(events, offNet, cache) {
     NT: { nip19: { npubEncode: () => 'npub' } }, a: { pubkey: 'account' },
   };
   withI18n(ctx); // notification labels go through t() and tn()
+  // What the sheet sets up before this part runs: sorted by a network, with none warm here,
+  // so nothing moves (bell-spam-without-network.browser.test.js runs the real sort).
+  ctx.spamOnly = false;
+  ctx.sortArrivals = (evs) => ({ inn: evs, out: [] });
+  ctx.offNetLabel = (n) => ctx.tn('{{count}} from outside your network', '{{count}} from outside your network', n);
   vm.runInNewContext(source, ctx);
   const find = (className) => scroll.children.find((n) => n.className === className);
   return { list, scroll, find };
