@@ -468,6 +468,14 @@
 [data-theme="turnstile"] .secondary,
 [data-theme="turnstile"] .relax-chip { --enamel: #F6F3EA; --enamel-ink: #151A1E; }
 [data-theme="turnstile"] .danger { --enamel: #9C2A1C; --enamel-ink: #FBF3EC; }
+/* A white sign takes a hairline of ink at its edge. On a cream card or a sheet there is no
+   wall around it to show where the plate ends, and only its lip showed, as a stray line
+   under the button. */
+[data-theme="turnstile"] .secondary,
+[data-theme="turnstile"] .relax-chip {
+  box-shadow: inset 0 0 0 3px var(--enamel), inset 0 0 0 4.5px var(--enamel-ink),
+              0 0 0 1px rgba(21, 26, 30, 0.35), 0 1px 0 rgba(21, 26, 30, 0.25);
+}
 /* Data is not lettering: an address on a button stays in the UI face and its own case. */
 [data-theme="turnstile"] .recv-addr,
 [data-theme="turnstile"] .recv-out > .secondary:not(.recv-copy),
@@ -499,6 +507,13 @@
 }
 [data-theme="turnstile"] .list.flat .item { box-shadow: none; border-bottom: 1px solid rgba(21, 26, 30, 0.16); border-radius: 0; }
 [data-theme="turnstile"] .list.flat .item:last-child { border-bottom: none; }
+/* A tab row on a sheet (the bell, the Library, Receive) heads what is under it rather than
+   being an enamel strip of its own: no edge, only the ink rule the tab marker runs on. The
+   poll list beneath the bell's tabs is the sheet's own list, not a framed panel, so it
+   drops its edge too. */
+[data-theme="turnstile"] #modal .modal-tabs,
+[data-theme="turnstile"] #modal .compose-tabs { box-shadow: none; border-bottom: 1px solid #151A1E; }
+[data-theme="turnstile"] .modal-tabs ~ .notif-scroll > .list.flat { border: none; box-shadow: none; }
 [data-theme="turnstile"] .item.item-active,
 [data-theme="turnstile"] .item.item-pending {
   box-shadow: inset 0 0 0 3px #FAF8F2, inset 0 0 0 5px #1F4A3B, 0 1px 0 rgba(21, 26, 30, 0.18);
@@ -637,12 +652,15 @@
 }
 
 /* ---- TRANSACTIONS: ENAMEL ROUNDELS -----------------------------------------------------
-   Money in is a green enamel disc and money out a cobalt one, each with a cream arrow,
-   rather than the shared pale tints, which washed out on the white plates. */
+   Money in is a green enamel disc and money out a red faience one, the red the balance
+   tablet is set in, each with a cream arrow, rather than the shared pale tints, which
+   washed out on the white plates. The amount out takes the same red; the alert red
+   (#9C2A1C) stays for errors, so a payment never reads as one. */
 [data-theme="turnstile"] .tx-icon.in { background: #1F4A3B; color: #EFE8D2; }
-[data-theme="turnstile"] .tx-icon.out { background: #1E2E78; color: #F2F0E6; }
+[data-theme="turnstile"] .tx-icon.out { background: #7E2A22; color: #F2F0E6; }
 [data-theme="turnstile"] .tx-icon.in .tx-dir { background: #1F4A3B; color: #EFE8D2; box-shadow: 0 0 0 1.5px #FAF8F2; }
-[data-theme="turnstile"] .tx-icon.out .tx-dir { background: #1E2E78; color: #F2F0E6; box-shadow: 0 0 0 1.5px #FAF8F2; }
+[data-theme="turnstile"] .tx-icon.out .tx-dir { background: #7E2A22; color: #F2F0E6; box-shadow: 0 0 0 1.5px #FAF8F2; }
+[data-theme="turnstile"] .tx-amt.out { color: #7E2A22; }
 
 /* ---- THE LOCK SCREEN --------------------------------------------------------------------
    The frieze runs along the top of the wall; the logo, the line under it and the PIN form
