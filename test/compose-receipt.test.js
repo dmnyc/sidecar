@@ -46,7 +46,7 @@ function tabHandler(state) {
   const replaced = [];
   const switched = [];
   const ctx = vm.createContext({
-    receiptShown: state.done, replyId: state.replyId,
+    receiptShown: state.done, replyId: state.replyId, pollSlot: false,
     location: { pathname: '/compose.html', replace: (u) => replaced.push(u) },
     switchToDraft: (w) => { switched.push(w); return Promise.resolve(); },
   });

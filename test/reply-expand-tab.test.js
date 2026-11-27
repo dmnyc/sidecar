@@ -52,7 +52,7 @@ function panelKey(pubkey, replyTo) {
 
 function pageKey(pubkey, replyId) {
   const src = page.match(/function slotFor\(pubkey\)[\s\S]*?\n  \}/)[0];
-  const c = { replyId }; c.globalThis = c; vm.createContext(c);
+  const c = { replyId, pollSlot: false }; c.globalThis = c; vm.createContext(c);
   vm.runInContext(src + ';globalThis.f = slotFor;', c);
   return c.f(pubkey);
 }
@@ -204,7 +204,8 @@ test('AN OPEN TAB IS TOLD TO SWITCH, BECAUSE IT CANNOT BE NAVIGATED', () => {
   const sw = page.slice(page.indexOf('async function switchToDraft'));
   assert.match(sw.slice(0, 900), /await flushDraft\(\);\s*replyId = want;[\s\S]*await reopenDraft\(\);/);
   // And a message naming the draft already open does nothing.
-  assert.match(handler.slice(0, 900), /if \(want === replyId\) return;/);
+  // (A tab on the poll's own draft is not on the note, so it switches.)
+  assert.match(handler.slice(0, 900), /if \(want === replyId && !pollSlot\) return;/);
 
   // replyId has to be reassignable for any of that to work.
   assert.match(page, /let replyId = \(\(\) => \{/);
@@ -215,7 +216,7 @@ test('the target survives an account switch, or follows it', () => {
   // The slot is keyed by account, so switching accounts inside the tab moves to that
   // account's draft for the same note. Replying from two accounts is two drafts, and the
   // new one may not exist, in which case the tab correctly stops being a reply.
-  const sw = page.slice(page.indexOf('await flushDraft();\n    dkey = slotFor(state.activePubkey);'));
+  const sw = page.slice(page.indexOf('await flushDraft();\n    await settleNoteSlot();\n    dkey = slotFor(state.activePubkey);'));
   const body = sw.slice(0, 1400);
   assert.match(body, /dkey = slotFor\(state\.activePubkey\);/);
   assert.match(body, /replyTo = \(saved && saved\.replyTo && saved\.replyTo\.id\) \? saved\.replyTo : null;/);
@@ -345,7 +346,7 @@ test('SAVED DRAFTS IS THE FOLDER IN THE CORNER, AS IN THE PANEL', () => {
 test('LEAVING A REPLY WITH SOMETHING IN IT SAYS IT WAS SAVED', () => {
   const sw = page.slice(page.indexOf('async function switchToDraft'));
   const body = sw.slice(0, sw.indexOf('\n  }\n'));
-  assert.match(body, /if \(busy\(\) \|\| want === replyId\) return;/);
+  assert.match(body, /if \(busy\(\) \|\| \(want === replyId && toPoll === pollSlot\)\) return;/);
   assert.match(body, /const leavingReply = !!replyTo && draftHasContent\(draft\);/);
   assert.match(body, /if \(leavingReply\) toast\(t\('Your reply is saved\.'\), 'info'\);/);
   // And the address follows, so a reload opens the draft on screen, on its editor.

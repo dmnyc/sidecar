@@ -128,10 +128,37 @@ test('only the newest notes set aside are kept, and replies are not touched', ()
 
 test('picking a note set aside swaps it with the note slot, so neither is lost', () => {
   const all = { [PK]: { text: 'current' }, [PK + '|n:10']: { text: 'older', savedAt: 10 } };
-  assert.equal(SC.unshelveNoteDraft(all, PK, PK + '|n:10', 7000), true);
+  assert.equal(SC.unshelveNoteDraft(all, PK, PK + '|n:10', 7000), PK);
   assert.equal(all[PK].text, 'older');
   assert.equal(all[PK + '|n:10'], undefined);
   assert.equal(all[PK + '|n:7000'].text, 'current');
+});
+
+test('a poll set aside goes back to the poll slot, never the note, and swaps with it', () => {
+  const poll = (o) => ({ options: [o, 'b'], multiple: false, ends: { kind: 'none' } });
+  const all = { [PK]: { text: 'a note' }, [PK + '|p']: { text: 'current?', poll: poll('x') }, [PK + '|n:10']: { text: 'older?', poll: poll('y'), savedAt: 10 } };
+  assert.equal(SC.unshelveNoteDraft(all, PK, PK + '|n:10', 7000), PK + '|p');
+  assert.equal(all[PK].text, 'a note', 'the note was touched');
+  assert.equal(all[PK + '|p'].text, 'older?');
+  assert.equal(all[PK + '|n:7000'].text, 'current?');
+});
+
+test('a note holding a poll from before moves it to the poll slot, or aside when one is in progress', () => {
+  const poll = { options: ['Yes', 'No'], multiple: false, ends: { kind: 'none' } };
+  const one = { [PK]: { text: 'Friday?', media: [], poll, replyTo: null, expandRelays: ['wss://r'] } };
+  assert.deepEqual(plain(SC.movePollOutOfNote(one, PK, 5)), { moved: PK + '|p' });
+  assert.equal(one[PK], undefined);
+  assert.deepEqual(plain(one[PK + '|p']), { text: 'Friday?', media: [], poll, savedAt: 5 });
+
+  const two = { [PK]: { text: 'Friday?', poll }, [PK + '|p']: { text: 'Busy', poll } };
+  assert.deepEqual(plain(SC.movePollOutOfNote(two, PK, 6)), { shelved: PK + '|n:6' });
+  assert.equal(two[PK], undefined);
+  assert.equal(two[PK + '|p'].text, 'Busy', 'the poll in progress was written over');
+  assert.equal(two[PK + '|n:6'].text, 'Friday?');
+
+  const note = { [PK]: { text: 'just a note' } };
+  assert.equal(SC.movePollOutOfNote(note, PK, 7), null);
+  assert.equal(note[PK].text, 'just a note');
 });
 
 test('picking anything but a note set aside changes nothing', () => {
@@ -169,10 +196,12 @@ function liftBraces(src, decl) {
   throw new Error('unbalanced ' + decl);
 }
 
-function tab(draft, store, { busy = false, receipt = false, replyId = null } = {}) {
-  const calls = { toast: [], saved: 0, thumbs: 0, reopened: 0, flushed: 0, written: null };
+function tab(draft, store, { busy = false, receipt = false, replyId = null, pollSlot = false } = {}) {
+  const calls = { toast: [], saved: 0, thumbs: 0, reopened: 0, flushed: 0, written: null, switched: [] };
   const ctx = {
-    SC, draft, receiptShown: receipt, replyId, dkey: PK, pollEditor: null,
+    SC, draft, receiptShown: receipt, replyId, pollSlot, dkey: PK, pollEditor: null,
+    // Leaving the poll for the note: the slot moves, and the poll's draft is left as it was.
+    switchToDraft: async (want, poll) => { calls.switched.push([want, !!poll]); ctx.pollSlot = !want && !!poll; draft.poll = null; draft.text = ''; draft.media = []; },
     busy: () => busy,
     closeAltEditor() {}, paintCount() {}, showTab() {},
     scheduleSave: () => { calls.saved++; },
@@ -203,6 +232,16 @@ test('the tab sets the note in progress aside and opens the tapped quote in a fr
   assert.deepEqual(w[PK].media, [{ quote: refB }]);
   assert.equal(calls.reopened, 1, 'the editor was not reloaded from the fresh slot');
   assert.deepEqual(calls.toast, ['Your draft is in Saved drafts.']);
+});
+
+test('a quote tapped while the tab is on the poll opens in the note, and the poll is left alone', async () => {
+  const draft = { text: 'Tea or coffee?', media: [], poll: { options: ['Tea', 'Coffee'] } };
+  const { ctx, calls } = tab(draft, {}, { pollSlot: true });
+  await ctx.takeQuote(refB);
+  assert.deepEqual(calls.switched, [[null, false]], 'the quote went into the poll');
+  assert.equal(ctx.pollSlot, false);
+  assert.deepEqual(plain(draft.media), [{ quote: refB }]);
+  assert.equal(calls.written, null, 'the poll was set aside or written over');
 });
 
 test('the tab re-points a draft holding only an older quote, with nothing set aside', async () => {
@@ -253,7 +292,7 @@ test('a note set aside comes back through the note slot, in both composers', () 
   const panel = liftBraces(read('sidepanel.js'), 'async function switchToSavedDraft(');
   assert.match(panel, /if \(entry\.shelved\)[\s\S]{0,200}unshelveNoteDraft\(all, pubkey, entry\.key, Date\.now\(\)\)/);
   const page = read('compose.js');
-  assert.match(page, /onPick: \(entry\) => \(entry\.shelved \? unshelve\(entry\.key\) : switchToDraft\(entry\.replyId\)\)/);
+  assert.match(page, /onPick: \(entry\) => \(entry\.shelved \? unshelve\(entry\.key\) : switchToDraft\(entry\.replyId, entry\.poll\)\)/);
   assert.match(liftBraces(page, 'async function unshelve('), /SC\.unshelveNoteDraft\(all, state\.activePubkey, key, Date\.now\(\)\)/);
 });
 
