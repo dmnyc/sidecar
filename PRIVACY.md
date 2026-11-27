@@ -103,7 +103,7 @@ Sidecar only talks to services **you choose**:
 - **Live video** — nothing is sent until you open the Live streams list or play a
   stream, and **Enable live video** in Settings turns the feature off. Browsing
   reads public stream announcements (NIP-53) without signing in, from a fixed set
-  of public relays (relay.damus.io, nos.lol and relay.primal.net), which are not
+  of public relays (relay.damus.io, relay.primal.net and relay.ditto.pub), which are not
   limited to the relays you configure. Playing a stream loads its video from the
   address in the announcement, so that host sees your IP address and which stream
   you are watching, as with any video link; stream artwork and host pictures load

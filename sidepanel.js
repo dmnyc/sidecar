@@ -5128,6 +5128,10 @@
   const EOSE_CLOSE = 'closed automatically on eose'; // nostr-tools subscribeEose's reason
   const BASE_EOSE_TIMEOUT = 4400; // nostr-tools AbstractRelay.baseEoseTimeout
   function poolQueryAnswered(relays, filter, params) {
+    // What nostr-tools reports, as a subscription's close reason, when the relay's connection
+    // never opened: AbstractRelay.connect rejects with these, and subscribeMap passes them on.
+    // A relay that connected and then sent CLOSED (auth-required, restricted) does not match.
+    const NEVER_CONNECTED = /^(connection timed out|connection failed|websocket closed|connection skipped)/;
     const urls = [...new Set(relays || [])];
     if (!urls.length) return Promise.resolve({ events: [], answered: false });
     const realBefore = (params && params.maxWait) || BASE_EOSE_TIMEOUT;
@@ -5152,6 +5156,10 @@
       const subs = [];
       const t0 = Date.now();
       let answered = false;
+      // Relays that were never reached: the connection failed, timed out or was refused, so
+      // the relay was never asked. Not the same as silent: a relay that connected and then
+      // said nothing may be holding the answer, and one that never connected was asked nothing.
+      let unreached = 0;
       let left = urls.length;
       let done = false;
       let settleTimer = null;
@@ -5161,7 +5169,7 @@
         done = true;
         clearTimeout(settleTimer);
         clearTimeout(capTimer);
-        resolve({ events, answered, complete: left === 0 });
+        resolve({ events, answered, unreached, complete: left === 0 });
         if (settleAfter || capMs) for (const sub of subs) { try { sub.close(); } catch (_) {} }
       };
       if (capMs) capTimer = setTimeout(finish, capMs);
@@ -5176,7 +5184,9 @@
             }
           },
           onclose: (reasons) => {
-            if ((reasons || [])[0] === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
+            const reason = (reasons || [])[0];
+            if (reason === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
+            else if (NEVER_CONNECTED.test(String(reason || ''))) unreached++;
             if (--left === 0) finish();
           },
         })));
@@ -6219,12 +6229,16 @@
   // Asked for kind:1018 ballots by poll id, and for nothing else. The tally still
   // applies every rule to what comes back — one ballot per pubkey, nothing past endsAt —
   // so a relay here can surface a voter, but cannot invent one.
+  //
+  // By November 2026 nos.lol no longer answered. relay.nostr.net and nostr.data.haus were
+  // added in its place, both holding a month of ballots when measured.
   const POLL_VOTE_DISCOVERY_RELAYS = [
     'wss://relay.primal.net',
     'wss://relay.damus.io',
     'wss://relay.snort.social',
-    'wss://nos.lol',
     'wss://relay.ditto.pub',
+    'wss://relay.nostr.net',
+    'wss://nostr.data.haus',
   ];
 
   // The full set a vote query is sent to: the poll's own relays first — a compliant
@@ -8181,6 +8195,32 @@
     return [...new Set([...read, ...write])];
   }
 
+  // Read one of the account's own lists, with the profile beside it, and say whether the
+  // relays' silence can be trusted (`settled`), one subscription per relay so a silent one
+  // cannot hide behind one that answered.
+  //
+  // A NEW ACCOUNT HAS NO LISTS AND OFTEN NO PROFILE, and "nothing came back" alone cannot tell
+  // that from relays that never answered. Relays answering with nothing can: that is an
+  // account with no list yet, and the first follow or mute starts one.
+  //
+  // Settled means no relay stayed silent after connecting, since that one may be holding the
+  // list, and at least two answered (one, if the account has one relay). A relay that never
+  // connected does not count either way: some relay is always down, and a list on it cannot
+  // be overwritten from here, because a write cannot reach it either.
+  async function readOwnList(pubkey, kind, relays) {
+    const each = await Promise.all(relays.map((url) =>
+      poolQueryAnswered([url], { kinds: [0, kind], authors: [pubkey] }, { maxWait: 6000 })
+        .catch(() => ({ events: [], answered: false, unreached: 0 }))));
+    const got = each.flatMap((r) => r.events || []).filter((e) => e && e.pubkey === pubkey);
+    const heard = each.filter((r) => r.answered).length;
+    const silent = each.filter((r) => !r.answered && !r.unreached).length;
+    return {
+      list: got.filter((e) => e.kind === kind).sort((a, b) => b.created_at - a.created_at)[0] || null,
+      profile: got.some((e) => e.kind === 0),
+      settled: silent === 0 && heard >= Math.min(2, relays.length) && heard > 0,
+    };
+  }
+
   // Add one entry to the PRIVATE part of the account's mute list: the tags that live
   // encrypted in the event's content, where nobody reading the list can see who the
   // account has muted. Public tags and every other private entry ride through
@@ -8237,9 +8277,12 @@
   async function writeMute(pubkey, tag, remove) {
     if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
     const relays = await listRelays(pubkey);
-    const got = await poolQuerySync(relays, { kinds: [0, 10000], authors: [pubkey] }, { maxWait: 6000 });
-    const list = (got || []).filter((e) => e.kind === 10000).sort((a, b) => b.created_at - a.created_at)[0] || null;
-    if (!list && !(got || []).some((e) => e.kind === 0)) {
+    const { list, profile, settled } = await readOwnList(pubkey, 10000, relays);
+    // No list and no profile is a new account only when the relays settled it, and only while
+    // Sidecar holds no mutes for it: an empty read beside mutes it loaded is a bad read.
+    const held = _muteLists.get(pubkey);
+    const holds = !!held && !!(held.pubkeys.size || held.hashtags.size || held.words.length || held.threads.size);
+    if (!list && !profile && (!settled || holds)) {
       throw new Error(t('Could not read your mute list, so nothing was changed.'));
     }
     let hidden = [];
@@ -8319,9 +8362,11 @@
     if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
     if (!/^[0-9a-f]{64}$/.test(target)) throw new Error(t('Could not follow this account.'));
     const relays = await listRelays(pubkey);
-    const got = await poolQuerySync(relays, { kinds: [0, 3], authors: [pubkey] }, { maxWait: 6000 });
-    const list = (got || []).filter((e) => e.kind === 3).sort((a, b) => b.created_at - a.created_at)[0] || null;
-    if (!list && !(got || []).some((e) => e.kind === 0)) {
+    const { list, profile, settled } = await readOwnList(pubkey, 3, relays);
+    // No list and no profile: a new account, whose first follow starts the list, but only
+    // when the relays it reached answered with nothing (readOwnList). The empty-read check below still
+    // refuses when Sidecar holds follows for this account.
+    if (!list && !profile && !settled) {
       throw new Error(t('Could not read your follow list, so nothing was changed.'));
     }
     const isP = (x) => Array.isArray(x) && x[0] === 'p' && typeof x[1] === 'string';
@@ -8380,8 +8425,14 @@
   async function isFollowing(target) {
     const owner = state.activePubkey;
     if (followListCache && followListPubkey === owner) return followListCache.some((c) => c.pubkey === target);
-    const ev = await poolGet(await readRelayUrls(owner), { kinds: [3], authors: [owner] }, { maxWait: 8000 });
-    if (!ev) throw new Error('No follow list');
+    // A relay that answered with no list is an answer: a new account follows nobody yet. Only
+    // silence is no answer. Following still reads again before it writes (writeFollow).
+    const { events, answered } = await poolQueryAnswered(await readRelayUrls(owner), { kinds: [3], authors: [owner] }, { maxWait: 8000 });
+    const ev = events.filter((e) => e && e.pubkey === owner).sort((a, b) => b.created_at - a.created_at)[0] || null;
+    if (!ev) {
+      if (answered) return false;
+      throw new Error('No follow list');
+    }
     return ev.tags.some((x) => Array.isArray(x) && x[0] === 'p' && x[1] === target);
   }
 

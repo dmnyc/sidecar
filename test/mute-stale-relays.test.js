@@ -34,6 +34,7 @@ const CODE = [
   lift(/  function collectMuteTags\(tags, into\) \{[\s\S]*?\n  \}\n/, 'collectMuteTags'),
   lift(/  function applyLocalMutes\(entries, set\) \{[\s\S]*?\n  \}\n/, 'applyLocalMutes'),
   lift(/  async function listRelays\(pubkey\) \{[\s\S]*?\n  \}\n/, 'listRelays'),
+  lift(/  async function readOwnList\([\s\S]*?\n  \}\n/, 'readOwnList'),
   lift(/  let _muteWrite = [^\n]*\n  function changeMute\([\s\S]*?\n  \}\n  const addPrivateMute = [^\n]*\n  const removeMute = [^\n]*\n/, 'changeMute'),
   lift(/  async function signRemoval\([\s\S]*?\n  \}\n/, 'signRemoval'),
   lift(/  async function writeMute\([\s\S]*?\n  \}\n/, 'writeMute'),
@@ -42,8 +43,12 @@ const CODE = [
 ].join('\n');
 
 // `only` pins an event to one relay, the way a version that has not reached the others is.
-function world(events) {
+// opts.profile false: the account has no profile. opts.silent: relays that connect and never
+// answer. opts.unreached: relays that never connect at all. opts.read: the read relays.
+function world(events, opts = {}) {
   const w = { published: [], asked: [], events: events.slice(), announced: [] };
+  const silent = opts.silent || [];
+  const unreached = opts.unreached || [];
   const ctx = withI18n({
     state: { activePubkey: ME },
     _muteLists: new Map(), _localMutes: new Map(),
@@ -53,13 +58,18 @@ function world(events) {
     repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
     document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
     CustomEvent: class { constructor(type) { this.type = type; } },
-    readRelayUrls: async () => [READ],
+    readRelayUrls: async () => opts.read || [READ],
     postRelays: async () => [WRITE],
     poolQuerySync: async (relays, f) => {
       w.asked.push(relays.slice());
       const out = w.events.filter((e) => f.kinds.includes(e.kind) && (!e.only || relays.includes(e.only)));
-      if (f.kinds.includes(0)) out.push({ kind: 0, created_at: 1, tags: [], content: '{}' });
-      return out;
+      if (f.kinds.includes(0) && opts.profile !== false) out.push({ kind: 0, created_at: 1, tags: [], content: '{}' });
+      return out.map((e) => ({ pubkey: ME, ...e }));
+    },
+    poolQueryAnswered: async (relays, f) => {
+      if (relays.every((r) => unreached.includes(r))) return { events: [], answered: false, unreached: relays.length };
+      if (relays.every((r) => silent.includes(r))) return { events: [], answered: false, unreached: 0 };
+      return { events: await ctx.poolQuerySync(relays, f), answered: true };
     },
     publishSigned: async (ev) => { w.published.push(ev); w.events = w.events.filter((e) => e.kind !== ev.kind).concat(ev); },
     seedBaseline: () => {}, pruneNameMuted: () => {},
@@ -82,7 +92,7 @@ const pTags = (ev) => plain(ev.tags.filter((t) => t[0] === 'p').map((t) => t[1])
 test('both the read and the write relays are asked', async () => {
   const w = world([list10000({ tags: [['p', BOB]] })]);
   await w.api.removeMute(ME, ['p', BOB]);
-  assert.deepEqual(plain(w.asked[0]), [READ, WRITE]);
+  assert.deepEqual(plain(w.asked.flat()), [READ, WRITE]);
 });
 
 test('UNMUTE: a list that lives only on the write relays is found, and the person is taken out of it', async () => {
@@ -141,4 +151,63 @@ test('the shared lookup is what both writers use, so they cannot disagree again'
   assert.match(mute, /const relays = await listRelays\(pubkey\);/);
   assert.match(follow, /const relays = await listRelays\(pubkey\);/);
   assert.doesNotMatch(mute + follow, /readRelayUrls\(pubkey\)/);
+});
+
+// ---- a new account: no list and no profile anywhere ----
+
+test('A NEW ACCOUNT: every relay answered with nothing, so the first mute starts the list, privately', async () => {
+  const w = world([], { profile: false });
+  assert.equal(await w.api.addPrivateMute(ME, ['p', BOB]), true);
+  assert.equal(w.published.length, 1);
+  assert.equal(w.published[0].kind, 10000);
+  assert.deepEqual(plain(w.published[0].tags), []);
+  assert.equal(w.published[0].content, 'nip44:' + JSON.stringify([['p', BOB]]));
+});
+
+test('A NEW ACCOUNT, FAIL CLOSED: one relay never answered, so nothing is muted', async () => {
+  const w = world([], { profile: false, silent: [WRITE] });
+  await assert.rejects(() => w.api.addPrivateMute(ME, ['p', BOB]), /Could not read your mute list, so nothing was changed/);
+  assert.equal(w.published.length, 0);
+});
+
+test('FAIL CLOSED: every relay answered with nothing, but Sidecar holds mutes for this account', async () => {
+  const w = world([], { profile: false });
+  vm.runInContext("_muteLists.set('" + ME + "', (() => { const m = emptyMuteSet(); m.pubkeys.add('" + CAL + "'); return m; })());", w.ctx);
+  await assert.rejects(() => w.api.addPrivateMute(ME, ['p', BOB]), /nothing was changed/);
+  assert.equal(w.published.length, 0);
+});
+
+test('A NEW ACCOUNT: the first follow starts the follow list the same way', async () => {
+  const w = world([], { profile: false });
+  assert.equal(await w.api.addFollow(ME, BOB), true);
+  assert.deepEqual(pTags(w.published[0]), [BOB]);
+});
+
+// ---- some relay is always down ----
+const DEAD = 'wss://dead.test';
+const QUIET = 'wss://quiet.test';
+
+test('A NEW ACCOUNT: a relay that never connects does not stop the first follow, when two others answered', async () => {
+  const w = world([], { profile: false, read: [READ, DEAD], unreached: [DEAD] });
+  assert.equal(await w.api.addFollow(ME, BOB), true);
+  assert.deepEqual(pTags(w.published[0]), [BOB]);
+});
+
+test('A NEW ACCOUNT: nor the first mute', async () => {
+  const w = world([], { profile: false, read: [READ, DEAD], unreached: [DEAD] });
+  assert.equal(await w.api.addPrivateMute(ME, ['p', BOB]), true);
+  assert.equal(w.published.length, 1);
+});
+
+test('FAIL CLOSED: one relay answering is not enough when the account has more', async () => {
+  const w = world([], { profile: false, unreached: [WRITE] });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /Could not read your follow list, so nothing was changed/);
+  assert.equal(w.published.length, 0);
+});
+
+test('FAIL CLOSED: a relay that connected and stayed silent still refuses, beside one that never connected', async () => {
+  const w = world([], { profile: false, read: [READ, DEAD, QUIET], unreached: [DEAD], silent: [QUIET] });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /Could not read your follow list, so nothing was changed/);
+  await assert.rejects(() => w.api.addPrivateMute(ME, ['p', BOB]), /Could not read your mute list, so nothing was changed/);
+  assert.equal(w.published.length, 0);
 });

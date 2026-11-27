@@ -139,7 +139,7 @@
     const sizeObserver=new ResizeObserver(sizeChat);
     for(const id of ['stream-dock','relax-status','mining-status']){const node=document.getElementById(id);if(node){sizeObserver.observe(node);new MutationObserver(sizeChat).observe(node,{attributes:true,attributeFilter:['class','hidden']});}}
     window.addEventListener('resize',sizeChat);
-    const sources=()=>[...new Set([...(getItem()?.relays || []),'wss://relay.damus.io','wss://nos.lol','wss://relay.primal.net','wss://nostr.wine','wss://relay.snort.social'])];
+    const sources=()=>[...new Set([...(getItem()?.relays || []),'wss://relay.damus.io','wss://relay.primal.net','wss://relay.ditto.pub','wss://nostr.wine','wss://relay.snort.social'])];
     function stop(){run++;emoji?.close();clearTimeout(profileScrollTimer);clearTimeout(profilePaintTimer);profilePaintTimer=null;changedProfiles.clear();reactionPicker?.remove();reactionPicker=null;clearTimeout(reactionTimer);reactionTimer=null;reactionSubs.splice(0).forEach(s=>s.close());reactionTargets.clear();clearTimeout(noticeTimer);noticeTimer=null;notice.textContent='';abort?.abort();clearTimeout(retryTimer);clearTimeout(profileRetry);clearTimeout(paintTimer);paintTimer=null;mentionEditor?.close();sub?.close();sub=null;pool?.destroy();pool=null;}
     function clearReply(){reply=null;replyLabel.hidden=true;}
     cancelReply.onclick=()=>{clearReply();input.focus();};
