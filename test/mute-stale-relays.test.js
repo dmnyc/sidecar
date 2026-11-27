@@ -36,6 +36,7 @@ const CODE = [
   lift(/  async function listRelays\(pubkey\) \{[\s\S]*?\n  \}\n/, 'listRelays'),
   lift(/  async function readOwnList\([\s\S]*?\n  \}\n/, 'readOwnList'),
   lift(/  let _muteWrite = [^\n]*\n  function changeMute\([\s\S]*?\n  \}\n  const addPrivateMute = [^\n]*\n  const removeMute = [^\n]*\n/, 'changeMute'),
+  lift(/  async function signRemoval\([\s\S]*?\n  \}\n/, 'signRemoval'),
   lift(/  async function writeMute\([\s\S]*?\n  \}\n/, 'writeMute'),
   lift(/  let _followWrite = [^\n]*\n  function changeFollow\([\s\S]*?\n  \}\n  const addFollow = [^\n]*\n  const removeFollow = [^\n]*\n/, 'changeFollow'),
   lift(/  async function writeFollow\([\s\S]*?\n  \}\n/, 'writeFollow'),

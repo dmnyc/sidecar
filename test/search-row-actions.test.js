@@ -31,12 +31,13 @@ const WRITER = [
   lift(/  async function listRelays\(pubkey\) \{[\s\S]*?\n  \}\n/, 'listRelays'),
   lift(/  async function readOwnList\([\s\S]*?\n  \}\n/, 'readOwnList'),
   lift(/  let _followWrite = [^\n]*\n  function changeFollow\([\s\S]*?\n  \}\n  const addFollow = [^\n]*\n  const removeFollow = [^\n]*\n/, 'changeFollow'),
+  lift(/  async function signRemoval\([\s\S]*?\n  \}\n/, 'signRemoval'),
   lift(/  async function writeFollow\([\s\S]*?\n  \}\n/, 'writeFollow'),
 ].join('\n');
 
 // relayDown: no relay answers at all. silent: these relays never answer (a timeout, not an EOSE),
 // while the rest do.
-function world({ list = null, profile = true, relayDown = false, silent = [], known = [], active = ME, signFails = null } = {}) {
+function world({ list = null, profile = true, relayDown = false, silent = [], known = [], active = ME, signFails = null, guard = null } = {}) {
   const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [], announced: [] };
   const ctx = withI18n({
     state: { activePubkey: active },
@@ -69,6 +70,8 @@ function world({ list = null, profile = true, relayDown = false, silent = [], kn
       if (msg.expectedPubkey && msg.expectedPubkey !== active) throw new Error('Account changed');
       if (msg.type !== 'SIDECAR_OWNER_SIGN') throw new Error('unexpected ' + msg.type);
       if (signFails) throw new Error(signFails);
+      // The worker's wipe check: refuses with its finding unless the caller confirmed it.
+      if (guard && !msg.confirmedDestructive) { w.refused = (w.refused || 0) + 1; throw Object.assign(new Error('refused by the guard'), { destructive: guard }); }
       return { ...msg.event, id: 'f'.repeat(64), pubkey: active, sig: '0'.repeat(128) };
     },
   });
@@ -908,3 +911,25 @@ test('on the zap sheet an address with an offer shows the switch, and with neith
   assert.equal(none.zapWrap.classList.contains('hidden'), true, 'nothing to pay with, nothing to show');
 });
 
+// ---- the last person: the wipe guard refuses an empty list ----
+const emptiedFrom = (from) => ({ kind: 3, type: 'emptied', from, to: 0, lost: from });
+
+test('UNFOLLOWING THE LAST PERSON YOU FOLLOW goes through: the guard and the list agree it held only them', async () => {
+  const w = world({ list: kind3({ tags: [['p', BOB]] }), guard: emptiedFrom(1) });
+  assert.equal(await w.api.removeFollow(ME, BOB), true);
+  assert.equal(w.refused, 1, 'it was asked once without confirming');
+  assert.equal(w.published.length, 1);
+  assert.deepEqual(plain(w.published[0].tags), []);
+});
+
+test('but not when the guard remembers more than one: that is a bad read, and the refusal stands', async () => {
+  const w = world({ list: kind3({ tags: [['p', BOB]] }), guard: emptiedFrom(2) });
+  await assert.rejects(() => w.api.removeFollow(ME, BOB), /refused by the guard/);
+  assert.equal(w.published.length, 0);
+});
+
+test('and a follow is never pushed through a refusal', async () => {
+  const w = world({ list: kind3({ tags: [['p', CAL]] }), guard: { kind: 3, type: 'growth', from: 1, to: 2, added: 1 } });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /refused by the guard/);
+  assert.equal(w.published.length, 0);
+});
