@@ -399,7 +399,7 @@
       followCache = pubkeys.map((pk) => {
         let meta = {};
         try { meta = JSON.parse((byKey.get(pk) || {}).content || '{}'); } catch (_) {}
-        const entry = { pubkey: pk, name: metaName(meta), picture: meta.picture || null };
+        const entry = { pubkey: pk, name: metaName(meta), picture: meta.picture || null, aka: window.SidecarCore.personAka(meta) };
         profileCache.set(pk, entry);
         return entry;
       }).filter((c) => c.name);

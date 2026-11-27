@@ -3823,7 +3823,8 @@
     }
     const seq = ++searchAcSeq;
     const q = raw.toLowerCase();
-    const matchFollows = (list) => list.filter((c) => c.name && c.name.toLowerCase().includes(q));
+    // By name, other name, NIP-05 or lightning address (personAka).
+    const matchFollows = (list) => list.filter((c) => c.name && window.SidecarCore.personMatches(c, q));
 
     let follows = [];
     let globals = [];
@@ -14676,6 +14677,7 @@
       try { prof = JSON.parse(ev.content); } catch (_) { return; }
       const name = prof && (prof.display_name || prof.name);
       if (typeof name === 'string' && name) { c.name = name; if (!c.picture && typeof prof.picture === 'string') c.picture = prof.picture; }
+      c.aka = window.SidecarCore.personAka(prof);
     });
   }
 
@@ -14708,13 +14710,14 @@
         if (!byPk[p.pubkey] || p.created_at > byPk[p.pubkey].created_at) byPk[p.pubkey] = p;
       });
       const list = pubkeys.map((pk) => {
-        let name = null, picture = null;
+        let name = null, picture = null, aka = [];
         const prof = byPk[pk];
         if (prof) {
           try {
             const c = JSON.parse(prof.content);
             name = c.display_name || c.name || null;
             picture = c.picture || null;
+            aka = window.SidecarCore.personAka(c);
             cacheProfile(pk, c); // share with profile previews + @-mention resolution
           } catch (_) {}
         }
@@ -14725,7 +14728,7 @@
         if (!name) {
           try { name = shortNpub(NT.nip19.npubEncode(pk)); } catch (_) { name = pk.slice(0, 10) + '…'; }
         }
-        return { pubkey: pk, name, picture };
+        return { pubkey: pk, name, picture, aka };
       });
       followListPubkey = state.activePubkey;
       followListCache = list;

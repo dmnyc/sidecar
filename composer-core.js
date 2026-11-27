@@ -1139,7 +1139,7 @@ window.SidecarCore = (function () {
       const q = ctx.query.toLowerCase();
       const willSearchGlobal = ctx.query.length >= 2 && deps.naAvailable();
 
-      const matchFollows = (list) => [...new Map([...(opts?.candidates?.() || []),...list].map(c=>[c.pubkey,c])).values()].filter((c) => c.name && c.name.toLowerCase().includes(q));
+      const matchFollows = (list) => [...new Map([...(opts?.candidates?.() || []),...list].map(c=>[c.pubkey,c])).values()].filter((c) => c.name && personMatches(c, q));
       let followMatches = matchFollows([]);
       let globals = [];
       let globalPending = false;
@@ -6640,6 +6640,27 @@ window.SidecarCore = (function () {
     ]);
   }
 
+  // WHAT A PERSON CAN BE FOUND BY in a search of your follows, besides the name shown:
+  // their other name, their NIP-05 and their lightning address. A name drawn in symbols or
+  // another script ("★ᗰ卂ᐯ★") can't be typed, and the address is how people know them.
+  // Lowercased once, here, so a keystroke compares strings and nothing more. NIP-05's "_@"
+  // (the domain's own key) is searched as the domain.
+  function personAka(meta) {
+    if (!meta || typeof meta !== 'object') return [];
+    const out = [];
+    for (const v of [meta.display_name, meta.displayName, meta.name, meta.nip05, meta.lud16]) {
+      if (typeof v !== 'string') continue;
+      const s = v.trim().toLowerCase().replace(/^_@/, '');
+      if (s && s.length <= 200 && !out.includes(s)) out.push(s);
+    }
+    return out;
+  }
+  function personMatches(c, q) {
+    if (!c || !q) return false;
+    return (typeof c.name === 'string' && c.name.toLowerCase().includes(q))
+      || (Array.isArray(c.aka) && c.aka.some((s) => s.includes(q)));
+  }
+
   return {
     show, hide, ICONS, FILLED_ICONS, icon, h,
     NB_PLANS_URL, uploadErrorParts,
@@ -6680,5 +6701,6 @@ window.SidecarCore = (function () {
     queryAnswered, installRelayDrafts, buildRelayDraftsPane,
     publishFailed, publishRefusal, publishToRelays, groupRefusals, PUBLISH_CAP_MS,
     refusalLines, acceptedLine, relayReportNode,
+    personAka, personMatches,
   };
 })();
