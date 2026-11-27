@@ -55,7 +55,7 @@ function writeHarness({ listTags, followListCache = null, prior } = {}) {
     readOwnList: async () => ({
       list: listTags ? { pubkey: PK, created_at: 1, kind: 3, tags: listTags, content: '' } : null,
       profile: false,
-      allAnswered: true,
+      settled: true,
     }),
     call: async (m) => ({ ...m.event, id: 'signed', sig: 'sig' }),
     publishSigned: async () => {},

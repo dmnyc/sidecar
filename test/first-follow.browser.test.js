@@ -9,7 +9,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { startExtension, CHROME } = require('./helpers/real-extension');
+const net = require('node:net');
+const { startExtension, CHROME, _internals: { startRelay } } = require('./helpers/real-extension');
 
 const opts = { skip: CHROME ? false : 'no Chrome found', timeout: 120000 };
 
@@ -61,5 +62,55 @@ test('a new account’s first mute starts its mute list, with the person in the 
     assert.ok(lists[0].content, 'no private part');
     assert.ok(!(await x.evaluate(toastText)).includes('Could not read'));
     assert.deepEqual(x.errors, []);
+  });
+});
+
+// SOME RELAY IS ALWAYS DOWN. A relay that refuses the connection was asked nothing and can be
+// written nothing, so it does not count either way. One that connects and then says nothing
+// may hold the list, and still refuses.
+
+// A port nothing listens on: the connection is refused at once, as a dead relay's is.
+async function deadUrl() {
+  const s = net.createServer();
+  await new Promise((r) => s.listen(0, '127.0.0.1', r));
+  const port = s.address().port;
+  await new Promise((r) => s.close(r));
+  return 'ws://127.0.0.1:' + port;
+}
+
+async function withRelays(x, extra) {
+  const urls = [x.relay.url, ...extra];
+  await x.message({ type: 'SIDECAR_SET_RELAYS', relays: Object.fromEntries(urls.map((u) => [u, { read: true, write: true }])) });
+}
+
+test('a new account’s first follow goes through with one of its relays down', opts, async (t) => {
+  await withExtension(t, async (x) => {
+    const second = await startRelay();
+    try {
+      await withRelays(x, [second.url, await deadUrl()]);
+      await openCard(x);
+      await x.waitFor(ready(0), 15000);
+      await x.evaluate(`${BTN(0)}.click()`);
+      await x.waitFor(`${toastText}.includes('Followed') || ${toastText}.includes('Could not')`, 20000);
+      assert.ok(!(await x.evaluate(toastText)).includes('Could not read'), await x.evaluate(toastText));
+      const lists = second.events.filter((e) => e.kind === 3 && e.pubkey === x.me);
+      assert.equal(lists.length, 1, 'the list did not reach the relay that answered');
+      assert.deepEqual(lists[0].tags, [['p', x.bea]]);
+    } finally { second.close(); }
+  });
+});
+
+test('but not with a relay that connected and never answered', opts, async (t) => {
+  await withExtension(t, async (x) => {
+    const quiet = await startRelay({ delayMs: 120000 });
+    try {
+      await withRelays(x, [quiet.url, await deadUrl()]);
+      await openCard(x);
+      await x.waitFor(ready(0), 15000);
+      await x.evaluate(`${BTN(0)}.click()`);
+      await x.waitFor(`${toastText}.includes('Could not read your follow list')`, 25000);
+      assert.equal(x.relay.events.filter((e) => e.kind === 3 && e.pubkey === x.me).length, 0);
+      assert.equal(quiet.events.filter((e) => e.kind === 3).length, 0);
+    } finally { quiet.close(); }
   });
 });

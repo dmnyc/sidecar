@@ -42,10 +42,12 @@ const CODE = [
 ].join('\n');
 
 // `only` pins an event to one relay, the way a version that has not reached the others is.
-// opts.profile false: the account has no profile. opts.silent: relays that never answer.
+// opts.profile false: the account has no profile. opts.silent: relays that connect and never
+// answer. opts.unreached: relays that never connect at all. opts.read: the read relays.
 function world(events, opts = {}) {
   const w = { published: [], asked: [], events: events.slice(), announced: [] };
   const silent = opts.silent || [];
+  const unreached = opts.unreached || [];
   const ctx = withI18n({
     state: { activePubkey: ME },
     _muteLists: new Map(), _localMutes: new Map(),
@@ -55,7 +57,7 @@ function world(events, opts = {}) {
     repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
     document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
     CustomEvent: class { constructor(type) { this.type = type; } },
-    readRelayUrls: async () => [READ],
+    readRelayUrls: async () => opts.read || [READ],
     postRelays: async () => [WRITE],
     poolQuerySync: async (relays, f) => {
       w.asked.push(relays.slice());
@@ -64,7 +66,8 @@ function world(events, opts = {}) {
       return out.map((e) => ({ pubkey: ME, ...e }));
     },
     poolQueryAnswered: async (relays, f) => {
-      if (relays.every((r) => silent.includes(r))) return { events: [], answered: false };
+      if (relays.every((r) => unreached.includes(r))) return { events: [], answered: false, unreached: relays.length };
+      if (relays.every((r) => silent.includes(r))) return { events: [], answered: false, unreached: 0 };
       return { events: await ctx.poolQuerySync(relays, f), answered: true };
     },
     publishSigned: async (ev) => { w.published.push(ev); w.events = w.events.filter((e) => e.kind !== ev.kind).concat(ev); },
@@ -177,4 +180,33 @@ test('A NEW ACCOUNT: the first follow starts the follow list the same way', asyn
   const w = world([], { profile: false });
   assert.equal(await w.api.addFollow(ME, BOB), true);
   assert.deepEqual(pTags(w.published[0]), [BOB]);
+});
+
+// ---- some relay is always down ----
+const DEAD = 'wss://dead.test';
+const QUIET = 'wss://quiet.test';
+
+test('A NEW ACCOUNT: a relay that never connects does not stop the first follow, when two others answered', async () => {
+  const w = world([], { profile: false, read: [READ, DEAD], unreached: [DEAD] });
+  assert.equal(await w.api.addFollow(ME, BOB), true);
+  assert.deepEqual(pTags(w.published[0]), [BOB]);
+});
+
+test('A NEW ACCOUNT: nor the first mute', async () => {
+  const w = world([], { profile: false, read: [READ, DEAD], unreached: [DEAD] });
+  assert.equal(await w.api.addPrivateMute(ME, ['p', BOB]), true);
+  assert.equal(w.published.length, 1);
+});
+
+test('FAIL CLOSED: one relay answering is not enough when the account has more', async () => {
+  const w = world([], { profile: false, unreached: [WRITE] });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /Could not read your follow list, so nothing was changed/);
+  assert.equal(w.published.length, 0);
+});
+
+test('FAIL CLOSED: a relay that connected and stayed silent still refuses, beside one that never connected', async () => {
+  const w = world([], { profile: false, read: [READ, DEAD, QUIET], unreached: [DEAD], silent: [QUIET] });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /Could not read your follow list, so nothing was changed/);
+  await assert.rejects(() => w.api.addPrivateMute(ME, ['p', BOB]), /Could not read your mute list, so nothing was changed/);
+  assert.equal(w.published.length, 0);
 });
