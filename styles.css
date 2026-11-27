@@ -2760,8 +2760,10 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
   display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .bm-list .bm-group:first-child .bm-cat-desc { margin-top: 0; }
+/* A row's ⋮ menu opens on a line of its own under the row, across its full width: its labels
+   never wrap, and in the text column beside a cover and the actions a long one was cut off. */
 .bm-item {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: 8px;
   padding: 10px 8px; margin: 0 -8px; border-radius: 10px; cursor: pointer;
   border-bottom: 1px solid var(--border);
 }
@@ -2776,6 +2778,7 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
    is not last, and its rule stays as the separator the button needs. */
 .bm-list > .bm-item:last-child { border-bottom: none; }
 .bm-main { flex: 1; min-width: 0; }
+.bm-item > .notif-more { flex-basis: 100%; }
 .bm-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .bm-av { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: linear-gradient(180deg, var(--av-from), var(--av-to)); }
 .bm-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -2800,7 +2803,7 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
 .bm-text.bm-text-3 { -webkit-line-clamp: 3; line-clamp: 3; }
 /* A piece of yours in Reads: its cover beside its title, two lines at most, and its summary.
    No cover, a page glyph in the same square, so the titles line up. */
-.rd-item { gap: 10px; }
+.rd-item { column-gap: 10px; }
 .rd-item > .item-actions { align-self: flex-start; }
 .rd-thumb {
   position: relative; width: 44px; height: 44px; flex-shrink: 0; align-self: flex-start;
@@ -6407,7 +6410,8 @@ html:has(#view-main:not(.hidden) > #relax-status:not(.hidden)) .relax-status-lis
   font-family: var(--font-ui); font-size: 12.5px; color: var(--text-2); cursor: pointer;
 }
 .notif-more-item svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--muted); }
-.notif-more-item span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A set line height, so a letter drawn from a fallback font (Polish ł) does not make its row taller. */
+.notif-more-item span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 16px; }
 .notif-more-item:hover { color: var(--text); background: var(--hover-medium); border-color: var(--border-strong); }
 /* The poll results sheet's ⋮, at the end of the question's line as it sits in a
    notification row: the question takes the width and wraps, the button keeps its size.

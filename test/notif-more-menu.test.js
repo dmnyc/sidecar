@@ -80,7 +80,7 @@ test('A TAP IN THE MENU NEVER FOLLOWS THE ROW LINK', () => {
 });
 
 test('the menu is stacked rows under the header, never words beside content', () => {
-  const rule = css.match(/\.notif-more \{([^}]*)\}/);
+  const rule = css.match(/^\.notif-more \{([^}]*)\}/m);
   assert.ok(rule, '.notif-more exists');
   assert.match(rule[1], /flex-direction: column/);
   assert.match(rule[1], /align-items: stretch/);

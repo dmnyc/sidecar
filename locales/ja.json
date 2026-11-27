@@ -2401,7 +2401,7 @@
   "Could not delete it": "削除できませんでした",
   "{{count}} comment_other": "{{count}} 件のコメント",
   "Copy article address": "記事のアドレスをコピー",
-  "Copy recipe address": "アドレスをコピー",
+  "Copy recipe address": "レシピのアドレスをコピー",
   "Zapping…": "Zap中…",
   "You zapped this": "Zap済み",
   "You zapped this {{count}} sat_other": "{{count}} sats Zap済み"
