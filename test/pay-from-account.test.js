@@ -41,6 +41,7 @@ function harness(decide, wallet) {
     self: { NostrTools: { nip19: { npubEncode: (pk) => 'npub-' + pk.slice(0, 4) } } },
     chrome: { runtime: { sendMessage: () => Promise.resolve() } },
     LARGE_SEND_SATS: 100000, AUTOZAP_DEFAULT_MAX: 1000, AUTOZAP_DAILY_MULTIPLE: 5,
+    KEYSEND_MAX_SATS: 99999999, OVER_LIMIT_MESSAGE: 'over', refusePayment: () => {},
     invoiceSats: () => 21,
     sget: async () => ({ sidecar_settings: {} }),
     sset: async () => {}, pushPageSettings() {},
@@ -53,6 +54,7 @@ function harness(decide, wallet) {
       hasNwc: async (pk) => wallets.has(pk),
     },
     openPrompt: async (data) => { calls.prompts.push(data); return decide(data); },
+    renderGraduated() {}, renderRelaxHint() {},
     getSwNwc: async (pk) => {
       if (!wallets.has(pk)) return null;
       calls.wallets.push(pk); calls.order.push('wallet');
@@ -200,6 +202,7 @@ function panelCard(data) {
     t: (s, v) => (v ? s.replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]) : s), tSec: (s) => s,
     shortNpub: (n) => String(n).slice(0, 8), show: (e) => e.classList.remove('hidden'), hide: (e) => e.classList.add('hidden'),
     document: { createElement: () => fakeEl() },
+    renderGraduated() {}, renderRelaxHint() {},
   });
   vm.runInContext([
     'const isPaymentApproval = ' + panelSrc.match(/const isPaymentApproval = (\(data\) =>\s*[^;]*);/)[1] + ';',

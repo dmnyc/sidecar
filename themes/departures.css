@@ -197,6 +197,9 @@
 [data-theme="departures"] .lav-btn,
 [data-theme="departures"] .danger,
 [data-theme="departures"] .relax-chip,
+[data-theme="departures"] .reload-banner-btn,
+[data-theme="departures"] .reload-banner-x,
+[data-theme="departures"] .host-perm-grant-btn,
 [data-theme="departures"] .mini,
 [data-theme="departures"] input,
 [data-theme="departures"] select,
@@ -256,14 +259,15 @@
 [data-theme="departures"] .secondary,
 [data-theme="departures"] .lav-btn,
 [data-theme="departures"] .danger,
-[data-theme="departures"] .relax-chip {
+[data-theme="departures"] .relax-chip,
+[data-theme="departures"] .reload-banner-btn {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 15px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-[data-theme="departures"] .primary { box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+[data-theme="departures"] :is(.primary, .reload-banner-btn) { box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
 [data-theme="departures"] .secondary,
 [data-theme="departures"] .lav-btn,
 [data-theme="departures"] .relax-chip {

@@ -66,7 +66,11 @@ test('nothing clickable sits between the modal and the approval', () => {
   const between = [...css.matchAll(/([.#][\w-]+)[^{}]*\{[^}]*?z-index:\s*(\d+)/gs)]
     .map((m) => ({ sel: m[1], z: Number(m[2]) }))
     .filter((r) => r.z > modal && r.z < approval)
-    .filter((r) => !/lightning|toast/.test(r.sel));
+    .filter((r) => !/lightning|toast/.test(r.sel))
+    // The relax timer's +N list opens upward from the bar at the foot, into the space a
+    // sheet covers, so it is drawn over the sheet. Still under the approval, which is what
+    // this guards: a click meant for Allow or Reject lands on the approval either way.
+    .filter((r) => !(r.sel === '#view-main' && r.z === modal + 1 && /\.relax-status-list \{ z-index: 101; \}/.test(css)));
   assert.deepEqual(between, [], 'layers stacked between the modal and the approval');
 });
 

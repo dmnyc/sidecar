@@ -270,7 +270,9 @@ test('A POLL AND ITS ATTACHMENTS ARE ONE OR THE OTHER', () => {
   assert.match(panelBare, /mediaBtn: \(\) => addBtn,/);
   // In preview mode the clauses compose with the preview hide.
   assert.match(panelBare, /addBtn\.classList\.toggle\('hidden', p \|\| !!draft\.poll\);/);
-  assert.match(panelBare, /pollAdd\.classList\.toggle\('hidden', p \|\| !!draft\.poll \|\| !!replyTo \|\| !!\(draft\.media && draft\.media\.length\)\);/);
+  // The panel no longer offers a poll button (More options opens the full-size composer,
+  // which has a Poll tab); a poll already in a draft still shows its editor here.
+  assert.match(panelBare, /moreBtn\.classList\.toggle\('hidden', p \|\| !!draft\.poll \|\| !!replyTo\);/);
   // And every way media changes repaints, so the excluded button never lingers.
   // paintPoll's own call moved with it; the media mutations still live in the panel.
   const inCore = (coreBare.match(/paintEitherOr\(\);/g) || []).length;

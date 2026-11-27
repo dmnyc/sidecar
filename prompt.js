@@ -35,15 +35,12 @@
     remember: $('remember'),
     rememberBudget: $('remember-budget'),
     budgetAmount: $('budget-amount'),
-    scopeFieldset: $('scope'),
-    scopeOnce: document.querySelector('#scope input[value="once"]'),
-    scopeRelax: document.querySelector('#scope input[value="relax"]'),
-    scopeAlways: document.querySelector('#scope input[value="always"]'),
-    scopeRelaxOpt: $('scope-relax'),
-    scopeAlwaysOpt: $('scope-always'),
-    scopeCapOnce: $('scope-cap-once'),
-    scopeCapRelax: $('scope-cap-relax'),
-    scopeCapAlways: $('scope-cap-always'),
+    graduated: $('graduated'),
+    graduatedMsg: $('graduated-msg'),
+    graduatedCap: $('graduated-cap'),
+    graduatedYes: $('graduated-yes'),
+    graduatedNo: $('graduated-no'),
+    relaxHint: $('relax-hint'),
     trustNudge: $('trust-nudge'),
     autozapOffer: $('autozap-offer'),
     autozapOfferBox: $('autozap-offer-box'),
@@ -152,6 +149,7 @@
     els.allow.classList.toggle('primary', !ask);
     els.allow.classList.toggle('secondary', ask);
   }
+  let graduatedDeclined = false; // "Not now" pressed on the graduated row of this card
   let chosenPubkey = null; // login (getPublicKey) prompts only — see canOfferAccountSwitch in background.js
   let payFrom = null;      // payment prompts only: another account picked to pay from, or null for the card's own
   // Which cut of the placeholder garnish this window is drawing — set once the theme
@@ -217,11 +215,33 @@
   function kindLabel(kind) {
     if (kind == null) return '—';
     const label = kindLabels()[kind];
-    return label ? kind + ' · ' + label : tSec('{{kind}} (unrecognized kind)', { kind });
+    if (label) return kind + ' · ' + label;
+    // Not in the table, but the range still says something: ephemeral, replaceable or
+    // addressable (event-summary.js). The number stays, as it does for every kind.
+    const range = self.SidecarEventSummary.kindRange(kind);
+    if (range === 'ephemeral') return tSec('{{kind}} (ephemeral event)', { kind });
+    if (range === 'replaceable') return tSec('{{kind}} (replaceable event)', { kind });
+    if (range === 'addressable') return tSec('{{kind}} (addressable event)', { kind });
+    return tSec('{{kind}} (unrecognized kind)', { kind });
+  }
+  // An ephemeral event is not a caution: it is only passed on, and nothing of the
+  // account's is replaced. The card says so in a calm note, not the amber box that
+  // means "review before approving" (kind-warn without kind-note).
+  function kindIsNote(kind) {
+    return kind != null && !kindWarnings()[kind] && !kindLabels()[kind]
+      && self.SidecarEventSummary.kindRange(kind) === 'ephemeral';
   }
   function kindWarning(kind) {
     if (kind == null) return null;
-    return kindWarnings()[kind] || (!kindLabels()[kind] ? tSec('Unrecognized event kind. Review carefully before approving.') : null);
+    if (kindWarnings()[kind]) return kindWarnings()[kind];
+    if (kindLabels()[kind]) return null;
+    // Said by what the range does to the account's events, not as a bare "unrecognized".
+    // An ephemeral event is passed on and not kept; the other two replace an earlier one.
+    const range = self.SidecarEventSummary.kindRange(kind);
+    if (range === 'ephemeral') return tSec('Ephemeral: relays pass it on without keeping it. It’s still signed by your key.');
+    if (range === 'replaceable') return tSec('Replaces your last event of this kind. Review carefully before approving.');
+    if (range === 'addressable') return tSec('Replaces your earlier event with the same identifier. Review carefully before approving.');
+    return tSec('Unrecognized event kind. Review carefully before approving.');
   }
   // A kind 10040 says which web-of-trust services compute your scores. It is replaceable,
   // so the new list replaces every row of the old one: the card says what the new one
@@ -322,26 +342,79 @@
     flush(text.slice(last));
   }
 
+  // The Tags row: how many, and which. "3 (p ×2, e)" tells a reader more than "3".
+  function tagsText(tags) {
+    if (!tags.length) return I18N.fmtNum(0);
+    return tSec('{{count}} ({{names}})', { count: I18N.fmtNum(tags.length), names: self.SidecarEventSummary.tagNames(tags) });
+  }
+  // A JSON object in the content, drawn as rows: key on the left, value on the right.
+  // The page wrote both, so they go in as text. Same as in sidepanel.js.
+  function renderFields(container, f) {
+    f.rows.forEach(([k, v]) => {
+      const r = document.createElement('div');
+      r.className = 'ev-field';
+      const key = document.createElement('span');
+      key.className = 'ev-key';
+      // A dotted path may break after a dot, never inside a word (textContent is unchanged).
+      String(k).split('.').forEach((part, i) => {
+        if (i) { key.appendChild(document.createTextNode('.')); key.appendChild(document.createElement('wbr')); }
+        key.appendChild(document.createTextNode(part));
+      });
+      const val = document.createElement('span');
+      val.className = 'ev-val';
+      val.textContent = v;
+      r.append(key, val);
+      container.appendChild(r);
+    });
+    if (f.more > 0) {
+      const more = document.createElement('div');
+      more.className = 'ev-more';
+      more.textContent = tn('+{{count}} more field', '+{{count}} more fields', f.more);
+      container.appendChild(more);
+    }
+  }
+  function noteLikeKind(kind) { return kind === 1 || kind === 6 || kind === 16; }
   // Event-content preview: short by default (keeps the "Signing as" account card in
   // view), expandable, with a Formatted/Raw toggle for note-like kinds (1, and 6/16
   // reposts). "Formatted" is the lightweight render above; "Raw" is the exact signed
   // content. Other kinds show Raw only.
+  // The emoji of a reaction, large and centered. The glyph is the page's own text, so it goes in
+  // with textContent; only the note under a like or a dislike is ours, and it is translated.
+  function renderReaction(view, r) {
+    const g = document.createElement('div');
+    g.className = 'ev-reaction-glyph' + (r.big ? '' : ' is-text');
+    g.textContent = r.glyph;
+    view.appendChild(g);
+    if (r.note) {
+      const n = document.createElement('div');
+      n.className = 'ev-reaction-note';
+      n.textContent = r.note === 'like' ? t('Like') : t('Dislike');
+      view.appendChild(n);
+    }
+  }
   function appendEventContent(container, ev) {
     const raw = String(ev.content == null ? '' : ev.content);
-    const noteLike = ev.kind === 1 || ev.kind === 6 || ev.kind === 16;
+    const noteLike = noteLikeKind(ev.kind);
+    // Other kinds that carry a JSON object open on its fields, not on the braces; Raw and
+    // JSON are one tap away and show exactly what is signed.
+    const parsed = noteLike ? null : self.SidecarEventSummary.fields(raw);
+    // Ciphertext, an encoded blob, a wallet connection: said in a sentence, the string one tap away.
+    const said = noteLike || parsed ? '' : sealedDescription(raw);
+    // A reaction is its emoji: drawn large, with Raw and JSON one tap away.
+    const react = noteLike || parsed || said ? null : self.SidecarEventSummary.reaction(ev);
     // Views: Formatted (lightweight render, note-like only), Raw (the content string),
     // JSON (the whole event pretty-printed — exactly what's being signed).
     const eventJson = () => { try { return JSON.stringify(ev, null, 2); } catch (_) { return raw; } };
-    const modes = noteLike ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
+    const modes = noteLike || parsed || said || react ? ['formatted', 'raw', 'json'] : ['raw', 'json'];
     const LABEL = { formatted: t('Formatted'), raw: t('Raw'), json: 'JSON' };
     let mode = modes[0];
     let expanded = false;
 
     const view = document.createElement('div');
     const paintView = () => {
-      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono');
+      view.className = 'evpreview' + (expanded ? '' : ' clamped') + (mode === 'formatted' ? '' : ' mono') + (mode === 'formatted' && parsed ? ' ev-fields' : '') + (mode === 'formatted' && said ? ' ev-summary' : '') + (mode === 'formatted' && react ? ' ev-reaction' : '');
       view.innerHTML = '';
-      if (mode === 'formatted') renderLightNote(view, noteTextForEvent(ev));
+      if (mode === 'formatted') { if (parsed) renderFields(view, parsed); else if (said) view.textContent = said; else if (react) renderReaction(view, react); else renderLightNote(view, noteTextForEvent(ev)); }
       else if (mode === 'json') view.textContent = eventJson();
       else view.textContent = raw;
     };
@@ -399,7 +472,13 @@
 
     if (isPayment) {
       const rows = [];
-      rows.push(row(tSec('Amount'), data.amountSats != null ? tSec('{{amount}} sats', { amount: fmtSats(data.amountSats) }) : tSec('set by invoice')));
+      // THE AMOUNT, LARGE. It is what is being agreed to, so it is the biggest thing on the card,
+      // as a reaction's emoji is on its card. The number gets the width to itself and the unit
+      // its own line, from the reviewed "{{amount}} sats" split around the number (so a language
+      // that writes the unit first has it above). Unknown until the invoice says it: a row.
+      rows.push(data.amountSats != null
+        ? amountBlock(fmtSats(data.amountSats))
+        : row(tSec('Amount'), tSec('set by invoice')));
       // Keysend goes to a bare node key, so say where — and, when the site sent a
       // boostagram, say what it is for. A card reading "500 sats to 03a1…9f2c" tells
       // nobody anything; one naming the show is a decision someone can actually make.
@@ -422,7 +501,9 @@
       const unreadable = kindUnreadable(ev);
       const rows = [];
       rows.push(row(tSec('Kind'), unreadable ? tSec('Unreadable') : kindLabel(ev.kind)));
-      if (Array.isArray(ev.tags)) rows.push(row(tSec('Tags'), I18N.fmtNum(ev.tags.length)));
+      if (Array.isArray(ev.tags)) rows.push(row(tSec('Tags'), tagsText(ev.tags)));
+      const rpc = !unreadable && !noteLikeKind(ev.kind) ? self.SidecarEventSummary.jsonRpc(ev.content) : null;
+      if (rpc) rows.push(row(tSec('Method'), clampText(rpc.method, 60)));
       if (!unreadable && ev.kind === 10040) {
         trustProviderRows(ev).forEach(([k, v]) => rows.push(row(k, v)));
       }
@@ -430,7 +511,7 @@
       const warning = unreadable ? unreadableWarning() : ((!data.destructive && trustEmptyWarning(ev)) || kindWarning(ev.kind));
       if (warning) {
         const warn = document.createElement('div');
-        warn.className = 'kind-warn';
+        warn.className = !unreadable && kindIsNote(ev.kind) ? 'kind-warn kind-note' : 'kind-warn';
         warn.textContent = warning;
         els.preview.appendChild(warn);
       }
@@ -502,7 +583,9 @@
       // The event preview below still shows exactly what is being signed; this row is the
       // only place the plaintext appears, marked the same way the encrypt card marks it.
       if (data.sealed) {
-        els.preview.innerHTML += row(tSec('Sealed content'), clampText(data.sealed, 220), 'prose sealed');
+        els.preview.appendChild(sealedDescription(data.sealed)
+          ? sealedBlockEl(tSec('Sealed content'), data.sealed)
+          : sealedRowEl(tSec('Sealed content'), data.sealed, 220));
       }
       if (ev.content || unreadable) appendEventContent(els.preview, ev);
       els.preview.classList.remove('hidden');
@@ -516,9 +599,16 @@
       // because params is handed over whole; it was simply never drawn. Nothing new is
       // exposed by showing it: the page wrote this text and is asking us to seal it.
       const plain = String((data.params && data.params.plaintext) || '');
-      els.preview.innerHTML =
-        row(tSec('To'), peerLabel()) +
-        (plain ? row(tSec('Sealing'), clampText(plain, 220), 'prose sealed') : '');
+      const self = !!(data.params && data.params.pubkey) && data.params.pubkey === data.activePubkey;
+      if (plain && sealedDescription(plain)) {
+        // Not prose: a centered block that says what it is. Sealing to yourself needs no
+        // "To" row, since the heading says so; sealing to anyone else keeps it.
+        els.preview.innerHTML = self ? '' : row(tSec('To'), peerLabel());
+        els.preview.appendChild(sealedBlockEl(self ? tSec('Seal to {{peer}}', { peer: tSec('yourself') }) : tSec('Sealing'), plain));
+      } else {
+        els.preview.innerHTML = row(tSec('To'), peerLabel());
+        if (plain) els.preview.appendChild(sealedRowEl(tSec('Sealing'), plain, 220));
+      }
       els.preview.classList.remove('hidden');
     }
   }
@@ -531,8 +621,97 @@
   }
   // Both halves escaped. The label was a literal until it became translated text, and a
   // locale file is something a pull request can change.
+  // The amount block: label, the number sized to fit by its length (a page writes the invoice,
+  // so the number can be absurd, and every digit must stay on screen), and the unit. Twin of
+  // amountBlock in sidepanel.js.
+  function amountBlock(num) {
+    const parts = String(tSec('{{amount}} sats')).split('{{amount}}');
+    // A piece with no letters (the pseudo-locale's brackets) is not a unit, and gets no line.
+    const unit = (txt) => (/\p{L}/u.test(txt) ? `<div class="pay-amount-unit">${escapeHtml(txt.trim())}</div>` : '');
+    return `<div class="pay-amount"><div class="pay-amount-label">${escapeHtml(tSec('Amount'))}</div>`
+      + unit(parts[0] || '')
+      + `<div class="pay-amount-value" data-len="${amountLenClass(num)}">${escapeHtml(num)}</div>`
+      + unit(parts.slice(1).join('') || '') + '</div>';
+  }
+  function amountLenClass(num) {
+    const n = Array.from(num).length;
+    return n <= 5 ? 's' : n <= 7 ? 'm' : n <= 9 ? 'l' : n <= 11 ? 'xl' : n <= 15 ? 'xxl' : 'huge';
+  }
   function row(k, v, cls) {
     return `<div class="row${cls ? ' ' + cls : ''}"><span>${escapeHtml(k)}</span><span>${escapeHtml(v)}</span></div>`;
+  }
+
+  // What text an app wants sealed is, in a sentence. Twin of sealedDescription in sidepanel.js.
+  // The text itself is behind a link: a wallet connection or a block of JSON is not something
+  // a person approves by reading it, and a connection's secret has no business on the screen
+  // by default. Plain prose has no description and is shown as written (sealed-summary.js).
+  function sealedDescription(text) {
+    const d = SidecarSealedSummary.describe(text);
+    if (!d) return '';
+    const hosts = (d.hosts || []).join(', ');
+    switch (d.kind) {
+      case 'wallet': return hosts ? tSec('A wallet connection through {{hosts}}', { hosts }) : tSec('A wallet connection');
+      case 'signer': return hosts ? tSec('A remote signer connection through {{hosts}}', { hosts }) : tSec('A remote signer connection');
+      case 'private-key': return tSec('A private key');
+      case 'sealed': return tSec('A sealed message');
+      case 'link': return tSec('A link to {{host}}', { host: d.host });
+      case 'list': return tn('A list of {{count}} item', 'A list of {{count}} items', d.count);
+      case 'encoded': return tSec('Encoded data, {{count}} characters', { count: I18N.fmtNum(d.length) });
+      case 'object': {
+        const names = d.names.join(', ') + (d.more ? ', …' : '');
+        return tn('Data with {{count}} field: {{names}}', 'Data with {{count}} fields: {{names}}', d.count, { names });
+      }
+      default: return '';
+    }
+  }
+
+  // A "Sealing" or "Sealed content" row. Readable text is the text; anything else is its
+  // description with "Show details" beside it, which opens the text itself. textContent
+  // throughout: the text is page-supplied.
+  function sealedRowEl(label, text, max) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'row prose sealed';
+    const k = document.createElement('span');
+    k.textContent = label;
+    const v = document.createElement('span');
+    rowEl.append(k, v);
+    if (!sealedDescription(text)) { v.textContent = clampText(text, max); return rowEl; }
+    v.className = 'sealed-val';
+    sealedParts(text).forEach((n) => v.appendChild(n));
+    return rowEl;
+  }
+  // The description, the "Show details" link and the hidden text, as three nodes.
+  function sealedParts(text) {
+    const line = document.createElement('span');
+    line.textContent = sealedDescription(text);
+    const raw = document.createElement('span');
+    raw.className = 'sealed-raw hidden';
+    raw.textContent = clampText(text, 1200);
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'details-link';
+    link.textContent = tSec('Show details');
+    link.setAttribute('aria-expanded', 'false');
+    link.addEventListener('click', () => {
+      const open = raw.classList.toggle('hidden') === false;
+      link.textContent = open ? tSec('Hide details') : tSec('Show details');
+      link.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    return [line, link, raw];
+  }
+  // A "Sealing" or "Sealed content" entry whose text is not prose: its heading, what it is,
+  // and the text behind a link, centered like the lines of a batch in the panel.
+  function sealedBlockEl(label, text) {
+    const block = document.createElement('div');
+    block.className = 'sealed-block';
+    const what = document.createElement('div');
+    what.className = 'sealed-what';
+    what.textContent = label;
+    const v = document.createElement('div');
+    v.className = 'sealed-val';
+    sealedParts(text).forEach((n) => v.appendChild(n));
+    block.append(what, v);
+    return block;
   }
 
   // Middle-elide an identifier so it stays one line.
@@ -610,11 +789,21 @@
     // registered in all three, so each copy names the others.
     const LIGHT_THEMES = ['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'phantom-bouquet'];
     const isLight = LIGHT_THEMES.includes(theme);
-    if (isLight) {
-      const mark = document.querySelector('.brand img');
-      // Phantom Bouquet wears its own cut, drawn in its dyes (logoSrcFor in composer-core.js).
-      if (mark) mark.src = theme === 'phantom-bouquet' ? 'icons/sidecar-logo-phantom-bouquet.svg' : 'icons/sidecar-logo-deco.svg';
-    }
+    // The themes that wear a cut of their own, dark or light (logoSrcFor in composer-core.js holds
+    // the same table; test/theme-logos.test.js holds the copies to each other). A themed cut beats
+    // the light-theme wordmark, and a dark theme without one keeps the stock logo the page ships.
+    const THEME_LOGOS = {
+      'phantom-bouquet': 'icons/sidecar-logo-phantom-bouquet.svg',
+      'film-noir': 'icons/sidecar-logo-film-noir.svg',
+      'brownstone': 'icons/sidecar-logo-brownstone.svg',
+      'cast-iron': 'icons/sidecar-logo-cast-iron.svg',
+      'par-avion': 'icons/sidecar-logo-par-avion.svg',
+      'industria': 'icons/sidecar-logo-industria.svg',
+      'werkstatte': 'icons/sidecar-logo-werkstatte.svg',
+    };
+    const mark = document.querySelector('.brand img');
+    if (mark && Object.prototype.hasOwnProperty.call(THEME_LOGOS, theme)) mark.src = THEME_LOGOS[theme];
+    else if (mark && isLight) mark.src = 'icons/sidecar-logo-deco.svg';
     // Keyed off the VALIDATED theme rather than data.theme, so an unrecognised value
     // falls back with everything else instead of picking a cut of its own.
     avatarPh = isLight ? 'icons/avatar-default-dark.svg' : 'icons/avatar-default.svg';
@@ -625,6 +814,25 @@
     chosenPubkey = data.activePubkey;
 
     els.host.textContent = data.host;
+    // A PAYMENT SIDECAR WON'T MAKE: more than it pays, or an invoice with no amount. Nothing was
+    // paid and nothing can be: the page has its answer
+    // already. Not a payment card: no amount, no account, no Pay. One line saying why, and Close.
+    // Twin of the panel's refusal in renderApproval (sidepanel.js).
+    if (data.refused) {
+      els.ask.textContent = tSec('asked for a payment Sidecar can’t make');
+      els.account.classList.add('hidden');
+      const why = document.createElement('p');
+      why.className = 'pay-refused';
+      why.textContent = data.refused === 'no-amount'
+        ? tSec('This invoice has no amount, and Sidecar only pays an invoice that states one, so nothing was paid.')
+        : tSec('Sidecar can’t pay more than {{max}} sats at once, so nothing was paid.', { max: fmtSats(data.maxSats) });
+      els.preview.replaceChildren(why);
+      els.preview.classList.remove('hidden');
+      els.allow.classList.add('hidden');
+      els.trust.classList.add('hidden');
+      els.reject.textContent = t('Close');
+      return;
+    }
     const verb = isPayment ? tSec('wants to send a Lightning payment') : signAsk(data);
     els.ask.textContent = verb;
     buildAccountCapsule();
@@ -652,8 +860,8 @@
 
     // The button names the act, as in the panel: Sign on a sign card, Allow once on
     // anything else (a login, a decrypt). The markup's own label is Sign, so a login
-    // card used to offer to "Sign". The scope row, a payment, a WebLN read and a pure
-    // unlock relabel it further down.
+    // card used to offer to "Sign". A payment, a WebLN read and a pure unlock relabel it
+    // further down; nothing else does, so a sign card's button always says Sign.
     els.allow.textContent = data.method === 'signEvent' ? t('Sign') : t('Allow once');
 
     // Same honesty for WebLN reads: one Allow covers this site's balance/info/
@@ -689,59 +897,15 @@
     // own switcher can flip identities with zero signal to Sidecar, so "Trust
     // this site" can't skip it here (the same signature that's fine now could be
     // wrong next time), and showing it anyway would over-promise.
-    // THE SCOPE ROW. 30 minutes when the kind can relax; Always when the kind can
-    // carry a standing grant and the host isn't a shared-identity check — there the
-    // confirm is the guard, and a grant would sign past the very check the card
-    // exists for, so the caption points at the 30-minute window instead. Never on
-    // payments, decrypts, relay-auth, pure unlocks, or a destructive overwrite (a
-    // window granted here would let the next overwrite through unwarned).
-    const isContentSign =
-      data.method === 'signEvent' || data.method === 'nip04.encrypt' || data.method === 'nip44.encrypt';
-    const canRelax =
-      data.needApproval && isContentSign && !isPayment && !data.destructive && data.relaxEligible !== false;
-    const canAlways = data.canKindGrant && data.needApproval && !data.sharedIdentity;
     renderSharedNote(data);
 
-    // The row's wiring: reset to Once on every card (the old checkbox's own rule),
-    // the caption under the row follows the selection, and the primary button's
-    // words follow it too — Sign, Sign for 30 min, Always sign.
-    els.scopeFieldset.classList.toggle('hidden', !canRelax && !canAlways);
-    els.scopeRelaxOpt.classList.toggle('hidden', !canRelax);
-    els.scopeAlwaysOpt.classList.toggle('hidden', !canAlways);
-    if (canRelax || canAlways) {
-      const ev = data.params && (data.params.event || data.params);
-      const kind = ev ? ev.kind : null;
-      const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
-      // A one-line header over the row, one sentence per segment, the same as the
-      // panel (sidepanel.js). All three share one cell, so the row never moves.
-      els.scopeCapOnce.textContent = tSec('Asks again next time.');
-      els.scopeCapRelax.textContent = data.method === 'signEvent'
-        ? tSec('Signs here without asking for 30 minutes.')
-        : tSec('Approves this kind here without asking for 30 minutes.');
-      els.scopeCapAlways.textContent = data.kindDTag != null
-        ? tSec('Signs future versions of “{{d}}” here without asking.', { d: data.kindDTag })
-        : tSec('Signs future {{kind}} events here without asking.', { kind: kindName });
-      els.scopeOnce.checked = true;
-      els.scopeRelax.checked = false;
-      els.scopeAlways.checked = false;
-      const setScopeUi = () => {
-        els.scopeCapOnce.classList.toggle('on', els.scopeOnce.checked);
-        els.scopeCapRelax.classList.toggle('on', canRelax && els.scopeRelax.checked);
-        els.scopeCapAlways.classList.toggle('on', canAlways && els.scopeAlways.checked);
-        // The button says what pressing it does, on every card (as in the panel).
-        if (data.method === 'signEvent' && !isPayment) {
-          els.allow.textContent = els.scopeAlways.checked ? t('Always sign')
-            : els.scopeRelax.checked ? t('Sign for 30 min')
-            : t('Sign');
-        } else {
-          els.allow.textContent = els.scopeRelax.checked ? t('Allow for 30 min') : t('Allow once');
-        }
-      };
-      els.scopeOnce.addEventListener('change', setScopeUi);
-      els.scopeRelax.addEventListener('change', setScopeUi);
-      els.scopeAlways.addEventListener('change', setScopeUi);
-      setScopeUi();
-    }
+    // A sign card asks one question, "may this happen?": Sign or Reject. Trust stays on
+    // the cards where it is the right answer (a login, a decrypt, an encrypt, a wallet
+    // read); whether a sign should stop asking is the graduated row's to offer. Same as
+    // the panel.
+    if (data.method === 'signEvent') els.trust.classList.add('hidden');
+    renderGraduated();
+    renderRelaxHint();
 
     // Point at Trust once someone has approved this site several times over. Built with
     // textContent, not innerHTML — `host` is attacker-controlled, and this string is
@@ -797,6 +961,54 @@
     }
   }
 
+  // THE GRADUATED ROW: "should it stop asking?", earned by repetition. Shown on a sign
+  // card once this site has asked this account for the same kind a few times this session
+  // (the background decides; see graduatedCapable there): "Always sign" saves the
+  // standing kind grant (#482) with this signature, or on a shared-identity card "Sign for
+  // 30 min" opens the timed window. "Not now" hides it and starts the count over. Twin of
+  // renderGraduated in sidepanel.js. textContent only: `host` is the page's.
+  // A pick names the signer for one signature, and the row and the hint offer a standing
+  // answer the picked account has not earned, so a card showing another account than the
+  // one it opened as carries neither. Twin of pickedAnotherAccount in sidepanel.js.
+  function pickedAnotherAccount() {
+    return !!chosenPubkey && chosenPubkey !== data.activePubkey;
+  }
+  function renderGraduated() {
+    const offer = data.graduatedOffer;
+    const offered = !!offer && !isPayment && data.method === 'signEvent' && data.needApproval &&
+      (offer.mode === 'relax' || (offer.mode === 'always' && data.canKindGrant)) && !graduatedDeclined &&
+      !pickedAnotherAccount();
+    els.graduated.classList.toggle('hidden', !offered);
+    if (!offered) return;
+    els.graduatedMsg.textContent = tn(
+      "You've signed {{host}} {{count}} times in a row.",
+      "You've signed {{host}} {{count}} times in a row.",
+      offer.count, { host: data.host });
+    if (offer.mode === 'relax') {
+      els.graduatedCap.textContent = tSec('Keep signing as {{name}} for 30 minutes.',
+        { name: data.accountName || t('your account') });
+      els.graduatedYes.textContent = t('Sign for 30 min');
+    } else {
+      const ev = data.params && (data.params.event || data.params);
+      const kind = ev ? ev.kind : null;
+      const kindName = kindLabels()[kind] || tSec('kind {{kind}}', { kind: I18N.fmtNum(kind) });
+      els.graduatedCap.textContent = data.kindDTag != null
+        ? tSec('Keep signing future versions of “{{d}}” without asking.', { d: data.kindDTag })
+        : tSec('Keep signing future {{kind}} events without asking.', { kind: kindName });
+      els.graduatedYes.textContent = t('Always sign');
+    }
+  }
+
+  // The quiet shortcut (the panel's renderRelaxHint): the row's relax path, offered
+  // earlier and quieter. The background decides; this only renders.
+  function renderRelaxHint() {
+    const shown = !!(data && data.relaxHint && !data.graduatedOffer && !pickedAnotherAccount());
+    els.relaxHint.classList.toggle('hidden', !shown);
+    if (!shown) return;
+    els.relaxHint.textContent = tSec('Keep signing as {{name}}?\nOpen a 30-minute window.',
+      { name: data.accountName || t('your account') });
+  }
+
   // Shared-identity confirm: this host is signed in with more than one of your
   // accounts, so make the "who's posting" choice explicit and relabel the switcher
   // for the signing (not login) context. "Trust this site" is hidden — this
@@ -815,7 +1027,7 @@
     // the opt-out silences the explanation, never the question it explains.
     if (sharedHeadsUp.optedOut) return;
     // Two lines, no buttons: the fact, then the ask, which carries the weight. Same as
-    // the panel. The 30-minute window sits in the scope row on the same card.
+    // the panel. The 30-minute window is the graduated row's offer on this card.
     const note = document.createElement('p');
     note.id = 'shared-note-box';
     note.className = 'shared-caption';
@@ -872,6 +1084,7 @@
     label.textContent = isPayment ? tSec('Paying from') : tSec('Signing as');
     const av = document.createElement('img');
     av.className = 'acct-av';
+    av.alt = ''; // the name beside it says who; the picture adds nothing to read out
     av.referrerPolicy = 'no-referrer';
     av.onerror = () => { av.onerror = null; av.src = avatarPh; };
     av.src = chosen.picture || avatarPh;
@@ -974,13 +1187,15 @@
       });
       return g;
     };
-    // Group 1 — who signs this event. Choosing re-renders the capsule and the
-    // scope caption's {{name}}; the card stays open.
+    // Group 1 — who signs this event. Choosing re-renders the capsule; the card
+    // stays open.
     if (list.length && detachTargets !== 'ALL') {
       els.switchMenu.append(rows(list, chosenPk, (a) => {
         chosenPubkey = a.pubkey === data.activePubkey ? null : a.pubkey;
         els.switchMenu.classList.add('hidden');
         buildAccountCapsule();
+        renderGraduated();
+        renderRelaxHint();
       }, tSec('Signed in here')));
     }
     // Group 2 — the detach escape. Choosing cancels the request and makes that
@@ -1101,19 +1316,21 @@
     if (data.offerPayAnywhere === true && els.payAnywhereOfferBox.checked) {
       extra = Object.assign({}, extra, { enablePayAnywhere: true });
     }
-    // #482: carry the standing per-kind grant with the approval — the row's
-    // "Always" segment. The background re-validates eligibility (and never
-    // offered it on a shared-host identity check) before writing anything.
-    if (data.canKindGrant && action === 'once' && els.scopeAlways.checked) {
+    // #482: carry the standing per-kind grant with the approval — only from the
+    // graduated row's "Always sign". The background re-validates eligibility (and
+    // never offers it on a shared-host identity check) before writing anything.
+    if (data.canKindGrant && action === 'once' && opts && opts.alwaysKind === true) {
       extra = Object.assign({}, extra, { alwaysKind: true });
     }
+    // "Not now" on the graduated row: the background starts this kind's count over,
+    // whichever answer the card then gets.
+    if (graduatedDeclined) extra = Object.assign({}, extra, { declineGraduated: true });
     // "Wrong account" escape: carry the account to make active. The background detaches
     // and then throws, so this never signs.
     if (action === 'detach') {
       extra = Object.assign({}, extra, { detachPubkey: (opts && opts.detachPubkey) || '' });
     }
-    // Timed auto-sign window chosen via the row's 30-min segment. The Sign
-    // button routes here itself when that segment is selected.
+    // Timed auto-sign window, from the graduated row on a shared-identity card.
     if (action === 'relax') {
       extra = Object.assign({}, extra, { relaxMs: (opts && opts.relaxMs) || 30 * 60000 });
     }
@@ -1130,7 +1347,8 @@
       els.allow.disabled = v;
       els.trust.disabled = v;
       els.reject.disabled = v;
-      [els.scopeOnce, els.scopeRelax, els.scopeAlways].forEach((r) => (r.disabled = v));
+      els.graduatedYes.disabled = v;
+      els.graduatedNo.disabled = v;
     };
     setDisabled(true);
     try {
@@ -1147,15 +1365,24 @@
     // Background either navigates this window to the next queued request or closes it.
   }
 
-      // The primary button applies the chosen scope: a relax selection routes to
-    // the window, everything else signs — carrying Always when that's picked.
-    els.allow.addEventListener('click', () => {
-      if (els.scopeRelax.checked && !els.scopeRelaxOpt.classList.contains('hidden')) {
-        decide('relax', { relaxMs: 30 * 60000 });
-        return;
-      }
-      decide('once');
-    });
+  // The primary button is one answer: Sign (or Allow once) this one. The standing
+  // answers live on the graduated row's own button.
+  els.allow.addEventListener('click', () => decide('once'));
+  // The graduated row (renderGraduated). Its words and its offer are set per card; the
+  // answer is read off data.graduatedOffer, never off the label.
+  els.graduatedYes.addEventListener('click', () => {
+    const offer = data && data.graduatedOffer;
+    if (!offer) return;
+    if (offer.mode === 'relax') decide('relax', { relaxMs: 30 * 60000 });
+    else decide('once', { alwaysKind: true });
+  });
+  els.graduatedNo.addEventListener('click', () => {
+    graduatedDeclined = true;
+    els.graduated.classList.add('hidden');
+  });
+  // The quiet shortcut: opens the same window the row's "Sign for 30 min" opens, one
+  // card earlier.
+  els.relaxHint.addEventListener('click', () => decide('relax', { relaxMs: 30 * 60000 }));
   els.trust.addEventListener('click', () => decide('trust'));
   els.reject.addEventListener('click', () => decide('reject'));
   // The keystore can lock while this card sits unanswered (idle auto-lock). A card

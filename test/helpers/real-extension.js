@@ -28,15 +28,9 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = process.env.EXTENSION_ROOT || path.join(__dirname, '..', '..');   // EXTENSION_ROOT: a scratch copy, to prove a test fails on old code
-const CHROME_CANDIDATES = [
-  process.env.CHROME_PATH,
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-].filter(Boolean);
-const CHROME = CHROME_CANDIDATES.find((p) => fs.existsSync(p)) || null;
+const CHROME = require('./chrome-path').findChrome(); // never the Chrome you browse with: see helpers/chrome-path.js
 
-const SK = { me: '05'.repeat(32), bea: '06'.repeat(32), cal: '07'.repeat(32) };
+const SK = { me: '05'.repeat(32), bea: '06'.repeat(32), cal: '07'.repeat(32), dan: '08'.repeat(32) };
 const PIN = 'testpin1234';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -238,7 +232,7 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
     const nt = nostrTools();
     const me = nt.pubkey('me');
     const handle = {
-      extId, relay, errors, nt, me, bea: nt.pubkey('bea'), cal: nt.pubkey('cal'),
+      extId, relay, errors, nt, me, bea: nt.pubkey('bea'), cal: nt.pubkey('cal'), dan: nt.pubkey('dan'),
       sleep, evaluate, message, waitFor,
       sign: (template, who) => nt.sign(template, who),
       // An event on the relay, signed by `who`.
@@ -284,6 +278,23 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
               await chrome.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 }, page.sessionId);
             }
           },
+          // A real key press, by the DevTools input domain, so the browser's own editing runs
+          // (what a caret does at a pill, at a line start) rather than a script's guess at it.
+          // A key as a person presses it. `shift`, `alt`, `ctrl` and `meta` hold modifiers down;
+          // `commands` names the editing commands the key stands for (DeleteWordBackward,
+          // MoveLeftAndModifySelection, SelectAll, Undo…), which is how Chrome on a Mac is told
+          // what Option+Backspace or Cmd+Z mean when the key comes from DevTools.
+          press: async (key, { shift = false, alt = false, ctrl = false, meta = false, commands } = {}) => {
+            const KEYS = { Backspace: 8, Delete: 46, ArrowLeft: 37, ArrowRight: 39, ArrowUp: 38, ArrowDown: 40, Home: 36, End: 35, Enter: 13, Tab: 9, a: 65, b: 66, c: 67, i: 73, k: 75, v: 86, x: 88, z: 90 };
+            const code = KEYS[key];
+            const modifiers = (alt ? 1 : 0) | (ctrl ? 2 : 0) | (meta ? 4 : 0) | (shift ? 8 : 0);
+            const base = { key, code: key.length === 1 ? 'Key' + key.toUpperCase() : key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, modifiers };
+            await chrome.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base, ...(commands ? { commands } : {}) }, page.sessionId);
+            if (key === 'Enter' && !modifiers) await chrome.send('Input.dispatchKeyEvent', { type: 'char', text: '\r', key }, page.sessionId);
+            await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', ...base }, page.sessionId);
+          },
+          // Text as a keyboard (or an input method) delivers it: beforeinput, input, the lot.
+          type: async (text) => { await chrome.send('Input.insertText', { text }, page.sessionId); },
           // The size of a browser window, from now on: for a page that lays itself out for the width it has while
           // it is being used, not only when it is photographed.
           viewport: async ({ width = 1280, height = 800, scale = 2 } = {}) => {
@@ -297,6 +308,8 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
             const shot = await chrome.send('Page.captureScreenshot', { format: 'png' }, page.sessionId);
             fs.writeFileSync(file, Buffer.from(shot.data, 'base64'));
           },
+          // Any DevTools call on this page, for what the helpers above do not cover (drag and drop, input methods).
+          cdp: (method, params = {}) => chrome.send(method, params, page.sessionId),
           close: () => chrome.send('Target.closeTarget', { targetId: page.targetId }),
         };
       },
@@ -341,4 +354,7 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
   }
 }
 
-module.exports = { startExtension, CHROME, sleep };
+module.exports = { startExtension, CHROME, sleep, _internals: { startRelay, nostrTools, SK, PIN } };
+
+// SIDECAR_BROWSER=firefox runs the same tests in Firefox (real-extension-firefox.js).
+if (process.env.SIDECAR_BROWSER === 'firefox') module.exports = { ...module.exports, ...require('./real-extension-firefox.js') };

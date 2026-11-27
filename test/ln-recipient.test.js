@@ -56,11 +56,13 @@ before(() => {
       };
     },
   };
+  ctx.AbortSignal = AbortSignal; // the request's time limit
   withI18n(ctx); // the wallet's strings go through t(), tn() and tSec()
   vm.createContext(ctx);
   vm.runInContext(
     lift(/const LN_DESC_MAX = [\s\S]*?const LN_IMAGE_MAX = \d+;/, 'the clamp constants') + '\n' +
       lift(/function parseLnMetadata\(raw\) \{[\s\S]*?\n  \}/, 'parseLnMetadata') + '\n' +
+      lift(/const LNURL_TIMEOUT_MS = \d+;/, 'the lightning address time limit') + '\n' +
       lift(/async function lnAddressParams\(addr\) \{[\s\S]*?\n  \}/, 'lnAddressParams') + '\n' +
       'globalThis.parseLnMetadata = parseLnMetadata;' +
       'globalThis.lnAddressParams = lnAddressParams;',

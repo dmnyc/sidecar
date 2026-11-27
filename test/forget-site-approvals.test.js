@@ -64,35 +64,65 @@ test('forgetStandingApprovals ends that host\'s windows and leaves other hosts a
 test('the Forget site handler ends the windows and revokes the timed Auto-sign window', async () => {
   const ctx = windows();
   const revoked = [];
+  const countsCleared = [];
   const body = caseBody('SIDECAR_REMOVE_HOST');
   const handler = new Function('PERMS', 'KS', 'KINDS', 'clearSiteAccount', 'clearAuthorizedForHost', 'clearAlwaysActiveHost',
-    'forgetStandingApprovals', 'RELAX', 'syncRelaxBadge', 'message',
+    'forgetStandingApprovals', 'clearApproveCountsForHost', 'RELAX', 'syncRelaxBadge', 'message',
     'return (async () => { let result; ' + body + '\n return result; })()');
   ctx.api.grantContent('a.example', 'pk1', 30078);
   const noop = async () => {};
   await handler(
     { removeHost: async () => ({}) }, { getActivePubkey: async () => 'pk1' }, { revokeForHost: noop },
-    noop, noop, noop, ctx.api.forgetStandingApprovals,
+    noop, noop, noop, ctx.api.forgetStandingApprovals, async (h) => countsCleared.push(h),
     { revokeForHost: async (h) => revoked.push(h) }, () => {}, { host: 'a.example' });
   assert.equal(ctx.api.hasContentGrant('a.example', 'pk1', 30078), false, 'a sign right after Forget must ask again');
   assert.deepEqual(revoked, ['a.example'], 'a timed Auto-sign window outlived the forget');
+  assert.deepEqual(countsCleared, ['a.example'], 'the approval tally outlived the forget');
 });
 
 test('the Forget all sites handler clears every window and the Auto-sign windows', async () => {
   const ctx = windows();
   let relaxAll = 0;
+  let countsCleared = 0;
   const body = caseBody('SIDECAR_FORGET_ALL_SITES');
   // KINDS is a stand-in the handler only touches once the standing per-kind grants (#482) exist.
-  const handler = new Function('PERMS', 'KINDS', 'sset', 'contentGrants', 'decryptGrants', 'pubkeyGrants', 'RELAX', 'syncRelaxBadge',
+  const handler = new Function('PERMS', 'KINDS', 'sset', 'contentGrants', 'decryptGrants', 'pubkeyGrants', 'clearAllApproveCounts', 'RELAX', 'syncRelaxBadge',
     'SITE_ACCTS_KEY', 'SITE_AUTHZ_KEY', 'SITE_ALWAYS_ACTIVE_KEY', 'ACTIVITY_KEY',
     'return (async () => { let result; ' + body + '\n return result; })()');
   ctx.api.grantContent('a.example', 'pk1', 30078); ctx.api.grantDecrypt('b.example', 'pk1');
   ctx.api.grantPubkey('c.example', 'pk1');
   const noop = async () => {};
   await handler({ clearAll: noop }, { clearAll: noop }, noop, ctx.contentGrants, ctx.decryptGrants, ctx.pubkeyGrants,
-    { revokeAll: async () => { relaxAll++; } }, () => {}, 'a', 'b', 'c', 'd');
+    async () => { countsCleared++; }, { revokeAll: async () => { relaxAll++; } }, () => {}, 'a', 'b', 'c', 'd');
   assert.equal(ctx.api.hasContentGrant('a.example', 'pk1', 30078), false);
   assert.equal(ctx.api.hasDecryptGrant('b.example', 'pk1'), false);
   assert.equal(ctx.api.hasPubkeyGrant('c.example', 'pk1'), false, 'the login-burst window survived Forget all sites');
   assert.equal(relaxAll, 1, 'the timed Auto-sign windows survived Forget all sites');
+  assert.equal(countsCleared, 1, 'the approval tallies survived Forget all sites');
+});
+
+// The real helpers, against a stand-in for session storage: a forgotten host loses every
+// account's tally for every kind, and no other host loses anything.
+test('forgetting a site clears its approval tally for every account and kind, and only its own', async () => {
+  const sessionStore = {};
+  const chrome = { storage: { session: {
+    get: (k, cb) => cb({ [k]: sessionStore[k] }),
+    set: (o, cb) => { Object.assign(sessionStore, o); cb && cb(); },
+  } } };
+  const ctx = vm.createContext({ chrome });
+  vm.runInContext([
+    "const APPROVE_COUNT_KEY = 'sidecar_approve_counts';",
+    lift('function sgetSession'), lift('function ssetSession'),
+    lift('async function approveCountMap'),
+    lift('async function clearApproveCountsForHost'), lift('async function clearAllApproveCounts'),
+  ].join('\n'), ctx);
+  const seed = { 'a.example|pk1|7': 3, 'a.example|pk2|1': 2, 'a.example|pk1': 4, 'b.example|pk1|7': 3 };
+  sessionStore.sidecar_approve_counts = { ...seed };
+  await vm.runInContext("clearApproveCountsForHost('a.example')", ctx);
+  const tally = () => JSON.parse(JSON.stringify(sessionStore.sidecar_approve_counts)); // out of the vm realm
+  assert.deepEqual(tally(), { 'b.example|pk1|7': 3 },
+    'Forget site left a tally behind, or took another site’s');
+  sessionStore.sidecar_approve_counts = { ...seed };
+  await vm.runInContext('clearAllApproveCounts()', ctx);
+  assert.deepEqual(tally(), {}, 'Forget all sites left a tally behind');
 });

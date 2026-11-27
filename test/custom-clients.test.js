@@ -277,6 +277,6 @@ test('THE WRITE IS READ-MODIFY-WRITTEN HERE, NOT FROM THE PANEL', () => {
 test('the settings page carries the add affordance and the list, outside the static select', () => {
   assert.match(html, /id="add-client-btn"/, 'no way in');
   assert.match(html, /id="custom-clients"/, 'no list to manage what was added');
-  const sel = html.match(/<select id="client-select">[\s\S]*?<\/select>/)[0];
+  const sel = html.match(/<select id="client-select"[^>]*>[\s\S]*?<\/select>/)[0];
   assert.doesNotMatch(sel, /add-client-btn|custom-clients/, 'the static select was edited');
 });

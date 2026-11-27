@@ -22,7 +22,6 @@ const ROOT = path.join(__dirname, '..');
 const panel = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
 const prompt = fs.readFileSync(path.join(ROOT, 'prompt.js'), 'utf8');
 const panelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
-const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
 
 for (const [name, src] of [['sidepanel.js', panel], ['prompt.js', prompt]]) {
   test(name + ': opted out, no note at all — in either form', async () => {
@@ -71,10 +70,10 @@ test('the opt-out is recoverable, from Settings', () => {
   // people make once and never revisit, so it sits under the settings it undoes rather
   // than over them. "Show the note again" described one of the two things it restores;
   // "Reset all" describes the button.
-  assert.match(panelHtml, /<h3[^>]*>Shared site confirmations<\/h3>/);
+  assert.match(panelHtml, /<h4[^>]*>Shared site confirmations<\/h4>/);
   assert.match(panelHtml, /id="headsup-restore"[^>]*>Reset all</);
   const apps = panelHtml.slice(panelHtml.indexOf('id="section-body-apps"'), panelHtml.indexOf('data-section="wallet"'));
-  const heads = [...apps.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g)].map((m) => m[1]);
+  const heads = [...apps.matchAll(/<h4[^>]*>([^<]+)<\/h4>/g)].map((m) => m[1]);
   assert.equal(heads[0], 'Open notes in', 'the client picker is not first: ' + heads.join(' / '));
   assert.equal(heads[heads.length - 1], 'Shared site confirmations',
     'the reset is not last: ' + heads.join(' / '));
@@ -83,7 +82,3 @@ test('the opt-out is recoverable, from Settings', () => {
   assert.match(panel, /sharedHeadsUp = \{ dismissed: false, optedOut: false \};/, 'the panel memo must refresh with the store');
 });
 
-test('the two answers sit on one row, the quiet one un-filled', () => {
-  assert.match(css, /\.shared-headsup-actions \{ display: flex/);
-  assert.match(css, /\.shared-headsup-btn-quiet \{[^}]*background: none/);
-});

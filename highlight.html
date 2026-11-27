@@ -78,7 +78,7 @@
       <textarea id="hl-comment" class="autosize" dir="auto" rows="3"
         placeholder="Add a comment (optional)" data-i18n-placeholder="Add a comment (optional)"></textarea>
 
-      <p class="error" id="hl-err"></p>
+      <p class="error" id="hl-err" role="alert"></p>
       <p class="compose-status" id="hl-status"></p>
 
       <footer class="compose-foot hl-foot">
@@ -88,7 +88,7 @@
     </main>
   </div>
 
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
   <script src="i18n.js"></script>
   <script src="nostr-tools.js"></script>

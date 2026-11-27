@@ -142,7 +142,7 @@ test('A REPLY IS OFFERED THE TAB, AND ARRIVES AS A REPLY', () => {
   // (Through the dev kind override first, which only a dev build with its switch on
   //  takes; every other build reaches the shared builder.)
   assert.match(pageBare, /const reply = kindOverride\s*\n\s*\? await SC\.devReplyTags\(replyTo, devKind, state\.activePubkey, devAuthorOf\)\s*\n\s*: replyTo \? SC\.replyTags\(replyTo, state\.activePubkey\) : null;/);
-  assert.match(pageBare, /const kindOverride = devBuild && devOn\.kind && settings\.devComposerKinds === true && devKind && !draft\.poll;/);
+  assert.match(pageBare, /const kindOverride = devBuild && devKind && !draft\.poll &&\s*\n\s*\(\(devOn\.kind && settings\.devComposerKinds === true\) \|\| \(settings\.devReplyById === true && devKindChosenFor\(replyTo\)\)\);/);
   // A poll is its own kind and is never a reply, so the ternary has a third arm now.
   assert.match(pageBare, /kind: asPoll \? SC\.POLL_KIND : reply \? reply\.kind : 1,/);
   // Threading leads, then the client tag, then the poll tags, then imeta. NIP-10 takes
@@ -176,26 +176,22 @@ test('ONE TAB, AND IT IS THE RIGHT DRAFT', () => {
     'navigating an open tab needs a permission the manifest does not ask for');
 });
 
-test('the way in is a word on the tab bar, not an icon in the corner', () => {
-  // The corner already belongs to the close box, so a second button there landed on top
-  // of it. And the outward arrow that means "expand" in most apps reads here as leaving
-  // the browser, which is the one thing it does not do, so the glyph is four corner
-  // brackets. Write / Preview / Expand is a row of three things you can do with what you
-  // are writing.
+test('the way in is an icon in the corner, in the slot Saved drafts uses, not on the tab bar', () => {
+  // In the corner, in the slot the Saved drafts sheet keeps it in, with the folder one slot further in.
+  // The glyph is four corner brackets rather than an arrow, which reads as leaving the browser.
   assert.match(panelBare, /expand\.setAttribute\('aria-label', t\('Expand'\)\);/);
   assert.match(panelBare, /expand\.append\(icon\('maximize'\)\);/);
-  assert.match(panelBare, /if \(expand\) tabBar\.append\(expand\);/);
-  assert.ok(!/compose-expand[^']*modal-x|modal-x compose-expand/.test(panelBare),
-    'the expand control must not take the corner slot the close box owns');
+  assert.match(panelBare, /className: 'modal-x compose-expand'/);
+  assert.match(panelBare, /if \(expand\) modal\.append\(expand\);/);
+  assert.ok(!/tabBar\.append\(expand\)/.test(panelBare), 'the expand control left the Write / Preview row');
   // No arrow: four corner brackets, which are paths with no diagonal and no arrowhead.
   const glyph = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8').match(/^\s+maximize: '([^']*)'/m);
   assert.ok(glyph, 'the maximize glyph is missing from ICONS');
   assert.equal((glyph[1].match(/<path /g) || []).length, 4, 'four corners');
   assert.ok(!/<line|<polyline|<polygon/.test(glyph[1]), 'an arrow has a shaft or a head; brackets are only corners');
-  // No bottom border, so it cannot read as a third tab that could be selected.
-  const rule = css.slice(css.indexOf('.compose-expand {'), css.indexOf('.compose-expand:hover'));
-  assert.match(rule, /margin-inline-start: auto/);
-  assert.ok(!/border-bottom/.test(rule));
+  // 48px from the edge, as on Saved drafts; the folder moves in to 84px beside it.
+  assert.match(css, /\.compose-expand \{ inset-inline-end: 48px; \}/);
+  assert.match(css, /\.modal:has\(> \.compose-expand\) > \.compose-drafts-btn \{ inset-inline-end: 84px; \}/);
 });
 
 test('it signs through the worker, like everything else that signs', () => {
@@ -377,7 +373,7 @@ test('THE FURNITURE IS THE PANEL\u2019S, NOT A SECOND SET', () => {
     assert.ok(!new RegExp('function ' + name + '\\(').test(panel), 'sidepanel.js kept a copy of ' + name);
   }
   assert.match(bare, /composer\.renderNotePreview\(box, body\)/);
-  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted \}\)/);
+  assert.match(bare, /composer\.uploadMedia\(file, state\.activePubkey, \{ pasted, info \}\)/);
   // Its relay reads go through this page's own pool, so the core never learns which
   // sockets it is using and cannot reach the panel's.
   assert.match(bare, /poolGet: \(relays, filter, params\) => pool\(\)\.get\(/);
@@ -543,12 +539,12 @@ test('MINING TAKES THE CARD, AND THE EDITOR COMES BACK', () => {
   assert.ok(bare.includes('setMining(false);\n    posting = false;'),
     'the tail of doPost no longer restores the card');
 
-  // LEAVING IS ALWAYS ALLOWED, and it takes the worker with the page. The close box is on
-  // the page's bar, outside the card, so hiding every child of the card leaves it up.
-  assert.match(css, /\.compose-sheet\.is-mining > :not\(\.compose-mining\) \{ display: none; \}/,
-    'the card is not hidden while it mines');
-  const bar = pageHtml.slice(pageHtml.indexOf('<header class="compose-topbar">'), pageHtml.indexOf('</header>'));
-  assert.match(bar, /id="compose-x"/, 'the close box went into the card, and mining hides it');
+  // LEAVING IS ALWAYS ALLOWED, and it takes the worker with the page. The close box is in the
+  // card's corner, so the rule that hides the card's children spares it.
+  assert.match(css, /\.compose-sheet\.is-mining > :not\(\.compose-mining\):not\(\.compose-x\) \{ display: none; \}/,
+    'the card is not hidden while it mines, and the close box stays');
+  const sheet = pageHtml.slice(pageHtml.indexOf('<main class="compose-sheet">'));
+  assert.match(sheet, /<button type="button" class="modal-x compose-x" id="compose-x"/, 'the close box is in the card');
   // Same container as the receipt, which is the point: one padding, one alignment.
   assert.match(css, /\.compose-sheet\.is-mining \{ align-items: center; text-align: center; gap: 10px; padding: 48px 24px; \}/);
 
@@ -700,26 +696,24 @@ test('THE TOOLBAR\'S CELLS ARE EQUAL, SO NOTHING A BUTTON SAYS MOVES THE ROW', (
   // And the floor is written out, because .is-uploading clips for its stripes, and a
   // clipping flex item's automatic minimum is zero: without it the busy button could be
   // squeezed below its own label, the one thing the panel's row rule forbids.
-  assert.match(css, /\.compose-add\.is-uploading \{[^}]*overflow: hidden/);
+  assert.match(css, /\.compose-add\.is-uploading[^{]*\{[^}]*overflow: hidden/);
 });
 
-test('THE WAY OUT IS SETTINGS\' CLOSE BOX AND A WORD, AND THE WAY TO PUBLISH IS NEITHER', () => {
-  // The box is on the page's bar, at its far end, and it is the box Settings closes with:
-  // the same classes, so the same size and every theme's dressing, and the same glyph. It
-  // keeps the draft, because closing is not a decision to throw it away.
+test('THE WAY OUT IS A CLOSE BOX IN THE CARD, AND THE WAY TO PUBLISH IS NOT', () => {
+  // The box is in the card's corner, as in the panel's composer and the highlight window, with the
+  // folder one slot in beside it. It keeps the draft, because closing is not a decision to throw
+  // it away. It used to sit on the page's bar, a window's width from the card.
   const bar = pageHtml.slice(pageHtml.indexOf('<header class="compose-topbar">'), pageHtml.indexOf('</header>'));
-  assert.match(bar, /class="icon-btn settings-close compose-x" id="compose-x"/);
-  const sidepanelHtml = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
-  const glyph = (html, id) => html.slice(html.indexOf('id="' + id + '"')).match(/<svg[\s\S]*?<\/svg>/)[0];
-  assert.equal(glyph(pageHtml, 'compose-x'), glyph(sidepanelHtml, 'settings-close'), 'not the same glyph as Settings');
-  // It overhangs the bar's padding rather than growing it: the card subtracts the bar's
-  // height, and the bar matches the guide's.
-  assert.match(css, /\.compose-topbar \.compose-x \{ margin-block: -12px -12px; margin-inline: auto 0; flex-shrink: 0; \}/);
+  assert.doesNotMatch(bar, /compose-x/, 'the bar still holds a close box');
+  const sheet = pageHtml.slice(pageHtml.indexOf('<main class="compose-sheet">'));
+  assert.match(sheet, /<main class="compose-sheet">\s*(<!--[\s\S]*?-->\s*)?<button[^>]*class="modal-x compose-x" id="compose-x"/, 'the close box is the card\'s first control');
+  assert.match(css, /\.compose-sheet #compose-x \{ top: 24px; inset-inline-end: 26px; \}/);
+  assert.match(css, /\.compose-sheet \.compose-drafts-btn \{ top: 24px; inset-inline-end: 62px; \}/);
   assert.match(bare, /x\.addEventListener\('click', leave\)/);
   assert.match(bare, /const leave = \(\) => \{ flushDraft\(\)\.then\(\(\) => window\.close\(\)\); \};/);
 
   // NO CANCEL BESIDE POST. It did what the × does, and its name said the draft would be
-  // thrown away, which nothing here does. The footer's way out is the bar's ×.
+  // thrown away, which nothing here does. The way out is the × in the card's corner.
   const foot = pageHtml.slice(pageHtml.indexOf('<footer class="compose-foot">'), pageHtml.indexOf('</footer>'));
   assert.doesNotMatch(foot.replace(/<!--[\s\S]*?-->/g, ''), /Cancel|compose-close/);
   // And the one that cannot be taken back is the biggest thing in the row.
@@ -892,14 +886,17 @@ test('a theme listed as drawing the panel bar dark draws it dark', () => {
 test('A PASTED IMAGE IS UPLOADED IN THE TAB, AS IN THE PANEL', () => {
   // Left to the browser, the contenteditable took a pasted image as an inline picture at
   // full size, never uploaded and never published, and rich text kept its formatting.
+  // Paste and drop are the shared editor's (composer-core createMentionEditor): text in
+  // plain through insertPasted, files handed to the owner's onFiles. The tab's onFiles
+  // uploads into the strip.
   const page = fs.readFileSync(path.join(ROOT, 'compose.js'), 'utf8');
-  const at = page.indexOf("editorApi.editor.addEventListener('paste'");
-  assert.ok(at > -1, 'the tab has no paste handler of its own');
+  const core = fs.readFileSync(path.join(ROOT, 'composer-core.js'), 'utf8');
+  const at = page.indexOf('onFiles: (files, { pasted }) => {');
+  assert.ok(at > -1, 'the tab takes no files from its editor');
   const body = page.slice(at, at + 2600);
-  assert.match(body, /item\.kind === 'file' && item\.type\.startsWith\('image\/'\)/);
-  assert.match(body, /e\.preventDefault\(\);/);
-  assert.match(body, /document\.execCommand\('insertText', false, plain\)/);
-  assert.match(body, /uploadFiles\(images, \{ pasted: true \}\)/);
+  assert.match(body, /uploadFiles\(media, \{ pasted \}\)/);
+  assert.match(core, /if \(files\.length\) \{ if \(onFiles\) onFiles\(files, \{ pasted: true \}\); return; \}/);
+  assert.match(core, /insertPasted\(editor, text\);/);
   // The Media button and a paste share one upload path.
   assert.match(page, /if \(file\) await uploadFiles\(\[file\]\);/);
   // Neither composer lets a paste attach to a poll.

@@ -126,5 +126,8 @@ test('the worker consults the window, and a coalesced sibling is not counted tow
   const code = handler.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.match(code, /const pubkeyCoalesced = method === 'getPublicKey' && hasPubkeyGrant\(host, activePubkey\)/);
   assert.match(code, /decryptCoalesced \|\| pubkeyCoalesced \|\|/, 'the window is not wired into needApproval');
-  assert.match(code, /if \(!\(method === 'getPublicKey' && decision\.coalesced === true\)\) \{\s*if \(decision\.action === 'once'\) await bumpApproveCount\(/);
+  // The tally itself is run in test/graduated-approvals.test.js; here, that the coalesced
+  // login skips it.
+  const all = src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+  assert.match(all, /if \(method === 'getPublicKey' && decision\.coalesced === true\) return;\s*if \(decision\.action === 'once'\) await bumpApproveCount\(host, pubkey\);/);
 });

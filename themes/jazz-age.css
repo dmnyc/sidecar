@@ -130,8 +130,10 @@
   --balloon-bg: #B3122E;
   --balloon-bg-hover: #7A0C1F;
   --balloon-text: #FFF4E2;
-  /* The compose button is a crimson lamp, its ivory quill 6.34:1. */
-  --fab-bg: linear-gradient(180deg, #E0324B, #B3122E 55%, #8E0B22);
+  /* The compose button is a crimson lamp, its ivory quill 6.34:1 at the middle of the
+     disc. The top stop is a shade under --glow (#E0324B), which held the quill to 4.08:1
+     where the lamp is brightest; at #D42A42 it is 4.58:1 there. */
+  --fab-bg: linear-gradient(180deg, #D42A42, #B3122E 55%, #8E0B22);
   --fab-icon: #FFF4E2;
   --float-shadow: rgba(0, 0, 0, 0.6);
   --float-shadow-strong: rgba(0, 0, 0, 0.75);
@@ -259,7 +261,8 @@
 [data-theme="jazz-age"] .primary,
 [data-theme="jazz-age"] .secondary,
 [data-theme="jazz-age"] .lav-btn,
-[data-theme="jazz-age"] .danger {
+[data-theme="jazz-age"] .danger,
+[data-theme="jazz-age"] .reload-banner-btn {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 0.04em;

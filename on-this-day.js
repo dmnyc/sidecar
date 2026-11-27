@@ -1112,9 +1112,15 @@ window.SIDECAR_ON_THIS_DAY = {
   '11-21': [
     { year: 1783, text: "Two men rose over Paris in a hot air balloon, the first people to leave the ground." },
     { year: 1877, text: "Thomas Edison announced a machine that could record sound and play it back." },
+    // 1.18.0. Wikipedia's November 21 page ("Rebecca Latimer Felton of Georgia takes the oath of office, becoming the first female United States Senator"; "Ole Rømer presents the first quantitative measurements of the speed of light").
+    { year: 1922, text: "Rebecca Latimer Felton of Georgia took the oath of office as the first woman in the United States Senate." }, // Wikipedia, November 21
+    { year: 1676, text: "Ole Rømer presented the first quantitative measurements of the speed of light." }, // Wikipedia, November 21
   ],
   '11-22': [
     { year: 1718, text: "The pirate Blackbeard was cornered and killed in battle off the coast of North Carolina." }, // Ocracoke Inlet
+    // 1.18.0. Wikipedia's November 22 page ("In Dumbarton, Scotland, the clipper Cutty Sark is launched"; "The China Clipper inaugurates the first commercial transpacific air service, connecting Alameda, California with Manila").
+    { year: 1869, text: "The clipper Cutty Sark was launched at Dumbarton, Scotland." }, // Wikipedia, November 22
+    { year: 1935, text: "The China Clipper opened the first commercial air service across the Pacific, from Alameda, California, to Manila." }, // Wikipedia, November 22
   ],
   '11-23': [
     { year: 1889, text: "The first jukebox was installed in a saloon in San Francisco." }, // Palais Royale Saloon
@@ -1130,9 +1136,14 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-26': [
     { year: 1922, text: "Howard Carter and Lord Carnarvon stood before the sealed door of Tutankhamun's tomb." }, // Valley of the Kings
+    // 1.18.0. Wikipedia's November 26 page ("A national Thanksgiving Day is observed in the United States as proclaimed by President George Washington at the request of Congress"; "The National Hockey League is formed, with the Montreal Canadiens, Montreal Wanderers, Ottawa Senators, Quebec Bulldogs, and Toronto Arenas as its first teams").
+    { year: 1789, text: "A national Thanksgiving Day was observed in the United States, proclaimed by President Washington at the request of Congress." }, // Wikipedia, November 26
+    { year: 1917, text: "The National Hockey League was formed, with five teams." }, // Wikipedia, November 26
   ],
   '11-27': [
     { year: 1895, text: "Alfred Nobel signed his final will, setting aside his fortune to establish the Nobel Prizes." }, // Swedish-Norwegian Club
+    // 1.18.2. Wikipedia's November 27 page ("In New York City, the first Macy's Thanksgiving Day Parade is held").
+    { year: 1924, text: "The first Macy's Thanksgiving Day Parade marched through New York City." }, // Wikipedia, November 27
   ],
   '11-28': [
     { year: 1520, text: "Magellan sailed out of his treacherous strait and reached the open waters of the Pacific." }, // Strait of Magellan
@@ -1144,9 +1155,13 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '11-30': [
     { year: 1835, text: "Mark Twain was born in Missouri, just as Halley's Comet appeared in the sky." }, // Florida, Missouri
+    // 1.18.1. Wikipedia's November 30 page ("The first-ever international football match takes place at Hamilton Crescent, Glasgow, between Scotland and England").
+    { year: 1872, text: "Scotland and England played the first international football match, at Hamilton Crescent in Glasgow." }, // Wikipedia, November 30
   ],
   '12-01': [
     { year: 1913, text: "Ford introduced the first moving assembly line for an entire automobile, dropping the build time to hours." }, // Highland Park
+    // 1.18.1. Wikipedia's December 1 page ("The Buenos Aires Metro, the first underground railway system in the Southern Hemisphere and in Latin America, begins operation").
+    { year: 1913, text: "The Buenos Aires Underground opened, the first subway in Latin America and the Southern Hemisphere." }, // Wikipedia, December 1
   ],
   '12-02': [
     { year: 1942, text: "Under a stadium in Chicago, Enrico Fermi's team started the first nuclear chain reaction." }, // Chicago Pile-1, Stagg Field
@@ -1159,18 +1174,28 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '12-05': [
     { year: 1933, text: "Utah ratified the Twenty-first Amendment, officially ending Prohibition in the United States." },
+    // 1.19.0. Wikipedia's December 5 page ("Polk confirms that large amounts of gold had been discovered in California").
+    { year: 1848, text: 'President Polk confirmed to Congress that large amounts of gold had been discovered in California.' }, // Wikipedia, December 5
   ],
   '12-06': [
     { year: 1884, text: "Engineers capped the Washington Monument with a pyramid of aluminum, a rare and precious metal." },
+    // 1.19.0. The Washington Post article's infobox ("Founded December 6, 1877").
+    { year: 1877, text: "The Washington Post was founded in the nation's capital." }, // Wikipedia, The Washington Post
   ],
   '12-07': [
     { year: 1941, text: "Japanese naval forces launched a surprise attack on the US fleet anchored at Pearl Harbor." },
+    // 1.19.0. Wikipedia's December 7 page ("The Royal Opera House opens at Covent Garden, London, England").
+    { year: 1732, text: 'The Royal Opera House opened at Covent Garden in London.' }, // Wikipedia, December 7
   ],
   '12-08': [
     { year: 1941, text: "Congress declared war on Japan, bringing the United States into the Second World War." },
+    // 1.19.0. The Clifton Suspension Bridge article ("On 8 December 1864, the bridge was lit by ... four electric arc lamps for its ceremonial opening").
+    { year: 1864, text: "Bristol's Clifton Suspension Bridge was opened, lit for the ceremony by four electric arc lamps." }, // Wikipedia, Clifton Suspension Bridge
   ],
   '12-09': [
     { year: 1905, text: "France passed a historic law separating church and state." },
+    // 1.18.2. Wikipedia's December 9 page ("The first traffic lights are installed, outside the Palace of Westminster in London").
+    { year: 1868, text: "The first traffic lights went up outside Parliament in London, with semaphore arms and gas lamps for night." }, // Wikipedia, December 9
   ],
   '12-10': [
     { year: 1901, text: "The first Nobel Prizes were awarded, five years to the day after Alfred Nobel died." },

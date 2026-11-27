@@ -2,12 +2,14 @@
 
 // Unit coverage for the "you keep approving this" tally in background.js.
 //
-// Why it exists: the approval prompt offers Allow once / Trust this site / Reject,
-// plus timed auto-sign chips. Only Trust ends the asking, and nothing on the screen
-// says so — "Allow once" is the one that reads like the default answer, so a user on
-// a single account with a single app can approve the same site indefinitely without
-// ever noticing there was a way out. After a few one-time approvals the prompt adds a
-// line pointing at Trust.
+// Why it exists: a login, decrypt or encrypt card offers Allow once / Trust this site /
+// Reject. Only Trust ends the asking, and nothing on the screen says so — "Allow once"
+// is the one that reads like the default answer, so a user on a single account with a
+// single app can approve the same site indefinitely without ever noticing there was a
+// way out. After a few one-time approvals the prompt adds a line pointing at Trust.
+//
+// Sign cards have no Trust button, and their tally is per kind: that half (the graduated
+// row) is covered in test/graduated-approvals.test.js, against the same store.
 //
 // Stored in chrome.storage.session, which is the whole reason these tests exist. The
 // first cut used a plain Map and NEVER FIRED: the MV3 service worker is evicted after
@@ -31,6 +33,17 @@ function lift(pattern, label) {
   const m = source.match(pattern);
   if (!m) throw new Error('Could not find ' + label + ' in background.js');
   return m[0];
+}
+// A whole function, by brace depth from its declaration.
+function liftFn(decl) {
+  const at = source.indexOf(decl);
+  if (at === -1) throw new Error('Could not find ' + decl + ' in background.js');
+  let depth = 0;
+  for (let i = source.indexOf('{', at); i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}' && --depth === 0) return source.slice(at, i + 1);
+  }
+  throw new Error('unbalanced ' + decl);
 }
 
 const HOST_A = 'jumble.social';
@@ -64,13 +77,10 @@ function harness() {
   vm.runInContext(
     lift(/const APPROVE_NUDGE_AFTER = \d+;/, 'APPROVE_NUDGE_AFTER') + '\n' +
     lift(/const APPROVE_COUNT_KEY = '[^']+';/, 'APPROVE_COUNT_KEY') + '\n' +
-    lift(/function sgetSession\(keys\) \{[\s\S]*?\n\}/, 'sgetSession') + '\n' +
-    lift(/function ssetSession\(obj\) \{[\s\S]*?\n\}/, 'ssetSession') + '\n' +
-    lift(/function approveCountKey\(host, pubkey\) \{[^}]*\}/, 'approveCountKey') + '\n' +
-    lift(/async function approveCountMap\(\) \{[\s\S]*?\n\}/, 'approveCountMap') + '\n' +
-    lift(/async function bumpApproveCount\(host, pubkey\) \{[\s\S]*?\n\}/, 'bumpApproveCount') + '\n' +
-    lift(/async function shouldNudgeTrust\(host, pubkey\) \{[\s\S]*?\n\}/, 'shouldNudgeTrust') + '\n' +
-    lift(/async function clearApproveCount\(host, pubkey\) \{[\s\S]*?\n\}/, 'clearApproveCount') + '\n' +
+    ['function sgetSession(', 'function ssetSession(', 'function approveCountKey(',
+      'async function approveCountMap(', 'async function approveCount(',
+      'async function bumpApproveCount(', 'async function shouldNudgeTrust(',
+      'async function clearApproveCount('].map(liftFn).join('\n') + '\n' +
     'globalThis.bump = bumpApproveCount;' +
     'globalThis.should = shouldNudgeTrust;' +
     'globalThis.clear = clearApproveCount;' +
@@ -167,8 +177,9 @@ test('clearing one pair leaves the others alone', async () => {
 
 test('only a one-time approval is counted', async () => {
   // 'relax' and 'trust' ARE the user acting on the advice — counting them would mean
-  // nudging someone who already listened.
-  assert.match(source, /if \(decision\.action === 'once'\) await bumpApproveCount\(/,
+  // nudging someone who already listened. (recordApprovalTally is run end to end in
+  // test/graduated-approvals.test.js.)
+  assert.match(source, /if \(decision\.action === 'once'\) await bumpApproveCount\(host, pubkey\);/,
     "the tally must be bumped only on the 'once' branch");
   assert.ok(!/if \(decision\.action === 'relax'\)[\s\S]{0,200}bumpApproveCount/.test(source),
     "'relax' must not count toward the nudge");
@@ -184,14 +195,14 @@ test('trusting and blocking both clear the tally', async () => {
 test('the nudge is suppressed while a destructive warning is showing', async () => {
   // That screen is asking for full attention on what is about to be lost. "Trust this
   // site to stop asking" is the last advice it should be carrying.
-  assert.match(source, /nudgeTrust: !destructive && [^\n]*\(await shouldNudgeTrust\(/);
+  assert.match(source, /nudgeTrust: method !== 'signEvent' && !destructive && [^\n]*\(await shouldNudgeTrust\(/);
 });
 
 test('THE NUDGE NEVER POINTS AT A TRUST BUTTON THE CARD DOES NOT SHOW', () => {
-  // A shared-identity confirm and a pure unlock both hide Trust, on both surfaces, so the
-  // background does not raise the nudge for either. The panel also batches, which hides
-  // Trust too, so it checks the button itself before showing the line.
-  assert.match(source, /nudgeTrust: !destructive && !sharedIdentity && needApproval && \(await shouldNudgeTrust\(/);
+  // A sign card, a shared-identity confirm and a pure unlock all hide Trust, on both
+  // surfaces, so the background does not raise the nudge for any of them. The panel also
+  // batches, which hides Trust too, so it checks the button itself before showing the line.
+  assert.match(source, /nudgeTrust: method !== 'signEvent' && !destructive && !sharedIdentity && needApproval && \(await shouldNudgeTrust\(/);
   const panelSrc = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
   assert.match(panelSrc, /if \(data\.nudgeTrust && !payment && !trust\.classList\.contains\('hidden'\)\)/);
 });
@@ -204,12 +215,16 @@ test('THE NUDGE NEVER POINTS AT A TRUST BUTTON THE CARD DOES NOT SHOW', () => {
 // the relax chips in one and not the other, and the nudge in one and not the other.
 // These pin both.
 
-test('both approval UIs honor relaxEligible', () => {
+test('both approval UIs take the stop-asking offer from the background, never their own rule', () => {
+  // The relax window used to be gated three times (panel, popup, background) and drifted.
+  // Now only the background decides — graduatedCapable: on a shared host the window's own
+  // relax eligibility, elsewhere the grant's — and both cards render data.graduatedOffer.
+  assert.match(source, /const graduatedCapable = method === 'signEvent' &&\n      \(sharedHost \? relaxEligible : kindGrantEligible\) && !destructive;/);
   const promptSrc = fs.readFileSync(path.join(ROOT, 'prompt.js'), 'utf8');
   const panelSrc = fs.readFileSync(path.join(ROOT, 'sidepanel.js'), 'utf8');
   for (const [name, src] of [['prompt.js', promptSrc], ['sidepanel.js', panelSrc]]) {
-    assert.match(src, /data\.relaxEligible !== false/,
-      name + ' must gate the relax offer on relaxEligible');
+    assert.match(src, /const offer = data\.graduatedOffer;/, name + ' must render the background\'s offer');
+    assert.doesNotMatch(src, /relaxEligible/, name + ' must not re-derive which kinds may relax');
   }
 });
 
@@ -277,7 +292,7 @@ test('the popup theme allowlist matches the panel', () => {
 
 test('the auto-lock setting explains the once-per-session PIN', () => {
   const html = fs.readFileSync(path.join(ROOT, 'sidepanel.html'), 'utf8');
-  const block = html.match(/<h3[^>]*>Auto-lock<\/h3>[\s\S]*?<\/div>/);
+  const block = html.match(/<h4[^>]*>Auto-lock<\/h4>[\s\S]*?<\/div>/);
   assert.ok(block, 'could not find the auto-lock setting');
   assert.match(block[0], /once per browser session/,
     'Never needs a hint, or it reads as an absolute promise');

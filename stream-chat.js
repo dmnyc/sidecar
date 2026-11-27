@@ -139,7 +139,7 @@
     const sizeObserver=new ResizeObserver(sizeChat);
     for(const id of ['stream-dock','relax-status','mining-status']){const node=document.getElementById(id);if(node){sizeObserver.observe(node);new MutationObserver(sizeChat).observe(node,{attributes:true,attributeFilter:['class','hidden']});}}
     window.addEventListener('resize',sizeChat);
-    const sources=()=>[...new Set([...(getItem()?.relays || []),'wss://relay.damus.io','wss://nos.lol','wss://relay.primal.net','wss://nostr.wine','wss://relay.snort.social'])];
+    const sources=()=>[...new Set([...(getItem()?.relays || []),'wss://relay.damus.io','wss://relay.primal.net','wss://relay.ditto.pub','wss://nostr.wine','wss://relay.snort.social'])];
     function stop(){run++;emoji?.close();clearTimeout(profileScrollTimer);clearTimeout(profilePaintTimer);profilePaintTimer=null;changedProfiles.clear();reactionPicker?.remove();reactionPicker=null;clearTimeout(reactionTimer);reactionTimer=null;reactionSubs.splice(0).forEach(s=>s.close());reactionTargets.clear();clearTimeout(noticeTimer);noticeTimer=null;notice.textContent='';abort?.abort();clearTimeout(retryTimer);clearTimeout(profileRetry);clearTimeout(paintTimer);paintTimer=null;mentionEditor?.close();sub?.close();sub=null;pool?.destroy();pool=null;}
     function clearReply(){reply=null;replyLabel.hidden=true;}
     cancelReply.onclick=()=>{clearReply();input.focus();};
@@ -400,11 +400,8 @@
           input.replaceWith(mentionEditor.wrap);input=mentionEditor.editor;
           input.setAttribute('role','textbox');input.setAttribute('aria-label',t('Write a message'));input.setAttribute('aria-multiline','true');
           mentionEditor.wrap.classList.add('stream-chat-editor');
-          input.addEventListener('paste',event=>pastePlainText(event,text=>{
-            // insertText retains selection replacement and the browser's undo stack.
-            document.execCommand('insertText',false,text);mentionEditor.sync();
-          }));
-          input.addEventListener('drop',event=>{event.preventDefault();event.stopPropagation();});
+          // Paste and drop come in as plain text through the shared editor (createMentionEditor);
+          // it has no onFiles here, so a dropped or pasted file is refused.
           input.addEventListener('keydown',event=>{if(event.key==='Escape' && mentionEditor.wrap.querySelector('.ac-dropdown'))event.stopPropagation();},true);
         }
         // The composer's own emoji picker, so both offer the same table and the same search.

@@ -13,6 +13,22 @@ html { scroll-behavior: smooth; }
 /* Standalone-page top nav (.helpnav*) now lives in welcome.css, shared by
    help, welcome, and wallets so all three carry the same bar. */
 
+/* The first stop for the keyboard: past the nav's dozen links to the guide itself. Off
+   screen until it has the focus, then over the nav's top-left corner. */
+.skip-link {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  z-index: 101;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--bg-2, #1a0b2e);
+  color: var(--text, #fff);
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+
 /* ===== Table of contents dropdown (in-nav, styled in welcome.css) ===== */
 
 /* ===== Guide sections ===== */
@@ -100,6 +116,7 @@ html { scroll-behavior: smooth; }
 .shot-frame img {
   display: block;
   width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 520px;
   margin: 0 auto;

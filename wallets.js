@@ -7,6 +7,7 @@ const WALLETS = [
     name: 'Alby Hub',
     url: 'https://albyhub.com',
     domain: 'albyhub.com',
+    icon: 'icons/apps/alby-hub.png', // a copy of Google's favicon for albyhub.com
     cat: 'selfcustodial',
     desc: () => t('Your own Lightning node, self-hosted or on Alby Cloud. Create an NWC connection for Sidecar.'),
   },
@@ -14,6 +15,7 @@ const WALLETS = [
     name: 'Zeus',
     url: 'https://zeusln.com',
     domain: 'zeusln.com',
+    icon: 'icons/apps/zeus.jpg', // a copy of Google's favicon for zeusln.com
     cat: 'selfcustodial',
     desc: () => t('Self-custodial mobile wallet with an embedded node. Export an NWC string.'),
   },
@@ -21,6 +23,7 @@ const WALLETS = [
     name: 'LNbits',
     url: 'https://lnbits.com',
     domain: 'lnbits.com',
+    icon: 'icons/apps/lnbits.png', // a copy of Google's favicon for lnbits.com
     cat: 'selfcustodial',
     desc: () => t('For people who already run LNbits. Enable the NWC Service Provider extension.'),
   },
@@ -28,6 +31,7 @@ const WALLETS = [
     name: 'YakiHonne',
     url: 'https://yakihonne.com',
     domain: 'yakihonne.com',
+    icon: 'icons/apps/yakihonne.png', // a copy of Google's favicon for yakihonne.com
     cat: 'custodial',
     desc: () => t('Custodial wallet built into the YakiHonne app. The quickest way to get going.'),
   },
@@ -35,6 +39,7 @@ const WALLETS = [
     name: 'Rizful',
     url: 'https://www.rizful.com',
     domain: 'rizful.com',
+    icon: 'icons/apps/rizful.png', // a copy of Google's favicon for rizful.com
     cat: 'custodial',
     desc: () => t('Custodial hosted Lightning node. Create an NWC string from your dashboard.'),
   },
@@ -50,6 +55,7 @@ const WALLETS = [
     name: 'Blitz',
     url: 'https://blitzwalletapp.com',
     domain: 'blitzwalletapp.com',
+    icon: 'icons/apps/blitz.png', // a copy of Google's favicon for blitzwalletapp.com
     cat: 'spark',
     desc: () => t('Mobile wallet on the Spark layer 2. Create an NWC connection with a budget.'),
   },
@@ -57,6 +63,7 @@ const WALLETS = [
     name: 'Minibits',
     url: 'https://www.minibits.cash',
     domain: 'minibits.cash',
+    icon: 'icons/apps/minibits.jpg', // a copy of Google's favicon for minibits.cash
     cat: 'ecash',
     desc: () => t('Cashu ecash mobile wallet. Create an NWC string in the app.'),
   },

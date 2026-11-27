@@ -1,0 +1,161 @@
+'use strict';
+
+// "Open saved drafts" on the compose menu, against the REAL extension. The item is always there
+// (the list is also where drafts kept on relays are read back, so it cannot wait for a draft on
+// this device), opens the same list the composer's folder opens, and does it
+// without writing over the draft it is there to list: opened with a note in progress, that note
+// is the "Open now" row and Back returns to it with every word still there.
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { startExtension, CHROME, sleep } = require('./helpers/real-extension');
+
+const opts = { skip: CHROME ? false : 'no Chrome found', timeout: 90000 };
+const click = (selector) => `(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return false; e.click(); return true; })()`;
+const visible = (selector) => `(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !!e && !e.hidden && getComputedStyle(e).display !== 'none'; })()`;
+
+async function openMenu(x) {
+  // Closed first, so the next tap opens it again and works the item out afresh.
+  await x.evaluate(`(() => { const m = document.getElementById('compose-menu'); if (!m.hidden) document.getElementById('compose-fab').click(); })()`);
+  await sleep(400);
+  await x.evaluate(click('#compose-fab'));
+  await sleep(500);
+}
+const stored = async (x) => ((await x.message({ type: 'SIDECAR_SECRET_GET', store: 'drafts' })) || {}).result || {};
+
+test('the item is there with no drafts at all, and the list opens without overwriting the draft', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+
+    await openMenu(x);
+    assert.equal(await x.evaluate(visible('#compose-note-btn')), true, 'the menu is open');
+    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), true, 'no drafts on this device, and the item is still there');
+    // With nothing saved here the list still opens, and it is where the relays are checked.
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .relay-drafts-btn')`);
+    assert.match(await x.evaluate(`document.querySelector('#modal h3').textContent`), /Saved drafts/);
+    assert.equal(await x.evaluate(`!!document.querySelector('#modal .saved-draft')`), false, 'no rows, nothing to list');
+    await x.evaluate(`document.querySelector('#modal .modal-x').click()`);
+    await x.waitFor(`!document.querySelector('#modal') || document.querySelector('#modal').classList.contains('hidden') || !document.querySelector('#modal h3')`).catch(() => {});
+
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'A note in progress', media: [], savedAt: Date.now() } } });
+    await openMenu(x);
+    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), true, 'a draft in progress keeps the item');
+
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .saved-draft-current')`);
+    assert.match(await x.evaluate(`document.querySelector('#modal h3').textContent`), /Saved drafts/);
+    assert.match(await x.evaluate(`document.querySelector('#modal .saved-draft-current').textContent`), /A note in progress/);
+    assert.equal(await x.evaluate(`document.querySelector('#modal .saved-draft-current .saved-draft-when').textContent`), 'Open now');
+
+    // Still there in the store, word for word, after the list saved "what is on screen".
+    assert.equal((await stored(x))[x.me].text, 'A note in progress');
+
+    // And on to it, in the editor, with the text in the box. Opened from the menu, the way
+    // out says Go to composer: there was no composer on screen to go back to.
+    assert.ok(await x.evaluate(`(() => { const b = [...document.querySelectorAll('#modal button')].find((e) => e.textContent.trim() === 'Go to composer'); if (!b) return false; b.click(); return true; })()`));
+    await x.waitFor(`!!document.querySelector('#modal [contenteditable]')`);
+    assert.equal(await x.evaluate(`document.querySelector('#modal [contenteditable]').innerText.trim()`), 'A note in progress');
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});
+
+test('with no note in progress but a draft set aside, the item opens the list with it', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    // A reply draft is its own slot, so it counts as a draft with no note in progress.
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me + '|r:' + 'a'.repeat(64)]: { text: 'Answering something', media: [], savedAt: Date.now(), replyTo: { id: 'a'.repeat(64), pubkey: 'b'.repeat(64), kind: 1 } } } });
+    await openMenu(x);
+    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), true, 'another slot with a draft shows the item');
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .saved-drafts .saved-draft')`);
+    assert.match(await x.evaluate(`document.querySelector('#modal .saved-drafts').textContent`), /Answering something/);
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});
+
+// ---- with the full-size composer as the default, the list is the tab's ----
+
+async function pageUntil(page, expression, ms = 10000) {
+  const end = Date.now() + ms;
+  let last;
+  while (Date.now() < end) { try { last = await page.evaluate(expression); if (last) return last; } catch (_) {} await sleep(150); }
+  throw new Error('timed out waiting for: ' + expression + ' (last: ' + last + ')');
+}
+const listShowing = `(() => { const p = document.getElementById('compose-drafts-pane'); return !!p && !p.classList.contains('hidden') && /Saved drafts/.test(p.textContent); })()`;
+
+test('the composer tab opened with #drafts starts on its Saved drafts, and a reload returns to the draft', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'In the tab', media: [], savedAt: Date.now() } } });
+    const tab = await x.openPage(`chrome-extension://${x.extId}/compose.html#drafts`);
+    await pageUntil(tab, listShowing);
+    assert.match(await tab.evaluate(`document.getElementById('compose-drafts-pane').textContent`), /In the tab/);
+    assert.equal(await tab.evaluate('location.hash'), '', 'the marker is dropped from the address');
+  } finally { x.close(); }
+});
+
+test('"Open saved drafts" with the full-size composer as the default opens the tab on its list', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    await x.message({ type: 'SIDECAR_SET_SETTINGS', settings: { composeInTab: true } });
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'In the tab', media: [], savedAt: Date.now() } } });
+    await x.recordTabs();
+    await openMenu(x);
+    assert.equal(await x.evaluate(visible('#saved-drafts-btn')), true);
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`(window.__calls || []).some((c) => c.call === 'create')`);
+    const made = (await x.calls()).filter((c) => c.call === 'create');
+    assert.equal(made.length, 1);
+    assert.ok(/\/compose\.html#drafts$/.test(made[0].args[0].url), 'the tab opens on its list: ' + made[0].args[0].url);
+    assert.equal(await x.evaluate(`!!document.querySelector('#modal .saved-drafts, #modal .saved-draft')`), false, 'the panel draws no list of its own');
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});
+
+test('with the composer tab already open, the panel item turns it to its list', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    await x.message({ type: 'SIDECAR_SET_SETTINGS', settings: { composeInTab: true } });
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'In the tab', media: [], savedAt: Date.now() } } });
+    const tab = await x.openPage(`chrome-extension://${x.extId}/compose.html`);
+    await pageUntil(tab, `!!document.querySelector('.compose-sheet') && document.getElementById('compose-drafts-pane') && document.getElementById('compose-drafts-pane').classList.contains('hidden')`);
+    await openMenu(x);
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await pageUntil(tab, listShowing);
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});
+
+test('"Open in a tab" on the panel\'s Saved drafts hands over to the tab\'s list and keeps the draft', opts, async (t) => {
+  let x;
+  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  try {
+    await x.reload();
+    await x.message({ type: 'SIDECAR_SECRET_SET', store: 'drafts', value: { [x.me]: { text: 'A note in progress', media: [], savedAt: Date.now() } } });
+    await x.recordTabs();
+    await openMenu(x);
+    assert.ok(await x.evaluate(click('#saved-drafts-btn')));
+    await x.waitFor(`!!document.querySelector('#modal .saved-draft-current')`);
+    const tabButton = `(() => { const b = document.querySelector('#modal .drafts-in-tab'); if (!b || b.getAttribute('aria-label') !== 'Open in a tab') return false; b.click(); return true; })()`;
+    assert.ok(await x.evaluate(tabButton), 'the icon is beside the title');
+    await x.waitFor(`(window.__calls || []).some((c) => c.call === 'create')`);
+    const made = (await x.calls()).filter((c) => c.call === 'create');
+    assert.equal(made.length, 1);
+    assert.ok(/\/compose\.html#drafts$/.test(made[0].args[0].url), 'the tab opens on its list: ' + made[0].args[0].url);
+    await x.waitFor(`!document.querySelector('#modal .saved-drafts')`);
+    // The panel's composer went without saving over the slot: the tab owns it now, intact.
+    assert.equal((await stored(x))[x.me].text, 'A note in progress');
+    assert.deepEqual(x.errors, []);
+  } finally { x.close(); }
+});

@@ -35,7 +35,9 @@ const CODE = [
   lift(/  function muteTargets\(ev, own\) \{[\s\S]*?\n  \}\n/, 'muteTargets'),
   lift(/  function applyLocalMutes\(entries, set\) \{[\s\S]*?\n  \}\n/, 'applyLocalMutes'),
   lift(/  async function listRelays\(pubkey\) \{[\s\S]*?\n  \}\n/, 'listRelays'),
+  lift(/  async function readOwnList\([\s\S]*?\n  \}\n/, 'readOwnList'),
   lift(/  let _muteWrite = [^\n]*\n  function changeMute\([\s\S]*?\n  \}\n  const addPrivateMute = [^\n]*\n  const removeMute = [^\n]*\n/, 'changeMute'),
+  lift(/  async function signRemoval\([\s\S]*?\n  \}\n/, 'signRemoval'),
   lift(/  async function writeMute\([\s\S]*?\n  \}\n/, 'writeMute'),
   lift(/  function loadMuteList\(pubkey, relays, force\) \{[\s\S]*?\n  \}\n/, 'loadMuteList'),
 ].join('\n');
@@ -63,6 +65,11 @@ function world({ list = null, profile = true, undecryptable = false, relayDown =
       if (profile && f.kinds.includes(0)) out.push({ kind: 0, created_at: 1, tags: [], content: '{}' });
       return out;
     },
+    // writeMute reads through readOwnList, one relay at a time: the same store, and a relay
+    // that is down never answers.
+    poolQueryAnswered: async (relays, f) => (relayDown
+      ? { events: [], answered: false }
+      : { events: (await ctx.poolQuerySync(relays, f)).map((e) => ({ pubkey: active, ...e })), answered: true }),
     publishSigned: async (ev) => { w.published.push(ev); w.store = [ev]; },
     seedBaseline: (_pk, ev) => w.baselines.push(ev),
     pruneNameMuted: () => { w.pruned++; },

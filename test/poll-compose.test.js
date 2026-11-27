@@ -302,7 +302,8 @@ test('TURNING A NOTE INTO A POLL RE-ASKS WHETHER IT CAN BE POSTED', () => {
   // changed() is updatePostState AND the save, together. They were two calls and two of
   // the sites only ever saved, which is how one of them could stop updating the button.
   assert.match(body, /d\.changed\(\);/, 'adding a poll must re-check whether Post is allowed');
-  assert.match(source, /changed: \(\) => \{ updatePostState\(\); scheduleSave\(\); \},/,
+  // (It repaints the prompt too, which asks for the poll's question.)
+  assert.match(source, /changed: \(\) => \{ updatePostState\(\); scheduleSave\(\);[^}]*\},/,
     'the panel no longer re-checks Post when the editor says the draft moved');
 
   // Both directions, or the same bug returns wearing the other hat.
@@ -400,7 +401,7 @@ test('the tally is applied to what comes back, not just asked for in the filter'
 
 test('a bookmarked poll is labelled a poll', () => {
   // 1068 read "live chat" here before polls existed; live chat messages are kind 1311.
-  assert.match(bare, /1068: 'poll'/);
+  assert.match(bare, /bmKindLabel = [^\n]*1068: t\('poll'\)/);
 });
 
 test('A POLL BANNER STACKS, BECAUSE TWO WORDED ACTIONS DO NOT SHARE A ROW', () => {

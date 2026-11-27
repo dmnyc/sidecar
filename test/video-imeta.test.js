@@ -73,9 +73,14 @@ test('a restored draft cannot put a malformed type or size on the wire', () => {
     [['imeta', 'url ' + video.url, 'm video/mp4']]);
 });
 
-test('images are exactly as before: described ones tag, bare ones do not', () => {
-  assert.deepEqual(tagsFor([{ url: A }, { url: B, alt: 'a cat' }, { url: A, mime: 'video/mp4', dim: '1x1' }]),
-    [['imeta', 'url ' + B, 'alt a cat']]);
+// A picture uploaded here now says what it is (editor-matrix's lab advised it: NIP-92 with
+// the type, hash and size lets a client reserve the box and check the bytes). A pasted link,
+// with nothing known about it, still tags nothing, and a type that is not a picture's is
+// left out of a picture's tag.
+const X = 'c'.repeat(64);
+test('a picture tags what is known of it; a bare link tags nothing', () => {
+  assert.deepEqual(tagsFor([{ url: A }, { url: B, alt: 'a cat' }, { url: A, mime: 'image/png', x: X, dim: '640x480' }, { url: B, mime: 'video/mp4', x: 'nothex' }]),
+    [['imeta', 'url ' + B, 'alt a cat'], ['imeta', 'url ' + A, 'm image/png', 'x ' + X, 'dim 640x480']]);
 });
 
 // ---- reading a video's size in the browser ----

@@ -88,7 +88,7 @@
       const m = INVOICE_TEXT_RE.exec(String(d.invoice || ''));
       if (!m) return;
       const inv = m[0].toLowerCase();
-      if (invoiceExpired(inv)) return;
+      if (notOffered(inv)) return;
       copiedInvoice = inv;
       copiedAt = Date.now();
       scanForInvoice();
@@ -317,10 +317,15 @@
   let payFirstOfferDone = false;
 
   function invoiceSats(bolt11) {
-    const m = /^ln(?:bc|tb)(\d+)([munp]?)/i.exec(bolt11);
-    if (!m || !m[1]) return null;
+    // The prefix runs to the LAST '1' (bech32 data has none); read the amount only from
+    // there, as background.js does. Unanchored, a 1 BTC invoice ("lnbc11p…") read as 0 sats.
+    const s = String(bolt11 || '').replace(/^lightning:/i, '').trim().toLowerCase();
+    const sep = s.lastIndexOf('1');
+    if (sep < 1) return null;
+    const m = /^ln(?:bc|tb)(\d+)([munp]?)$/.exec(s.slice(0, sep));
+    if (!m) return null;
     const F = { m: 1e5, u: 1e2, n: 1e-1, p: 1e-4, '': 1e8 };
-    return Math.round(Number(m[1]) * F[m[2].toLowerCase()]);
+    return Math.round(Number(m[1]) * F[m[2]]);
   }
 
   // Minimal BOLT11 decode of just the description ('d', tag 13) so the card can
@@ -405,6 +410,16 @@
     }
   }
 
+  // NOT OFFERED: an expired invoice, one with no amount, or one for more than Sidecar pays
+  // (99,999,999 sats, the same limit as nwc-client.js). Sidecar refuses the last two, so a card
+  // offering to pay them would have nothing true to say; a tapped link to one goes to the
+  // Lightning app, which can ask for an amount.
+  const MAX_PAY_SATS = 99999999;
+  function notOffered(bolt11) {
+    const sats = invoiceSats(bolt11);
+    return sats == null || sats > MAX_PAY_SATS || invoiceExpired(bolt11);
+  }
+
   // Is this node inside a deliberate pay/zap surface — a modal dialog, a payment
   // web component (Bitcoin Connect / WalletConnect), or next to a QR — rather
   // than an invoice incidentally rendered in page content?
@@ -436,7 +451,12 @@
     }
   }
 
-  function hasPayIntent(el) {
+  // What an ancestor chain says about whether the person opened this on purpose: a
+  // wallet web-component, a dialog role, or an overlay pinned over the page. Shared by
+  // hasPayIntent, which adds a QR-near-the-invoice signal of its own, and by the
+  // clipboard path in findPageInvoice, which asks whether a QR on the page sits inside
+  // one of these.
+  function hasDialogIntent(el) {
     let node = el, hops = 0;
     while (node && hops < 24) {
       if (node.nodeType === 1) {
@@ -446,6 +466,20 @@
           const role = node.getAttribute('role');
           if (role === 'dialog' || role === 'alertdialog' || node.getAttribute('aria-modal') === 'true') return true;
         }
+        if (isOverlay(node)) return true;
+      }
+      node = node.parentNode || node.host || null;
+      hops++;
+    }
+    return false;
+  }
+
+  function hasPayIntent(el) {
+    if (hasDialogIntent(el)) return true;
+    let node = el, hops = 0;
+    while (node && hops < 24) {
+      if (node.nodeType === 1) {
+        const tag = (node.tagName || '').toLowerCase();
         // A QR NEAR the invoice is evidence; a QR somewhere else on the page is not. Both
         // limits are load-bearing: the hop count keeps the search inside the thing the
         // invoice belongs to, and the size cap rejects an ancestor that is really the page
@@ -454,10 +488,32 @@
         if (hops <= 4 && node.querySelector && !PAGE_LEVEL.has(tag) && isPanelSized(node)) {
           try { if (node.querySelector(QR_SEL)) return true; } catch (_) {}
         }
-        if (isOverlay(node)) return true;
       }
       node = node.parentNode || node.host || null;
       hops++;
+    }
+    return false;
+  }
+
+  // True when a QR is showing inside something the person opened. This is the shape of
+  // a pay modal that shortens its invoice (`lnbc50…` beside the QR): the full value
+  // never appears as page text, so the beside-the-QR branch above cannot see it, and
+  // the page's own Copy button is how the invoice leaves the modal. A copy made while
+  // such a QR is up counts as asked for; a copy with no QR in a dialog stays quiet.
+  function qrInOpenDialog() {
+    const roots = [document];
+    for (let i = 0; i < roots.length && i < 2000; i++) {
+      let qrs, all;
+      try {
+        qrs = roots[i].querySelectorAll(QR_SEL);
+        all = roots[i].querySelectorAll('*');
+      } catch (_) {
+        continue;
+      }
+      for (const q of qrs) {
+        if (hasDialogIntent(q)) return true;
+      }
+      for (const el of all) if (el.shadowRoot) roots.push(el.shadowRoot);
     }
     return false;
   }
@@ -500,7 +556,7 @@
         // not. Without this the link branch, which runs first, stamped both as passive.
         if (!m) continue;
         const inv = m[0].toLowerCase();
-        if (invoiceExpired(inv)) continue;
+        if (notOffered(inv)) continue;
         if (hasPayIntent(a)) return { invoice: inv, asked: true };
         if (!passive) passive = inv;
       }
@@ -515,7 +571,7 @@
       const inv = m[0].toLowerCase();
       // hasPayIntent is the qualifier: a dialog, a modal, or a QR beside it. All of
       // those are on screen because the user opened them.
-      if (!invoiceExpired(inv) && hasPayIntent(f)) return { invoice: inv, asked: true };
+      if (!notOffered(inv) && hasPayIntent(f)) return { invoice: inv, asked: true };
     }
     // 3) invoice rendered as text right beside a QR (the common zap-modal shape).
     for (const q of qrEls) {
@@ -526,7 +582,7 @@
         const m = INVOICE_TEXT_RE.exec(text);
         if (m) {
           const inv = m[0].toLowerCase();
-          if (!invoiceExpired(inv)) return { invoice: inv, asked: true };
+          if (!notOffered(inv)) return { invoice: inv, asked: true };
           break; // expired — move on to the next QR
         }
         node = node.parentNode || node.host || null;
@@ -548,15 +604,19 @@
       if (
         copiedInvoice === dismissedInvoice ||
         Date.now() - copiedAt > COPIED_TTL_MS ||
-        invoiceExpired(copiedInvoice)
+        notOffered(copiedInvoice)
       ) {
         copiedInvoice = '';
         copiedAt = 0;
       } else {
         // A copy is a gesture, but there is no payment UI on screen to tie it to, so it
         // stays quiet. When the copy came from a modal the QR branch above has already
-        // claimed it with asked: true.
-        return { invoice: copiedInvoice, asked: false };
+        // claimed it with asked: true — except when the modal shortens its invoice, the
+        // shape where the full text never reaches the DOM for that branch to read. So a
+        // copy made while a QR is up inside a dialog counts as asked for; the invoice
+        // and its expiry still come from the copied value above, and a copy with no
+        // such QR on screen stays quiet.
+        return { invoice: copiedInvoice, asked: qrInOpenDialog() };
       }
     }
     return '';
@@ -628,12 +688,26 @@
   // prompt.js (the approval window's wordmark). A new light theme has to be registered
   // in all three.
   const LIGHT_CARD_THEMES = new Set(['industria', 'aegean', 'bauhaus', 'populuxe', 'par-avion', 'werkstatte', 'ukiyo-e', 'mycelium', 'ben-day', 'turnstile', 'phantom-bouquet']);
+  // The themes that wear a cut of their own: [garnish, garnish shade, glass lit, glass shade,
+  // wordmark], the stock logo's five colors in the theme's inks. The same table is THEME_LOGOS in
+  // composer-core.js (as files) and in prompt.js, and test/theme-logos.test.js holds them to each
+  // other. A themed cut beats the light-theme wordmark below.
+  const CARD_LOGO_DYES = {
+    'phantom-bouquet': ['#FBF8F0', '#E4DCCA', '#A3443A', '#8F3A31', '#6B3B5A'],
+    'film-noir': ['#F2F2F2', '#BDBDBD', '#C8C8C8', '#8E8E8E', '#E0E0E0'],
+    'brownstone': ['#F2E7DD', '#CDB9A7', '#D2AD70', '#A9843F', '#D69A6A'],
+    'cast-iron': ['#4A453F', '#36322D', '#403B35', '#29261F', '#423C35'],
+    'par-avion': ['#FFFFFF', '#E8E8EA', '#C0272D', '#A02C2E', '#1B4C8C'],
+    'industria': ['#FFFFFF', '#E8E8EA', '#A67C1E', '#7A5A18', '#6B4E1C'],
+    'werkstatte': ['#FFFFFF', '#E8E8EA', '#A08018', '#7C6212', '#15171C'],
+  };
   function logoSvgFor(cardTheme) {
-    if (cardTheme === 'phantom-bouquet') {
+    const dyes = Object.prototype.hasOwnProperty.call(CARD_LOGO_DYES, cardTheme) ? CARD_LOGO_DYES[cardTheme] : null;
+    if (dyes) {
       return LOGO_SVG
-        .replace('fill="#fff"', 'fill="#FBF8F0"').replace('fill="#d0d1d3"', 'fill="#E4DCCA"')
-        .replace('fill="#EA772F"', 'fill="#8F3A31"').replace('fill="#FFA01B"', 'fill="#A3443A"')
-        .replace(/#BDA1FF/g, '#6B3B5A');
+        .replace('fill="#fff"', 'fill="' + dyes[0] + '"').replace('fill="#d0d1d3"', 'fill="' + dyes[1] + '"')
+        .replace('fill="#FFA01B"', 'fill="' + dyes[2] + '"').replace('fill="#EA772F"', 'fill="' + dyes[3] + '"')
+        .replace(/#BDA1FF/g, dyes[4]);
     }
     return LIGHT_CARD_THEMES.has(cardTheme) ? LOGO_SVG.replace(/#BDA1FF/g, '#5a4a8a') : LOGO_SVG;
   }
@@ -2219,7 +2293,7 @@
       const m = INVOICE_RE.exec(href.replace(/^lightning:/i, ''));
       if (!m) return;
       const inv = m[0].toLowerCase();
-      if (invoiceExpired(inv) || inv === dismissedInvoice) return;
+      if (notOffered(inv) || inv === dismissedInvoice) return;
       e.preventDefault();
       tappedInvoice = inv;
       tappedHref = href;

@@ -15,6 +15,30 @@
 
   const nowSec = () => Math.floor(Date.now() / 1000);
 
+  // THE MOST SIDECAR PAYS AT ONCE: 99,999,999 sats, just under one bitcoin. Nothing that
+  // size belongs in a browser extension, and a page that asks for more is a scam or a
+  // mistake, so every payment surface refuses it with a message instead of a Pay button.
+  // One number for all of them: the panel reads it from here, and background.js too.
+  const MAX_PAY_SATS = 99999999;
+  // An invoice's amount in msat, read from its prefix, which ends at the LAST '1' (bech32
+  // data has none). 0 when it states none.
+  function invoiceMsat(invoice) {
+    const s = String(invoice || '').replace(/^lightning:/i, '').trim().toLowerCase();
+    const sep = s.lastIndexOf('1');
+    const m = sep > 0 && /^ln(?:bc|tb|bcrt|tbs|sb)(\d+)([munp]?)$/.exec(s.slice(0, sep));
+    if (!m) return 0;
+    const PER = { m: 1e8, u: 1e5, n: 1e2, p: 1e-1, '': 1e11 };
+    return Number(m[1]) * PER[m[2]];
+  }
+  // Refused here, so the wallet never saw it: walletDenied, the contract that says the money
+  // stayed put, holds.
+  function overLimitError() {
+    const e = new Error('Sidecar can\'t pay more than 99,999,999 sats at once');
+    e.overLimit = true;
+    e.walletDenied = true;
+    return e;
+  }
+
   function hexToBytes(hex) {
     const out = new Uint8Array(hex.length / 2);
     for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
@@ -278,8 +302,13 @@
       relay,
       getInfo: () => request('get_info'),
       getBalance: () => request('get_balance'), // → { balance } in msat
-      payInvoice: (invoice, amountMsat) =>
-        request('pay_invoice', amountMsat ? { invoice, amount: amountMsat } : { invoice }),
+      // Over MAX_PAY_SATS, never sent: the last check under every payment, whichever surface
+      // asked. The surfaces say so first, in their own words (overLimitError).
+      payInvoice: (invoice, amountMsat) => {
+        const msat = amountMsat || invoiceMsat(invoice);
+        if (msat > MAX_PAY_SATS * 1000) return Promise.reject(overLimitError());
+        return request('pay_invoice', amountMsat ? { invoice, amount: amountMsat } : { invoice });
+      },
       // Spontaneous payment to a node pubkey, no invoice involved — what a Podcasting 2.0
       // boost is made of. An optional NIP-47 extension method, so a wallet may answer
       // NOT_IMPLEMENTED; callers check get_info's method list first rather than finding
@@ -288,7 +317,10 @@
       // params: { amount (msat), pubkey, preimage?, tlv_records?: [{ type, value }] }
       // The tlv value is HEX, not the text it encodes. Same rejection contract as
       // pay_invoice above: only err.walletDenied proves the money stayed put.
-      payKeysend: (params) => request('pay_keysend', params),
+      payKeysend: (params) => {
+        if (Number(params && params.amount) > MAX_PAY_SATS * 1000) return Promise.reject(overLimitError());
+        return request('pay_keysend', params);
+      },
       makeInvoice: (amountMsat, description) =>
         request('make_invoice', { amount: amountMsat, description: description || '' }),
       listTransactions: (params) => request('list_transactions', params || { limit: 20, unpaid: false }),
@@ -323,5 +355,5 @@
     } catch (_) { return false; }
   }
 
-  root.SidecarNWC = { makeClient, setControlRelays, probeRelay, wakesByPush };
+  root.SidecarNWC = { makeClient, setControlRelays, probeRelay, wakesByPush, MAX_PAY_SATS, invoiceMsat };
 })(typeof self !== 'undefined' ? self : this);

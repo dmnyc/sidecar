@@ -193,7 +193,6 @@
 [data-theme="turnstile"] .add-account-badge:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .bm-av:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .poll-voter-av:not(.theme-card):not(.theme-card *),
-[data-theme="turnstile"] .restore-preview-av:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .site-bound-av:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .compose-author-av:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .ac-item-av:not(.theme-card):not(.theme-card *),
@@ -297,6 +296,9 @@
 }
 [data-theme="turnstile"] .topbar .icon-btn,
 [data-theme="turnstile"] .compose-topbar .icon-btn { color: #F1EBDA; }
+/* The focus ring on the dark tablet: the bar's brass band, not the green ink (1.9:1 here). */
+[data-theme="turnstile"] .topbar,
+[data-theme="turnstile"] .compose-topbar { --focus: #D8C690; }
 /* On the dark tablet a hovered icon brightens; the shared hover's cobalt would sink into it. */
 [data-theme="turnstile"] .topbar .icon-btn:hover,
 [data-theme="turnstile"] .compose-topbar .icon-btn:hover { color: #FFFFFF; background: rgba(241, 235, 218, 0.14); }
@@ -446,7 +448,8 @@
 [data-theme="turnstile"] .secondary,
 [data-theme="turnstile"] .lav-btn,
 [data-theme="turnstile"] .danger,
-[data-theme="turnstile"] .relax-chip {
+[data-theme="turnstile"] .relax-chip,
+[data-theme="turnstile"] .reload-banner-btn {
   --enamel: #1F4A3B;
   --enamel-ink: #EFE8D2;
   border: none;
@@ -572,6 +575,9 @@
   box-shadow: inset 0 0 0 1px rgba(21, 26, 30, 0.25);
 }
 [data-theme="turnstile"] .wallet-card .wallet-chart-meta { padding: 0 8px; }
+/* The plate has an edge, so it keeps the full clearance above the corner buttons that the
+   shared chart gives up to its sats line: the line goes on the plate, and the card grows. */
+[data-theme="turnstile"] .wallet-card.chart-open:not(.compact) .wallet-chart-slot { margin-bottom: 30px; }
 [data-theme="turnstile"] .wallet-card.compact .wallet-balance { font-size: 29px; }
 /* The pinned bar is a strip of the red tablet. */
 [data-theme="turnstile"] .pinned-balance { background: url(turnstile-rust-field.svg) 0 0 / 28px 28px, #7E2A22; color: #F1EBDA; box-shadow: 0 2px 0 rgba(21, 26, 30, 0.25); }

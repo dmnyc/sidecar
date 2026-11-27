@@ -291,7 +291,8 @@ body {
 
 .card-url {
   font-size: 11px;
-  color: var(--faint);
+  /* --muted, not --faint: at 11px the faint ink was 3.4:1 on the card, 2.8 on a hovered one. */
+  color: var(--muted);
   margin-top: 1px;
 }
 
@@ -322,8 +323,21 @@ body {
   margin-top: 2px;
 }
 
+/* A card with a second link: Open is stretched over the whole card, so the card still opens
+   from anywhere on it, and the second link sits above that at the far end of the row. */
+.card.has-extra { position: relative; }
+.card.has-extra .card-cta { display: flex; align-items: baseline; gap: 12px; }
+.card-open { color: inherit; text-decoration: none; }
+.card-open::after { content: ''; position: absolute; inset: 0; border-radius: 14px; }
+.card-extra {
+  position: relative; z-index: 1; margin-inline-start: auto;
+  color: var(--muted); font-weight: 500; text-decoration: underline; text-underline-offset: 2px;
+}
+.card-extra:hover { color: var(--lav); }
+
 /* Category badge palette */
 .cat-social   { background: rgba(167, 139, 250, 0.14); color: var(--lav); }
+.cat-messaging { background: rgba(56, 189, 248, 0.14); color: #38bdf8; }
 .cat-media    { background: rgba(234, 119, 47,  0.14); color: var(--orange); }
 .cat-gaming   { background: rgba(52,  211, 153, 0.14); color: #34d399; }
 .cat-commerce { background: rgba(232, 121, 249, 0.14); color: #e879f9; }
@@ -342,7 +356,7 @@ body {
 
 .footer-tip {
   font-size: 13px;
-  color: var(--faint);
+  color: var(--muted); /* --faint was 3.3 to 3.6:1; the links keep their underline */
   line-height: 1.6;
 }
 
@@ -496,7 +510,9 @@ body {
 /* Menu wrapper: inline on desktop, a dropdown behind the burger on mobile.
    Toggling is CSS-only (a visually-hidden checkbox the burger label flips). */
 .helpnav-menu { display: flex; align-items: center; gap: 18px; flex: 1; min-width: 0; }
-.helpnav-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* Hidden from the Tab order too where the Menu button is not shown: a Tab stop with
+   nothing on screen. Where it is shown (below), the button wears the checkbox's focus. */
+.helpnav-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; visibility: hidden; }
 .helpnav-burger { display: none; }
 
 .helpnav-pages a {
@@ -629,6 +645,8 @@ body {
     font-family: var(--font-ui); font-size: 14px; font-weight: 600; letter-spacing: 0.01em;
   }
   .helpnav-burger:hover { color: var(--text-2); background: rgba(167, 139, 250, 0.10); }
+  .helpnav-toggle { visibility: visible; }
+  .helpnav-toggle:focus-visible + .helpnav-burger { outline: 2px solid var(--gold); outline-offset: 2px; }
   .helpnav-burger svg { width: 22px; height: 22px; }
   .helpnav-menu {
     display: none;
@@ -663,6 +681,10 @@ body {
   .helpnav:has(.toc-dropdown) .toc-menu { width: 240px; }
   .helpnav:has(.toc-dropdown) .helpnav-pages { flex-direction: row; gap: 2px; margin-inline-start: auto; padding-inline-start: 8px; border: none; }
   .helpnav:has(.toc-dropdown) .helpnav-pages a { padding: 4px 8px; font-size: 12px; }
+}
+/* Narrower still, the page links take a row of their own rather than run off the edge. */
+@media (max-width: 420px) {
+  .helpnav:has(.toc-dropdown) { flex-wrap: wrap; row-gap: 2px; }
 }
 
 /* Host-permission gate — Firefox users can decline site access in the install

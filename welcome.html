@@ -35,7 +35,7 @@
     <a class="helpnav-brand" href="help.html" title="Back to the guide" data-i18n-title="Back to the guide">
       <img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false">
     </a>
-    <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle">
+    <input type="checkbox" id="helpnav-toggle" class="helpnav-toggle" aria-label="Menu" data-i18n-aria-label="Menu">
     <label class="helpnav-burger" for="helpnav-toggle" aria-label="Open menu" data-i18n-aria-label="Open menu">
       <span class="helpnav-burger-text" data-i18n="Menu">Menu</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
@@ -49,7 +49,7 @@
     </div>
   </nav>
 
-  <div class="page">
+  <main class="page">
 
     <!-- Firefox can decline site access in the install prompt — without it none of
          these apps can see the signer. Chrome grants at install; never shows there. -->
@@ -84,6 +84,7 @@
     <div class="filters" id="filters">
       <button class="filter-btn active" data-cat="all" data-i18n="All">All</button>
       <button class="filter-btn" data-cat="social" data-i18n="Social">Social</button>
+      <button class="filter-btn" data-cat="messaging" data-i18n="Messaging">Messaging</button>
       <button class="filter-btn" data-cat="media" data-i18n="Media">Media</button>
       <button class="filter-btn" data-cat="gaming" data-i18n="Gaming">Gaming</button>
       <button class="filter-btn" data-cat="commerce" data-i18n="Commerce">Commerce</button>
@@ -102,7 +103,7 @@
       <p class="footer-tip"><a href="https://github.com/dmnyc/sidecar/issues/new?template=app-suggestion.yml" target="_blank" rel="noopener" data-i18n="Suggest an app to add →">Suggest an app to add →</a></p>
     </footer>
 
-  </div>
+  </main>
 
   <script src="i18n.js"></script>
   <script src="welcome.js"></script>

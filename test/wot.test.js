@@ -164,7 +164,9 @@ test('the module loads before the panel that reads it', () => {
 test('NOTHING IS DROPPED, ONLY MOVED', () => {
   // The one property that separates this from every content filter that has ever
   // annoyed anybody. Out-of-network rows go into a collapsed, counted group.
-  assert.match(panel, /const offNet = split \? split\.out : \[\];/);
+  assert.match(panel, /const offNet = split \? split\.out\.filter\(\(e\) => !judged\.lift\.has\(e\.id\)\) : \[\];/);
+  // What nspam lifts out of the group goes into the list, never nowhere.
+  assert.match(panel, /const events = split \? shown\.filter\(\(e\) => !outIds\.has\(e\.id\) \|\| judged\.lift\.has\(e\.id\)\) : shown;/);
   assert.match(panel, /function showOffNet\(\)/);
   assert.match(panel, /tn\('\{\{count\}\} from outside your network', '\{\{count\}\} from outside your network', offNet\.length\)/);
   // And they are still rendered with the same builder as everything else.
@@ -189,7 +191,7 @@ test('no warm set means no sorting', () => {
   // Warmed, not awaited — and deferred past first paint. At four concurrent chunks it
   // crowded the relay pool hard enough that the bell's own profile lookups failed and
   // every name in it fell back to an npub.
-  assert.match(panel, /setTimeout\(\(\) => \{ getWotSet\(\)\.catch\(\(\) => \{\}\); \}, \d+\)/,
+  assert.match(panel, /setTimeout\(\(\) => \{ getWotSet\(\)\.catch\(\(\) => \{\}\); (warmNspam\(\); )?\}, \d+\)/,
     'the build must not race first paint');
 });
 
@@ -201,8 +203,11 @@ test('a set belongs to one account and expires', () => {
   assert.match(panel, /Date\.now\(\) - \(saved\.ts \|\| 0\) < WOT_TTL_MS/);
   assert.match(panel, /function forgetWot\(\)/);
   assert.match(panel, /forgetWot\(\);/, 'dropped when the follow list is');
-  // An empty set is the fail-open signal and is not worth persisting.
-  assert.match(panel, /if \(res\.set\.size\) \{/);
+  // An empty set is the fail-open signal and is not worth persisting, and neither is a
+  // partial one: a chunk no relay answered narrows the set, and keeping that for a day left
+  // the bell sorting nearly everyone outside a half-read network.
+  assert.match(panel, /if \(res\.set\.size && !\(res\.expanded < res\.follows\)\) \{/);
+  assert.match(panel, /if \(!answered\) throw new Error\('no relay answered'\);/, 'a chunk no relay answered must count as unread');
 });
 
 test('the build fails open', () => {

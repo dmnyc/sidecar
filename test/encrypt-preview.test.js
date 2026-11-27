@@ -39,12 +39,14 @@ for (const [name, src] of SURFACES) {
   test(name + ' shows the plaintext on an encrypt approval', () => {
     const at = src.indexOf("data.method === 'nip04.encrypt'");
     assert.ok(at !== -1, 'the encrypt branch moved');
-    const branch = stripComments(src.slice(at, at + 900));
+    const branch = stripComments(src.slice(at, at + 2400));
     assert.match(branch, /params && data\.params\.plaintext/, 'the plaintext is still discarded');
     assert.match(branch, /Sealing/, 'the line has no label');
     // Clamped, because it is page-written text and a long one would push the buttons off
     // the card. The surfaces use their own clamp helper; both take a limit.
-    assert.match(branch, /clamp\w*\(plain, 220\)/, 'unbounded page text goes straight onto the card');
+    // Through the sealed-text helper, which clamps (checked below), so the card can say what
+    // the text is and keep the text itself behind a link.
+    assert.match(branch, /sealed(Value|RowEl)\(.*plain, 220\)/, 'unbounded page text goes straight onto the card');
     assert.match(branch, /sealed/, 'the line is not marked as about-to-be-encrypted');
   });
 }
@@ -54,7 +56,7 @@ test('the recipient is still shown, not replaced', () => {
   // encrypting to a stranger are different decisions.
   for (const [name, src] of SURFACES) {
     const at = src.indexOf("data.method === 'nip04.encrypt'");
-    const branch = stripComments(src.slice(at, at + 900));
+    const branch = stripComments(src.slice(at, at + 2400));
     assert.match(branch, /'To'/, name + ' dropped the recipient row');
   }
 });
@@ -64,8 +66,8 @@ test('both stylesheets mark the sealed line', () => {
   // alone reaches the panel and not the popup. The color lives on the padlock rather than
   // the words; theme-contrast.test.js is where that split is measured and defended.
   for (const [name, sheet] of [['styles.css', css], ['prompt.html', promptHtml]]) {
-    assert.match(sheet, /\.card \.row\.sealed span:last-child::before \{[^}]*content: '\\1F512/, name + ' has no padlock');
-    assert.match(sheet, /\.card \.row\.sealed span:last-child::before \{[^}]*color: var\(--success\)/, name + ' has no sealed color');
+    assert.match(sheet, /\.card \.row\.sealed \.sealed-val > span:first-child::before \{[^}]*content: '\\1F512/, name + ' has no padlock');
+    assert.match(sheet, /\.card \.row\.sealed \.sealed-val > span:first-child::before \{[^}]*color: var\(--success\)/, name + ' has no sealed color');
   }
 });
 

@@ -52,9 +52,11 @@ function writeHarness({ listTags, followListCache = null, prior } = {}) {
     t: (s) => s,
     state: { activePubkey: PK },
     listRelays: async () => ['wss://x'],
-    poolQuerySync: async () => listTags
-      ? [{ pubkey: PK, created_at: 1, kind: 3, tags: listTags, content: '' }]
-      : [],
+    readOwnList: async () => ({
+      list: listTags ? { pubkey: PK, created_at: 1, kind: 3, tags: listTags, content: '' } : null,
+      profile: false,
+      settled: true,
+    }),
     call: async (m) => ({ ...m.event, id: 'signed', sig: 'sig' }),
     publishSigned: async () => {},
     seedBaseline: () => {},
@@ -66,7 +68,7 @@ function writeHarness({ listTags, followListCache = null, prior } = {}) {
   };
   if (prior !== undefined) deps.followCountCache.set(PK, { v: prior, at: Date.now() });
   // eslint-disable-next-line no-new-func
-  const writeFollow = new Function(...Object.keys(deps), `${liftFn('async function writeFollow(')}; return writeFollow;`)(...Object.values(deps));
+  const writeFollow = new Function(...Object.keys(deps), `${liftFn('async function signRemoval(')}; ${liftFn('async function writeFollow(')}; return writeFollow;`)(...Object.values(deps));
   return { writeFollow, cache: deps.followCountCache, repaints };
 }
 

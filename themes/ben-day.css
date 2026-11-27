@@ -212,7 +212,6 @@
 [data-theme="ben-day"] .add-account-badge:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .bm-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .poll-voter-av:not(.theme-card):not(.theme-card *),
-[data-theme="ben-day"] .restore-preview-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .site-bound-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .compose-author-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .ac-item-av:not(.theme-card):not(.theme-card *),
@@ -335,7 +334,8 @@
    no button changes height beside another (the note above .lav-btn in styles.css). */
 [data-theme="ben-day"] .primary,
 [data-theme="ben-day"] .secondary,
-[data-theme="ben-day"] .lav-btn {
+[data-theme="ben-day"] .lav-btn,
+[data-theme="ben-day"] .reload-banner-btn {
   border: none;
   box-shadow: inset 0 0 0 2px #111111;
 }
@@ -486,6 +486,9 @@
   border-bottom: 2.5px solid #111111;
 }
 [data-theme="ben-day"] .wallet-chart-meta { padding: 0 8px; }
+/* The band has a ruled foot, so it keeps the full clearance above the corner buttons that the
+   shared chart gives up to its sats line: the line goes inside the band, and the card grows. */
+[data-theme="ben-day"] .wallet-card.chart-open:not(.compact) .wallet-chart-slot { margin-bottom: 30px; }
 /* The row the chart shows before its first data arrives (or when there is none) sits in
    the same white band, so its words are not on the art. */
 [data-theme="ben-day"] .wallet-chart-loading {
@@ -586,7 +589,8 @@
 [data-theme="ben-day"] .secondary,
 [data-theme="ben-day"] .lav-btn,
 [data-theme="ben-day"] .ghost,
-[data-theme="ben-day"] .danger {
+[data-theme="ben-day"] .danger,
+[data-theme="ben-day"] .reload-banner-btn {
   font-family: var(--font-display);
   font-weight: 400;
   font-size: 18px;
@@ -668,7 +672,7 @@
 [data-theme="ben-day"] #view-settings .settings-section-body { padding: 12px; }
 /* The name of each setting, lettered in the red plate, in Bangers so it carries the
    weight of a subhead (the thin caption hand read too light for it). */
-[data-theme="ben-day"] #view-settings .settings-section-body .setting > h3 {
+[data-theme="ben-day"] #view-settings .settings-section-body .setting > h4 {
   font-family: var(--font-display);
   font-weight: 400;
   font-size: 17px;
@@ -1070,7 +1074,6 @@
 [data-theme="ben-day"] .address-qr-toggle:hover { color: #111111; border-color: #111111; background: #FFF4C2; }
 [data-theme="ben-day"] .address-qr-toggle.active { color: #111111; border-color: #111111; background: #FFD400; }
 [data-theme="ben-day"] .recv-bolt { border: 2px solid #111111; background: #FFF4C2; }
-[data-theme="ben-day"] .wallet-nudge,
 [data-theme="ben-day"] .wallet-notice {
   background: #FFF4C2;
   border: 2px solid #111111;
@@ -1112,11 +1115,7 @@
 [data-theme="ben-day"] .secret-box,
 [data-theme="ben-day"] .destructive-warn-ack,
 [data-theme="ben-day"] .shared-note,
-[data-theme="ben-day"] .shared-headsup,
-[data-theme="ben-day"] .shared-headsup-btn,
-[data-theme="ben-day"] .shared-headsup-btn-quiet,
 [data-theme="ben-day"] .approval-switch-menu,
-[data-theme="ben-day"] .approval-wrong-acct-list,
 [data-theme="ben-day"] .mining-status-stop,
 [data-theme="ben-day"] .peek-banner,
 [data-theme="ben-day"] .notif-reacted-chip,

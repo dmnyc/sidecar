@@ -29,11 +29,15 @@ const DAN = 'd'.repeat(64);
 
 const WRITER = [
   lift(/  async function listRelays\(pubkey\) \{[\s\S]*?\n  \}\n/, 'listRelays'),
+  lift(/  async function readOwnList\([\s\S]*?\n  \}\n/, 'readOwnList'),
   lift(/  let _followWrite = [^\n]*\n  function changeFollow\([\s\S]*?\n  \}\n  const addFollow = [^\n]*\n  const removeFollow = [^\n]*\n/, 'changeFollow'),
+  lift(/  async function signRemoval\([\s\S]*?\n  \}\n/, 'signRemoval'),
   lift(/  async function writeFollow\([\s\S]*?\n  \}\n/, 'writeFollow'),
 ].join('\n');
 
-function world({ list = null, profile = true, relayDown = false, known = [], active = ME, signFails = null } = {}) {
+// relayDown: no relay answers at all. silent: these relays never answer (a timeout, not an EOSE),
+// while the rest do.
+function world({ list = null, profile = true, relayDown = false, silent = [], known = [], active = ME, signFails = null, guard = null } = {}) {
   const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [], announced: [] };
   const ctx = withI18n({
     state: { activePubkey: active },
@@ -55,12 +59,19 @@ function world({ list = null, profile = true, relayDown = false, known = [], act
       if (profile && f.kinds.includes(0)) out.push({ kind: 0, created_at: 1, tags: [], content: '{}' });
       return out;
     },
+    poolQueryAnswered: async (relays, f) => {
+      const quiet = relayDown || relays.every((r) => silent.includes(r));
+      const events = quiet ? [] : (await ctx.poolQuerySync(relays, f)).map((e) => ({ pubkey: active, ...e }));
+      return { events, answered: !quiet };
+    },
     publishSigned: async (ev) => { w.published.push(ev); w.store = [ev]; },
     seedBaseline: (_p, ev) => w.baselines.push(ev),
     call: async (msg) => {
       if (msg.expectedPubkey && msg.expectedPubkey !== active) throw new Error('Account changed');
       if (msg.type !== 'SIDECAR_OWNER_SIGN') throw new Error('unexpected ' + msg.type);
       if (signFails) throw new Error(signFails);
+      // The worker's wipe check: refuses with its finding unless the caller confirmed it.
+      if (guard && !msg.confirmedDestructive) { w.refused = (w.refused || 0) + 1; throw Object.assign(new Error('refused by the guard'), { destructive: guard }); }
       return { ...msg.event, id: 'f'.repeat(64), pubkey: active, sig: '0'.repeat(128) };
     },
   });
@@ -106,7 +117,7 @@ test('unfollowing someone who is not followed publishes nothing', async () => {
 test('the read asks the write relays as well as the read relays', async () => {
   const w = world({ list: kind3({ tags: [['p', CAL]] }) });
   await w.api.addFollow(ME, BOB);
-  assert.deepEqual(plain(w.queried[0]), ['wss://read.test', 'wss://write.test']);
+  assert.deepEqual(plain(w.queried.flat()), ['wss://read.test', 'wss://write.test']);
 });
 
 test('FAIL CLOSED: relays that answer nothing publish nothing', async () => {
@@ -118,6 +129,25 @@ test('FAIL CLOSED: relays that answer nothing publish nothing', async () => {
 test('FAIL CLOSED: a list that reads empty over follows Sidecar already holds is not written over', async () => {
   const w = world({ list: kind3({ tags: [] }), known: [BOB, CAL] });
   await assert.rejects(() => w.api.addFollow(ME, DAN), /read as empty/);
+  assert.equal(w.published.length, 0);
+});
+
+test('A NEW ACCOUNT: no list and no profile, and every relay answered: the first follow starts the list', async () => {
+  const w = world({ list: null, profile: false });
+  assert.equal(await w.api.addFollow(ME, BOB), true);
+  assert.deepEqual(plain(w.published[0].tags), [['p', BOB]]);
+  assert.equal(w.published[0].content, '');
+});
+
+test('FAIL CLOSED: no list and no profile, but one relay never answered: it may hold the list', async () => {
+  const w = world({ list: null, profile: false, silent: ['wss://write.test'] });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /Could not read your follow list, so nothing was changed/);
+  assert.equal(w.published.length, 0);
+});
+
+test('FAIL CLOSED: every relay answered with nothing, but Sidecar holds follows for this account', async () => {
+  const w = world({ list: null, profile: false, known: [CAL] });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /nothing was changed/);
   assert.equal(w.published.length, 0);
 });
 
@@ -454,14 +484,14 @@ test('the not-ready look keeps the button in the layout and fades back in', () =
 
 // ---- do you follow them, without loading everyone they follow ----
 
-function followWorld({ cache = null, ev = undefined } = {}) {
+function followWorld({ cache = null, ev = undefined, answered = true } = {}) {
   const asked = [];
   const ctx = {
     state: { activePubkey: ME },
     followListCache: cache,
     followListPubkey: cache ? ME : null,
     readRelayUrls: async () => ['wss://r'],
-    poolGet: async (relays, filter) => { asked.push(filter); return ev; },
+    poolQueryAnswered: async (relays, filter) => { asked.push(filter); return { events: ev ? [{ pubkey: ME, created_at: 1, ...ev }] : [], answered }; },
   };
   vm.createContext(ctx);
   vm.runInContext(lift(/  async function isFollowing\(target\) \{[\s\S]*?\n  \}\n/, 'isFollowing') + '\nglobalThis.isFollowing = isFollowing;', ctx);
@@ -482,9 +512,14 @@ test('with nothing loaded it asks for the kind 3 alone, never every follow\'s pr
   assert.deepEqual(plain(asked[0]), { kinds: [3], authors: [ME] });
 });
 
-test('no follow list came back: that is no answer, so it rejects instead of saying no', async () => {
-  const { ctx } = followWorld({ ev: null });
+test('no relay answered: that is no answer, so it rejects instead of saying no', async () => {
+  const { ctx } = followWorld({ ev: null, answered: false });
   await assert.rejects(() => ctx.isFollowing(BOB), /No follow list/);
+});
+
+test('relays answered and there is no follow list: a new account follows nobody yet', async () => {
+  const { ctx } = followWorld({ ev: null, answered: true });
+  assert.equal(await ctx.isFollowing(BOB), false);
 });
 
 // ---- the icon row on the card: bolt and way out, with Pay offer inside the payment area ----
@@ -508,7 +543,8 @@ test('both are icons with names for assistive tech, and no words on the card for
 test('the bolt is enabled by whichever of a zap or an offer turns up first', () => {
   assert.match(source, /zapPanel = \(zapHasWallet && !isSelf\)[\s\S]*?\n\s*enableBolt\(\);/, 'an address enables it');
   assert.match(source, /offerFound = offer;\s*enableBolt\(\);/, 'an offer alone enables it');
-  assert.match(source, /const enableBolt = \(\) => \{ zapBtn\.disabled = false; zapBtn\.classList\.remove\('pending'\); \};/);
+  // Then painted again, so a comment zap still in flight keeps its bolt off (zapMarks).
+  assert.match(source, /const enableBolt = \(\) => \{ zapBtn\.disabled = false; zapBtn\.classList\.remove\('pending'\); if \(zapBtn\.dataset\.zapNote\) paintZapBolt\(zapBtn\); \};/);
 });
 
 test('the bolt is gold, set apart by a divider, and the area waits for a panel', () => {
@@ -875,3 +911,25 @@ test('on the zap sheet an address with an offer shows the switch, and with neith
   assert.equal(none.zapWrap.classList.contains('hidden'), true, 'nothing to pay with, nothing to show');
 });
 
+// ---- the last person: the wipe guard refuses an empty list ----
+const emptiedFrom = (from) => ({ kind: 3, type: 'emptied', from, to: 0, lost: from });
+
+test('UNFOLLOWING THE LAST PERSON YOU FOLLOW goes through: the guard and the list agree it held only them', async () => {
+  const w = world({ list: kind3({ tags: [['p', BOB]] }), guard: emptiedFrom(1) });
+  assert.equal(await w.api.removeFollow(ME, BOB), true);
+  assert.equal(w.refused, 1, 'it was asked once without confirming');
+  assert.equal(w.published.length, 1);
+  assert.deepEqual(plain(w.published[0].tags), []);
+});
+
+test('but not when the guard remembers more than one: that is a bad read, and the refusal stands', async () => {
+  const w = world({ list: kind3({ tags: [['p', BOB]] }), guard: emptiedFrom(2) });
+  await assert.rejects(() => w.api.removeFollow(ME, BOB), /refused by the guard/);
+  assert.equal(w.published.length, 0);
+});
+
+test('and a follow is never pushed through a refusal', async () => {
+  const w = world({ list: kind3({ tags: [['p', CAL]] }), guard: { kind: 3, type: 'growth', from: 1, to: 2, added: 1 } });
+  await assert.rejects(() => w.api.addFollow(ME, BOB), /refused by the guard/);
+  assert.equal(w.published.length, 0);
+});

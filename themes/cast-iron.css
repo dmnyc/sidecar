@@ -142,10 +142,11 @@
 
   /* Compose FAB — blacked out: cast iron where every other theme hangs brass or a
      lamp. A dark disc on a dark plate is findable by its edge, not by a glow (Nixie's
-     disc is lit by its tube; iron has no light to shed), so the feather carries what
-     brightness the object has and the scoped rule below seats it with a rim lip. */
+     disc is lit by its tube; iron has no light to shed), so the scoped rule below seats
+     it with a rim lip. The feather is flat, in the theme's steel (--orange): quieter
+     than body text but a readable 5.5:1 on the disc, since it is the button's only label. */
   --fab-bg: linear-gradient(160deg, #171310, #090705);
-  --fab-icon: #beb6a4;
+  --fab-icon: #8f887a;
 
   /* ink — every stop demoted from the first pass. Body copy tops out around #a5,
      muted and faint step down toward the plate, and nothing anywhere reaches for
@@ -154,7 +155,11 @@
   --text-2: #938b7a;
   --muted: #857d6c;
   --faint: #575144;
-  --red: #a86652;
+  /* Placeholders read as text: --faint was 2.5:1 for them in the wells. --muted keeps
+     them a step under what was typed. */
+  --placeholder: var(--muted);
+  /* A shade lighter than #a86652, which was 3.9 to 4.2:1 for the 13px error lines. */
+  --red: #b06d58;
 
   /* figure ink — numerals sit BELOW body text tone; the strike is what makes them
      first among equals (see the struck-type chapter). */
@@ -167,6 +172,11 @@
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
   --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.5);
   --sheen: inset 0 1px 0 rgba(216, 209, 196, 0.055), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  /* Keyboard focus is light catching an edge, never a ring drawn round it: a line of
+     steel along a well's floor, or under a proud control's lower rim (the chapter at
+     the end of this file). --orange is the theme's steel, under body-text luminance,
+     and 5.3:1 against the plate and a well's floor alike. */
+  --focus-glint: var(--orange);
 
   /* pattern — none. Flatness is the theme. See patterns.css. */
   --pattern-opacity: 1;
@@ -225,15 +235,6 @@
     0 10px 26px rgba(0, 0, 0, 0.65),
     inset 0 1px 0 rgba(216, 209, 196, 0.14),
     inset 0 -1px 0 rgba(0, 0, 0, 0.8);
-}
-/* ...and the feather carries what brightness the disc has (see --fab-icon above), lit
-   by the same lamp the struck type answers to: the catch pools along the top of each
-   stroke and the ink shades as it falls — bright enough that the quill is the first
-   thing the eye finds on this surface. A stroke can only take a gradient through an
-   SVG paint server — sidepanel.html carries the def this names — so currentColor stands
-   in wherever that node is absent. */
-[data-theme="cast-iron"] .fab svg :is(path, line, polyline, polygon, circle) {
-  stroke: url(#cast-iron-stroke-light);
 }
 /* Hover on a black disc over a black plate needs more than the shared lift, which
    moves the object without showing it. Two additions, both in the theme's language:
@@ -300,8 +301,8 @@
 [data-theme="cast-iron"] select:focus,
 [data-theme="cast-iron"] textarea:focus {
   box-shadow:
-    inset 0 2px 6px rgba(0, 0, 0, 0.9),
-    inset 0 -1px 0 rgba(216, 209, 196, 0.12),
+    inset 0 3px 8px rgba(0, 0, 0, 0.95),
+    inset 0 -2px 0 var(--focus-glint),
     0 1px 0 rgba(216, 209, 196, 0.05),
     0 0 0 3px rgba(216, 209, 196, 0.1);
 }
@@ -679,3 +680,81 @@
     inset 0 1px 2px rgba(0, 0, 0, 0.9),
     inset 0 -1px 0 rgba(216, 209, 196, 0.05);
 }
+
+/* ---- keyboard focus: light catching an edge --------------------------------------------
+   Every other theme rings a focused control in its accent (styles.css, :focus-visible).
+   Here borders do not draw, so a ring would be the one stroked outline on the plate.
+   Focus is told the way this theme tells every shape: by where light catches it. The
+   ring is taken away, and in its place a crisp line of steel light (--focus-glint):
+     - on a WELL's floor, where the reversed light already pools (fields, the chip box,
+       the full-size editor; the field rule is the :focus one above, since a text field
+       is focused from the keyboard and the mouse alike);
+     - under a PROUD control's lower rim, the lip of light it casts on the plate
+       (buttons, tabs, links, chips, switches, cards).
+   Not a perimeter, and not white: the line is 2px of steel, 5.3:1 against the plate and
+   against a well's floor, which is the 3:1 a focus indicator needs. The proud rule
+   states iron's sheen rather than var(--sheen): a gallery card wears its own theme's
+   tokens, and one theme's sheen is `none`, which would void the whole shadow. */
+html[data-theme="cast-iron"] :where(button, a[href], summary, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: none;
+  box-shadow: 0 3px 0 -1px var(--focus-glint), inset 0 1px 0 rgba(216, 209, 196, 0.055), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+}
+/* The chosen theme card keeps its rings of spilled light; the glint goes in front. */
+html[data-theme="cast-iron"] .theme-card.active:focus-visible {
+  box-shadow:
+    0 6px 0 -1px var(--focus-glint),
+    inset 0 1px 0 rgba(216, 209, 196, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 0 0 3px rgba(197, 189, 175, 0.17),
+    0 0 0 6px rgba(197, 189, 175, 0.06);
+}
+html[data-theme="cast-iron"] .fab:focus-visible {
+  box-shadow:
+    0 3px 0 -1px var(--focus-glint),
+    0 10px 26px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(216, 209, 196, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.8);
+}
+html[data-theme="cast-iron"] :is(input, select, textarea):focus-visible,
+html[data-theme="cast-iron"] .compose-editor-lg:focus-visible,
+html[data-theme="cast-iron"] .lf-chips:has(.lf-chip-input:focus-visible) { outline: none; }
+/* The chip box and the full-size editor are wells too. */
+html[data-theme="cast-iron"] .lf-chips,
+html[data-theme="cast-iron"] .compose-editor-lg {
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(216, 209, 196, 0.1);
+}
+html[data-theme="cast-iron"] .lf-chips:has(.lf-chip-input:focus-visible),
+html[data-theme="cast-iron"] .compose-editor-lg:focus-visible {
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.95), inset 0 -2px 0 var(--focus-glint);
+}
+/* The input inside the chip box is only where the typing goes: no well of its own. */
+html[data-theme="cast-iron"] .lf-chips .lf-chip-input,
+html[data-theme="cast-iron"] .lf-chips .lf-chip-input:focus { box-shadow: none; background: none; }
+/* A switch: its track is the proud part, so the glint falls on the plate beneath it. */
+html[data-theme="cast-iron"] .switch input:focus-visible ~ .switch-track { outline: none; box-shadow: 0 3px 0 -1px var(--focus-glint); }
+
+/* Checkboxes are punched into the plate like every field: a small well, dark toward its
+   ceiling, with its floor edge caught in light. The browser's own dark box measured
+   2.4:1 here, a box nobody could find; the lit floor edge is 3.6:1. Ticked, the punch is
+   filled with bright metal and the tick is struck into it in the sunk-die ink, as the
+   accent chips are. Focused, the floor edge brightens to the steel glint. */
+html[data-theme="cast-iron"] input[type=checkbox] {
+  appearance: none; -webkit-appearance: none;
+  margin: 0; border: none; border-radius: 4px;
+  background: linear-gradient(180deg, #010101 0%, #0b0a08 70%, #15120f 100%);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.95), inset 0 -1px 0 #6e675a, 0 1px 0 #6e675a;
+}
+html[data-theme="cast-iron"] input[type=checkbox]:checked {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%2312100e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 82% no-repeat,
+    linear-gradient(180deg, #c5bdac, #b3ab99 58%, #948c79);
+  box-shadow: inset 0 1px 0 rgba(216, 209, 196, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 1px 0 #6e675a;
+}
+html[data-theme="cast-iron"] input[type=checkbox]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.95), inset 0 -2px 0 var(--focus-glint), 0 2px 0 var(--focus-glint);
+}
+html[data-theme="cast-iron"] input[type=checkbox]:checked:focus-visible {
+  box-shadow: inset 0 1px 0 rgba(216, 209, 196, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.5), 0 3px 0 -1px var(--focus-glint);
+}
+

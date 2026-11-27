@@ -1,0 +1,521 @@
+<!--
+  Shared-identity lab: what the graduated-approvals branch fixes on a site where two of your
+  accounts are signed in. The pick is one-shot, every name stays on its own npub, the hint
+  and the row are sign-only and name whoever will sign, a shared site never offers Always,
+  a window announces itself, Forget site starts the count over, and a login pick sticks.
+      python3 -m http.server 8021        (from the repo root)
+      open http://pick.localhost:8021/test/manual/shared-identity-lab.html
+  Its own host on purpose: Sidecar keeps counts, windows and signed-in accounts per host, so
+  a fresh name starts from zero and never inherits the approval lab’s state. Chrome resolves
+  every *.localhost name to this machine; nothing else is needed.
+  Signs only. Nothing here publishes, and no kind 0, 3, 10000 or 10040 is ever signed, so
+  the overwrite guard’s baselines are never touched.
+  Every request is timed, and every signature is checked against the account the case
+  expects. An answer in under a second cannot have been a person tapping a card, so the page
+  scores “asked” and “no card” by itself. A signature from the wrong account turns the bar
+  red: that is the mix-up this whole branch exists to prevent. The rest of each case is what
+  to look at on the card, ticked by hand. (identity-lab.html is the tripwire for a client that
+  names its own author; this page is about the picks you make.)
+-->
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidecar shared-identity lab</title>
+<style>
+  body { margin: 0; font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; background: #12101a; color: #e7e3f0; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 40px 24px 120px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 40px 0 6px; padding-top: 14px; border-top: 1px solid #2c2740; }
+  .sub, .muted { color: #9a93b0; }
+  .sub { margin: 0 0 18px; }
+  code { font: 12.5px ui-monospace, monospace; color: #b7aee0; }
+  a { color: #b7aee0; }
+  .bar { position: sticky; top: 0; z-index: 2; background: #12101aee; backdrop-filter: blur(6px);
+         border-bottom: 1px solid #2c2740; padding: 10px 0; margin: 0 0 18px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13.5px; }
+  .pill { border: 1px solid #3a3352; border-radius: 99px; padding: 2px 10px; }
+  .pill.ok { border-color: #3f7a55; color: #9be0b4; }
+  .pill.bad { border-color: #b0404e; color: #f4b8c0; background: #33131a; font-weight: 600; }
+  .notserved { display: none; border: 2px solid #b0404e; background: #33131a; color: #f4b8c0; border-radius: 12px; padding: 14px 16px; margin: 0 0 18px; }
+  .notserved code { color: #fff; }
+  .case { border: 1px solid #2c2740; border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; }
+  .case.pass { border-color: #3f7a55; }
+  .case.fail { border-color: #8a3a46; }
+  .case h3 { font-size: 15.5px; margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; }
+  .case h3 .id { color: #7a7392; font: 12.5px ui-monospace, monospace; }
+  ol, ul { margin: 6px 0 10px; padding-inline-start: 22px; }
+  li { margin: 2px 0; }
+  .why { color: #9a93b0; font-size: 13.5px; margin: 4px 0 2px; }
+  .expect { color: #c9c2dd; }
+  .expect li::marker { content: '✓  '; color: #6b5bb0; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 8px; }
+  button { font: inherit; font-size: 13.5px; cursor: pointer; border-radius: 8px; padding: 6px 12px;
+           border: 1px solid #4a4068; background: #1d1830; color: #e7e3f0; }
+  button:hover { border-color: #8b7bd0; }
+  button.verdict { padding: 4px 10px; font-size: 12.5px; }
+  button.verdict.on.p { background: #1f3a2a; border-color: #3f7a55; }
+  button.verdict.on.f { background: #3a1f24; border-color: #8a3a46; }
+  .log { font: 12.5px/1.5 ui-monospace, monospace; background: #0c0a12; border: 1px solid #221d33; border-radius: 8px;
+         padding: 8px 10px; margin: 8px 0 0; white-space: pre-wrap; min-height: 1.5em; color: #b9b2cc; }
+  .log .ok { color: #9be0b4; } .log .bad { color: #f0a0ab; } .log .dim { color: #6f6886; }
+  .log .wrong { color: #f4b8c0; font-weight: 700; }
+  .verdicts { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 12.5px; color: #9a93b0; }
+  textarea { width: 100%; box-sizing: border-box; height: 160px; background: #0c0a12; color: #b9b2cc; border: 1px solid #221d33; border-radius: 8px; font: 12px ui-monospace, monospace; }
+</style>
+<div class="wrap">
+  <h1>Shared-identity lab</h1>
+  <p class="sub">Load Sidecar unpacked with <b>two test accounts</b> (not your main ones), and <b>give them different
+  names</b> (say Alpha and Beta): the cards tell accounts apart by name and npub, and this page calls them A and B.
+  Work down the page in order: each case starts from the state the one before it left. Each button sends a real
+  request and logs what came back. <b>“no card”</b> means Sidecar answered in under a second, so it signed without
+  asking; <b>“card answered”</b> means you answered a card. The ✓ or ✗ after a line checks only timing and signer; the
+  rest you judge, then tick Pass or Fail. <b>A red bar means a signature came from the wrong account.</b></p>
+  <div class="notserved" id="notserved">
+    <b>This page was opened as a file, so it has no site name.</b> Sidecar tells sites apart by name, so it refuses every
+    request here at once (“Missing host”). Serve the page instead: run <code>python3 -m http.server 8021</code> from the
+    repo root, then open <code>http://pick.localhost:8021/test/manual/shared-identity-lab.html</code>.
+  </div>
+  <div class="bar">
+    <span>Host: <b id="host-name"></b></span>
+    <span id="nostr-state" class="pill">window.nostr…</span>
+    <span>Accounts seen here: <span id="accts" class="muted">none yet</span></span>
+    <span id="wrong" class="pill">wrong signer: 0</span>
+    <span id="tally" class="muted"></span>
+    <a href="#report">Report</a>
+  </div>
+  <ul class="muted" style="font-size:13.5px">
+    <li><b>The rule under test.</b> On a site where both accounts are signed in, every card says “Confirm who’s posting each
+      time.” and lets you pick the account from the capsule. A pick names the signer for <i>that one signature</i>. Nothing
+      else moves: not Sidecar’s active account, not the account the site is pinned to. The next card opens as the account
+      you came in with. The standing offers stay with that account too: a card showing a picked account carries no hint and
+      no row, since a 30-minute window is something an account earns, and a one-off pick has earned none. Logging in is the
+      one exception, where a pick is how the site learns who you are.</li>
+    <li><b>Sections.</b> 0: sign in with both. 1: the pick in the side panel. 2: the same in the popup window. 3: the row
+      and the hint. 4: Forget site. 5: the login exception. 6: each account’s permission level.</li>
+    <li><b>Reading a card.</b> The <b>quiet hint</b> is two lines under the buttons: “Keep signing as …?” then “Open a
+      30-minute window.” It shows on the second and third ask of a kind. The <b>row</b> sits under the preview, “You've signed
+      … 3 times in a row.”, with Sign for 30 min and Not now. It replaces the hint from the fourth ask. This page’s host
+      has two accounts, so the row never offers Always sign.</li>
+    <li><b>Where to look.</b> “Sidecar’s active account” is the name in the side panel’s header. “Pinned to” is the account
+      on this site’s row in Activity → Connected sites. A pick must leave both alone (except in section 5).</li>
+    <li><b>Resets.</b> A kind’s count: Not now on its row, or reloading the extension at chrome://extensions. A window: the ✕ on the
+      status bar. Everything else: Forget site on this host’s row, then log in again (0.1).</li>
+    <li><b>Your ticks.</b> Pass/Fail and logs survive a refresh. Clear this host’s results wipes them and the A/B labels,
+      and nothing in Sidecar.</li>
+  </ul>
+  <!-- ===================================================================== -->
+  <h2>0 · Setup</h2>
+  <div id="sec-setup"></div>
+  <!-- ===================================================================== -->
+  <h2>1 · The pick is one-shot (side panel)</h2>
+  <div id="sec-panel"></div>
+  <!-- ===================================================================== -->
+  <h2>2 · The same in the popup</h2>
+  <div id="sec-popup"></div>
+  <!-- ===================================================================== -->
+  <h2>3 · The hint and the row</h2>
+  <div id="sec-row"></div>
+  <!-- ===================================================================== -->
+  <h2>4 · Forget site starts over</h2>
+  <div id="sec-forget"></div>
+  <!-- ===================================================================== -->
+  <h2>5 · Logging in is the exception</h2>
+  <div id="sec-login"></div>
+  <!-- ===================================================================== -->
+  <h2>6 · Each account’s permission, from one sheet</h2>
+  <div id="sec-levels"></div>
+
+  <h2 id="report">Report</h2>
+  <p class="muted">Every case on this host, its verdict, and its request log, for pasting into a note or an issue.</p>
+  <div class="btns"><button id="make-report">Build report</button><button id="copy-report">Copy</button><button id="reset-host">Clear this host’s results</button></div>
+  <textarea id="report-text" readonly></textarea>
+</div>
+
+<script>
+'use strict';
+const HOST = location.hostname;
+document.getElementById('host-name').textContent = HOST || '(none)';
+// A file:// page has no host, and Sidecar refuses every request from one ("Missing host").
+if (!HOST || !/^https?:$/.test(location.protocol)) document.getElementById('notserved').style.display = 'block';
+
+const AUTO_MS = 1000; // faster than this, nobody tapped a card
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem('shared-identity-lab:' + k)) ?? d; } catch (_) { return d; } },
+  set(k, v) { localStorage.setItem('shared-identity-lab:' + k, JSON.stringify(v)); },
+};
+
+// Accounts that have answered getPublicKey here, in order: A, B.
+let accounts = store.get('accounts', []);
+let wrongSigners = store.get('wrong', 0);
+function label(pk) {
+  const i = accounts.indexOf(pk);
+  return i >= 0 ? String.fromCharCode(65 + i) + ' (' + pk.slice(0, 8) + ')' : 'unknown ' + pk.slice(0, 8);
+}
+function paintAccounts() {
+  const el = document.getElementById('accts');
+  el.textContent = accounts.length ? accounts.map(label).join(' · ') : 'none yet';
+}
+function paintWrong() {
+  const el = document.getElementById('wrong');
+  el.textContent = 'wrong signer: ' + wrongSigners;
+  el.className = 'pill' + (wrongSigners ? ' bad' : '');
+}
+paintAccounts(); paintWrong();
+
+function nostrReady() {
+  return new Promise((resolve) => {
+    let n = 0;
+    const t = setInterval(() => {
+      if (window.nostr || ++n > 40) { clearInterval(t); resolve(!!window.nostr); }
+    }, 50);
+  });
+}
+nostrReady().then((ok) => {
+  const el = document.getElementById('nostr-state');
+  el.textContent = ok ? 'window.nostr found' : 'window.nostr missing';
+  el.className = 'pill ' + (ok ? 'ok' : 'bad');
+});
+
+// ---- requests ---------------------------------------------------------------
+const now = () => Math.floor(Date.now() / 1000);
+const tmpl = (kind, content, tags) => ({ kind, created_at: now(), tags: tags || [], content: content || '' });
+const reactTarget = '0'.repeat(64);
+
+const REQ = {
+  login: () => window.nostr.getPublicKey(),
+  note: (n) => window.nostr.signEvent(tmpl(1, 'Shared-identity lab note ' + (n || '') + ' · ' + new Date().toLocaleTimeString())),
+  reaction: () => window.nostr.signEvent(tmpl(7, '+', [['e', reactTarget], ['k', '1']])),
+  // To A, remembered from 0.1, so no getPublicKey round trip skews the timing.
+  encrypt: async () => {
+    const me = accounts[0] || await window.nostr.getPublicKey();
+    return window.nostr.nip44.encrypt(me, 'shared-identity lab ' + Date.now());
+  },
+};
+
+// Run one request, time it, and judge it against what the case expects:
+// 'auto' (signed without asking), 'ask' (a card was answered), 'reject', or null. The signer
+// check applies to every signature and every login result: a wrong account is the one
+// failure this page shouts about.
+async function run(caseId, name, fn, expect, signerExpect, signerName) {
+  const t0 = performance.now();
+  let line, ok = null, wrong = false;
+  try {
+    const r = await fn();
+    const ms = Math.round(performance.now() - t0);
+    const how = ms < AUTO_MS ? 'no card' : 'card answered';
+    let who = '', signer = null;
+    if (r && typeof r === 'object' && r.pubkey) { signer = r.pubkey; who = ' · signed as ' + label(r.pubkey); }
+    if (typeof r === 'string' && /^[0-9a-f]{64}$/.test(r)) {
+      signer = r;
+      if (!accounts.includes(r) && name.startsWith('log in')) { accounts.push(r); store.set('accounts', accounts); paintAccounts(); }
+      who = ' · pubkey ' + label(r);
+    }
+    line = `${name}: ok in ${(ms / 1000).toFixed(2)} s (${how})${who}`;
+    if (expect === 'auto') ok = ms < AUTO_MS;
+    if (expect === 'ask') ok = ms >= AUTO_MS;
+    if (expect === 'reject') ok = false;
+    if (signerExpect && signer) {
+      const right = signerExpect(signer);
+      if (!right) {
+        wrong = true; ok = false;
+        wrongSigners++; store.set('wrong', wrongSigners); paintWrong();
+        line += `   ✗ WRONG ACCOUNT: expected ${signerName || 'another account'}, got ${label(signer)}`;
+      } else if (ok === null) ok = true;
+    }
+  } catch (e) {
+    const ms = Math.round(performance.now() - t0);
+    line = `${name}: rejected in ${(ms / 1000).toFixed(2)} s · ${e && e.message || e}`;
+    if (expect === 'reject') ok = true;
+    else if (expect) ok = false;
+  }
+  if (!wrong && ok !== null) line += ok ? '   ✓ as expected' : '   ✗ expected ' + ({ auto: 'no card', ask: 'a card', reject: 'a rejection' })[expect];
+  appendLog(caseId, line, wrong ? 'wrong' : ok);
+  return ok;
+}
+function appendLog(caseId, line, ok) {
+  const logs = store.get('log:' + caseId, []);
+  logs.push({ line, ok, at: new Date().toLocaleTimeString() });
+  store.set('log:' + caseId, logs);
+  paintLog(caseId);
+}
+function paintLog(caseId) {
+  const el = document.getElementById('log-' + caseId);
+  if (!el) return;
+  el.innerHTML = '';
+  for (const l of store.get('log:' + caseId, [])) {
+    const s = document.createElement('div');
+    s.className = l.ok === 'wrong' ? 'wrong' : l.ok === true ? 'ok' : l.ok === false ? 'bad' : '';
+    s.textContent = l.at + '  ' + l.line;
+    el.append(s);
+  }
+  if (!el.childElementCount) { const s = document.createElement('div'); s.className = 'dim'; s.textContent = 'nothing sent yet'; el.append(s); }
+}
+
+// ---- case rendering -----------------------------------------------------------
+const CASES = [];
+function kase(section, c) {
+  CASES.push(c);
+  const fix = (x) => x.replace(/pick\.localhost/g, HOST);
+  for (const k of ['why']) if (c[k]) c[k] = fix(c[k]);
+  for (const k of ['steps', 'expect']) if (c[k]) c[k] = c[k].map(fix);
+  const box = document.createElement('div');
+  box.className = 'case'; box.id = 'case-' + c.id;
+  const h = document.createElement('h3');
+  const idEl = document.createElement('span'); idEl.className = 'id'; idEl.textContent = c.id;
+  h.append(idEl, document.createTextNode(c.title));
+  box.append(h);
+  if (c.why) { const p = document.createElement('p'); p.className = 'why'; p.textContent = 'Why: ' + c.why; box.append(p); }
+  if (c.steps) { const ol = document.createElement('ol'); c.steps.forEach((s) => { const li = document.createElement('li'); li.textContent = s; ol.append(li); }); box.append(ol); }
+  if (c.expect) { const ul = document.createElement('ul'); ul.className = 'expect'; c.expect.forEach((s) => { const li = document.createElement('li'); li.textContent = s; ul.append(li); }); box.append(ul); }
+  const btns = document.createElement('div'); btns.className = 'btns';
+  (c.buttons || []).forEach((b) => {
+    const el = document.createElement('button'); el.textContent = b.label;
+    el.addEventListener('click', () => b.go(c.id));
+    btns.append(el);
+  });
+  box.append(btns);
+  const log = document.createElement('div'); log.className = 'log'; log.id = 'log-' + c.id; box.append(log);
+  const v = document.createElement('div'); v.className = 'verdicts';
+  v.append(document.createTextNode('Verdict:'));
+  for (const [val, txt] of [['pass', 'Pass'], ['fail', 'Fail']]) {
+    const b = document.createElement('button'); b.className = 'verdict ' + val[0]; b.textContent = txt; b.dataset.v = val;
+    b.addEventListener('click', () => { const cur = store.get('verdict:' + c.id, null); store.set('verdict:' + c.id, cur === val ? null : val); paintVerdict(c.id); });
+    v.append(b);
+  }
+  const clr = document.createElement('button'); clr.className = 'verdict'; clr.textContent = 'Clear log';
+  clr.addEventListener('click', () => { store.set('log:' + c.id, []); paintLog(c.id); });
+  v.append(clr);
+  box.append(v);
+  document.getElementById(section).append(box);
+  paintLog(c.id); paintVerdict(c.id);
+}
+function paintVerdict(id) {
+  const v = store.get('verdict:' + id, null);
+  const box = document.getElementById('case-' + id);
+  box.classList.toggle('pass', v === 'pass'); box.classList.toggle('fail', v === 'fail');
+  box.querySelectorAll('button.verdict[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+  paintTally();
+}
+function paintTally() {
+  const p = CASES.filter((c) => store.get('verdict:' + c.id, null) === 'pass').length;
+  const f = CASES.filter((c) => store.get('verdict:' + c.id, null) === 'fail').length;
+  document.getElementById('tally').textContent = `${p} pass · ${f} fail · ${CASES.length - p - f} to do`;
+}
+const times = (n, fn) => async (id) => { for (let i = 1; i <= n; i++) await fn(id, i); };
+const isA = (pk) => pk === accounts[0];
+const isB = (pk) => pk === accounts[1];
+
+// ---- 0 · setup --------------------------------------------------------------------------
+const SU = 'sec-setup';
+kase(SU, { id: '0.1', title: 'Sign in with both accounts, and finish on A',
+  why: 'The shared-identity card only exists once both accounts are known to this host. Finishing on A leaves Sidecar on A and this site pinned to A, which is the “account you came in with” the next sections rely on.',
+  steps: ['State: to start this host over, Forget site on its row in Activity → Connected sites, and Clear this host’s results below.',
+    'Switch Sidecar to A. Press Log in, and press “Allow once” on the card (not Trust this site).',
+    'Switch Sidecar to B. Press Log in, and press “Allow once”.',
+    'Switch Sidecar back to A. Press Log in a third time, and press “Allow once”.'],
+  expect: ['The bar at the top lists A and B, in that order.',
+    'The third log line ends “pubkey A (…)”: Sidecar is on A, and the site is pinned to A.',
+    'Each login card’s main button reads “Allow once”, not “Sign”.'],
+  buttons: [{ label: 'Log in', go: (id) => run(id, 'log in', REQ.login, null) }] });
+
+// ---- 1 · the pick is one-shot, in the side panel ---------------------------------------------
+const PA = 'sec-panel';
+kase(PA, { id: '1.1', title: 'The card confirms who is posting',
+  why: 'On a shared site the dangerous mistake is signing with the wrong account, so the card asks every time, and says so.',
+  steps: ['State: the side panel is open, Sidecar on A. This is the first note on this host, so its count is zero.',
+    'Press Sign a note and read the card.', 'Press Sign.'],
+  expect: ['Two lines above “Signing as”: “Multiple accounts are signed in here.”, then “Confirm who’s posting each time.” in bold.',
+    'The capsule shows A’s name and npub. Only Sign and Reject: no row, and no quiet hint, since nothing has been signed yet.',
+    'The log says signed as A.'],
+  buttons: [{ label: 'Sign a note', go: (id) => run(id, 'note', REQ.note, 'ask', isA, 'A') }] });
+
+kase(PA, { id: '1.2', title: 'Picking B signs as B',
+  why: 'Choosing another account on the card must sign as that account. The hint under the buttons offers a window for the account the card opened as, so it must not stay up once the card shows someone else.',
+  steps: ['State: Sidecar on A, one note signed. Press Sign a note.',
+    'Read the hint under the buttons: it names A.',
+    'Tap the account capsule, and pick B under “Signed in here”. Don’t pick under “Other accounts”: that detaches the site (redo 0.1 if it happens).',
+    'Read the capsule and the area under the buttons again, then press Sign.'],
+  expect: ['The hint reads “Keep signing as A?” on one line and “Open a 30-minute window.” on the next, before the pick.',
+    'After the pick the menu closes and the card stays open. The capsule names B, and the hint is gone: no offer to keep signing as anyone. No A anywhere on the card.',
+    'The log says signed as B.'],
+  buttons: [{ label: 'Sign a note (pick B in the card)', go: (id) => run(id, 'note (pick B in the card)', REQ.note, 'ask', isB, 'B') }] });
+
+kase(PA, { id: '1.3', title: 'After the pick, nothing has moved',
+  why: 'A one-off pick is a promise that Sidecar will not deposit you on another account. If it did, this note would sign as B with no warning, because the site would now be pinned to B.',
+  steps: ['Look at the side panel’s header: which account is Sidecar on? Then, in Activity → Connected sites, which account is this site pinned to?',
+    'Press Sign a note, and press Sign without touching the capsule.'],
+  expect: ['Sidecar’s active account is still A, and the site is still pinned to A.',
+    'The card opens as A, not B, and the log says signed as A. This is the case the one-shot rule is for.'],
+  buttons: [{ label: 'Sign a note (no pick)', go: (id) => run(id, 'note (no pick)', REQ.note, 'ask', isA, 'A') }] });
+
+kase(PA, { id: '1.4', title: 'Every name stays on its own npub',
+  why: 'Picking an account once renamed the other identity in the menu, so the wrong name sat on the wrong npub: the same mix-up as signing with the wrong key, one step earlier.',
+  steps: ['Press Sign a note. Tap the capsule and read the menu: A’s name on A’s npub, B’s name on B’s. Close it.',
+    'Open it again and pick B. Read the capsule, then open the menu a third time and read both rows.',
+    'Close the menu by its toggle, and press Reject.',
+    'Press Sign a note again to get a fresh card, read the capsule, open the menu, and press Reject.'],
+  expect: ['Before the pick: A’s name beside A’s npub, B’s beside B’s.',
+    'After it: the capsule shows B’s name on B’s npub, the check sits on B’s row, and both rows still wear their own names. Neither name has moved.',
+    'The fresh card opens as A, with A’s name and npub, and its menu is still correct.',
+    'Both logs show a rejection, marked ✓.'],
+  buttons: [{ label: 'Sign a note (read, then Reject)', go: (id) => run(id, 'note (read, then Reject)', REQ.note, 'reject') }] });
+
+// ---- 2 · the popup ------------------------------------------------------------------------------
+const PO = 'sec-popup';
+kase(PO, { id: '2.1', title: 'The popup’s pick is one-shot too',
+  why: 'Approvals render in two places, the panel and the popup, and a fix in one is not a fix in the other. The popup must sign as the pick and leave Sidecar where it was.',
+  steps: ['State: Sidecar on A. Close the side panel.', 'Press Sign a note. The card opens as a popup window.',
+    'Tap the capsule, pick B, read the capsule and the area under the buttons, and press Sign.'],
+  expect: ['The popup carries the same two lines, “Multiple accounts are signed in here.” and the bold confirm.',
+    'After the pick the capsule names B, with B’s npub, and the hint is gone. The popup used to keep saying “Keep signing as A?” on a card that would sign as B.',
+    'The log says signed as B.'],
+  buttons: [{ label: 'Sign a note (pick B in the popup)', go: (id) => run(id, 'note (pick B, popup)', REQ.note, 'ask', isB, 'B') }] });
+
+kase(PO, { id: '2.2', title: 'The popup’s next card opens as A',
+  why: 'The same promise as 1.3, on the other surface.',
+  steps: ['Press Sign a note, and press Sign without touching the capsule.'],
+  expect: ['The popup opens as A, not B, and the log says signed as A.'],
+  buttons: [{ label: 'Sign a note (no pick)', go: (id) => run(id, 'note (no pick, popup)', REQ.note, 'ask', isA, 'A') }] });
+
+kase(PO, { id: '2.3', title: 'The popup’s names stay on their own npub',
+  why: 'The renaming bug had a twin in the popup.',
+  steps: ['State: A has now signed three notes here, so this card carries the row instead of the hint.',
+    'Press Sign a note. Read the row, and open the menu.', 'Pick B. Read the card, then open the menu again.',
+    'Pick A under “Signed in here”. Read the card once more.',
+    'Close the menu by its toggle, and press Reject.'],
+  expect: ['The row reads “You\'ve signed pick.localhost 3 times in a row.”, then “Keep signing as A for 30 minutes.”, then Sign for 30 min · Not now. No quiet hint under the buttons: the row replaces it.',
+    'After picking B the row is gone, and the capsule names B. Picking A back brings the row back, still reading “Keep signing as A for 30 minutes.”.',
+    'Both menu rows still wear their own names and npubs, before and after each pick.',
+    'The log shows a rejection, marked ✓.'],
+  buttons: [{ label: 'Sign a note (read, then Reject)', go: (id) => run(id, 'note (read, then Reject, popup)', REQ.note, 'reject') }] });
+
+// ---- 3 · the hint and the row ----------------------------------------------------------------------
+const RW = 'sec-row';
+kase(RW, { id: '3.1', title: 'Encrypt and login never carry the hint or the row',
+  why: 'The hint and the row offer to stop asking about signatures. An encrypt or a login is not a signature, however many times it has been approved, so neither may offer it.',
+  steps: ['State: open the side panel again, Sidecar on A. A has approved a login or two here, so its count against this site is not zero.',
+    'Press Encrypt to self 4 times. Read each card, and press Reject.',
+    'Press Log in, read the card, and press “Allow once”.'],
+  expect: ['None of the five cards carries the quiet hint or the row. An encrypt or login card may carry its own Trust nudge: that is a different line.',
+    'The four encrypts log a rejection, marked ✓. The login logs pubkey A.'],
+  buttons: [{ label: 'Encrypt to self 4 times', go: times(4, (id, i) => run(id, 'nip44.encrypt ' + i, REQ.encrypt, 'reject')) },
+            { label: 'Log in', go: (id) => run(id, 'log in', REQ.login, 'ask', isA, 'A') }] });
+
+kase(RW, { id: '3.2', title: 'The row arrives on the fourth reaction, and offers only the window',
+  why: 'On a shared site a standing grant would sign for whichever account the client picks, so the earned offer is a 30-minute window and never Always sign.',
+  steps: ['State: no reaction signed on this host yet. If you are rerunning, press Not now on a reaction row first to zero the count (don’t reload the extension: 4.1 needs the note count).',
+    'Press Sign 3 reactions, and press Sign on each card.',
+    'Press Sign a 4th reaction (the row shows). Read the row, then press plain Sign.'],
+  expect: ['Reactions 2 and 3 carry the quiet hint, “Keep signing as A?” over “Open a 30-minute window.”. Reaction 1 and the 4th do not.',
+    'The 4th card’s row reads “You\'ve signed pick.localhost 3 times in a row.”, “Keep signing as A for 30 minutes.”, Sign for 30 min · Not now. No Always sign.',
+    'The row’s sentences wrap without leaving a single word alone on a line.',
+    'All four sign as A.'],
+  buttons: [{ label: 'Sign 3 reactions', go: times(3, (id, i) => run(id, 'reaction ' + i, REQ.reaction, 'ask', isA, 'A')) },
+            { label: 'Sign a 4th reaction (the row shows)', go: (id) => run(id, 'reaction 4 (the row)', REQ.reaction, 'ask', isA, 'A') }] });
+
+kase(RW, { id: '3.3', title: 'A pick hides the row, and picking back restores it',
+  why: 'The row is A’s: A earned it with four signatures. Offering B a 30-minute window on that count would open a window B never earned, and a one-off pick is not the moment to do it.',
+  steps: ['State: A has signed four reactions, so the next card shows the row.',
+    'Press Sign a reaction. Read the row.', 'Tap the capsule and pick B. Read the card.',
+    'Tap the capsule and pick A under “Signed in here”. Read the card again.',
+    'Press Reject.'],
+  expect: ['Before the pick: “Keep signing as A for 30 minutes.”, with Sign for 30 min · Not now.',
+    'After picking B: no row and no hint, only Sign and Reject, with B in the capsule.',
+    'After picking A back: the row is back, unchanged.',
+    'The log shows a rejection, marked ✓. A rejection counts for nothing: the next reaction as A still shows the row.'],
+  buttons: [{ label: 'Sign a reaction (read, then Reject)', go: (id) => run(id, 'reaction (read, then Reject)', REQ.reaction, 'reject') }] });
+
+kase(RW, { id: '3.4', title: 'The row’s window opens, and announces itself',
+  why: 'The bar and the badge carry the state, but a window that opens while your eyes are on the client is easy to miss, so it is said out loud.',
+  steps: ['State: the side panel is open, Sidecar on A, the row showing on the next reaction.',
+    'Press the lab’s Sign for 30 min button. On the card that appears, press the row’s Sign for 30 min, and watch the panel as you do.',
+    'Press Sign 3 more.',
+    'Read Activity → Connected sites on this host’s row.',
+    'Clean up: press the ✕ (End) on the status bar.'],
+  expect: ['A toast in the panel reads “Signing for pick.localhost as A without asking for 30 minutes.”, and the status bar shows A with its countdown.',
+    'The card signs as A, and all three extra reactions log “no card”, signed as A.',
+    'The site’s row lists no “Signs without asking” line: a shared site never takes a standing grant.',
+    'End removes the bar.'],
+  buttons: [{ label: 'Sign for 30 min (the row shows)', go: (id) => run(id, 'reaction (30 min)', REQ.reaction, 'ask', isA, 'A') },
+            { label: 'Sign 3 more', go: times(3, (id, i) => run(id, 'reaction ' + i, REQ.reaction, 'auto', isA, 'A')) }] });
+
+kase(RW, { id: '3.5', title: 'The quiet hint opens the same window',
+  why: 'The hint is the early way to the window: one tap on the second ask, without waiting for the row.',
+  steps: ['State: 3.4’s window ended, so the reaction count starts at zero.',
+    'Press Sign a reaction, and press Sign. This first card has no hint.',
+    'Press Sign a reaction (the hint shows). On the card, press the hint, “Open a 30-minute window.”.',
+    'Press Sign 2 more.', 'Clean up: press the ✕ (End) on the status bar.'],
+  expect: ['The second card carries the hint, “Keep signing as A?” over “Open a 30-minute window.”. Pressing it signs this card.',
+    'The toast and the status bar appear, as in 3.4.', 'The two extra reactions log “no card”, signed as A.'],
+  buttons: [{ label: 'Sign a reaction (no hint)', go: (id) => run(id, 'reaction 1', REQ.reaction, 'ask', isA, 'A') },
+            { label: 'Sign a reaction (the hint shows)', go: (id) => run(id, 'reaction 2 (the hint)', REQ.reaction, 'ask', isA, 'A') },
+            { label: 'Sign 2 more', go: times(2, (id, i) => run(id, 'reaction ' + i, REQ.reaction, 'auto', isA, 'A')) }] });
+
+// ---- 4 · forget ------------------------------------------------------------------------------------------
+const FG = 'sec-forget';
+kase(FG, { id: '4.1', title: 'Forget site starts the count over',
+  why: 'Forgetting a site erases it, so the site must start from zero: no earned row, no hint. If the count survived, a one-account site would offer Always sign on the very first card after you forgot it.',
+  steps: ['State: A has signed notes here (1.1 to 2.2), so their count is not zero.',
+    'Press Sign a note and read the card: it carries a hint or the row, which proves there is a count to forget. Press Reject. If it is plain, redo section 1.',
+    'In Activity → Connected sites, press Forget site on this host’s row.',
+    'Switch Sidecar to A. Press Log in, and press “Allow once”.',
+    'Press Sign a note, read the card, and press Sign.',
+    'Restore for 5: switch Sidecar to B, press Log in and “Allow once”, switch back to A, press Log in and “Allow once” again.'],
+  expect: ['Before the forget: the card has the hint or the row.',
+    'After it, with only A signed in, the card is a plain one-account card: no “Multiple accounts” lines, no quiet hint, no row, only Sign and Reject. The count did not survive.',
+    'The note signs as A.'],
+  buttons: [{ label: 'Sign a note (read, then Reject)', go: (id) => run(id, 'note before Forget (read, then Reject)', REQ.note, 'reject') },
+            { label: 'Log in', go: (id) => run(id, 'log in', REQ.login, null) },
+            { label: 'Sign a note (after Forget, A only)', go: (id) => run(id, 'note after Forget', REQ.note, 'ask', isA, 'A') }] });
+
+// ---- 5 · login ----------------------------------------------------------------------------------------------
+const LG = 'sec-login';
+kase(LG, { id: '5.1', title: 'A pick on a login card sticks',
+  why: 'A login is how a site learns who you are, so picking B there is choosing B as your identity on that client, and Sidecar follows. This is the one place the pick is not one-shot.',
+  steps: ['State: both accounts signed in here again (4.1’s last step), Sidecar on A.',
+    'Press Log in. On the card, tap the capsule and pick B, then press “Allow once”.',
+    'Look at the side panel’s header, and at the account this site is pinned to.',
+    'Restore: switch Sidecar to A, press Log in, and press “Allow once”.'],
+  expect: ['The log says pubkey B, marked ✓.', 'Sidecar’s active account is now B, and the site is pinned to B.',
+    'The restore logs pubkey A, and Sidecar is on A again.'],
+  buttons: [{ label: 'Log in (pick B on the card)', go: (id) => run(id, 'log in (pick B)', REQ.login, 'ask', isB, 'B') },
+            { label: 'Log in (restore A)', go: (id) => run(id, 'log in (restore A)', REQ.login, 'ask', isA, 'A') }] });
+
+// ---- 6 · each account's level --------------------------------------------------------------------------
+const LV = 'sec-levels';
+kase(LV, { id: '6.1', title: 'Set B’s permission without switching to B',
+  why: 'A permission level belongs to one account on one site. The site’s row edits only the active account’s, so B’s used to be reachable only by making B the active account first.',
+  steps: ['State: both accounts signed in here (5.1’s restore), Sidecar on A.',
+    'Open Activity → Connected sites, find this host, and press Manage. The sheet lists A and B, each with a level beneath its name.',
+    'Set B to Blocked. Leave Sidecar on A.',
+    'Press Sign a note as A, and press Sign.',
+    'Switch Sidecar to B, and press Sign a note as B. No card should appear.',
+    'Clean up: in the sheet, set B back to Ask every time, and switch Sidecar to A.'],
+  expect: ['Each account’s level sits on its own full-width line under its name and remove icon, both readable in the narrow panel.',
+    'Setting B’s level changes nothing about Sidecar’s active account: the header still shows A.',
+    'A’s note asks and signs as A: B’s block does not touch A.',
+    'B’s note is refused at once, with “This site is blocked in Sidecar”, and no card.',
+    'After the clean-up B asks again, and the row on the page shows A’s level as before.'],
+  buttons: [{ label: 'Sign a note as A', go: (id) => run(id, 'note (A, B blocked)', REQ.note, 'ask', isA, 'A') },
+            { label: 'Sign a note as B (blocked)', go: (id) => run(id, 'note (B blocked)', REQ.note, 'reject') }] });
+
+// ---- report -----------------------------------------------------------------------------------------------------
+document.getElementById('make-report').addEventListener('click', () => {
+  const lines = [`Shared-identity lab · ${HOST} · ${new Date().toLocaleString()}`,
+    `Accounts: ${accounts.map(label).join(', ') || 'none'}`, `Wrong-signer hits: ${wrongSigners}`, ''];
+  for (const c of CASES) {
+    const v = store.get('verdict:' + c.id, null);
+    lines.push(`${c.id} ${c.title}: ${v ? v.toUpperCase() : 'not judged'}`);
+    for (const l of store.get('log:' + c.id, [])) lines.push('    ' + l.at + '  ' + l.line);
+  }
+  document.getElementById('report-text').value = lines.join('\n');
+});
+document.getElementById('copy-report').addEventListener('click', () => {
+  const t = document.getElementById('report-text');
+  if (!t.value) document.getElementById('make-report').click();
+  navigator.clipboard.writeText(t.value);
+});
+document.getElementById('reset-host').addEventListener('click', () => {
+  if (!confirm('Clear every verdict, log and remembered account for ' + HOST + '?')) return;
+  Object.keys(localStorage).filter((k) => k.startsWith('shared-identity-lab:')).forEach((k) => localStorage.removeItem(k));
+  location.reload();
+});
+</script>

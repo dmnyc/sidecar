@@ -31,7 +31,7 @@ const PANEL = { width: 360, height: 913 };   // the proportions of the panel in 
 // The page beside the panel is drawn in a wider window than it is shown at: 1280 wide, shown 994 wide,
 // which is how the pages in the store images show four columns of apps at a readable size.
 const PAGE = { width: 1280, height: 910 };
-const DEFAULT_RELAY_HOSTS = ['nos.lol', 'relay.snort.social', 'nostr.mom', 'offchain.pub', 'relay.primal.net'];
+const DEFAULT_RELAY_HOSTS = ['relay.primal.net', 'relay.ditto.pub', 'relay.nostr.net', 'nostr.data.haus', 'relay.nos.social'];
 const WALLET_HOST = 'wallet-relay.example';
 const fixturesDir = () => process.env.SIDECAR_STORE_FIXTURES || path.join(os.homedir(), '.local', 'share', 'sidecar-images', 'fixtures');
 
@@ -123,6 +123,24 @@ async function fillOnboarding(x, pin) {
   })()`);
 }
 
+// THE SAME "ON THIS DAY" IN EVERY SET. The card follows the date the capture runs on, so
+// each release's gallery showed a different line, and a day with no entry would have shown
+// no card at all. The panel's own list is pointed at one entry for today, and the card is
+// redrawn through its own switch, so the panel draws it the way it draws any day's. The
+// words come from on-this-day.js; the run stops if that entry has gone from it. Only the
+// welcome shots show the card.
+const PINNED_ON_THIS_DAY = { date: '11-18', year: 1928 }; // Steamboat Willie
+const PIN_ON_THIS_DAY = `(() => {
+  const list = window.SIDECAR_ON_THIS_DAY;
+  const entry = list && (list[${JSON.stringify(PINNED_ON_THIS_DAY.date)}] || []).find((e) => e.year === ${PINNED_ON_THIS_DAY.year});
+  if (!entry) return false;
+  const now = new Date();
+  list[String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0')] = [entry];
+  const toggle = document.getElementById('otd-toggle');
+  if (toggle) { toggle.checked = true; toggle.dispatchEvent(new Event('change')); }
+  return true;
+})()`;
+
 // The build string on the first-run and lock screens ("Version 1.17.2 (abc1234)") is a footnote that
 // fades out four seconds after the screen loads (styles.css, .pre-version-row), so a person soon
 // sees the screen without it. A photograph is taken sooner than that, and it put a version number in
@@ -177,7 +195,7 @@ async function capturePanels({ outDir, vaultAccounts, client = 'client.example',
     chromeArgsFor: (relay) => ['--ignore-certificate-errors', '--host-resolver-rules=' + hosts.map((h) => `MAP ${h} 127.0.0.1:${relay.port}`).join(', ')],
   });
   const hideBalloon = () => x.evaluate(`(() => { const b = document.getElementById('first-post-balloon'); if (b) b.classList.add('hidden'); })()`);
-  const shot = async (name, { balloon = false } = {}) => { if (!wants(name)) return; if (!balloon) await hideBalloon(); await x.evaluate(FADE_VERSION); await x.sleep(FADE_VERSION_MS); const f = path.join(outDir, name + '.png'); await x.screenshot(f, PANEL); shots[name] = f; log('captured ' + name); };
+  const shot = async (name, { balloon = false } = {}) => { if (!wants(name)) return; if (/^welcome/.test(name) && !(await x.evaluate(PIN_ON_THIS_DAY))) throw new Error(`The pinned On this day entry (${PINNED_ON_THIS_DAY.date}, ${PINNED_ON_THIS_DAY.year}) is not in on-this-day.js`); await x.sleep(300); if (!balloon) await hideBalloon(); await x.evaluate(FADE_VERSION); await x.sleep(FADE_VERSION_MS); const f = path.join(outDir, name + '.png'); await x.screenshot(f, PANEL); shots[name] = f; log('captured ' + name); };
   try {
     // 1. First run: a PIN typed into both fields. Reloaded first, so the settings written
     // before the keystore existed (no dev badge) are the ones the screen was drawn with.

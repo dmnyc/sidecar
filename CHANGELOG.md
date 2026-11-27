@@ -9,6 +9,116 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [1.19.0] — 2026-11-23
+
+### Added
+- **Write articles and recipes in the full-size composer.** Article and Recipe tabs sit beside Note and Poll, each with its own drafts. An article (NIP-23) is written like a word processor: formatted paste comes in as markdown, Cmd+B, Cmd+I and Cmd+K work, lists continue on Enter, and a picture pasted, dropped or picked goes into the body where it lands. Preview draws the whole piece, and every picture can be given a description.
+- **Recipes publish in Zap Cooking’s format, so they open there.** The form matches theirs: ingredients and directions edited in place, a pasted list becomes items, photos with the first as the cover, and categories from Zap Cooking’s list with their emoji, suggested by season and as you type. Categories show in your language and are filed under their English names.
+- **Articles and recipes go through a review before publishing.** The button says Review and shows the piece as it will read, then Publish or Back to editor. If the address is already one of your articles or recipes, it asks before replacing it.
+- **A spam check sorts strangers’ replies in the bell.** With “Sort notifications by who you follow” on, nspam’s open model, run in Sidecar, reads replies from outside your network. A stranger who writes like a person joins your list; one who writes like a bot stays in the group, marked “Likely spam.” A reply that links to a page or names a domain is never lifted, replies mostly in a script other than Latin are not judged, and nothing is hidden either way. Nothing is sent anywhere.
+- **UK English.** English (UK) joins the language list beside English (US), and is chosen for a browser set to British, Irish, Australian, New Zealand, South African or Indian English. It spells the British way and writes numbers and dates the British way.
+- **Onosendai, Staircase and nspam join the app directory,** and messaging apps get a category of their own: Anagram, Armada, Cordn, Flotilla, NymChat and Staircase.
+- **Developer tools: Reply to any event chooses a note or a comment** (kind 1 or 1111), in both composers.
+
+### Changed
+- **The panel composer’s poll button is now More options,** which opens the full-size composer, where polls, articles and recipes each have a tab.
+- **A reply to an article or a recipe is a comment (NIP-22),** naming what it answers by its address, so it shows under the recipe on Zap Cooking. A hashtag in a note publishes a `t` tag.
+- **The Accounts tab shows two accounts and a button for the rest.** From three accounts, the active one and the next are shown, with “N more accounts” for the others. The list folds again after 30 seconds unused, when you leave the tab and when the panel closes, and drag to reorder works while it is open.
+- **A long account menu scrolls inside itself,** so the top bar stays in place and Add account and Manage accounts stay at its foot.
+- **A payment’s amount is drawn large on the approval card,** in the panel and the popup, sized by its length so every digit stays on screen.
+- **Explore Nostr apps, Share Sidecar and On this day sit at the foot of a tall panel,** clear of the compose button and of a toast. In a panel short enough to scroll, they stay under the accounts.
+- **Cast Iron’s logo is the theme’s own dark iron,** and every theme’s compose feather now reads on its button, checked by a test across themes.
+- **114 strings that showed in English are translated into all 21 languages.**
+- **Twelve pieces of theme art are half the size,** written as short relative steps, and look the same.
+
+### Fixed
+- **A whole-bitcoin invoice reads its amount.** A 1 BTC invoice read as 0 sats and an invoice with no amount as 0. Sidecar now pays at most 99,999,999 sats at once, never an invoice that states no amount from a page, and says why on the card.
+- **A note keeps its blank lines.** A line written above the lines that followed it could be published without the blank line before it.
+- **Undo takes back a line break on its own,** in every editor, instead of the whole note.
+- **In Arabic, Hebrew, Persian and Urdu, empty fields start at the right,** placeholder and caret both, in the note editor and every article and recipe field.
+- **The caret returns to the first line after you delete everything,** instead of sitting a line below the placeholder.
+- **Mention pills are easier to edit around, and paste and drop are plain text** in every editor. Two pasted paragraphs keep the blank line between them.
+- **A picture uploaded from the composer carries its type, hash and size** in an imeta tag, so apps can make room for it before it loads.
+- **When a wallet refuses an invoice with no amount, the message says it may be why,** before the wallet’s own words.
+- **Tapping the Receive sheet’s invoice copies it,** and Cmd+C copies the whole invoice rather than its shortened text.
+- **The wallet history keeps its times current** and lists payments by when they settled, Received above Sent for a payment to yourself.
+- **A click on a bell row always ends with the note on screen.** Only tabs in ordinary browser windows are reused, a minimized window is restored, and a closed tab becomes a new one.
+
+### Removed
+- **YakBak leaves the app directory for now.** Its site no longer answers at yakbak.app: browsers show a security warning in its place. It may return once the site is running again.
+
+### Documentation
+- **Two working rules:** follow a change downstream before showing it, and keep Sidecar’s recipe composer in step with Zap Cooking’s through editor-matrix.
+
+## [1.18.2] — 2026-11-21
+
+### Fixed
+- **A line that starts with a mention can be joined to the line above.** With a mention at the start of a line, the caret could not be placed in front of it: Delete at the end of the line above removed the line break and the mention with it, and Backspace took a letter of the line above. Backspace in front of the mention, or Delete at the end of the line above, now removes only the line break, in the panel and the full-size composer.
+- **The Post button no longer shows over Saved drafts** when the list opens in a new full-size composer tab.
+- **Saved drafts opened from the compose menu says “Go to composer”** at its foot, in the panel and the full-size composer. It said “Back to composer” when there was no composer to go back to; opened from the folder inside the composer, it still says Back.
+- **Every logo in the app directory and the Wallets list ships with Sidecar.** Cards loaded their pictures from each site, or from Google, so a site that was down or answered with a bot check left its card with only an initial. Fifty-one logos are now copies kept in the extension.
+
+### Documentation
+- **The README notes Sidecar topping a survey of active Nostr signers** in November 2026.
+- **The help guide’s two kinds of client sit side by side as equals.** The built-in-switchers card ran three times the length of the one-user card beside it; what happens when two of your accounts share one client now has its own part below the pair.
+- **Store screenshots always show the same On this day entry,** so a new set does not change with the day it was taken.
+- **Every PNG and JPEG Sidecar ships is recompressed losslessly,** about 100 KB smaller with the same pixels.
+- **A script copies the directory’s logos into the extension,** for adding a card or refreshing a logo, and a test fails if a card loads its picture from the web again.
+
+## [1.18.1] — 2026-11-20
+
+### Added
+- **nostr.build plans, through a referral link that credits Sidecar’s creator.** The help guide gains a “Photos and video” section, the nostr.build card in the app directory links its plans, and an upload nostr.build turns away for being over its free limit says so and links the plans. Each link is labeled as a referral link.
+- **The composer says when your draft is saved.** A check and “Saved” appear at the end of the Write and Preview row in the panel and the full-size composer once the draft is written on this device. A write that fails shows a warning and “Not saved” instead, so text that exists only in the window is never mistaken for saved. The panel composer also shows a character count above Post, as the full-size composer does.
+- **Rebuild network from the notification bell.** When nothing in the bell comes from your network but some notifications come from outside it, the bell says so at the top, offers **Rebuild network**, and shows the outside group straight away instead of an empty list. Otherwise it sits small at the foot of the bell, under Load more or under the empty state. Both say how many people your network holds, so a thin one shows where it does its damage.
+- **Removing Sidecar opens a short page on sidecar.top that asks, if you so desire, why.** Its address carries nothing about you or your browser, and what you write there is sent only if you submit it. The privacy policy says so.
+- **Discard the draft you are writing from Saved drafts.** Its “Open now” row has a trash button, in the panel and the full-size composer, that asks once and then clears the editor along with the saved copy, so it does not come back on the next save.
+- **nostube joins the app directory,** a YouTube-style video site on Nostr.
+
+### Fixed
+- **The “Find people beyond your follows?” question sits inside the full-size composer’s field.** It ran along the field’s edges; it now lines up with your text.
+- **A network read from relays that did not all answer is no longer kept for a day.** It is used for the session and rebuilt next time, so one flaky relay cannot leave the bell sorting nearly everyone outside your network.
+- **An attachment’s links are in sight when a quoted note sits beside it.** The pictures’ row has a list button, beside its arrow, that opens and closes their links, each with its own copy button. The links were there before, behind the “1 attachment” label, which did not look like something to tap.
+- **The Saved drafts folder stays in the full-size composer after you pick a draft from it.** It went missing until the window lost focus and got it back. And a reply’s “Replying to” no longer stays at the top of Saved drafts; it steps aside with the rest of the draft and comes back with the editor.
+- **Iris and Snort have their icons back in the app directory.** The picture Iris used was gone from its site, so the directory shows Iris’s own logo; Snort’s site turned the browser’s request for its picture into a bot check, so Sidecar now carries a copy.
+
+### Documentation
+- **The README shows two more quotes from people who use Sidecar** above the fold.
+- **The release checklist has a directory check.** A command asks every site and logo in the Nostr apps directory and the Wallets list whether it still answers, then opens both pages in the extension to see that every logo draws.
+
+## [1.18.0] — 2026-11-19
+
+### Added
+- **Drafts can live on your relays, and a draft another client left there can be opened.** The cloud on a draft in Saved drafts saves it to your private relays as an encrypted NIP-37 draft (kind 31234, sealed to your own key), so a relay holds ciphertext and nothing readable. If you have no private relay list, Sidecar says so and offers one built from your write relays, publishing a relay list first if you have none. “Check your relays” lists what other clients saved there, on your private relays and on your write relays, where some clients keep them, newest first and ten at a time. A private relay list another client wrote in its own format is read as well. Opening one sets your note in progress aside in Saved drafts instead of writing over it, and deleting a draft, or posting one that has a relay copy, blanks the relay copy. Nothing is read or sent until you tap, and a relay that asks you to sign in is answered with your account’s key. Notes, replies and web-comment replies are listed; drafts of other kinds are counted, and hovering the count names the kinds. A mention in a draft’s row reads as the person’s name, and a quoted note as its first and last characters, in place of the whole reference. The expand icon in the list’s corner, where the folder was, opens it in the full-size composer.
+- **“Open saved drafts” on the compose menu,** there for any account, so drafts kept on your relays can be reached with none on this device. It goes straight to the list, in the panel or, when the full-size composer is your default, in its tab.
+- **The expand icon and the close box sit in the composer’s corner.** In the panel, the expand icon moved from the Write and Preview row to the corner beside the folder, where Saved drafts keeps it. In the full-size composer, the × moved from the page’s top bar into the card, next to the folder, so it is not a window’s width from what you are writing. It is still there while a proof-of-work mine runs.
+- **Name search beyond your follows runs on a search relay you choose.** A selector under Settings picks the source: only your follows, your own search relays, Brainstorm’s relay, or one you enter. An account that has published search relays (kind 10007) uses them without asking; otherwise Sidecar asks once and offers Brainstorm’s relay, ranked by trust, as the default. A relay you chose is never swapped for another, a search carries only the text typed, and every result is a signed profile that is dropped unless its signature verifies. Brainstorm only returns accounts it has scored, so a brand-new account may not appear until it has followers. If your follows have no match and the setting is off, the ask comes back in the results. A saved “no” carries over.
+- **A missing profile picture or banner can be added from the Profile screen.** With none set, the empty banner and the default avatar are the upload buttons: a picked file uploads and the profile is republished on the spot, each image merged into what you already have. Once an image is set, changing it stays in the edit sheet. Only one upload runs at a time, and switching accounts while one is uploading publishes nothing.
+- **Each account’s permission level in the shared-site sheet.** On a site where two of your accounts are signed in, the sheet behind Manage lists each account with its own level under its name. Changing a level never changes Sidecar’s active account.
+- **The wallet screen offers to pay invoices on any website.** One line under Send and Receive turns on Show on unconnected sites, or its × says no for good. It stays away once the setting is on or the question was answered anywhere else, including “Don’t ask again” on a tapped link.
+
+### Changed
+- **The approval card asks one question.** Sign cards show the preview with Sign and Reject, and the Trust this site button is gone from them. After a site has asked the same account for the same kind three times in a session, the next card offers Always sign or Not now. From the second ask a quiet line offers a 30-minute window early. On a site where two of your accounts are signed in the offer is Sign for 30 min and never Always sign, and picking an account on that card names the signer for that one signature without moving the active account or the site’s pin. Forget site and Forget all sites now clear the count.
+- **A reaction’s emoji is drawn large on the approval card,** in the panel and the popup, so it is easy to see what you are about to react with. A plain like (+) shows a heart and a dislike (-) a thumbs-down, each with a small label, and a reaction to a web page is drawn the same way. Other text, and a custom emoji shortcode such as :shakingeyes:, stays small and is shown as written, and no image is fetched for it. Raw still shows the exact content that is signed.
+- **Cards say what sealed and encoded text is.** A wallet connection, a remote signer link, a private key, a link, JSON, a list, ciphertext or an encoded blob is named in a sentence, and the text itself stays behind “Show details”, so a connection’s secret is never printed on a card. This covers the Sealing and Sealed content lines, the rows of a batch and the content of a sign card, in both the panel and the popup. Readable text is still shown as written.
+- **An unrecognized event kind says what its range means, and its content opens as fields.** A kind with no name of its own is labeled ephemeral, replaceable or addressable, with a calm note for ephemeral since it replaces nothing. Tags are named, a JSON-RPC message shows its method on its own row, and JSON content opens on readable rows, with Raw and JSON one tap away.
+- **Publishing a profile edit no longer asks for the PIN again.** The key is already unlocked to be on that screen. The overwrite check still refuses a wipe, and the PIN stays for revealing a key, exporting accounts and the wallet connection string.
+- **Film Noir, Brownstone, Cast Iron, Par Avion, Industria and Werkstätte wear the logo in their own inks,** as Phantom Bouquet did in 1.17, in the panel, the pay card and the approval window.
+- **The “Reload client window” offer is drawn in each theme’s own buttons.** In Departures it takes Send’s flap corners, lettering and drop, and so do its × and the Grant button on the connected-site banner. Ben Day, Turnstile and Jazz Age give it the lettering their Send buttons wear, and Turnstile its enamel sign.
+
+### Fixed
+- **The “Request to pay” card now appears for a modal that shows only a shortened invoice beside its QR.** The full invoice lives in the QR and behind a Copy button, so nothing on the page read as one. A copy made while a QR is open inside a dialog now counts as asked for. A copy with no such QR on screen stays a pill.
+- **Help screenshots keep their proportions in a narrow window.** The image rule set a width and left the height as written, so a short one, like the single-user switch, was drawn stretched.
+- **The relay list no longer shows an empty “Add anyway” row under the input.** It is meant to stay hidden until a relay fails the check when you add it.
+
+### Removed
+- **Nostr Archives is no longer offered in the app directory.** Name search no longer depends on it.
+
+### Documentation
+- **The invoice lab gives each case a new invoice, shows one case at a time, and covers the shortened-invoice modal.**
+- **Help gains a “Finding people” section** for name search.
+- **Help gains a “Drafts” section, and its screenshots are brought up to date.** The approval card, the 30-minute offer, the erase warning and the reload offer are retaken for 1.18, and new ones cover the Always sign offer, sealed text, Saved drafts with drafts on your relays, the shared-site sheet and the name-search setting. The README names Brainstorm and lists NIP-37 and NIP-50.
+
 ## [1.17.2] — 2026-11-15
 
 ### Added
