@@ -818,10 +818,21 @@
   font-size: 17px;
   letter-spacing: 0.04em;
 }
-[data-theme="ben-day"] .account-stats:not(.collapsed) .account-stats-toggle {
+/* The rule under the strip belongs to the whole strip, not the title in it: on the title it
+   made the title 2px taller only while open, and the refresh beside it, centered on that
+   height, dropped a pixel every time Overview opened. */
+[data-theme="ben-day"] .account-stats:not(.collapsed) .account-stats-head {
   border-bottom: 2.5px solid #111111;
 }
 [data-theme="ben-day"] .account-stats-toggle:hover { color: #FFFFFF; background: #111111; }
+/* The refresh beside the title sits in the same black strip, lettered yellow like the title,
+   not on a white chip of panel at the strip's end. Its keyboard ring is yellow and drawn
+   inside the button, since a black ring vanishes on the strip and one outside it boxes the
+   button off from the strip it belongs to. */
+[data-theme="ben-day"] .account-stats-head { background: #111111; }
+[data-theme="ben-day"] .account-stats-refresh { color: #FFD400; }
+[data-theme="ben-day"] .account-stats-refresh:hover { color: #FFFFFF; }
+[data-theme="ben-day"] .account-stats-refresh:focus-visible { outline-color: #FFD400; outline-offset: -3px; }
 [data-theme="ben-day"] .account-stats-body { padding-top: 10px; }
 [data-theme="ben-day"] .account-stat-grid {
   gap: 2.5px;
@@ -1027,6 +1038,12 @@
 }
 [data-theme="ben-day"] .list.flat .item { border-bottom-color: rgba(17, 17, 17, 0.25); }
 [data-theme="ben-day"] .list-state { border: 2px solid #111111; }
+/* A tab row on a sheet (the bell, the Library, a key backup) heads what is under it rather
+   than being a panel of its own: no keyline box, only the black rule the tab marker runs
+   on. The poll list beneath the bell's tabs is the sheet's own list, not a card set into
+   the sheet, so it drops the keyline and the drop as well. */
+[data-theme="ben-day"] #modal .modal-tabs { border: none; border-bottom: 2px solid #111111; }
+[data-theme="ben-day"] .modal-tabs ~ .notif-scroll > .list.flat { border: none; box-shadow: none; }
 /* Poll results and the web-of-trust progress bar fill in the red plate; the shared
    gradient runs --orange into --gold, which are both black here. */
 [data-theme="ben-day"] .poll-bar-fill,
