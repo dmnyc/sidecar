@@ -205,9 +205,6 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 
 .stream-directory-actions #stream-refresh { width:44px; flex-basis:44px; padding:9px 13px; }
 
-/* The garnish's implied circle is centered near 16.6,16.6, while its cropped
-   32-unit viewBox is centered at 18.6,18.6. Include the missing half in alignment. */
-.stream-avatar::before { transform:translate(6.25%, 6.25%); }
 
 .stream-result-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; text-align:start; }
 #stream-info { display:flex; align-items:center; gap:8px; padding:2px 8px; flex:0 0 36px; min-height:36px; border-top:1px solid var(--border); }
@@ -215,7 +212,7 @@ html.reduce-motion #stream-title, html.reduce-balance-motion #stream-title { ani
 #stream-host { display:flex; align-items:center; gap:8px; min-width:0; flex:1; color:var(--text); text-decoration:none; }
 #stream-host-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
 .stream-host-avatar { position:relative; width:24px; height:24px; flex:0 0 24px; border-radius:50%; overflow:hidden; background:var(--velvet-2); }
-.stream-host-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; transform:translate(6.25%,6.25%); }
+.stream-host-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; }
 #stream-host-image { position:absolute; width:100%; height:100%; object-fit:cover; }
 #stream-viewers { font-size:12px; color:var(--muted); white-space:nowrap; }
 #stream-viewers::after { content:''; display:inline-block; width:14px; height:14px; vertical-align:-2px; margin-inline-start:5px; background:currentColor; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
@@ -479,7 +476,7 @@ html.stream-chat-active #view-main { justify-content:flex-end; }
 .stream-chat-author > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .stream-chat-author img { width:22px; height:22px; flex-shrink:0; border-radius:50% !important; object-fit:cover; }
 .stream-chat-author > .stream-chat-avatar,.stream-top-zapper > .stream-chat-avatar { position:relative; display:block; width:22px; height:22px; flex:0 0 22px; border-radius:50% !important; overflow:hidden; background:var(--velvet-1); }
-.stream-chat-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; transform:translate(6.25%,6.25%); }
+.stream-chat-avatar::before { content:''; position:absolute; inset:18%; background:var(--muted); mask:url('icons/avatar-default.svg') center / contain no-repeat; }
 .stream-chat-avatar img { position:absolute; inset:0; }
 .stream-chat-time { margin-inline-start:auto; flex-shrink:0; font-size:10px; color:var(--muted); white-space:nowrap; }
 .stream-chat-actions { position:absolute; inset-inline-end:0; top:4px; display:flex; background:var(--velvet-1); opacity:0; pointer-events:none; }
