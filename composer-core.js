@@ -3650,27 +3650,60 @@ window.SidecarCore = (function () {
     const rows = items.map((it) => {
       const label = h('span', { className: 'saved-draft-label', textContent: it.label });
       const when = h('span', { className: 'saved-draft-when', textContent: it.current ? t('Open now') : (it.savedAt ? relTime(it.savedAt) : '') });
+      const meta = h('span', { className: 'saved-draft-meta' }, [when]);
+      const snipText = it.snippet || t('Untitled');
+      const snip = h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: snipText });
       const open = h('button', { className: 'saved-draft-open', type: 'button' }, [
-        h('span', { className: 'saved-draft-top' }, [label, h('span', { className: 'saved-draft-meta' }, [when])]),
-        h('span', { className: 'saved-draft-snip', dir: 'auto', textContent: it.snippet || t('Untitled') }),
+        h('span', { className: 'saved-draft-top' }, [label, meta]),
+        snip,
       ]);
-      open.addEventListener('click', () => opts.onOpen(it.kind));
       const row = h('div', { className: 'saved-draft' + (it.current ? ' saved-draft-current' : '') }, [open]);
       // The one on screen only where the caller clears the form as it deletes (opts.discard):
       // otherwise the form's next save would write it straight back.
       const discard = it.current && opts.discard;
-      if ((!it.current || discard) && opts.onDelete) {
-        // Two taps, as the note rows ask: the first says what the second does.
+      const canDelete = (!it.current || discard) && !!opts.onDelete;
+      // THE SAME TWO TAPS AS THE NOTE ROWS ABOVE, so the one list asks one way: the first
+      // turns the row into the question, the second, on the trash or anywhere on the row,
+      // deletes, and the question goes back on its own after a few seconds.
+      let timer = null;
+      const settle = () => {
+        clearTimeout(timer);
+        row.classList.remove('confirming', 'deleting');
+        row.removeAttribute('aria-busy');
+        label.textContent = it.label;
+        meta.classList.remove('hidden');
+        snip.textContent = snipText;
+      };
+      const confirmDelete = () => {
+        row.classList.add('confirming');
+        label.textContent = discard ? t('Discard this draft?') : t('Delete this draft?');
+        meta.classList.add('hidden');
+        snip.textContent = discard ? t('Tap again to discard') : t('Tap again to delete');
+        timer = setTimeout(settle, 4000);
+      };
+      // The row says so as the second tap lands, its buttons off so a third cannot delete
+      // twice. A caller that declines, or fails, leaves the row as it was.
+      const remove = async () => {
+        clearTimeout(timer);
+        const buttons = row.querySelectorAll('button');
+        buttons.forEach((b) => { b.disabled = true; });
+        row.classList.remove('confirming');
+        row.classList.add('deleting');
+        row.setAttribute('aria-busy', 'true');
+        label.textContent = discard ? t('Discarding…') : t('Deleting…');
+        meta.classList.add('hidden');
+        snip.textContent = snipText;
+        try { await opts.onDelete(it.kind); } catch (_) {}
+        if (row.isConnected) { settle(); buttons.forEach((b) => { b.disabled = false; }); }
+      };
+      open.addEventListener('click', () => {
+        if (canDelete && row.classList.contains('confirming')) remove();
+        else opts.onOpen(it.kind);
+      });
+      if (canDelete) {
         const trash = h('button', { className: 'saved-draft-x', type: 'button', title: discard ? t('Discard draft') : t('Delete draft') }, [icon('trash')]);
         trash.setAttribute('aria-label', trash.title);
-        trash.addEventListener('click', () => {
-          if (!row.classList.contains('confirming')) {
-            row.classList.add('confirming');
-            label.textContent = discard ? t('Tap again to discard') : t('Tap again to delete');
-            return;
-          }
-          opts.onDelete(it.kind);
-        });
+        trash.addEventListener('click', () => { if (row.classList.contains('confirming')) remove(); else confirmDelete(); });
         row.append(trash);
       }
       return row;

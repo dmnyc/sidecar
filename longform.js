@@ -1350,7 +1350,7 @@
         fill(obj, null, kind === 'article' ? BLANK_ARTICLE : BLANK_RECIPE);
         obj.savedAt = 0;
         paintForms();
-        persist().catch(() => {}).then(() => window.SidecarComposeDrafts.repaint());
+        return persist().catch(() => {}).then(() => window.SidecarComposeDrafts.repaint());
       },
     });
   }
