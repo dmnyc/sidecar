@@ -2579,5 +2579,15 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "הרשת שלך עדיין לא נטענה, אז בדיקת ספאם הניחה את אלה בצד. שום דבר לא מוסתר.",
   "Find a profile, note or hashtag": "חיפוש פרופיל, פוסט או האשטאג",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, שם משתמש או #האשטאג",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "אין התאמה. נסו שם, npub, פוסט, כתובת name@domain או #האשטאג."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "אין התאמה. נסו שם, npub, פוסט, כתובת name@domain או #האשטאג.",
+  "Use https": "שימוש ב-https",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "הקישור הזה משתמש ב-http ולא ב-https. הקישו שוב על „{{action}}” כדי לשלוח אותו כמו שהוא.",
+  "This link uses http, not https. Press {{action}} again to send it as is._two": "שני הקישורים האלה משתמשים ב-http ולא ב-https. הקישו שוב על „{{action}}” כדי לשלוח אותם כמו שהם.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}} הקישורים האלה משתמשים ב-http ולא ב-https. הקישו שוב על „{{action}}” כדי לשלוח אותם כמו שהם.",
+  "Use https for {{count}} link_one": "שימוש ב-https לקישור אחד",
+  "Use https for {{count}} link_two": "שימוש ב-https לשני קישורים",
+  "Use https for {{count}} link_other": "שימוש ב-https ל-{{count}} קישורים",
+  "and {{count}} more_one": "ועוד אחד",
+  "and {{count}} more_two": "ועוד שניים",
+  "and {{count}} more_other": "ועוד {{count}}"
 }

@@ -2407,5 +2407,9 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "네트워크를 아직 불러오지 못해 스팸 검사로 이것들을 따로 모았습니다. 숨긴 것은 없습니다.",
   "Find a profile, note or hashtag": "프로필, 노트 또는 해시태그 찾기",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, 사용자 이름 또는 #해시태그",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "일치하는 항목이 없습니다. 이름, npub, 노트, name@domain 주소 또는 #해시태그를 입력해 보세요."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "일치하는 항목이 없습니다. 이름, npub, 노트, name@domain 주소 또는 #해시태그를 입력해 보세요.",
+  "Use https": "https 사용",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "링크 {{count}}개가 https가 아닌 http를 사용합니다. 이대로 보내려면 ‘{{action}}’을(를) 한 번 더 탭하세요.",
+  "Use https for {{count}} link_other": "링크 {{count}}개에 https 사용",
+  "and {{count}} more_other": "외 {{count}}개"
 }

@@ -2407,5 +2407,9 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "ネットワークがまだ読み込まれていないため、迷惑投稿チェックでこれらを分けました。何も隠していません。",
   "Find a profile, note or hashtag": "プロフィール、ノート、ハッシュタグを探す",
   "npub, note, nevent, naddr, username, or #hashtag": "npub、note、nevent、naddr、ユーザー名、または #ハッシュタグ",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "見つかりません。名前、npub、ノート、name@domain 形式のアドレス、または #ハッシュタグを試してください。"
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "見つかりません。名前、npub、ノート、name@domain 形式のアドレス、または #ハッシュタグを試してください。",
+  "Use https": "httpsを使う",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}}件のリンクがhttpsではなくhttpを使っています。このまま送るには、もう一度「{{action}}」をタップしてください。",
+  "Use https for {{count}} link_other": "{{count}}件のリンクにhttpsを使う",
+  "and {{count}} more_other": "ほか{{count}}件"
 }

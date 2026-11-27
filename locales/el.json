@@ -2493,5 +2493,12 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Το δίκτυό σου δεν έχει φορτωθεί ακόμα, οπότε ένας έλεγχος spam τα έβαλε στην άκρη. Τίποτα δεν κρύβεται.",
   "Find a profile, note or hashtag": "Βρείτε ένα προφίλ, μια σημείωση ή ένα hashtag",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, όνομα χρήστη ή #hashtag",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Δεν βρέθηκε. Δοκιμάστε ένα όνομα, ένα npub, μια σημείωση, μια διεύθυνση name@domain ή ένα #hashtag."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Δεν βρέθηκε. Δοκιμάστε ένα όνομα, ένα npub, μια σημείωση, μια διεύθυνση name@domain ή ένα #hashtag.",
+  "Use https": "Χρήση https",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "Αυτός ο σύνδεσμος χρησιμοποιεί http, όχι https. Πατήστε ξανά «{{action}}» για να τον στείλετε ως έχει.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "Αυτοί οι {{count}} σύνδεσμοι χρησιμοποιούν http, όχι https. Πατήστε ξανά «{{action}}» για να τους στείλετε ως έχουν.",
+  "Use https for {{count}} link_one": "Χρήση https για {{count}} σύνδεσμο",
+  "Use https for {{count}} link_other": "Χρήση https για {{count}} συνδέσμους",
+  "and {{count}} more_one": "και {{count}} ακόμη",
+  "and {{count}} more_other": "και {{count}} ακόμη"
 }

@@ -2579,5 +2579,15 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Sua rede ainda não carregou, então uma verificação de spam separou estes. Nada fica oculto.",
   "Find a profile, note or hashtag": "Encontrar um perfil, uma nota ou uma hashtag",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, nome de usuário ou #hashtag",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Nada encontrado. Tente um nome, um npub, uma nota, um endereço nome@domínio ou uma #hashtag."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Nada encontrado. Tente um nome, um npub, uma nota, um endereço nome@domínio ou uma #hashtag.",
+  "Use https": "Usar https",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "Este link usa http, não https. Toque em “{{action}}” de novo para enviá-lo assim mesmo.",
+  "This link uses http, not https. Press {{action}} again to send it as is._many": "Estes {{count}} links usam http, não https. Toque em “{{action}}” de novo para enviá-los assim mesmo.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "Estes {{count}} links usam http, não https. Toque em “{{action}}” de novo para enviá-los assim mesmo.",
+  "Use https for {{count}} link_one": "Usar https em {{count}} link",
+  "Use https for {{count}} link_many": "Usar https em {{count}} links",
+  "Use https for {{count}} link_other": "Usar https em {{count}} links",
+  "and {{count}} more_one": "e mais {{count}}",
+  "and {{count}} more_many": "e mais {{count}}",
+  "and {{count}} more_other": "e mais {{count}}"
 }

@@ -2493,5 +2493,12 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "आपका नेटवर्क अभी लोड नहीं हुआ है, इसलिए स्पैम जाँच ने इन्हें अलग रखा है। कुछ भी छिपाया नहीं गया है।",
   "Find a profile, note or hashtag": "प्रोफ़ाइल, नोट या हैशटैग खोजें",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, यूज़रनेम या #हैशटैग",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "कोई मेल नहीं मिला। कोई नाम, npub, नोट, name@domain पता या #हैशटैग आज़माएँ।"
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "कोई मेल नहीं मिला। कोई नाम, npub, नोट, name@domain पता या #हैशटैग आज़माएँ।",
+  "Use https": "https इस्तेमाल करें",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "यह लिंक https नहीं, http इस्तेमाल करता है। इसे ऐसे ही भेजने के लिए “{{action}}” पर फिर टैप करें।",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "ये {{count}} लिंक https नहीं, http इस्तेमाल करते हैं। इन्हें ऐसे ही भेजने के लिए “{{action}}” पर फिर टैप करें।",
+  "Use https for {{count}} link_one": "{{count}} लिंक के लिए https इस्तेमाल करें",
+  "Use https for {{count}} link_other": "{{count}} लिंक के लिए https इस्तेमाल करें",
+  "and {{count}} more_one": "और {{count}}",
+  "and {{count}} more_other": "और {{count}}"
 }

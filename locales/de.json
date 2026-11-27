@@ -2493,5 +2493,12 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Dein Netzwerk ist noch nicht geladen, deshalb hat eine Spamprüfung diese beiseitegelegt. Nichts ist verborgen.",
   "Find a profile, note or hashtag": "Profil, Notiz oder Hashtag finden",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, Benutzername oder #Hashtag",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Kein Treffer. Versuche einen Namen, einen npub, eine Notiz, eine name@domain-Adresse oder einen #Hashtag."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Kein Treffer. Versuche einen Namen, einen npub, eine Notiz, eine name@domain-Adresse oder einen #Hashtag.",
+  "Use https": "https verwenden",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "Dieser Link verwendet http statt https. Tippe erneut auf „{{action}}“, um ihn so zu senden.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "Diese {{count}} Links verwenden http statt https. Tippe erneut auf „{{action}}“, um sie so zu senden.",
+  "Use https for {{count}} link_one": "https für {{count}} Link verwenden",
+  "Use https for {{count}} link_other": "https für {{count}} Links verwenden",
+  "and {{count}} more_one": "und {{count}} weiterer",
+  "and {{count}} more_other": "und {{count}} weitere"
 }

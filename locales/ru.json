@@ -2665,5 +2665,18 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Ваша сеть ещё не загружена, поэтому проверка на спам отложила эти уведомления. Ничего не скрыто.",
   "Find a profile, note or hashtag": "Найти профиль, заметку или хештег",
   "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, имя пользователя или #хештег",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Ничего не найдено. Попробуйте имя, npub, заметку, адрес вида name@domain или #хештег."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Ничего не найдено. Попробуйте имя, npub, заметку, адрес вида name@domain или #хештег.",
+  "Use https": "Использовать https",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "{{count}} ссылка использует http, а не https. Нажмите «{{action}}» ещё раз, чтобы отправить её как есть.",
+  "This link uses http, not https. Press {{action}} again to send it as is._few": "{{count}} ссылки используют http, а не https. Нажмите «{{action}}» ещё раз, чтобы отправить их как есть.",
+  "This link uses http, not https. Press {{action}} again to send it as is._many": "{{count}} ссылок используют http, а не https. Нажмите «{{action}}» ещё раз, чтобы отправить их как есть.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}} ссылки используют http, а не https. Нажмите «{{action}}» ещё раз, чтобы отправить их как есть.",
+  "Use https for {{count}} link_one": "Использовать https для {{count}} ссылки",
+  "Use https for {{count}} link_few": "Использовать https для {{count}} ссылок",
+  "Use https for {{count}} link_many": "Использовать https для {{count}} ссылок",
+  "Use https for {{count}} link_other": "Использовать https для {{count}} ссылок",
+  "and {{count}} more_one": "и ещё {{count}}",
+  "and {{count}} more_few": "и ещё {{count}}",
+  "and {{count}} more_many": "и ещё {{count}}",
+  "and {{count}} more_other": "и ещё {{count}}"
 }

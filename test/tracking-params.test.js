@@ -215,10 +215,11 @@ test('OFFERED, NEVER DONE FOR YOU', () => {
   const scope = factory.slice(0, factory.indexOf('\n  }\n'));
   // The tracking scan's own paste hook (the factory's text paste, which does preventDefault,
   // is a separate listener).
-  const paste = scope.match(/editor\.addEventListener\('paste', [^\n]*scanTracking[^\n]*\n?/);
+  // scanLinkOffers checks the tracking row and the http row together.
+  const paste = scope.match(/editor\.addEventListener\('paste', [^\n]*scanLinkOffers[^\n]*\n?/);
   assert.ok(paste, 'no paste hook in the editor factory');
   assert.ok(!/preventDefault/.test(paste[0]), 'the scan must not interfere with the paste');
-  assert.match(paste[0], /setTimeout\(scanTracking, 0\)/);
+  assert.match(paste[0], /setTimeout\(\(\) => scanLinkOffers\(true\), 0\)/);
 
   const replacements = scope.match(/text\.split\(hit\.raw\)\.join\(hit\.clean\)/g) || [];
   assert.equal(replacements.length, 1, 'the text is rewritten in exactly one place');
@@ -233,8 +234,12 @@ test('one tap, with nothing to put right afterwards', () => {
   // where you were typing, which is most of the convenience this is for.
   const click = bare.slice(bare.indexOf("trackBtn.addEventListener('click'"));
   const body = click.slice(0, click.indexOf('\n    });') + 7);
-  assert.match(body, /editor\.focus\(\);/);
-  assert.match(body, /end\.selectNodeContents\(editor\);\s*\n\s*end\.collapse\(false\);/);
+  // The caret goes back through caretToEnd, which the http offer's fix shares.
+  assert.match(body, /caretToEnd\(\);/);
+  const caret = bare.slice(bare.indexOf('function caretToEnd() {'));
+  const caretBody = caret.slice(0, caret.indexOf('\n    }\n') + 6);
+  assert.match(caretBody, /editor\.focus\(\);/);
+  assert.match(caretBody, /end\.selectNodeContents\(editor\);\s*\n\s*end\.collapse\(false\);/);
   // And no confirm anywhere on the path: the button IS the decision.
   assert.ok(!/confirm|Are you sure/i.test(body), 'the offer must not ask twice');
 });
@@ -258,7 +263,7 @@ test('a restored draft is scanned too, not only a fresh paste', () => {
   // The draft is written to storage with whatever was pasted into it, so the tail comes
   // back with the text on the next session.
   const set = bare.slice(bare.indexOf('setText(text) {'));
-  assert.match(set.slice(0, set.indexOf('},')), /scanTracking\(\);/);
+  assert.match(set.slice(0, set.indexOf('},')), /scanLinkOffers\(true\);/);
 });
 
 test('the row is hidden until there is something to offer, and spans when shown', () => {

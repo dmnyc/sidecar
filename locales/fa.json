@@ -2493,5 +2493,12 @@
   "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "شبکه‌ات هنوز بارگیری نشده، پس یک بررسی هرزنامه این‌ها را کنار گذاشت. چیزی پنهان نشده است.",
   "Find a profile, note or hashtag": "یافتن نمایه، یادداشت یا هشتگ",
   "npub, note, nevent, naddr, username, or #hashtag": "npub، note، nevent، naddr، نام کاربری یا #هشتگ",
-  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "موردی پیدا نشد. یک نام، npub، یادداشت، نشانی name@domain یا #هشتگ را امتحان کنید."
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "موردی پیدا نشد. یک نام، npub، یادداشت، نشانی name@domain یا #هشتگ را امتحان کنید.",
+  "Use https": "استفاده از https",
+  "This link uses http, not https. Press {{action}} again to send it as is._one": "این پیوند از http استفاده می‌کند، نه https. برای فرستادن آن به همین شکل، دوباره «{{action}}» را لمس کنید.",
+  "This link uses http, not https. Press {{action}} again to send it as is._other": "این {{count}} پیوند از http استفاده می‌کنند، نه https. برای فرستادن آن‌ها به همین شکل، دوباره «{{action}}» را لمس کنید.",
+  "Use https for {{count}} link_one": "استفاده از https برای {{count}} پیوند",
+  "Use https for {{count}} link_other": "استفاده از https برای {{count}} پیوند",
+  "and {{count}} more_one": "و {{count}} مورد دیگر",
+  "and {{count}} more_other": "و {{count}} مورد دیگر"
 }
