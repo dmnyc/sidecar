@@ -28,12 +28,17 @@ const KINDS = self.SidecarKindGrants;
 const BASELINE = self.SidecarBaseline;
 const ZAPREQ = self.SidecarZapRequests;
 
+// Measured in November 2026, five rounds each: these answered every time and hold other
+// accounts' real follow lists. The previous set had three relays that no longer connect
+// and one that keeps events in memory only, which made a new account's first follow fail
+// with "Could not read your follow list". relay.nos.social keeps lists but not every kind,
+// so it reads only: whether it takes a new account's writes is unknown.
 const DEFAULT_RELAYS = {
-  'wss://nos.lol': { read: true, write: true },
-  'wss://relay.snort.social': { read: true, write: true },
-  'wss://nostr.mom': { read: true, write: true },
-  'wss://offchain.pub': { read: true, write: true },
-  'wss://relay.primal.net': { read: true, write: false },
+  'wss://relay.primal.net': { read: true, write: true },
+  'wss://relay.ditto.pub': { read: true, write: true },
+  'wss://relay.nostr.net': { read: true, write: true },
+  'wss://nostr.data.haus': { read: true, write: true },
+  'wss://relay.nos.social': { read: true, write: false },
 };
 
 const AUTO_LOCK_ALARM = 'sidecar-auto-lock';

@@ -6219,12 +6219,16 @@
   // Asked for kind:1018 ballots by poll id, and for nothing else. The tally still
   // applies every rule to what comes back — one ballot per pubkey, nothing past endsAt —
   // so a relay here can surface a voter, but cannot invent one.
+  //
+  // By November 2026 nos.lol no longer answered. relay.nostr.net and nostr.data.haus were
+  // added in its place, both holding a month of ballots when measured.
   const POLL_VOTE_DISCOVERY_RELAYS = [
     'wss://relay.primal.net',
     'wss://relay.damus.io',
     'wss://relay.snort.social',
-    'wss://nos.lol',
     'wss://relay.ditto.pub',
+    'wss://relay.nostr.net',
+    'wss://nostr.data.haus',
   ];
 
   // The full set a vote query is sent to: the poll's own relays first — a compliant

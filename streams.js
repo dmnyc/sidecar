@@ -21,7 +21,7 @@
     document.documentElement.classList.toggle('stream-directory-active',on && !root.hidden);
   }
   const expand = document.getElementById('stream-expand');
-  const relays = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
+  const relays = ['wss://relay.damus.io', 'wss://relay.primal.net', 'wss://relay.ditto.pub'];
   const profileImages = new Map();
   let savedStreams = [], savedOnly = false, savedRevision = 0;
   const savedStorage = typeof chrome !== 'undefined' && chrome.storage?.local;

@@ -31,7 +31,7 @@ const PANEL = { width: 360, height: 913 };   // the proportions of the panel in 
 // The page beside the panel is drawn in a wider window than it is shown at: 1280 wide, shown 994 wide,
 // which is how the pages in the store images show four columns of apps at a readable size.
 const PAGE = { width: 1280, height: 910 };
-const DEFAULT_RELAY_HOSTS = ['nos.lol', 'relay.snort.social', 'nostr.mom', 'offchain.pub', 'relay.primal.net'];
+const DEFAULT_RELAY_HOSTS = ['relay.primal.net', 'relay.ditto.pub', 'relay.nostr.net', 'nostr.data.haus', 'relay.nos.social'];
 const WALLET_HOST = 'wallet-relay.example';
 const fixturesDir = () => process.env.SIDECAR_STORE_FIXTURES || path.join(os.homedir(), '.local', 'share', 'sidecar-images', 'fixtures');
 
