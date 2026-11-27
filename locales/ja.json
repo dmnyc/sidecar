@@ -1656,10 +1656,8 @@
   "PIN or passphrase": "PINまたはパスフレーズ",
   "Unlock": "ロック解除",
   "Switch account": "アカウントを切り替え",
-  "Find a profile or note": "プロフィールまたはノートを探す",
   "Help & guides": "ヘルプとガイド",
   "Lock": "ロック",
-  "npub, note, nevent, naddr, or username": "npub、note、nevent、naddr、またはユーザー名",
   "Name search scope": "名前検索の範囲",
   "Close search": "検索を閉じる",
   "Accounts": "アカウント",
@@ -2406,5 +2404,8 @@
   "You zapped this": "Zap済み",
   "You zapped this {{count}} sat_other": "{{count}} sats Zap済み",
   "{{count}} likely spam_other": "迷惑投稿の可能性 {{count}} 件",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "ネットワークがまだ読み込まれていないため、迷惑投稿チェックでこれらを分けました。何も隠していません。"
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "ネットワークがまだ読み込まれていないため、迷惑投稿チェックでこれらを分けました。何も隠していません。",
+  "Find a profile, note or hashtag": "プロフィール、ノート、ハッシュタグを探す",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub、note、nevent、naddr、ユーザー名、または #ハッシュタグ",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "見つかりません。名前、npub、ノート、name@domain 形式のアドレス、または #ハッシュタグを試してください。"
 }

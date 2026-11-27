@@ -1717,10 +1717,8 @@
   "PIN or passphrase": "PIN یا عبارت عبور",
   "Unlock": "باز کردن قفل",
   "Switch account": "تغییر حساب",
-  "Find a profile or note": "یافتن نمایه یا یادداشت",
   "Help & guides": "راهنما و آموزش‌ها",
   "Lock": "قفل",
-  "npub, note, nevent, naddr, or username": "npub، note، nevent، naddr یا نام کاربری",
   "Name search scope": "دامنهٔ جستجوی نام",
   "Close search": "بستن جستجو",
   "Accounts": "حساب‌ها",
@@ -2492,5 +2490,8 @@
   "You zapped this {{count}} sat_other": "این را با {{count}} sats Zap کرده‌اید",
   "{{count}} likely spam_one": "{{count}} احتمالاً هرزنامه",
   "{{count}} likely spam_other": "{{count}} احتمالاً هرزنامه",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "شبکه‌ات هنوز بارگیری نشده، پس یک بررسی هرزنامه این‌ها را کنار گذاشت. چیزی پنهان نشده است."
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "شبکه‌ات هنوز بارگیری نشده، پس یک بررسی هرزنامه این‌ها را کنار گذاشت. چیزی پنهان نشده است.",
+  "Find a profile, note or hashtag": "یافتن نمایه، یادداشت یا هشتگ",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub، note، nevent، naddr، نام کاربری یا #هشتگ",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "موردی پیدا نشد. یک نام، npub، یادداشت، نشانی name@domain یا #هشتگ را امتحان کنید."
 }

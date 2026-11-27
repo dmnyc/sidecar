@@ -1778,10 +1778,8 @@
   "PIN or passphrase": "קוד PIN או ביטוי סיסמה",
   "Unlock": "פתיחה",
   "Switch account": "החלפת חשבון",
-  "Find a profile or note": "חיפוש פרופיל או פוסט",
   "Help & guides": "עזרה ומדריכים",
   "Lock": "נעילה",
-  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr או שם משתמש",
   "Name search scope": "היקף חיפוש שמות",
   "Close search": "סגירת החיפוש",
   "Accounts": "חשבונות",
@@ -2578,5 +2576,8 @@
   "{{count}} likely spam_one": "{{count}} כנראה ספאם",
   "{{count}} likely spam_two": "{{count}} כנראה ספאם",
   "{{count}} likely spam_other": "{{count}} כנראה ספאם",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "הרשת שלך עדיין לא נטענה, אז בדיקת ספאם הניחה את אלה בצד. שום דבר לא מוסתר."
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "הרשת שלך עדיין לא נטענה, אז בדיקת ספאם הניחה את אלה בצד. שום דבר לא מוסתר.",
+  "Find a profile, note or hashtag": "חיפוש פרופיל, פוסט או האשטאג",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, שם משתמש או #האשטאג",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "אין התאמה. נסו שם, npub, פוסט, כתובת name@domain או #האשטאג."
 }

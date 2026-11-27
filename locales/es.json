@@ -1850,10 +1850,8 @@
   "After 30 minutes": "Tras 30 minutos",
   "When browser closes": "Al cerrar el navegador",
   "Switch account": "Cambiar de cuenta",
-  "Find a profile or note": "Buscar un perfil o una nota",
   "Help & guides": "Ayuda y guías",
   "Lock": "Bloquear",
-  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr o nombre de usuario",
   "Name search scope": "Ámbito de búsqueda de nombres",
   "Close search": "Cerrar búsqueda",
   "Filter by site…": "Filtrar por sitio…",
@@ -2578,5 +2576,8 @@
   "{{count}} likely spam_one": "{{count}} probable spam",
   "{{count}} likely spam_other": "{{count}} probable spam",
   "{{count}} likely spam_many": "{{count}} probable spam",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Tu red aún no se ha cargado, así que una comprobación de spam apartó estos. No se oculta nada."
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Tu red aún no se ha cargado, así que una comprobación de spam apartó estos. No se oculta nada.",
+  "Find a profile, note or hashtag": "Buscar un perfil, una nota o un hashtag",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, nombre de usuario o #hashtag",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Sin resultados. Prueba con un nombre, un npub, una nota, una dirección nombre@dominio o un #hashtag."
 }

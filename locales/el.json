@@ -1717,10 +1717,8 @@
   "PIN or passphrase": "PIN ή φράση πρόσβασης",
   "Unlock": "Ξεκλείδωμα",
   "Switch account": "Αλλαγή λογαριασμού",
-  "Find a profile or note": "Βρείτε ένα προφίλ ή μια σημείωση",
   "Help & guides": "Βοήθεια και οδηγοί",
   "Lock": "Κλείδωμα",
-  "npub, note, nevent, naddr, or username": "npub, note, nevent, naddr ή όνομα χρήστη",
   "Name search scope": "Εύρος αναζήτησης ονομάτων",
   "Close search": "Κλείσιμο αναζήτησης",
   "Accounts": "Λογαριασμοί",
@@ -2492,5 +2490,8 @@
   "You zapped this {{count}} sat_other": "Το έχετε κάνει zap με {{count}} sats",
   "{{count}} likely spam_one": "{{count}} πιθανό spam",
   "{{count}} likely spam_other": "{{count}} πιθανό spam",
-  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Το δίκτυό σου δεν έχει φορτωθεί ακόμα, οπότε ένας έλεγχος spam τα έβαλε στην άκρη. Τίποτα δεν κρύβεται."
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Το δίκτυό σου δεν έχει φορτωθεί ακόμα, οπότε ένας έλεγχος spam τα έβαλε στην άκρη. Τίποτα δεν κρύβεται.",
+  "Find a profile, note or hashtag": "Βρείτε ένα προφίλ, μια σημείωση ή ένα hashtag",
+  "npub, note, nevent, naddr, username, or #hashtag": "npub, note, nevent, naddr, όνομα χρήστη ή #hashtag",
+  "No match. Try a name, an npub, a note, a name@domain address or a #hashtag.": "Δεν βρέθηκε. Δοκιμάστε ένα όνομα, ένα npub, μια σημείωση, μια διεύθυνση name@domain ή ένα #hashtag."
 }
