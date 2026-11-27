@@ -26767,7 +26767,7 @@
       modal.append(xClose, h('h3', { textContent: tSec('Receive') }));
 
       // Tabs: Invoice (always) + Lightning address (added if the profile has lud16).
-      const tabs = h('div', { className: 'compose-tabs' });
+      const tabs = h('div', { className: 'compose-tabs recv-tabs' });
       const tabInvoice = h('button', { className: 'compose-tab active', textContent: tSec('Invoice') });
       tabs.append(tabInvoice);
       modal.append(tabs);
