@@ -4392,6 +4392,20 @@
     return { scores, lift };
   }
 
+  // NO NETWORK TO SORT BY, AND THE SPAM CHECK STILL RUNS. The model needs nothing from the
+  // network to read a reply, but it was only ever asked about the network's strangers, so
+  // while the set was still building, had failed, or had come back empty, it was not asked
+  // at all: a campaign of throwaway keys landed in the bell's main list scoring 1.0, every
+  // one. Without a set, a reply it is sure of (NSPAM_LABEL or over) from someone you do not
+  // follow goes into the collapsed group, marked, and nothing else moves. Your follows come
+  // from the cached list when there is one; without it, everyone but you is asked.
+  function judgeWithoutNetwork(events, me) {
+    const follows = new Set(followListCache && followListPubkey === me ? followListCache.map((f) => f.pubkey || f) : []);
+    const { scores } = judgeStrangers(events.filter((ev) => ev.pubkey !== me && !follows.has(zapSender(ev))));
+    const spam = new Set([...scores].filter(([, score]) => score >= NSPAM_LABEL).map(([id]) => id));
+    return { scores, spam };
+  }
+
   async function getWotSet() {
     const pubkey = state.activePubkey;
     if (!pubkey || !self.SidecarWot) return null;
@@ -9300,14 +9314,36 @@
     // means no partition, which is the fail-open direction; it is warmed in the background
     // (see getWotSet) so the usual case is that it is ready by the time you open the bell.
     const wotSet = notifWotFilter && self.SidecarWot && _wotPubkey === a.pubkey ? _wotSet : null;
-    const split = wotSet ? self.SidecarWot.partition(wotSet, shown, zapSender) : null;
-    // And nspam's second opinion on the strangers: lifted replies join the list in their place
-    // in time, the rest stay grouped, and its scores mark likely spam in the rows (buildItem).
-    const judged = split ? judgeStrangers(split.out) : { scores: new Map(), lift: new Set() };
-    const spamScores = judged.scores;
-    const outIds = new Set(split ? split.out.map((e) => e.id) : []);
-    const events = split ? shown.filter((e) => !outIds.has(e.id) || judged.lift.has(e.id)) : shown;
-    const offNet = split ? split.out.filter((e) => !judged.lift.has(e.id)) : [];
+    // An empty set sorts nobody out (inNetwork fails open on it), so it counts as none here.
+    const sortingSet = wotSet && wotSet.size ? wotSet : null;
+    // With the filter on and no set to sort by, the spam check sorts alone (judgeWithoutNetwork),
+    // and the group it fills is named for what it holds: likely spam, not "outside your network".
+    const spamOnly = notifWotFilter && !sortingSet;
+    const spamScores = new Map();
+    // One sort for the sheet as it opens, an arrival while it is open, and an older page:
+    // `inn` joins the list, `out` the collapsed group. With a set, nspam's second opinion lifts
+    // the strangers it takes for people; without one, it sets aside what it takes for spam.
+    // `context` is more of the same authors' replies already here, read with them.
+    function sortArrivals(evs, context = []) {
+      if (sortingSet) {
+        const part = self.SidecarWot.partition(sortingSet, evs, zapSender);
+        const j = judgeStrangers([...part.out, ...context]);
+        j.scores.forEach((v, id) => spamScores.set(id, v));
+        return { inn: evs.filter((e) => !part.out.includes(e) || j.lift.has(e.id)), out: part.out.filter((e) => !j.lift.has(e.id)) };
+      }
+      if (spamOnly) {
+        const j = judgeWithoutNetwork([...evs, ...context], a.pubkey);
+        j.scores.forEach((v, id) => spamScores.set(id, v));
+        return { inn: evs.filter((e) => !j.spam.has(e.id)), out: evs.filter((e) => j.spam.has(e.id)) };
+      }
+      return { inn: evs, out: [] };
+    }
+    const opened = sortArrivals(shown);
+    const events = opened.inn;
+    const offNet = opened.out;
+    const offNetLabel = (n) => (spamOnly
+      ? tn('{{count}} likely spam', '{{count}} likely spam', n)
+      : tn('{{count}} from outside your network', '{{count}} from outside your network', n));
     if (notifWotFilter && !_nspamModel) warmNspam();
     const PAGE = NOTIF_SCREEN;
 
@@ -10178,7 +10214,7 @@
       // Nothing from your network, and plenty from outside it: say so above the group, where
       // the eye lands, instead of leaving an empty list over a collapsed count.
       let thinNote = null;
-      if (!events.length && offNet.length) {
+      if (!events.length && offNet.length && !spamOnly) {
         thinNote = scroll.appendChild(h('p', { className: 'notif-offnet-note notif-thin' }, [
           ...networkSize(),
           document.createTextNode(t('Nothing from your network here. If that looks wrong, rebuild it.') + ' '),
@@ -10233,7 +10269,7 @@
         const chev = icon('chevron-down');
         const toggle = h('button', { className: 'notif-offnet-toggle' }, [
           chev,
-          h('span', { textContent: tn('{{count}} from outside your network', '{{count}} from outside your network', offNet.length) }),
+          h('span', { textContent: offNetLabel(offNet.length) }),
         ]);
         let open = false;
         toggle.addEventListener('click', () => {
@@ -10254,7 +10290,9 @@
         // would be noise. No jargon — "web of trust" belongs in the help guide, not in a
         // list someone is trying to read.
         const note = h('p', { className: 'notif-offnet-note' }, [
-          document.createTextNode(t('Sorted by who you follow, and who they follow. Nothing is hidden.') + ' '),
+          document.createTextNode((spamOnly
+            ? t('Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.')
+            : t('Sorted by who you follow, and who they follow. Nothing is hidden.')) + ' '),
         ]);
         const toSettings = h('button', { className: 'notif-offnet-settings', textContent: t('Settings') });
         toSettings.addEventListener('click', () => {
@@ -10287,18 +10325,12 @@
         clearEmptyMessage();
         // A stranger's reply is judged with their others already here, and joins the list if
         // it clears the spam check, as it would have had it been there when the bell opened.
-        let lifted = false;
-        if (split && !self.SidecarWot.inNetwork(wotSet, zapSender(ev))) {
-          const j = judgeStrangers([ev, ...offNet.filter((x) => x.pubkey === ev.pubkey)]);
-          j.scores.forEach((v, id) => spamScores.set(id, v));
-          lifted = j.lift.has(ev.id);
-        }
-        if (!lifted && split && !self.SidecarWot.inNetwork(wotSet, zapSender(ev))) {
+        if (sortArrivals([ev], offNet.filter((x) => x.pubkey === ev.pubkey)).out.length) {
           offNet.unshift(ev);
           showOffNet();
           if (offNetBox) {
             const lbl = offNetBox.querySelector('.notif-offnet-toggle span');
-            if (lbl) lbl.textContent = tn('{{count}} from outside your network', '{{count}} from outside your network', offNet.length);
+            if (lbl) lbl.textContent = offNetLabel(offNet.length);
             // Only when the group is already expanded; collapsed, the count IS the update.
             const inner = offNetBox.querySelector('.notif-offnet-list');
             if (inner && inner.children.length > 1) inner.prepend(buildItem(ev));
@@ -10386,19 +10418,13 @@
           !(mute && mute.size && isMutedNotif(mute, e)));
         if (!fresh.length) return;
         for (const e of fresh) { drawnIds.add(e.id); oldestDrawn = Math.min(oldestDrawn, e.created_at); }
-        const part = wotSet ? self.SidecarWot.partition(wotSet, fresh, zapSender) : { inn: fresh, out: [] };
-        const j = judgeStrangers(part.out);
-        j.scores.forEach((v, id) => spamScores.set(id, v));
-        if (j.lift.size) {
-          part.inn = [...part.inn, ...part.out.filter((e) => j.lift.has(e.id))].sort((x, y) => y.created_at - x.created_at);
-          part.out = part.out.filter((e) => !j.lift.has(e.id));
-        }
+        const part = sortArrivals(fresh);
         events.push(...part.inn);
         if (part.out.length) {
           offNet.push(...part.out);
           if (offNetBox) {
             const lbl = offNetBox.querySelector('.notif-offnet-toggle span');
-            if (lbl) lbl.textContent = tn('{{count}} from outside your network', '{{count}} from outside your network', offNet.length);
+            if (lbl) lbl.textContent = offNetLabel(offNet.length);
             const inner = offNetBox.querySelector('.notif-offnet-list');
             const note = inner && inner.querySelector('.notif-offnet-note');
             // Only when expanded; collapsed, the count is the update.
@@ -10471,6 +10497,23 @@
       // Let a live event arriving while this modal is open (see addEvent in
       // initNotifSubs) prepend straight into the visible list.
       _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote, addLive };
+
+      // SORTED AGAIN WHEN WHAT IT SORTS BY ARRIVES. The sheet opens with whatever is warm, and
+      // a network still building or a model still loading used to leave it sorted without them
+      // until the next open, which is when spam sat at the top. Once either lands, the sheet is
+      // rebuilt in place, as Refresh does, unless you are partway through something in it (a
+      // zap's amount, a repost's choice), which a rebuild would throw away.
+      if (notifWotFilter && (!sortingSet || !_nspamModel)) {
+        const hadModel = !!_nspamModel;
+        Promise.all([sortingSet ? null : getWotSet().catch(() => null), hadModel ? null : warmNspam()]).then(() => {
+          const set = _wotPubkey === a.pubkey ? _wotSet : null;
+          const gained = (!sortingSet && set && set.size) || (!hadModel && _nspamModel);
+          if (!gained || !_openNotifBell || _openNotifBell.list !== list || !list.isConnected) return;
+          const busy = modal.querySelector('.notif-zap:not(.hidden), .notif-repost:not(.hidden)')
+            || (modal.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName));
+          if (!busy) showNotifModal(a, notifPlace());
+        });
+      }
 
       // WHICH OF THESE YOU HAVE ALREADY REACTED TO, asked of the relays rather than
       // remembered locally, so a reaction sent from another client counts too: the question

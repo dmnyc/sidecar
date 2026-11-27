@@ -2574,5 +2574,9 @@
   "You zapped this": "Vous avez déjà zappé ceci",
   "You zapped this {{count}} sat_one": "Vous avez zappé ceci de {{count}} sat",
   "You zapped this {{count}} sat_other": "Vous avez zappé ceci de {{count}} sats",
-  "You zapped this {{count}} sat_many": "Vous avez zappé ceci de {{count}} sats"
+  "You zapped this {{count}} sat_many": "Vous avez zappé ceci de {{count}} sats",
+  "{{count}} likely spam_one": "{{count}} spam probable",
+  "{{count}} likely spam_other": "{{count}} spam probable",
+  "{{count}} likely spam_many": "{{count}} spam probable",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Ton réseau n’est pas encore chargé, alors un contrôle anti-spam a mis ceux-ci de côté. Rien n’est masqué."
 }

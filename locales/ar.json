@@ -2829,5 +2829,12 @@
   "You zapped this {{count}} sat_one": "أرسلت Zap لهذا: {{count}} sats",
   "You zapped this {{count}} sat_two": "أرسلت Zap لهذا: {{count}} sats",
   "You zapped this {{count}} sat_zero": "أرسلت Zap لهذا: {{count}} sats",
-  "You zapped this {{count}} sat_other": "أرسلت Zap لهذا: {{count}} sats"
+  "You zapped this {{count}} sat_other": "أرسلت Zap لهذا: {{count}} sats",
+  "{{count}} likely spam_few": "{{count}} رسائل مزعجة على الأرجح",
+  "{{count}} likely spam_many": "{{count}} رسائل مزعجة على الأرجح",
+  "{{count}} likely spam_one": "{{count}} رسائل مزعجة على الأرجح",
+  "{{count}} likely spam_two": "{{count}} رسائل مزعجة على الأرجح",
+  "{{count}} likely spam_zero": "{{count}} رسائل مزعجة على الأرجح",
+  "{{count}} likely spam_other": "{{count}} رسائل مزعجة على الأرجح",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "لم تُحمَّل شبكتك بعد، لذا وضع فحص الرسائل المزعجة هذه جانبًا. لا شيء مخفي."
 }

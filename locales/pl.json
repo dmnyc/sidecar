@@ -2659,5 +2659,10 @@
   "You zapped this {{count}} sat_few": "Wysłano już zapa: {{count}} sats",
   "You zapped this {{count}} sat_many": "Wysłano już zapa: {{count}} sats",
   "You zapped this {{count}} sat_one": "Wysłano już zapa: {{count}} sats",
-  "You zapped this {{count}} sat_other": "Wysłano już zapa: {{count}} sats"
+  "You zapped this {{count}} sat_other": "Wysłano już zapa: {{count}} sats",
+  "{{count}} likely spam_few": "{{count}} prawdopodobny spam",
+  "{{count}} likely spam_many": "{{count}} prawdopodobny spam",
+  "{{count}} likely spam_one": "{{count}} prawdopodobny spam",
+  "{{count}} likely spam_other": "{{count}} prawdopodobny spam",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Twoja sieć nie jest jeszcze wczytana, więc kontrola spamu odłożyła je na bok. Nic nie jest ukryte."
 }

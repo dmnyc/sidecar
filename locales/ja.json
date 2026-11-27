@@ -2404,5 +2404,7 @@
   "Copy recipe address": "レシピのアドレスをコピー",
   "Zapping…": "Zap中…",
   "You zapped this": "Zap済み",
-  "You zapped this {{count}} sat_other": "{{count}} sats Zap済み"
+  "You zapped this {{count}} sat_other": "{{count}} sats Zap済み",
+  "{{count}} likely spam_other": "迷惑投稿の可能性 {{count}} 件",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "ネットワークがまだ読み込まれていないため、迷惑投稿チェックでこれらを分けました。何も隠していません。"
 }

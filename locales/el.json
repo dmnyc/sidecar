@@ -2489,5 +2489,8 @@
   "Zapping…": "Zap σε εξέλιξη…",
   "You zapped this": "Το έχετε κάνει zap",
   "You zapped this {{count}} sat_one": "Το έχετε κάνει zap με {{count}} sat",
-  "You zapped this {{count}} sat_other": "Το έχετε κάνει zap με {{count}} sats"
+  "You zapped this {{count}} sat_other": "Το έχετε κάνει zap με {{count}} sats",
+  "{{count}} likely spam_one": "{{count}} πιθανό spam",
+  "{{count}} likely spam_other": "{{count}} πιθανό spam",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Το δίκτυό σου δεν έχει φορτωθεί ακόμα, οπότε ένας έλεγχος spam τα έβαλε στην άκρη. Τίποτα δεν κρύβεται."
 }

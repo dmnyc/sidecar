@@ -2489,5 +2489,8 @@
   "Zapping…": "Zap küldése…",
   "You zapped this": "Ezt már zappelted",
   "You zapped this {{count}} sat_one": "Ezt már {{count}} sattal zappelted",
-  "You zapped this {{count}} sat_other": "Ezt már {{count}} sattal zappelted"
+  "You zapped this {{count}} sat_other": "Ezt már {{count}} sattal zappelted",
+  "{{count}} likely spam_one": "{{count}} valószínű spam",
+  "{{count}} likely spam_other": "{{count}} valószínű spam",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "A hálózatod még nem töltődött be, ezért egy spamellenőrzés félretette ezeket. Semmi sincs elrejtve."
 }

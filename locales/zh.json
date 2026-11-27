@@ -2404,5 +2404,7 @@
   "Copy recipe address": "复制食谱地址",
   "Zapping…": "正在 zap…",
   "You zapped this": "你已 zap 过这条",
-  "You zapped this {{count}} sat_other": "你已 zap 过这条 {{count}} sats"
+  "You zapped this {{count}} sat_other": "你已 zap 过这条 {{count}} sats",
+  "{{count}} likely spam_other": "{{count}} 条可能是垃圾信息",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "你的网络尚未加载，因此垃圾信息检查先把这些放在一边。没有任何内容被隐藏。"
 }

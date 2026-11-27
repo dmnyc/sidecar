@@ -2489,5 +2489,8 @@
   "Zapping…": "Zap کیا جا رہا ہے…",
   "You zapped this": "آپ نے اسے Zap کیا ہے",
   "You zapped this {{count}} sat_one": "آپ نے اسے {{count}} sats Zap کیا ہے",
-  "You zapped this {{count}} sat_other": "آپ نے اسے {{count}} sats Zap کیا ہے"
+  "You zapped this {{count}} sat_other": "آپ نے اسے {{count}} sats Zap کیا ہے",
+  "{{count}} likely spam_one": "{{count}} ممکنہ اسپام",
+  "{{count}} likely spam_other": "{{count}} ممکنہ اسپام",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "آپ کا نیٹ ورک ابھی لوڈ نہیں ہوا، اس لیے اسپام جانچ نے انہیں الگ رکھا ہے۔ کچھ بھی چھپایا نہیں گیا۔"
 }

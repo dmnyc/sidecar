@@ -2404,5 +2404,7 @@
   "Copy recipe address": "คัดลอกที่อยู่สูตรอาหาร",
   "Zapping…": "กำลัง Zap…",
   "You zapped this": "คุณ Zap รายการนี้แล้ว",
-  "You zapped this {{count}} sat_other": "คุณ Zap รายการนี้แล้ว {{count}} sats"
+  "You zapped this {{count}} sat_other": "คุณ Zap รายการนี้แล้ว {{count}} sats",
+  "{{count}} likely spam_other": "น่าจะเป็นสแปม {{count}} รายการ",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "เครือข่ายของคุณยังโหลดไม่เสร็จ การตรวจสแปมจึงแยกรายการเหล่านี้ไว้ ไม่มีอะไรถูกซ่อน"
 }

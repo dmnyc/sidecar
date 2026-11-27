@@ -2574,5 +2574,9 @@
   "You zapped this": "Ya le enviaste un zap",
   "You zapped this {{count}} sat_one": "Ya le enviaste un zap de {{count}} sat",
   "You zapped this {{count}} sat_other": "Ya le enviaste {{count}} sats en zaps",
-  "You zapped this {{count}} sat_many": "Ya le enviaste {{count}} sats en zaps"
+  "You zapped this {{count}} sat_many": "Ya le enviaste {{count}} sats en zaps",
+  "{{count}} likely spam_one": "{{count}} probable spam",
+  "{{count}} likely spam_other": "{{count}} probable spam",
+  "{{count}} likely spam_many": "{{count}} probable spam",
+  "Your network isn’t loaded yet, so a spam check set these aside. Nothing is hidden.": "Tu red aún no se ha cargado, así que una comprobación de spam apartó estos. No se oculta nada."
 }
