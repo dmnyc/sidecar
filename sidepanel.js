@@ -742,22 +742,41 @@
   //
   // Per account, by note id. What has gone through is read from the pay meta store, where
   // every zap Sidecar pays records the note and, from now on, the account that sent it
-  // (zapFrom). Zaps sent before that, or from another app, are not known here.
+  // (zapFrom), and the relays fill in the rest when the bell asks for your receipts.
+  //
+  // WITH THE AMOUNT. `done` maps account|note to the zaps found for it, invoice → sats, so
+  // one zap seen twice (paid here and found again as a receipt on a relay) counts once.
   const zapMarks = { flying: new Map(), done: null, loading: null };
+  function addZapDone(k, invoice, sats) {
+    if (!zapMarks.done) zapMarks.done = new Map();
+    if (!zapMarks.done.has(k)) zapMarks.done.set(k, new Map());
+    const n = Number(sats);
+    // Lowercased: an invoice is case-insensitive, and the receipt's copy need not match ours.
+    zapMarks.done.get(k).set(invoice ? String(invoice).toLowerCase() : ('?' + zapMarks.done.get(k).size), Number.isFinite(n) && n > 0 ? n : 0);
+  }
+  function zapDoneSats(id) {
+    const m = zapMarks.done && zapMarks.done.get(zapMarkKey(id));
+    let sum = 0;
+    if (m) for (const v of m.values()) sum += v;
+    return sum;
+  }
   const zapMarkKey = (id) => (state && state.activePubkey ? state.activePubkey : '') + '|' + id;
   function loadZappedNotes() {
     if (zapMarks.done) return Promise.resolve(zapMarks.done);
     if (!zapMarks.loading) {
       zapMarks.loading = getPayMeta().then((all) => {
-        const done = new Set();
-        for (const m of Object.values(all || {})) {
-          if (m && typeof m.zapEvent === 'string' && typeof m.zapFrom === 'string') done.add(m.zapFrom + '|' + m.zapEvent);
+        // A zap that settled while this was loading is already in the old map; keep it.
+        const before = zapMarks.done;
+        zapMarks.done = new Map();
+        for (const [invoice, m] of Object.entries(all || {})) {
+          if (m && typeof m.zapEvent === 'string' && typeof m.zapFrom === 'string') {
+            const d = decodeBolt11(invoice);
+            addZapDone(m.zapFrom + '|' + m.zapEvent, invoice, d && d.sats);
+          }
         }
-        // A zap that settled while this was loading is already in the old set; keep it.
-        if (zapMarks.done) for (const k of zapMarks.done) done.add(k);
-        zapMarks.done = done;
-        return done;
-      }).catch(() => (zapMarks.done = zapMarks.done || new Set()));
+        if (before) for (const [k, m] of before) for (const [inv, sats] of m) addZapDone(k, inv, sats);
+        return zapMarks.done;
+      }).catch(() => (zapMarks.done = zapMarks.done || new Map()));
     }
     return zapMarks.loading;
   }
@@ -772,8 +791,18 @@
   function paintZapBolt(btn) {
     const id = btn.dataset.zapNote;
     const s = noteZapState(id);
-    const label = s === 'zapping' ? t('Zapping…') : s === 'zapped' ? t('You zapped this') : btn.dataset.zapLabel;
+    const sats = s === 'zapped' ? zapDoneSats(id) : 0;
+    const said = zapDoneSaid(id);
+    const label = s === 'zapping' ? t('Zapping…') : s === 'zapped' ? said : btn.dataset.zapLabel;
     btn.classList.toggle('zapping', s === 'zapping');
+    // The amount beside the bolt, so a zapped note says how much without opening the form.
+    // Short past four digits (12K), since the row is narrow; the label and the hint give it whole.
+    let amt = btn.querySelector('.zap-amt');
+    if (sats) {
+      if (!amt) btn.appendChild((amt = h('span', { className: 'zap-amt', 'aria-hidden': 'true' })));
+      amt.textContent = I18N.fmtNum(sats, sats >= 10000 ? { notation: 'compact', maximumFractionDigits: 1 } : undefined);
+    } else if (amt) amt.remove();
+    btn.classList.toggle('has-amt', !!sats);
     btn.classList.toggle('zapped', s === 'zapped');
     btn.title = label;
     btn.setAttribute('aria-label', label);
@@ -783,43 +812,54 @@
       // A bolt still waiting on the lightning address stays off; anything else comes back.
       btn.disabled = btn.classList.contains('pending');
     }
-    const form = btn.dataset.zapForm && document.getElementById(btn.dataset.zapForm);
+    // Held, not looked up by id: a bolt paints as its row is built, before the row is in
+    // the page for document.getElementById to find.
+    const form = zapFormOf.get(btn);
     const hint = form && form.querySelector('.zap-done-hint');
-    if (hint) hint.classList.toggle('hidden', s !== 'zapped');
+    if (hint) { hint.classList.toggle('hidden', s !== 'zapped'); hint.textContent = said; }
   }
   function repaintZapBolts(id) {
     document.querySelectorAll('[data-zap-note]').forEach((b) => { if (!id || b.dataset.zapNote === id) paintZapBolt(b); });
   }
-  let zapFormSeq = 0;
+  const zapFormOf = new WeakMap();
   // Marks a bolt as the one for this note, and the form it opens as its own, then paints
   // it once what has already gone through is known.
   function watchZapBolt(btn, id, form) {
     if (!id) return;
     btn.dataset.zapNote = id;
     btn.dataset.zapLabel = btn.getAttribute('aria-label') || btn.title || '';
-    if (form) {
-      if (!form.id) form.id = 'zap-form-' + (++zapFormSeq);
-      btn.dataset.zapForm = form.id;
-    }
+    if (form) zapFormOf.set(btn, form);
     paintZapBolt(btn);
     loadZappedNotes().then(() => { if (btn.isConnected) paintZapBolt(btn); });
   }
   // The line at the top of a note's zap form once you have zapped it, so a second zap is
   // a choice made knowingly rather than a retry.
-  const zapDoneHint = () => h('div', { className: 'hint zap-done-hint hidden', textContent: t('You zapped this') });
+  // Painted from the note's state when it is made, since a bolt can already be lit (and
+  // have painted itself) before its form, and so this line, is in the row.
+  function zapDoneSaid(id) {
+    const sats = zapDoneSats(id);
+    return sats ? tn('You zapped this {{count}} sat', 'You zapped this {{count}} sats', sats) : t('You zapped this');
+  }
+  const zapDoneHint = (id) => h('div', {
+    className: 'hint zap-done-hint' + (noteZapState(id) === 'zapped' ? '' : ' hidden'),
+    textContent: zapDoneSaid(id),
+  });
+  // A zap of a note found on the relays: lit as if it had just landed here, without the burst.
+  function markNoteZapped(id, from, invoice, sats) {
+    if (!id || !from) return;
+    addZapDone(from + '|' + id, invoice, sats);
+    repaintZapBolts(id);
+  }
   // start → in flight; ok → zapped; fail → back to how it was. `from` is the account that
   // pressed Send, read at the press: the panel can switch accounts while the zap is out.
-  function markNoteZap(id, phase, from) {
+  function markNoteZap(id, phase, from, invoice, sats) {
     if (!id || !from) return;
     const k = from + '|' + id;
     const n = zapMarks.flying.get(k) || 0;
     if (phase === 'start') zapMarks.flying.set(k, n + 1);
     else {
       if (n > 1) zapMarks.flying.set(k, n - 1); else zapMarks.flying.delete(k);
-      if (phase === 'ok') {
-        if (!zapMarks.done) zapMarks.done = new Set();
-        zapMarks.done.add(k);
-      }
+      if (phase === 'ok') addZapDone(k, invoice, sats);
     }
     repaintZapBolts(id);
     if (phase === 'ok') document.querySelectorAll('[data-zap-note]').forEach((b) => { if (b.dataset.zapNote === id) zapBurst(b); });
@@ -3429,8 +3469,7 @@
       // A comment zap marks the comment's bolt; a zap of the person has nothing to mark.
       const chatId = (options?.chatEvent && options.chatEvent.id) || '';
       if (chatId) {
-        const doneHint = zapDoneHint();
-        doneHint.classList.toggle('hidden', noteZapState(chatId) !== 'zapped');
+        const doneHint = zapDoneHint(chatId);
         zapForm.append(doneHint);
         watchZapBolt(zapBtn, chatId, zapForm);
       }
@@ -3494,7 +3533,7 @@
             comment: message,
             feeMsat: res && res.fees_paid,
           });
-          markNoteZap(chatId, 'ok', from);
+          markNoteZap(chatId, 'ok', from, invoice, sats);
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike(); // only once it settles
         } catch (e) {
@@ -5623,6 +5662,22 @@
   //
   // getNip65() keeps the old list-or-null shape for the callers that genuinely cannot
   // act on the distinction, but every caller that CAN should use this.
+  // WHERE AN ACCOUNT'S OWN EVENTS WENT, for reading them back: the same write set postRelays
+  // publishes to, for any account, and never a throw. A NIP-65-only account whose list has
+  // not been seen has nowhere to ask, which is an empty answer, not an error.
+  async function ownWriteRelays(pubkey) {
+    try {
+      const info = await getNip65Info(pubkey);
+      const nip65Only = await nip65OnlyFor(pubkey);
+      if (nip65Only && !info.resolved && !info.stale) return [];
+      const configured = await call({ type: 'SIDECAR_GET_RELAYS' });
+      const P = self.SidecarRelayPolicy;
+      return [...new Set(P.writeRelays(P.relayMap({ list: info.list, configured, bootstrap: !nip65Only })).map(normalizeRelay))];
+    } catch (_) {
+      return [];
+    }
+  }
+
   async function getNip65Info(pubkey) {
     if (!pubkey) return { list: null, resolved: true, stale: false };
     if (nip65Cache.has(pubkey)) return { list: nip65Cache.get(pubkey), resolved: true, stale: false };
@@ -7654,6 +7709,30 @@
   // — or from this panel before a reload — still shows.
   const _myReactions = new Map(); // note id → Map(reaction content → what it draws)
 
+  // The bell's rows ask which of them you have reacted to as they are built, and the open
+  // sheet answers in batches (see "WHICH OF THESE YOU HAVE ALREADY REACTED TO"). Until the
+  // sheet has said where to ask, ids wait in the queue; each sheet asks for each id once.
+  let flushMyReactions = null;
+  const _reactAsk = { queue: new Set(), asked: new Set(), authors: new Map(), timer: null };
+  function askMyReactions(id, author) {
+    if (!id || _reactAsk.asked.has(id) || _reactAsk.queue.has(id)) return;
+    _reactAsk.queue.add(id);
+    if (author) _reactAsk.authors.set(id, author);
+    if (!_reactAsk.timer) _reactAsk.timer = setTimeout(flushMyReactionQueue, 0);
+  }
+  function flushMyReactionQueue() {
+    clearTimeout(_reactAsk.timer);
+    _reactAsk.timer = null;
+    if (!flushMyReactions || !_reactAsk.queue.size) return;
+    const ids = [..._reactAsk.queue];
+    _reactAsk.queue.clear();
+    ids.forEach((id) => _reactAsk.asked.add(id));
+    for (let i = 0; i < ids.length; i += 100) {
+      const batch = ids.slice(i, i + 100);
+      flushMyReactions(batch, [...new Set(batch.map((id) => _reactAsk.authors.get(id)).filter(Boolean))]);
+    }
+  }
+
   // Where the open bell sheet is, set by the sheet itself while it is on screen. Reading
   // it from an action inside the sheet is what lets that action hand the panel to the
   // composer and get the list back afterwards, pages and scroll offset included.
@@ -7702,6 +7781,8 @@
     // can be the target of several notifications (a reply and a reaction to it).
     document.querySelectorAll('.notif-item[data-notif-id="' + cssEscape(noteId) + '"] .notif-reacted')
       .forEach((el) => paintMyReactions(el, noteId));
+    document.querySelectorAll('.notif-act[data-react-note="' + cssEscape(noteId) + '"]')
+      .forEach((b) => b.classList.add('reacted'));
   }
 
   function paintMyReactions(el, noteId) {
@@ -9059,6 +9140,11 @@
   // down it was scrolled. Passed when something had to take the panel away — replying
   // opens the composer — so coming back is not "start again at the top".
   async function showNotifModal(a, place) {
+    // A new sheet asks afresh, and nothing is asked until it says where.
+    flushMyReactions = null;
+    _reactAsk.asked.clear();
+    _reactAsk.queue.clear();
+    _reactAsk.authors.clear();
     const seenAt = _notifSeenAt[a.pubkey] || 0;
     const cache = _notifCache.get(a.pubkey) || { events: [] };
     const now = Math.floor(Date.now() / 1000);
@@ -9286,6 +9372,7 @@
         reactedEl = h('div', { className: 'notif-reacted hidden' });
         paintMyReactions(reactedEl, ev.id);
         item.appendChild(reactedEl);
+        askMyReactions(ev.id, ev.pubkey);
       }
 
       // ---- expand -------------------------------------------------------------------
@@ -9490,6 +9577,10 @@
       });
 
       const reactBtn = actBtn(t('React'), icon('heart'));
+      // Lit once you have reacted, as the bolt is once you have zapped (see addMyReaction).
+      // Still a button: a second reaction is yours to send.
+      reactBtn.dataset.reactNote = ev.id;
+      reactBtn.classList.toggle('reacted', !!(_myReactions.get(ev.id) || new Map()).size);
       reactBtn.addEventListener('click', (e) => {
         stop(e);
         reactToEvent(ev);
@@ -9605,8 +9696,7 @@
       amount.addEventListener('input', zapGate.paint);
       const status = h('div', { className: 'hint', textContent: t('Checking their lightning address…') });
       // Under the field it reads, so the offer to keep an amount sits with the amount.
-      const doneHint = zapDoneHint();
-      doneHint.classList.toggle('hidden', noteZapState(ev && ev.id) !== 'zapped');
+      const doneHint = zapDoneHint(ev && ev.id);
       zapForm.append(doneHint, status, presets, comment, h('div', { className: 'zap-inline' }, [amount, send]),
         zapDefaultSaver(amount, presets, stop));
 
@@ -9684,7 +9774,7 @@
             comment: message,
             feeMsat: res && res.fees_paid,
           });
-          markNoteZap(ev && ev.id, 'ok', from);
+          markNoteZap(ev && ev.id, 'ok', from, invoice, sats);
           flight.settle(true, tSec('Zapped {{amount}} sats', { amount: fmtSats(sats) }));
           lightningStrike();
         } catch (e2) {
@@ -10253,29 +10343,61 @@
       // initNotifSubs) prepend straight into the visible list.
       _openNotifBell = { pubkey: a.pubkey, list, buildItem, clearEmptyMessage, showEndNote, addLive };
 
-      // WHICH OF THESE YOU HAVE ALREADY REACTED TO. One query for the whole list rather
-      // than one per row, fired after the sheet is interactive like everything else here,
-      // and painted into rows that are already on screen when it lands.
+      // WHICH OF THESE YOU HAVE ALREADY REACTED TO, asked of the relays rather than
+      // remembered locally, so a reaction sent from another client counts too: the question
+      // is "did I answer this", not "did I answer this from Sidecar". Reactions of ours from
+      // earlier in this session are already in _myReactions and cost nothing to repaint.
       //
-      // Asked of the relays rather than remembered locally, so a reaction sent from
-      // another client counts too — the question is "did I answer this", not "did I
-      // answer this from Sidecar". Reactions of ours from earlier in this session are
-      // already in _myReactions and cost nothing to repaint.
-      (async () => {
-        const ids = events.filter((e) => e.kind === 1 || e.kind === WEB_COMMENT_KIND).map((e) => e.id);
-        if (!ids.length || !relays.length) return;
-        try {
-          const mine = await Promise.race([
-            poolQuerySync(relays, { kinds: [7], authors: [a.pubkey], '#e': ids.slice(0, 100) }),
-            new Promise((res) => setTimeout(() => res([]), 6000)),
-          ]);
-          // The event goes in whole, or the emoji tag a custom reaction carries is
-          // unreachable and its shortcode prints as literal chip text.
-          (mine || []).forEach((r) => addMyReaction(notifTargetId(r), r));
-        } catch (_) {
-          // No reaction chips is the same as none sent, which is the safe way to be wrong.
+      // ASKED WHERE THEY ARE. Your reactions go to your write relays, from your relay list,
+      // and so do other clients'. This asked only the relays in Sidecar's settings, so where
+      // the two differ every reaction from before this session was missing.
+      //
+      // AND FOR EVERY ROW, as it is built (askMyReactions in buildItem), batched into one
+      // query per hundred: the rows on screen at open, a page from Load more, the group from
+      // outside your network when it opens, and a live arrival. It used to be the first
+      // hundred cached at open and nothing after.
+      flushMyReactions = async (ids, authors) => {
+        const where = [...new Set([...relays.map(normalizeRelay), ...(await ownWriteRelays(a.pubkey))])];
+        if (!where.length) return;
+        // YOUR ZAPS OF THESE NOTES TOO, so a note's bolt is lit for a zap sent before this
+        // session or from another client, as a reaction's chip is. A receipt is published
+        // where the zapped person reads (see zapInvoice), so their read relays are asked as
+        // well, a few each and a cap on the whole, since a page can name many people.
+        const theirs = await Promise.all((authors || []).slice(0, 25).map((pk) =>
+          Promise.race([readRelayUrls(pk), new Promise((r) => setTimeout(() => r([]), 3000))])
+            .then((list) => (list || []).filter((u) => u !== 'wss://purplepag.es').slice(0, 3))
+            .catch(() => [])));
+        const zapWhere = [...new Set([...where, ...theirs.flat().map(normalizeRelay)])].slice(0, 30);
+        const [mine, receipts] = await Promise.all([
+          poolQuerySync(where, { kinds: [7], authors: [a.pubkey], '#e': ids }, { maxWait: 6000 }).catch(() => []),
+          poolQuerySync(zapWhere, { kinds: [9735], '#e': ids }, { maxWait: 6000 }).catch(() => []),
+        ]);
+        // The event goes in whole, or the emoji tag a custom reaction carries is
+        // unreachable and its shortcode prints as literal chip text. No answer is the same
+        // as none sent, which is the safe way to be wrong.
+        (mine || []).forEach((r) => addMyReaction(notifTargetId(r), r));
+        // A receipt is yours when the zap request inside it is signed by you. The receipt's
+        // own P tag says the same, but it is optional and the request is what was signed.
+        for (const rc of receipts || []) {
+          const noteId = notifTargetId(rc);
+          if (!noteId || !ids.includes(noteId)) continue;
+          let sender = '';
+          let req = null;
+          try {
+            const desc = (rc.tags || []).find((t) => t[0] === 'description');
+            req = desc ? JSON.parse(desc[1]) : null;
+            if (req && req.kind === 9734 && NT.verifyEvent(req)) sender = req.pubkey;
+          } catch (_) { /* not a request we can read: not counted as yours */ }
+          if (sender !== a.pubkey) continue;
+          // How much: the invoice the receipt carries says what was paid; the request's
+          // amount (msats) is what was asked, the fallback when there is no invoice to read.
+          const bolt11 = ((rc.tags || []).find((t) => t[0] === 'bolt11') || [])[1] || '';
+          const inv = bolt11 ? decodeBolt11(bolt11) : null;
+          const asked = Number(((req.tags || []).find((t) => t[0] === 'amount') || [])[1]) / 1000;
+          markNoteZapped(noteId, a.pubkey, bolt11 || rc.id, (inv && inv.sats) || (asked > 0 ? asked : 0));
         }
-      })();
+      };
+      flushMyReactionQueue();
 
       // Background reconciliation — runs after the modal is already open and
       // interactive, so neither of these ever blocks it from appearing:

@@ -2488,5 +2488,7 @@
   "Copy article address": "Αντιγραφή διεύθυνσης",
   "Copy recipe address": "Αντιγραφή διεύθυνσης",
   "Zapping…": "Zap σε εξέλιξη…",
-  "You zapped this": "Το έχετε κάνει zap"
+  "You zapped this": "Το έχετε κάνει zap",
+  "You zapped this {{count}} sat_one": "Το έχετε κάνει zap με {{count}} sat",
+  "You zapped this {{count}} sat_other": "Το έχετε κάνει zap με {{count}} sats"
 }

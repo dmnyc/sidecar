@@ -254,7 +254,10 @@ test('REACTIONS ARE ASKED OF THE RELAYS, NOT JUST REMEMBERED', () => {
   // The event goes in whole: a custom emoji's picture lives in its emoji tag, and a
   // restore that passed only r.content printed the shortcode as literal chip text.
   assert.match(fnSrc, /addMyReaction\(notifTargetId\(r\), r\)/, 'the results are not painted');
-  assert.match(fnSrc, /setTimeout\(\(\) => res\(\[\]\), \d+\)/, 'the query is uncapped');
+  // Capped by the pool's own maxWait.
+  assert.match(fnSrc, /'#e': ids \}, \{ maxWait: \d+ \}\)/, 'the query is uncapped');
+  // Asked where your reactions are: your write relays, as well as the panel's own.
+  assert.match(fnSrc, /await ownWriteRelays\(a\.pubkey\)/, 'your write relays are not asked');
 });
 
 // ---- reacting ------------------------------------------------------------------------

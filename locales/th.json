@@ -2404,5 +2404,6 @@
   "Copy article address": "คัดลอกที่อยู่บทความ",
   "Copy recipe address": "คัดลอกที่อยู่สูตรอาหาร",
   "Zapping…": "กำลัง Zap…",
-  "You zapped this": "คุณ Zap รายการนี้แล้ว"
+  "You zapped this": "คุณ Zap รายการนี้แล้ว",
+  "You zapped this {{count}} sat_other": "คุณ Zap รายการนี้แล้ว {{count}} sats"
 }

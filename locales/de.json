@@ -2488,5 +2488,7 @@
   "Copy article address": "Artikeladresse kopieren",
   "Copy recipe address": "Rezeptadresse kopieren",
   "Zapping…": "Zap wird gesendet…",
-  "You zapped this": "Du hast das gezappt"
+  "You zapped this": "Du hast das gezappt",
+  "You zapped this {{count}} sat_one": "Du hast das mit {{count}} Sat gezappt",
+  "You zapped this {{count}} sat_other": "Du hast das mit {{count}} Sats gezappt"
 }

@@ -2656,5 +2656,9 @@
   "Copy article address": "Копировать адрес",
   "Copy recipe address": "Копировать адрес",
   "Zapping…": "Отправка zap…",
-  "You zapped this": "Вы уже отправили zap"
+  "You zapped this": "Вы уже отправили zap",
+  "You zapped this {{count}} sat_few": "Вы уже отправили zap: {{count}} sats",
+  "You zapped this {{count}} sat_many": "Вы уже отправили zap: {{count}} sats",
+  "You zapped this {{count}} sat_one": "Вы уже отправили zap: {{count}} sats",
+  "You zapped this {{count}} sat_other": "Вы уже отправили zap: {{count}} sats"
 }

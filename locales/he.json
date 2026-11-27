@@ -2572,5 +2572,8 @@
   "Copy article address": "העתקת כתובת המאמר",
   "Copy recipe address": "העתקת כתובת המתכון",
   "Zapping…": "שליחת Zap…",
-  "You zapped this": "שלחת לזה Zap"
+  "You zapped this": "שלחת לזה Zap",
+  "You zapped this {{count}} sat_one": "שלחת לזה Zap של {{count}} sats",
+  "You zapped this {{count}} sat_two": "שלחת לזה Zap של {{count}} sats",
+  "You zapped this {{count}} sat_other": "שלחת לזה Zap של {{count}} sats"
 }

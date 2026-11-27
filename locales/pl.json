@@ -2656,5 +2656,9 @@
   "Copy article address": "Kopiuj adres",
   "Copy recipe address": "Kopiuj adres",
   "Zapping…": "Wysyłanie zapa…",
-  "You zapped this": "Wysłano już zapa"
+  "You zapped this": "Wysłano już zapa",
+  "You zapped this {{count}} sat_few": "Wysłano już zapa: {{count}} sats",
+  "You zapped this {{count}} sat_many": "Wysłano już zapa: {{count}} sats",
+  "You zapped this {{count}} sat_one": "Wysłano już zapa: {{count}} sats",
+  "You zapped this {{count}} sat_other": "Wysłano już zapa: {{count}} sats"
 }

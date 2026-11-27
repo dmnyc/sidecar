@@ -2404,5 +2404,6 @@
   "Copy article address": "复制文章地址",
   "Copy recipe address": "复制食谱地址",
   "Zapping…": "正在 zap…",
-  "You zapped this": "你已 zap 过这条"
+  "You zapped this": "你已 zap 过这条",
+  "You zapped this {{count}} sat_other": "你已 zap 过这条 {{count}} sats"
 }

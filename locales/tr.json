@@ -2488,5 +2488,7 @@
   "Copy article address": "Makale adresini kopyala",
   "Copy recipe address": "Tarif adresini kopyala",
   "Zapping…": "Zap gönderiliyor…",
-  "You zapped this": "Buna zap gönderdin"
+  "You zapped this": "Buna zap gönderdin",
+  "You zapped this {{count}} sat_one": "Buna {{count}} sat zap gönderdin",
+  "You zapped this {{count}} sat_other": "Buna {{count}} sat zap gönderdin"
 }

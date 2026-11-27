@@ -2488,5 +2488,7 @@
   "Copy article address": "مضمون کا پتا کاپی کریں",
   "Copy recipe address": "ترکیب کا پتا کاپی کریں",
   "Zapping…": "Zap کیا جا رہا ہے…",
-  "You zapped this": "آپ نے اسے Zap کیا ہے"
+  "You zapped this": "آپ نے اسے Zap کیا ہے",
+  "You zapped this {{count}} sat_one": "آپ نے اسے {{count}} sats Zap کیا ہے",
+  "You zapped this {{count}} sat_other": "آپ نے اسے {{count}} sats Zap کیا ہے"
 }
