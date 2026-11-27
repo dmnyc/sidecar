@@ -2488,5 +2488,7 @@
   "Copy article address": "کپی نشانی مقاله",
   "Copy recipe address": "کپی نشانی دستور پخت",
   "Zapping…": "در حال Zap کردن…",
-  "You zapped this": "این را Zap کرده‌اید"
+  "You zapped this": "این را Zap کرده‌اید",
+  "You zapped this {{count}} sat_one": "این را با {{count}} sats Zap کرده‌اید",
+  "You zapped this {{count}} sat_other": "این را با {{count}} sats Zap کرده‌اید"
 }

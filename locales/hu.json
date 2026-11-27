@@ -2488,5 +2488,7 @@
   "Copy article address": "Cím másolása",
   "Copy recipe address": "Cím másolása",
   "Zapping…": "Zap küldése…",
-  "You zapped this": "Ezt már zappelted"
+  "You zapped this": "Ezt már zappelted",
+  "You zapped this {{count}} sat_one": "Ezt már {{count}} sattal zappelted",
+  "You zapped this {{count}} sat_other": "Ezt már {{count}} sattal zappelted"
 }

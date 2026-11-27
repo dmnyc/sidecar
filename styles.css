@@ -6488,6 +6488,12 @@ html:has(#view-main:not(.hidden) > #relax-status:not(.hidden)) .relax-status-lis
 .notif-act.zapping:disabled, .peek-bolt.zapping:disabled { opacity: 1; cursor: progress; color: var(--gold); }
 .notif-act.zapping, .peek-bolt.zapping { animation: balance-pulse 1.2s ease-in-out infinite; }
 .notif-act.zapped { color: var(--gold); }
+/* With the amount you zapped beside the bolt: the button widens to hold it, rather than
+   the number shrinking to fit a 30px square. */
+.notif-act.has-amt { width: auto; min-width: 30px; padding-inline: 7px 8px; gap: 4px; }
+.notif-act .zap-amt { font-size: 12px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The heart once you have reacted to the note, from this panel or another client. */
+.notif-act.reacted { color: var(--gold); }
 @media (prefers-reduced-motion: reduce) { .notif-act.zapping, .peek-bolt.zapping { animation: none; } }
 html.reduce-balance-motion .notif-act.zapping,
 html.reduce-balance-motion .peek-bolt.zapping { animation: none; }

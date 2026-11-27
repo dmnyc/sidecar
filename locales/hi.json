@@ -2488,5 +2488,7 @@
   "Copy article address": "लेख का पता कॉपी करें",
   "Copy recipe address": "रेसिपी का पता कॉपी करें",
   "Zapping…": "ज़ैप किया जा रहा है…",
-  "You zapped this": "आपने इसे ज़ैप किया है"
+  "You zapped this": "आपने इसे ज़ैप किया है",
+  "You zapped this {{count}} sat_one": "आपने इसे {{count}} sats ज़ैप किए हैं",
+  "You zapped this {{count}} sat_other": "आपने इसे {{count}} sats ज़ैप किए हैं"
 }

@@ -2404,5 +2404,6 @@
   "Copy article address": "글 주소 복사",
   "Copy recipe address": "레시피 주소 복사",
   "Zapping…": "Zap 보내는 중…",
-  "You zapped this": "Zap을 보냈습니다"
+  "You zapped this": "Zap을 보냈습니다",
+  "You zapped this {{count}} sat_other": "{{count}} sats Zap을 보냈습니다"
 }

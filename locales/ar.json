@@ -2824,5 +2824,11 @@
   "Copy article address": "نسخ عنوان المقالة",
   "Copy recipe address": "نسخ عنوان الوصفة",
   "Zapping…": "جارٍ إرسال Zap…",
-  "You zapped this": "أرسلت Zap لهذا"
+  "You zapped this": "أرسلت Zap لهذا",
+  "You zapped this {{count}} sat_few": "أرسلت Zap لهذا: {{count}} sats",
+  "You zapped this {{count}} sat_many": "أرسلت Zap لهذا: {{count}} sats",
+  "You zapped this {{count}} sat_one": "أرسلت Zap لهذا: {{count}} sats",
+  "You zapped this {{count}} sat_two": "أرسلت Zap لهذا: {{count}} sats",
+  "You zapped this {{count}} sat_zero": "أرسلت Zap لهذا: {{count}} sats",
+  "You zapped this {{count}} sat_other": "أرسلت Zap لهذا: {{count}} sats"
 }

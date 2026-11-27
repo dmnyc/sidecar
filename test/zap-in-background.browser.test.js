@@ -35,6 +35,27 @@ async function setUp(x, callbacks, nwc) {
     const real = window.fetch.bind(window);
     const how = ${JSON.stringify(callbacks)};
     const json = (o) => Promise.resolve(new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json' } }));
+    // A well-formed 21-sat invoice, a different one each time as a real provider's would be:
+    // the amount a note was zapped is read back from the invoices paid.
+    let seq = 0;
+    const invoice = () => {
+      const C = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l', hrp = 'lnbc210n';
+      let ts = 1700000000 + (++seq);
+      const words = [];
+      for (let i = 0; i < 7; i++) { words.unshift(ts % 32); ts = Math.floor(ts / 32); }
+      for (let i = 0; i < 104; i++) words.push(0);
+      const G = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+      let chk = 1;
+      const step = (v) => { const top = chk >>> 25; chk = ((chk & 0x1ffffff) << 5) ^ v; for (let i = 0; i < 5; i++) if ((top >>> i) & 1) chk ^= G[i]; };
+      for (const c of hrp) step(c.charCodeAt(0) >>> 5);
+      step(0);
+      for (const c of hrp) step(c.charCodeAt(0) & 31);
+      for (const w of words) step(w);
+      for (let i = 0; i < 6; i++) step(0);
+      chk ^= 1;
+      for (let i = 0; i < 6; i++) words.push((chk >>> (5 * (5 - i))) & 31);
+      return hrp + '1' + words.map((w) => C[w]).join('');
+    };
     window.fetch = (url, init) => {
       const u = new URL(String(url));
       if (u.hostname !== 'zap.test') return real(url, init);
@@ -44,7 +65,7 @@ async function setUp(x, callbacks, nwc) {
       const who = u.pathname.split('/').pop();
       if (how[who] === 'refuse') return json({ status: 'ERROR', reason: 'No route to ' + who });
       if (how[who] === 'hang') return new Promise((res, rej) => init && init.signal && init.signal.addEventListener('abort', () => rej(init.signal.reason)));
-      return json({ pr: 'lnbc210n1' + 'q'.repeat(200) });
+      return json({ pr: invoice() });
     };
   })()`);
   // Open the bell until both replies are in it.
@@ -61,7 +82,7 @@ async function setUp(x, callbacks, nwc) {
 // Open a reply's zap form, wait for its address, pick 21 and press Send zap.
 const zap = (x, name) => x.evaluate(`(async () => {
   const row = [...document.querySelectorAll('#modal .notif-item')].find((r) => r.textContent.includes('Reply from ${name}'));
-  // Found by its note rather than its label, which reads "You zapped this" once it has.
+  // Found by its note rather than its label, which reads "You zapped this…" once it has.
   const form = row.querySelector('.notif-zap');
   if (form.classList.contains('hidden')) row.querySelector('.notif-act[data-zap-note]').click();
   const send = () => form.querySelector('.zap-inline button.primary');
@@ -286,7 +307,13 @@ test('THE BOLT ON A NOTE YOU ZAPPED pulses while the zap is out, and stays lit o
     await x.screenshot(require('node:path').join(require('node:os').tmpdir(), 'sidecar-zap-front.png'));
     await x.evaluate(`window.__walletRelease()`);
     await x.waitFor(`!!document.querySelector('#modal .notif-act.zapped')`, 15000);
-    assert.deepEqual(await bolt(x, 'Bea'), { zapping: false, zapped: true, disabled: false, label: 'You zapped this' });
+    assert.deepEqual(await bolt(x, 'Bea'), { zapping: false, zapped: true, disabled: false, label: 'You zapped this 21 sats' });
+    // And how much, beside the bolt, without opening the form.
+    assert.equal(await x.evaluate(`(() => {
+      const row = [...document.querySelectorAll('#modal .notif-item')].find((r) => r.textContent.includes('Reply from Bea'));
+      const a = row.querySelector('.notif-act.zapped .zap-amt');
+      return a ? a.textContent : null;
+    })()`), '21', 'the bolt does not say how much was zapped');
     // The burst, on Bea's bolt only, taking no taps, and gone once it has played.
     const burst = await x.evaluate(`(() => {
       const all = [...document.querySelectorAll('#modal .zap-burst')];
@@ -328,7 +355,7 @@ test('THE BOLT ON A NOTE YOU ZAPPED pulses while the zap is out, and stays lit o
       const h = row.querySelector('.notif-zap .zap-done-hint');
       return !row.querySelector('.notif-zap').classList.contains('hidden') && h && !h.classList.contains('hidden') ? h.textContent : null;
     })()`);
-    assert.equal(hint, 'You zapped this');
+    assert.equal(hint, 'You zapped this 21 sats');
 
     // A second zap, with Reduce motion on: it lands, and plays no burst.
     await x.evaluate(`document.documentElement.classList.add('reduce-balance-motion')`);
@@ -339,6 +366,8 @@ test('THE BOLT ON A NOTE YOU ZAPPED pulses while the zap is out, and stays lit o
     await x.waitFor(`!!document.querySelector('#modal .notif-act.zapped')`, 15000);
     assert.equal(await x.evaluate(`document.querySelectorAll('.zap-burst').length`), 0, 'a burst under Reduce motion');
     await x.evaluate(`document.documentElement.classList.remove('reduce-balance-motion')`);
+    // Two zaps of the note, and the bolt says what they came to.
+    assert.equal((await bolt(x, 'Bea')).label, 'You zapped this 42 sats');
 
     // A new bell remembers it, and so does a new panel, which reads it from what was paid.
     await reopenBell(x, 'Bea');
@@ -347,6 +376,16 @@ test('THE BOLT ON A NOTE YOU ZAPPED pulses while the zap is out, and stays lit o
     await reopenBell(x, 'Bea');
     await x.waitFor(`!!document.querySelector('#modal .notif-act.zapped')`, 8000).catch(() => {});
     assert.equal((await bolt(x, 'Bea')).zapped, true, 'forgotten when the panel was opened again');
+    // The amount too, read back from the invoices paid, and the form's line says it from
+    // the start, though the bolt was lit before the form was in the row.
+    const reread = await x.evaluate(`(() => {
+      const row = [...document.querySelectorAll('#modal .notif-item')].find((r) => r.textContent.includes('Reply from Bea'));
+      const amt = row.querySelector('.notif-act.zapped .zap-amt');
+      row.querySelector('.notif-act[data-zap-note]').click();
+      const h = row.querySelector('.notif-zap .zap-done-hint');
+      return { amt: amt ? amt.textContent : null, hint: h && !h.classList.contains('hidden') ? h.textContent : null };
+    })()`);
+    assert.deepEqual(reread, { amt: '42', hint: 'You zapped this 42 sats' }, 'the amount was not read back, or the form does not say it');
     assert.equal((await bolt(x, 'Cal')).zapped, false);
     assert.deepEqual(x.errors, []);
   } finally { x.close(); }

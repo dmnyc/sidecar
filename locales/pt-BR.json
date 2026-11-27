@@ -2572,5 +2572,8 @@
   "Copy article address": "Copiar endereço",
   "Copy recipe address": "Copiar endereço",
   "Zapping…": "Enviando zap…",
-  "You zapped this": "Você já deu zap nisto"
+  "You zapped this": "Você já deu zap nisto",
+  "You zapped this {{count}} sat_one": "Você já deu zap de {{count}} sat nisto",
+  "You zapped this {{count}} sat_other": "Você já deu {{count}} sats em zap nisto",
+  "You zapped this {{count}} sat_many": "Você já deu {{count}} sats em zap nisto"
 }
