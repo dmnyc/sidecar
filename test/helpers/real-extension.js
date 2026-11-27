@@ -319,6 +319,8 @@ async function startExtension({ relayDelayMs = 0, settings = {}, bare = false, c
       recordTabs: () => evaluate(`(() => { window.__calls = []; for (const [o, n] of [[chrome.tabs, 'create'], [chrome.tabs, 'update'], [chrome.tabs, 'query'], [chrome.windows, 'update']]) { if (o[n].__wrapped) continue; const orig = o[n].bind(o); const w = (...a) => { __calls.push({ call: n, args: a.filter((x) => typeof x !== 'function') }); return orig(...a); }; w.__wrapped = true; o[n] = w; } })()`),
       calls: () => evaluate('JSON.parse(JSON.stringify(window.__calls || []))'),
       clearCalls: () => evaluate('window.__calls = []'),
+      // The panel brought to the front, as it is when you use it: a hidden page's timers are held back.
+      front: () => chrome.send('Page.bringToFront', {}, session.sessionId),
       // A picture of the panel at its real width, as a PNG file: for looking at a change where it is seen.
       screenshot: async (file, { width = 360, height = 780 } = {}) => {
         await chrome.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 2, mobile: false }, session.sessionId);
