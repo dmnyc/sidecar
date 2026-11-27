@@ -66,7 +66,7 @@ function writeHarness({ listTags, followListCache = null, prior } = {}) {
   };
   if (prior !== undefined) deps.followCountCache.set(PK, { v: prior, at: Date.now() });
   // eslint-disable-next-line no-new-func
-  const writeFollow = new Function(...Object.keys(deps), `${liftFn('async function writeFollow(')}; return writeFollow;`)(...Object.values(deps));
+  const writeFollow = new Function(...Object.keys(deps), `${liftFn('async function signRemoval(')}; ${liftFn('async function writeFollow(')}; return writeFollow;`)(...Object.values(deps));
   return { writeFollow, cache: deps.followCountCache, repaints };
 }
 

@@ -8211,6 +8211,29 @@
   const addPrivateMute = (pubkey, tag) => changeMute(pubkey, tag, false);
   const removeMute = (pubkey, tag) => changeMute(pubkey, tag, true);
 
+  // Sign a follow or mute list that takes ONE person out, the one the user tapped.
+  //
+  // The worker refuses to sign a list that ends up empty (replaceable-baseline.js), because an
+  // empty write after a bad read is how follow lists get wiped. Taking out the last person you
+  // follow or have muted also ends up empty, and was refused with no way through: the button
+  // went back and a toast said "Removes the 1 account you follow."
+  //
+  // Let through only when the guard's own record agrees the list held exactly that one: it says
+  // the list is emptied from 1, and the list just read held one public person, the one removed.
+  // A guard that remembers more than one is the bad-read case, and that refusal stands.
+  async function signRemoval(pubkey, event, list, removed) {
+    const sign = (confirmedDestructive) => call({ type: 'SIDECAR_OWNER_SIGN', expectedPubkey: pubkey, event, confirmedDestructive });
+    try {
+      return await sign(false);
+    } catch (e) {
+      const f = e && e.destructive;
+      const people = ((list && list.tags) || []).filter((x) => Array.isArray(x) && x[0] === 'p' && typeof x[1] === 'string');
+      const onlyThem = people.length === 1 && people[0][1].toLowerCase() === String(removed).toLowerCase();
+      if (f && f.type === 'emptied' && f.from === 1 && f.to === 0 && onlyThem) return sign(true);
+      throw e;
+    }
+  }
+
   async function writeMute(pubkey, tag, remove) {
     if (!pubkey || state?.activePubkey !== pubkey) throw new Error(t('Switch back to this account first.'));
     const relays = await listRelays(pubkey);
@@ -8242,17 +8265,17 @@
         const next = remove ? hidden.filter((x) => !same(x)) : [...hidden, tag];
         content = await call({ type: 'SIDECAR_OWNER_ENCRYPT', nip, plaintext: JSON.stringify(next), expectedPubkey: pubkey });
       }
-      const signed = await call({
-        type: 'SIDECAR_OWNER_SIGN',
-        expectedPubkey: pubkey,
-        event: {
-          kind: 10000,
-          // Newer than what it replaces even within the same second.
-          created_at: Math.max(Math.floor(Date.now() / 1000), list ? list.created_at + 1 : 0),
-          tags: list ? list.tags.filter((x) => !(remove && same(x))).map((x) => x.slice()) : [],
-          content,
-        },
-      });
+      const event = {
+        kind: 10000,
+        // Newer than what it replaces even within the same second.
+        created_at: Math.max(Math.floor(Date.now() / 1000), list ? list.created_at + 1 : 0),
+        tags: list ? list.tags.filter((x) => !(remove && same(x))).map((x) => x.slice()) : [],
+        content,
+      };
+      // Unmuting the last person on the public part empties it: see signRemoval.
+      const signed = remove && inPublic && tag[0] === 'p'
+        ? await signRemoval(pubkey, event, list, tag[1])
+        : await call({ type: 'SIDECAR_OWNER_SIGN', expectedPubkey: pubkey, event });
       await publishSigned(signed);
       seedBaseline(pubkey, signed);
       changed = true;
@@ -8313,17 +8336,17 @@
     if (remove ? present : !present) {
       tags = tags.filter((x) => !(remove && isTarget(x)));
       if (!remove) tags.push(['p', target]);
-      const signed = await call({
-        type: 'SIDECAR_OWNER_SIGN',
-        expectedPubkey: pubkey,
-        event: {
-          kind: 3,
-          // Newer than what it replaces even within the same second.
-          created_at: Math.max(Math.floor(Date.now() / 1000), list ? list.created_at + 1 : 0),
-          tags,
-          content: list ? list.content : '',
-        },
-      });
+      const event = {
+        kind: 3,
+        // Newer than what it replaces even within the same second.
+        created_at: Math.max(Math.floor(Date.now() / 1000), list ? list.created_at + 1 : 0),
+        tags,
+        content: list ? list.content : '',
+      };
+      // Unfollowing the last person you follow empties the list: see signRemoval.
+      const signed = remove
+        ? await signRemoval(pubkey, event, list, target)
+        : await call({ type: 'SIDECAR_OWNER_SIGN', expectedPubkey: pubkey, event });
       await publishSigned(signed);
       seedBaseline(pubkey, signed);
       changed = true;
