@@ -1199,15 +1199,25 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '12-10': [
     { year: 1901, text: "The first Nobel Prizes were awarded, five years to the day after Alfred Nobel died." },
+    // 1.19.1. The Universal Declaration of Human Rights article ("on 10 December 1948 at the Palais de Chaillot in Paris, France").
+    { year: 1948, text: "The United Nations adopted the Universal Declaration of Human Rights, meeting in Paris." }, // Wikipedia, Universal Declaration of Human Rights
   ],
   '12-11': [
     { year: 1936, text: "King Edward VIII abdicated the British throne so he could marry Wallis Simpson." }, // radio broadcast
+    // 1.19.1. The UNICEF article ("created on 11 December 1946", "to provide immediate relief to children and mothers affected by World War II").
+    { year: 1946, text: "UNICEF was founded to bring emergency relief to children and mothers after the Second World War." }, // Wikipedia, UNICEF
+    // 1.19.1. The Indiana article ("Indiana was admitted to the Union as the 19th state on December 11, 1816").
+    { year: 1816, text: "Indiana was admitted to the Union as the nineteenth state." }, // Wikipedia, Indiana
   ],
   '12-12': [
     { year: 1901, text: "Guglielmo Marconi heard three faint clicks in Newfoundland, sent by radio from Cornwall." }, // the letter S, Signal Hill
+    // 1.19.1. The Pennsylvania article ("On December 12, 1787, Pennsylvania was the second state to ratify the U.S. Constitution after Delaware", "five days after").
+    { year: 1787, text: "Pennsylvania ratified the Constitution, the second state to do so, five days after Delaware." }, // Wikipedia, Pennsylvania
   ],
   '12-13': [
     { year: 1577, text: "Francis Drake set sail from Plymouth on an expedition that would circle the globe." }, // Pelican
+    // 1.19.1. The Abel Tasman article ("On 13 December 1642 Tasman and his crew became the first Europeans to reach New Zealand").
+    { year: 1642, text: "Abel Tasman sighted New Zealand, the first European known to have seen it." }, // Wikipedia, Abel Tasman
   ],
   '12-14': [
     { year: 1911, text: "Roald Amundsen reached the South Pole, five weeks ahead of Scott." },
@@ -1228,6 +1238,8 @@ window.SIDECAR_ON_THIS_DAY = {
   ],
   '12-19': [
     { year: 1843, text: "Charles Dickens published A Christmas Carol. He paid for the printing himself." }, // London
+    // 1.19.1. Wikipedia's December 19 page ("George Washington's Continental Army goes into winter quarters at Valley Forge, Pennsylvania"), and the Valley Forge article ("from December 19, 1777, to June 19, 1778").
+    { year: 1777, text: "Washington's Continental Army went into winter quarters at Valley Forge, Pennsylvania." }, // Wikipedia, December 19
   ],
   '12-20': [
     { year: 1803, text: "The United States formally took control of the Louisiana Purchase from France." }, // New Orleans

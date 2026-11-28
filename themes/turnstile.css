@@ -296,6 +296,9 @@
 }
 [data-theme="turnstile"] .topbar .icon-btn,
 [data-theme="turnstile"] .compose-topbar .icon-btn { color: #F1EBDA; }
+/* The account caret beside the avatar is cream like the tabs, not the muted ink the white
+   plates use, which on the tablet measured 1.8:1 (9.3:1 now). */
+[data-theme="turnstile"] .topbar .chip-chev { color: #C9C0A8; }
 /* The focus ring on the dark tablet: the bar's brass band, not the green ink (1.9:1 here). */
 [data-theme="turnstile"] .topbar,
 [data-theme="turnstile"] .compose-topbar { --focus: #D8C690; }
@@ -372,12 +375,14 @@
   background: repeating-linear-gradient(90deg, #F2D27A 0 4px, #2A2621 4px 5px);
   box-shadow: 0 0 0 1px #2A2621;
 }
-/* The other tab rows are white enamel strips edged in the ink, over the wall. */
+/* The other tab rows (the composer's Write and Preview, Activity's, every sheet's) are a
+   white enamel band with no edge of its own, only the ink rule the tab marker runs on, so
+   a row of tabs heads what is under it rather than sitting boxed above it. */
 [data-theme="turnstile"] .modal-tabs,
 [data-theme="turnstile"] .compose-tabs {
   background: #FAF8F2;
-  box-shadow: inset 0 0 0 1px rgba(21, 26, 30, 0.35);
-  border-bottom: none;
+  box-shadow: none;
+  border-bottom: 1px solid #151A1E;
   padding: 0 4px;
 }
 /* EACH VIEW IS A DIFFERENT STATION, and stations set their names in their own colors: the
@@ -507,12 +512,8 @@
 }
 [data-theme="turnstile"] .list.flat .item { box-shadow: none; border-bottom: 1px solid rgba(21, 26, 30, 0.16); border-radius: 0; }
 [data-theme="turnstile"] .list.flat .item:last-child { border-bottom: none; }
-/* A tab row on a sheet (the bell, the Library, Receive) heads what is under it rather than
-   being an enamel strip of its own: no edge, only the ink rule the tab marker runs on. The
-   poll list beneath the bell's tabs is the sheet's own list, not a framed panel, so it
-   drops its edge too. */
-[data-theme="turnstile"] #modal .modal-tabs,
-[data-theme="turnstile"] #modal .compose-tabs { box-shadow: none; border-bottom: 1px solid #151A1E; }
+/* The poll list beneath the bell's tabs is the sheet's own list, not a framed panel, so it
+   drops its edge. */
 [data-theme="turnstile"] .modal-tabs ~ .notif-scroll > .list.flat { border: none; box-shadow: none; }
 [data-theme="turnstile"] .item.item-active,
 [data-theme="turnstile"] .item.item-pending {
