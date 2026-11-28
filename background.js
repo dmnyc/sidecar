@@ -4376,6 +4376,9 @@ async function handleControl(message, sender, sendResponse) {
         else result = await KS.importSecret(message.secret, message.name);
         break;
       case 'SIDECAR_REMOVE_ACCOUNT': {
+        // Removing deletes the only copy of the key on this device, so it takes the PIN, as
+        // revealing the key does. Checked here, not in the sheet, so no caller can skip it.
+        await stepUpPin(message.pin);
         result = await KS.removeAccount(message.pubkey);
         await PERMS.clearAccount(message.pubkey);
         await BUDGETS.clearAccount(message.pubkey);
