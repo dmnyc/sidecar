@@ -15232,7 +15232,9 @@
   // Follow list cache for @mention autocomplete (invalidated on account switch)
   let followListCache = null;
   let followListPubkey = null;
-  let followListInflight = null; // dedupe concurrent loads (rapid @-keystrokes)
+  // One load per account, deduping rapid @-keystrokes. Keyed by account: a single shared
+  // load handed one account's follows to the next after a switch.
+  const followListInflight = new Map();
 
   // Seed the destructive-overwrite baseline (replaceable-baseline.js) from a kind
   // 0/3/10000 the panel already fetched off relays, so the warning works on a fresh
@@ -15459,29 +15461,37 @@
     });
   }
 
+  // PINNED TO THE ACCOUNT IT STARTED FOR. It used to read the active account afresh after
+  // each await and file the result under whoever was active when it finished, so a switch
+  // mid-load asked for the new account's list from the old one's relays, or cached the old
+  // account's follows as the new one's: search, @mentions and the follow checks then worked
+  // from someone else's list. Now every step uses `pubkey`, and the result is cached only if
+  // that account is still the one on screen.
   async function getFollowList() {
-    if (followListCache && followListPubkey === state.activePubkey) return followListCache;
-    if (followListInflight) return followListInflight; // a load is already running
-    if (!state.activePubkey) return [];
-    followListInflight = (async () => {
+    const pubkey = state.activePubkey;
+    if (!pubkey) return [];
+    if (followListCache && followListPubkey === pubkey) return followListCache;
+    if (followListInflight.has(pubkey)) return followListInflight.get(pubkey); // a load is already running
+    const load = (async () => {
     try {
-      const relays = await readRelayUrls(state.activePubkey);
+      const relays = await readRelayUrls(pubkey);
       // maxWait bounds each relay's own connect+EOSE wait individually (they
       // run in parallel) instead of racing the WHOLE fetch against an external
       // timeout — the previous approach discarded every result the moment the
       // race lost, even if most relays had already answered, so one slow relay
       // could wipe the entire follow list down to zero. Not cached on failure,
       // so the next @-mention attempt retries instead of being stuck all session.
-      const ev = await poolGet(relays, { kinds: [3], authors: [state.activePubkey] }, { maxWait: 8000 });
+      const ev = await poolGet(relays, { kinds: [3], authors: [pubkey] }, { maxWait: 8000 });
       if (!ev) return [];
+      const keep = (list) => {
+        if (state.activePubkey === pubkey) { followListPubkey = pubkey; followListCache = list; }
+        return list;
+      };
       const pubkeys = (ev.tags || [])
         .filter((t) => t[0] === 'p')
         .map((t) => t[1])
         .filter((pk) => pk && pk.length === 64);
-      if (!pubkeys.length) {
-        followListPubkey = state.activePubkey;
-        return (followListCache = []);
-      }
+      if (!pubkeys.length) return keep([]);
       const profiles = await poolQuerySync(relays, { kinds: [0], authors: pubkeys }, { maxWait: 10000 });
       const byPk = {};
       (profiles || []).forEach((p) => {
@@ -15508,19 +15518,19 @@
         }
         return { pubkey: pk, name, picture, aka };
       });
-      followListPubkey = state.activePubkey;
-      followListCache = list;
+      keep(list);
       // Background: fill names the relays didn't return from the aggregator, so
       // those follows become searchable by name. Mutates the cached objects in
       // place; not awaited, so the first dropdown render stays instant.
       enrichFollowNames(list, pubkeys.filter((pk) => !byPk[pk]));
-      return followListCache;
+      return list;
     } catch (_) {
       return [];
     }
     })();
-    try { return await followListInflight; }
-    finally { followListInflight = null; }
+    followListInflight.set(pubkey, load);
+    try { return await load; }
+    finally { if (followListInflight.get(pubkey) === load) followListInflight.delete(pubkey); }
   }
 
   function npubChip(npub) {
