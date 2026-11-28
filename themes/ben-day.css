@@ -200,7 +200,9 @@
 [data-theme="ben-day"] .sk-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .profile-avatar:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .peek-avatar:not(.theme-card):not(.theme-card *),
-[data-theme="ben-day"] .upload-preview:not(.theme-card):not(.theme-card *),
+/* Not the banner: it is a rectangle of scenery, not a face, and a 50% radius drew it as an
+   ellipse. Werkstätte leaves it out the same way. */
+[data-theme="ben-day"] .upload-preview:not(.banner):not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .chip-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .acct-row-av:not(.theme-card):not(.theme-card *),
 [data-theme="ben-day"] .ip-av:not(.theme-card):not(.theme-card *),
