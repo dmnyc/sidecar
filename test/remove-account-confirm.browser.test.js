@@ -33,6 +33,8 @@ test('the background removes nothing without the PIN, or with a wrong one', opts
 
 test('Remove account is one sheet: one PIN for the key sheet and for removing, and Remove its own press', opts, async (t) => {
   await withExtension(t, async (x) => {
+    await x.reload();
+    await x.waitFor(`!!document.querySelector('.item-actions [title="Account options"]')`, 15000);
     await x.evaluate(`document.querySelector('.item-actions [title="Account options"]').click()`);
     await x.waitFor(`[...document.querySelectorAll('#modal .menu-item')].some((b) => b.textContent.includes('Remove account'))`, 10000);
     await x.evaluate(`[...document.querySelectorAll('#modal .menu-item')].find((b) => b.textContent.includes('Remove account')).click()`);
