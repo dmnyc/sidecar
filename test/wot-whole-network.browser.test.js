@@ -52,8 +52,12 @@ test('a relay that stays quiet on the follow lists: nothing is kept, nothing is 
     await setUp(x, quiet);
     // The bar comes up while the build runs, with the shared spinner.
     let barSeen = false;
-    for (let i = 0; i < 60 && !barSeen; i++) { barSeen = (await x.evaluate(bar('network-status'))).startsWith('Working out your network'); if (!barSeen) await sleep(250); }
+    for (let i = 0; i < 60 && !barSeen; i++) { barSeen = (await x.evaluate(bar('network-status'))).startsWith('Building network'); if (!barSeen) await sleep(250); }
     const spinner = barSeen && await x.evaluate(`!!document.querySelector('#network-status .toast-spin')`);
+    // The line stays short; the count of follows read goes in the capsule beside it.
+    let capsule = '';
+    for (let i = 0; i < 40 && !capsule; i++) { capsule = await x.evaluate(`(() => { const c = document.querySelector('#network-status .network-status-count'); return c && !c.classList.contains('hidden') ? c.textContent : ''; })()`); if (!capsule) await sleep(250); }
+    const barLine = await x.evaluate(`(document.querySelector('#network-status .network-status-line') || {}).textContent || ''`);
     // The build ends (8s, then a 16s second ask), read from Settings' own line.
     await x.waitFor(`(() => { const t = (document.getElementById('wot-status') || {}).textContent || ''; return t && !t.startsWith('Working out'); })()`, 60000);
     await sleep(500);
@@ -65,6 +69,8 @@ test('a relay that stays quiet on the follow lists: nothing is kept, nothing is 
     // The bar showed the work, and ends saying the network could not be read.
     assert.ok(barSeen, 'no network bar while the build ran');
     assert.ok(spinner, 'no spinner in the bar');
+    assert.match(capsule, /^\d+\/12$/, 'the capsule reads ' + JSON.stringify(capsule));
+    assert.equal(barLine, 'Building network…');
     assert.ok((await x.evaluate(bar('network-status'))).startsWith('Couldn’t reach your relays'), 'the bar did not say the network could not be read');
     assert.deepEqual(x.errors, []);
   } finally { quiet.close(); x.close(); }

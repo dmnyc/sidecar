@@ -4628,14 +4628,20 @@
       if (!show) continue;
       const glyph = bar.querySelector('.network-status-glyph');
       const line = bar.querySelector('.network-status-line');
+      const count = bar.querySelector('.network-status-count');
       glyph.className = 'payment-status-glyph network-status-glyph';
       glyph.textContent = '';
       if (building) {
         glyph.append(h('span', { className: 'toast-spin' })); // the shared spinner idiom
-        line.textContent = _wotTotal
-          ? t('Working out your network… {{done}} of {{total}} follows.', { done: fmtSats(_wotDone), total: fmtSats(_wotTotal) })
-          : t('Working out your network…');
+        // The count goes in the capsule, so the line stays short in every language.
+        line.textContent = t('Building network…');
+        // Figures bold, the slash plain and spaced, so the two numbers read apart.
+        count.textContent = '';
+        if (_wotTotal) count.append(h('b', { textContent: fmtSats(_wotDone) }), h('span', { className: 'network-status-of', textContent: '/' }), h('b', { textContent: fmtSats(_wotTotal) }));
+        count.classList.toggle('hidden', !_wotTotal);
       } else {
+        count.textContent = '';
+        count.classList.add('hidden');
         glyph.append(icon(_wotBarResult.ok ? 'check' : 'alert'));
         if (!_wotBarResult.ok) glyph.classList.add('bad');
         line.textContent = _wotBarResult.line;

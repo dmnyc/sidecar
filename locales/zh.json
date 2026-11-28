@@ -2411,5 +2411,6 @@
   "Use https": "使用 https",
   "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}} 个链接使用的是 http，而不是 https。再次点按“{{action}}”即可按原样发送。",
   "Use https for {{count}} link_other": "为 {{count}} 个链接改用 https",
-  "and {{count}} more_other": "还有 {{count}} 个"
+  "and {{count}} more_other": "还有 {{count}} 个",
+  "Building network…": "正在构建网络……"
 }

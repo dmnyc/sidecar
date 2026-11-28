@@ -2678,5 +2678,6 @@
   "and {{count}} more_one": "и ещё {{count}}",
   "and {{count}} more_few": "и ещё {{count}}",
   "and {{count}} more_many": "и ещё {{count}}",
-  "and {{count}} more_other": "и ещё {{count}}"
+  "and {{count}} more_other": "и ещё {{count}}",
+  "Building network…": "Строим сеть…"
 }

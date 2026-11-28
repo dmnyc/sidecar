@@ -2411,5 +2411,6 @@
   "Use https": "https 사용",
   "This link uses http, not https. Press {{action}} again to send it as is._other": "링크 {{count}}개가 https가 아닌 http를 사용합니다. 이대로 보내려면 ‘{{action}}’을(를) 한 번 더 탭하세요.",
   "Use https for {{count}} link_other": "링크 {{count}}개에 https 사용",
-  "and {{count}} more_other": "외 {{count}}개"
+  "and {{count}} more_other": "외 {{count}}개",
+  "Building network…": "네트워크 구성 중…"
 }

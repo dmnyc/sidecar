@@ -2411,5 +2411,6 @@
   "Use https": "httpsを使う",
   "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}}件のリンクがhttpsではなくhttpを使っています。このまま送るには、もう一度「{{action}}」をタップしてください。",
   "Use https for {{count}} link_other": "{{count}}件のリンクにhttpsを使う",
-  "and {{count}} more_other": "ほか{{count}}件"
+  "and {{count}} more_other": "ほか{{count}}件",
+  "Building network…": "ネットワークを構築中…"
 }

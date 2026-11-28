@@ -2856,5 +2856,6 @@
   "and {{count}} more_two": "ورابطان آخران",
   "and {{count}} more_few": "و{{count}} روابط أخرى",
   "and {{count}} more_many": "و{{count}} رابطًا آخر",
-  "and {{count}} more_other": "و{{count}} رابط آخر"
+  "and {{count}} more_other": "و{{count}} رابط آخر",
+  "Building network…": "جارٍ بناء الشبكة…"
 }

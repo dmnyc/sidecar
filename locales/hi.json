@@ -2500,5 +2500,6 @@
   "Use https for {{count}} link_one": "{{count}} लिंक के लिए https इस्तेमाल करें",
   "Use https for {{count}} link_other": "{{count}} लिंक के लिए https इस्तेमाल करें",
   "and {{count}} more_one": "और {{count}}",
-  "and {{count}} more_other": "और {{count}}"
+  "and {{count}} more_other": "और {{count}}",
+  "Building network…": "नेटवर्क बनाया जा रहा है…"
 }

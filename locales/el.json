@@ -2500,5 +2500,6 @@
   "Use https for {{count}} link_one": "Χρήση https για {{count}} σύνδεσμο",
   "Use https for {{count}} link_other": "Χρήση https για {{count}} συνδέσμους",
   "and {{count}} more_one": "και {{count}} ακόμη",
-  "and {{count}} more_other": "και {{count}} ακόμη"
+  "and {{count}} more_other": "και {{count}} ακόμη",
+  "Building network…": "Υπολογισμός δικτύου…"
 }

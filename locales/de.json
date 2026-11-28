@@ -2500,5 +2500,6 @@
   "Use https for {{count}} link_one": "https für {{count}} Link verwenden",
   "Use https for {{count}} link_other": "https für {{count}} Links verwenden",
   "and {{count}} more_one": "und {{count}} weiterer",
-  "and {{count}} more_other": "und {{count}} weitere"
+  "and {{count}} more_other": "und {{count}} weitere",
+  "Building network…": "Netzwerk wird aufgebaut…"
 }
