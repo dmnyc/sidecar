@@ -114,6 +114,21 @@ test('a chunk that fails narrows the set, it does not empty it', async () => {
   assert.ok(r.expanded < follows.length, 'and the caller can see it was partial');
 });
 
+test('the progress counts every chunk asked, read or not, and only reads count as expanded', async () => {
+  // Only reads used to move it, so a build whose chunks were all failing sat at 0 of 873 for
+  // minutes and looked hung. Whether the set is whole is still told by `expanded`.
+  const follows = Array.from({ length: 4 }, (_, i) => hex('0').slice(0, 63) + String(i));
+  const seen = [];
+  const r = await W.build({
+    me: ME, follows, chunkSize: 1,
+    fetchFollowsOf: async (chunk) => { if (chunk[0] === follows[1] || chunk[0] === follows[2]) throw new Error('no relay answered'); return []; },
+    onProgress: (done, total) => seen.push(done + '/' + total),
+  });
+  assert.deepEqual(seen, ['0/4', '1/4', '2/4', '3/4', '4/4']);
+  assert.equal(r.expanded, 2);
+  assert.equal(r.follows, 4);
+});
+
 test('keys are stored truncated, and that only ever fails open', () => {
   // A collision lets a stranger through as in-network, which is the safe direction; the
   // reverse cannot happen, since a real member always matches its own prefix.
@@ -217,14 +232,17 @@ test('a set belongs to one account and expires', () => {
   // partial one: a chunk no relay answered narrows the set, and keeping that for a day left
   // the bell sorting nearly everyone outside a half-read network.
   assert.match(panel, /if \(res\.expanded < res\.follows\) \{[\s\S]*?_wotSet = null;[\s\S]*?return null;/, 'a partial set is neither kept nor sorted by');
-  assert.match(panel, /if \(!r\.answered\) throw new Error\('no relay answered'\);/, 'a chunk no relay answered must count as unread');
-  assert.match(panel, /if \(r\.silent\) throw new Error\('a relay stayed silent'\);/, 'nor one a relay stayed silent on');
+  // Each may log first (the debug trace); what matters is that it throws.
+  assert.match(panel, /if \(!answered\) (\{[^}\n]*?)?throw new Error\('no relay answered'\);/, 'a chunk no relay answered must count as unread');
+  // A relay silent on both asks is left out of the rest of the build rather than failing it
+  // (network-relays.browser.test.js runs it).
+  assert.match(panel, /for \(const u of silentTwice\) leaveOut\(u, 'silent on both asks'\);/);
 });
 
 test('the build fails open', () => {
   const fn = panel.slice(panel.indexOf('async function getWotSet(force)'));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
-  assert.match(body, /catch \(_\) \{[\s\S]*?return \(_wotSet = null\);/, 'any failure means no filter');
+  assert.match(body, /catch \((_|err)\) \{[\s\S]*?return \(_wotSet = null\);/, 'any failure means no filter');
 });
 
 test('there is a switch, and it is on by default', () => {
@@ -240,6 +258,19 @@ test('there is a switch, and it is on by default', () => {
   const notifSec = html.slice(html.indexOf('data-section="notifications"'));
   assert.match(notifSec.slice(0, notifSec.indexOf('</section>')), /id="wotfilter-toggle"/,
     'the toggle must live in the section the link opens');
+  // Titled for the network, since everything in it is about the network; the setting
+  // inside names what it sorts.
+  const secHead = notifSec.slice(0, notifSec.indexOf('settings-section-body'));
+  assert.match(secHead, /data-i18n="Your network">Your network</, 'the section is titled Your network');
+  assert.match(notifSec, /<h4 data-i18n="Notifications">Notifications<\/h4>/);
+  // Two blocks: the choice, and what the network is (its size, its build, Rebuild).
+  const sec = notifSec.slice(0, notifSec.indexOf('</section>'));
+  const statusAt = sec.indexOf('id="wot-status-block"');
+  assert.ok(statusAt > 0, 'the network has a block of its own');
+  assert.ok(sec.indexOf('id="wotfilter-toggle"') < statusAt, 'the sort stays in the first block');
+  const statusBlock = sec.slice(statusAt);
+  assert.match(statusBlock, /<h4 data-i18n="Network status">Network status<\/h4>/);
+  for (const id of ['wot-status', 'wot-progress', 'wot-rebuild']) assert.match(statusBlock, new RegExp(`id="${id}"`));
   assert.match(html, /Nothing is hidden\./, 'the copy must say so');
   // Matched loosely on purpose: what this guards is that the toggle is styled at all, not
   // that it keeps a rule to itself. Joining it to a selector list one day is not this
@@ -390,7 +421,7 @@ test('the set can be rebuilt on demand', () => {
   const fn = panel.slice(panel.indexOf('async function rebuildWot()'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /forgetWot\(\);/, 'the in-memory copy goes too');
-  assert.match(body, /chrome\.storage\.local\.remove\(WOT_STORE/, 'and the stored one');
+  assert.match(body, /wotWrite\(pubkey, null\)/, 'and the stored one, for this account only');
   assert.match(body, /getWotSet\(true\)/, 'then build it again, past the wait after a failed build');
   assert.match(html, /id="wot-rebuild"/);
 });
@@ -428,7 +459,7 @@ test('the build reports progress', () => {
   // On a large follow list this runs for a while, and a line that says "working" for that
   // long is indistinguishable from a hang.
   const wot = fs.readFileSync(path.join(ROOT, 'wot.js'), 'utf8');
-  assert.match(wot, /o\.onProgress\(expanded, follows\.length\)/, 'per chunk, from the build');
+  assert.match(wot, /o\.onProgress\(settled, follows\.length\)/, 'per chunk, from the build, read or not');
   assert.match(wot, /try \{ o\.onProgress[\s\S]{0,60}catch/, 'a throwing callback must not kill the build');
   assert.match(panel, /onProgress: \(done, total\) => \{/);
   assert.match(panel, /getElementById\('wot-progress'\)/, 'the panel drives the bar');
@@ -436,7 +467,7 @@ test('the build reports progress', () => {
   // The count is in the copy too, so the bar is not the only thing carrying it.
   assert.match(panel, /\{\{done\}\} of \{\{total\}\} follows\.', \{ done: fmtSats\(_wotDone\), total: fmtSats\(_wotTotal\) \}/);
   // Shown only while building, and reset with the rest of the state.
-  assert.match(panel, /_wotState === 'building' && _wotTotal > 0/);
+  assert.match(panel, /st === 'building' && _wotTotal > 0/);
   assert.match(panel, /_wotDone = 0;\s*\n\s*_wotTotal = 0;/);
 });
 

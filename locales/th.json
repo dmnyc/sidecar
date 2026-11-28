@@ -1704,7 +1704,6 @@
   "Literary quotes": "วรรณกรรมคัดสรร",
   "A line from a book in empty lists and while they load.": "ประโยคจากหนังสือในรายการว่างและระหว่างที่กำลังโหลด",
   "Show literary quotes": "แสดงคำคมวรรณกรรม",
-  "Your network first": "เครือข่ายของคุณก่อน",
   "Sort notifications by who you follow": "จัดเรียงการแจ้งเตือนตามคนที่คุณติดตาม",
   "Rebuild network": "สร้างเครือข่ายใหม่",
   "Posting": "การโพสต์",
@@ -2412,5 +2411,8 @@
   "This link uses http, not https. Press {{action}} again to send it as is._other": "ลิงก์ {{count}} รายการใช้ http ไม่ใช่ https แตะ “{{action}}” อีกครั้งเพื่อส่งตามเดิม",
   "Use https for {{count}} link_other": "ใช้ https กับลิงก์ {{count}} รายการ",
   "and {{count}} more_other": "และอีก {{count}} รายการ",
-  "Building network…": "กำลังสร้างเครือข่าย…"
+  "Building network…": "กำลังสร้างเครือข่าย…",
+  "Your network": "เครือข่ายของคุณ",
+  "Network status": "สถานะเครือข่าย",
+  "No answer from {{relays}}.": "ไม่มีการตอบกลับจาก {{relays}}"
 }

@@ -1704,7 +1704,6 @@
   "Literary quotes": "文学名句",
   "A line from a book in empty lists and while they load.": "在空列表中和加载期间显示书中的一句话。",
   "Show literary quotes": "显示文学名句",
-  "Your network first": "你的网络优先",
   "Sort notifications by who you follow": "按你关注的人对通知排序",
   "Rebuild network": "重建网络",
   "Posting": "发布",
@@ -2412,5 +2411,8 @@
   "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}} 个链接使用的是 http，而不是 https。再次点按“{{action}}”即可按原样发送。",
   "Use https for {{count}} link_other": "为 {{count}} 个链接改用 https",
   "and {{count}} more_other": "还有 {{count}} 个",
-  "Building network…": "正在构建网络……"
+  "Building network…": "正在构建网络……",
+  "Your network": "你的网络",
+  "Network status": "网络状态",
+  "No answer from {{relays}}.": "{{relays}} 没有响应。"
 }

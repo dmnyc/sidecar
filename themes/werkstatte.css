@@ -309,6 +309,7 @@
    The banner upload is deliberately absent: it is a rectangle of scenery, not a face. */
 [data-theme="werkstatte"] .ac-spinner:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .recv-spinner:not(.theme-card):not(.theme-card *),
+[data-theme="werkstatte"] .toast-spin:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .tx-icon:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .tx-icon.has-av img:not(.theme-card):not(.theme-card *),
 [data-theme="werkstatte"] .tx-dir:not(.theme-card):not(.theme-card *),

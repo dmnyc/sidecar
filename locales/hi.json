@@ -1765,7 +1765,6 @@
   "Literary quotes": "साहित्यिक उद्धरण",
   "A line from a book in empty lists and while they load.": "खाली सूचियों में और उनके लोड होते समय किसी किताब की एक पंक्ति।",
   "Show literary quotes": "साहित्यिक उद्धरण दिखाएँ",
-  "Your network first": "पहले आपका नेटवर्क",
   "Sort notifications by who you follow": "आप जिन्हें फ़ॉलो करते हैं उसके आधार पर सूचनाएँ क्रमबद्ध करें",
   "Rebuild network": "नेटवर्क फिर से बनाएँ",
   "Posting": "पोस्टिंग",
@@ -2501,5 +2500,8 @@
   "Use https for {{count}} link_other": "{{count}} लिंक के लिए https इस्तेमाल करें",
   "and {{count}} more_one": "और {{count}}",
   "and {{count}} more_other": "और {{count}}",
-  "Building network…": "नेटवर्क बनाया जा रहा है…"
+  "Building network…": "नेटवर्क बनाया जा रहा है…",
+  "Your network": "आपका नेटवर्क",
+  "Network status": "नेटवर्क की स्थिति",
+  "No answer from {{relays}}.": "{{relays}} से कोई जवाब नहीं।"
 }

@@ -41,7 +41,8 @@ async function setUp(x, holder) {
   await x.reload();
 }
 
-const stored = (x) => x.evaluate(`new Promise((r) => chrome.storage.local.get('sidecar_wot', (g) => r(g.sidecar_wot || null)))`);
+// The network kept for this account, if any (the store keeps one per recent account).
+const stored = (x) => x.evaluate(`new Promise((r) => chrome.storage.local.get('sidecar_wot', (g) => r((g.sidecar_wot && g.sidecar_wot.sets && g.sidecar_wot.sets[${JSON.stringify(x.me)}]) || null)))`);
 const bar = (id) => `(() => { const b = document.getElementById('${id}'); return b && !b.classList.contains('hidden') ? b.textContent.trim() : ''; })()`;
 
 test('a relay that stays quiet on the follow lists: nothing is kept, nothing is sorted, and the bar says so', opts, async (t) => {

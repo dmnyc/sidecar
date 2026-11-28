@@ -1826,7 +1826,6 @@
   "Literary quotes": "ציטוטים ספרותיים",
   "A line from a book in empty lists and while they load.": "שורה מספר ברשימות ריקות ובזמן טעינתן.",
   "Show literary quotes": "הצגת ציטוטים ספרותיים",
-  "Your network first": "הרשת שלכם קודם",
   "Sort notifications by who you follow": "מיון התראות לפי מי שאתם עוקבים אחריו",
   "Rebuild network": "בנייה מחדש של הרשת",
   "Posting": "פרסום",
@@ -2590,5 +2589,8 @@
   "and {{count}} more_one": "ועוד אחד",
   "and {{count}} more_two": "ועוד שניים",
   "and {{count}} more_other": "ועוד {{count}}",
-  "Building network…": "הרשת נבנית…"
+  "Building network…": "הרשת נבנית…",
+  "Your network": "הרשת שלכם",
+  "Network status": "מצב הרשת",
+  "No answer from {{relays}}.": "אין תשובה מ־{{relays}}."
 }

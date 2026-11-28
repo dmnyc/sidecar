@@ -1677,7 +1677,6 @@
   "Literary quotes": "Citas literarias",
   "A line from a book in empty lists and while they load.": "Una frase de un libro en listas vacías y mientras se cargan.",
   "Show literary quotes": "Mostrar citas literarias",
-  "Your network first": "Tu red primero",
   "Sort notifications by who you follow": "Ordenar notificaciones según a quién sigues",
   "Rebuild network": "Reconstruir la red",
   "Posting": "Publicación",
@@ -2590,5 +2589,8 @@
   "and {{count}} more_one": "y {{count}} más",
   "and {{count}} more_many": "y {{count}} más",
   "and {{count}} more_other": "y {{count}} más",
-  "Building network…": "Construyendo la red…"
+  "Building network…": "Construyendo la red…",
+  "Your network": "Tu red",
+  "Network status": "Estado de la red",
+  "No answer from {{relays}}.": "Sin respuesta de {{relays}}."
 }

@@ -1765,7 +1765,6 @@
   "Literary quotes": "نقل‌قول‌های ادبی",
   "A line from a book in empty lists and while they load.": "یک سطر از یک کتاب در فهرست‌های خالی و هنگام بارگیری آن‌ها.",
   "Show literary quotes": "نمایش نقل‌قول‌های ادبی",
-  "Your network first": "ابتدا شبکهٔ شما",
   "Sort notifications by who you follow": "مرتب‌سازی اعلان‌ها بر اساس افرادی که دنبال می‌کنید",
   "Rebuild network": "بازسازی شبکه",
   "Posting": "انتشار",
@@ -2501,5 +2500,8 @@
   "Use https for {{count}} link_other": "استفاده از https برای {{count}} پیوند",
   "and {{count}} more_one": "و {{count}} مورد دیگر",
   "and {{count}} more_other": "و {{count}} مورد دیگر",
-  "Building network…": "در حال ساخت شبکه…"
+  "Building network…": "در حال ساخت شبکه…",
+  "Your network": "شبکهٔ شما",
+  "Network status": "وضعیت شبکه",
+  "No answer from {{relays}}.": "پاسخی از {{relays}} نیامد."
 }

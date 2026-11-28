@@ -1765,7 +1765,6 @@
   "Literary quotes": "Irodalmi idézetek",
   "A line from a book in empty lists and while they load.": "Egy sor egy könyvből az üres listákban és betöltés közben.",
   "Show literary quotes": "Irodalmi idézetek megjelenítése",
-  "Your network first": "Előbb a saját hálózat",
   "Sort notifications by who you follow": "Értesítések rendezése a követések szerint",
   "Rebuild network": "Hálózat újraépítése",
   "Posting": "Közzététel",
@@ -2501,5 +2500,8 @@
   "Use https for {{count}} link_other": "https használata {{count}} linkhez",
   "and {{count}} more_one": "és még {{count}}",
   "and {{count}} more_other": "és még {{count}}",
-  "Building network…": "Hálózat felépítése…"
+  "Building network…": "Hálózat felépítése…",
+  "Your network": "Saját hálózat",
+  "Network status": "Hálózat állapota",
+  "No answer from {{relays}}.": "Nem válaszolt: {{relays}}."
 }

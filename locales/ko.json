@@ -1704,7 +1704,6 @@
   "Literary quotes": "문학 명언",
   "A line from a book in empty lists and while they load.": "빈 목록이나 불러오는 동안 책 속 한 줄을 보여줘요.",
   "Show literary quotes": "문학 명언 표시",
-  "Your network first": "내 네트워크 우선",
   "Sort notifications by who you follow": "팔로우하는 사람 기준으로 알림 정렬",
   "Rebuild network": "네트워크 다시 구성",
   "Posting": "게시",
@@ -2412,5 +2411,8 @@
   "This link uses http, not https. Press {{action}} again to send it as is._other": "링크 {{count}}개가 https가 아닌 http를 사용합니다. 이대로 보내려면 ‘{{action}}’을(를) 한 번 더 탭하세요.",
   "Use https for {{count}} link_other": "링크 {{count}}개에 https 사용",
   "and {{count}} more_other": "외 {{count}}개",
-  "Building network…": "네트워크 구성 중…"
+  "Building network…": "네트워크 구성 중…",
+  "Your network": "내 네트워크",
+  "Network status": "네트워크 상태",
+  "No answer from {{relays}}.": "{{relays}}에서 응답이 없습니다."
 }
