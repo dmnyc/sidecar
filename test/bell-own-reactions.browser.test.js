@@ -10,6 +10,10 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { startExtension, CHROME, sleep, _internals } = require('./helpers/real-extension');
 
 const opts = { skip: CHROME ? false : 'no Chrome found', timeout: 180000 };
@@ -20,17 +24,30 @@ const chips = (x, text) => x.evaluate(`(() => {
   return r ? (c && !c.classList.contains('hidden') ? c.textContent : '') : null;
 })()`);
 
+// A certificate for a relay served over TLS under a public-looking name. Bea's relay is on
+// this machine, but a relay on this machine named in someone else's list is one the panel
+// will not connect to (see relay-policy.js, isPrivateAddress), and Bea's relay out in the
+// world is a wss:// server with a name. So it is served as one: wss://bea-reads.test.
+function makeCert() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-cert-'));
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(dir, 'k.pem'), '-out', path.join(dir, 'c.pem'), '-days', '2', '-subj', '/CN=bea-reads.test'], { stdio: 'ignore' });
+  const cert = { key: fs.readFileSync(path.join(dir, 'k.pem')), cert: fs.readFileSync(path.join(dir, 'c.pem')) };
+  fs.rmSync(dir, { recursive: true, force: true });
+  return cert;
+}
+
 test('YOUR PAST REACTIONS AND ZAPS SHOW ON THEIR NOTES, wherever they were sent from', opts, async (t) => {
   let x;
-  try { x = await startExtension(); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  const c = await _internals.startRelay({ tls: makeCert() }); // Bea reads here
+  const cUrl = 'wss://bea-reads.test/';
+  try { x = await startExtension({ chromeArgs: ['--ignore-certificate-errors', '--host-resolver-rules=MAP bea-reads.test 127.0.0.1:' + c.port] }); } catch (e) { c.close(); if (e.skip) return t.skip(e.message); throw e; }
   const b = await _internals.startRelay();
-  const c = await _internals.startRelay(); // Bea reads here
   try {
     const nt = _internals.nostrTools();
     const now = Math.floor(Date.now() / 1000);
     x.put({ kind: 3, created_at: now - 9000, tags: [['p', x.bea], ['p', x.cal]], content: '' }, 'me');
     x.put({ kind: 0, created_at: now - 9000, tags: [], content: JSON.stringify({ name: 'Bea' }) }, 'bea');
-    x.put({ kind: 10002, created_at: now - 9000, tags: [['r', c.url, 'read']], content: '' }, 'bea');
+    x.put({ kind: 10002, created_at: now - 9000, tags: [['r', cUrl, 'read']], content: '' }, 'bea');
     x.put({ kind: 0, created_at: now - 9000, tags: [], content: JSON.stringify({ name: 'Cal' }) }, 'cal');
     x.put({ kind: 10002, created_at: now - 9000, tags: [['r', x.relay.url, 'read'], ['r', b.url, 'write']], content: '' }, 'me');
     const mine = x.put({ kind: 1, created_at: now - 7200, tags: [], content: 'A note of mine' }, 'me');

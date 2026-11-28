@@ -5343,6 +5343,21 @@
   // and cannot await.
   const authRelays = new Set();
 
+  // Your own relays, for the pool's private-address check: every relay in Settings (noted
+  // each time they are read, which every query does before it connects), the active
+  // account's allowlist above, and any of your accounts' declared relay lists. Synchronous,
+  // because the pool asks as it connects.
+  const ownRelayUrls = new Set();
+  function isOwnRelay(url) {
+    const n = normalizeRelay(url);
+    if (ownRelayUrls.has(n) || authRelays.has(n)) return true;
+    for (const a of (state && state.accounts) || []) {
+      const l = nip65Cache.get(a.pubkey);
+      if (l && [...(l.read || []), ...(l.write || [])].some((u) => normalizeRelay(u) === n)) return true;
+    }
+    return false;
+  }
+
   function normalizeRelay(u) {
     try { return NT.utils.normalizeURL(u); } catch (_) { return String(u); }
   }
@@ -5408,6 +5423,11 @@
         enableReconnect: true,
         websocketImplementation: guardedWs,
         automaticallyAuth: (url) => (authRelays.has(normalizeRelay(url)) ? signRelayAuth : undefined),
+        // Not to a private, local, onion or unencrypted address unless it is one of your
+        // own relays (see isPrivateAddress in relay-policy.js). Such an address reached the
+        // pool from other people's relay lists, so a stranger's list made this browser try
+        // addresses on your own network. Skipped, it counts as a relay that never connected.
+        allowConnectingToRelay: (url) => !(self.SidecarRelayPolicy && self.SidecarRelayPolicy.isPrivateAddress(url)) || isOwnRelay(url),
       });
     }
     return _pool;
@@ -5643,6 +5663,7 @@
 
   async function relayUrls(writableOnly) {
     const map = await call({ type: 'SIDECAR_GET_RELAYS' });
+    Object.keys(map || {}).forEach((u) => ownRelayUrls.add(normalizeRelay(u)));
     return Object.keys(map).filter((u) => (writableOnly ? map[u].write !== false : true));
   }
 
