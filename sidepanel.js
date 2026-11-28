@@ -330,6 +330,11 @@
     // writers the list did not already have.
     { text: 'So we beat on, boats against the current, borne back ceaselessly into the past.', who: 'F. Scott Fitzgerald, 1925' },
     { text: 'Happy families are all alike; every unhappy family is unhappy in its own way.', who: 'Leo Tolstoy, 1878' },
+    // 1.19.1. Checked against the Standard Ebooks texts (Project Gutenberg was down): Keats's
+    // Poetry, the first line of Endymion (1818), which prints "for ever" as two words; and
+    // Sonnets from the Portuguese (1850), sonnet XLIII. Two writers the list did not already have.
+    { text: 'A thing of beauty is a joy for ever.', who: 'John Keats, 1818' },
+    { text: 'How do I love thee? Let me count the ways.', who: 'Elizabeth Barrett Browning, 1850' },
   ];
 
   // NEVER THE SAME ONE TWICE RUNNING. Independent draws from a short list collide often

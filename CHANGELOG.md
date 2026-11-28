@@ -9,6 +9,41 @@ Update that section alongside this file as part of every release. The newest hea
 always a shipped release: work in progress gets an `## [Unreleased]` heading only while it
 has entries, and that heading becomes the version heading when the release is cut.
 
+## [1.19.1] — 2026-11-27
+
+### Added
+- **Your own articles and recipes in the Library’s Reads,** newest first, with a picker for either. A row opens the piece in your client (a recipe in Zap Cooking); its ⋮ copies the link or the address, and deletes it in two taps. A piece with comments shows how many, leaving out people and words you’ve muted.
+- **Copy link in every Library list.** Bookmarks, Highlights and Comments copy the place a tap on the row opens, and every bookmark row has a ⋮, private ones included.
+- **Open a hashtag from search.** A tag gets a row of its own, and Enter or a tap opens it in your client instead of searching for a person by that name.
+- **Use https for a link written http://.** A quiet row under the editor offers it, in both composers, the page-comment box, articles and recipes, and Post holds once over an http link, naming it.
+- **Sats per unit of your currency under the price chart,** such as 1,000 sats/$, in the readout under your pointer too.
+- **Restore a wallet backup that Wisp or Zap Cooking saved.** With no Sidecar backup on your relays, Restore uses theirs, newest first. Sidecar still saves only under its own name.
+- **Recipe ingredients and steps drag by a grip,** as on Zap Cooking, and move with the arrow keys from the grip.
+
+### Changed
+- **A zap runs in the background from the moment you press Send.** The form steps aside, the payment bar carries it, and the note’s bolt pulses while it’s out and stays lit once it lands. A profile stays open while you zap its person.
+- **The bell shows your past reactions and zaps,** read from your own relays and the zapped person’s, including ones sent from other apps.
+- **The bell’s spam check runs before your network has loaded,** setting likely spam from strangers aside in a collapsed group, and the bell sorts again when the network arrives.
+- **Search finds people you follow by their NIP-05 or lightning address,** in the panel and in @mentions.
+- **Articles open on each client’s article route,** with the relays where the author writes, so YakiHonne, noStrudel, Zap Cooking, NoorNote and Razr can open them.
+- **The full-size composer’s Poll tab keeps a draft of its own,** listed separately in Saved drafts.
+- **The default relays are relay.primal.net, relay.ditto.pub, relay.nostr.net and nostr.data.haus,** with relay.nos.social for reading. Three of the old five no longer connected. A relay list you saved is left as it is.
+- **Lists in the bell and the Library scroll up to their tabs,** and in Ben Day and Turnstile a tab row on a sheet is a rule rather than a box. Turnstile’s white buttons take a hairline edge, and a payment you sent is in the red of its balance tablet.
+- **Keyboard focus is a solid ring at least 3:1 in every theme,** the faintest text reads at 4.5:1, and screen readers hear toasts and errors and get a name for every control.
+- **An article or recipe draft asks before it’s deleted,** the way a note’s does.
+- **Removing an account asks for your PIN,** on one sheet that first offers its key sheet, plain or encrypted. A wrong PIN counts toward the lockout.
+- **Your network’s build shows in a bar at the foot of the panel and of Settings,** with a spinner and the count, and someone you follow joins your network straight away.
+
+### Fixed
+- **A new account can follow and mute.** An empty read of a new account’s relays was taken for relays that never answered.
+- **An account can unfollow or unmute the last person on its list.**
+- **A Library row’s ⋮ opens across the row,** so French, Greek, Hungarian and Russian labels fit.
+- **Tab moves on from a recipe’s category box** instead of back to the top of the page, and the composer’s tabs wrap on small screens.
+- **The default avatar’s slice is centered on its wheel.**
+- **Receive’s button and the bell’s loading line no longer run into what is above them,** and Ben Day’s Overview refresh sits in its title strip.
+- **The bell no longer sorts people from your network among strangers.** A network read while some of your relays were still quiet came out partial and was kept for a day. Now only a whole one is kept or sorted by.
+- **The encrypted key sheet prints the whole npub,** as the plain one does.
+
 ## [1.19.0] — 2026-11-23
 
 ### Added
