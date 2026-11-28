@@ -2589,5 +2589,6 @@
   "Use https for {{count}} link_other": "Utiliser https pour {{count}} liens",
   "and {{count}} more_one": "et {{count}} autre",
   "and {{count}} more_many": "et {{count}} autres",
-  "and {{count}} more_other": "et {{count}} autres"
+  "and {{count}} more_other": "et {{count}} autres",
+  "Building network…": "Construction du réseau…"
 }

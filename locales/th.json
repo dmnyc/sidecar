@@ -2411,5 +2411,6 @@
   "Use https": "ใช้ https",
   "This link uses http, not https. Press {{action}} again to send it as is._other": "ลิงก์ {{count}} รายการใช้ http ไม่ใช่ https แตะ “{{action}}” อีกครั้งเพื่อส่งตามเดิม",
   "Use https for {{count}} link_other": "ใช้ https กับลิงก์ {{count}} รายการ",
-  "and {{count}} more_other": "และอีก {{count}} รายการ"
+  "and {{count}} more_other": "และอีก {{count}} รายการ",
+  "Building network…": "กำลังสร้างเครือข่าย…"
 }

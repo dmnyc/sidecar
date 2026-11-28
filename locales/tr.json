@@ -2500,5 +2500,6 @@
   "Use https for {{count}} link_one": "{{count}} bağlantı için https kullan",
   "Use https for {{count}} link_other": "{{count}} bağlantı için https kullan",
   "and {{count}} more_one": "ve {{count}} tane daha",
-  "and {{count}} more_other": "ve {{count}} tane daha"
+  "and {{count}} more_other": "ve {{count}} tane daha",
+  "Building network…": "Ağ oluşturuluyor…"
 }

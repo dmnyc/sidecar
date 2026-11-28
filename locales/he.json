@@ -2589,5 +2589,6 @@
   "Use https for {{count}} link_other": "שימוש ב-https ל-{{count}} קישורים",
   "and {{count}} more_one": "ועוד אחד",
   "and {{count}} more_two": "ועוד שניים",
-  "and {{count}} more_other": "ועוד {{count}}"
+  "and {{count}} more_other": "ועוד {{count}}",
+  "Building network…": "הרשת נבנית…"
 }

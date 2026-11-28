@@ -5908,7 +5908,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    timer) while any is up, so they stay in sight under the bell or a profile. The inset is
    measured by placeFootInset in sidepanel.js; only while the main view is the one
    showing, since the bars live there. */
-html:has(#view-main:not(.hidden) > :is(#mining-status, #payment-status, #relax-status):not(.hidden)) .modal-overlay {
+html:has(#view-main:not(.hidden) > :is(#mining-status, #payment-status, #network-status, #relax-status):not(.hidden)) .modal-overlay {
   bottom: var(--foot-bar-inset, 0px);
 }
 /* The timer's +N list opens upward into the space the sheet covers. Drawn over the
@@ -5923,6 +5923,12 @@ html:has(#view-main:not(.hidden) > #relax-status:not(.hidden)) .relax-status-lis
 .payment-status-glyph.bad { color: var(--red); }
 .payment-status-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .payment-status-line { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The network bar's line is translated text: one line, then the ellipsis. */
+.network-status-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Its count: the figures bold in the text color, the slash plain and spaced between them. */
+.network-status-count { padding: 2px 10px; }
+.network-status-count b { font-weight: 700; color: var(--text); }
+.network-status-of { margin: 0 5px; }
 /* The failure's own message, or the host a website payment is moving money for.
    Page-controlled text of any length: truncates like the mining bar's who-line. */
 .payment-status-sub {
@@ -5949,6 +5955,10 @@ html:has(#view-main:not(.hidden) > #relax-status:not(.hidden)) .relax-status-lis
 #view-main.mining-active.payment-active .fab { bottom: 114px; }
 #view-main.relax-active.payment-active .fab { bottom: 128px; }
 #view-main.mining-active.relax-active.payment-active .fab { bottom: 178px; }
+/* With the network bar up, the button rides on the measured height of every bar under it
+   (placeFootInset) rather than on four more fixed combinations. The doubled id outranks those
+   combinations, which carry up to four classes. */
+#view-main#view-main.network-active .fab { bottom: calc(var(--foot-bar-inset, 50px) + 14px); }
 
 .relax-status {
   flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;

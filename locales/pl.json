@@ -2678,5 +2678,6 @@
   "and {{count}} more_one": "i {{count}} inny",
   "and {{count}} more_few": "i {{count}} inne",
   "and {{count}} more_many": "i {{count}} innych",
-  "and {{count}} more_other": "i {{count}} innego"
+  "and {{count}} more_other": "i {{count}} innego",
+  "Building network…": "Budowanie sieci…"
 }

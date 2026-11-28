@@ -126,6 +126,10 @@
     const votes = new Map();
     let expanded = 0;
     let next = 0;
+    // Zero of N before the first batch comes back, so the bar has its count from the start.
+    if (typeof o.onProgress === 'function' && follows.length) {
+      try { o.onProgress(0, follows.length); } catch (_) {}
+    }
     await Promise.all(
       Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, async () => {
         while (next < chunks.length) {

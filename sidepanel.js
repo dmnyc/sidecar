@@ -1004,7 +1004,7 @@
   // .modal-overlay in styles.css). Measured, not fixed: a failure's message can take two
   // lines and the timer grows a track. Layout pixels inside the view, so the panel's
   // zoom does not throw it off.
-  const FOOT_BARS = ['mining-status', 'payment-status', 'relax-status'];
+  const FOOT_BARS = ['mining-status', 'payment-status', 'network-status', 'relax-status'];
   function placeFootInset() {
     const view = document.getElementById('view-main');
     if (!view) return;
@@ -4337,6 +4337,8 @@
   // payMeta and drafts are encrypted for — but it is still a social graph, which is why
   // it expires rather than living there forever.
   const WOT_TTL_MS = 24 * 60 * 60 * 1000;
+  const WOT_RETRY_MS = 10 * 60 * 1000;
+  let _wotFailed = null; // { pubkey, at } of the last build that could not read the whole network
   const WOT_STORE = 'sidecar_wot';
   // BUMP THIS WHENEVER THE SET IS COMPUTED DIFFERENTLY. A stored set outlives the code
   // that made it: after the vote-counting fix the panel kept serving a day-old set built
@@ -4444,11 +4446,14 @@
     return { scores, spam };
   }
 
-  async function getWotSet() {
+  async function getWotSet(force) {
     const pubkey = state.activePubkey;
     if (!pubkey || !self.SidecarWot) return null;
     if (_wotSet && _wotPubkey === pubkey) return _wotSet;
     if (_wotInflight) return _wotInflight;
+    // A build that could not read the whole network is not started again by every bell
+    // open and every arrival: those wait ten minutes. Rebuild network asks with force.
+    if (!force && _wotFailed && _wotFailed.pubkey === pubkey && Date.now() - _wotFailed.at < WOT_RETRY_MS) return null;
 
     _wotState = 'building';
     renderWotStatus();
@@ -4484,25 +4489,51 @@
           },
           // One REQ per chunk of seeds, collecting their p-tags. Bounded per chunk so a
           // single unresponsive relay cannot hold the whole build open.
-          // A chunk NO relay answered for throws, so the build counts it as unread rather than as
-          // people with no follows, and the set is not kept (see the store below).
+          //
+          // A CHUNK IS READ ONLY WHEN NO RELAY STAYED SILENT. "Some relay answered" was the old
+          // test, and one quick relay holding a few of the lists passed it while the relays
+          // holding the rest were still quiet: a build came out at a third of its size, looked
+          // whole, and was kept for a day, so most of the network sorted as strangers. A
+          // relay that refused or never connected was never going to answer and does not
+          // count against it. A silent one gets a second, longer ask; still silent, the chunk
+          // throws, and the build counts it as unread (see the store below).
           fetchFollowsOf: async (chunk) => {
-            const { events: evs, answered } = await poolQueryAnswered(relays, { kinds: [3], authors: chunk }, { maxWait: 8000 });
-            if (!answered) throw new Error('no relay answered');
+            const filter = { kinds: [3], authors: chunk };
+            let r = await poolQueryAnswered(relays, filter, { maxWait: 8000 });
+            if (r.silent || !r.answered) r = await poolQueryAnswered(relays, filter, { maxWait: 16000 });
+            if (!r.answered) throw new Error('no relay answered');
+            if (r.silent) throw new Error('a relay stayed silent');
             // Deduped by author before counting: the pool spans relays, so one person's
             // list arrives once per relay holding it, and counting copies multiplies every
             // vote. See followsFromEvents.
-            return self.SidecarWot.followsFromEvents(evs);
+            return self.SidecarWot.followsFromEvents(r.events);
           },
         });
+        // A PARTIAL SET IS NEITHER KEPT NOR SORTED BY. A chunk whose relays did not all answer
+        // leaves out everyone its people vouch for, and sorting by what is left puts real
+        // correspondents outside a network that only looks smaller. With no set the bell
+        // shows everything (inNetwork fails open), says it could not reach the relays, and
+        // the next open tries again.
+        if (res.expanded < res.follows) {
+          _wotFailed = { pubkey, at: Date.now() };
+          _wotPubkey = null;
+          _wotSet = null;
+          _wotState = 'failed';
+          _wotCount = 0;
+          renderWotStatus();
+          return null;
+        }
+        // Follows made while the build ran are in it too: a follow is in the network by
+        // itself, and the list the build started from did not have them yet.
+        for (const f of (await getFollowList()) || []) {
+          const pk = f && (f.pubkey || f);
+          if (pk) res.set.add(self.SidecarWot.short(pk));
+        }
         _wotPubkey = pubkey;
         _wotSet = res.set;
         // Only worth keeping if it can actually filter. An empty set is the fail-open
         // signal, and persisting one would just make the next open re-read "no filter".
-        // And only if it is WHOLE: a chunk whose relays did not answer narrows the set, and
-        // keeping that for a day left the bell sorting nearly everyone outside a network it
-        // had only half read. A partial set is used for this session and rebuilt next time.
-        if (res.set.size && !(res.expanded < res.follows)) {
+        if (res.set.size) {
           chrome.storage.local.set({
             [WOT_STORE]: { pubkey, algo: WOT_ALGO, keys: [...res.set], seen: res.seen, qualified: res.qualified, ts: Date.now() },
           }, () => void chrome.runtime.lastError);
@@ -4515,6 +4546,7 @@
         return _wotSet;
       } catch (_) {
         // Fail open: no set means everyone is in-network.
+        _wotFailed = { pubkey, at: Date.now() };
         _wotState = 'failed';
         renderWotStatus();
         return (_wotSet = null);
@@ -4533,10 +4565,21 @@
   async function rebuildWot() {
     forgetWot();
     await new Promise((r) => chrome.storage.local.remove(WOT_STORE, () => { void chrome.runtime.lastError; r(); }));
-    await getWotSet().catch(() => {});
+    await getWotSet(true).catch(() => {});
+  }
+
+  function addToWot(pubkey, target) {
+    if (!self.SidecarWot || !target) return;
+    const k = self.SidecarWot.short(target);
+    if (_wotSet && _wotPubkey === pubkey) { _wotSet.add(k); _wotCount = _wotSet.size; renderWotStatus(); }
+    wotRead().then((saved) => {
+      if (!saved || saved.pubkey !== pubkey || !Array.isArray(saved.keys) || saved.keys.includes(k)) return;
+      chrome.storage.local.set({ [WOT_STORE]: Object.assign({}, saved, { keys: [...saved.keys, k] }) }, () => void chrome.runtime.lastError);
+    }).catch(() => {});
   }
 
   function forgetWot() {
+    _wotFailed = null;
     _wotSet = null;
     _wotPubkey = null;
     _wotState = 'idle';
@@ -4557,7 +4600,58 @@
     if (st === 'failed') return t('Couldn’t reach your relays to work this out. Showing everything.');
     return ''; // idle, and building, whose bar and caption say it; see renderWotStatus
   }
+  // THE NETWORK BAR, at the foot of the panel and of Settings: a spinner and the count while
+  // a build runs, then what it came to for a few seconds. The build belongs to the panel, not
+  // to the bell or Settings that started it, so it is shown wherever you are and closing
+  // either loses nothing. Only closing the panel does, and a build that did not finish is
+  // never kept (see getWotSet).
+  let _wotBarResult = null; // { ok, line } shown briefly after a build ends
+  let _wotBarTimer = null;
+  let _wotBarWasBuilding = false;
+  function renderNetworkStatus() {
+    const building = notifWotFilter && _wotState === 'building';
+    if (_wotBarWasBuilding && !building && (_wotState === 'ready' || _wotState === 'failed' || _wotState === 'empty')) {
+      _wotBarResult = _wotState === 'ready'
+        ? { ok: true, line: tn('Your network: {{count}} person.', 'Your network: {{count}} people.', _wotCount) }
+        : { ok: false, line: wotStatusText(_wotState) };
+      clearTimeout(_wotBarTimer);
+      _wotBarTimer = setTimeout(() => { _wotBarResult = null; renderNetworkStatus(); }, 5000);
+    }
+    _wotBarWasBuilding = building;
+    const view = document.getElementById('view-main');
+    for (const id of ['network-status', 'network-status-settings']) {
+      const bar = document.getElementById(id);
+      if (!bar) continue;
+      const show = building || !!_wotBarResult;
+      bar.classList.toggle('hidden', !show);
+      if (id === 'network-status' && view) view.classList.toggle('network-active', show);
+      if (!show) continue;
+      const glyph = bar.querySelector('.network-status-glyph');
+      const line = bar.querySelector('.network-status-line');
+      const count = bar.querySelector('.network-status-count');
+      glyph.className = 'payment-status-glyph network-status-glyph';
+      glyph.textContent = '';
+      if (building) {
+        glyph.append(h('span', { className: 'toast-spin' })); // the shared spinner idiom
+        // The count goes in the capsule, so the line stays short in every language.
+        line.textContent = t('Building network…');
+        // Figures bold, the slash plain and spaced, so the two numbers read apart.
+        count.textContent = '';
+        if (_wotTotal) count.append(h('b', { textContent: fmtSats(_wotDone) }), h('span', { className: 'network-status-of', textContent: '/' }), h('b', { textContent: fmtSats(_wotTotal) }));
+        count.classList.toggle('hidden', !_wotTotal);
+      } else {
+        count.textContent = '';
+        count.classList.add('hidden');
+        glyph.append(icon(_wotBarResult.ok ? 'check' : 'alert'));
+        if (!_wotBarResult.ok) glyph.classList.add('bad');
+        line.textContent = _wotBarResult.line;
+      }
+    }
+    placeFootInset();
+  }
+
   function renderWotStatus() {
+    renderNetworkStatus();
     const el = document.getElementById('wot-status');
     if (!el) return;
     if (!notifWotFilter) { el.textContent = ''; return; }
@@ -5212,6 +5306,10 @@
       // the relay was never asked. Not the same as silent: a relay that connected and then
       // said nothing may be holding the answer, and one that never connected was asked nothing.
       let unreached = 0;
+      // Relays that connected and said nothing before the wait ran out. nostr-tools ends a
+      // subscription at maxWait with the same reason as a real EOSE, so the clock is what
+      // tells them apart. A relay that refused (its own CLOSED) is neither: it answered no.
+      let silent = 0;
       let left = urls.length;
       let done = false;
       let settleTimer = null;
@@ -5221,7 +5319,7 @@
         done = true;
         clearTimeout(settleTimer);
         clearTimeout(capTimer);
-        resolve({ events, answered, unreached, complete: left === 0 });
+        resolve({ events, answered, unreached, silent, complete: left === 0 });
         if (settleAfter || capMs) for (const sub of subs) { try { sub.close(); } catch (_) {} }
       };
       if (capMs) capTimer = setTimeout(finish, capMs);
@@ -5238,6 +5336,7 @@
           onclose: (reasons) => {
             const reason = (reasons || [])[0];
             if (reason === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
+            else if (reason === EOSE_CLOSE) silent++;
             else if (NEVER_CONNECTED.test(String(reason || ''))) unreached++;
             if (--left === 0) finish();
           },
@@ -8460,7 +8559,11 @@
         followListCache.push({ pubkey: target, name: (info && info.name) || shortNpub(NT.nip19.npubEncode(target)), picture: (info && info.picture) || null });
       }
     }
-    forgetWot();
+    // A FOLLOW JOINS THE NETWORK NOW, in memory and in the copy kept for the day. Forgetting
+    // the set only dropped the copy in memory, and the next open read the kept one back, so
+    // a person you had just followed sorted as a stranger for up to a day. An unfollow
+    // changes nothing here: others may still vouch for them, and the next build decides.
+    if (!remove) addToWot(pubkey, target);
     // The Overview drawer and the Profile tab are holding the number this just
     // changed, and nothing else tells them. The cache above is already fresh,
     // so the repainters read it and redraw in place. Announce whenever the

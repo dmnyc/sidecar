@@ -393,6 +393,18 @@
       <span class="payment-status-count hidden" id="payment-status-count"></span>
     </div>
 
+    <!-- The network build, the payment bar's sibling: working out who is in your network
+         reads a follow list per follow and takes a while, so it runs at the foot of the
+         panel rather than inside the bell or Settings, and leaving either does not lose it.
+         The same bar sits at the foot of Settings. See renderNetworkStatus in sidepanel.js. -->
+    <div id="network-status" class="payment-status network-status hidden" role="status" aria-live="polite">
+      <span class="payment-status-glyph network-status-glyph" aria-hidden="true"></span>
+      <span class="payment-status-main">
+        <span class="payment-status-line network-status-line"></span>
+      </span>
+      <span class="payment-status-count network-status-count hidden"></span>
+    </div>
+
     <!-- Persistent bottom status bar, shown only while a relax (auto-sign) window
          is active. Status dot + signing account + live mm:ss
          countdown + Restart / End. See renderRelaxStatus in sidepanel.js. -->
@@ -1081,6 +1093,13 @@
         <img src="icons/sidecar-logo.svg" alt="Sidecar" draggable="false" />
       </div>
     </main>
+    <div id="network-status-settings" class="payment-status network-status hidden" role="status" aria-live="polite">
+      <span class="payment-status-glyph network-status-glyph" aria-hidden="true"></span>
+      <span class="payment-status-main">
+        <span class="payment-status-line network-status-line"></span>
+      </span>
+      <span class="payment-status-count network-status-count hidden"></span>
+    </div>
   </section>
 
   <!-- ===== Relay Rider ===== -->

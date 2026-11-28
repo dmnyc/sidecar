@@ -2500,5 +2500,6 @@
   "Use https for {{count}} link_one": "استفاده از https برای {{count}} پیوند",
   "Use https for {{count}} link_other": "استفاده از https برای {{count}} پیوند",
   "and {{count}} more_one": "و {{count}} مورد دیگر",
-  "and {{count}} more_other": "و {{count}} مورد دیگر"
+  "and {{count}} more_other": "و {{count}} مورد دیگر",
+  "Building network…": "در حال ساخت شبکه…"
 }

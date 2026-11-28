@@ -38,7 +38,7 @@ const WRITER = [
 // relayDown: no relay answers at all. silent: these relays never answer (a timeout, not an EOSE),
 // while the rest do.
 function world({ list = null, profile = true, relayDown = false, silent = [], known = [], active = ME, signFails = null, guard = null } = {}) {
-  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, baselines: [], announced: [] };
+  const w = { published: [], queried: [], store: list ? [list] : [], wot: 0, wotAdded: [], baselines: [], announced: [] };
   const ctx = withI18n({
     state: { activePubkey: active },
     followListCache: known.length ? known.map((pubkey) => ({ pubkey, name: 'x', picture: null })) : null,
@@ -47,6 +47,7 @@ function world({ list = null, profile = true, relayDown = false, silent = [], kn
     NT: { nip19: { npubEncode: (h) => 'npub1' + h.slice(0, 6) } },
     shortNpub: (n) => n.slice(0, 10),
     forgetWot: () => { w.wot++; },
+    addToWot: (pk, target) => { w.wotAdded.push(target); },
     repaintFollowCounts: () => { w.announced.push('sidecar-follows-changed'); },
     document: { dispatchEvent: (e) => { w.announced.push(e.type); } },
     CustomEvent: class { constructor(type) { this.type = type; } },
@@ -195,8 +196,12 @@ test('the panel\'s own copies follow the list: cache, count, and the web of trus
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [CAL, BOB]);
   assert.equal(w.ctx.followListCache[1].name, 'Bob');
   assert.equal(w.ctx.followCountCache.get(ME).v, 2);
-  assert.equal(w.wot, 1);
+  // A follow joins the network at once, in memory and in the copy kept for the day; forgetting
+  // it left the kept copy without them for up to a day.
+  assert.deepEqual(w.wotAdded, [BOB]);
+  assert.equal(w.wot, 0);
   await w.api.removeFollow(ME, CAL);
+  assert.deepEqual(w.wotAdded, [BOB], 'an unfollow is not added');
   assert.deepEqual(plain(w.ctx.followListCache.map((c) => c.pubkey)), [BOB]);
   assert.equal(w.ctx.followCountCache.get(ME).v, 1);
 });

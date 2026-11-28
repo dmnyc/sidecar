@@ -2500,5 +2500,6 @@
   "Use https for {{count}} link_one": "https használata {{count}} linkhez",
   "Use https for {{count}} link_other": "https használata {{count}} linkhez",
   "and {{count}} more_one": "és még {{count}}",
-  "and {{count}} more_other": "és még {{count}}"
+  "and {{count}} more_other": "és még {{count}}",
+  "Building network…": "Hálózat felépítése…"
 }
