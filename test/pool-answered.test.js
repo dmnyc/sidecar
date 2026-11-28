@@ -90,6 +90,14 @@ test('OFFLINE: EVERY CONNECTION FAILS, AND THAT IS NOT AN ANSWER', async () => {
   assert.ok(Date.now() - t0 < 400, 'the real pool resolves well before any maxWait');
 });
 
+test('a relay that connected and never answered is counted silent; one that refused is not', async () => {
+  const res = await run({ 'wss://a.example': [profile], 'wss://quiet.example': 'silent', 'wss://no.example': 'refuse' });
+  assert.equal(res.answered, true);
+  assert.equal(res.silent, 1, 'the quiet relay');
+  const refused = await run({ 'wss://a.example': [profile], 'wss://no.example': 'refuse' });
+  assert.equal(refused.silent, 0, 'a refusal is an answer of its own');
+});
+
 test('every relay refusing the REQ is not an answer either', async () => {
   const res = await run({ 'wss://a.example': 'refuse', 'wss://b.example': 'fail' });
   assert.equal(res.answered, false);

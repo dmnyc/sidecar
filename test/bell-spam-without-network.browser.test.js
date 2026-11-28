@@ -103,8 +103,10 @@ test('with no network to sort by, the spam check sets a bot aside and leaves a p
 
 test('when the network arrives with the bell open, the bell sorts by it', opts, async (t) => {
   let x;
-  // Others' follow lists held back, so the network takes a few seconds past the bell opening.
-  try { x = await startExtension({ relayDelayMs: holdFollows(30000, { others: true }) }); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
+  // Others' follow lists held back past the build's first 8-second ask, so the network comes
+  // in on its second ask (16 seconds), well after the bell opens. Longer than both and the
+  // network is never read whole, and a partial one is not sorted by.
+  try { x = await startExtension({ relayDelayMs: holdFollows(12000, { others: true }) }); } catch (e) { if (e.skip) return t.skip(e.message); throw e; }
   try {
     await setUp(x);
     await sleep(5000); // the model is warm by now; the network is not

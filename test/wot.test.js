@@ -216,12 +216,13 @@ test('a set belongs to one account and expires', () => {
   // An empty set is the fail-open signal and is not worth persisting, and neither is a
   // partial one: a chunk no relay answered narrows the set, and keeping that for a day left
   // the bell sorting nearly everyone outside a half-read network.
-  assert.match(panel, /if \(res\.set\.size && !\(res\.expanded < res\.follows\)\) \{/);
-  assert.match(panel, /if \(!answered\) throw new Error\('no relay answered'\);/, 'a chunk no relay answered must count as unread');
+  assert.match(panel, /if \(res\.expanded < res\.follows\) \{[\s\S]*?_wotSet = null;[\s\S]*?return null;/, 'a partial set is neither kept nor sorted by');
+  assert.match(panel, /if \(!r\.answered\) throw new Error\('no relay answered'\);/, 'a chunk no relay answered must count as unread');
+  assert.match(panel, /if \(r\.silent\) throw new Error\('a relay stayed silent'\);/, 'nor one a relay stayed silent on');
 });
 
 test('the build fails open', () => {
-  const fn = panel.slice(panel.indexOf('async function getWotSet()'));
+  const fn = panel.slice(panel.indexOf('async function getWotSet(force)'));
   const body = fn.slice(0, fn.indexOf('\n  }\n'));
   assert.match(body, /catch \(_\) \{[\s\S]*?return \(_wotSet = null\);/, 'any failure means no filter');
 });
@@ -390,7 +391,7 @@ test('the set can be rebuilt on demand', () => {
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /forgetWot\(\);/, 'the in-memory copy goes too');
   assert.match(body, /chrome\.storage\.local\.remove\(WOT_STORE/, 'and the stored one');
-  assert.match(body, /getWotSet\(\)/, 'then build it again');
+  assert.match(body, /getWotSet\(true\)/, 'then build it again, past the wait after a failed build');
   assert.match(html, /id="wot-rebuild"/);
 });
 

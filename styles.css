@@ -5908,7 +5908,7 @@ html:has(#view-approval:not(.hidden)) .toasts {
    timer) while any is up, so they stay in sight under the bell or a profile. The inset is
    measured by placeFootInset in sidepanel.js; only while the main view is the one
    showing, since the bars live there. */
-html:has(#view-main:not(.hidden) > :is(#mining-status, #payment-status, #relax-status):not(.hidden)) .modal-overlay {
+html:has(#view-main:not(.hidden) > :is(#mining-status, #payment-status, #network-status, #relax-status):not(.hidden)) .modal-overlay {
   bottom: var(--foot-bar-inset, 0px);
 }
 /* The timer's +N list opens upward into the space the sheet covers. Drawn over the
@@ -5949,6 +5949,10 @@ html:has(#view-main:not(.hidden) > #relax-status:not(.hidden)) .relax-status-lis
 #view-main.mining-active.payment-active .fab { bottom: 114px; }
 #view-main.relax-active.payment-active .fab { bottom: 128px; }
 #view-main.mining-active.relax-active.payment-active .fab { bottom: 178px; }
+/* With the network bar up, the button rides on the measured height of every bar under it
+   (placeFootInset) rather than on four more fixed combinations. The doubled id outranks those
+   combinations, which carry up to four classes. */
+#view-main#view-main.network-active .fab { bottom: calc(var(--foot-bar-inset, 50px) + 14px); }
 
 .relax-status {
   flex-shrink: 0; display: flex; flex-direction: column; gap: 7px;

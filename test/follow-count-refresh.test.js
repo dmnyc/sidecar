@@ -64,6 +64,7 @@ function writeHarness({ listTags, followListCache = null, prior } = {}) {
     followListCache,
     followListPubkey: followListCache ? PK : null,
     forgetWot: () => {},
+    addToWot: () => {},
     repaintFollowCounts: () => repaints.push('repaint'),
   };
   if (prior !== undefined) deps.followCountCache.set(PK, { v: prior, at: Date.now() });
