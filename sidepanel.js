@@ -13176,29 +13176,104 @@
     });
   }
 
+  // REMOVING AN ACCOUNT DELETES THE ONLY COPY OF ITS KEY ON THIS DEVICE. One sheet, one PIN:
+  // the key sheet, plain or encrypted, is a press away before anything goes, and Remove is a
+  // press of its own after it. Never one button that downloads and removes: a download can be
+  // canceled in the save dialog or saved where no one finds it again, and Sidecar cannot tell,
+  // so removing on the strength of one would delete the key on a guess. The background checks
+  // the PIN on removal (SIDECAR_REMOVE_ACCOUNT), so a tap alone never removes an account.
   function removeModal(a) {
     openModal((modal) => {
-      const err = h('div', { className: 'error' });
       const warn = h('p', {
         className: 'hint',
         textContent:
           tSec('Removing {{name}} deletes its encrypted key from this device. Make sure you have a backup of the nsec. This cannot be undone.', { name: displayName(a) }),
       });
+      const pin = h('input', { type: 'password', maxLength: 32 });
+      pin.setAttribute('aria-label', tSec('PIN'));
+      const err = h('div', { className: 'error' });
+      err.setAttribute('role', 'alert');
+      const sheetLabel = t('Download backup sheet');
+      const encLabel = t('Download encrypted sheet');
+      const sheet = h('button', { className: 'secondary', textContent: sheetLabel });
+      const sheetEnc = h('button', { className: 'secondary', textContent: encLabel });
       const del = h('button', { className: 'danger', textContent: tSec('Remove account') });
-      del.addEventListener('click', async () => {
+      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
+      cancel.addEventListener('click', closeModal);
+      const encSlot = h('div');
+      let enc = null;
+      const buttons = [sheet, sheetEnc, del];
+      const busy = (on) => buttons.forEach((b) => { b.disabled = on || (b === sheetEnc && !!enc && !enc.validate()); });
+      const needPin = () => {
+        err.textContent = '';
+        if (pin.value) return true;
+        err.textContent = tSec('Enter your PIN.');
+        pin.focus();
+        return false;
+      };
+      // A sheet that has been saved says so with a check, and the sheet stays open for Remove.
+      const markSaved = (btn, label) => {
+        const check = icon('check');
+        check.classList.add('btn-check');
+        btn.textContent = '';
+        btn.append(check, document.createTextNode(label));
+      };
+      const download = async (btn, label, encrypted) => {
+        if (!needPin()) return;
+        busy(true);
         try {
-          await call({ type: 'SIDECAR_REMOVE_ACCOUNT', pubkey: a.pubkey });
+          const r = await call({ type: 'SIDECAR_REVEAL_NSEC', pubkey: a.pubkey, pin: pin.value });
+          let nc = '';
+          if (encrypted) {
+            nc = await enc.collect(r.nsec, err);
+            if (nc === null) return;
+          }
+          await downloadBackupSheet(r.nsec, a, nc);
+          markSaved(btn, label);
+        } catch (e) {
+          err.textContent = e.message;
+        } finally {
+          busy(false);
+        }
+      };
+      sheet.addEventListener('click', () => download(sheet, sheetLabel, false));
+      sheetEnc.addEventListener('click', () => {
+        // The first press asks for the sheet's own password, here in the sheet; the button
+        // opens once the pair is long enough and matches, and the next press downloads.
+        if (!enc) {
+          enc = encryptedPageControls(sheetEnc);
+          encSlot.append(enc.block);
+          const first = enc.block.querySelector('input');
+          if (first) first.focus();
+          return;
+        }
+        download(sheetEnc, encLabel, true);
+      });
+      const remove = async () => {
+        if (!needPin()) return;
+        busy(true);
+        try {
+          await call({ type: 'SIDECAR_REMOVE_ACCOUNT', pubkey: a.pubkey, pin: pin.value });
           closeModal();
           await refresh();
           toast(t('Account removed'), 'success');
         } catch (e) {
           err.textContent = e.message;
-          toast(e.message, 'error');
+          busy(false);
+          pin.select();
         }
-      });
-      const cancel = h('button', { className: 'ghost', textContent: t('Cancel') });
-      cancel.addEventListener('click', closeModal);
-      modal.append(h('h3', { textContent: tSec('Remove account?') }), warn, err, h('div', { className: 'actions' }, [del, cancel]));
+      };
+      del.addEventListener('click', remove);
+      modal.append(
+        h('h3', { textContent: tSec('Remove account?') }),
+        warn,
+        h('label', { textContent: tSec('PIN') }),
+        pin,
+        encSlot,
+        err,
+        h('div', { className: 'actions' }, [sheet, sheetEnc, del, cancel])
+      );
+      pin.focus();
     });
   }
 

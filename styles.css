@@ -3197,6 +3197,9 @@ select.bm-pick { width: 100%; margin: 2px 0 6px; font-size: 13px; }
 .modal h3 { font-family: var(--font-display); font-weight: 700; line-height: 28.5px; font-size: calc(19px * var(--display-scale, 1)); margin: 0 0 8px; }
 .modal label { color: var(--muted); font-size: 12px; letter-spacing: 0.03em; }
 .modal .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+/* A check before a button's label, once what it did is done (a key sheet saved): the size of
+   the words beside it, on their line. An icon has no size of its own and filled the button. */
+.btn-check { width: 14px; height: 14px; vertical-align: -2px; margin-inline-end: 6px; }
 /* Receive's button (Create invoice, Continue) takes a clear step down from the field or the
    hint above it, so it reads as the next thing to do; at 6px the two ran together. */
 #modal:has(> .recv-tabs) .actions { margin-top: 16px; }

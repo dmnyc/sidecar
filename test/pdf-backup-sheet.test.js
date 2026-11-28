@@ -104,9 +104,10 @@ test('with ncryptsec the PDF is a different one-page sheet, and only that sheet'
   // assert too.
   assert.ok(flat.includes('1970-01-0100:00UTC'), 'the date, time, and zone are set');
   assert.ok(!flat.includes('SERIAL'), 'the serial is not');
-  // The guest's address line under the script name: abbreviated, but showing
-  // both halves so the sheet can still be eyeballed against the account list.
-  assert.ok(flat.includes('npub1aaaaaaaaa...aaaaaa'), 'the abbreviated npub is set under the name');
+  // The guest's address line under the script name: the whole npub, as the
+  // plain sheet prints it, not a shortened one.
+  assert.ok(flat.includes(NPUB), 'the whole npub is set under the name');
+  assert.ok(!flat.includes('...'), 'the npub is not shortened');
   assert.ok(flat.includes('PASSWORDREQUIREDFORENTRY'), 'the QR caption');
   assert.ok(page.includes('/F6 '), 'the script face is used');
   assert.ok(page.includes('/F8 '), 'the italic face is used');

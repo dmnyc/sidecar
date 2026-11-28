@@ -943,9 +943,9 @@
 
     // ---- the guest, in ink: the one line set in script, oversized because a
     // copperplate's tiny x-height reads small next to print. Under it, the
-    // guest's "address" — enough of the npub to eyeball the sheet against the
-    // account list, in the body's roman because the script is for names, not
-    // keys. No name at hand (the sheet can print before any profile exists)
+    // guest's "address": the whole npub, as the plain sheet prints it, so the
+    // sheet names its account outright rather than in part, in the body's roman
+    // because the script is for names, not keys. No name at hand (the sheet can print before any profile exists)
     // reads as "the bearer", which is also literally who the sheet restores.
     // The name block centers IN the band between the two diamond rules, not
     // just below the first: the script's ink rises 0.906em (30.8pt at 34pt)
@@ -959,7 +959,7 @@
     // The name and its "address" line are one unit — tight under the script
     // (which carries its own air in the loops).
     y += 18;
-    set(y, opts.npub.slice(0, 14) + '...' + opts.npub.slice(-6), F.roman, 7.5, 1.2);
+    set(y, opts.npub, F.roman, 7.5, 1.2);
     y += 24;
     diamondRule(c, M + 30, PAGE_W - M - 30, y, BRONZE, 1);
 
