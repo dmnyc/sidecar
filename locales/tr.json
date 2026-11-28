@@ -1765,7 +1765,6 @@
   "Literary quotes": "Edebi alıntılar",
   "A line from a book in empty lists and while they load.": "Boş listelerde ve yüklenirken bir kitaptan bir satır.",
   "Show literary quotes": "Edebi alıntıları göster",
-  "Your network first": "Önce ağınız",
   "Sort notifications by who you follow": "Bildirimleri takip ettiklerinize göre sırala",
   "Rebuild network": "Ağı yeniden oluştur",
   "Posting": "Paylaşım",
@@ -2501,5 +2500,8 @@
   "Use https for {{count}} link_other": "{{count}} bağlantı için https kullan",
   "and {{count}} more_one": "ve {{count}} tane daha",
   "and {{count}} more_other": "ve {{count}} tane daha",
-  "Building network…": "Ağ oluşturuluyor…"
+  "Building network…": "Ağ oluşturuluyor…",
+  "Your network": "Ağınız",
+  "Network status": "Ağ durumu",
+  "No answer from {{relays}}.": "{{relays}} yanıt vermedi."
 }

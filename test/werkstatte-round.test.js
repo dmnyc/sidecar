@@ -42,14 +42,20 @@ for (const theme of SQUARE_THEMES) {
     const sheet = fs.readFileSync(path.join(ROOT, 'themes', theme + '.css'), 'utf8');
     const src = css + '\n' + promptInline;
     const circular = new Set();
-    for (const m of src.matchAll(/(?:^|\})([^{}@]*?)\{([^}]*)\}/g)) {
+    // EVERY rule. The pattern used to start each match at the `}` closing the rule before, so
+    // that brace was spent and the next rule was never read: every other rule went
+    // unaudited, which is how the toast spinner turned square in Werkstätte and Turnstile.
+    // A lookbehind reads the brace without spending it.
+    for (const m of src.matchAll(/(?<=^|\})([^{}@]*?)\{([^}]*)\}/g)) {
       if (!/border-radius:\s*50%/.test(m[2])) continue;
       for (const part of m[1].split(',')) {
         for (const c of part.matchAll(/\.([a-zA-Z][\w-]*)/g)) circular.add(c[1]);
       }
     }
     const excepted = new Set(
-      [...sheet.matchAll(new RegExp('\\[data-theme="' + theme + '"\\] \\.([\\w-]+):not\\(\\.theme-card\\)', 'g'))]
+      // `.x:not(.y):not(.theme-card)` counts too: Werkstätte excepts the upload preview but
+      // not its banner form, which is a rectangle of scenery rather than a face.
+      [...sheet.matchAll(new RegExp('\\[data-theme="' + theme + '"\\] \\.([\\w-]+)(?::not\\(\\.[\\w-]+\\))*:not\\(\\.theme-card\\)', 'g'))]
         .map((m) => m[1])
     );
     const missing = [...circular].filter((c) => !excepted.has(c) && !IGNORE.has(c)).sort();

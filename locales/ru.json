@@ -1887,7 +1887,6 @@
   "Literary quotes": "Цитаты из литературы",
   "A line from a book in empty lists and while they load.": "Строка из книги в пустых списках и во время их загрузки.",
   "Show literary quotes": "Показывать цитаты из литературы",
-  "Your network first": "Сначала ваша сеть",
   "Sort notifications by who you follow": "Сортировать уведомления по подпискам",
   "Rebuild network": "Перестроить сеть",
   "Posting": "Публикация",
@@ -2679,5 +2678,8 @@
   "and {{count}} more_few": "и ещё {{count}}",
   "and {{count}} more_many": "и ещё {{count}}",
   "and {{count}} more_other": "и ещё {{count}}",
-  "Building network…": "Строим сеть…"
+  "Building network…": "Строим сеть…",
+  "Your network": "Ваша сеть",
+  "Network status": "Состояние сети",
+  "No answer from {{relays}}.": "Нет ответа от {{relays}}."
 }

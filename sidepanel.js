@@ -1892,6 +1892,9 @@
     // Default ON. It sorts rather than hides, so the failure mode of being wrong is a
     // collapsed group you expand, not a reply you never see.
     notifWotFilter = !(settings && settings.notifWotFilter === false);
+    // Redrawn now, so the bar and the Settings line drop what belonged to the account before
+    // a switch, rather than keeping it up until the new account's build starts below.
+    renderWotStatus();
     // Warmed in the background, never awaited: building costs a kind:3 per follow, and
     // nothing in the panel should wait on it. The bell reads whatever is ready.
     // AFTER first paint, not during it. This is background work nothing waits on, and on a
@@ -4335,13 +4338,20 @@
   // the follows of your follows, which is one kind:3 per person and the reason the set is
   // built rarely and kept.
   //
-  // CACHED FOR THE ACTIVE ACCOUNT ONLY, in chrome.storage.local, for a day. A set can run
-  // to tens of thousands of keys, so keeping one per account would put megabytes on disk
-  // for accounts you are not looking at; switching accounts rebuilds instead. The data is
-  // derived from kind:3, which is public, so this is not the class of secret that
-  // payMeta and drafts are encrypted for — but it is still a social graph, which is why
-  // it expires rather than living there forever.
+  // KEPT FOR EVERY ACCOUNT YOU USE, as far as a budget of space allows, in
+  // chrome.storage.local, for a day each. A multi-account signer is for switching as often
+  // as you like: one copy for the active account alone meant every switch started a build
+  // from nothing, a minute or more on a large follow list with the bar running, and a
+  // fixed number of copies only moves the cliff to the fourth account. A set is shortened
+  // keys, about 19 bytes a person, so 3 MB holds sixteen networks of ten thousand people,
+  // or dozens of ordinary ones; beyond it the network used longest ago goes first. The
+  // budget leaves the rest of the extension's 10 MB to drafts, settings and caches, and a
+  // write that fails anyway only means a build next time. The data is derived from kind:3,
+  // which is public, so this is not the class of secret that payMeta and drafts are
+  // encrypted for, but it is still a social graph, which is why it expires rather than
+  // living there forever, and goes when its account is removed.
   const WOT_TTL_MS = 24 * 60 * 60 * 1000;
+  const WOT_BUDGET = 3 * 1024 * 1024; // bytes of kept networks, the most recently used first
   const WOT_RETRY_MS = 10 * 60 * 1000;
   let _wotFailed = null; // { pubkey, at } of the last build that could not read the whole network
   const WOT_STORE = 'sidecar_wot';
@@ -4353,6 +4363,7 @@
   let _wotSet = null;        // Set of truncated keys for _wotPubkey
   let _wotPubkey = null;
   let _wotInflight = null;
+  let _wotBuildFor = null;   // the account the build in flight is for, which may no longer be active
   // WHY the set is or is not there. A filter that fails open is silent by design, which
   // makes "it isn't working" unanswerable — you cannot tell a set that decided everyone
   // is in-network from one that never built. This is what the Settings row reports.
@@ -4365,13 +4376,44 @@
   let _wotDone = 0;   // follows expanded so far
   let _wotTotal = 0;  // follows to expand
 
-  function wotRead() {
+  // The store is { sets: { [pubkey]: { pubkey, algo, keys, seen, qualified, ts, used } } }.
+  // Up to 1.19.1 it held one set, { pubkey, algo, keys, ... }; that shape is read as a
+  // store of one, so nobody rebuilds for the update.
+  function wotStoreRead() {
     return new Promise((resolve) =>
       chrome.storage.local.get(WOT_STORE, (got) => {
         void chrome.runtime.lastError;
-        resolve((got && got[WOT_STORE]) || null);
+        const raw = got && got[WOT_STORE];
+        if (raw && raw.sets && typeof raw.sets === 'object') return resolve({ sets: Object.assign({}, raw.sets) });
+        if (raw && raw.pubkey) return resolve({ sets: { [raw.pubkey]: raw } });
+        resolve({ sets: {} });
       })
     );
+  }
+  async function wotRead(pubkey) {
+    const { sets } = await wotStoreRead();
+    return (pubkey && sets[pubkey]) || null;
+  }
+  // Writes one account's set (or drops it, with null), and keeps the store within WOT_BUDGET,
+  // the most recently used first, none older than a day. The newest always stays, even alone
+  // over the budget: it is the account in use.
+  async function wotWrite(pubkey, entry) {
+    const { sets } = await wotStoreRead();
+    if (entry) sets[pubkey] = Object.assign({}, entry, { pubkey });
+    else delete sets[pubkey];
+    const now = Date.now();
+    const sorted = Object.values(sets)
+      .filter((e) => e && e.pubkey && Array.isArray(e.keys) && now - (e.ts || 0) < WOT_TTL_MS)
+      .sort((a, b) => (b.used || b.ts || 0) - (a.used || a.ts || 0));
+    let bytes = 0;
+    const keep = [];
+    for (const e of sorted) {
+      bytes += JSON.stringify(e).length;
+      if (keep.length && bytes > WOT_BUDGET) break;
+      keep.push(e);
+    }
+    const next = { sets: Object.fromEntries(keep.map((e) => [e.pubkey, e])) };
+    await new Promise((r) => chrome.storage.local.set({ [WOT_STORE]: next }, () => { void chrome.runtime.lastError; r(); }));
   }
 
   // ---- nspam: a second opinion on strangers' replies (nspam.js) ----
@@ -4451,33 +4493,144 @@
     return { scores, spam };
   }
 
+  // The pubkeys an account follows, read from that account's own relays for whichever account
+  // a build is for. Not getFollowList: that is the active account's, and a load of it still
+  // running at a switch is handed to the next account and filed under it, so a build started
+  // just after a switch read the previous account's follows. A build is rare; one read of a
+  // kind:3 is nothing beside the hundreds of lists it goes on to read.
+  //
+  // NO ANSWER IS NOT AN EMPTY LIST. A read no relay answered throws, so the build fails and
+  // tries again later; taking it for "follows nobody" kept a network of one for a day.
+  async function followPubkeysOf(pubkey, trace, extra) {
+    const r = await poolQueryAnswered(await readRelayUrls(pubkey), { kinds: [3], authors: [pubkey] }, Object.assign({ maxWait: 8000, trace }, extra));
+    if (!r.answered) throw new Error('no relay answered for the follow list');
+    const ev = (r.events || []).filter((e) => e && e.pubkey === pubkey).sort((a, b) => b.created_at - a.created_at)[0];
+    return ((ev && ev.tags) || []).filter((t) => t[0] === 'p' && t[1] && t[1].length === 64).map((t) => t[1]);
+  }
+
+  // THE NETWORK BUILD'S TRACE, in the debug log behind the bug button (unpacked builds only;
+  // nothing is sent on a store build). A build that hangs or fails says nothing on screen
+  // about why, and the why is nearly always one relay: which stayed silent, which never
+  // connected, which refused. Each batch of follow lists logs every relay's outcome, so a
+  // manual rebuild on each account can be read back and copied afterward. English only,
+  // like the rest of the debug panel.
+  function wotWho(pubkey) {
+    const a = (state.accounts || []).find((x) => x.pubkey === pubkey);
+    return (a ? displayName(a) : '?') + ' (' + String(pubkey || '').slice(0, 8) + ')';
+  }
+  function wotLog(level, msg, data) {
+    if (!isDevBuild()) return;
+    call({ type: 'SIDECAR_NETWORK_LOG', level, msg, data }).catch(() => {});
+  }
+  // A trace object, summed up: the counts by outcome, and every relay that did not answer
+  // with how long it took and why.
+  function wotTraceSummary(trace) {
+    const by = { answered: [], silent: [], unreached: [], closed: [], pending: [] };
+    for (const [url, r] of Object.entries(trace || {})) (by[r.how] || by.pending).push(Object.assign({ url }, r));
+    const short = (list) => list.map((r) => r.url.replace(/^wss?:\/\//, '').replace(/\/$/, '') + (r.ms != null ? ' ' + r.ms + 'ms' : '') + (r.reason ? ' (' + r.reason + ')' : ''));
+    return {
+      counts: Object.fromEntries(Object.entries(by).map(([k, v]) => [k, v.length])),
+      answered: by.answered.map((r) => r.url.replace(/^wss?:\/\//, '').replace(/\/$/, '') + ' ' + r.ms + 'ms/' + r.events),
+      silent: short(by.silent), unreached: short(by.unreached), closed: short(by.closed), pending: short(by.pending),
+    };
+  }
+  function wotTraceLine(sum) {
+    const c = sum.counts;
+    const parts = [c.answered + ' answered'];
+    if (c.silent) parts.push(c.silent + ' silent: ' + sum.silent.join(', '));
+    if (c.pending) parts.push(c.pending + ' still waiting: ' + sum.pending.join(', '));
+    if (c.closed) parts.push(c.closed + ' refused: ' + sum.closed.join(', '));
+    if (c.unreached) parts.push(c.unreached + ' never connected');
+    return parts.join(' · ');
+  }
+
+  // This account's kept network, read back and made the one the panel sorts by, while the
+  // account is still on screen. Null when none is kept or it has expired. Not a build: no
+  // "building" state, so the bar at the foot does not flash up for a network only read back.
+  async function adoptKeptWot(pubkey) {
+    const saved = await wotRead(pubkey);
+    if (!(saved && saved.pubkey === pubkey && saved.algo === WOT_ALGO && Array.isArray(saved.keys) &&
+        Date.now() - (saved.ts || 0) < WOT_TTL_MS)) return null;
+    if (state.activePubkey !== pubkey) return null;
+    wotWrite(pubkey, Object.assign({}, saved, { used: Date.now() })).catch(() => {});
+    _wotPubkey = pubkey;
+    _wotSet = new Set(saved.keys);
+    _wotState = 'ready';
+    _wotCount = _wotSet.size;
+    _wotSeen = saved.seen || 0;
+    _wotQualified = saved.qualified || 0;
+    renderWotStatus();
+    wotLog('info', wotWho(pubkey) + ': kept network read back, ' + _wotSet.size + ' people, built ' + Math.round((Date.now() - saved.ts) / 60000) + ' min ago');
+    return _wotSet;
+  }
+
   async function getWotSet(force) {
     const pubkey = state.activePubkey;
     if (!pubkey || !self.SidecarWot) return null;
     if (_wotSet && _wotPubkey === pubkey) return _wotSet;
+    // A BUILD FOR ANOTHER ACCOUNT, still running after a switch, finishes for that account:
+    // its work is kept for when you come back. This account's build starts the moment it
+    // ends, and this promise answers with this account's network, not the other one's.
+    if (_wotInflight && _wotBuildFor !== pubkey) {
+      // A kept network is only a storage read, and does not wait behind the other build: the
+      // bell opened after a switch sorts by it, and shows its size, at once.
+      if (!force) {
+        const kept = await adoptKeptWot(pubkey);
+        if (kept) return kept;
+        if (state.activePubkey !== pubkey) return null;
+        if (_wotSet && _wotPubkey === pubkey) return _wotSet;
+        if (!_wotInflight || _wotBuildFor === pubkey) return getWotSet(force);
+      }
+      wotLog('info', 'Waiting for ' + wotWho(_wotBuildFor) + '\'s build to finish before ' + wotWho(pubkey) + '\'s');
+      return _wotInflight.catch(() => {}).then(() => (state.activePubkey === pubkey ? getWotSet(force) : null));
+    }
     if (_wotInflight) return _wotInflight;
     // A build that could not read the whole network is not started again by every bell
     // open and every arrival: those wait ten minutes. Rebuild network asks with force.
-    if (!force && _wotFailed && _wotFailed.pubkey === pubkey && Date.now() - _wotFailed.at < WOT_RETRY_MS) return null;
+    if (!force && _wotFailed && _wotFailed.pubkey === pubkey && Date.now() - _wotFailed.at < WOT_RETRY_MS) {
+      wotLog('info', wotWho(pubkey) + ': not building, the last build failed ' + Math.round((Date.now() - _wotFailed.at) / 1000) + 's ago (retries after ' + Math.round(WOT_RETRY_MS / 60000) + ' min, or Rebuild network)');
+      return null;
+    }
 
-    _wotState = 'building';
-    renderWotStatus();
+    // Whether this build is still for the account on screen. Everything the panel shows
+    // (the bar, the Settings line, the counts) follows the active account only.
+    const mine = () => state.activePubkey === pubkey;
+    _wotBuildFor = pubkey;
     _wotInflight = (async () => {
       try {
-        const saved = await wotRead();
-        if (saved && saved.pubkey === pubkey && saved.algo === WOT_ALGO && Array.isArray(saved.keys) &&
-            Date.now() - (saved.ts || 0) < WOT_TTL_MS) {
-          _wotPubkey = pubkey;
-          _wotSet = new Set(saved.keys);
-          _wotState = 'ready';
-          _wotCount = _wotSet.size;
-          _wotSeen = saved.seen || 0;
-          _wotQualified = saved.qualified || 0;
-          renderWotStatus();
-          return _wotSet;
+        // A kept set is not a build: no "building" state, so the bar at the foot does not
+        // flash up and report a network that was only read back.
+        if (!force) {
+          const kept = await adoptKeptWot(pubkey);
+          if (kept) return kept;
         }
-        const follows = (await getFollowList()) || [];
+        const t0 = Date.now();
+        wotLog('info', wotWho(pubkey) + ': building' + (force ? ' (Rebuild network)' : '') + (mine() ? '' : ' (not on screen)'));
+        _wotState = 'building';
+        // Counts from nothing: the last build's "done of total" (another account's, after a
+        // switch) is not this one's, and showed in the bar until the first batch came back.
+        _wotDone = 0;
+        _wotTotal = 0;
+        renderWotStatus();
+        const listTrace = {};
+        let follows;
+        try {
+          follows = await followPubkeysOf(pubkey, listTrace);
+        } finally {
+          const sum = wotTraceSummary(listTrace);
+          wotLog(follows ? 'info' : 'error', wotWho(pubkey) + ': own follow list ' + (follows ? follows.length + ' follows' : 'NOT READ') + ' · ' + wotTraceLine(sum), sum);
+        }
         const relays = await readRelayUrls(pubkey);
+        wotLog('info', wotWho(pubkey) + ': reading ' + follows.length + ' follow lists in batches of 50 from ' + relays.length + ' relays', { relays });
+        let batchNo = 0;
+        // Relays left out of the rest of this build, and why: silent on both asks of a batch,
+        // or never connected. Named in the log, and in Settings if the build fails.
+        const leftOut = new Map();
+        const leaveOut = (url, why) => {
+          if (leftOut.has(url)) return;
+          leftOut.set(url, why);
+          wotLog('warn', wotWho(pubkey) + ': left out of the rest of this build: ' + url.replace(/^wss?:\/\//, '').replace(/\/$/, '') + ' (' + why + ')');
+        };
         // The mute list, so the denylist and the allowlist compose rather than sitting
         // side by side: someone you muted should not qualify however many people vouch.
         const mute = _muteLists.get(pubkey);
@@ -4486,8 +4639,9 @@
         const res = await self.SidecarWot.build({
           me: pubkey,
           muted: mutedShort,
-          follows: follows.map((f) => f.pubkey || f).filter(Boolean),
+          follows,
           onProgress: (done, total) => {
+            if (!mine()) return;
             _wotDone = done;
             _wotTotal = total;
             renderWotStatus();
@@ -4495,23 +4649,77 @@
           // One REQ per chunk of seeds, collecting their p-tags. Bounded per chunk so a
           // single unresponsive relay cannot hold the whole build open.
           //
-          // A CHUNK IS READ ONLY WHEN NO RELAY STAYED SILENT. "Some relay answered" was the old
-          // test, and one quick relay holding a few of the lists passed it while the relays
-          // holding the rest were still quiet: a build came out at a third of its size, looked
-          // whole, and was kept for a day, so most of the network sorted as strangers. A
-          // relay that refused or never connected was never going to answer and does not
-          // count against it. A silent one gets a second, longer ask; still silent, the chunk
-          // throws, and the build counts it as unread (see the store below).
+          // EVERY RELAY GETS ITS CHANCE, AND ONE THAT TAKES NONE IS LEFT OUT. "Some relay
+          // answered" was the 1.19.0 test, and one quick relay holding a few of the lists
+          // passed it while the relays holding the rest were still quiet: a build came out at
+          // a third of its size, looked whole, and was kept for a day. So a relay silent on the
+          // first ask (8 seconds) is asked again, alone, for 16 more. 1.19.1 then failed the
+          // chunk if it was still silent, and one relay that throttles heavy reads failed every
+          // chunk it slowed, so the build failed and tried again ten minutes later, forever.
+          // Now a relay silent on both asks has had 24 seconds, which no relay that means to
+          // answer needs: it is left out of the rest of this build, and the chunk counts with
+          // what the others sent. So is a relay that never connected, which otherwise held
+          // every ask for its 7-second connection timeout. A chunk no relay answered at all is
+          // still unread, and a build with one is not kept (see the store below).
           fetchFollowsOf: async (chunk) => {
             const filter = { kinds: [3], authors: chunk };
-            let r = await poolQueryAnswered(relays, filter, { maxWait: 8000 });
-            if (r.silent || !r.answered) r = await poolQueryAnswered(relays, filter, { maxWait: 16000 });
-            if (!r.answered) throw new Error('no relay answered');
-            if (r.silent) throw new Error('a relay stayed silent');
+            const n = ++batchNo;
+            const of = Math.ceil(follows.length / 50);
+            // One ask of some relays, logged: every relay's outcome when it settles, and while
+            // it waits, every 10 seconds, the relays still pending (a hung connection shows
+            // up only there). Capped a little past its wait, so a connection that never opens
+            // or closes cannot hold it: a relay still pending at the cap counts as silent.
+            const ask = async (urls, maxWait, label) => {
+              const trace = {};
+              const a0 = Date.now();
+              const tick = setInterval(() => {
+                const sum = wotTraceSummary(trace);
+                if (sum.counts.pending) wotLog('warn', wotWho(pubkey) + ': batch ' + n + '/' + of + ' ' + label + ' still waiting after ' + Math.round((Date.now() - a0) / 1000) + 's on ' + sum.pending.join(', '));
+              }, 10000);
+              try {
+                const r = await poolQueryAnswered(urls, filter, { maxWait, capMs: maxWait + 2000, trace });
+                const sum = wotTraceSummary(trace);
+                wotLog(sum.counts.silent || sum.counts.pending || !r.answered ? 'warn' : 'info', wotWho(pubkey) + ': batch ' + n + '/' + of + ' ' + label + ' ' + (Date.now() - a0) + 'ms, ' + r.events.length + ' lists · ' + wotTraceLine(sum), sum);
+                return { r, trace };
+              } finally { clearInterval(tick); }
+            };
+            const urls = relays.filter((u) => !leftOut.has(u));
+            if (!urls.length) {
+              wotLog('error', wotWho(pubkey) + ': batch ' + n + '/' + of + ' DROPPED: every relay has been left out');
+              throw new Error('no relay left to ask');
+            }
+            const first = await ask(urls, 8000, 'ask 1');
+            const events = [...first.r.events];
+            let answered = first.r.answered;
+            const quiet = (trace) => Object.keys(trace).filter((u) => trace[u].how === 'silent' || trace[u].how === 'pending');
+            for (const u of Object.keys(first.trace)) if (first.trace[u].how === 'unreached') leaveOut(u, 'never connected');
+            const silent = quiet(first.trace);
+            let silentTwice = [];
+            if (silent.length) {
+              const second = await ask(silent, 16000, 'ask 2');
+              events.push(...second.r.events);
+              answered = answered || second.r.answered;
+              for (const u of Object.keys(second.trace)) if (second.trace[u].how === 'unreached') leaveOut(u, 'never connected');
+              silentTwice = quiet(second.trace);
+              for (const u of silentTwice) leaveOut(u, 'silent on both asks');
+            }
+            if (!answered) { wotLog('error', wotWho(pubkey) + ': batch ' + n + '/' + of + ' DROPPED: no relay answered'); throw new Error('no relay answered'); }
+            // WITHOUT A RELAY, ONLY IF THE OTHERS CARRY IT. A relay left out may have been the
+            // one holding these lists, and a relay that answers with nothing still answers:
+            // counting that batch kept a network missing nearly everyone, for a day. So a
+            // batch that lost a relay counts only when the rest sent lists for at least half
+            // its people; otherwise it is unread, and the build is not kept.
+            if (silentTwice.length) {
+              const authors = new Set(events.map((e) => e && e.pubkey).filter((pk) => chunk.includes(pk)));
+              if (authors.size < chunk.length / 2) {
+                wotLog('error', wotWho(pubkey) + ': batch ' + n + '/' + of + ' DROPPED: without the relays left out, only ' + authors.size + ' of ' + chunk.length + ' lists');
+                throw new Error('too few lists without the relays left out');
+              }
+            }
             // Deduped by author before counting: the pool spans relays, so one person's
             // list arrives once per relay holding it, and counting copies multiplies every
             // vote. See followsFromEvents.
-            return self.SidecarWot.followsFromEvents(r.events);
+            return self.SidecarWot.followsFromEvents(events);
           },
         });
         // A PARTIAL SET IS NEITHER KEPT NOR SORTED BY. A chunk whose relays did not all answer
@@ -4520,7 +4728,10 @@
         // shows everything (inNetwork fails open), says it could not reach the relays, and
         // the next open tries again.
         if (res.expanded < res.follows) {
+          _wotLeftOut = { pubkey, hosts: [...leftOut.keys()].map((u) => u.replace(/^wss?:\/\//, '').replace(/\/$/, '')) };
+          wotLog('error', wotWho(pubkey) + ': build FAILED after ' + Math.round((Date.now() - t0) / 1000) + 's: read ' + res.expanded + ' of ' + res.follows + ' follows, so nothing is kept');
           _wotFailed = { pubkey, at: Date.now() };
+          if (!mine()) return null;
           _wotPubkey = null;
           _wotSet = null;
           _wotState = 'failed';
@@ -4529,34 +4740,43 @@
           return null;
         }
         // Follows made while the build ran are in it too: a follow is in the network by
-        // itself, and the list the build started from did not have them yet.
-        for (const f of (await getFollowList()) || []) {
-          const pk = f && (f.pubkey || f);
-          if (pk) res.set.add(self.SidecarWot.short(pk));
-        }
-        _wotPubkey = pubkey;
-        _wotSet = res.set;
+        // itself, and the list the build started from did not have them yet. THIS account's
+        // follows: after a switch the active account's list is someone else's, and adding it
+        // put another account's follows into this one's network for a day.
+        // Settled a moment after your list first lands rather than after every relay: a relay
+        // that never connects held this read for its 7-second timeout at the end of every build.
+        for (const pk of await followPubkeysOf(pubkey, null, { settleAfter: 1500 }).catch(() => [])) res.set.add(self.SidecarWot.short(pk)); // a missed re-read only misses a follow made mid-build
+        if (_wotLeftOut && _wotLeftOut.pubkey === pubkey) _wotLeftOut = null;
         // Only worth keeping if it can actually filter. An empty set is the fail-open
         // signal, and persisting one would just make the next open re-read "no filter".
         if (res.set.size) {
-          chrome.storage.local.set({
-            [WOT_STORE]: { pubkey, algo: WOT_ALGO, keys: [...res.set], seen: res.seen, qualified: res.qualified, ts: Date.now() },
-          }, () => void chrome.runtime.lastError);
+          const now = Date.now();
+          wotWrite(pubkey, { algo: WOT_ALGO, keys: [...res.set], seen: res.seen, qualified: res.qualified, ts: now, used: now }).catch(() => {});
         }
+        wotLog('info', wotWho(pubkey) + ': build done in ' + Math.round((Date.now() - t0) / 1000) + 's: ' + res.set.size + ' people from ' + res.follows + ' follows' + (res.set.size ? ', kept' : ', empty so not kept') + (mine() ? '' : ' (switched away; kept for that account)'));
+        if (!mine()) return null; // kept for that account; nothing on screen is about it
+        _wotPubkey = pubkey;
+        _wotSet = res.set;
         _wotState = res.set.size ? 'ready' : 'empty';
         _wotCount = res.set.size;
         _wotSeen = res.seen;
         _wotQualified = res.qualified;
         renderWotStatus();
         return _wotSet;
-      } catch (_) {
+      } catch (err) {
+        wotLog('error', wotWho(pubkey) + ': build FAILED: ' + String((err && err.message) || err));
         // Fail open: no set means everyone is in-network.
         _wotFailed = { pubkey, at: Date.now() };
+        if (!mine()) return null;
         _wotState = 'failed';
         renderWotStatus();
         return (_wotSet = null);
       } finally {
         _wotInflight = null;
+        _wotBuildFor = null;
+        // Switched away while it ran: the account on screen now gets its own network,
+        // without waiting for the bell to be opened again.
+        if (!mine() && notifWotFilter && state.activePubkey) setTimeout(() => { getWotSet().catch(() => {}); }, 0);
       }
     })();
     return _wotInflight;
@@ -4568,8 +4788,11 @@
   // expensive and wrong when you have just changed your follows, fixed your relays, or
   // want to see whether the number is real.
   async function rebuildWot() {
+    const pubkey = state.activePubkey;
+    wotLog('info', wotWho(pubkey) + ': Rebuild network pressed');
     forgetWot();
-    await new Promise((r) => chrome.storage.local.remove(WOT_STORE, () => { void chrome.runtime.lastError; r(); }));
+    // Only this account's set: the others are still right for their accounts.
+    if (pubkey) await wotWrite(pubkey, null).catch(() => {});
     await getWotSet(true).catch(() => {});
   }
 
@@ -4577,9 +4800,9 @@
     if (!self.SidecarWot || !target) return;
     const k = self.SidecarWot.short(target);
     if (_wotSet && _wotPubkey === pubkey) { _wotSet.add(k); _wotCount = _wotSet.size; renderWotStatus(); }
-    wotRead().then((saved) => {
+    wotRead(pubkey).then((saved) => {
       if (!saved || saved.pubkey !== pubkey || !Array.isArray(saved.keys) || saved.keys.includes(k)) return;
-      chrome.storage.local.set({ [WOT_STORE]: Object.assign({}, saved, { keys: [...saved.keys, k] }) }, () => void chrome.runtime.lastError);
+      return wotWrite(pubkey, Object.assign({}, saved, { keys: [...saved.keys, k] }));
     }).catch(() => {});
   }
 
@@ -4610,15 +4833,21 @@
   // to the bell or Settings that started it, so it is shown wherever you are and closing
   // either loses nothing. Only closing the panel does, and a build that did not finish is
   // never kept (see getWotSet).
-  let _wotBarResult = null; // { ok, line } shown briefly after a build ends
+  let _wotBarResult = null; // { ok, line, pubkey } shown briefly after a build ends
+  let _wotLeftOut = null;   // { pubkey, hosts }: relays a failed build left out, named in Settings
   let _wotBarTimer = null;
   let _wotBarWasBuilding = false;
   function renderNetworkStatus() {
-    const building = notifWotFilter && _wotState === 'building';
+    // Only the active account's build: one still finishing for an account you switched away
+    // from runs quietly, and never ends on that account's count.
+    const building = notifWotFilter && _wotState === 'building' && (!_wotBuildFor || _wotBuildFor === state.activePubkey);
     if (_wotBarWasBuilding && !building && (_wotState === 'ready' || _wotState === 'failed' || _wotState === 'empty')) {
       _wotBarResult = _wotState === 'ready'
         ? { ok: true, line: tn('Your network: {{count}} person.', 'Your network: {{count}} people.', _wotCount) }
         : { ok: false, line: wotStatusText(_wotState) };
+      // A build ends here only while its account is on screen (a switch mid-build turns
+      // `building` off with the state still 'building'), so the result is the active one's.
+      _wotBarResult.pubkey = state.activePubkey;
       clearTimeout(_wotBarTimer);
       _wotBarTimer = setTimeout(() => { _wotBarResult = null; renderNetworkStatus(); }, 5000);
     }
@@ -4627,7 +4856,9 @@
     for (const id of ['network-status', 'network-status-settings']) {
       const bar = document.getElementById(id);
       if (!bar) continue;
-      const show = building || !!_wotBarResult;
+      // A result is the account's it was built for: switch away and it goes with it.
+      const result = _wotBarResult && _wotBarResult.pubkey === state.activePubkey ? _wotBarResult : null;
+      const show = building || !!result;
       bar.classList.toggle('hidden', !show);
       if (id === 'network-status' && view) view.classList.toggle('network-active', show);
       if (!show) continue;
@@ -4647,15 +4878,20 @@
       } else {
         count.textContent = '';
         count.classList.add('hidden');
-        glyph.append(icon(_wotBarResult.ok ? 'check' : 'alert'));
-        if (!_wotBarResult.ok) glyph.classList.add('bad');
-        line.textContent = _wotBarResult.line;
+        glyph.append(icon(result.ok ? 'check' : 'alert'));
+        if (!result.ok) glyph.classList.add('bad');
+        line.textContent = result.line;
       }
     }
     placeFootInset();
   }
 
   function renderWotStatus() {
+    // A build still running for an account you switched away from is not this account's.
+    // Nor is a network finished for one: its count is not this account's.
+    const other = (_wotState === 'building' && _wotBuildFor && _wotBuildFor !== state.activePubkey)
+      || (_wotState === 'ready' && _wotPubkey && _wotPubkey !== state.activePubkey);
+    const st = other ? 'idle' : _wotState;
     renderNetworkStatus();
     const el = document.getElementById('wot-status');
     if (!el) return;
@@ -4664,25 +4900,30 @@
     // a line that just says "working" for that long is indistinguishable from a hang.
     const bar = document.getElementById('wot-progress');
     if (bar) {
-      const on = _wotState === 'building' && _wotTotal > 0;
+      const on = st === 'building' && _wotTotal > 0;
       bar.classList.toggle('hidden', !on);
       if (on) {
         const pct = Math.max(2, Math.min(100, Math.round((_wotDone / _wotTotal) * 100)));
         bar.firstChild.style.width = pct + '%';
       }
     }
-    if (_wotState === 'building') {
+    if (st === 'building') {
       el.textContent = _wotTotal
         ? t('Working out your network… {{done}} of {{total}} follows.', { done: fmtSats(_wotDone), total: fmtSats(_wotTotal) })
         : t('Working out your network…');
       return;
     }
-    el.textContent = _wotState === 'ready'
+    el.textContent = st === 'ready'
       ? (_wotSeen
         ? tn('Your network: {{count}} person, from {{seen}} your follows follow.', 'Your network: {{count}} people, from {{seen}} your follows follow.',
           _wotCount, { seen: fmtSats(_wotSeen) })
         : tn('Your network: {{count}} person.', 'Your network: {{count}} people.', _wotCount))
-      : wotStatusText(_wotState);
+      : wotStatusText(st);
+    // A failed build names the relays it left out, so "couldn't reach your relays" says
+    // which ones to look at. Hosts are data, not text, so they go in as a value.
+    if (st === 'failed' && _wotLeftOut && _wotLeftOut.pubkey === state.activePubkey && _wotLeftOut.hosts.length) {
+      el.textContent += ' ' + t('No answer from {{relays}}.', { relays: _wotLeftOut.hosts.join(', ') });
+    }
   }
 
   // ---- header account switcher (dropdown) ----
@@ -5298,9 +5539,14 @@
     // complete: false. For a read that must wait for every relay (a replaceable record
     // whose copies differ by relay) but cannot wait on one that never connects.
     const capMs = params && params.capMs;
+    // trace (opt-in, for the debug log): an object filled in as each relay settles, keyed by
+    // URL: { how: 'pending' | 'answered' | 'silent' | 'unreached' | 'closed', ms, events,
+    // reason }. Live, so a caller can report the relays still pending while it waits.
+    const trace = params && params.trace;
     const subParams = Object.assign({}, params);
     delete subParams.settleAfter;
     delete subParams.capMs;
+    delete subParams.trace;
     return new Promise((resolve) => {
       const events = [];
       const seen = new Set();
@@ -5330,8 +5576,10 @@
       if (capMs) capTimer = setTimeout(finish, capMs);
       for (const url of urls) {
         if (done) break;
+        const tr = trace ? (trace[url] = { how: 'pending', ms: null, events: 0 }) : null;
         subs.push(poolSubscribeManyEose([url], filter, Object.assign({}, subParams, {
           onevent: (ev) => {
+            if (tr) tr.events++;
             answered = true; // an event is an answer, whenever it lands
             if (ev && !seen.has(ev.id)) { seen.add(ev.id); events.push(ev); }
             if (settleAfter && !settleTimer && ev && (!author || ev.pubkey === author)) {
@@ -5343,6 +5591,12 @@
             if (reason === EOSE_CLOSE && Date.now() - t0 < realBefore) answered = true;
             else if (reason === EOSE_CLOSE) silent++;
             else if (NEVER_CONNECTED.test(String(reason || ''))) unreached++;
+            if (tr) {
+              tr.ms = Date.now() - t0;
+              tr.how = reason === EOSE_CLOSE ? (tr.ms < realBefore ? 'answered' : 'silent')
+                : NEVER_CONNECTED.test(String(reason || '')) ? 'unreached' : 'closed';
+              if (tr.how === 'unreached' || tr.how === 'closed') tr.reason = String(reason || '').slice(0, 120);
+            }
             if (--left === 0) finish();
           },
         })));
@@ -9459,6 +9713,15 @@
     // follow, and this modal is expected to open from cache without a round trip. No set
     // means no partition, which is the fail-open direction; it is warmed in the background
     // (see getWotSet) so the usual case is that it is ready by the time you open the bell.
+    // Just switched to, or another account's build still running: this account's kept
+    // network may not be in memory yet. Reading it back is a storage read, so the bell waits
+    // for that, briefly, rather than open unsorted with no count and no Rebuild under Load
+    // more. Only the read: it starts no build and never waits on one (this account's own
+    // build in flight has nothing kept to read), so the bell opens from cache as before.
+    if (notifWotFilter && self.SidecarWot && a.pubkey === state.activePubkey && _wotPubkey !== a.pubkey &&
+        !(_wotInflight && _wotBuildFor === a.pubkey)) {
+      await Promise.race([adoptKeptWot(a.pubkey).catch(() => null), new Promise((r) => setTimeout(r, 300))]);
+    }
     const wotSet = notifWotFilter && self.SidecarWot && _wotPubkey === a.pubkey ? _wotSet : null;
     // An empty set sorts nobody out (inNetwork fails open on it), so it counts as none here.
     const sortingSet = wotSet && wotSet.size ? wotSet : null;
@@ -13362,6 +13625,7 @@
         busy(true);
         try {
           await call({ type: 'SIDECAR_REMOVE_ACCOUNT', pubkey: a.pubkey, pin: pin.value });
+          wotWrite(a.pubkey, null).catch(() => {}); // its network goes with it
           closeModal();
           await refresh();
           toast(t('Account removed'), 'success');
@@ -13458,8 +13722,8 @@
     syncPeekRow(); // greyed out until the switch above it is on
     $('wotfilter-toggle').checked = settings.notifWotFilter !== false; // default on
     renderWotStatus();
-    const rebuildRow = document.querySelector('.wot-actions');
-    if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
+    const statusBlock = $('wot-status-block');
+    if (statusBlock) statusBlock.classList.toggle('hidden', !notifWotFilter);
     $('reducemotion-toggle').checked = settings.reduceBalanceMotion === true; // default off
     $('otd-toggle').checked = settings.onThisDay !== false; // default on
     $('quotes-toggle').checked = settings.literaryQuotes !== false; // default on
@@ -28092,8 +28356,8 @@
   $('wotfilter-toggle').addEventListener('change', async (e) => {
     notifWotFilter = e.target.checked;
     renderWotStatus();
-    const rebuildRow = document.querySelector('.wot-actions');
-    if (rebuildRow) rebuildRow.classList.toggle('hidden', !notifWotFilter);
+    const statusBlock = $('wot-status-block');
+    if (statusBlock) statusBlock.classList.toggle('hidden', !notifWotFilter);
     await call({ type: 'SIDECAR_SET_SETTINGS', settings: { notifWotFilter: e.target.checked } });
     // Build it now if it was never needed before, so the next bell can sort.
     // AFTER first paint, not during it. This is background work nothing waits on, and on a

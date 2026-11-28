@@ -166,6 +166,7 @@
 }
 [data-theme="turnstile"] .ac-spinner:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .recv-spinner:not(.theme-card):not(.theme-card *),
+[data-theme="turnstile"] .toast-spin:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .tx-icon:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .tx-icon.has-av img:not(.theme-card):not(.theme-card *),
 [data-theme="turnstile"] .tx-dir:not(.theme-card):not(.theme-card *),

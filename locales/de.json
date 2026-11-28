@@ -1617,7 +1617,6 @@
   "Literary quotes": "Literarische Zitate",
   "A line from a book in empty lists and while they load.": "Ein Satz aus einem Buch in leeren Listen und beim Laden.",
   "Show literary quotes": "Literarische Zitate anzeigen",
-  "Your network first": "Dein Netzwerk zuerst",
   "Sort notifications by who you follow": "Benachrichtigungen nach gefolgten Personen sortieren",
   "Rebuild network": "Netzwerk neu aufbauen",
   "Posting": "Veröffentlichen",
@@ -2501,5 +2500,8 @@
   "Use https for {{count}} link_other": "https für {{count}} Links verwenden",
   "and {{count}} more_one": "und {{count}} weiterer",
   "and {{count}} more_other": "und {{count}} weitere",
-  "Building network…": "Netzwerk wird aufgebaut…"
+  "Building network…": "Netzwerk wird aufgebaut…",
+  "Your network": "Dein Netzwerk",
+  "Network status": "Netzwerkstatus",
+  "No answer from {{relays}}.": "Keine Antwort von {{relays}}."
 }

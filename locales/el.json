@@ -1765,7 +1765,6 @@
   "Literary quotes": "Λογοτεχνικά αποσπάσματα",
   "A line from a book in empty lists and while they load.": "Μια φράση από βιβλίο σε κενές λίστες και ενώ φορτώνονται.",
   "Show literary quotes": "Εμφάνιση λογοτεχνικών αποσπασμάτων",
-  "Your network first": "Πρώτα το δίκτυό σας",
   "Sort notifications by who you follow": "Ταξινόμηση ειδοποιήσεων με βάση όσους ακολουθείτε",
   "Rebuild network": "Επανυπολογισμός δικτύου",
   "Posting": "Δημοσίευση",
@@ -2501,5 +2500,8 @@
   "Use https for {{count}} link_other": "Χρήση https για {{count}} συνδέσμους",
   "and {{count}} more_one": "και {{count}} ακόμη",
   "and {{count}} more_other": "και {{count}} ακόμη",
-  "Building network…": "Υπολογισμός δικτύου…"
+  "Building network…": "Υπολογισμός δικτύου…",
+  "Your network": "Το δίκτυό σας",
+  "Network status": "Κατάσταση δικτύου",
+  "No answer from {{relays}}.": "Καμία απάντηση από {{relays}}."
 }

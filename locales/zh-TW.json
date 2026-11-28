@@ -1704,7 +1704,6 @@
   "Literary quotes": "文學名句",
   "A line from a book in empty lists and while they load.": "在空白清單與載入期間顯示一句書中的話。",
   "Show literary quotes": "顯示文學名句",
-  "Your network first": "人脈優先",
   "Sort notifications by who you follow": "依您追蹤的對象排序通知",
   "Rebuild network": "重建人脈",
   "Posting": "發布",
@@ -2412,5 +2411,8 @@
   "This link uses http, not https. Press {{action}} again to send it as is._other": "{{count}} 個連結使用的是 http，而不是 https。再點一下「{{action}}」即可照原樣送出。",
   "Use https for {{count}} link_other": "為 {{count}} 個連結改用 https",
   "and {{count}} more_other": "還有 {{count}} 個",
-  "Building network…": "正在建立人脈…"
+  "Building network…": "正在建立人脈…",
+  "Your network": "您的人脈",
+  "Network status": "人脈狀態",
+  "No answer from {{relays}}.": "{{relays}} 沒有回應。"
 }

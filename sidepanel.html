@@ -636,20 +636,29 @@
         </div>
       </section>
 
-      <!-- Notifications. Its own section rather than a row under Appearance, where this
+      <!-- Your network. Its own section rather than a row under Appearance, where this
            first landed: sorting the bell by who you follow is not a matter of how the
            panel looks, and someone sent here from the bell should arrive somewhere that
-           names what they came for. -->
+           names what they came for. Titled for the network rather than "Notifications",
+           since everything in it (the count, the build, Rebuild) is about the network;
+           the id stays "notifications" so the bell's link and older code still find it. -->
       <section class="settings-section" data-section="notifications">
         <h3 class="settings-section-title">
-          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-notifications" data-i18n="Notifications">Notifications</button>
+          <button type="button" class="settings-section-toggle" aria-expanded="false" aria-controls="section-body-notifications" data-i18n="Your network">Your network</button>
         </h3>
         <div class="settings-section-body" id="section-body-notifications">
 
           <div class="setting">
-            <h4 data-i18n="Your network first">Your network first</h4>
+            <h4 data-i18n="Notifications">Notifications</h4>
             <p class="hint" data-i18n="Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.">Replies from outside your network are grouped at the bottom, except ones a spam check clears. Nothing is hidden.</p>
             <label class="toggle-row"><input type="checkbox" id="wotfilter-toggle" /> <span data-i18n="Sort notifications by who you follow">Sort notifications by who you follow</span></label>
+          </div>
+
+          <!-- What the network is, apart from the choice above: its size, its build and
+               Rebuild. No network is built while the sort is off, so the whole block hides
+               then. -->
+          <div class="setting" id="wot-status-block">
+            <h4 data-i18n="Network status">Network status</h4>
             <!-- Filled by renderWotStatus. A filter that fails open is silent by design,
                  which makes "it isn't working" unanswerable without this. -->
             <p class="hint compact" id="wot-status"></p>

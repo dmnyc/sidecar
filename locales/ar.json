@@ -2009,7 +2009,6 @@
   "Literary quotes": "اقتباسات أدبية",
   "A line from a book in empty lists and while they load.": "سطر من كتاب في القوائم الفارغة وأثناء تحميلها.",
   "Show literary quotes": "إظهار الاقتباسات الأدبية",
-  "Your network first": "شبكتك أولًا",
   "Sort notifications by who you follow": "إظهار إشعارات من تتابعهم أولًا",
   "Rebuild network": "إعادة بناء الشبكة",
   "Posting": "النشر",
@@ -2857,5 +2856,8 @@
   "and {{count}} more_few": "و{{count}} روابط أخرى",
   "and {{count}} more_many": "و{{count}} رابطًا آخر",
   "and {{count}} more_other": "و{{count}} رابط آخر",
-  "Building network…": "جارٍ بناء الشبكة…"
+  "Building network…": "جارٍ بناء الشبكة…",
+  "Your network": "شبكتك",
+  "Network status": "حالة الشبكة",
+  "No answer from {{relays}}.": "لا رد من {{relays}}."
 }

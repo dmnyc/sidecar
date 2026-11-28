@@ -428,7 +428,13 @@ let IS_DEV_BUILD = (() => {
   if (typeof browser !== 'undefined') return false; // Firefox: resolved async below
   try { return !chrome.runtime.getManifest().update_url; } catch (_) { return false; }
 })();
-const DEBUG_LOG_MAX = 300;
+// 600, not 300: a network build logs a line per batch of follow lists, and a manual pass
+// over several accounts would otherwise push its own beginning out of the log.
+const DEBUG_LOG_MAX = 600;
+const QUIET_READS = new Set(['SIDECAR_GET_SETTINGS', 'SIDECAR_GET_RELAYS']);
+// The network trace kept in storage. A pass over every account's network is a few hundred
+// lines, and this holds several such passes.
+const NETWORK_LOG_MAX = 2000;
 const debugLog = [];
 function dlog(level, tag, msg, data) {
   if (!IS_DEV_BUILD) return;
@@ -573,10 +579,14 @@ const QUEUE_KEEPALIVE_ALARM = 'sidecar-queue-keepalive';
 // this must run after that declaration — the Chrome-path log call is synchronous.
 function startDebugLog() {
   dlog('info', 'bg', 'Background started', { version: chrome.runtime.getManifest().version });
-  // The upload entries the worker forgot when it last slept, back in the log, oldest first.
+  // The upload and network entries the worker forgot when it last slept, back in the log,
+  // oldest first.
   try {
-    chrome.storage.local.get('sidecar_upload_log', (o) => {
-      const saved = Array.isArray(o && o.sidecar_upload_log) ? o.sidecar_upload_log : [];
+    chrome.storage.local.get(['sidecar_upload_log', 'sidecar_network_log'], (o) => {
+      const saved = [
+        ...(Array.isArray(o && o.sidecar_upload_log) ? o.sidecar_upload_log : []),
+        ...(Array.isArray(o && o.sidecar_network_log) ? o.sidecar_network_log : []),
+      ];
       const have = new Set(debugLog.map((e) => e.ts + '|' + e.msg));
       const missing = saved.filter((e) => e && !have.has(e.ts + '|' + e.msg));
       if (missing.length) {
@@ -5099,11 +5109,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // prompt/queue traffic alike. Deliberately logs only type/method/host/timing/
   // error-message, never message bodies or response payloads, so PINs, nsecs,
   // NWC strings, and signed event content never land in the log.
-  if (IS_DEV_BUILD && message.type !== 'SIDECAR_GET_DEBUG_LOG' && message.type !== 'SIDECAR_CLEAR_DEBUG_LOG') {
+  // Not the network log's own messages either: each would add a line about adding a line.
+  if (IS_DEV_BUILD && message.type !== 'SIDECAR_GET_DEBUG_LOG' && message.type !== 'SIDECAR_CLEAR_DEBUG_LOG' && message.type !== 'SIDECAR_NETWORK_LOG') {
     const t0 = Date.now();
     const rawSendResponse = sendResponse;
     sendResponse = (resp) => {
       try {
+        // The panel reads its settings and relays several times a second while it works, and
+        // those lines filled the 600-line log in four minutes, pushing out the trace it was
+        // opened to read. Logged only when they fail.
+        if (QUIET_READS.has(message.type) && !(resp && resp.ok === false)) return rawSendResponse(resp);
         dlog(resp && resp.ok === false ? 'error' : 'info', 'msg', message.type, {
           method: message.method, host: message.host,
           ms: Date.now() - t0,
@@ -5506,6 +5521,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Upload decisions from the composers (composer-core's uploadLog). Unpacked builds only,
   // like every dlog entry, and kept in storage as well, because the worker forgets its log
   // when it sleeps and an upload is often looked into minutes later.
+  // The panel's network builds (see wotLog in sidepanel.js): which relays answered each batch
+  // of follow lists, which stayed silent, which never connected, and how each build ended.
+  // Unpacked builds only, and kept in storage like the upload entries, since a build runs
+  // for minutes and the worker can sleep in the middle of one.
+  if (message.type === 'SIDECAR_NETWORK_LOG') {
+    if (IS_DEV_BUILD) {
+      const level = ['info', 'warn', 'error'].includes(message.level) ? message.level : 'info';
+      const entry = { ts: Date.now(), level, tag: 'network', msg: String(message.msg || '').slice(0, 300), data: message.data || null };
+      debugLog.push(entry);
+      if (debugLog.length > DEBUG_LOG_MAX) debugLog.shift();
+      if (panelPort) { try { panelPort.postMessage({ type: 'SIDECAR_LOG_UPDATED' }); } catch (_) {} }
+      chrome.storage.local.get('sidecar_network_log', (o) => {
+        const prev = Array.isArray(o && o.sidecar_network_log) ? o.sidecar_network_log : [];
+        chrome.storage.local.set({ sidecar_network_log: prev.concat([entry]).slice(-NETWORK_LOG_MAX) }, () => { void chrome.runtime.lastError; });
+      });
+    }
+    sendResponse({ ok: true, result: true });
+    return false;
+  }
   if (message.type === 'SIDECAR_UPLOAD_LOG') {
     if (IS_DEV_BUILD) {
       const level = ['info', 'warn', 'error'].includes(message.level) ? message.level : 'info';
@@ -5521,14 +5555,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true, result: true });
     return false;
   }
+  // With the whole saved network trace merged in, oldest first: the in-memory log holds 600
+  // lines of everything, and a long session pushes its first builds out of it.
   if (message.type === 'SIDECAR_GET_DEBUG_LOG') {
-    sendResponse({ ok: true, result: debugLog });
-    return false;
+    chrome.storage.local.get('sidecar_network_log', (o) => {
+      const saved = Array.isArray(o && o.sidecar_network_log) ? o.sidecar_network_log : [];
+      const have = new Set(debugLog.map((e) => e.ts + '|' + e.msg));
+      const merged = debugLog.concat(saved.filter((e) => e && !have.has(e.ts + '|' + e.msg)));
+      merged.sort((a, b) => a.ts - b.ts);
+      sendResponse({ ok: true, result: merged });
+    });
+    return true;
   }
   if (message.type === 'SIDECAR_CLEAR_DEBUG_LOG') {
     debugLog.length = 0;
-    // And the saved upload entries, or they would be back the next time the worker starts.
-    chrome.storage.local.remove('sidecar_upload_log', () => { void chrome.runtime.lastError; });
+    // And the saved upload and network entries, or they would be back the next time the
+    // worker starts.
+    chrome.storage.local.remove(['sidecar_upload_log', 'sidecar_network_log'], () => { void chrome.runtime.lastError; });
     sendResponse({ ok: true, result: [] });
     return false;
   }

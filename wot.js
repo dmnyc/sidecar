@@ -125,6 +125,10 @@
     // pubkey -> how many of your follows follow them.
     const votes = new Map();
     let expanded = 0;
+    // Follows whose batch has been asked and settled, read or not: what the bar counts. Only
+    // reads used to move it, so a build whose batches were all failing sat at 0 of 873 for
+    // minutes and looked hung. Whether the set is whole is still `expanded`, at the end.
+    let settled = 0;
     let next = 0;
     // Zero of N before the first batch comes back, so the bar has its count from the start.
     if (typeof o.onProgress === 'function' && follows.length) {
@@ -135,18 +139,21 @@
         while (next < chunks.length) {
           const chunk = chunks[next++];
           let got;
+          let read = true;
           try {
             got = await o.fetchFollowsOf(chunk);
           } catch (_) {
-            continue; // a chunk that fails narrows the set; it must not empty it
+            read = false; // a chunk that fails narrows the set; it must not empty it
           }
-          expanded += chunk.length;
+          settled += chunk.length;
+          if (read) expanded += chunk.length;
           // Reported per chunk rather than per person: the caller is drawing a bar, and a
           // build on a large follow list is the one place in the panel where something
           // takes long enough that silence reads as broken.
           if (typeof o.onProgress === 'function') {
-            try { o.onProgress(expanded, follows.length); } catch (_) {}
+            try { o.onProgress(settled, follows.length); } catch (_) {}
           }
+          if (!read) continue;
           (got || []).forEach((pk) => {
             if (!isHexKey(pk)) return;
             const k = short(pk);
