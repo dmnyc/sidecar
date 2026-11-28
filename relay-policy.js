@@ -77,7 +77,32 @@
     return Object.keys(map).filter((u) => map[u].read);
   }
 
-  const api = { listFromTags, relayMap, writeRelays, readRelays };
+  // AN ADDRESS NOBODY ELSE SHOULD SEND THIS BROWSER TO. Someone's relay list is theirs to
+  // write, and it named addresses on the reader's own network: a private or shared-address
+  // IP (a home router, a tailnet), localhost, a .local or .onion name, or plain ws://, which
+  // is unencrypted. Opening a connection there from a stranger's list probes the reader's
+  // network for them, and an onion address cannot open in an ordinary browser anyway. True
+  // for those; the caller still lets the account's own relays through, since some people
+  // run one at home.
+  function isPrivateAddress(url) {
+    let u;
+    try { u = new URL(String(url)); } catch (_) { return false; } // junk never connects anyway
+    if (u.protocol !== 'wss:') return true;
+    const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (host === 'localhost' || /\.(localhost|local|onion|internal|lan|home\.arpa)$/.test(host)) return true;
+    const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (v4) {
+      const a = +v4[1], b = +v4[2];
+      return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
+        || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+    }
+    if (host.includes(':')) {
+      return host === '::1' || host === '::' || /^f[cd][0-9a-f]{0,2}:/.test(host) || /^fe[89ab][0-9a-f]?:/.test(host) || host.startsWith('::ffff:');
+    }
+    return false;
+  }
+
+  const api = { listFromTags, relayMap, writeRelays, readRelays, isPrivateAddress };
   if (typeof self !== 'undefined') self.SidecarRelayPolicy = api;
   if (typeof globalThis !== 'undefined') globalThis.SidecarRelayPolicy = api;
 })();
